@@ -1,0 +1,43 @@
+/* NutEgg Plugin Styles */
+
+.nutegg-description {
+  color: var(--text-muted);
+  margin-bottom: 1em;
+}
+
+.nutegg-status {
+  background: var(--background-secondary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 0.9em;
+}
+
+/* Server status indicator */
+.nutegg-server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.nutegg-server-status .indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-green);
+}
+
+.nutegg-server-status .indicator.offline {
+  background: var(--color-red);
+}
+
+/* Decision modal buttons */
+.nutegg-decision-modal .setting-item {
+  border-top: none;
+}
+
+.nutegg-decision-modal button {
+  min-width: 140px;
+}

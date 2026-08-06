@@ -1,0 +1,5 @@
+node_modules/
+obsidian-plugin/main.js
+*.js.map
+.DS_Store
+.claude/

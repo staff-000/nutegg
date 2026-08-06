@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutEgg</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-top">
+        <span class="logo">🥚 NutEgg</span>
+        <span id="server-status" class="status-dot offline" title="Obsidian server status"></span>
+      </div>
+    </header>
+
+    <!-- State 1: Capture -->
+    <div id="capture-state">
+      <div id="page-info" class="page-info">
+        <div class="page-title" id="page-title">Loading...</div>
+        <div class="page-url" id="page-url"></div>
+        <div class="page-type" id="page-type"></div>
+      </div>
+
+      <div id="error-banner" class="error-banner hidden">
+        <span class="error-icon">⚠️</span>
+        <span id="error-message"></span>
+      </div>
+
+      <button id="analyze-btn" class="analyze-btn" disabled>
+        <span id="analyze-btn-text">Analyze</span>
+      </button>
+    </div>
+
+    <!-- State 2: Results -->
+    <div id="results-state" class="hidden">
+      <!-- Summary -->
+      <div class="result-section">
+        <div class="section-label">📋 Summary</div>
+        <div id="summary-text" class="summary-text"></div>
+      </div>
+
+      <!-- Should Read? -->
+      <div class="result-section">
+        <div class="section-label">📖 Should you read it?</div>
+        <div id="verdict-badge" class="verdict-badge">
+          <span id="verdict-icon"></span>
+          <span id="verdict-text"></span>
+        </div>
+        <div id="verdict-reason" class="verdict-reason"></div>
+      </div>
+
+      <!-- New Knowledge -->
+      <div id="knowledge-section" class="result-section hidden">
+        <div class="section-label">🆕 New Knowledge to Add</div>
+        <div id="knowledge-list" class="knowledge-list"></div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button id="confirm-btn" class="confirm-btn hidden">
+          Add to Knowledge Base
+        </button>
+        <button id="discard-btn" class="discard-btn">Discard</button>
+        <button id="back-btn" class="back-btn">← Back</button>
+      </div>
+
+      <div id="success-banner" class="success-banner hidden">
+        <span class="success-icon">✅</span>
+        <span id="success-message"></span>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <small>NutEgg v1.0.0</small>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

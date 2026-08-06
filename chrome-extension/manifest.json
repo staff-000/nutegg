@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "NutEgg",
+  "version": "1.0.0",
+  "description": "Capture web content and send it to your Obsidian knowledge base with AI-powered curation.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:27123/*",
+    "http://127.0.0.1:27123/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "NutEgg — Capture to Obsidian",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "quick-capture": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Quick capture current page to Obsidian"
+    }
+  }
+}

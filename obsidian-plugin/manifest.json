@@ -1,0 +1,10 @@
+{
+  "id": "nutegg",
+  "name": "NutEgg",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Capture web content from Chrome, curate your knowledge base with AI assistance via Claude.",
+  "author": "",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}
