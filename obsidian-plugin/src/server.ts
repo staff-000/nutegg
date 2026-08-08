@@ -1,5 +1,6 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
+import { AIError } from "./ai-client";
 
 interface AnalyzeRequest {
   url: string;
@@ -56,6 +57,11 @@ export class NutEggServer {
         return;
       }
 
+      if (req.method === "GET" && req.url === "/config-status") {
+        this.handleConfigStatus(res);
+        return;
+      }
+
       if (req.method === "POST" && req.url === "/analyze") {
         this.handleAnalyze(req, res);
         return;
@@ -80,6 +86,30 @@ export class NutEggServer {
         reject(err);
       });
     });
+  }
+
+  /**
+   * GET /config-status — Returns AI configuration status for the popup to show warnings.
+   */
+  private handleConfigStatus(res: http.ServerResponse): void {
+    const settings = this.plugin.settings;
+    const issues: string[] = [];
+    let status: "ok" | "warning" | "error" = "ok";
+
+    if (!settings.aiApiKey) {
+      issues.push("No API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key.");
+      status = "error";
+    }
+
+    // Check if _index.md exists
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(settings.indexFile);
+    if (!indexFile) {
+      issues.push(`Index file "${settings.indexFile}" not found. Click the egg icon in Obsidian to create it.`);
+      status = status === "error" ? "error" : "warning";
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status, issues }));
   }
 
   /**
@@ -134,13 +164,32 @@ export class NutEggServer {
       res.end(JSON.stringify(result));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
+
+      if (err instanceof AIError) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: err.message,
+            errorCode: err.code,
+            statusCode: err.statusCode,
+            summary: "",
+            shouldRead: false,
+            shouldReadReason: "",
+            matchedTopics: [],
+            newKnowledge: [],
+          })
+        );
+        return;
+      }
+
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          error: "Analysis failed",
-          summary: "Error during analysis. Please try again.",
-          shouldRead: true,
-          shouldReadReason: "Analysis error.",
+          error: "Analysis failed. Please try again.",
+          errorCode: "unknown",
+          summary: "",
+          shouldRead: false,
+          shouldReadReason: "",
           matchedTopics: [],
           newKnowledge: [],
         })

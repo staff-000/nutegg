@@ -24,9 +24,17 @@
         <div class="page-type" id="page-type"></div>
       </div>
 
+      <div id="warning-banner" class="warning-banner hidden">
+        <span class="warning-icon">⚠️</span>
+        <div id="warning-message"></div>
+      </div>
+
       <div id="error-banner" class="error-banner hidden">
-        <span class="error-icon">⚠️</span>
-        <span id="error-message"></span>
+        <span class="error-icon">❌</span>
+        <div>
+          <div id="error-message"></div>
+          <div id="error-hint" class="error-hint hidden"></div>
+        </div>
       </div>
 
       <button id="analyze-btn" class="analyze-btn" disabled>

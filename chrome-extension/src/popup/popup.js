@@ -9,8 +9,11 @@ const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
 const analyzeBtn = document.getElementById("analyze-btn");
 const analyzeBtnText = document.getElementById("analyze-btn-text");
+const warningBanner = document.getElementById("warning-banner");
+const warningMessage = document.getElementById("warning-message");
 const errorBanner = document.getElementById("error-banner");
 const errorMessage = document.getElementById("error-message");
+const errorHint = document.getElementById("error-hint");
 
 // DOM elements — Results state
 const captureState = document.getElementById("capture-state");
@@ -37,9 +40,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   await checkServerStatus();
   await extractPageContent();
 
-  if (serverOnline && extractedContent) {
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "Analyze";
+  if (serverOnline) {
+    await checkConfigStatus();
+    if (extractedContent) {
+      analyzeBtn.disabled = false;
+      analyzeBtnText.textContent = "Analyze";
+    }
   }
 
   analyzeBtn.addEventListener("click", handleAnalyze);
@@ -47,6 +53,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   discardBtn.addEventListener("click", handleDiscard);
   backBtn.addEventListener("click", showCaptureState);
 });
+
+// --- Config status ---
+
+async function checkConfigStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: "config-status" });
+    if (response?.issues && response.issues.length > 0) {
+      showWarning(response.issues.join(" "));
+    } else {
+      hideWarning();
+    }
+  } catch {
+    // Can't reach server for config check — handled by server status dot
+  }
+}
 
 // --- Server check ---
 
@@ -151,7 +172,7 @@ async function handleAnalyze() {
     });
 
     if (response?.error) {
-      showError(response.error);
+      showError(response.error, response.errorCode);
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
       return;
@@ -268,13 +289,50 @@ function handleDiscard() {
 
 // --- Helpers ---
 
-function showError(msg) {
+function showError(msg, errorCode) {
   errorMessage.textContent = msg;
   errorBanner.classList.remove("hidden");
+
+  // Show a contextual hint based on error code
+  const hints = {
+    no_api_key:
+      'Open Obsidian Settings → NutEgg, enable <strong>Developer Mode</strong>, and add your API key.',
+    auth_failed:
+      'Your API key was rejected. Double-check it in Obsidian Settings → NutEgg. Make sure there are no extra spaces.',
+    forbidden:
+      'Your account may not have access to this model, or needs a funded billing plan. Check your account at the provider\'s website.',
+    model_not_found:
+      'The model name may be incorrect or not available. Go to Obsidian Settings → NutEgg and try a different model.',
+    rate_limited:
+      'You\'re sending requests too quickly. Wait a moment before trying again.',
+    quota_exceeded:
+      'Check your account balance or billing settings at your AI provider.',
+    network_error:
+      'Cannot reach the AI service. Check your internet connection. If using a proxy or VPN, try disabling it.',
+    server_error:
+      'The AI service may be temporarily down. Try again in a minute.',
+  };
+
+  if (errorCode && hints[errorCode]) {
+    errorHint.innerHTML = hints[errorCode];
+    errorHint.classList.remove("hidden");
+  } else {
+    errorHint.classList.add("hidden");
+  }
 }
 
 function hideError() {
   errorBanner.classList.add("hidden");
+  errorHint.classList.add("hidden");
+}
+
+function showWarning(msg) {
+  warningMessage.textContent = msg;
+  warningBanner.classList.remove("hidden");
+}
+
+function hideWarning() {
+  warningBanner.classList.add("hidden");
 }
 
 function escapeHtml(str) {

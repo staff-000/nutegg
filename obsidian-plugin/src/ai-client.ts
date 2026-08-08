@@ -157,6 +157,63 @@ function resolveConfig(settings: NutEggSettings): ResolvedConfig {
 }
 
 // ============================================================
+// Structured AI Error
+// ============================================================
+
+export type AIErrorCode =
+  | "no_api_key"
+  | "auth_failed"
+  | "forbidden"
+  | "model_not_found"
+  | "rate_limited"
+  | "quota_exceeded"
+  | "network_error"
+  | "server_error"
+  | "unknown";
+
+export class AIError extends Error {
+  code: AIErrorCode;
+  statusCode: number | null;
+
+  constructor(code: AIErrorCode, message: string, statusCode?: number) {
+    super(message);
+    this.name = "AIError";
+    this.code = code;
+    this.statusCode = statusCode ?? null;
+  }
+}
+
+/**
+ * Classify an HTTP error response into a structured AIError.
+ */
+function classifyError(statusCode: number, body: string): AIError {
+  const lower = body.toLowerCase();
+
+  if (statusCode === 401) {
+    return new AIError("auth_failed", "API key is invalid or missing. Check your API key in NutEgg settings.", statusCode);
+  }
+  if (statusCode === 403) {
+    return new AIError("forbidden", "Access denied. Your API key may not have permission for this model, or your account needs a funded billing plan.", statusCode);
+  }
+  if (statusCode === 404 || lower.includes("model not found") || lower.includes("model_not_found")) {
+    return new AIError("model_not_found", "The selected model was not found. The model name may be incorrect or not available on this endpoint.", statusCode);
+  }
+  if (statusCode === 429) {
+    return new AIError("rate_limited", "Rate limit exceeded. Wait a moment and try again.", statusCode);
+  }
+  if (statusCode >= 500) {
+    return new AIError("server_error", `The AI service returned a server error (${statusCode}). It may be temporarily down — try again shortly.`, statusCode);
+  }
+  if (lower.includes("quota") || lower.includes("insufficient") || lower.includes("balance") || lower.includes("billing")) {
+    return new AIError("quota_exceeded", "API quota exceeded or insufficient funds. Check your account balance or billing settings.", statusCode);
+  }
+
+  // Generic fallback with truncated body
+  const snippet = body.slice(0, 300);
+  return new AIError("unknown", `API error (${statusCode}): ${snippet}`, statusCode);
+}
+
+// ============================================================
 // AIClient
 // ============================================================
 
@@ -169,7 +226,10 @@ export class AIClient {
 
   async chat(prompt: string, maxTokens: number): Promise<string> {
     if (!this.config.apiKey) {
-      throw new Error("No API key configured. Set it in NutEgg settings.");
+      throw new AIError(
+        "no_api_key",
+        "No AI API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key."
+      );
     }
 
     if (this.config.apiFormat === "anthropic") {
@@ -181,52 +241,68 @@ export class AIClient {
   // --- Anthropic-native format ---
 
   private async chatAnthropic(prompt: string, maxTokens: number): Promise<string> {
-    const response = await fetch(this.config.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": this.config.apiKey,
-        ...this.config.extraHeaders,
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(this.config.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": this.config.apiKey,
+          ...this.config.extraHeaders,
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          max_tokens: maxTokens,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+    } catch {
+      throw new AIError(
+        "network_error",
+        "Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct."
+      );
+    }
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`AI API error (${response.status}): ${err.slice(0, 500)}`);
+      throw classifyError(response.status, err);
     }
 
     const data = await response.json();
     return data?.content?.[0]?.text || "";
   }
 
-  // --- OpenAI-compatible format (OpenAI, DeepSeek, Kimi, Zhipu, Qwen, OpenRouter, Gemini) ---
+  // --- OpenAI-compatible format ---
 
   private async chatOpenAICompatible(
     prompt: string,
     maxTokens: number
   ): Promise<string> {
-    const response = await fetch(this.config.endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.config.apiKey}`,
-        ...this.config.extraHeaders,
-      },
-      body: JSON.stringify({
-        model: this.config.model,
-        max_completion_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(this.config.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.config.apiKey}`,
+          ...this.config.extraHeaders,
+        },
+        body: JSON.stringify({
+          model: this.config.model,
+          max_completion_tokens: maxTokens,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+    } catch {
+      throw new AIError(
+        "network_error",
+        "Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct."
+      );
+    }
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`AI API error (${response.status}): ${err.slice(0, 500)}`);
+      throw classifyError(response.status, err);
     }
 
     const data = await response.json();
