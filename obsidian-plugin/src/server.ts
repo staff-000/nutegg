@@ -53,7 +53,7 @@ export class NutEggServer {
 
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", timestamp: Date.now() }));
+        res.end(JSON.stringify({ status: "ok", port: this.port, timestamp: Date.now() }));
         return;
       }
 
@@ -109,7 +109,7 @@ export class NutEggServer {
     }
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status, issues }));
+    res.end(JSON.stringify({ status, issues, port: this.port }));
   }
 
   /**

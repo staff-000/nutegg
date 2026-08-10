@@ -9,8 +9,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "http://localhost:27123/*",
-    "http://127.0.0.1:27123/*"
+    "http://127.0.0.1:*/*"
   ],
   "action": {
     "default_popup": "src/popup/popup.html",

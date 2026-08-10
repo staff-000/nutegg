@@ -53,6 +53,47 @@ body {
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
 }
 
+/* Port row (shown when offline) */
+.port-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.port-label {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.port-input {
+  width: 70px;
+  padding: 3px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.port-input::-webkit-inner-spin-button,
+.port-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.port-save-btn {
+  padding: 3px 8px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.port-save-btn:hover {
+  background: #e5e7eb;
+}
+
 /* Page Info */
 .page-info {
   background: #ffffff;

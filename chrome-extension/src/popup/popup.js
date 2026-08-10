@@ -1,9 +1,12 @@
 // NutEgg Popup Script — Two-state UI
 
-const OBSIDIAN_URL = "http://127.0.0.1:27123";
+const DEFAULT_PORT = 27123;
 
 // DOM elements — Capture state
 const serverStatus = document.getElementById("server-status");
+const portRow = document.getElementById("port-row");
+const portInput = document.getElementById("port-input");
+const portSaveBtn = document.getElementById("port-save-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
@@ -33,26 +36,60 @@ const successMessage = document.getElementById("success-message");
 let extractedContent = null;
 let serverOnline = false;
 let analysisResult = null;
+let currentPort = DEFAULT_PORT;
 
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Load saved port
+  const stored = await chrome.storage.local.get("serverPort");
+  if (stored.serverPort) currentPort = stored.serverPort;
+  portInput.value = currentPort;
+
   await checkServerStatus();
   await extractPageContent();
 
   if (serverOnline) {
+    portRow.classList.add("hidden");
     await checkConfigStatus();
     if (extractedContent) {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
     }
+  } else {
+    // Show port input when offline so user can fix it
+    portRow.classList.remove("hidden");
   }
 
   analyzeBtn.addEventListener("click", handleAnalyze);
   confirmBtn.addEventListener("click", handleConfirm);
   discardBtn.addEventListener("click", handleDiscard);
   backBtn.addEventListener("click", showCaptureState);
+  portSaveBtn.addEventListener("click", handlePortChange);
+  portInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handlePortChange();
+  });
 });
+
+// --- Port change ---
+
+async function handlePortChange() {
+  const newPort = parseInt(portInput.value, 10);
+  if (!newPort || newPort < 1 || newPort > 65535) return;
+
+  currentPort = newPort;
+  await chrome.runtime.sendMessage({ action: "set-port", port: newPort });
+
+  // Retry connection with new port
+  await checkServerStatus();
+  if (serverOnline) {
+    portRow.classList.add("hidden");
+    if (extractedContent) {
+      analyzeBtn.disabled = false;
+      analyzeBtnText.textContent = "Analyze";
+    }
+  }
+}
 
 // --- Config status ---
 
@@ -75,16 +112,22 @@ async function checkServerStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "check-server" });
     serverOnline = response?.online || false;
+
+    // Auto-sync port from server response
+    if (response?.port && response.port !== currentPort) {
+      currentPort = response.port;
+      portInput.value = currentPort;
+    }
   } catch {
     serverOnline = false;
   }
 
   if (serverOnline) {
     serverStatus.className = "status-dot online";
-    serverStatus.title = "Obsidian server is online";
+    serverStatus.title = `Server online on port ${currentPort}`;
   } else {
     serverStatus.className = "status-dot offline";
-    serverStatus.title = "Obsidian server is offline — start Obsidian with NutEgg";
+    serverStatus.title = `Server offline — check port ${currentPort}`;
   }
 }
 
