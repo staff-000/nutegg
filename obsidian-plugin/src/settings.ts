@@ -32,43 +32,9 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   aiApiKey: "",
   aiModel: "claude-sonnet-5",
   serverPort: 27123,
-  rawFolder: "_raw",
-  indexFile: "_index.md",
+  rawFolder: "nutegg/_raw",
+  indexFile: "nutegg/_index.md",
 };
-
-/**
- * Migrate settings from older versions.
- */
-export function migrateSettings(old: any): Partial<NutEggSettings> {
-  const migrated: any = {};
-
-  // Rename anthropicApiKey → aiApiKey
-  if (old.anthropicApiKey && !old.aiApiKey) {
-    migrated.aiApiKey = old.anthropicApiKey;
-  }
-
-  // Rename anthropicModel → aiModel
-  if (old.anthropicModel && !old.aiModel) {
-    migrated.aiModel = old.anthropicModel;
-  }
-
-  // Map old aiProvider values to new ones
-  if (old.aiProvider === "openrouter") {
-    migrated.aiProvider = "anthropic";
-    migrated.aiSource = "openrouter";
-  }
-  if (old.aiProvider === "deepseek" && !migrated.aiProvider) {
-    migrated.aiProvider = "deepseek";
-  }
-  if (old.aiProvider === "openai" && !migrated.aiProvider) {
-    migrated.aiProvider = "openai";
-  }
-  if (old.aiProvider === "custom" && !migrated.aiProvider) {
-    // Old custom → keep as anthropic official, user will reconfigure
-  }
-
-  return migrated;
-}
 
 export class NutEggSettingTab extends PluginSettingTab {
   plugin: NutEggPlugin;
@@ -88,6 +54,37 @@ export class NutEggSettingTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: "NutEgg Settings" });
 
     // ==========================================
+    // Vault Paths (always visible)
+    // ==========================================
+    containerEl.createEl("h3", { text: "Vault Paths" });
+
+    new Setting(containerEl)
+      .setName("Raw Content Folder")
+      .setDesc("Folder for saved raw content")
+      .addText((text) =>
+        text
+          .setPlaceholder("nutegg/_raw")
+          .setValue(settings.rawFolder)
+          .onChange(async (value) => {
+            settings.rawFolder = value.trim() || "nutegg/_raw";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Index File")
+      .setDesc("File that maps topics to their markdown files")
+      .addText((text) =>
+        text
+          .setPlaceholder("nutegg/_index.md")
+          .setValue(settings.indexFile)
+          .onChange(async (value) => {
+            settings.indexFile = value.trim() || "nutegg/_index.md";
+            await this.plugin.saveSettings();
+          })
+      );
+
+      // ==========================================
     // Developer Mode toggle
     // ==========================================
     new Setting(containerEl)
@@ -110,37 +107,6 @@ export class NutEggSettingTab extends PluginSettingTab {
     if (settings.developerMode) {
       this.displayAdvancedSettings(containerEl, settings, provider, isOpenRouter);
     }
-
-    // ==========================================
-    // Vault Paths (always visible)
-    // ==========================================
-    containerEl.createEl("h3", { text: "Vault Paths" });
-
-    new Setting(containerEl)
-      .setName("Raw Content Folder")
-      .setDesc("Folder for saved raw content")
-      .addText((text) =>
-        text
-          .setPlaceholder("_raw")
-          .setValue(settings.rawFolder)
-          .onChange(async (value) => {
-            settings.rawFolder = value.trim() || "_raw";
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Index File")
-      .setDesc("File that maps topics to their markdown files")
-      .addText((text) =>
-        text
-          .setPlaceholder("_index.md")
-          .setValue(settings.indexFile)
-          .onChange(async (value) => {
-            settings.indexFile = value.trim() || "_index.md";
-            await this.plugin.saveSettings();
-          })
-      );
   }
 
   private displayAdvancedSettings(

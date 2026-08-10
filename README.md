@@ -4,26 +4,62 @@
 
 NutEgg is a two-part system that helps you stop mindless browsing and start building your knowledge base:
 
-- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video
-- **Obsidian Plugin** — Receives content, processes it with Claude AI, and maintains your knowledge base
+- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with captions)
+- **Obsidian Plugin** — Analyzes content with AI and maintains your knowledge base
 
 ## How It Works
 
 ```
-Browse Web  →  Click Capture  →  Claude AI Processes  →  Knowledge Base in Obsidian
+Browse Web  →  Click Analyze  →  AI Processes  →  Confirm →  Knowledge Base in Obsidian
 ```
 
-### Three Decision Modes
+1. Click the NutEgg extension on any page
+2. Click **Analyze** — the AI reads your topic index and existing knowledge
+3. See a 3-line summary + "Should you read it?" verdict + what new knowledge it found
+4. Click **Add to Knowledge Base** to save — raw content goes to `nutegg/_raw/`, insights go to your topic files
 
-| Mode | What It Does | When to Use |
-|------|-------------|-------------|
-| ⚡ **Quick Drop** | One-sentence summary, discard the rest | Most content — just capture the gist |
-| 📝 **Extract & Integrate** | Full extraction, highlights what's new vs. your KB | Worthwhile content with new information |
-| 🧠 **Deep Digest** | Comprehensive multi-pass intellectual digestion | Truly important content (manual trigger) |
+## Vault Structure
 
-### YouTube Channel Processing
+Everything lives under a `nutegg/` folder in your vault:
 
-Ask NutEgg to read all videos of a YouTube channel and generate a synthesized knowledge base entry — no API key needed (uses RSS feeds).
+```
+vault/
+└── nutegg/
+    ├── _raw/                          # Raw captured content
+    │   └── 2026-08-10-14-30-youtube-How-AI-Works.md
+    ├── _index.md                      # Topic routing guide
+    ├── invest_strategy.md             # Topic: investment knowledge
+    ├── psychology.md                  # Topic: psychology knowledge
+    └── ai_ml.md                       # Topic: AI/ML knowledge
+```
+
+### `_index.md` format
+
+Maps content to topic files. One entry per line:
+
+```
+nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management
+nutegg/psychology.md: cognitive biases, mental models, behavioral psychology
+nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
+```
+
+### Topic file format
+
+```
+instruct:
+  * key questions: what new insights does this add?
+  * reject criteria: ignore content that repeats existing knowledge
+---
+# knowledge
+- **2026-08-10** — Specific insight here ([source](https://...))
+
+# ideas
+- **2026-08-05** — A new idea or perspective ([source](https://...))
+```
+
+### Raw file naming
+
+`YYYY-MM-DD-HH-MM-<sourceType>-<title>.md`
 
 ## Setup
 
@@ -32,16 +68,23 @@ Ask NutEgg to read all videos of a YouTube channel and generate a synthesized kn
 ```bash
 cd obsidian-plugin
 npm install
-npm run build    # Production build
-npm run dev      # Development watch mode
+npm run build
 ```
 
-Then copy `main.js`, `manifest.json`, and `styles.css` to your Obsidian vault's `.obsidian/plugins/nutegg/` folder.
+Then copy `main.js`, `manifest.json`, and `styles.css` to your vault's `.obsidian/plugins/nutegg/` folder.
+
+Or use the deploy script:
+
+```bash
+./deploy.sh                           # auto-detects your vault
+./deploy.sh --vault "/path/to/vault"  # specify vault path
+```
 
 Configure in Obsidian Settings → NutEgg:
-- Add your **Anthropic API key**
-- Choose your preferred **Claude model**
-- Set your **default decision mode**
+- Enable **Developer Mode** to see advanced settings
+- Choose your **AI provider** (Anthropic, OpenAI, DeepSeek, Gemini, Kimi, Zhipu, Qwen)
+- Choose **API source** (official API or OpenRouter)
+- Add your **API key**
 
 ### 2. Chrome Extension
 
@@ -52,56 +95,21 @@ Configure in Obsidian Settings → NutEgg:
 
 No build step required — all plain JavaScript.
 
-### 3. Verify Connection
+## Supported Websites
 
-1. Start Obsidian with the NutEgg plugin loaded
-2. You should see a notice: "NutEgg server started on port 27123"
-3. Open the Chrome extension popup — the status dot should be 🟢 green
+| Site | What's Extracted |
+|------|-----------------|
+| **YouTube** | Title, channel, description, chapters, **captions/transcript** |
+| **Twitter/X** | Tweet text, author, thread context, links, stats |
+| **Medium** | Article body, author, reading time |
+| **Articles/Blogs** | Content, headings structure, author, published date |
+| **Generic webpages** | Main content area, metadata, description |
 
-## Vault Structure
-
-After setup, NutEgg creates this structure in your vault:
-
-```
-vault/
-├── inbox/                    # Captured content awaiting processing
-│   └── 2026-07-28-article-title.md
-├── knowledge-base/           # Your curated knowledge
-│   ├── topics/               # Knowledge organized by topic
-│   │   └── machine-learning.md
-│   └── sources/              # YouTube channel syntheses
-│       └── veritasium.md
-└── quick-drops.md            # Running log of one-sentence summaries
-```
-
-## Commands
-
-Available in the Obsidian command palette:
-
-| Command | Description |
-|---------|-------------|
-| **Process all inbox items** | Process everything in the inbox folder |
-| **Quick capture from clipboard** | Capture clipboard content |
-| **Open decision modal** | Choose how to process inbox items |
-| **Process YouTube channel** | Enter a channel URL to generate KB |
-| **Browse knowledge base** | Open the KB browser |
-| **View quick drops log** | Read your one-sentence summaries |
-
-## Keyboard Shortcut
-
-In Chrome: `⌘/Ctrl + Shift + S` to quick-capture the current page.
-
-(Customizable in `chrome://extensions/shortcuts`)
-
-## Tech Stack
-
-- **Obsidian Plugin**: TypeScript, esbuild, Obsidian API, Anthropic Claude API
-- **Chrome Extension**: Plain JavaScript, Manifest V3
-- **AI**: Claude (Sonnet 5 by default, configurable to Opus 5 or Haiku 4.5)
+To add a new site extractor, edit `chrome-extension/src/content/content-script.js` and add a detect + extract pair to the `EXTRACTORS` registry.
 
 ## Privacy
 
-All processing happens locally. Content is sent to the Anthropic API for AI processing, but your knowledge base stays in your Obsidian vault. The Chrome extension only communicates with your local Obsidian server (`127.0.0.1:27123`).
+All processing happens locally. Content is sent to your chosen AI provider for analysis, but your knowledge base stays in your Obsidian vault. The Chrome extension only communicates with your local Obsidian server (`127.0.0.1:27123`).
 
 ## License
 

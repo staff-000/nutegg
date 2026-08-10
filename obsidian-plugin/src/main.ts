@@ -3,7 +3,6 @@ import {
   NutEggSettings,
   DEFAULT_SETTINGS,
   NutEggSettingTab,
-  migrateSettings,
 } from "./settings";
 import { AIClient } from "./ai-client";
 import { NutEggServer } from "./server";
@@ -54,12 +53,19 @@ export default class NutEggPlugin extends Plugin {
         const leaf = this.app.workspace.getLeaf(false);
         await leaf.openFile(file as any);
       } else {
-        // Create default _index.md
+        // Create default nutegg/_index.md
+        // Also ensure nutegg/ folder exists
+        await this.ensureFolder("nutegg");
+
         const defaultIndex = [
           "# NutEgg Topic Index",
-          "# Add your topic mappings below:",
-          "# format: topic-file.md: description of what topics it covers",
-          "# example: invest.md: stocks, crypto, personal finance, market trends",
+          "# Add your topic mappings below.",
+          "# Format: path/to/topic-file.md: description of what topics it covers",
+          "# Topic files go under nutegg/ alongside _index.md.",
+          "# Examples:",
+          "#   nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management",
+          "#   nutegg/psychology.md: cognitive biases, mental models, behavioral psychology",
+          "#   nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI",
           "",
         ].join("\n");
         await this.app.vault.create(indexPath, defaultIndex);
@@ -76,7 +82,8 @@ export default class NutEggPlugin extends Plugin {
         const topicName = await this.promptForTopicName();
         if (!topicName) return;
 
-        const fileName = `${topicName}.md`;
+        const fileName = `nutegg/${topicName}.md`;
+        await this.ensureFolder("nutegg");
         const existingFile = this.app.vault.getAbstractFileByPath(fileName);
 
         if (existingFile) {
@@ -102,7 +109,7 @@ export default class NutEggPlugin extends Plugin {
 
         // Also remind to add to _index.md
         new Notice(
-          `NutEgg: Remember to add "${fileName}: description" to ${this.settings.indexFile}`
+          `NutEgg: Add "${fileName}: description" to ${this.settings.indexFile}`
         );
       },
     });
@@ -133,12 +140,23 @@ export default class NutEggPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const data = await this.loadData() || {};
-    const migrated = migrateSettings(data);
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, data, migrated);
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
   }
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  private async ensureFolder(folder: string): Promise<void> {
+    const parts = folder.split("/");
+    let currentPath = "";
+    for (const part of parts) {
+      currentPath += (currentPath ? "/" : "") + part;
+      const exists = this.app.vault.getAbstractFileByPath(currentPath);
+      if (!exists) {
+        await this.app.vault.createFolder(currentPath);
+      }
+    }
   }
 
   /**

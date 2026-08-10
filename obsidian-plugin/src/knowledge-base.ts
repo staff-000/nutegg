@@ -11,7 +11,8 @@ export class KnowledgeBase {
   }
 
   /**
-   * Save the captured content to the _raw/ folder.
+   * Save the captured content to the raw folder.
+   * File naming: YYYY-MM-DD-HH-MM-Source-title.md
    */
   async saveRaw(capture: {
     url: string;
@@ -23,9 +24,18 @@ export class KnowledgeBase {
     const folder = this.plugin.settings.rawFolder;
     await this.ensureFolder(folder);
 
-    const safeFileName = this.sanitizeFileName(capture.title);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `${folder}/${timestamp}-${safeFileName}.md`;
+    const safeTitle = this.sanitizeFileName(capture.title);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const timestamp = [
+      now.getFullYear(),
+      pad(now.getMonth() + 1),
+      pad(now.getDate()),
+      pad(now.getHours()),
+      pad(now.getMinutes()),
+    ].join("-");
+    const source = this.sanitizeFileName(capture.sourceType);
+    const fileName = `${folder}/${timestamp}-${source}-${safeTitle}.md`;
 
     const frontmatterLines = [
       "---",

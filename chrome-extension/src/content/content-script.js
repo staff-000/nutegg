@@ -1,32 +1,417 @@
-// NutEgg Content Script — injected into every page
-// Contains all extractors inline for no-build-step simplicity
+// ============================================================
+// NutEgg Content Script — Extendable Web Content Extractor
+// ============================================================
+//
+// To add a new site extractor:
+//   1. Add a detect function (returns true if the extractor applies)
+//   2. Add an extract function (returns {url, title, content, sourceType, metadata?})
+//   3. Register both in the EXTRACTORS array below
+//
+// Extractors are tried in order — first match wins.
 
-// --- Page Type Detection ---
+// ============================================================
+// Shared utilities
+// ============================================================
 
-function detectPageType() {
-  const url = window.location.href;
-  if (url.includes("twitter.com") || url.includes("x.com")) return "twitter";
-  if (url.includes("youtube.com/watch")) return "youtube";
-  if (url.includes("youtube.com")) return "webpage";
-
-  const articleMeta = document.querySelector('meta[property="og:type"][content="article"]');
-  const hasArticleTag = document.querySelector("article");
-  const hasSchemaArticle = document.querySelector('[itemtype*="Article"]');
-  if (articleMeta || (hasArticleTag && hasSchemaArticle)) return "article";
-
-  return "webpage";
+function extractText(element) {
+  const clone = element.cloneNode(true);
+  clone.querySelectorAll("script, style, noscript, svg, img, video, audio, iframe, nav, footer")
+    .forEach((el) => el.remove());
+  let text = clone.textContent || "";
+  return text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
+    .replace(/^\s+|\s+$/gm, "").trim();
 }
 
-// --- Generic Extractor ---
+function getMeta(name) {
+  return document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.getAttribute("content")?.trim() || "";
+}
+
+function truncate(text, max) {
+  if (text.length <= max) return text;
+  return text.substring(0, max) + "\n\n[...truncated]";
+}
+
+function readingTime(text) {
+  const mins = Math.ceil(text.split(/\s+/).length / 200);
+  return mins <= 1 ? "~1 min" : `~${mins} min`;
+}
+
+// ============================================================
+// Extractor: YouTube (video pages)
+// ============================================================
+
+function detectYouTube() {
+  return window.location.href.includes("youtube.com/watch");
+}
+
+async function extractYouTube() {
+  const url = window.location.href;
+
+  const title =
+    document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
+    document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
+    document.querySelector('meta[name="title"]')?.getAttribute("content")?.trim() ||
+    document.title.replace(" - YouTube", "").trim();
+
+  const channelName =
+    document.querySelector("#channel-name yt-formatted-string a")?.textContent?.trim() ||
+    document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
+    document.querySelector("#owner-name a")?.textContent?.trim() || "";
+
+  // Description
+  const descEl = document.querySelector("#description-inline-expander, ytd-expander#description");
+  let description = "";
+  if (descEl) {
+    const snippet = descEl.querySelector("yt-formatted-string, #snippet") ||
+      descEl.querySelector('[slot="content"]');
+    if (snippet) description = snippet.textContent?.trim() || "";
+  }
+  if (!description) description = getMeta("og:description");
+
+  // Stats
+  const viewCount = document.querySelector("#info .view-count")?.textContent?.trim() || "";
+  const date = document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
+    getMeta("datePublished") || "";
+
+  // Chapters
+  const chapters = [];
+  document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
+    const time = el.querySelector("#time")?.textContent?.trim();
+    const chTitle = el.querySelector("h4")?.textContent?.trim();
+    if (time && chTitle) chapters.push(`- ${time} — ${chTitle}`);
+  });
+
+  // Captions / transcript via YouTube timedtext API
+  let transcript = "";
+  try {
+    transcript = await fetchYouTubeCaptions();
+  } catch {
+    // Captions not available — that's fine
+  }
+
+  const videoId = new URL(url).searchParams.get("v") || "";
+  const parts = [`# ${title}`];
+  if (channelName) parts.push(`**Channel:** ${channelName}`);
+  if (viewCount) parts.push(`**Views:** ${viewCount}`);
+  if (date) parts.push(`**Published:** ${date}`);
+  if (videoId) parts.push(`**Video ID:** ${videoId}`);
+
+  if (description) {
+    parts.push(`\n## Description\n\n${description}`);
+  }
+  if (chapters.length > 0) {
+    parts.push(`\n## Chapters\n\n${chapters.join("\n")}`);
+  }
+  if (transcript) {
+    parts.push(`\n## Transcript\n\n${truncate(transcript, 10000)}`);
+  } else {
+    parts.push(`\n## Transcript\n\n*No transcript available for this video.*`);
+  }
+
+  return {
+    url, title,
+    content: parts.join("\n"),
+    sourceType: "youtube",
+    metadata: {
+      platform: "YouTube",
+      ...(channelName && { channel: channelName }),
+      ...(date && { published: date }),
+      ...(videoId && { video_id: videoId }),
+    },
+  };
+}
+
+/**
+ * Fetch YouTube captions via the timedtext API (no auth required).
+ */
+async function fetchYouTubeCaptions() {
+  const videoId = new URL(window.location.href).searchParams.get("v");
+  if (!videoId) return "";
+
+  // Try to get captions from ytInitialPlayerResponse
+  try {
+    const playerResponse = window.ytInitialPlayerResponse || {};
+    const captions = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (captions && captions.length > 0) {
+      // Prefer English, then first available
+      const track = captions.find((t) => t.languageCode === "en") || captions[0];
+      if (track.baseUrl) {
+        const resp = await fetch(track.baseUrl);
+        const xml = await resp.text();
+        return parseYouTubeCaptionXML(xml);
+      }
+    }
+  } catch (e) {
+    // Fall through to page scraping
+  }
+
+  // Fallback: try fetching from timedtext API
+  try {
+    const resp = await fetch(
+      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`
+    );
+    const html = await resp.text();
+    const match = html.match(/"captionTracks":\s*(\[.*?\])/);
+    if (match) {
+      const tracks = JSON.parse(match[1]);
+      if (tracks.length > 0) {
+        const track = tracks.find((t) => t.languageCode === "en") || tracks[0];
+        if (track.baseUrl) {
+          const cr = await fetch(track.baseUrl);
+          return parseYouTubeCaptionXML(await cr.text());
+        }
+      }
+    }
+  } catch {
+    // No captions available
+  }
+
+  return "";
+}
+
+function parseYouTubeCaptionXML(xml) {
+  const texts = [];
+  const regex = /<text[^>]*>(.*?)<\/text>/g;
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    // Strip HTML tags from caption text
+    const text = match[1].replace(/<[^>]+>/g, "").trim();
+    if (text) texts.push(text);
+  }
+  return texts.join(" ");
+}
+
+// ============================================================
+// Extractor: Twitter / X
+// ============================================================
+
+function detectTwitter() {
+  const url = window.location.href;
+  return url.includes("twitter.com") || url.includes("x.com");
+}
+
+function extractTwitter() {
+  const url = window.location.href;
+
+  // Main tweet
+  const mainTweet = document.querySelector('article[data-testid="tweet"]');
+  let tweetContent = mainTweet ? extractMainTweet(mainTweet) : "";
+
+  // Fallback: collect all visible tweet texts
+  if (!tweetContent) {
+    const tweetTexts = document.querySelectorAll('[data-testid="tweetText"]');
+    tweetContent = [...tweetTexts]
+      .map((el) => el.textContent?.trim()).filter(Boolean)
+      .join("\n\n---\n\n");
+  }
+
+  // Fallback: use page title (twitter puts tweet text in title)
+  if (!tweetContent) {
+    tweetContent = document.title
+      .replace(/^(.+?)\s*\/\s*X\s*$/, "$1")
+      .replace(/^(.+?)\s*\/\s*Twitter\s*$/, "$1");
+  }
+
+  // Author info
+  const authorName = document.querySelector('[data-testid="User-Name"]')?.textContent?.trim() || "";
+  const authorHandle = document.querySelector('[data-testid="User-Name"] a')?.textContent?.trim() || "";
+  const timestamp = document.querySelector("time")?.getAttribute("datetime") || "";
+
+  // Thread detection
+  const threadTweets = document.querySelectorAll('article[data-testid="tweet"]');
+  if (threadTweets.length > 1 && mainTweet) {
+    const threadContent = [...threadTweets]
+      .map((tweet, i) => {
+        const text = tweet.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
+        const user = tweet.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
+        return text ? `${i + 1}. **${user || "..."}**: ${text}` : null;
+      })
+      .filter(Boolean).join("\n\n");
+    if (threadContent) tweetContent = `## Thread (${threadTweets.length} tweets)\n\n${threadContent}`;
+  }
+
+  const title = authorName ? `Tweet by ${authorName}` : `Tweet from ${url}`;
+  return {
+    url, title,
+    content: `# ${title}\n\n${tweetContent || "Could not extract tweet content."}`,
+    sourceType: "twitter",
+    metadata: {
+      platform: "Twitter/X",
+      ...(authorName && { author: authorName }),
+      ...(authorHandle && { handle: authorHandle }),
+      ...(timestamp && { published: timestamp }),
+    },
+  };
+}
+
+function extractMainTweet(tweetElement) {
+  const parts = [];
+  const author = tweetElement.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
+  if (author) parts.push(`**Author:** ${author}`);
+  const text = tweetElement.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
+  if (text) parts.push(`\n${text}`);
+  tweetElement.querySelectorAll('a[href*="http"]').forEach((link) => {
+    const href = link.getAttribute("href");
+    if (href && !href.includes("twitter.com") && !href.includes("x.com")) {
+      parts.push(`\n🔗 ${href}`);
+    }
+  });
+  const images = tweetElement.querySelectorAll('img[src*="media"]');
+  if (images.length > 0) parts.push(`\n📷 ${images.length} image(s)`);
+  const stats = tweetElement.querySelector('[role="group"]')?.textContent?.trim();
+  if (stats) parts.push(`\n📊 ${stats}`);
+  return parts.join("\n");
+}
+
+// ============================================================
+// Extractor: Article (Medium, Substack, blogs, news)
+// ============================================================
+
+function detectArticle() {
+  const url = window.location.href;
+
+  // Explicit article sites
+  if (url.includes("medium.com")) return true;
+  if (url.includes("substack.com")) return true;
+
+  const articleMeta = document.querySelector('meta[property="og:type"][content="article"]');
+  const articleTag = document.querySelector("article");
+  const schemaArticle = document.querySelector('[itemtype*="Article"], [itemtype*="BlogPosting"]');
+
+  return !!(articleMeta || (articleTag && schemaArticle));
+}
+
+function extractArticle() {
+  const url = window.location.href;
+  const siteName = getMeta("og:site_name");
+
+  // Site-specific extraction
+  if (url.includes("medium.com")) return extractMedium(url, siteName);
+
+  // Generic article extraction
+  const articleSelectors = ["article", '[role="article"]', ".post", ".article",
+    '[itemtype*="Article"]', '[itemtype*="BlogPosting"]', ".blog-post", ".story",
+    ".post-content", ".article-content", ".entry-content"];
+
+  let articleEl = null;
+  for (const sel of articleSelectors) {
+    articleEl = document.querySelector(sel);
+    if (articleEl && (articleEl.textContent?.length || 0) > 200) break;
+    articleEl = null;
+  }
+  if (!articleEl) return null;
+
+  const title = getMeta("og:title") ||
+    articleEl.querySelector("h1")?.textContent?.trim() ||
+    document.title;
+
+  const author = getMeta("author") || getMeta("article:author") ||
+    articleEl.querySelector('[rel="author"], .author, .byline, [data-testid="authorName"]')?.textContent?.trim() || "";
+
+  const published = getMeta("article:published_time") ||
+    document.querySelector("time[datetime]")?.getAttribute("datetime") ||
+    document.querySelector("time")?.textContent?.trim() || "";
+
+  const contentText = extractArticleText(articleEl);
+
+  // Extract headings for structure
+  const headings = articleEl.querySelectorAll("h1, h2, h3");
+  const headingStructure = [...headings]
+    .filter((h) => h.textContent?.trim())
+    .map((h) => `${"  ".repeat(Math.max(0, parseInt(h.tagName[1]) - 2))}- ${h.textContent.trim()}`)
+    .join("\n");
+
+  const parts = [`# ${title}`];
+  if (author) parts.push(`**Author:** ${author}`);
+  if (published) parts.push(`**Published:** ${published}`);
+  if (headingStructure) parts.push(`\n## Structure\n\n${headingStructure}`);
+  parts.push(`\n## Content\n\n${contentText}`);
+
+  return {
+    url, title,
+    content: parts.join("\n"),
+    sourceType: "article",
+    metadata: {
+      ...(author && { author }),
+      ...(published && { published }),
+      ...(siteName && { site: siteName }),
+      reading_time: readingTime(contentText),
+    },
+  };
+}
+
+/**
+ * Medium-specific extraction (handles paywalled content better).
+ */
+function extractMedium(url, siteName) {
+  const title = document.querySelector("h1")?.textContent?.trim() ||
+    getMeta("og:title") || document.title;
+
+  const author = document.querySelector('[data-testid="authorName"], a[rel="author"]')?.textContent?.trim() ||
+    getMeta("author") || "";
+
+  const published = document.querySelector("time")?.getAttribute("datetime") ||
+    getMeta("article:published_time") || "";
+
+  // Medium stores article body in <article> or <section data-testid="article-body">
+  const articleEl =
+    document.querySelector('section[data-testid="article-body"]') ||
+    document.querySelector("article") ||
+    document.querySelector(".postArticle-content");
+
+  let contentText = "";
+  if (articleEl) {
+    contentText = extractText(articleEl);
+  } else {
+    // Collect all paragraphs
+    const paragraphs = document.querySelectorAll("article p, .section-inner p, [data-selectable-paragraph]");
+    contentText = [...paragraphs].map((p) => p.textContent?.trim()).filter(Boolean).join("\n\n");
+  }
+
+  const parts = [`# ${title}`];
+  if (author) parts.push(`**Author:** ${author}`);
+  if (published) parts.push(`**Published:** ${published}`);
+  parts.push(`\n## Content\n\n${truncate(contentText, 12000)}`);
+
+  return {
+    url, title,
+    content: parts.join("\n"),
+    sourceType: "article",
+    metadata: {
+      platform: "Medium",
+      ...(author && { author }),
+      ...(published && { published }),
+      reading_time: readingTime(contentText),
+    },
+  };
+}
+
+function extractArticleText(article) {
+  const clone = article.cloneNode(true);
+  const removeSelectors = ["script", "style", "noscript", "iframe", ".advertisement",
+    ".ads", ".social-share", ".share-buttons", ".related-posts", ".comments",
+    "#comments", ".sidebar", "nav", ".nav", ".navigation"];
+  removeSelectors.forEach((sel) => {
+    clone.querySelectorAll(sel).forEach((el) => el.remove());
+  });
+  let text = clone.textContent || "";
+  text = text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
+    .replace(/^\s+|\s+$/gm, "").trim();
+  return truncate(text, 12000);
+}
+
+// ============================================================
+// Extractor: Generic (fallback for any webpage)
+// ============================================================
 
 function extractGeneric() {
   const url = window.location.href;
-  const title =
-    document.title ||
-    document.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+  const title = document.title ||
+    getMeta("og:title") ||
     document.querySelector("h1")?.textContent?.trim() ||
     url;
 
+  // Try common content containers
   const contentSelectors = [
     "main", "article", '[role="main"]', "#content", "#main-content",
     ".post-content", ".article-content", ".entry-content", ".content",
@@ -53,260 +438,71 @@ function extractGeneric() {
     mainContent = extractText(body);
   }
 
-  const truncated = mainContent.length > 15000
-    ? mainContent.substring(0, 15000) + "\n\n[...content truncated]"
-    : mainContent;
+  // Metadata
+  const description = getMeta("description") || getMeta("og:description");
+  const author = getMeta("author") || getMeta("article:author");
+  const published = getMeta("article:published_time");
+  const siteName = getMeta("og:site_name");
 
   const metadata = {};
-  const description = document.querySelector('meta[name="description"]')?.getAttribute("content")
-    || document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
   if (description) metadata.description = description;
-
-  const author = document.querySelector('meta[name="author"]')?.getAttribute("content")
-    || document.querySelector('meta[property="article:author"]')?.getAttribute("content") || "";
   if (author) metadata.author = author;
-
-  const published = document.querySelector('meta[property="article:published_time"]')?.getAttribute("content") || "";
   if (published) metadata.published = published;
-
-  const siteName = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content") || "";
   if (siteName) metadata.site = siteName;
 
   return {
     url, title,
-    content: `# ${title}\n\n${truncated}`,
+    content: `# ${title}\n\n${truncate(mainContent, 15000)}`,
     sourceType: "webpage",
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   };
 }
 
-function extractText(element) {
-  const clone = element.cloneNode(true);
-  clone.querySelectorAll("script, style, noscript, svg, img, video, audio, iframe, nav, footer")
-    .forEach((el) => el.remove());
-  let text = clone.textContent || "";
-  text = text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
-    .replace(/^\s+|\s+$/gm, "").trim();
-  return text;
-}
+// ============================================================
+// Extractor registry — add new extractors here
+// ============================================================
 
-// --- Twitter/X Extractor ---
+const EXTRACTORS = [
+  { name: "youtube", detect: detectYouTube, extract: extractYouTube },
+  { name: "twitter", detect: detectTwitter, extract: extractTwitter },
+  { name: "article", detect: detectArticle, extract: extractArticle },
+  // Generic must be last — it always matches
+  { name: "generic", detect: () => true, extract: extractGeneric },
+];
 
-function extractTwitter() {
-  const url = window.location.href;
-  let tweetContent = "";
-
-  const mainTweet = document.querySelector('article[data-testid="tweet"]');
-  if (mainTweet) tweetContent = extractMainTweet(mainTweet);
-
-  if (!tweetContent) {
-    const tweetTexts = document.querySelectorAll('[data-testid="tweetText"]');
-    if (tweetTexts.length > 0) {
-      tweetContent = [...tweetTexts]
-        .map((el) => el.textContent?.trim()).filter(Boolean)
-        .join("\n\n---\n\n");
-    }
-  }
-
-  if (!tweetContent) {
-    const title = document.title.replace(/^(.+?)\s*\/\s*X\s*$/, "$1")
-      .replace(/^(.+?)\s*\/\s*Twitter\s*$/, "$1");
-    if (title) tweetContent = title;
-  }
-
-  const authorName = document.querySelector('[data-testid="User-Name"]')?.textContent?.trim() || "";
-  const authorHandle = document.querySelector('[data-testid="User-Name"] a')?.textContent?.trim() || "";
-  const timestamp = document.querySelector("time")?.getAttribute("datetime") || "";
-
-  const metadata = { platform: "Twitter/X" };
-  if (authorName) metadata.author = authorName;
-  if (authorHandle) metadata.handle = authorHandle;
-  if (timestamp) metadata.published = timestamp;
-
-  // Thread detection
-  const threadTweets = document.querySelectorAll('article[data-testid="tweet"]');
-  if (threadTweets.length > 1) {
-    const threadContent = [...threadTweets]
-      .map((tweet, i) => {
-        const text = tweet.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
-        const user = tweet.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
-        return text ? `${i + 1}. **${user || "..."}**: ${text}` : null;
-      })
-      .filter(Boolean).join("\n\n");
-    if (threadContent) tweetContent = `## Thread (${threadTweets.length} tweets)\n\n${threadContent}`;
-  }
-
-  const title = authorName ? `Tweet by ${authorName}` : `Tweet from ${url}`;
-  return {
-    url, title,
-    content: `# ${title}\n\n${tweetContent || "Could not extract tweet content."}`,
-    sourceType: "twitter",
-    metadata,
-  };
-}
-
-function extractMainTweet(tweetElement) {
-  const parts = [];
-  const author = tweetElement.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
-  if (author) parts.push(`**Author:** ${author}`);
-  const text = tweetElement.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
-  if (text) parts.push(`\n${text}`);
-  tweetElement.querySelectorAll('a[href*="http"]').forEach((link) => {
-    const href = link.getAttribute("href");
-    if (href && !href.includes("twitter.com") && !href.includes("x.com")) {
-      parts.push(`\n🔗 ${href}`);
-    }
-  });
-  const images = tweetElement.querySelectorAll('img[src*="media"]');
-  if (images.length > 0) parts.push(`\n📷 ${images.length} image(s) attached`);
-  const stats = tweetElement.querySelector('[role="group"]')?.textContent?.trim();
-  if (stats) parts.push(`\n📊 ${stats}`);
-  return parts.join("\n");
-}
-
-// --- YouTube Extractor ---
-
-function extractYouTube() {
-  const url = window.location.href;
-  const title =
-    document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector("#title h1")?.textContent?.trim() ||
-    document.querySelector('meta[name="title"]')?.getAttribute("content")?.trim() ||
-    document.title.replace(" - YouTube", "").trim();
-
-  const channelName =
-    document.querySelector("#channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("#owner-name a")?.textContent?.trim() || "";
-
-  const descriptionEl = document.querySelector("#description-inline-expander, ytd-expander#description");
-  let description = "";
-  if (descriptionEl) {
-    const snippet = descriptionEl.querySelector("yt-formatted-string, #snippet")
-      || descriptionEl.querySelector('[slot="content"]');
-    if (snippet) description = snippet.textContent?.trim() || "";
-  }
-  if (!description) {
-    description = document.querySelector('meta[name="description"]')?.getAttribute("content") || "";
-  }
-
-  const viewCount = document.querySelector("#info .view-count")?.textContent?.trim() || "";
-  const date = document.querySelector("#info yt-formatted-string.date")?.textContent?.trim()
-    || document.querySelector('meta[itemprop="datePublished"]')?.getAttribute("content") || "";
-
-  const chapters = [];
-  document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
-    const time = el.querySelector("#time")?.textContent?.trim();
-    const chTitle = el.querySelector("h4")?.textContent?.trim();
-    if (time && chTitle) chapters.push(`- ${time} — ${chTitle}`);
-  });
-
-  const parts = [`# ${title}`];
-  if (channelName) parts.push(`\n**Channel:** ${channelName}`);
-  if (viewCount) parts.push(`**Views:** ${viewCount}`);
-  if (date) parts.push(`**Published:** ${date}`);
-  parts.push(`\n## Description\n\n${description || "No description available."}`);
-  if (chapters.length > 0) parts.push(`\n## Chapters\n\n${chapters.join("\n")}`);
-  parts.push(`\n## Transcript\n\n*YouTube transcripts are not directly accessible. Use a transcript extension for full transcripts.*`);
-
-  const metadata = { platform: "YouTube", video_url: url };
-  if (channelName) metadata.channel = channelName;
-  if (date) metadata.published = date;
-
-  return { url, title, content: parts.join("\n"), sourceType: "youtube", metadata };
-}
-
-// --- Article Extractor ---
-
-function extractArticle() {
-  const url = window.location.href;
-  const articleSelectors = ["article", '[role="article"]', ".post", ".article",
-    '[itemtype*="Article"]', '[itemtype*="BlogPosting"]', ".blog-post", ".story"];
-
-  let articleElement = null;
-  for (const sel of articleSelectors) {
-    articleElement = document.querySelector(sel);
-    if (articleElement && (articleElement.textContent?.length || 0) > 200) break;
-    articleElement = null;
-  }
-  if (!articleElement) return null;
-
-  const title = document.querySelector('meta[property="og:title"]')?.getAttribute("content")
-    || articleElement.querySelector("h1")?.textContent?.trim()
-    || document.title;
-
-  const author = document.querySelector('meta[name="author"]')?.getAttribute("content")
-    || document.querySelector('meta[property="article:author"]')?.getAttribute("content")
-    || articleElement.querySelector('[rel="author"], .author, .byline')?.textContent?.trim() || "";
-
-  const publishedDate = document.querySelector('meta[property="article:published_time"]')?.getAttribute("content")
-    || document.querySelector("time[datetime]")?.getAttribute("datetime")
-    || document.querySelector("time")?.textContent?.trim() || "";
-
-  const contentText = extractArticleText(articleElement);
-
-  const headings = articleElement.querySelectorAll("h1, h2, h3, h4, h5, h6");
-  const headingStructure = [...headings]
-    .filter((h) => h.textContent && h.textContent.trim().length > 0)
-    .map((h) => {
-      const level = parseInt(h.tagName[1]);
-      const indent = "  ".repeat(Math.max(0, level - 2));
-      return `${indent}- ${h.textContent.trim()}`;
-    }).join("\n");
-
-  const parts = [`# ${title}`];
-  if (author) parts.push(`\n**Author:** ${author}`);
-  if (publishedDate) parts.push(`**Published:** ${publishedDate}`);
-  parts.push(`\n## Article Structure\n\n${headingStructure || "(No headings found)"}`);
-  parts.push(`\n## Content\n\n${contentText}`);
-
-  const metadata = {};
-  if (author) metadata.author = author;
-  if (publishedDate) metadata.published = publishedDate;
-  const siteName = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content") || "";
-  if (siteName) metadata.site = siteName;
-  const wordCount = contentText.split(/\s+/).length;
-  const minutes = Math.ceil(wordCount / 200);
-  metadata.reading_time = minutes <= 1 ? "~1 minute" : `~${minutes} minutes`;
-
-  return { url, title, content: parts.join("\n"), sourceType: "article",
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined };
-}
-
-function extractArticleText(article) {
-  const clone = article.cloneNode(true);
-  const removeSelectors = ["script", "style", "noscript", "iframe", ".advertisement",
-    ".ads", ".social-share", ".share-buttons", ".related-posts", ".comments",
-    "#comments", ".sidebar", "nav", ".nav", ".navigation"];
-  removeSelectors.forEach((sel) => {
-    clone.querySelectorAll(sel).forEach((el) => el.remove());
-  });
-  let text = clone.textContent || "";
-  text = text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
-    .replace(/^\s+|\s+$/gm, "").trim();
-  if (text.length > 12000) text = text.substring(0, 12000) + "\n\n[...content truncated]";
-  return text;
-}
-
-// --- Main: Extract & communicate ---
+// ============================================================
+// Main entry point
+// ============================================================
 
 function extractContent() {
-  const pageType = detectPageType();
-  switch (pageType) {
-    case "twitter": return extractTwitter();
-    case "youtube": return extractYouTube();
-    case "article": return extractArticle() || extractGeneric();
-    default: return extractGeneric();
+  for (const ex of EXTRACTORS) {
+    try {
+      if (ex.detect()) {
+        console.log(`[NutEgg] Using extractor: ${ex.name}`);
+        return ex.extract();
+      }
+    } catch (e) {
+      console.warn(`[NutEgg] Extractor "${ex.name}" failed:`, e);
+    }
   }
+  // Ultimate fallback
+  console.warn("[NutEgg] All extractors failed, using generic");
+  return extractGeneric();
 }
 
-// Listen for messages from background/popup
+// Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === "extract-content") {
     try {
-      const content = extractContent();
-      sendResponse({ success: true, content });
+      const result = extractContent();
+      // If the result is a promise (e.g. YouTube with async caption fetch), await it
+      if (result instanceof Promise) {
+        result
+          .then((content) => sendResponse({ success: true, content }))
+          .catch((err) => sendResponse({ success: false, error: err.message }));
+        return true; // Keep channel open for async
+      }
+      sendResponse({ success: true, content: result });
     } catch (err) {
       sendResponse({ success: false, error: err instanceof Error ? err.message : "Extraction failed" });
     }
