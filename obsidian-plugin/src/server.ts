@@ -27,10 +27,90 @@ export class NutEggServer {
   private server: http.Server | null = null;
   private plugin: NutEggPlugin;
   private port: number;
+  /** URL → timestamp cache for deduplication */
+  private processedUrls: Map<string, string> = new Map();
+  private cacheLoaded = false;
 
   constructor(plugin: NutEggPlugin, port: number) {
     this.plugin = plugin;
     this.port = port;
+  }
+
+  // --- URL deduplication cache ---
+
+  private get cachePath(): string {
+    return `${this.plugin.settings.rawFolder}/../.processed.json`;
+  }
+
+  private async loadProcessedCache(): Promise<void> {
+    if (this.cacheLoaded) return;
+    try {
+      const file = this.plugin.app.vault.getAbstractFileByPath(this.cachePath);
+      if (file) {
+        const content = await this.plugin.app.vault.read(file as any);
+        const entries = JSON.parse(content);
+        for (const [url, ts] of Object.entries(entries)) {
+          this.processedUrls.set(url, ts as string);
+        }
+      }
+    } catch { /* file doesn't exist yet — that's fine */ }
+    this.cacheLoaded = true;
+  }
+
+  private async saveProcessedCache(): Promise<void> {
+    const obj: Record<string, string> = {};
+    for (const [url, ts] of this.processedUrls) {
+      obj[url] = ts;
+    }
+    const content = JSON.stringify(obj, null, 2);
+    const existing = this.plugin.app.vault.getAbstractFileByPath(this.cachePath);
+    if (existing) {
+      await this.plugin.app.vault.modify(existing as any, content);
+    } else {
+      // Ensure parent folder exists
+      const parent = this.cachePath.split("/").slice(0, -1).join("/");
+      if (parent && !this.plugin.app.vault.getAbstractFileByPath(parent)) {
+        const parts = parent.split("/");
+        let cur = "";
+        for (const part of parts) {
+          cur += (cur ? "/" : "") + part;
+          if (!(await this.plugin.app.vault.adapter.exists(cur))) {
+            await this.plugin.app.vault.createFolder(cur);
+          }
+        }
+      }
+      await this.plugin.app.vault.create(this.cachePath, content);
+    }
+  }
+
+  private async isAlreadyProcessed(url: string): Promise<string | null> {
+    await this.loadProcessedCache();
+    url = this.normalizeUrl(url);
+    return this.processedUrls.get(url) || null;
+  }
+
+  private async markProcessed(url: string): Promise<void> {
+    await this.loadProcessedCache();
+    url = this.normalizeUrl(url);
+    this.processedUrls.set(url, new Date().toISOString());
+    await this.saveProcessedCache();
+  }
+
+  /** Strip trailing slashes, fragment, and common tracking params. */
+  private normalizeUrl(url: string): string {
+    try {
+      const u = new URL(url);
+      u.hash = "";
+      // Common tracking params
+      const stripParams = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "source", "fbclid", "gclid"];
+      for (const p of stripParams) {
+        u.searchParams.delete(p);
+      }
+      u.searchParams.sort();
+      return u.toString().replace(/\/$/, "");
+    } catch {
+      return url.replace(/#.*$/, "").replace(/\/$/, "");
+    }
   }
 
   async start(): Promise<void> {
@@ -128,6 +208,19 @@ export class NutEggServer {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({ error: "Missing required fields: url, title" })
+        );
+        return;
+      }
+
+      // Check if already processed
+      const processedAt = await this.isAlreadyProcessed(capture.url);
+      if (processedAt) {
+        const date = new Date(processedAt).toLocaleDateString();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            alreadyProcessed: `Already processed on ${date}. You can still save the raw content with "Save Raw".`,
+          })
         );
         return;
       }
@@ -232,6 +325,9 @@ export class NutEggServer {
           confirm.url
         );
       }
+
+      // Mark URL as processed
+      await this.markProcessed(confirm.url);
 
       console.log(
         `[NutEgg] Confirmed: ${confirm.title} -> ${fileName}, knowledge entries: ${confirm.newKnowledge?.length || 0}`

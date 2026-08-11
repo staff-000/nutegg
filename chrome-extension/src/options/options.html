@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutEgg Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <h1>🥚 NutEgg Settings</h1>
+
+    <section class="option-group">
+      <h2>Server Connection</h2>
+      <div class="option-row">
+        <label for="port-input">Obsidian Server Port</label>
+        <div class="port-config">
+          <input id="port-input" type="number" min="1" max="65535" value="27123">
+          <span class="port-url">http://127.0.0.1:<strong id="port-display">27123</strong></span>
+        </div>
+        <p class="hint">Must match the port configured in Obsidian → NutEgg → Developer Mode → Server Port.</p>
+      </div>
+      <div class="option-actions">
+        <button id="save-btn" class="primary-btn">Save</button>
+        <button id="test-btn" class="secondary-btn">Test Connection</button>
+        <span id="test-result" class="test-result hidden"></span>
+      </div>
+    </section>
+
+    <section class="option-group">
+      <h2>Keyboard Shortcut</h2>
+      <p>Configure the quick-capture shortcut at <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a></p>
+    </section>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

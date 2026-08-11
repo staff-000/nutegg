@@ -30,6 +30,25 @@ body {
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.settings-btn:hover { opacity: 1; }
+
 .logo {
   font-size: 18px;
   font-weight: 700;
@@ -53,46 +72,22 @@ body {
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.3);
 }
 
-/* Port row (shown when offline) */
-.port-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.port-label {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.port-input {
-  width: 70px;
-  padding: 3px 6px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+/* Duplicate banner */
+.duplicate-banner {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
   font-size: 12px;
-  text-align: center;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  line-height: 1.4;
 }
 
-.port-input::-webkit-inner-spin-button,
-.port-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.port-save-btn {
-  padding: 3px 8px;
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.port-save-btn:hover {
-  background: #e5e7eb;
-}
+.duplicate-icon { flex-shrink: 0; margin-top: 1px; }
 
 /* Page Info */
 .page-info {
@@ -342,6 +337,21 @@ body {
   cursor: not-allowed;
 }
 
+.save-raw-btn {
+  flex: 1;
+  padding: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-raw-btn:hover:not(:disabled) { background: #dcfce7; }
+.save-raw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .discard-btn {
   padding: 10px 16px;
   background: transparent;
@@ -352,9 +362,7 @@ body {
   cursor: pointer;
 }
 
-.discard-btn:hover {
-  background: #f3f4f6;
-}
+.discard-btn:hover { background: #f3f4f6; }
 
 .back-btn {
   padding: 10px 16px;
@@ -366,9 +374,7 @@ body {
   cursor: pointer;
 }
 
-.back-btn:hover {
-  background: #f3f4f6;
-}
+.back-btn:hover { background: #f3f4f6; }
 
 /* Footer */
 .footer {

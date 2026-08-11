@@ -12,12 +12,10 @@
     <header class="header">
       <div class="header-top">
         <span class="logo">🥚 NutEgg</span>
-        <span id="server-status" class="status-dot offline" title="Obsidian server status"></span>
-      </div>
-      <div id="port-row" class="port-row hidden">
-        <span class="port-label">Port</span>
-        <input id="port-input" class="port-input" type="number" min="1" max="65535" value="27123">
-        <button id="port-save-btn" class="port-save-btn">↻</button>
+        <div class="header-actions">
+          <span id="server-status" class="status-dot offline" title="Obsidian server status"></span>
+          <button id="settings-btn" class="settings-btn" title="Settings">⚙️</button>
+        </div>
       </div>
     </header>
 
@@ -42,6 +40,11 @@
         </div>
       </div>
 
+      <div id="duplicate-banner" class="duplicate-banner hidden">
+        <span class="duplicate-icon">📎</span>
+        <span id="duplicate-message"></span>
+      </div>
+
       <button id="analyze-btn" class="analyze-btn" disabled>
         <span id="analyze-btn-text">Analyze</span>
       </button>
@@ -49,13 +52,11 @@
 
     <!-- State 2: Results -->
     <div id="results-state" class="hidden">
-      <!-- Summary -->
       <div class="result-section">
         <div class="section-label">📋 Summary</div>
         <div id="summary-text" class="summary-text"></div>
       </div>
 
-      <!-- Should Read? -->
       <div class="result-section">
         <div class="section-label">📖 Should you read it?</div>
         <div id="verdict-badge" class="verdict-badge">
@@ -65,17 +66,14 @@
         <div id="verdict-reason" class="verdict-reason"></div>
       </div>
 
-      <!-- New Knowledge -->
       <div id="knowledge-section" class="result-section hidden">
         <div class="section-label">🆕 New Knowledge to Add</div>
         <div id="knowledge-list" class="knowledge-list"></div>
       </div>
 
-      <!-- Action Buttons -->
       <div class="action-buttons">
-        <button id="confirm-btn" class="confirm-btn hidden">
-          Add to Knowledge Base
-        </button>
+        <button id="confirm-btn" class="confirm-btn hidden">Add to Knowledge Base</button>
+        <button id="save-raw-btn" class="save-raw-btn">💾 Save Raw</button>
         <button id="discard-btn" class="discard-btn">Discard</button>
         <button id="back-btn" class="back-btn">← Back</button>
       </div>
@@ -86,7 +84,6 @@
       </div>
     </div>
 
-    <!-- Footer -->
     <footer class="footer">
       <small>NutEgg v1.0.0</small>
     </footer>
