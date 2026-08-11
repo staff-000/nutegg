@@ -22,6 +22,8 @@ export default class NutEggPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // Ensure vault structure exists on first run
+    await this.initializeVault();
 
     // Initialize AI client (shared across subsystems)
     this.aiClient = new AIClient(this.settings);
@@ -52,24 +54,6 @@ export default class NutEggPlugin extends Plugin {
       if (file) {
         const leaf = this.app.workspace.getLeaf(false);
         await leaf.openFile(file as any);
-      } else {
-        // Create default nutegg/_index.md
-        // Also ensure nutegg/ folder exists
-        await this.ensureFolder("nutegg");
-
-        const defaultIndex = [
-          "# NutEgg Topic Index",
-          "# Add your topic mappings below.",
-          "# Format: path/to/topic-file.md: description of what topics it covers",
-          "# Topic files go under nutegg/ alongside _index.md.",
-          "# Examples:",
-          "#   nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management",
-          "#   nutegg/psychology.md: cognitive biases, mental models, behavioral psychology",
-          "#   nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI",
-          "",
-        ].join("\n");
-        await this.app.vault.create(indexPath, defaultIndex);
-        new Notice(`NutEgg: Created ${indexPath}. Add your topic mappings there.`);
       }
     });
 
@@ -147,12 +131,73 @@ export default class NutEggPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /**
+   * Create the nutegg/ directory structure and boilerplate _index.md on first run.
+   */
+  private async initializeVault(): Promise<void> {
+    await this.ensureFolder("nutegg");
+    await this.ensureFolder(this.settings.rawFolder);
+
+    // Create boilerplate _index.md if it doesn't exist
+    const indexPath = this.settings.indexFile;
+    const existing = await this.app.vault.adapter.exists(indexPath);
+    if (!existing) {
+      const content = [
+        "# NutEgg Topic Index",
+        "#",
+        "# Add one line per topic file: <path>: <description of what it covers>",
+        "# Lines starting with # are ignored.",
+        "#",
+        "# Examples:",
+        "nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management, crypto",
+        "nutegg/psychology.md: cognitive biases, mental models, behavioral psychology, decision making",
+        "nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI, prompt engineering",
+        "",
+      ].join("\n");
+      await this.app.vault.create(indexPath, content);
+      console.log(`[NutEgg] Created ${indexPath}`);
+
+      // Also create example topic files so the user can see the format
+      const exampleTopics: Record<string, string> = {
+        "nutegg/invest_strategy.md": [
+          "instruct:",
+          "  * key questions: what new investment insight, strategy, or market perspective does this add?",
+          "  * reject criteria: ignore basic price movements, generic financial news, or repeated advice",
+          "---",
+          "",
+          "# knowledge",
+          "",
+          "# ideas",
+          "",
+        ].join("\n"),
+        "nutegg/psychology.md": [
+          "instruct:",
+          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
+          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
+          "---",
+          "",
+          "# knowledge",
+          "",
+          "# ideas",
+          "",
+        ].join("\n"),
+      };
+
+      for (const [path, topicContent] of Object.entries(exampleTopics)) {
+        if (!(await this.app.vault.adapter.exists(path))) {
+          await this.app.vault.create(path, topicContent);
+          console.log(`[NutEgg] Created ${path}`);
+        }
+      }
+    }
+  }
+
   private async ensureFolder(folder: string): Promise<void> {
     const parts = folder.split("/");
     let currentPath = "";
     for (const part of parts) {
       currentPath += (currentPath ? "/" : "") + part;
-      const exists = this.app.vault.getAbstractFileByPath(currentPath);
+      const exists = await this.app.vault.adapter.exists(currentPath);
       if (!exists) {
         await this.app.vault.createFolder(currentPath);
       }

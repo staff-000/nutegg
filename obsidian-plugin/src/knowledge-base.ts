@@ -94,7 +94,7 @@ export class KnowledgeBase {
     let currentPath = "";
     for (const part of parts) {
       currentPath += (currentPath ? "/" : "") + part;
-      const exists = this.plugin.app.vault.getAbstractFileByPath(currentPath);
+      const exists = await this.plugin.app.vault.adapter.exists(currentPath);
       if (!exists) {
         await this.plugin.app.vault.createFolder(currentPath);
       }

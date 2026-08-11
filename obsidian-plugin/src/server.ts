@@ -91,7 +91,7 @@ export class NutEggServer {
   /**
    * GET /config-status — Returns AI configuration status for the popup to show warnings.
    */
-  private handleConfigStatus(res: http.ServerResponse): void {
+  private async handleConfigStatus(res: http.ServerResponse): Promise<void> {
     const settings = this.plugin.settings;
     const issues: string[] = [];
     let status: "ok" | "warning" | "error" = "ok";
@@ -102,8 +102,8 @@ export class NutEggServer {
     }
 
     // Check if _index.md exists
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(settings.indexFile);
-    if (!indexFile) {
+    const indexExists = await this.plugin.app.vault.adapter.exists(settings.indexFile);
+    if (!indexExists) {
       issues.push(`Index file "${settings.indexFile}" not found. Click the egg icon in Obsidian to create it.`);
       status = status === "error" ? "error" : "warning";
     }

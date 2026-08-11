@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Rules
+
+- **Existence checks** — Use `await this.app.vault.adapter.exists(path)` to check if a file/folder exists. Do NOT use `getAbstractFileByPath()` for existence-only checks; its return type may vary across Obsidian versions.
+
 ## Build
 
 ```bash
