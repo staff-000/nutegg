@@ -2,15 +2,15 @@ import type NutEggPlugin from "./main";
 
 /**
  * Parsed entry from _index.md.
- * Format: `topic-file.md: description of topics covered`
+ * Format: `egg-file.md: description of what the egg covers`
  */
 export interface IndexEntry {
   fileName: string;    // e.g. "invest.md"
-  description: string; // e.g. "topics related to investment"
+  description: string; // e.g. "investment strategies and market analysis"
 }
 
 /**
- * Reads and parses _index.md to understand topic-to-file mappings.
+ * Reads and parses _index.md to understand egg-to-file mappings.
  */
 export class IndexReader {
   private plugin: NutEggPlugin;
@@ -20,7 +20,7 @@ export class IndexReader {
   }
 
   /**
-   * Parse _index.md and return all topic entries.
+   * Parse _index.md and return all egg entries.
    * Each non-empty line should be in format: `file.md: description`
    * Lines starting with `#` are comments, skipped.
    */
@@ -37,10 +37,10 @@ export class IndexReader {
   }
 
   /**
-   * Use Claude to determine which topic files are relevant to the content.
+   * Use AI to determine which egg files are relevant to the content.
    * Returns the matched index entries.
    */
-  async matchTopics(
+  async matchEggs(
     content: { title: string; content: string; url: string },
     index: IndexEntry[]
   ): Promise<IndexEntry[]> {
@@ -56,14 +56,14 @@ export class IndexReader {
       .map((e) => `- ${e.fileName}: ${e.description}`)
       .join("\n");
 
-    const prompt = `Given this content and topic index, which topic file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".
+    const prompt = `Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".
 
 ## Content
 Title: ${content.title}
 URL: ${content.url}
 ${this.truncate(content.content, 2000)}
 
-## Topic Index
+## Egg Index
 ${indexText}
 
 Return matching file names (one per line):`;

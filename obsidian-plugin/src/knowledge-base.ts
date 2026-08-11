@@ -1,7 +1,7 @@
 import type NutEggPlugin from "./main";
 
 /**
- * Simplified knowledge base — saves raw content and appends to topic files.
+ * Simplified knowledge base — saves raw content and appends to egg files.
  */
 export class KnowledgeBase {
   private plugin: NutEggPlugin;
@@ -66,22 +66,22 @@ export class KnowledgeBase {
   }
 
   /**
-   * Append new knowledge to topic files.
+   * Append new knowledge to egg files.
    */
   async appendKnowledge(
     newKnowledge: Array<{
-      topic: string;
+      egg: string;
       section: string;
       content: string;
     }>,
     sourceUrl: string
   ): Promise<void> {
-    const { TopicParser } = await import("./topic-parser");
-    const topicParser = new TopicParser(this.plugin);
+    const { EggParser } = await import("./egg-parser");
+    const eggParser = new EggParser(this.plugin);
 
     for (const item of newKnowledge) {
-      await topicParser.appendToTopic(
-        item.topic,
+      await eggParser.appendToEgg(
+        item.egg,
         item.section,
         item.content,
         sourceUrl

@@ -21,7 +21,7 @@ export interface NutEggSettings {
   serverPort: number;
   /** Folder for saved raw content */
   rawFolder: string;
-  /** File that maps topics to markdown files */
+  /** File that maps eggs to markdown files */
   indexFile: string;
 }
 
@@ -73,7 +73,7 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Index File")
-      .setDesc("File that maps topics to their markdown files")
+      .setDesc("File that maps eggs to their markdown files")
       .addText((text) =>
         text
           .setPlaceholder("nutegg/_index.md")
@@ -84,7 +84,7 @@ export class NutEggSettingTab extends PluginSettingTab {
           })
       );
 
-      // ==========================================
+     // ==========================================
     // Developer Mode toggle
     // ==========================================
     new Setting(containerEl)

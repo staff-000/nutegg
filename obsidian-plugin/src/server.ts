@@ -17,7 +17,7 @@ interface ConfirmRequest {
   sourceType: string;
   metadata?: Record<string, string>;
   newKnowledge: Array<{
-    topic: string;
+    egg: string;
     section: string;
     content: string;
   }>;
@@ -229,24 +229,24 @@ export class NutEggServer {
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
 
-      // Step 2: Match content to relevant topic files
-      const matchedTopics = await this.plugin.indexReader.matchTopics(
+      // Step 2: Match content to relevant egg files
+      const matchedEggs = await this.plugin.indexReader.matchEggs(
         capture,
         index
       );
 
-      // Step 3: Read and parse matched topic files
-      const topicContents = await this.plugin.topicParser.readTopics(
-        matchedTopics
+      // Step 3: Read and parse matched egg files
+      const eggContents = await this.plugin.eggParser.readEggs(
+        matchedEggs
       );
-      const topicsContext =
-        this.plugin.topicParser.formatTopicsForPrompt(topicContents);
+      const eggsContext =
+        this.plugin.eggParser.formatEggsForPrompt(eggContents);
 
       // Step 4: Run AI analysis
       const result = await this.plugin.aiProcessor.analyze(
         capture,
         indexContent,
-        topicsContext
+        eggsContext
       );
 
       console.log(
@@ -268,7 +268,7 @@ export class NutEggServer {
             summary: "",
             shouldRead: false,
             shouldReadReason: "",
-            matchedTopics: [],
+            matchedEggs: [],
             newKnowledge: [],
           })
         );
@@ -283,7 +283,7 @@ export class NutEggServer {
           summary: "",
           shouldRead: false,
           shouldReadReason: "",
-          matchedTopics: [],
+          matchedEggs: [],
           newKnowledge: [],
         })
       );
@@ -291,7 +291,7 @@ export class NutEggServer {
   }
 
   /**
-   * POST /confirm — User confirmed adding knowledge. Save raw content and update topic files.
+   * POST /confirm — User confirmed adding knowledge. Save raw content and update egg files.
    */
   private async handleConfirm(
     req: http.IncomingMessage,
@@ -318,7 +318,7 @@ export class NutEggServer {
         metadata: confirm.metadata,
       });
 
-      // Append new knowledge to topic files
+      // Append new knowledge to egg files
       if (confirm.newKnowledge && confirm.newKnowledge.length > 0) {
         await this.plugin.knowledgeBase.appendKnowledge(
           confirm.newKnowledge,

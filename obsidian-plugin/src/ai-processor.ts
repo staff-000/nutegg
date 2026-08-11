@@ -7,9 +7,9 @@ export interface AnalysisResult {
   summary: string;
   shouldRead: boolean;
   shouldReadReason: string;
-  matchedTopics: string[];
+  matchedEggs: string[];
   newKnowledge: Array<{
-    topic: string;
+    egg: string;
     section: string;
     content: string;
   }>;
@@ -23,12 +23,12 @@ export class AIProcessor {
   }
 
   /**
-   * Analyze content against the knowledge index and topic files.
+   * Analyze content against the knowledge index and egg files.
    * Returns structured results for the Chrome extension to display.
    *
    * @param capture - The captured web content
    * @param indexContent - Raw content of _index.md
-   * @param topicsContext - Formatted topic file contents (from TopicParser)
+   * @param eggsContext - Formatted egg file contents (from EggParser)
    */
   async analyze(
     capture: {
@@ -38,19 +38,19 @@ export class AIProcessor {
       sourceType: string;
     },
     indexContent: string,
-    topicsContext: string
+    eggsContext: string
   ): Promise<AnalysisResult> {
     if (!this.plugin.settings.aiApiKey) {
       return this.fallbackAnalysis(capture);
     }
 
-    const prompt = `You are a knowledge curator. Analyze the content below against the user's knowledge index and topic files.
+    const prompt = `You are a knowledge curator. Analyze the content below against the user's knowledge index and egg files.
 
-## Topic Index
-${indexContent || "(No _index.md found — all topics are new)"}
+## Egg Index
+${indexContent || "(No _index.md found — all eggs are new)"}
 
-## Topic File Context
-${topicsContext || "(No topic files found — all knowledge is new)"}
+## Egg File Context
+${eggsContext || "(No egg files found — all knowledge is new)"}
 
 ## Content to Analyze
 **Title:** ${capture.title}
@@ -61,26 +61,26 @@ ${this.truncate(capture.content, 8000)}
 
 ## Instructions
 1. Write a concise 3-line summary of the content (each line should be one clear sentence)
-2. Decide: should the user spend time reading this fully? Consider the topic's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
-3. Identify genuinely NEW knowledge or ideas — things not already captured in the topic files. Only flag something if it's substantive and not already present.
+2. Decide: should the user spend time reading this fully? Consider the egg's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
+3. Identify genuinely NEW knowledge or ideas — things not already captured in the egg files. Only flag something if it's substantive and not already present.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "summary": "Line one.\nLine two.\nLine three.",
   "shouldRead": true,
   "shouldReadReason": "Brief reason explaining the verdict",
-  "matchedTopics": ["topic-file-1.md"],
+  "matchedEggs": ["egg-file-1.md"],
   "newKnowledge": [
-    {"topic": "topic-file-1.md", "section": "knowledge", "content": "Specific new insight or fact"},
-    {"topic": "topic-file-1.md", "section": "ideas", "content": "A new idea or perspective"}
+    {"egg": "egg-file-1.md", "section": "knowledge", "content": "Specific new insight or fact"},
+    {"egg": "egg-file-1.md", "section": "ideas", "content": "A new idea or perspective"}
   ]
 }
 
 IMPORTANT:
 - The "summary" field must be exactly 3 lines separated by \\n.
-- Only add entries to newKnowledge if they are genuinely NEW and not already in the topic files.
+- Only add entries to newKnowledge if they are genuinely NEW and not already in the egg files.
 - If nothing is new, return an empty array for newKnowledge.
-- Match sections to existing section names in the topic files (e.g., "knowledge", "ideas").`;
+- Match sections to existing section names in the egg files (e.g., "knowledge", "ideas").`;
 
     try {
       const response = await this.plugin.aiClient.chat(prompt, 1500);
@@ -108,13 +108,13 @@ IMPORTANT:
         summary: parsed.summary || "Could not generate summary.",
         shouldRead: parsed.shouldRead ?? true,
         shouldReadReason: parsed.shouldReadReason || "No reason provided.",
-        matchedTopics: Array.isArray(parsed.matchedTopics)
-          ? parsed.matchedTopics
+        matchedEggs: Array.isArray(parsed.matchedEggs)
+          ? parsed.matchedEggs
           : [],
         newKnowledge: Array.isArray(parsed.newKnowledge)
           ? parsed.newKnowledge.filter(
               (k: any) =>
-                k.topic && k.section && k.content
+                k.egg && k.section && k.content
             )
           : [],
       };
@@ -125,7 +125,7 @@ IMPORTANT:
         summary: this.extractSummary(response) || "Analysis completed. See raw response.",
         shouldRead: !response.toLowerCase().includes('"shouldread": false'),
         shouldReadReason: "Could not parse structured response.",
-        matchedTopics: [],
+        matchedEggs: [],
         newKnowledge: [],
       };
     }
@@ -158,7 +158,7 @@ IMPORTANT:
       summary: lines.join("\n"),
       shouldRead: true,
       shouldReadReason: "No API key configured — cannot analyze.",
-      matchedTopics: [],
+      matchedEggs: [],
       newKnowledge: [],
     };
   }

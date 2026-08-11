@@ -213,7 +213,7 @@ function showResultsState(result) {
     knowledgeList.innerHTML = result.newKnowledge
       .map((k) => `
         <div class="knowledge-item">
-          <div class="knowledge-topic">📄 ${escapeHtml(k.topic)} → #${escapeHtml(k.section)}</div>
+          <div class="knowledge-egg">📄 ${escapeHtml(k.egg)} → #${escapeHtml(k.section)}</div>
           <div class="knowledge-content">${escapeHtml(k.content)}</div>
         </div>`)
       .join("");

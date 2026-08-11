@@ -9,7 +9,7 @@ import { NutEggServer } from "./server";
 import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
 import { IndexReader } from "./index-reader";
-import { TopicParser } from "./topic-parser";
+import { EggParser } from "./egg-parser";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -18,7 +18,7 @@ export default class NutEggPlugin extends Plugin {
   aiProcessor!: AIProcessor;
   knowledgeBase!: KnowledgeBase;
   indexReader!: IndexReader;
-  topicParser!: TopicParser;
+  eggParser!: EggParser;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -32,7 +32,7 @@ export default class NutEggPlugin extends Plugin {
     this.aiProcessor = new AIProcessor(this);
     this.knowledgeBase = new KnowledgeBase(this);
     this.indexReader = new IndexReader(this);
-    this.topicParser = new TopicParser(this);
+    this.eggParser = new EggParser(this);
 
     // Start local HTTP server
     this.server = new NutEggServer(this, this.settings.serverPort);
@@ -57,16 +57,16 @@ export default class NutEggPlugin extends Plugin {
       }
     });
 
-    // Command: Create sample topic file
+    // Command: Create a new egg file
     this.addCommand({
-      id: "nutegg-new-topic",
-      name: "Create a new topic file",
+      id: "nutegg-new-egg",
+      name: "Create a new egg file",
       callback: async () => {
-        // Ask for topic name via a simple prompt
-        const topicName = await this.promptForTopicName();
-        if (!topicName) return;
+        // Ask for egg name via a simple prompt
+        const eggName = await this.promptForEggName();
+        if (!eggName) return;
 
-        const fileName = `nutegg/${topicName}.md`;
+        const fileName = `nutegg/${eggName}.md`;
         await this.ensureFolder("nutegg");
         const existingFile = this.app.vault.getAbstractFileByPath(fileName);
 
@@ -143,9 +143,9 @@ export default class NutEggPlugin extends Plugin {
     const existing = await this.app.vault.adapter.exists(indexPath);
     if (!existing) {
       const content = [
-        "# NutEgg Topic Index",
+        "# NutEgg Egg Index",
         "#",
-        "# Add one line per topic file: <path>: <description of what it covers>",
+        "# Add one line per egg file: <path>: <description of what it covers>",
         "# Lines starting with # are ignored.",
         "#",
         "# Examples:",
@@ -157,8 +157,8 @@ export default class NutEggPlugin extends Plugin {
       await this.app.vault.create(indexPath, content);
       console.log(`[NutEgg] Created ${indexPath}`);
 
-      // Also create example topic files so the user can see the format
-      const exampleTopics: Record<string, string> = {
+      // Also create example egg files so the user can see the format
+      const exampleEggs: Record<string, string> = {
         "nutegg/invest_strategy.md": [
           "instruct:",
           "  * key questions: what new investment insight, strategy, or market perspective does this add?",
@@ -183,9 +183,9 @@ export default class NutEggPlugin extends Plugin {
         ].join("\n"),
       };
 
-      for (const [path, topicContent] of Object.entries(exampleTopics)) {
+      for (const [path, eggContent] of Object.entries(exampleEggs)) {
         if (!(await this.app.vault.adapter.exists(path))) {
-          await this.app.vault.create(path, topicContent);
+          await this.app.vault.create(path, eggContent);
           console.log(`[NutEgg] Created ${path}`);
         }
       }
@@ -205,16 +205,16 @@ export default class NutEggPlugin extends Plugin {
   }
 
   /**
-   * Simple prompt modal for getting a topic name.
+   * Simple prompt modal for getting an egg name.
    */
-  private async promptForTopicName(): Promise<string | null> {
+  private async promptForEggName(): Promise<string | null> {
     const { SuggestModal } = await import("obsidian");
 
     return new Promise((resolve) => {
       const modal = new (class extends SuggestModal<{ text: string }> {
         constructor(app: any) {
           super(app);
-          this.setPlaceholder("Enter topic name (e.g., invest, ai, design)...");
+          this.setPlaceholder("Enter egg name (e.g., invest_strategy, psychology, ai_ml)...");
         }
 
         getSuggestions(query: string): { text: string }[] {
@@ -224,7 +224,7 @@ export default class NutEggPlugin extends Plugin {
 
         renderSuggestion(item: { text: string }, el: HTMLElement): void {
           el.createEl("div", {
-            text: `Create topic file: ${item.text}.md`,
+            text: `Create egg file: ${item.text}.md`,
           });
         }
 

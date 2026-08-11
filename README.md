@@ -14,9 +14,9 @@ Browse Web  →  Click Analyze  →  AI Processes  →  Confirm →  Knowledge B
 ```
 
 1. Click the NutEgg extension on any page
-2. Click **Analyze** — the AI reads your topic index and existing knowledge
+2. Click **Analyze** — the AI reads your egg index and existing knowledge
 3. See a 3-line summary + "Should you read it?" verdict + what new knowledge it found
-4. Click **Add to Knowledge Base** to save — raw content goes to `nutegg/_raw/`, insights go to your topic files
+4. Click **Add to Knowledge Base** to save — nuts go to `nutegg/_raw/`, insights go to your egg files
 
 ## Vault Structure
 
@@ -25,17 +25,17 @@ Everything lives under a `nutegg/` folder in your vault:
 ```
 vault/
 └── nutegg/
-    ├── _raw/                          # Raw captured content
+    ├── _raw/                          # Captured nuts (raw web content)
     │   └── 2026-08-10-14-30-youtube-How-AI-Works.md
-    ├── _index.md                      # Topic routing guide
-    ├── invest_strategy.md             # Topic: investment knowledge
-    ├── psychology.md                  # Topic: psychology knowledge
-    └── ai_ml.md                       # Topic: AI/ML knowledge
+    ├── _index.md                      # Egg routing guide
+    ├── invest_strategy.md             # Egg: investment knowledge
+    ├── psychology.md                  # Egg: psychology knowledge
+    └── ai_ml.md                       # Egg: AI/ML knowledge
 ```
 
 ### `_index.md` format
 
-Maps content to topic files. One entry per line:
+Maps content to egg files. One entry per line:
 
 ```
 nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management
@@ -43,7 +43,7 @@ nutegg/psychology.md: cognitive biases, mental models, behavioral psychology
 nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
 ```
 
-### Topic file format
+### Egg file format
 
 ```
 instruct:
