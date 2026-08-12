@@ -2,6 +2,7 @@
 
 // DOM — Capture state
 const serverStatus = document.getElementById("server-status");
+const modeToggleBtn = document.getElementById("mode-toggle-btn");
 const settingsBtn = document.getElementById("settings-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
@@ -36,10 +37,16 @@ const successMessage = document.getElementById("success-message");
 let extractedContent = null;
 let serverOnline = false;
 let analysisResult = null;
+let currentMode = "popup";
 
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  // Load display mode
+  const stored = await chrome.storage.local.get("displayMode");
+  currentMode = stored.displayMode || "popup";
+  updateModeButton();
+
   await checkServerStatus();
   await extractPageContent();
 
@@ -59,7 +66,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   settingsBtn.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
+  modeToggleBtn.addEventListener("click", handleModeToggle);
 });
+
+// --- Mode toggle ---
+
+function updateModeButton() {
+  modeToggleBtn.title = currentMode === "sidebar"
+    ? "Side panel mode — click to switch to popup"
+    : "Popup mode — click to switch to side panel";
+  modeToggleBtn.textContent = currentMode === "sidebar" ? "📌" : "📋";
+}
+
+async function handleModeToggle() {
+  currentMode = currentMode === "sidebar" ? "popup" : "sidebar";
+  await chrome.runtime.sendMessage({ action: "set-display-mode", mode: currentMode });
+  updateModeButton();
+
+  if (currentMode === "sidebar") {
+    showWarning("Switched to side panel. Close this popup and click the extension icon again to open the side panel.");
+  } else {
+    hideWarning();
+  }
+}
 
 // --- Config status ---
 

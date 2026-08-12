@@ -36,6 +36,19 @@ body {
   gap: 6px;
 }
 
+.mode-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.mode-toggle-btn:hover { opacity: 1; }
+
 .settings-btn {
   background: none;
   border: none;
