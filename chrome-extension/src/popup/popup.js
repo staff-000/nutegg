@@ -33,6 +33,9 @@ const discardBtn = document.getElementById("discard-btn");
 const backBtn = document.getElementById("back-btn");
 const successBanner = document.getElementById("success-banner");
 const successMessage = document.getElementById("success-message");
+const metricNuts = document.getElementById("metric-nuts");
+const metricEggs = document.getElementById("metric-eggs");
+const metricTime = document.getElementById("metric-time");
 
 let extractedContent = null;
 let serverOnline = false;
@@ -52,6 +55,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (serverOnline) {
     await checkConfigStatus();
+    await fetchMetrics();
     if (extractedContent) {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
@@ -87,6 +91,21 @@ async function handleModeToggle() {
     showWarning("Switched to side panel. Close this popup and click the extension icon again to open the side panel.");
   } else {
     hideWarning();
+  }
+}
+
+// --- Metrics ---
+
+async function fetchMetrics() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: "metrics" });
+    if (response) {
+      metricNuts.textContent = response.nuts || 0;
+      metricEggs.textContent = response.eggs || 0;
+      metricTime.textContent = response.timeSaved || "0m";
+    }
+  } catch {
+    // server may not support /metrics yet
   }
 }
 

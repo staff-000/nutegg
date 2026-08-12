@@ -87,6 +87,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     sendResponse({ mode: displayMode });
     return false;
   }
+
+  if (message.action === "metrics") {
+    fetchMetrics()
+      .then((r) => sendResponse(r))
+      .catch(() => sendResponse({ nuts: 0, eggs: 0, timeSaved: "0m" }));
+    return true;
+  }
 });
 
 // --- Server communication ---
@@ -142,6 +149,19 @@ async function checkConfigStatus() {
   } catch {
     clearTimeout(timeout);
     return { status: "error", issues: ["Cannot reach server"] };
+  }
+}
+
+async function fetchMetrics() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${getServerUrl()}/metrics`, { signal: controller.signal });
+    clearTimeout(timeout);
+    return await response.json();
+  } catch {
+    clearTimeout(timeout);
+    return { nuts: 0, eggs: 0, timeSaved: "0m", timeSavedMinutes: 0 };
   }
 }
 

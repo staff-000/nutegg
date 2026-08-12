@@ -31,6 +31,24 @@ function truncate(text, max) {
   return text.substring(0, max) + "\n\n[...truncated]";
 }
 
+function estimateTime(text, sourceType) {
+  if (sourceType === "youtube") {
+    // Try to get actual video duration
+    const video = document.querySelector("video");
+    if (video && video.duration) return Math.ceil(video.duration / 60);
+    // Fallback: estimate from description + transcript word count
+    const words = text.split(/\s+/).length;
+    return Math.max(2, Math.ceil(words / 150)); // ~150 wpm for video content
+  }
+  if (sourceType === "twitter") {
+    const tweetCount = document.querySelectorAll('article[data-testid="tweet"]').length;
+    return Math.max(1, tweetCount * 2); // ~2 min per tweet in a thread
+  }
+  // Generic/article: word count based
+  const words = text.split(/\s+/).length;
+  return Math.max(1, Math.ceil(words / 200)); // ~200 wpm reading speed
+}
+
 function readingTime(text) {
   const mins = Math.ceil(text.split(/\s+/).length / 200);
   return mins <= 1 ? "~1 min" : `~${mins} min`;
@@ -117,6 +135,7 @@ async function extractYouTube() {
       ...(channelName && { channel: channelName }),
       ...(date && { published: date }),
       ...(videoId && { video_id: videoId }),
+      time_estimate_minutes: estimateTime(parts.join(" "), "youtube"),
     },
   };
 }
@@ -240,6 +259,7 @@ function extractTwitter() {
       ...(authorName && { author: authorName }),
       ...(authorHandle && { handle: authorHandle }),
       ...(timestamp && { published: timestamp }),
+      time_estimate_minutes: estimateTime(tweetContent, "twitter"),
     },
   };
 }
@@ -336,6 +356,7 @@ function extractArticle() {
       ...(published && { published }),
       ...(siteName && { site: siteName }),
       reading_time: readingTime(contentText),
+      time_estimate_minutes: estimateTime(contentText, "article"),
     },
   };
 }
@@ -382,6 +403,7 @@ function extractMedium(url, siteName) {
       ...(author && { author }),
       ...(published && { published }),
       reading_time: readingTime(contentText),
+      time_estimate_minutes: estimateTime(contentText, "article"),
     },
   };
 }
@@ -450,11 +472,13 @@ function extractGeneric() {
   if (published) metadata.published = published;
   if (siteName) metadata.site = siteName;
 
+  metadata.time_estimate_minutes = estimateTime(mainContent, "webpage");
+
   return {
     url, title,
     content: `# ${title}\n\n${truncate(mainContent, 15000)}`,
     sourceType: "webpage",
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+    metadata,
   };
 }
 

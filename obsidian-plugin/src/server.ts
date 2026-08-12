@@ -31,9 +31,84 @@ export class NutEggServer {
   private processedUrls: Map<string, string> = new Map();
   private cacheLoaded = false;
 
+  /** Pre-computed metrics cache */
+  private metrics = { nuts: 0, eggs: 0, timeSavedMinutes: 0 };
+  private metricsLoaded = false;
+
   constructor(plugin: NutEggPlugin, port: number) {
     this.plugin = plugin;
     this.port = port;
+  }
+
+  // --- Metrics cache ---
+
+  private get metricsPath(): string {
+    return `${this.plugin.settings.rawFolder}/../.metrics.json`;
+  }
+
+  private async loadMetrics(): Promise<void> {
+    if (this.metricsLoaded) return;
+    try {
+      const file = this.plugin.app.vault.getAbstractFileByPath(this.metricsPath);
+      if (file) {
+        const content = await this.plugin.app.vault.read(file as any);
+        const parsed = JSON.parse(content);
+        this.metrics = {
+          nuts: parsed.nuts || 0,
+          eggs: parsed.eggs || 0,
+          timeSavedMinutes: parsed.timeSavedMinutes || 0,
+        };
+      }
+    } catch { /* file doesn't exist yet */ }
+    this.metricsLoaded = true;
+  }
+
+  private async saveMetrics(): Promise<void> {
+    const content = JSON.stringify(this.metrics, null, 2);
+    const existing = this.plugin.app.vault.getAbstractFileByPath(this.metricsPath);
+    if (existing) {
+      await this.plugin.app.vault.modify(existing as any, content);
+    } else {
+      await this.plugin.app.vault.create(this.metricsPath, content);
+    }
+  }
+
+  /** Call after saving a new nut to increment metrics. */
+  private async incrementMetrics(timeEstimateMinutes: number): Promise<void> {
+    await this.loadMetrics();
+    this.metrics.nuts++;
+    this.metrics.timeSavedMinutes += timeEstimateMinutes;
+    await this.saveMetrics();
+  }
+
+  /** Recalculate metrics from scratch by scanning all files. */
+  private async recalculateMetrics(): Promise<void> {
+    const rawFolder = this.plugin.settings.rawFolder;
+    const rawFiles = this.plugin.app.vault.getMarkdownFiles()
+      .filter((f) => f.path.startsWith(rawFolder));
+    this.metrics.nuts = rawFiles.length;
+
+    this.metrics.timeSavedMinutes = 0;
+    for (const file of rawFiles) {
+      try {
+        const content = await this.plugin.app.vault.read(file);
+        const timeMatch = content.match(/time_estimate_minutes:\s*(\d+(?:\.\d+)?)/);
+        if (timeMatch) {
+          this.metrics.timeSavedMinutes += parseFloat(timeMatch[1]);
+        }
+      } catch { /* skip unreadable */ }
+    }
+    this.metrics.timeSavedMinutes = Math.round(this.metrics.timeSavedMinutes);
+
+    // Count eggs
+    const nuteggFiles = this.plugin.app.vault.getMarkdownFiles()
+      .filter((f) => f.path.startsWith("nutegg/") &&
+        !f.path.startsWith(rawFolder) &&
+        !f.path.endsWith("/_index.md"));
+    this.metrics.eggs = nuteggFiles.length;
+
+    this.metricsLoaded = true;
+    await this.saveMetrics();
   }
 
   // --- URL deduplication cache ---
@@ -142,6 +217,11 @@ export class NutEggServer {
         return;
       }
 
+      if (req.method === "GET" && req.url === "/metrics") {
+        this.handleMetrics(req, res);
+        return;
+      }
+
       if (req.method === "POST" && req.url === "/analyze") {
         this.handleAnalyze(req, res);
         return;
@@ -190,6 +270,38 @@ export class NutEggServer {
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status, issues, port: this.port }));
+  }
+
+  /**
+   * GET /metrics — Returns cached usage stats.
+   * Use ?recalculate=1 to force a full rescan.
+   */
+  private async handleMetrics(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      const url = new URL(req.url || "/metrics", `http://127.0.0.1:${this.port}`);
+      if (url.searchParams.get("recalculate") === "1") {
+        await this.recalculateMetrics();
+      } else {
+        await this.loadMetrics();
+      }
+
+      const m = this.metrics;
+      const hours = Math.floor(m.timeSavedMinutes / 60);
+      const mins = Math.round(m.timeSavedMinutes % 60);
+      const timeSaved = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        nuts: m.nuts,
+        eggs: m.eggs,
+        timeSavedMinutes: m.timeSavedMinutes,
+        timeSaved,
+      }));
+    } catch (err) {
+      console.error("[NutEgg] Metrics error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ nuts: 0, eggs: 0, timeSavedMinutes: 0, timeSaved: "0m" }));
+    }
   }
 
   /**
@@ -328,6 +440,12 @@ export class NutEggServer {
 
       // Mark URL as processed
       await this.markProcessed(confirm.url);
+
+      // Increment metrics (time estimate from metadata, or fallback to word count)
+      const timeEstimate = parseInt(
+        confirm.metadata?.time_estimate_minutes || "0", 10
+      ) || Math.max(1, Math.ceil((confirm.content?.split(/\s+/)?.length || 0) / 200));
+      await this.incrementMetrics(timeEstimate);
 
       console.log(
         `[NutEgg] Confirmed: ${confirm.title} -> ${fileName}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
