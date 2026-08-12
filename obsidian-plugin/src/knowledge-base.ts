@@ -20,6 +20,9 @@ export class KnowledgeBase {
     content: string;
     sourceType: string;
     metadata?: Record<string, string>;
+    summary?: string;
+    matchedEggs?: string[];
+    processingResult: "saved" | "skip" | "unprocessed";
   }): Promise<string> {
     const folder = this.plugin.settings.rawFolder;
     await this.ensureFolder(folder);
@@ -37,17 +40,71 @@ export class KnowledgeBase {
     const source = this.sanitizeFileName(capture.sourceType);
     const fileName = `${folder}/${timestamp}-${source}-${safeTitle}.md`;
 
+    // 1. Published timestamp
+    const publishedAt = capture.metadata?.published || "unknown";
+
+    // 2. Saved timestamp
+    const savedAt = new Date().toISOString();
+
+    // 3. Author
+    const author = capture.metadata?.author ||
+      capture.metadata?.channel ||
+      capture.metadata?.handle ||
+      "unknown";
+
+    // 4. Source link
+    const sourceUrl = capture.url;
+
+    // 5. Processing result
+    const processingResult = capture.processingResult;
+
+    // 6. Time estimate
+    const timeEstimate = capture.metadata?.time_estimate_minutes ||
+      String(Math.max(1, Math.ceil((capture.content?.split(/\s+/)?.length || 0) / 200)));
+
+    // 7. Summary
+    const summary = capture.summary || "";
+
+    // 8. Egg files
+    const eggFiles = capture.matchedEggs || [];
+
     const frontmatterLines = [
       "---",
-      `source_url: "${capture.url}"`,
+      `source_url: "${this.escapeYaml(capture.url)}"`,
       `source_type: ${capture.sourceType}`,
-      `captured_at: "${new Date().toISOString()}"`,
-      `saved_at: "${new Date().toISOString()}"`,
+      `published_at: "${publishedAt === "unknown" ? "unknown" : this.escapeYaml(publishedAt)}"`,
+      `saved_at: "${savedAt}"`,
+      `author: "${author === "unknown" ? "unknown" : this.escapeYaml(author)}"`,
+      `processing_result: ${processingResult}`,
+      `time_estimate_minutes: ${timeEstimate}`,
     ];
 
+    // Summary — use YAML folded block scalar for multi-line text
+    if (summary) {
+      const escapedSummary = summary
+        .replace(/"/g, '\\"')
+        .replace(/\n/g, "\\n");
+      frontmatterLines.push(`summary: "${escapedSummary}"`);
+    }
+
+    // Egg files list
+    if (eggFiles.length > 0) {
+      frontmatterLines.push(`egg_files:`);
+      for (const egg of eggFiles) {
+        frontmatterLines.push(`  - ${egg}`);
+      }
+    }
+
+    // 9. Tags
+    frontmatterLines.push(`tags: []`);
+
+    // Passthrough any additional metadata not covered above (e.g. platform, video_id)
     if (capture.metadata) {
+      const passthroughKeys = ["published", "author", "channel", "handle", "time_estimate_minutes"];
       for (const [key, value] of Object.entries(capture.metadata)) {
-        frontmatterLines.push(`${key}: "${value}"`);
+        if (!passthroughKeys.includes(key) && value) {
+          frontmatterLines.push(`${key}: "${this.escapeYaml(value)}"`);
+        }
       }
     }
 
@@ -87,6 +144,10 @@ export class KnowledgeBase {
         sourceUrl
       );
     }
+  }
+
+  private escapeYaml(value: string): string {
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
 
   private async ensureFolder(folder: string): Promise<void> {

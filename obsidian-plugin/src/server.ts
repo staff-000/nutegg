@@ -16,6 +16,8 @@ interface ConfirmRequest {
   content: string;
   sourceType: string;
   metadata?: Record<string, string>;
+  summary?: string;
+  matchedEggs?: string[];
   newKnowledge: Array<{
     egg: string;
     section: string;
@@ -421,6 +423,16 @@ export class NutEggServer {
         return;
       }
 
+      // Determine processing result from whether knowledge was added
+      const processingResult = confirm.newKnowledge && confirm.newKnowledge.length > 0
+        ? "saved" as const
+        : "skip" as const;
+
+      // Collect egg names from newKnowledge (deduplicated)
+      const eggNames = confirm.newKnowledge && confirm.newKnowledge.length > 0
+        ? [...new Set(confirm.newKnowledge.map((k) => k.egg))]
+        : (confirm.matchedEggs || []);
+
       // Save raw content to _raw/
       const fileName = await this.plugin.knowledgeBase.saveRaw({
         url: confirm.url,
@@ -428,6 +440,9 @@ export class NutEggServer {
         content: confirm.content,
         sourceType: confirm.sourceType,
         metadata: confirm.metadata,
+        summary: confirm.summary,
+        matchedEggs: eggNames,
+        processingResult,
       });
 
       // Append new knowledge to egg files

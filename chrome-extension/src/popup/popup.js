@@ -315,6 +315,8 @@ async function doSave(newKnowledge) {
       content: extractedContent.content || "",
       sourceType: extractedContent.sourceType || "generic",
       metadata: extractedContent.metadata,
+      summary: analysisResult?.summary || "",
+      matchedEggs: analysisResult?.matchedEggs || [],
       newKnowledge,
     };
 
