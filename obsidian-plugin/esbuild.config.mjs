@@ -1,12 +1,25 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import fs from "fs";
 
 const prod = process.argv[2] === "production";
 
 const context = await esbuild.context({
   entryPoints: ["src/main.ts"],
   bundle: true,
+  plugins: [
+    {
+      // Bundle template .md files (src/templates/*) as plain text strings
+      name: "md-as-text",
+      setup(build) {
+        build.onLoad({ filter: /\.md$/ }, async (args) => ({
+          contents: await fs.promises.readFile(args.path, "utf8"),
+          loader: "text",
+        }));
+      },
+    },
+  ],
   external: [
     "obsidian",
     "electron",

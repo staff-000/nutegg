@@ -10,6 +10,7 @@ import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
 import { IndexReader } from "./index-reader";
 import { EggParser } from "./egg-parser";
+import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -76,19 +77,7 @@ export default class NutEggPlugin extends Plugin {
           return;
         }
 
-        const content = [
-          "instruct:",
-          "  * key questions: what new insights does this add?",
-          "  * reject criteria: ignore content that repeats existing knowledge",
-          "---",
-          "",
-          "# knowledge",
-          "",
-          "# ideas",
-          "",
-        ].join("\n");
-
-        await this.app.vault.create(fileName, content);
+        await this.app.vault.create(fileName, EGG_TEMPLATE);
         new Notice(`NutEgg: Created ${fileName}`);
 
         // Also remind to add to _index.md
@@ -142,72 +131,13 @@ export default class NutEggPlugin extends Plugin {
     const indexPath = this.settings.indexFile;
     const existing = await this.app.vault.adapter.exists(indexPath);
     if (!existing) {
-      const content = [
-        "# NutEgg Egg Index",
-        "\tInstruct:",
-        "\tAdd one line per egg file: * <path>: <description of what it covers>",
-        "\tProcess only the lines beginning with *",
-        "---",
-        "* nutegg/investment.md: investment strategies, market analysis, portfolio management",
-        "* nutegg/society.md: geopolitics, class dynamics, global conflict, political economy",
-        "* nutegg/psychology.md: cognitive biases, mental models, behavioral psychology, decision making",
-        "* nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI, prompt engineering",
-        "",
-      ].join("\n");
-      await this.app.vault.create(indexPath, content);
+      await this.app.vault.create(indexPath, INDEX_TEMPLATE);
       console.log(`[NutEgg] Created ${indexPath}`);
 
       // Also create example egg files so the user can see the format
-      const exampleEggs: Record<string, string> = {
-        "nutegg/investment.md": [
-          "Instruct:",
-          "  * key questions: what new investment insight, strategy, or market perspective does this add?",
-          "  * reject criteria: ignore basic price movements, generic financial news, or repeated advice",
-          "---",
-          "",
-          "# knowledge",
-          "",
-          "# ideas",
-          "",
-        ].join("\n"),
-        "nutegg/psychology.md": [
-          "instruct:",
-          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
-          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
-          "---",
-          "",
-          "# knowledge",
-          "",
-          "# ideas",
-          "",
-        ].join("\n"),
-         "nutegg/society.md": [
-          "instruct:",
-          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
-          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
-          "---",
-          "",
-          "# knowledge",
-          "",
-          "# ideas",
-          "",
-        ].join("\n"),
-         "nutegg/ai_ml.md": [
-          "instruct:",
-          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
-          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
-          "---",
-          "",
-          "# knowledge",
-          "",
-          "# ideas",
-          "",
-        ].join("\n"),
-      };
-
-      for (const [path, eggContent] of Object.entries(exampleEggs)) {
+      for (const { path, content } of EXAMPLE_EGGS) {
         if (!(await this.app.vault.adapter.exists(path))) {
-          await this.app.vault.create(path, eggContent);
+          await this.app.vault.create(path, content);
           console.log(`[NutEgg] Created ${path}`);
         }
       }
