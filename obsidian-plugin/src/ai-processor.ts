@@ -77,7 +77,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 IMPORTANT:
-- The "summary" field must be exactly 3 lines separated by \\n.
+- The "summary" field must be no more than 3 lines separated by \\n.
 - Only add entries to newKnowledge if they are genuinely NEW and not already in the egg files.
 - If nothing is new, return an empty array for newKnowledge.
 - Match sections to existing section names in the egg files (e.g., "knowledge", "ideas").`;

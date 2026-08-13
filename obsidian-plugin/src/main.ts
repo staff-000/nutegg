@@ -144,14 +144,14 @@ export default class NutEggPlugin extends Plugin {
     if (!existing) {
       const content = [
         "# NutEgg Egg Index",
-        "#",
-        "# Add one line per egg file: <path>: <description of what it covers>",
-        "# Lines starting with # are ignored.",
-        "#",
-        "# Examples:",
-        "nutegg/invest_strategy.md: investment strategies, market analysis, portfolio management, crypto",
-        "nutegg/psychology.md: cognitive biases, mental models, behavioral psychology, decision making",
-        "nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI, prompt engineering",
+        "\tInstruct:",
+        "\tAdd one line per egg file: * <path>: <description of what it covers>",
+        "\tProcess only the lines beginning with *",
+        "---",
+        "* nutegg/investment.md: investment strategies, market analysis, portfolio management",
+        "* nutegg/society.md: geopolitics, class dynamics, global conflict, political economy",
+        "* nutegg/psychology.md: cognitive biases, mental models, behavioral psychology, decision making",
+        "* nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI, prompt engineering",
         "",
       ].join("\n");
       await this.app.vault.create(indexPath, content);
@@ -159,8 +159,8 @@ export default class NutEggPlugin extends Plugin {
 
       // Also create example egg files so the user can see the format
       const exampleEggs: Record<string, string> = {
-        "nutegg/invest_strategy.md": [
-          "instruct:",
+        "nutegg/investment.md": [
+          "Instruct:",
           "  * key questions: what new investment insight, strategy, or market perspective does this add?",
           "  * reject criteria: ignore basic price movements, generic financial news, or repeated advice",
           "---",
@@ -171,6 +171,28 @@ export default class NutEggPlugin extends Plugin {
           "",
         ].join("\n"),
         "nutegg/psychology.md": [
+          "instruct:",
+          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
+          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
+          "---",
+          "",
+          "# knowledge",
+          "",
+          "# ideas",
+          "",
+        ].join("\n"),
+         "nutegg/society.md": [
+          "instruct:",
+          "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
+          "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
+          "---",
+          "",
+          "# knowledge",
+          "",
+          "# ideas",
+          "",
+        ].join("\n"),
+         "nutegg/ai_ml.md": [
           "instruct:",
           "  * key questions: what cognitive bias, mental model, or psychological insight does this reveal?",
           "  * reject criteria: ignore generic self-help platitudes without specific mechanisms",
