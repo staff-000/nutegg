@@ -56,7 +56,7 @@ let serverOnline = false;
 let analysisResult = null;
 let currentMode = "popup";
 let activeTabId = null;
-/** How the shown result was saved previously: "saved" | "skip" | null (fresh analysis). */
+/** How the shown result was saved previously: "saved" | "skip" | "analyzed" | null (fresh analysis). */
 let cachedProcessedSaved = null;
 /** Follow-up questions asked after the result was shown (this session). */
 let followUpQa = [];
@@ -251,7 +251,9 @@ async function handleAnalyze() {
       analyzeBtnText.textContent = "Analyze";
       if (response.cachedResult) {
         // Replay the result from the last process
-        cachedProcessedSaved = response.saved === "saved" ? "saved" : "skip";
+        cachedProcessedSaved = response.saved === "saved" || response.saved === "analyzed"
+          ? response.saved
+          : "skip";
         analysisResult = response.cachedResult;
         showResultsState(response.cachedResult);
         if (cachedProcessedSaved === "saved") {
@@ -530,8 +532,10 @@ async function doSave(newKnowledge) {
       newKnowledge,
       analysis: analysisResult || undefined,
       // When replaying a cached result, the raw nut was already saved —
-      // only apply the knowledge this time.
-      skipRaw: newKnowledge.length > 0 && cachedProcessedSaved !== null,
+      // only apply the knowledge this time. "analyzed" means the nut was
+      // processed but never saved, so the raw must still be saved.
+      skipRaw: newKnowledge.length > 0 && cachedProcessedSaved !== null &&
+        cachedProcessedSaved !== "analyzed",
     };
 
     const response = await chrome.runtime.sendMessage({ action: "confirm", payload });

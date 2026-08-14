@@ -48,8 +48,8 @@ interface ConfirmRequest {
 /** One processed nut, as exposed to /analyze for dedup + result replay. */
 interface ProcessedEntry {
   processedAt: string;
-  /** How the nut was saved last time: "saved" (knowledge added) or "skip" (raw only). */
-  saved?: "saved" | "skip";
+  /** Last state: "saved" (knowledge added), "skip" (raw only), "analyzed" (never saved). */
+  saved?: "saved" | "skip" | "analyzed";
   /** Analysis result from the last process — replayed when the URL is reopened. */
   result?: AnalysisResult;
 }
@@ -72,11 +72,26 @@ export class NutEggServer {
     if (!db?.available) return null;
     const row = db.getNutByUrl(this.normalizeUrl(url));
     if (!row) return null;
+    const state =
+      row.processingResult === "saved" || row.processingResult === "skip"
+        ? row.processingResult
+        : "analyzed";
     return {
       processedAt: row.savedAt,
-      saved: row.processingResult === "saved" ? "saved" : "skip",
+      saved: state,
       result: row.analysisResult ?? undefined,
     };
+  }
+
+  /** Reading/watch time estimate from metadata, or word-count fallback. */
+  private estimateTime(
+    metadata: Record<string, string> | undefined,
+    content: string
+  ): number {
+    return (
+      parseInt(metadata?.time_estimate_minutes || "0", 10) ||
+      Math.max(1, Math.ceil((content?.split(/\s+/)?.length || 0) / 200))
+    );
   }
 
   /** Count egg files (markdown under nutegg/, excluding _raw and _index). */
@@ -314,11 +329,13 @@ export class NutEggServer {
         const date = new Date(processedEntry.processedAt).toLocaleDateString();
         res.writeHead(200, { "Content-Type": "application/json" });
         if (processedEntry.result) {
+          const state = processedEntry.saved || "analyzed";
+          const label = state === "analyzed" ? "Analyzed" : "Processed";
           res.end(
             JSON.stringify({
-              alreadyProcessed: `Processed on ${date} — showing saved result.`,
+              alreadyProcessed: `${label} on ${date} — showing stored result.`,
               cachedResult: processedEntry.result,
-              saved: processedEntry.saved || "skip",
+              saved: state,
             })
           );
         } else {
@@ -345,6 +362,29 @@ export class NutEggServer {
       // Step 3: Two-phase AI analysis — content summary + per-egg delta.
       // Custom questions are deduplicated by the AI against the eggs' key questions.
       const result = await this.plugin.aiProcessor.analyze(capture, eggs);
+
+      // Record EVERY processed nut in SQLite — metrics count all analyses,
+      // not just saved ones. A later /confirm upgrades the row to saved/skip.
+      const normalizedUrl = this.normalizeUrl(capture.url);
+      const existing = this.plugin.db?.getNutByUrl(normalizedUrl) ?? null;
+      this.plugin.db?.upsertNut({
+        url: normalizedUrl,
+        title: capture.title,
+        sourceType: capture.sourceType,
+        content: capture.content || "",
+        savedAt: new Date().toISOString(),
+        publishedAt: capture.metadata?.published || "",
+        author: capture.metadata?.author || capture.metadata?.channel || "",
+        timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
+        // Preserve the save state of an already-saved nut on re-analysis
+        processingResult: existing ? existing.processingResult : "analyzed",
+        summary: [result.titleVerdict, ...(result.coreSummary || [])]
+          .filter(Boolean)
+          .join("\n"),
+        matchedEggs: result.matchedEggs || [],
+        fileName: existing?.fileName || "",
+        analysisResult: result,
+      });
 
       console.log(
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
@@ -431,9 +471,7 @@ export class NutEggServer {
           : undefined);
 
       // Time estimate from metadata, or fallback to word count
-      const timeEstimate = parseInt(
-        confirm.metadata?.time_estimate_minutes || "0", 10
-      ) || Math.max(1, Math.ceil((confirm.content?.split(/\s+/)?.length || 0) / 200));
+      const timeEstimate = this.estimateTime(confirm.metadata, confirm.content);
 
       // Save raw content to _raw/ (skipped when the nut was already saved)
       let fileName = "";

@@ -28,7 +28,8 @@ export interface NutRow {
   publishedAt: string;
   author: string;
   timeEstimateMinutes: number;
-  processingResult: "saved" | "skip" | "unprocessed";
+  /** "analyzed" = processed but never saved; "saved" = knowledge added; "skip" = raw only. */
+  processingResult: "saved" | "skip" | "analyzed" | "unprocessed";
   summary: string;
   matchedEggs: string[];
   fileName: string;
