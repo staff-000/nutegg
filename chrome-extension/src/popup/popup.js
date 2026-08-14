@@ -60,6 +60,9 @@ let activeTabId = null;
 let cachedProcessedSaved = null;
 /** Follow-up questions asked after the result was shown (this session). */
 let followUpQa = [];
+/** Save-state of the shown result this session. Hatch implies both. */
+let nutCollected = false;
+let eggHatched = false;
 
 // --- Init ---
 
@@ -274,15 +277,16 @@ async function handleAnalyze() {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
       if (response.cachedResult) {
-        // Replay the result from the last process
+        // Replay the result from the last process — initialize save state
+        // from the DB row so re-clicking never duplicates work.
         cachedProcessedSaved = response.saved === "saved" || response.saved === "analyzed"
           ? response.saved
           : "skip";
+        nutCollected = cachedProcessedSaved === "saved" || cachedProcessedSaved === "skip";
+        eggHatched = cachedProcessedSaved === "saved";
         analysisResult = response.cachedResult;
         showResultsState(response.cachedResult);
-        if (cachedProcessedSaved === "saved") {
-          confirmBtn.classList.add("hidden");
-        }
+        updateActionButtons();
         processedMessage.textContent = response.alreadyProcessed;
         processedNote.classList.remove("hidden");
       } else {
@@ -301,6 +305,8 @@ async function handleAnalyze() {
     cachedProcessedSaved = null;
     followUpQa = [];
     followupInput.value = "";
+    nutCollected = false;
+    eggHatched = false;
     analysisResult = response;
     showResultsState(response);
   } catch (err) {
@@ -393,11 +399,9 @@ function showResultsState(result) {
             .join("")}
         </div>`)
       .join("");
-    confirmBtn.classList.remove("hidden");
   } else {
     deltaSection.classList.add("hidden");
     deltaList.innerHTML = "";
-    confirmBtn.classList.add("hidden");
   }
 
   // Verdict
@@ -412,9 +416,32 @@ function showResultsState(result) {
   }
   verdictReason.textContent = result.shouldReadReason || "";
 
-  // Save Raw is always visible
-  saveRawBtn.classList.remove("hidden");
   successBanner.classList.add("hidden");
+  updateActionButtons();
+}
+
+/** Reflect nutCollected/eggHatched in the two action buttons. */
+function updateActionButtons() {
+  if (nutCollected) {
+    saveRawBtn.disabled = true;
+    saveRawBtn.textContent = "✅ Nut collected";
+  } else {
+    saveRawBtn.disabled = false;
+    saveRawBtn.textContent = "🥜 Collect Nut";
+  }
+
+  const hasDelta = (analysisResult?.newKnowledge?.length || 0) > 0;
+  if (eggHatched) {
+    confirmBtn.classList.remove("hidden");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "✅ Egg hatched";
+  } else if (hasDelta) {
+    confirmBtn.classList.remove("hidden");
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "🥚 Hatch Egg";
+  } else {
+    confirmBtn.classList.add("hidden");
+  }
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
@@ -518,29 +545,29 @@ function showCaptureState() {
   cachedProcessedSaved = null;
   followUpQa = [];
   followupInput.value = "";
+  nutCollected = false;
+  eggHatched = false;
   hideMessages();
 }
 
 // --- Confirm (add to knowledge base) ---
 
 async function handleConfirm() {
-  if (!analysisResult) return;
+  if (!analysisResult || eggHatched) return;
   confirmBtn.disabled = true;
-  confirmBtn.textContent = "Saving...";
+  confirmBtn.textContent = "Hatching...";
   await doSave(analysisResult.newKnowledge || []);
-  confirmBtn.disabled = false;
-  confirmBtn.textContent = "Add to Egg";
+  updateActionButtons();
 }
 
-// --- Save Raw (save content only, no knowledge additions) ---
+// --- Collect Nut (save content only, no knowledge additions) ---
 
 async function handleSaveRaw() {
-  if (!extractedContent) return;
+  if (!extractedContent || nutCollected) return; // already collected — no duplicate work
   saveRawBtn.disabled = true;
-  saveRawBtn.textContent = "Saving...";
+  saveRawBtn.textContent = "Collecting...";
   await doSave([]);
-  saveRawBtn.disabled = false;
-  saveRawBtn.textContent = "💾 Save Raw";
+  updateActionButtons();
 }
 
 async function doSave(newKnowledge) {
@@ -555,24 +582,28 @@ async function doSave(newKnowledge) {
       matchedEggs: analysisResult?.matchedEggs || [],
       newKnowledge,
       analysis: analysisResult || undefined,
-      // When replaying a cached result, the raw nut was already saved —
-      // only apply the knowledge this time. "analyzed" means the nut was
-      // processed but never saved, so the raw must still be saved.
-      skipRaw: newKnowledge.length > 0 && cachedProcessedSaved !== null &&
-        cachedProcessedSaved !== "analyzed",
+      // Hatching collects the nut too — skip the raw save only when the
+      // nut was already collected (this session or a previous one).
+      // "analyzed" means processed but never saved, so the raw must be saved.
+      skipRaw: newKnowledge.length > 0 &&
+        (nutCollected || (cachedProcessedSaved !== null && cachedProcessedSaved !== "analyzed")),
     };
 
     const response = await chrome.runtime.sendMessage({ action: "confirm", payload });
 
     if (response?.success) {
-      const msg = newKnowledge.length > 0
-        ? "Added to egg files!"
-        : "Raw content saved!";
-      successMessage.textContent = msg;
+      if (newKnowledge.length > 0) {
+        // Hatching the egg collects the nut as well
+        eggHatched = true;
+        nutCollected = true;
+      } else {
+        nutCollected = true;
+      }
+      successMessage.textContent = newKnowledge.length > 0
+        ? "Egg hatched — knowledge added and nut collected!"
+        : "Nut collected!";
       successBanner.classList.remove("hidden");
-      confirmBtn.classList.add("hidden");
-      saveRawBtn.classList.add("hidden");
-      setTimeout(() => window.close(), 2000);
+      updateActionButtons();
     } else {
       showError(response?.error || "Failed to save");
     }
