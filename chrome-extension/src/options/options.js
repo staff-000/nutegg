@@ -11,15 +11,10 @@ const shortcutsLink = document.getElementById("shortcuts-link");
 
 // Load saved settings
 document.addEventListener("DOMContentLoaded", async () => {
-  const stored = await chrome.storage.local.get(["serverPort", "displayMode"]);
+  const stored = await chrome.storage.local.get(["serverPort"]);
   const port = stored.serverPort || DEFAULT_PORT;
   portInput.value = port;
   portDisplay.textContent = port;
-
-  // Display mode
-  const mode = stored.displayMode || "popup";
-  const modeRadio = document.querySelector(`input[name="display-mode"][value="${mode}"]`);
-  if (modeRadio) modeRadio.checked = true;
 
   portInput.addEventListener("input", () => {
     portDisplay.textContent = portInput.value || DEFAULT_PORT;
@@ -30,17 +25,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   shortcutsLink.addEventListener("click", (e) => {
     e.preventDefault();
     chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
-  });
-
-  // Auto-save display mode on change
-  document.querySelectorAll('input[name="display-mode"]').forEach((radio) => {
-    radio.addEventListener("change", async () => {
-      const mode = radio.value;
-      await chrome.storage.local.set({ displayMode: mode });
-      await chrome.runtime.sendMessage({ action: "set-display-mode", mode });
-      showResult(`Switched to ${mode === "sidebar" ? "side panel" : "popup"} mode.`, "ok");
-      setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
-    });
   });
 });
 

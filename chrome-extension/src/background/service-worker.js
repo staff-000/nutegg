@@ -2,40 +2,24 @@
 
 const DEFAULT_PORT = 27123;
 let serverPort = DEFAULT_PORT;
-let displayMode = "popup"; // "popup" | "sidebar"
 
 // --- Init ---
 
 async function init() {
-  const stored = await chrome.storage.local.get(["serverPort", "displayMode"]);
+  const stored = await chrome.storage.local.get(["serverPort"]);
   if (stored.serverPort) serverPort = stored.serverPort;
-  if (stored.displayMode) displayMode = stored.displayMode;
-  applyDisplayMode();
-  console.log("[NutEgg] Port:", serverPort, "Mode:", displayMode);
+
+  // Side panel only — clicking the extension icon opens the panel directly
+  chrome.action.setPopup({ popup: "" });
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
+    .catch(() => {}); // OK if sidePanel API not available
+  console.log("[NutEgg] Port:", serverPort);
 }
 init();
 
 function getServerUrl() {
   return `http://127.0.0.1:${serverPort}`;
 }
-
-// --- Display mode ---
-
-function applyDisplayMode() {
-  if (displayMode === "sidebar") {
-    chrome.action.setPopup({ popup: "" });
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-      .catch(() => {}); // OK if sidePanel API not available
-  } else {
-    chrome.action.setPopup({ popup: "src/popup/popup.html" });
-  }
-}
-
-chrome.action.onClicked.addListener((tab) => {
-  if (displayMode === "sidebar") {
-    // Side panel opens automatically via setPanelBehavior
-  }
-});
 
 // --- Messages ---
 
@@ -79,19 +63,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     serverPort = message.port || DEFAULT_PORT;
     chrome.storage.local.set({ serverPort });
     sendResponse({ success: true, port: serverPort });
-    return false;
-  }
-
-  if (message.action === "set-display-mode") {
-    displayMode = message.mode || "popup";
-    chrome.storage.local.set({ displayMode });
-    applyDisplayMode();
-    sendResponse({ success: true, mode: displayMode });
-    return false;
-  }
-
-  if (message.action === "get-display-mode") {
-    sendResponse({ mode: displayMode });
     return false;
   }
 
