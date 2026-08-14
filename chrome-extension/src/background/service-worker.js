@@ -54,6 +54,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "ask") {
+    handleAsk(message.payload)
+      .then((r) => sendResponse(r))
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
+
   if (message.action === "check-server") {
     checkServer()
       .then((r) => sendResponse(r))
@@ -129,6 +136,25 @@ async function handleConfirm(payload) {
 
   if (!response.ok) {
     return { error: data.error || `Server error (${response.status})` };
+  }
+
+  return data;
+}
+
+async function handleAsk(payload) {
+  const response = await fetch(`${getServerUrl()}/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return {
+      error: data.error || `Server error (${response.status})`,
+      errorCode: data.errorCode || "unknown",
+    };
   }
 
   return data;

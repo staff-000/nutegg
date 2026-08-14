@@ -401,6 +401,50 @@ body {
   color: #6b7280;
 }
 
+/* Follow-up questions */
+.followup-area {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.followup-area input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #374151;
+  box-sizing: border-box;
+}
+
+.followup-area input:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.followup-btn {
+  padding: 8px 12px;
+  background: #7c3aed;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.followup-btn:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
+.followup-btn:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+
 /* Key Questions + Novel Delta */
 .keyquestions-list,
 .delta-list {

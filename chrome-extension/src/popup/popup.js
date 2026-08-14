@@ -31,6 +31,8 @@ const chapterSection = document.getElementById("chapter-section");
 const chapterList = document.getElementById("chapter-list");
 const customQuestionsSection = document.getElementById("custom-questions-section");
 const customQuestionsList = document.getElementById("custom-questions-list");
+const followupInput = document.getElementById("followup-input");
+const followupBtn = document.getElementById("followup-btn");
 const keyQuestionsSection = document.getElementById("keyquestions-section");
 const keyQuestionsList = document.getElementById("keyquestions-list");
 const deltaSection = document.getElementById("delta-section");
@@ -56,6 +58,8 @@ let currentMode = "popup";
 let activeTabId = null;
 /** How the shown result was saved previously: "saved" | "skip" | null (fresh analysis). */
 let cachedProcessedSaved = null;
+/** Follow-up questions asked after the result was shown (this session). */
+let followUpQa = [];
 
 // --- Init ---
 
@@ -88,6 +92,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   modeToggleBtn.addEventListener("click", handleModeToggle);
   questionsToggle.addEventListener("click", () => {
     questionsArea.classList.toggle("hidden");
+  });
+  followupBtn.addEventListener("click", handleFollowUp);
+  followupInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleFollowUp();
   });
 });
 
@@ -265,6 +273,8 @@ async function handleAnalyze() {
     }
 
     cachedProcessedSaved = null;
+    followUpQa = [];
+    followupInput.value = "";
     analysisResult = response;
     showResultsState(response);
   } catch (err) {
@@ -311,22 +321,8 @@ function showResultsState(result) {
     chapterList.innerHTML = "";
   }
 
-  // Your Questions — answered in the content analysis phase
-  if (result.customQuestionAnswers && result.customQuestionAnswers.length > 0) {
-    customQuestionsSection.classList.remove("hidden");
-    customQuestionsList.innerHTML = result.customQuestionAnswers
-      .map((qa) => `
-        <div class="egg-group">
-          <div class="qa-item">
-            <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-            <div class="qa-answer">${escapeHtml(qa.answer)}</div>
-          </div>
-        </div>`)
-      .join("");
-  } else {
-    customQuestionsSection.classList.add("hidden");
-    customQuestionsList.innerHTML = "";
-  }
+  // Your Questions — initial answers + follow-ups asked this session
+  renderCustomQuestions();
 
   // Key Questions — grouped per egg
   const qaGroups = (result.eggResults || []).filter(
@@ -395,6 +391,74 @@ function showResultsState(result) {
   successBanner.classList.add("hidden");
 }
 
+/** Render the "Your Questions" section: initial answers + follow-ups. */
+function renderCustomQuestions() {
+  const all = [
+    ...(analysisResult?.customQuestionAnswers || []),
+    ...followUpQa,
+  ];
+  if (all.length > 0) {
+    customQuestionsSection.classList.remove("hidden");
+    customQuestionsList.innerHTML = all
+      .map((qa) => `
+        <div class="egg-group">
+          <div class="qa-item">
+            <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
+            <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+          </div>
+        </div>`)
+      .join("");
+  } else {
+    customQuestionsSection.classList.add("hidden");
+    customQuestionsList.innerHTML = "";
+  }
+}
+
+/** Ask a follow-up question against the already-analyzed content. */
+async function handleFollowUp() {
+  const q = followupInput.value.trim();
+  if (!q || followupBtn.disabled) return;
+  followupInput.value = "";
+  followupBtn.disabled = true;
+  followupBtn.textContent = "…";
+  followUpQa.push({ question: q, answer: "…" });
+  renderCustomQuestions();
+
+  try {
+    const payload = {
+      url: extractedContent.url || "",
+      title: extractedContent.title || "",
+      content: extractedContent.content || "",
+      sourceType: extractedContent.sourceType || "generic",
+      questions: [q],
+      priorQa: buildPriorQa(),
+    };
+    const response = await chrome.runtime.sendMessage({ action: "ask", payload });
+
+    const answers = response?.answers || [];
+    const answer = answers[0]?.answer || response?.error || "No answer returned.";
+    followUpQa[followUpQa.length - 1] = { question: q, answer };
+  } catch (err) {
+    followUpQa[followUpQa.length - 1] = {
+      question: q,
+      answer: `Failed to get answer: ${err instanceof Error ? err.message : "unknown error"}`,
+    };
+  }
+
+  followupBtn.disabled = false;
+  followupBtn.textContent = "Ask";
+  renderCustomQuestions();
+}
+
+/** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
+function buildPriorQa() {
+  const eggQa = (analysisResult?.eggResults || []).flatMap(
+    (r) => r.keyQuestionAnswers || []
+  );
+  const customQa = analysisResult?.customQuestionAnswers || [];
+  return [...eggQa, ...customQa, ...followUpQa.filter((qa) => qa.answer !== "…")];
+}
+
 /** Seek the active tab's video to a chapter timestamp. */
 async function seekToChapter(seconds) {
   if (activeTabId == null) return;
@@ -426,6 +490,8 @@ function showCaptureState() {
   analyzeBtnText.textContent = "Analyze";
   analysisResult = null;
   cachedProcessedSaved = null;
+  followUpQa = [];
+  followupInput.value = "";
   hideMessages();
 }
 

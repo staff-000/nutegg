@@ -82,6 +82,13 @@ export class AIProcessor {
     "3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.",
   ].join("\n");
 
+  /**
+   * Grounding rule injected into every prompt: the content is the sole source
+   * of truth for answers — even when it contradicts common sense.
+   */
+  private static readonly GROUNDING_RULE =
+    'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts — never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".';
+
   async analyze(
     capture: {
       url: string;
@@ -206,11 +213,12 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 IMPORTANT:
+- Grounding: ${AIProcessor.GROUNDING_RULE}
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once. Base answers only on the content — say "Not covered in this content" when it doesn't address the question.`;
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.`;
 
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response);
@@ -251,7 +259,7 @@ ${this.plugin.eggParser.formatEggForPrompt(egg)}
 ${this.truncate(capture.content, 6000)}
 
 ## Task
-1. Answer each Key Question (if any) directly and concisely.
+1. Answer each Key Question (if any) directly and concisely. Grounding: ${AIProcessor.GROUNDING_RULE}
 2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge. If the content is entirely redundant, return an empty array.
 3. Apply the Rejection Criteria — if the content should be rejected, set rejected to true and give a one-line reason.
 4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight.
@@ -365,8 +373,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 IMPORTANT:
+- Grounding: ${AIProcessor.GROUNDING_RULE}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once. Base answers only on the content — say "Not covered in this content" when it doesn't address the question.
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once.
 - For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
 - Apply the Rejection Criteria strictly — set rejected to true when the content is noise for this egg.`;
 
@@ -463,6 +472,83 @@ IMPORTANT:
       eggResults: [],
       newKnowledge: [],
     };
+  }
+
+  /**
+   * Answer follow-up questions after the initial analysis — one lightweight
+   * call, grounded in the same content. Previous Q&A pairs are included as
+   * context so the model can refer back instead of repeating answers.
+   */
+  async askFollowUp(
+    capture: {
+      title: string;
+      url: string;
+      content: string;
+      sourceType: string;
+    },
+    questions: string[],
+    priorQa: KeyAnswer[]
+  ): Promise<KeyAnswer[]> {
+    if (questions.length === 0) return [];
+
+    if (!this.plugin.settings.aiApiKey) {
+      return questions.map((q) => ({
+        question: q,
+        answer: "No API key configured — cannot answer.",
+      }));
+    }
+
+    const priorHint =
+      priorQa.length > 0
+        ? `\n## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
+            .map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`)
+            .join("\n")}`
+        : "";
+
+    const prompt = `You are a knowledge curator. Answer the user's follow-up questions about this content.
+
+## Content to Analyze
+**Title:** ${capture.title}
+**Source:** ${capture.url}
+**Type:** ${capture.sourceType}
+${priorHint}
+
+${this.truncate(capture.content, 8000)}
+
+## New Questions (answer each directly and concisely)
+${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "answers": [
+    {"question": "exact question text", "answer": "direct answer"}
+  ]
+}
+
+IMPORTANT:
+- One entry per question, in the same order.
+- Grounding: ${AIProcessor.GROUNDING_RULE}
+- If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.`;
+
+    try {
+      const response = await this.callAI(prompt, 500);
+      const parsed = this.parseJson(response);
+      const answers = this.parseKeyAnswers(parsed.answers);
+      // Ensure every asked question has an entry (model may have skipped one)
+      const byQuestion = new Map(answers.map((a) => [a.question, a]));
+      return questions.map((q) => ({
+        question: q,
+        answer: byQuestion.get(q)?.answer || "No answer returned — please try again.",
+      }));
+    } catch (err) {
+      // Typed AI errors (auth, quota, ...) must reach the popup's error hints
+      if (err instanceof AIError) throw err;
+      console.error("[NutEgg] Follow-up question failed:", err);
+      return questions.map((q) => ({
+        question: q,
+        answer: "Failed to answer — please try again.",
+      }));
+    }
   }
 
   private async callAI(prompt: string, maxTokens: number): Promise<string> {

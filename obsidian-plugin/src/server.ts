@@ -15,6 +15,17 @@ interface AnalyzeRequest {
   questions?: string[];
 }
 
+interface AskRequest {
+  url: string;
+  title: string;
+  content: string;
+  sourceType: string;
+  /** New follow-up questions to answer. */
+  questions: string[];
+  /** Previously answered Q&A (egg key questions + custom + earlier follow-ups). */
+  priorQa?: Array<{ question: string; answer: string }>;
+}
+
 interface ConfirmRequest {
   url: string;
   title: string;
@@ -132,6 +143,11 @@ export class NutEggServer {
         return;
       }
 
+      if (req.method === "POST" && req.url === "/ask") {
+        this.handleAsk(req, res);
+        return;
+      }
+
       if (req.method === "POST" && req.url === "/analyze") {
         this.handleAnalyze(req, res);
         return;
@@ -180,6 +196,49 @@ export class NutEggServer {
 
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status, issues, port: this.port }));
+  }
+
+  /**
+   * POST /ask — answer follow-up questions about already-analyzed content.
+   * One lightweight AI call; no saving, no dedup cache interaction.
+   */
+  private async handleAsk(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      const body = await this.readBody(req);
+      const ask: AskRequest = JSON.parse(body);
+
+      if (!ask.title || !ask.content || !ask.questions?.length) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing required fields: title, content, questions" }));
+        return;
+      }
+
+      const answers = await this.plugin.aiProcessor.askFollowUp(
+        ask,
+        ask.questions,
+        ask.priorQa || []
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ answers }));
+    } catch (err) {
+      console.error("[NutEgg] Ask error:", err);
+
+      if (err instanceof AIError) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: err.message,
+            errorCode: err.code,
+            answers: [],
+          })
+        );
+        return;
+      }
+
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to answer. Please try again.", answers: [] }));
+    }
   }
 
   /**
