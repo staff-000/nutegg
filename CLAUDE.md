@@ -4,6 +4,8 @@
 
 - **Existence checks** — Use `await this.app.vault.adapter.exists(path)`, not `getAbstractFileByPath()`.
 - **Terminology** — "nut" = raw content, "egg" = processed knowledge file. Don't use "topic" or "raw content".
+- **Database** — Persistence goes through `node:sqlite` (`DatabaseSync`, built into Node ≥ 22.13 / Obsidian desktop ≥ 1.9). Schema lives in `db.ts` only. Node's bundled SQLite has **no FTS5** — keyword retrieval is JS BM25 over the corpus. `db.available` gates graceful degradation.
+- **No dynamic `import()` of node builtins or `obsidian`** — Obsidian's renderer blocks them (CORS fetch). Use CommonJS `require` for node builtins (see `db.ts`) and static imports for `obsidian`.
 
 ## Build
 
@@ -33,21 +35,23 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 |----------|---------|
 | `GET /health` | Server check + port sync |
 | `GET /config-status` | `{status, issues[]}` — missing API key, missing index |
-| `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], shouldRead, eggResults[], newKnowledge[]}` — deduped by URL |
-| `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + inserts deltas into egg knowledge trees |
+| `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], shouldRead, eggResults[], newKnowledge[]}` — deduped by URL via SQLite |
+| `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + inserts deltas into egg knowledge trees + upserts into SQLite |
+| `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
 
 ### Vault structure (all under `nutegg/`)
 
 - `nutegg/_raw/*` — collected nuts (raw web content)
 - `nutegg/_index.md` — egg routing: `* path/to/egg.md: description` (one per line, `#`/`>` lines skipped)
 - `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `## Knowledge` tree
-- `nutegg/.processed.json` — URL → timestamp dedup cache (auto-managed)
+- `nutegg/.nutegg.db` — SQLite: `nuts` table (dedup + replay + RAG corpus, JSON columns for results).
 
 ### Source files
 
 | File | Role |
 |------|------|
-| [server.ts](obsidian-plugin/src/server.ts) | HTTP server, dedup cache, `/analyze` + `/confirm` |
+| [server.ts](obsidian-plugin/src/server.ts) | HTTP server, `/analyze` + `/confirm` + `/search`, metrics aggregation |
+| [db.ts](obsidian-plugin/src/db.ts) | SQLite via `node:sqlite`: nuts table, BM25 search |
 | [ai-client.ts](obsidian-plugin/src/ai-client.ts) | `PROVIDER_CATALOG`: 7 providers × 2 sources (official/OpenRouter). Two formats. `AIError` with typed codes. |
 | [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. |
 | [index-reader.ts](obsidian-plugin/src/index-reader.ts) | Parses `_index.md`, `matchEggs()` to route content to egg files |

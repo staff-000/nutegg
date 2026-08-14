@@ -1,6 +1,7 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError } from "./ai-client";
+import type { AnalysisResult } from "./ai-processor";
 
 interface AnalyzeRequest {
   url: string;
@@ -25,154 +26,52 @@ interface ConfirmRequest {
     parent?: string;
     content: string;
   }>;
+  /** Full analysis result — stored in the dedup cache for replay. */
+  analysis?: AnalysisResult;
+  /** Skip saving the raw nut (it was already saved) — only apply knowledge. */
+  skipRaw?: boolean;
+}
+
+/** One processed nut, as exposed to /analyze for dedup + result replay. */
+interface ProcessedEntry {
+  processedAt: string;
+  /** How the nut was saved last time: "saved" (knowledge added) or "skip" (raw only). */
+  saved?: "saved" | "skip";
+  /** Analysis result from the last process — replayed when the URL is reopened. */
+  result?: AnalysisResult;
 }
 
 export class NutEggServer {
   private server: http.Server | null = null;
   private plugin: NutEggPlugin;
   private port: number;
-  /** URL → timestamp cache for deduplication */
-  private processedUrls: Map<string, string> = new Map();
-  private cacheLoaded = false;
-
-  /** Pre-computed metrics cache */
-  private metrics = { nuts: 0, eggs: 0, timeSavedMinutes: 0 };
-  private metricsLoaded = false;
 
   constructor(plugin: NutEggPlugin, port: number) {
     this.plugin = plugin;
     this.port = port;
   }
 
-  // --- Metrics cache ---
+  // --- Dedup + metrics helpers (backed by SQLite) ---
 
-  private get metricsPath(): string {
-    return `${this.plugin.settings.rawFolder}/../.metrics.json`;
+  /** Look up the processed entry for a URL. Null = never processed / DB unavailable. */
+  private getProcessedEntry(url: string): ProcessedEntry | null {
+    const db = this.plugin.db;
+    if (!db?.available) return null;
+    const row = db.getNutByUrl(this.normalizeUrl(url));
+    if (!row) return null;
+    return {
+      processedAt: row.savedAt,
+      saved: row.processingResult === "saved" ? "saved" : "skip",
+      result: row.analysisResult ?? undefined,
+    };
   }
 
-  private async loadMetrics(): Promise<void> {
-    if (this.metricsLoaded) return;
-    try {
-      const file = this.plugin.app.vault.getAbstractFileByPath(this.metricsPath);
-      if (file) {
-        const content = await this.plugin.app.vault.read(file as any);
-        const parsed = JSON.parse(content);
-        this.metrics = {
-          nuts: parsed.nuts || 0,
-          eggs: parsed.eggs || 0,
-          timeSavedMinutes: parsed.timeSavedMinutes || 0,
-        };
-      }
-    } catch { /* file doesn't exist yet */ }
-    this.metricsLoaded = true;
-  }
-
-  private async saveMetrics(): Promise<void> {
-    const content = JSON.stringify(this.metrics, null, 2);
-    const existing = this.plugin.app.vault.getAbstractFileByPath(this.metricsPath);
-    if (existing) {
-      await this.plugin.app.vault.modify(existing as any, content);
-    } else {
-      await this.plugin.app.vault.create(this.metricsPath, content);
-    }
-  }
-
-  /** Call after saving a new nut to increment metrics. */
-  private async incrementMetrics(timeEstimateMinutes: number): Promise<void> {
-    await this.loadMetrics();
-    this.metrics.nuts++;
-    this.metrics.timeSavedMinutes += timeEstimateMinutes;
-    await this.saveMetrics();
-  }
-
-  /** Recalculate metrics from scratch by scanning all files. */
-  private async recalculateMetrics(): Promise<void> {
-    const rawFolder = this.plugin.settings.rawFolder;
-    const rawFiles = this.plugin.app.vault.getMarkdownFiles()
-      .filter((f) => f.path.startsWith(rawFolder));
-    this.metrics.nuts = rawFiles.length;
-
-    this.metrics.timeSavedMinutes = 0;
-    for (const file of rawFiles) {
-      try {
-        const content = await this.plugin.app.vault.read(file);
-        const timeMatch = content.match(/time_estimate_minutes:\s*(\d+(?:\.\d+)?)/);
-        if (timeMatch) {
-          this.metrics.timeSavedMinutes += parseFloat(timeMatch[1]);
-        }
-      } catch { /* skip unreadable */ }
-    }
-    this.metrics.timeSavedMinutes = Math.round(this.metrics.timeSavedMinutes);
-
-    // Count eggs
-    const nuteggFiles = this.plugin.app.vault.getMarkdownFiles()
+  /** Count egg files (markdown under nutegg/, excluding _raw and _index). */
+  private countEggs(): number {
+    return this.plugin.app.vault.getMarkdownFiles()
       .filter((f) => f.path.startsWith("nutegg/") &&
-        !f.path.startsWith(rawFolder) &&
-        !f.path.endsWith("/_index.md"));
-    this.metrics.eggs = nuteggFiles.length;
-
-    this.metricsLoaded = true;
-    await this.saveMetrics();
-  }
-
-  // --- URL deduplication cache ---
-
-  private get cachePath(): string {
-    return `${this.plugin.settings.rawFolder}/../.processed.json`;
-  }
-
-  private async loadProcessedCache(): Promise<void> {
-    if (this.cacheLoaded) return;
-    try {
-      const file = this.plugin.app.vault.getAbstractFileByPath(this.cachePath);
-      if (file) {
-        const content = await this.plugin.app.vault.read(file as any);
-        const entries = JSON.parse(content);
-        for (const [url, ts] of Object.entries(entries)) {
-          this.processedUrls.set(url, ts as string);
-        }
-      }
-    } catch { /* file doesn't exist yet — that's fine */ }
-    this.cacheLoaded = true;
-  }
-
-  private async saveProcessedCache(): Promise<void> {
-    const obj: Record<string, string> = {};
-    for (const [url, ts] of this.processedUrls) {
-      obj[url] = ts;
-    }
-    const content = JSON.stringify(obj, null, 2);
-    const existing = this.plugin.app.vault.getAbstractFileByPath(this.cachePath);
-    if (existing) {
-      await this.plugin.app.vault.modify(existing as any, content);
-    } else {
-      // Ensure parent folder exists
-      const parent = this.cachePath.split("/").slice(0, -1).join("/");
-      if (parent && !this.plugin.app.vault.getAbstractFileByPath(parent)) {
-        const parts = parent.split("/");
-        let cur = "";
-        for (const part of parts) {
-          cur += (cur ? "/" : "") + part;
-          if (!(await this.plugin.app.vault.adapter.exists(cur))) {
-            await this.plugin.app.vault.createFolder(cur);
-          }
-        }
-      }
-      await this.plugin.app.vault.create(this.cachePath, content);
-    }
-  }
-
-  private async isAlreadyProcessed(url: string): Promise<string | null> {
-    await this.loadProcessedCache();
-    url = this.normalizeUrl(url);
-    return this.processedUrls.get(url) || null;
-  }
-
-  private async markProcessed(url: string): Promise<void> {
-    await this.loadProcessedCache();
-    url = this.normalizeUrl(url);
-    this.processedUrls.set(url, new Date().toISOString());
-    await this.saveProcessedCache();
+        !f.path.startsWith(this.plugin.settings.rawFolder) &&
+        !f.path.endsWith("/_index.md")).length;
   }
 
   /** Strip trailing slashes, fragment, and common tracking params. */
@@ -223,6 +122,11 @@ export class NutEggServer {
 
       if (req.method === "GET" && req.url === "/metrics") {
         this.handleMetrics(req, res);
+        return;
+      }
+
+      if (req.method === "GET" && req.url?.startsWith("/search")) {
+        this.handleSearch(req, res);
         return;
       }
 
@@ -277,28 +181,41 @@ export class NutEggServer {
   }
 
   /**
-   * GET /metrics — Returns cached usage stats.
-   * Use ?recalculate=1 to force a full rescan.
+   * GET /search?q=... — BM25 keyword retrieval over saved nuts (RAG foundation).
    */
-  private async handleMetrics(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    try {
-      const url = new URL(req.url || "/metrics", `http://127.0.0.1:${this.port}`);
-      if (url.searchParams.get("recalculate") === "1") {
-        await this.recalculateMetrics();
-      } else {
-        await this.loadMetrics();
-      }
+  private handleSearch(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const url = new URL(req.url || "/search", `http://127.0.0.1:${this.port}`);
+    const q = url.searchParams.get("q")?.trim() || "";
+    const db = this.plugin.db;
 
-      const m = this.metrics;
-      const hours = Math.floor(m.timeSavedMinutes / 60);
-      const mins = Math.round(m.timeSavedMinutes % 60);
+    if (!q || !db?.available) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ results: [] }));
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ results: db.search(q, 10) }));
+  }
+
+  /**
+   * GET /metrics — nuts + time saved from SQLite aggregates, eggs from a file scan.
+   */
+  private handleMetrics(_req: http.IncomingMessage, res: http.ServerResponse): void {
+    try {
+      const db = this.plugin.db;
+      const stats = db?.available ? db.getStats() : { nuts: 0, timeSavedMinutes: 0 };
+      const eggs = this.countEggs();
+      const totalMinutes = Math.round(stats.timeSavedMinutes);
+      const hours = Math.floor(totalMinutes / 60);
+      const mins = Math.round(totalMinutes % 60);
       const timeSaved = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        nuts: m.nuts,
-        eggs: m.eggs,
-        timeSavedMinutes: m.timeSavedMinutes,
+        nuts: stats.nuts,
+        eggs,
+        timeSavedMinutes: totalMinutes,
         timeSaved,
       }));
     } catch (err) {
@@ -328,16 +245,26 @@ export class NutEggServer {
         return;
       }
 
-      // Check if already processed
-      const processedAt = await this.isAlreadyProcessed(capture.url);
-      if (processedAt) {
-        const date = new Date(processedAt).toLocaleDateString();
+      // Check if already processed — replay the stored result when available
+      const processedEntry = this.getProcessedEntry(capture.url);
+      if (processedEntry) {
+        const date = new Date(processedEntry.processedAt).toLocaleDateString();
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            alreadyProcessed: `Already processed on ${date}. You can still save the raw content with "Save Raw".`,
-          })
-        );
+        if (processedEntry.result) {
+          res.end(
+            JSON.stringify({
+              alreadyProcessed: `Processed on ${date} — showing saved result.`,
+              cachedResult: processedEntry.result,
+              saved: processedEntry.saved || "skip",
+            })
+          );
+        } else {
+          res.end(
+            JSON.stringify({
+              alreadyProcessed: `Already processed on ${date}. You can still save the raw content with "Save Raw".`,
+            })
+          );
+        }
         return;
       }
 
@@ -423,47 +350,69 @@ export class NutEggServer {
         return;
       }
 
-      // Determine processing result from whether knowledge was added
-      const processingResult = confirm.newKnowledge && confirm.newKnowledge.length > 0
-        ? "saved" as const
-        : "skip" as const;
+      const hasKnowledge = confirm.newKnowledge && confirm.newKnowledge.length > 0;
+      const saved = hasKnowledge ? "saved" as const : "skip" as const;
 
       // Collect egg names from newKnowledge (deduplicated)
-      const eggNames = confirm.newKnowledge && confirm.newKnowledge.length > 0
+      const eggNames = hasKnowledge
         ? [...new Set(confirm.newKnowledge.map((k) => k.egg))]
         : (confirm.matchedEggs || []);
 
-      // Save raw content to _raw/
-      const fileName = await this.plugin.knowledgeBase.saveRaw({
-        url: confirm.url,
-        title: confirm.title,
-        content: confirm.content,
-        sourceType: confirm.sourceType,
-        metadata: confirm.metadata,
-        summary: confirm.summary,
-        matchedEggs: eggNames,
-        processingResult,
-      });
+      // Frontmatter summary: explicit value, or rebuilt from the analysis result
+      const summary = confirm.summary ||
+        (confirm.analysis
+          ? [confirm.analysis.titleVerdict, ...(confirm.analysis.coreSummary || [])]
+              .filter(Boolean)
+              .join("\n")
+          : undefined);
 
-      // Append new knowledge to egg files
-      if (confirm.newKnowledge && confirm.newKnowledge.length > 0) {
+      // Time estimate from metadata, or fallback to word count
+      const timeEstimate = parseInt(
+        confirm.metadata?.time_estimate_minutes || "0", 10
+      ) || Math.max(1, Math.ceil((confirm.content?.split(/\s+/)?.length || 0) / 200));
+
+      // Save raw content to _raw/ (skipped when the nut was already saved)
+      let fileName = "";
+      if (!confirm.skipRaw) {
+        fileName = await this.plugin.knowledgeBase.saveRaw({
+          url: confirm.url,
+          title: confirm.title,
+          content: confirm.content,
+          sourceType: confirm.sourceType,
+          metadata: confirm.metadata,
+          summary,
+          matchedEggs: eggNames,
+          processingResult: saved,
+        });
+      }
+
+      // Insert new knowledge into egg files
+      if (hasKnowledge) {
         await this.plugin.knowledgeBase.appendKnowledge(
           confirm.newKnowledge,
           confirm.url
         );
       }
 
-      // Mark URL as processed
-      await this.markProcessed(confirm.url);
-
-      // Increment metrics (time estimate from metadata, or fallback to word count)
-      const timeEstimate = parseInt(
-        confirm.metadata?.time_estimate_minutes || "0", 10
-      ) || Math.max(1, Math.ceil((confirm.content?.split(/\s+/)?.length || 0) / 200));
-      await this.incrementMetrics(timeEstimate);
+      // Upsert into SQLite — dedup, replay, metrics and the RAG corpus
+      this.plugin.db?.upsertNut({
+        url: this.normalizeUrl(confirm.url),
+        title: confirm.title,
+        sourceType: confirm.sourceType,
+        content: confirm.content || "",
+        savedAt: new Date().toISOString(),
+        publishedAt: confirm.metadata?.published || "",
+        author: confirm.metadata?.author || confirm.metadata?.channel || "",
+        timeEstimateMinutes: timeEstimate,
+        processingResult: saved,
+        summary: summary || "",
+        matchedEggs: eggNames,
+        fileName,
+        analysisResult: confirm.analysis ?? null,
+      });
 
       console.log(
-        `[NutEgg] Confirmed: ${confirm.title} -> ${fileName}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
+        `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -471,7 +420,7 @@ export class NutEggServer {
         JSON.stringify({
           success: true,
           fileName,
-          message: `Saved to ${fileName}`,
+          message: fileName ? `Saved to ${fileName}` : "Added to egg files",
         })
       );
     } catch (err) {

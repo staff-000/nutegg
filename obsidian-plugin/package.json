@@ -7,11 +7,17 @@
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
   },
-  "keywords": ["obsidian", "plugin", "knowledge-base", "ai", "claude"],
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "knowledge-base",
+    "ai",
+    "claude"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^20.11.0",
+    "@types/node": "^22.20.1",
     "builtin-modules": "^4.0.0",
     "esbuild": "^0.20.0",
     "obsidian": "^1.4.0",

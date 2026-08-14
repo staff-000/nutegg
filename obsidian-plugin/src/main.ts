@@ -1,4 +1,4 @@
-import { Notice, Plugin } from "obsidian";
+import { Notice, Plugin, SuggestModal } from "obsidian";
 import {
   NutEggSettings,
   DEFAULT_SETTINGS,
@@ -10,6 +10,7 @@ import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
 import { IndexReader } from "./index-reader";
 import { EggParser } from "./egg-parser";
+import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 
 export default class NutEggPlugin extends Plugin {
@@ -20,6 +21,7 @@ export default class NutEggPlugin extends Plugin {
   knowledgeBase!: KnowledgeBase;
   indexReader!: IndexReader;
   eggParser!: EggParser;
+  db!: NutEggDatabase;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -34,6 +36,10 @@ export default class NutEggPlugin extends Plugin {
     this.knowledgeBase = new KnowledgeBase(this);
     this.indexReader = new IndexReader(this);
     this.eggParser = new EggParser(this);
+
+    // SQLite database (dedup cache, replay, RAG foundation). Never throws.
+    this.db = new NutEggDatabase(this);
+    await this.db.init();
 
     // Start local HTTP server
     this.server = new NutEggServer(this, this.settings.serverPort);
@@ -108,6 +114,7 @@ export default class NutEggPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     await this.server.stop();
+    this.db.close();
     console.log("[NutEgg] Plugin unloaded");
   }
 
@@ -160,8 +167,6 @@ export default class NutEggPlugin extends Plugin {
    * Simple prompt modal for getting an egg name.
    */
   private async promptForEggName(): Promise<string | null> {
-    const { SuggestModal } = await import("obsidian");
-
     return new Promise((resolve) => {
       const modal = new (class extends SuggestModal<{ text: string }> {
         constructor(app: any) {

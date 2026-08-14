@@ -20,6 +20,8 @@ const duplicateMessage = document.getElementById("duplicate-message");
 // DOM — Results state
 const captureState = document.getElementById("capture-state");
 const resultsState = document.getElementById("results-state");
+const processedNote = document.getElementById("processed-note");
+const processedMessage = document.getElementById("processed-message");
 const verdictAnswer = document.getElementById("verdict-answer");
 const coreSummaryEl = document.getElementById("core-summary");
 const chapterSection = document.getElementById("chapter-section");
@@ -47,6 +49,8 @@ let serverOnline = false;
 let analysisResult = null;
 let currentMode = "popup";
 let activeTabId = null;
+/** How the shown result was saved previously: "saved" | "skip" | null (fresh analysis). */
+let cachedProcessedSaved = null;
 
 // --- Init ---
 
@@ -221,9 +225,21 @@ async function handleAnalyze() {
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
 
     if (response?.alreadyProcessed) {
-      showDuplicate(response.alreadyProcessed);
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
+      if (response.cachedResult) {
+        // Replay the result from the last process
+        cachedProcessedSaved = response.saved === "saved" ? "saved" : "skip";
+        analysisResult = response.cachedResult;
+        showResultsState(response.cachedResult);
+        if (cachedProcessedSaved === "saved") {
+          confirmBtn.classList.add("hidden");
+        }
+        processedMessage.textContent = response.alreadyProcessed;
+        processedNote.classList.remove("hidden");
+      } else {
+        showDuplicate(response.alreadyProcessed);
+      }
       return;
     }
 
@@ -234,6 +250,7 @@ async function handleAnalyze() {
       return;
     }
 
+    cachedProcessedSaved = null;
     analysisResult = response;
     showResultsState(response);
   } catch (err) {
@@ -248,6 +265,7 @@ async function handleAnalyze() {
 function showResultsState(result) {
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
+  processedNote.classList.add("hidden");
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";
@@ -376,6 +394,7 @@ function showCaptureState() {
   analyzeBtn.disabled = false;
   analyzeBtnText.textContent = "Analyze";
   analysisResult = null;
+  cachedProcessedSaved = null;
   hideMessages();
 }
 
@@ -412,6 +431,10 @@ async function doSave(newKnowledge) {
       summary: analysisResult?.summary || "",
       matchedEggs: analysisResult?.matchedEggs || [],
       newKnowledge,
+      analysis: analysisResult || undefined,
+      // When replaying a cached result, the raw nut was already saved —
+      // only apply the knowledge this time.
+      skipRaw: newKnowledge.length > 0 && cachedProcessedSaved !== null,
     };
 
     const response = await chrome.runtime.sendMessage({ action: "confirm", payload });
