@@ -28,6 +28,12 @@
         <div class="page-type" id="page-type"></div>
       </div>
 
+      <button id="questions-toggle" class="questions-toggle">💭 Ask your own questions</button>
+      <div id="questions-area" class="questions-area hidden">
+        <textarea id="custom-questions" rows="3"
+          placeholder="One question per line — answered along with the egg's key questions."></textarea>
+      </div>
+
       <div id="warning-banner" class="warning-banner hidden">
         <span class="warning-icon">⚠️</span>
         <div id="warning-message"></div>
@@ -71,6 +77,11 @@
       <div id="chapter-section" class="result-section hidden">
         <div class="section-label">🗺️ Chapter Map <span class="section-hint">(click to jump)</span></div>
         <div id="chapter-list" class="chapter-list"></div>
+      </div>
+
+      <div id="custom-questions-section" class="result-section hidden">
+        <div class="section-label">💭 Your Questions</div>
+        <div id="custom-questions-list" class="keyquestions-list"></div>
       </div>
 
       <div id="keyquestions-section" class="result-section hidden">

@@ -20,6 +20,8 @@ export interface ContentAnalysis {
   coreSummary: string[];
   isLongForm: boolean;
   chapterMap: ChapterEntry[];
+  /** Answers to the user's custom questions (egg key questions live in EggAnalysis). */
+  customQuestionAnswers: KeyAnswer[];
 }
 
 export interface KeyAnswer {
@@ -87,6 +89,7 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
+      questions?: string[];
     },
     eggs: EggContent[]
   ): Promise<AnalysisResult> {
@@ -105,12 +108,19 @@ export class AIProcessor {
         coreSummary: combined.coreSummary,
         isLongForm: combined.isLongForm,
         chapterMap: combined.chapterMap,
+        customQuestionAnswers: combined.customQuestionAnswers,
       };
       eggResults = [combined];
     } else {
-      // Phase 1: content analysis (shared guide — eggs carry the same steps)
+      // Phase 1: content analysis (shared guide — eggs carry the same steps).
+      // The eggs' key questions are passed along so the AI can skip
+      // user questions that are equivalent to them.
       const guide = (eggs[0]?.actionGuide || AIProcessor.DEFAULT_ACTION_GUIDE).trim();
-      contentAnalysis = await this.analyzeContent(capture, guide);
+      contentAnalysis = await this.analyzeContent(
+        capture,
+        guide,
+        eggs.flatMap((e) => e.keyQuestions)
+      );
 
       // Phase 2: one parallel call per egg
       eggResults = (
@@ -138,7 +148,7 @@ export class AIProcessor {
     };
   }
 
-  /** Phase 1 — content-level summary + chapter map. */
+  /** Phase 1 — content-level summary + chapter map + custom question answers. */
   private async analyzeContent(
     capture: {
       title: string;
@@ -146,12 +156,24 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
+      questions?: string[];
     },
-    actionGuide: string
+    actionGuide: string,
+    eggKeyQuestions: string[]
   ): Promise<ContentAnalysis> {
     const chaptersHint = capture.chapters?.length
       ? `\n## Video Chapters (use these EXACT timestamps)\n${capture.chapters
           .map((c) => `- ${c.time} — ${c.title}`)
+          .join("\n")}`
+      : "";
+    const questionsHint = capture.questions?.length
+      ? `\n## User Questions (answer each directly and concisely)\n${capture.questions
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n")}`
+      : "";
+    const eggQuestionsHint = eggKeyQuestions.length > 0
+      ? `\n## Egg Key Questions (answered separately — skip equivalent user questions)\n${eggKeyQuestions
+          .map((q, i) => `${i + 1}. ${q}`)
           .join("\n")}`
       : "";
 
@@ -165,6 +187,8 @@ ${actionGuide}
 **Source:** ${capture.url}
 **Type:** ${capture.sourceType}
 ${chaptersHint}
+${questionsHint}
+${eggQuestionsHint}
 
 ${this.truncate(capture.content, 8000)}
 
@@ -175,6 +199,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "isLongForm": true,
   "chapterMap": [
     {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
+  ],
+  "customQuestionAnswers": [
+    {"question": "exact question text", "answer": "direct answer"}
   ]
 }
 
@@ -182,7 +209,8 @@ IMPORTANT:
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.`;
+- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once. Base answers only on the content — say "Not covered in this content" when it doesn't address the question.`;
 
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response);
@@ -201,6 +229,7 @@ IMPORTANT:
               summary: String(c.summary || ""),
             }))
         : [],
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
     };
   }
 
@@ -250,11 +279,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       const parsed = this.parseJson(response);
       return {
         egg: egg.fileName,
-        keyQuestionAnswers: Array.isArray(parsed.keyQuestionAnswers)
-          ? parsed.keyQuestionAnswers
-              .filter((qa: any) => qa && qa.question && qa.answer)
-              .map((qa: any) => ({ question: String(qa.question), answer: String(qa.answer) }))
-          : [],
+        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
         novelDelta: Array.isArray(parsed.novelDelta)
           ? parsed.novelDelta
               .filter((d: any) => d && d.content)
@@ -284,12 +309,18 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
+      questions?: string[];
     },
     egg: EggContent
   ): Promise<EggAnalysis & ContentAnalysis> {
     const chaptersHint = capture.chapters?.length
       ? `\n## Video Chapters (use these EXACT timestamps)\n${capture.chapters
           .map((c) => `- ${c.time} — ${c.title}`)
+          .join("\n")}`
+      : "";
+    const questionsHint = capture.questions?.length
+      ? `\n## User Questions (answer each directly and concisely)\n${capture.questions
+          .map((q, i) => `${i + 1}. ${q}`)
           .join("\n")}`
       : "";
 
@@ -303,11 +334,12 @@ ${this.plugin.eggParser.formatEggForPrompt(egg)}
 **Source:** ${capture.url}
 **Type:** ${capture.sourceType}
 ${chaptersHint}
+${questionsHint}
 
 ${this.truncate(capture.content, 8000)}
 
 ## Task
-Follow the Action Guide steps, then answer the Key Questions and extract the Novel Delta against the Current Knowledge.
+Follow the Action Guide steps, answer the Key Questions, answer the User Questions, and extract the Novel Delta against the Current Knowledge.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -318,6 +350,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
   ],
   "keyQuestionAnswers": [
+    {"question": "exact question text", "answer": "direct answer"}
+  ],
+  "customQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
   "novelDelta": [
@@ -331,6 +366,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once. Base answers only on the content — say "Not covered in this content" when it doesn't address the question.
 - For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
 - Apply the Rejection Criteria strictly — set rejected to true when the content is noise for this egg.`;
 
@@ -351,12 +387,9 @@ IMPORTANT:
               summary: String(c.summary || ""),
             }))
         : [],
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
       egg: egg.fileName,
-      keyQuestionAnswers: Array.isArray(parsed.keyQuestionAnswers)
-        ? parsed.keyQuestionAnswers
-            .filter((qa: any) => qa && qa.question && qa.answer)
-            .map((qa: any) => ({ question: String(qa.question), answer: String(qa.answer) }))
-        : [],
+      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
       novelDelta: Array.isArray(parsed.novelDelta)
         ? parsed.novelDelta
             .filter((d: any) => d && d.content)
@@ -407,7 +440,7 @@ IMPORTANT:
 
   /** No-API-key fallback: naive content summary, no egg analysis. */
   private fallbackAnalysis(
-    capture: { title: string; content: string },
+    capture: { title: string; content: string; questions?: string[] },
     eggs: EggContent[]
   ): AnalysisResult {
     const firstSentence =
@@ -420,6 +453,10 @@ IMPORTANT:
       ],
       isLongForm: false,
       chapterMap: [],
+      customQuestionAnswers: (capture.questions || []).map((q) => ({
+        question: q,
+        answer: "No API key configured — cannot answer.",
+      })),
       shouldRead: true,
       shouldReadReason: "No API key configured — cannot analyze.",
       matchedEggs: eggs.map((e) => e.fileName),
@@ -430,6 +467,18 @@ IMPORTANT:
 
   private async callAI(prompt: string, maxTokens: number): Promise<string> {
     return await this.plugin.aiClient.chat(prompt, maxTokens);
+  }
+
+  /** Normalize a `[{question, answer}]` array from the AI response. */
+  private parseKeyAnswers(raw: any): KeyAnswer[] {
+    return Array.isArray(raw)
+      ? raw
+          .filter((qa: any) => qa && qa.question && qa.answer)
+          .map((qa: any) => ({
+            question: String(qa.question),
+            answer: String(qa.answer),
+          }))
+      : [];
   }
 
   /** Parse an AI response that should be JSON, stripping markdown fences. */

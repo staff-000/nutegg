@@ -11,6 +11,8 @@ interface AnalyzeRequest {
   metadata?: Record<string, string>;
   /** Video chapter markers with timestamps (YouTube) — used for the Chapter Map. */
   chapters?: Array<{ time: string; title: string }>;
+  /** Custom questions from the popup — answered alongside the eggs' key questions. */
+  questions?: string[];
 }
 
 interface ConfirmRequest {
@@ -245,8 +247,10 @@ export class NutEggServer {
         return;
       }
 
-      // Check if already processed — replay the stored result when available
-      const processedEntry = this.getProcessedEntry(capture.url);
+      // Check if already processed — replay the stored result when available.
+      // Custom questions bypass the replay so they get fresh answers.
+      const hasQuestions = capture.questions && capture.questions.length > 0;
+      const processedEntry = hasQuestions ? null : this.getProcessedEntry(capture.url);
       if (processedEntry) {
         const date = new Date(processedEntry.processedAt).toLocaleDateString();
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -279,7 +283,8 @@ export class NutEggServer {
       // Step 2: Read and parse the matched egg files (scope, action guide, knowledge)
       const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
 
-      // Step 3: Two-phase AI analysis — content summary + per-egg delta
+      // Step 3: Two-phase AI analysis — content summary + per-egg delta.
+      // Custom questions are deduplicated by the AI against the eggs' key questions.
       const result = await this.plugin.aiProcessor.analyze(capture, eggs);
 
       console.log(

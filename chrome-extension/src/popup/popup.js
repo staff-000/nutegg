@@ -7,6 +7,9 @@ const settingsBtn = document.getElementById("settings-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
+const questionsToggle = document.getElementById("questions-toggle");
+const questionsArea = document.getElementById("questions-area");
+const customQuestionsEl = document.getElementById("custom-questions");
 const analyzeBtn = document.getElementById("analyze-btn");
 const analyzeBtnText = document.getElementById("analyze-btn-text");
 const warningBanner = document.getElementById("warning-banner");
@@ -26,6 +29,8 @@ const verdictAnswer = document.getElementById("verdict-answer");
 const coreSummaryEl = document.getElementById("core-summary");
 const chapterSection = document.getElementById("chapter-section");
 const chapterList = document.getElementById("chapter-list");
+const customQuestionsSection = document.getElementById("custom-questions-section");
+const customQuestionsList = document.getElementById("custom-questions-list");
 const keyQuestionsSection = document.getElementById("keyquestions-section");
 const keyQuestionsList = document.getElementById("keyquestions-list");
 const deltaSection = document.getElementById("delta-section");
@@ -81,6 +86,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.runtime.openOptionsPage();
   });
   modeToggleBtn.addEventListener("click", handleModeToggle);
+  questionsToggle.addEventListener("click", () => {
+    questionsArea.classList.toggle("hidden");
+  });
 });
 
 // --- Mode toggle ---
@@ -213,6 +221,11 @@ async function handleAnalyze() {
   hideMessages();
 
   try {
+    const questions = customQuestionsEl.value
+      .split("\n")
+      .map((q) => q.trim())
+      .filter(Boolean);
+
     const payload = {
       url: extractedContent.url || "",
       title: extractedContent.title || "",
@@ -220,6 +233,7 @@ async function handleAnalyze() {
       sourceType: extractedContent.sourceType || "generic",
       metadata: extractedContent.metadata,
       chapters: extractedContent.chapters || undefined,
+      questions,
     };
 
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
@@ -295,6 +309,23 @@ function showResultsState(result) {
   } else {
     chapterSection.classList.add("hidden");
     chapterList.innerHTML = "";
+  }
+
+  // Your Questions — answered in the content analysis phase
+  if (result.customQuestionAnswers && result.customQuestionAnswers.length > 0) {
+    customQuestionsSection.classList.remove("hidden");
+    customQuestionsList.innerHTML = result.customQuestionAnswers
+      .map((qa) => `
+        <div class="egg-group">
+          <div class="qa-item">
+            <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
+            <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+          </div>
+        </div>`)
+      .join("");
+  } else {
+    customQuestionsSection.classList.add("hidden");
+    customQuestionsList.innerHTML = "";
   }
 
   // Key Questions — grouped per egg

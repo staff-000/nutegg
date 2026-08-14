@@ -35,7 +35,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 |----------|---------|
 | `GET /health` | Server check + port sync |
 | `GET /config-status` | `{status, issues[]}` — missing API key, missing index |
-| `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], shouldRead, eggResults[], newKnowledge[]}` — deduped by URL via SQLite |
+| `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], customQuestionAnswers[], shouldRead, eggResults[], newKnowledge[]}` — deduped by URL via SQLite (custom `questions[]` bypass the replay and are deduped against egg key questions) |
 | `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + inserts deltas into egg knowledge trees + upserts into SQLite |
 | `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
 
