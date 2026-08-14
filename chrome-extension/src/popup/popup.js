@@ -20,13 +20,18 @@ const duplicateMessage = document.getElementById("duplicate-message");
 // DOM — Results state
 const captureState = document.getElementById("capture-state");
 const resultsState = document.getElementById("results-state");
-const summaryText = document.getElementById("summary-text");
+const verdictAnswer = document.getElementById("verdict-answer");
+const coreSummaryEl = document.getElementById("core-summary");
+const chapterSection = document.getElementById("chapter-section");
+const chapterList = document.getElementById("chapter-list");
+const keyQuestionsSection = document.getElementById("keyquestions-section");
+const keyQuestionsList = document.getElementById("keyquestions-list");
+const deltaSection = document.getElementById("delta-section");
+const deltaList = document.getElementById("delta-list");
 const verdictIcon = document.getElementById("verdict-icon");
 const verdictText = document.getElementById("verdict-text");
 const verdictBadge = document.getElementById("verdict-badge");
 const verdictReason = document.getElementById("verdict-reason");
-const knowledgeSection = document.getElementById("knowledge-section");
-const knowledgeList = document.getElementById("knowledge-list");
 const confirmBtn = document.getElementById("confirm-btn");
 const saveRawBtn = document.getElementById("save-raw-btn");
 const discardBtn = document.getElementById("discard-btn");
@@ -41,6 +46,7 @@ let extractedContent = null;
 let serverOnline = false;
 let analysisResult = null;
 let currentMode = "popup";
+let activeTabId = null;
 
 // --- Init ---
 
@@ -149,6 +155,7 @@ async function extractPageContent() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) { pageTitle.textContent = "Unknown Page"; return; }
+    activeTabId = tab.id;
 
     pageTitle.textContent = tab.title || "Untitled";
     pageUrl.textContent = tab.url || "";
@@ -208,6 +215,7 @@ async function handleAnalyze() {
       content: extractedContent.content || "",
       sourceType: extractedContent.sourceType || "generic",
       metadata: extractedContent.metadata,
+      chapters: extractedContent.chapters || undefined,
     };
 
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
@@ -241,9 +249,87 @@ function showResultsState(result) {
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
 
-  const lines = result.summary.split("\n").filter(Boolean);
-  summaryText.innerHTML = lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("");
+  // Title Verdict
+  verdictAnswer.textContent = result.titleVerdict || "";
 
+  // Core Summary
+  coreSummaryEl.innerHTML = (result.coreSummary || [])
+    .map((b) => `<li>${escapeHtml(b)}</li>`)
+    .join("");
+
+  // Chapter Map — clickable when timestamps exist (video)
+  if (result.chapterMap && result.chapterMap.length > 0) {
+    chapterSection.classList.remove("hidden");
+    chapterList.innerHTML = result.chapterMap
+      .map((c) => {
+        const clickable = c.time && activeTabId != null;
+        const data = clickable ? ` data-seconds="${timeToSeconds(c.time)}"` : "";
+        const timeLabel = c.time ? `<span class="chapter-time">⏱ ${escapeHtml(c.time)}</span>` : "";
+        const titleLabel = c.title ? `<span class="chapter-title">${escapeHtml(c.title)}</span>` : "";
+        return `<div class="chapter-row${clickable ? " chapter-clickable" : ""}"${data}>${timeLabel}${titleLabel}<span class="chapter-summary">${escapeHtml(c.summary)}</span></div>`;
+      })
+      .join("");
+    chapterList.querySelectorAll(".chapter-clickable").forEach((row) => {
+      row.addEventListener("click", () =>
+        seekToChapter(parseInt(row.dataset.seconds, 10))
+      );
+    });
+  } else {
+    chapterSection.classList.add("hidden");
+    chapterList.innerHTML = "";
+  }
+
+  // Key Questions — grouped per egg
+  const qaGroups = (result.eggResults || []).filter(
+    (r) => r.keyQuestionAnswers && r.keyQuestionAnswers.length > 0
+  );
+  if (qaGroups.length > 0) {
+    keyQuestionsSection.classList.remove("hidden");
+    keyQuestionsList.innerHTML = qaGroups
+      .map((r) => `
+        <div class="egg-group">
+          <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
+          ${r.keyQuestionAnswers
+            .map((qa) => `
+              <div class="qa-item">
+                <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
+                <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+              </div>`)
+            .join("")}
+        </div>`)
+      .join("");
+  } else {
+    keyQuestionsSection.classList.add("hidden");
+    keyQuestionsList.innerHTML = "";
+  }
+
+  // Novel Delta — show confirm button only when there's something to add
+  const deltaGroups = (result.eggResults || []).filter(
+    (r) => r.novelDelta && r.novelDelta.length > 0
+  );
+  if (deltaGroups.length > 0) {
+    deltaSection.classList.remove("hidden");
+    deltaList.innerHTML = deltaGroups
+      .map((r) => `
+        <div class="egg-group">
+          <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
+          ${r.novelDelta
+            .map((d) => `
+              <div class="delta-item">
+                ${d.parent ? `<div class="delta-parent">↳ under: ${escapeHtml(d.parent)}</div>` : ""}
+                <div class="delta-content">${escapeHtml(d.content)}</div>
+              </div>`)
+            .join("")}
+        </div>`)
+      .join("");
+    confirmBtn.classList.remove("hidden");
+  } else {
+    deltaSection.classList.add("hidden");
+    deltaList.innerHTML = "";
+    confirmBtn.classList.add("hidden");
+  }
+
+  // Verdict
   if (result.shouldRead) {
     verdictIcon.textContent = "✅";
     verdictText.textContent = "Worth reading";
@@ -255,25 +341,33 @@ function showResultsState(result) {
   }
   verdictReason.textContent = result.shouldReadReason || "";
 
-  // New knowledge — show confirm button only when there's something to add
-  if (result.newKnowledge && result.newKnowledge.length > 0) {
-    knowledgeSection.classList.remove("hidden");
-    knowledgeList.innerHTML = result.newKnowledge
-      .map((k) => `
-        <div class="knowledge-item">
-          <div class="knowledge-egg">📄 ${escapeHtml(k.egg)} → #${escapeHtml(k.section)}</div>
-          <div class="knowledge-content">${escapeHtml(k.content)}</div>
-        </div>`)
-      .join("");
-    confirmBtn.classList.remove("hidden");
-  } else {
-    knowledgeSection.classList.add("hidden");
-    confirmBtn.classList.add("hidden");
-  }
-
   // Save Raw is always visible
   saveRawBtn.classList.remove("hidden");
   successBanner.classList.add("hidden");
+}
+
+/** Seek the active tab's video to a chapter timestamp. */
+async function seekToChapter(seconds) {
+  if (activeTabId == null) return;
+  try {
+    await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
+  } catch {
+    // Content script not injected — inject and retry
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTabId },
+        files: ["src/content/content-script.js"],
+      });
+      await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
+    } catch { /* page doesn't allow injection */ }
+  }
+}
+
+/** "MM:SS" or "HH:MM:SS" → seconds. */
+function timeToSeconds(time) {
+  const parts = time.split(":").map((p) => parseInt(p, 10));
+  if (parts.some(isNaN)) return 0;
+  return parts.reduce((acc, p) => acc * 60 + p, 0);
 }
 
 function showCaptureState() {
@@ -293,7 +387,7 @@ async function handleConfirm() {
   confirmBtn.textContent = "Saving...";
   await doSave(analysisResult.newKnowledge || []);
   confirmBtn.disabled = false;
-  confirmBtn.textContent = "Add to Knowledge Base";
+  confirmBtn.textContent = "Add to Egg";
 }
 
 // --- Save Raw (save content only, no knowledge additions) ---
@@ -324,7 +418,7 @@ async function doSave(newKnowledge) {
 
     if (response?.success) {
       const msg = newKnowledge.length > 0
-        ? "Saved to knowledge base!"
+        ? "Added to egg files!"
         : "Raw content saved!";
       successMessage.textContent = msg;
       successBanner.classList.remove("hidden");

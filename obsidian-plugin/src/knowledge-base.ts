@@ -123,12 +123,13 @@ export class KnowledgeBase {
   }
 
   /**
-   * Append new knowledge to egg files.
+   * Insert new knowledge into egg files, nested under the anchor each
+   * delta picked from the existing knowledge tree.
    */
   async appendKnowledge(
     newKnowledge: Array<{
       egg: string;
-      section: string;
+      parent?: string;
       content: string;
     }>,
     sourceUrl: string
@@ -137,9 +138,9 @@ export class KnowledgeBase {
     const eggParser = new EggParser(this.plugin);
 
     for (const item of newKnowledge) {
-      await eggParser.appendToEgg(
+      await eggParser.insertKnowledge(
         item.egg,
-        item.section,
+        item.parent || "",
         item.content,
         sourceUrl
       );

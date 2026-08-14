@@ -1,7 +1,7 @@
 # NutEgg Egg Index
 
 > [!abstract]- Instructions:
-> - Add one line per egg file: * <path>: <description of what it covers>
+> - Add one line per egg file: "* $path: $description_of_what_it_covers"
 > - Process only the lines beginning with *
 
 

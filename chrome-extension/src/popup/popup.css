@@ -295,14 +295,84 @@ body {
   padding: 0 4px;
 }
 
-/* Knowledge List */
-.knowledge-list {
+/* Core Summary */
+.core-summary {
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.knowledge-item {
+.core-summary li {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #374151;
+}
+
+.section-hint {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Chapter Map */
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chapter-row {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #374151;
+}
+
+.chapter-clickable {
+  cursor: pointer;
+  border-color: #c4b5fd;
+}
+
+.chapter-clickable:hover {
+  background: #f5f3ff;
+}
+
+.chapter-time {
+  font-weight: 600;
+  color: #7c3aed;
+  margin-right: 6px;
+}
+
+.chapter-title {
+  font-weight: 600;
+  color: #1a1a2e;
+  margin-right: 6px;
+}
+
+.chapter-summary {
+  display: block;
+  margin-top: 2px;
+  color: #6b7280;
+}
+
+/* Key Questions + Novel Delta */
+.keyquestions-list,
+.delta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.egg-group {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -316,10 +386,38 @@ body {
   margin-bottom: 4px;
 }
 
-.knowledge-content {
+.qa-item {
+  margin-top: 6px;
+}
+
+.qa-question {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.qa-answer {
   font-size: 12px;
   line-height: 1.4;
   color: #374151;
+  margin-top: 2px;
+}
+
+.delta-item {
+  margin-top: 6px;
+}
+
+.delta-parent {
+  font-size: 11px;
+  color: #7c3aed;
+  margin-bottom: 2px;
+}
+
+.delta-content {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #374151;
+  white-space: pre-wrap;
 }
 
 /* Action Buttons */

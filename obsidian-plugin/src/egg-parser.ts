@@ -3,31 +3,40 @@ import type { IndexEntry } from "./index-reader";
 
 /**
  * Parsed egg file content.
+ *
+ * New format (see src/templates/egg.md):
+ *   ---
+ *   topic: "..."
+ *   status: "active"
+ *   ---
+ *   > [!abstract]- Instructions:
+ *   > **Scope:** ...
+ *   > **Action Guide:** ...
+ *   > **Key Questions:** ...
+ *   > **Rejection Criteria:** ...
+ *   > **Formatting Rules:** ...
+ *   ## Knowledge
+ *   (knowledge tree)
+ *
+ * Legacy format (`instruct:` block + `# knowledge` heading) is still parsed.
  */
 export interface EggContent {
   fileName: string;
-  instructions: string;
-  rejectCriteria: string;
-  sections: EggSection[];
+  /** Frontmatter topic, or "Unknown". */
+  topic: string;
+  /** What this egg captures. */
+  scope: string;
+  /** Steps 1-5 telling the AI what to produce for the popup. */
+  actionGuide: string;
+  /** Specific questions the user wants answered for this content type. */
+  keyQuestions: string[];
+  rejectionCriteria: string[];
+  /** Rules for how new knowledge must be formatted when appended. */
+  formattingRules: string;
+  /** Current content of the Knowledge section (the knowledge tree). */
+  knowledge: string;
 }
 
-export interface EggSection {
-  heading: string;  // e.g. "knowledge", "ideas"
-  content: string;
-}
-
-/**
- * Reads and parses egg markdown files.
- * Egg file format:
- *   instruct:
- *     * key questions: ...
- *     * reject criteria: ...
- *   ---
- *   # knowledge
- *   (content)
- *   # ideas
- *   (content)
- */
 export class EggParser {
   private plugin: NutEggPlugin;
 
@@ -55,111 +64,222 @@ export class EggParser {
     return eggs;
   }
 
-  formatEggsForPrompt(eggs: EggContent[]): string {
-    if (eggs.length === 0) return "(No egg files found)";
+  parseEggFile(fileName: string, content: string): EggContent {
+    const result: EggContent = {
+      fileName,
+      topic: "Unknown",
+      scope: "",
+      actionGuide: "",
+      keyQuestions: [],
+      rejectionCriteria: [],
+      formattingRules: "",
+      knowledge: "",
+    };
 
-    return eggs
-      .map((e) => {
-        const sectionsText = e.sections
-          .map((s) => `### ${s.heading}\n${s.content || "(empty)"}`)
-          .join("\n\n");
-        return `## Egg: ${e.fileName}\n**Instructions:** ${e.instructions}\n\n**Current Content:**\n${sectionsText}`;
-      })
-      .join("\n\n---\n\n");
+    // Frontmatter
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      for (const line of fmMatch[1].split("\n")) {
+        const kv = line.match(/^(\w+):\s*(.*)$/);
+        if (!kv) continue;
+        const key = kv[1].toLowerCase();
+        const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
+        if (key === "topic") result.topic = value;
+      }
+    }
+
+    // Instructions callout (new format)
+    const callout = this.extractCallout(content);
+    if (callout) {
+      const sections = this.splitLabeledSections(callout);
+      result.scope = (sections.get("scope") || "").trim();
+      result.actionGuide = (sections.get("action guide") || "").trim();
+      result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
+      result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
+      result.formattingRules = (sections.get("formatting rules") || "").trim();
+    } else {
+      // Legacy format: `instruct:` block before `---`
+      const instructMatch = content.match(/^instruct:\s*\n([\s\S]*?)(?:\n---|$)/i);
+      if (instructMatch) {
+        result.scope = instructMatch[1].trim();
+        const rejectMatch = instructMatch[1].match(
+          /\*\s*reject\s*criteria\s*:\s*(.+)/i
+        );
+        if (rejectMatch) result.rejectionCriteria = [rejectMatch[1].trim()];
+      }
+    }
+
+    // Knowledge section — `## Knowledge` (new) or `# knowledge` (legacy)
+    const knowledgeMatch = content.match(
+      /^#{1,6}\s*knowledge\s*\n([\s\S]*)$/im
+    );
+    if (knowledgeMatch) {
+      result.knowledge = knowledgeMatch[1].trim();
+    }
+
+    return result;
   }
 
-  async appendToEgg(
+  /** Format one egg's instructions + knowledge for an AI prompt. */
+  formatEggForPrompt(egg: EggContent): string {
+    const parts: string[] = [];
+    parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
+    if (egg.keyQuestions.length > 0) {
+      parts.push(
+        `**Key Questions:**\n${egg.keyQuestions
+          .map((q, i) => `${i + 1}. ${q}`)
+          .join("\n")}`
+      );
+    }
+    if (egg.rejectionCriteria.length > 0) {
+      parts.push(
+        `**Rejection Criteria:**\n${egg.rejectionCriteria
+          .map((c) => `- ${c}`)
+          .join("\n")}`
+      );
+    }
+    if (egg.formattingRules) {
+      parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
+    }
+    parts.push(
+      `**Current Knowledge:**\n${egg.knowledge || "(empty)"}`
+    );
+    return parts.join("\n\n");
+  }
+
+  /**
+   * Insert new knowledge into the egg's Knowledge section.
+   *
+   * If `parentAnchor` matches a line in the knowledge tree, the new content is
+   * inserted beneath it as nested sub-bullets (indent = anchor indent + 2).
+   * Otherwise the content is appended to the end of the section.
+   */
+  async insertKnowledge(
     fileName: string,
-    section: string,
+    parentAnchor: string,
     content: string,
     sourceUrl: string
   ): Promise<void> {
     const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
     if (!file) {
-      console.warn(`[NutEgg] Cannot append — egg file not found: ${fileName}`);
+      console.warn(`[NutEgg] Cannot insert — egg file not found: ${fileName}`);
       return;
     }
 
-    const existingContent = await this.plugin.app.vault.read(file as any);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const appendBlock = [
-      "",
-      `- **${timestamp}** — ${content} ([source](${sourceUrl}))`,
-    ].join("\n");
+    const existing = await this.plugin.app.vault.read(file as any);
+    const lines = existing.split("\n");
 
-    const sectionRegex = new RegExp(
-      `(^#+\\s+${this.escapeRegex(section)}\\s*\\n)`,
-      "im"
+    const sectionIdx = lines.findIndex((l) =>
+      /^#{1,6}\s*knowledge\s*$/i.test(l.trim())
     );
+    // The Knowledge section contains sub-headings (### concepts), so it ends
+    // only at a heading of the same-or-higher level (## or #).
+    const sectionLevel =
+      sectionIdx >= 0
+        ? (lines[sectionIdx].match(/^#+/) || [""])[0].length
+        : 2;
+    const sectionEnd =
+      sectionIdx >= 0
+        ? lines.findIndex((l, i) => {
+            if (i <= sectionIdx) return false;
+            const m = l.trim().match(/^(#{1,6})\s/);
+            return m !== null && m[1].length <= sectionLevel;
+          })
+        : -1;
+    const endIdx = sectionEnd === -1 ? lines.length : sectionEnd;
 
-    if (sectionRegex.test(existingContent)) {
-      const updated = existingContent.replace(
-        sectionRegex,
-        `$1${appendBlock}\n`
-      );
-      await this.plugin.app.vault.modify(file as any, updated);
-    } else {
-      const newSection = `\n\n# ${section}\n${appendBlock}\n`;
-      await this.plugin.app.vault.modify(
-        file as any,
-        existingContent + newSection
-      );
-    }
-
-    console.log(`[NutEgg] Appended to ${fileName}#${section}`);
-  }
-
-  parseEggFile(fileName: string, content: string): EggContent {
-    let instructions = "";
-    let rejectCriteria = "";
-
-    const instructMatch = content.match(/^instruct:\s*\n([\s\S]*?)(?:\n---|$)/);
-    if (instructMatch) {
-      instructions = instructMatch[1].trim();
-
-      const rejectMatch = instructions.match(
-        /\*\s*reject\s*criteria\s*:\s*(.+)/i
-      );
-      if (rejectMatch) {
-        rejectCriteria = rejectMatch[1].trim();
+    // Locate the parent anchor inside the Knowledge section
+    let anchorIdx = -1;
+    let anchorIndent = 0;
+    if (parentAnchor && sectionIdx >= 0) {
+      const anchorText = parentAnchor.replace(/^#+\s*/, "").trim().toLowerCase();
+      for (let i = sectionIdx + 1; i < endIdx; i++) {
+        if (lines[i].trim().toLowerCase().includes(anchorText)) {
+          anchorIdx = i;
+          anchorIndent = (lines[i].match(/^\s*/) || [""])[0].length;
+          break;
+        }
       }
     }
 
-    const bodyMatch = content.match(/^---\s*\n([\s\S]*)$/m);
-    const body = bodyMatch ? bodyMatch[1] : content;
-    const sections = this.parseSections(body);
+    // Nest new content under the anchor (or at section top level)
+    const baseIndent = anchorIdx >= 0 ? anchorIndent + 2 : 0;
+    const indented = content
+      .split("\n")
+      .map((l) => (l.trim() ? " ".repeat(baseIndent) + l.trim() : ""))
+      .join("\n");
+    const block =
+      indented + `\n${" ".repeat(baseIndent)}_source: [link](${sourceUrl})_`;
 
-    return { fileName, instructions, rejectCriteria, sections };
-  }
-
-  private parseSections(body: string): EggSection[] {
-    const sections: EggSection[] = [];
-    const headingRegex = /^#+\s+(.+)$/gm;
-    let match: RegExpExecArray | null;
-    const headings: Array<{ title: string; index: number }> = [];
-
-    while ((match = headingRegex.exec(body)) !== null) {
-      headings.push({ title: match[1].toLowerCase(), index: match.index });
+    if (anchorIdx >= 0) {
+      // Insert after the anchor's block (deeper-indented lines belong to it)
+      let insertIdx = anchorIdx + 1;
+      while (insertIdx < endIdx) {
+        const l = lines[insertIdx];
+        if (!l.trim()) { insertIdx++; continue; }
+        const indent = (l.match(/^\s*/) || [""])[0].length;
+        if (indent <= anchorIndent) break;
+        insertIdx++;
+      }
+      lines.splice(insertIdx, 0, block);
+    } else if (sectionIdx >= 0) {
+      // No anchor found — append at end of Knowledge section
+      const insertAt = endIdx;
+      const prev = lines[insertAt - 1];
+      lines.splice(insertAt, 0, ...(prev && prev.trim() ? [""] : []), block);
+    } else {
+      // No Knowledge section at all — create one
+      lines.push("", "## Knowledge", "", block);
     }
 
-    for (let i = 0; i < headings.length; i++) {
-      const start = headings[i].index;
-      const end = i + 1 < headings.length ? headings[i + 1].index : body.length;
-      const sectionContent = body
-        .substring(start, end)
-        .replace(/^#+\s+.+\n/, "")
-        .trim();
-
-      sections.push({
-        heading: headings[i].title,
-        content: sectionContent,
-      });
-    }
-
-    return sections;
+    await this.plugin.app.vault.modify(file as any, lines.join("\n"));
+    console.log(`[NutEgg] Inserted knowledge into ${fileName}`);
   }
 
-  private escapeRegex(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
+  private extractCallout(content: string): string | null {
+    const calloutLines: string[] = [];
+    for (const line of content.split("\n")) {
+      if (line.startsWith(">")) {
+        calloutLines.push(line.replace(/^>\s?/, ""));
+      } else if (calloutLines.length > 0) {
+        break;
+      }
+    }
+    if (calloutLines.length === 0) return null;
+
+    const marker = calloutLines.findIndex((l) => l.includes("[!abstract]"));
+    const body =
+      marker >= 0 ? calloutLines.slice(marker + 1) : calloutLines.slice(1);
+    return body.join("\n");
+  }
+
+  /** Split instruction text into sections by `**Label:**` lines (content may follow on the same line). */
+  private splitLabeledSections(text: string): Map<string, string> {
+    const map = new Map<string, string>();
+    let current: string | null = null;
+    let buffer: string[] = [];
+
+    for (const line of text.split("\n")) {
+      const labelMatch = line.match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
+      if (labelMatch) {
+        if (current) map.set(current, buffer.join("\n"));
+        current = labelMatch[1].toLowerCase();
+        buffer = labelMatch[2] ? [labelMatch[2]] : [];
+      } else {
+        buffer.push(line);
+      }
+    }
+    if (current) map.set(current, buffer.join("\n"));
+    return map;
+  }
+
+  /** Parse numbered (`1.`) or bulleted (`-`) list items, stripping markers. */
+  private parseListItems(text: string): string[] {
+    return text
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l))
+      .map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
   }
 }

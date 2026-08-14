@@ -8,6 +8,8 @@ interface AnalyzeRequest {
   content: string;
   sourceType: string;
   metadata?: Record<string, string>;
+  /** Video chapter markers with timestamps (YouTube) — used for the Chapter Map. */
+  chapters?: Array<{ time: string; title: string }>;
 }
 
 interface ConfirmRequest {
@@ -20,7 +22,7 @@ interface ConfirmRequest {
   matchedEggs?: string[];
   newKnowledge: Array<{
     egg: string;
-    section: string;
+    parent?: string;
     content: string;
   }>;
 }
@@ -339,29 +341,19 @@ export class NutEggServer {
         return;
       }
 
-      // Step 1: Read _index.md
+      // Step 1: Read _index.md and match content to relevant egg files
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
-
-      // Step 2: Match content to relevant egg files
       const matchedEggs = await this.plugin.indexReader.matchEggs(
         capture,
         index
       );
 
-      // Step 3: Read and parse matched egg files
-      const eggContents = await this.plugin.eggParser.readEggs(
-        matchedEggs
-      );
-      const eggsContext =
-        this.plugin.eggParser.formatEggsForPrompt(eggContents);
+      // Step 2: Read and parse the matched egg files (scope, action guide, knowledge)
+      const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
 
-      // Step 4: Run AI analysis
-      const result = await this.plugin.aiProcessor.analyze(
-        capture,
-        indexContent,
-        eggsContext
-      );
+      // Step 3: Two-phase AI analysis — content summary + per-egg delta
+      const result = await this.plugin.aiProcessor.analyze(capture, eggs);
 
       console.log(
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
@@ -379,10 +371,14 @@ export class NutEggServer {
             error: err.message,
             errorCode: err.code,
             statusCode: err.statusCode,
-            summary: "",
+            titleVerdict: "",
+            coreSummary: [],
+            isLongForm: false,
+            chapterMap: [],
             shouldRead: false,
             shouldReadReason: "",
             matchedEggs: [],
+            eggResults: [],
             newKnowledge: [],
           })
         );
@@ -394,10 +390,14 @@ export class NutEggServer {
         JSON.stringify({
           error: "Analysis failed. Please try again.",
           errorCode: "unknown",
-          summary: "",
+          titleVerdict: "",
+          coreSummary: [],
+          isLongForm: false,
+          chapterMap: [],
           shouldRead: false,
           shouldReadReason: "",
           matchedEggs: [],
+          eggResults: [],
           newKnowledge: [],
         })
       );

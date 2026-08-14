@@ -99,17 +99,20 @@ Return matching file names (one per line):`;
   parseIndexContent(content: string): IndexEntry[] {
     const entries: IndexEntry[] = [];
 
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      // Skip empty lines and comments
-      if (!trimmed || trimmed.startsWith("#")) continue;
+    for (const rawLine of content.split("\n")) {
+      const trimmed = rawLine.trim();
+      // Skip empty lines, markdown headings, and callout blocks
+      if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(">")) continue;
+
+      // Strip optional list bullet prefix: `* path/file.md: description`
+      const line = trimmed.replace(/^[*\-+]\s+/, "");
 
       // Parse format: `file.md: description`
-      const colonIdx = trimmed.indexOf(":");
+      const colonIdx = line.indexOf(":");
       if (colonIdx === -1) continue;
 
-      const fileName = trimmed.substring(0, colonIdx).trim();
-      const description = trimmed.substring(colonIdx + 1).trim();
+      const fileName = line.substring(0, colonIdx).trim();
+      const description = line.substring(colonIdx + 1).trim();
 
       if (fileName.endsWith(".md")) {
         entries.push({ fileName, description });

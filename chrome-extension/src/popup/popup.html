@@ -54,8 +54,28 @@
     <!-- State 2: Results -->
     <div id="results-state" class="hidden">
       <div class="result-section">
-        <div class="section-label">📋 Summary</div>
-        <div id="summary-text" class="summary-text"></div>
+        <div class="section-label">🎯 Title Verdict</div>
+        <div id="verdict-answer" class="summary-text"></div>
+      </div>
+
+      <div class="result-section">
+        <div class="section-label">📋 Core Summary</div>
+        <ul id="core-summary" class="core-summary"></ul>
+      </div>
+
+      <div id="chapter-section" class="result-section hidden">
+        <div class="section-label">🗺️ Chapter Map <span class="section-hint">(click to jump)</span></div>
+        <div id="chapter-list" class="chapter-list"></div>
+      </div>
+
+      <div id="keyquestions-section" class="result-section hidden">
+        <div class="section-label">💬 Key Questions</div>
+        <div id="keyquestions-list" class="keyquestions-list"></div>
+      </div>
+
+      <div id="delta-section" class="result-section hidden">
+        <div class="section-label">🆕 Novel Delta</div>
+        <div id="delta-list" class="delta-list"></div>
       </div>
 
       <div class="result-section">
@@ -67,13 +87,8 @@
         <div id="verdict-reason" class="verdict-reason"></div>
       </div>
 
-      <div id="knowledge-section" class="result-section hidden">
-        <div class="section-label">🆕 New Knowledge to Add</div>
-        <div id="knowledge-list" class="knowledge-list"></div>
-      </div>
-
       <div class="action-buttons">
-        <button id="confirm-btn" class="confirm-btn hidden">Add to Knowledge Base</button>
+        <button id="confirm-btn" class="confirm-btn hidden">Add to Egg</button>
         <button id="save-raw-btn" class="save-raw-btn">💾 Save Raw</button>
         <button id="discard-btn" class="discard-btn">Discard</button>
         <button id="back-btn" class="back-btn">← Back</button>

@@ -91,12 +91,12 @@ async function extractYouTube() {
   const date = document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
     getMeta("datePublished") || "";
 
-  // Chapters
+  // Chapters (with timestamps, for the clickable Chapter Map)
   const chapters = [];
   document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
     const time = el.querySelector("#time")?.textContent?.trim();
     const chTitle = el.querySelector("h4")?.textContent?.trim();
-    if (time && chTitle) chapters.push(`- ${time} — ${chTitle}`);
+    if (time && chTitle) chapters.push({ time, title: chTitle });
   });
 
   // Captions / transcript via YouTube timedtext API
@@ -118,7 +118,7 @@ async function extractYouTube() {
     parts.push(`\n## Description\n\n${description}`);
   }
   if (chapters.length > 0) {
-    parts.push(`\n## Chapters\n\n${chapters.join("\n")}`);
+    parts.push(`\n## Chapters\n\n${chapters.map((c) => `- ${c.time} — ${c.title}`).join("\n")}`);
   }
   if (transcript) {
     parts.push(`\n## Transcript\n\n${truncate(transcript, 10000)}`);
@@ -130,6 +130,7 @@ async function extractYouTube() {
     url, title,
     content: parts.join("\n"),
     sourceType: "youtube",
+    chapters,
     metadata: {
       platform: "YouTube",
       ...(channelName && { channel: channelName }),
@@ -516,6 +517,20 @@ function extractContent() {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "nutegg-seek") {
+    // Seek the page's video to the given timestamp (seconds) — used by the
+    // clickable Chapter Map in the popup.
+    const video = document.querySelector("video");
+    if (video) {
+      video.currentTime = message.seconds;
+      video.play?.();
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false, error: "No video element found" });
+    }
+    return false;
+  }
+
   if (message.action === "extract-content") {
     try {
       const result = extractContent();
