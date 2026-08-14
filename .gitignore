@@ -3,3 +3,4 @@ obsidian-plugin/main.js
 *.js.map
 .DS_Store
 .claude/
+.githooks/
