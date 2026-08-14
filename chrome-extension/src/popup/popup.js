@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (serverOnline) {
     await checkConfigStatus();
     await fetchMetrics();
-    if (extractedContent) {
+    if (extractedContent && !isTranscriptBlocked()) {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
     }
@@ -203,6 +203,7 @@ async function extractPageContent() {
       } catch { /* injection failed */ }
     }
   } catch { pageTitle.textContent = "Error loading page"; }
+  applyTranscriptBlock();
 }
 
 function detectPageTypeFromUrl(url) {
@@ -210,6 +211,25 @@ function detectPageTypeFromUrl(url) {
   if (url.includes("youtube.com/watch")) return "📺 YouTube";
   if (url.includes("youtube.com")) return "📺 YouTube";
   return "🌐 Webpage";
+}
+
+/**
+ * YouTube without a transcript: analysis would rely on the description only,
+ * which produces misleading answers — warn and refuse to process.
+ */
+function isTranscriptBlocked() {
+  return !!extractedContent &&
+    extractedContent.sourceType === "youtube" &&
+    extractedContent.transcriptAvailable === false;
+}
+
+function applyTranscriptBlock() {
+  if (!isTranscriptBlocked()) return;
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = "Transcript unavailable";
+  showWarning(
+    "Couldn't fetch the video transcript — analysis would be based on the description only and could mislead you. NutEgg will not process this video."
+  );
 }
 
 // --- Analyze ---
@@ -221,6 +241,10 @@ async function handleAnalyze() {
   }
   if (!extractedContent) {
     showError("Could not extract page content. Try refreshing.");
+    return;
+  }
+  if (isTranscriptBlocked()) {
+    applyTranscriptBlock();
     return;
   }
 

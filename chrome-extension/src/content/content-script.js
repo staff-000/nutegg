@@ -131,6 +131,9 @@ async function extractYouTube() {
     content: parts.join("\n"),
     sourceType: "youtube",
     chapters,
+    // False when captions could not be fetched — the popup refuses to
+    // analyze, because description-only analysis would be misleading.
+    transcriptAvailable: !!transcript,
     metadata: {
       platform: "YouTube",
       ...(channelName && { channel: channelName }),
