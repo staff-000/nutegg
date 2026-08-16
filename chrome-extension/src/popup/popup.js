@@ -71,21 +71,7 @@ let currentNutId = null;
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await checkServerStatus();
-  await extractPageContent();
-
-  if (serverOnline) {
-    await checkConfigStatus();
-    await fetchMetrics();
-    if (extractedContent && !isTranscriptBlocked()) {
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
-    }
-    // If this URL was processed before, show the latest result immediately
-    await loadHistoryIfAny();
-  }
-
-  analyzeBtn.addEventListener("click", handleAnalyze);
+  analyzeBtn.addEventListener("click", () => handleAnalyze(false));
   confirmBtn.addEventListener("click", handleConfirm);
   saveRawBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
@@ -105,7 +91,55 @@ document.addEventListener("DOMContentLoaded", async () => {
     const idx = parseInt(historySelect.value, 10);
     if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
   });
+
+  // The side panel persists across tabs — refresh content when the user
+  // switches to another tab or the active tab navigates to a new URL.
+  chrome.tabs.onActivated.addListener(() => refreshForCurrentTab());
+  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    if (!changeInfo.url) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id === tabId) refreshForCurrentTab();
+  });
+
+  await refreshForCurrentTab();
 });
+
+let refreshSeq = 0;
+
+/**
+ * Re-run the capture flow for the currently active tab: reset state, extract
+ * content, then show the cached result when the URL was processed before.
+ * `refreshSeq` guards against interleaved refreshes on rapid tab switches.
+ */
+async function refreshForCurrentTab() {
+  const seq = ++refreshSeq;
+  customQuestionsEl.value = "";
+  followupInput.value = "";
+  processedNote.classList.add("hidden");
+  historySelect.classList.add("hidden");
+  historySelect.innerHTML = "";
+  showCaptureState();
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = "Analyze";
+
+  await checkServerStatus();
+  if (seq !== refreshSeq) return;
+  await extractPageContent();
+  if (seq !== refreshSeq) return;
+
+  if (serverOnline) {
+    await checkConfigStatus();
+    if (seq !== refreshSeq) return;
+    await fetchMetrics();
+    if (seq !== refreshSeq) return;
+    if (extractedContent && !isTranscriptBlocked()) {
+      analyzeBtn.disabled = false;
+      analyzeBtnText.textContent = "Analyze";
+    }
+    // If this URL was processed before, show the latest result immediately
+    await loadHistoryIfAny(seq);
+  }
+}
 
 // --- Metrics ---
 
@@ -430,13 +464,14 @@ function updateActionButtons() {
  * On popup open: if this URL has cached captures, show the latest result
  * without waiting for the user to click Analyze.
  */
-async function loadHistoryIfAny() {
+async function loadHistoryIfAny(seq = refreshSeq) {
   if (!serverOnline || !extractedContent?.url) return;
   try {
     const response = await chrome.runtime.sendMessage({
       action: "history",
       url: extractedContent.url,
     });
+    if (seq !== refreshSeq) return; // a newer tab refresh superseded this one
     if (response?.history?.length) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
