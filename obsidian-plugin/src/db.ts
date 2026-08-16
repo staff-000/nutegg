@@ -20,6 +20,8 @@ function loadSqliteModule(): typeof DatabaseSyncClass | null {
 
 /** One row from the nuts table (JSON columns parsed back into objects). */
 export interface NutRow {
+  /** Row id — identifies one capture of a URL (URLs are versioned over time). */
+  id: number;
   url: string;
   title: string;
   sourceType: string;
@@ -114,7 +116,7 @@ export class NutEggDatabase {
     this.db!.exec(`
       CREATE TABLE IF NOT EXISTS nuts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT NOT NULL UNIQUE,
+        url TEXT NOT NULL,
         title TEXT NOT NULL,
         source_type TEXT NOT NULL,
         content TEXT NOT NULL DEFAULT '',
@@ -134,52 +136,99 @@ export class NutEggDatabase {
 
   // --- Nuts ---
 
-  /** Insert or update one nut by URL. */
-  upsertNut(row: NutRow): void {
-    if (!this.db) return;
+  /**
+   * Insert a NEW capture row. URLs are versioned — each analysis is its own
+   * record; re-analyzing never overwrites earlier captures.
+   */
+  insertNut(row: Omit<NutRow, "id">): number | null {
+    if (!this.db) return null;
     this.corpusCache = null;
-    this.db
-      .prepare(
-        `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-           time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(url) DO UPDATE SET
-           title = excluded.title,
-           source_type = excluded.source_type,
-           content = excluded.content,
-           saved_at = excluded.saved_at,
-           published_at = excluded.published_at,
-           author = excluded.author,
-           time_estimate_minutes = excluded.time_estimate_minutes,
-           processing_result = excluded.processing_result,
-           summary = excluded.summary,
-           matched_eggs = excluded.matched_eggs,
-           file_name = excluded.file_name,
-           analysis_result = excluded.analysis_result`
-      )
-      .run(
-        row.url,
-        row.title,
-        row.sourceType,
-        row.content,
-        row.savedAt,
-        row.publishedAt || null,
-        row.author || null,
-        row.timeEstimateMinutes,
-        row.processingResult,
-        row.summary || null,
-        JSON.stringify(row.matchedEggs),
-        row.fileName || null,
-        row.analysisResult ? JSON.stringify(row.analysisResult) : null
-      );
+    try {
+      const res = this.db
+        .prepare(
+          `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          row.url,
+          row.title,
+          row.sourceType,
+          row.content,
+          row.savedAt,
+          row.publishedAt || null,
+          row.author || null,
+          row.timeEstimateMinutes,
+          row.processingResult,
+          row.summary || null,
+          JSON.stringify(row.matchedEggs),
+          row.fileName || null,
+          row.analysisResult ? JSON.stringify(row.analysisResult) : null
+        );
+      return Number(res.lastInsertRowid);
+    } catch (err) {
+      // A DB write must never break analysis — log and continue
+      console.error("[NutEgg] insertNut failed:", err);
+      return null;
+    }
   }
 
+  /** Latest capture of a URL (newest first history entry). */
   getNutByUrl(url: string): NutRow | null {
     if (!this.db) return null;
     const row = this.db
-      .prepare("SELECT * FROM nuts WHERE url = ?")
+      .prepare("SELECT * FROM nuts WHERE url = ? ORDER BY id DESC LIMIT 1")
       .get(url) as Record<string, any> | undefined;
     return row ? this.mapRow(row) : null;
+  }
+
+  /** All captures of a URL, newest first. */
+  getNutHistory(url: string): NutRow[] {
+    if (!this.db) return [];
+    const rows = this.db
+      .prepare("SELECT * FROM nuts WHERE url = ? ORDER BY id DESC")
+      .all(url) as Array<Record<string, any>>;
+    return rows.map((r) => this.mapRow(r));
+  }
+
+  getNutById(id: number): NutRow | null {
+    if (!this.db) return null;
+    const row = this.db
+      .prepare("SELECT * FROM nuts WHERE id = ?")
+      .get(id) as Record<string, any> | undefined;
+    return row ? this.mapRow(row) : null;
+  }
+
+  /** Update the save state of one capture row (called by /confirm). */
+  updateNut(
+    id: number,
+    patch: {
+      processingResult?: "saved" | "skip" | "analyzed";
+      fileName?: string;
+    }
+  ): void {
+    if (!this.db) return;
+    this.corpusCache = null;
+    const sets: string[] = [];
+    const params: Array<string | number> = [];
+    if (patch.processingResult) {
+      sets.push("processing_result = ?");
+      params.push(patch.processingResult);
+    }
+    if (patch.fileName !== undefined) {
+      sets.push("file_name = ?");
+      params.push(patch.fileName);
+    }
+    if (sets.length === 0) return;
+    params.push(id);
+    try {
+      this.db
+        .prepare(`UPDATE nuts SET ${sets.join(", ")} WHERE id = ?`)
+        .run(...params);
+    } catch (err) {
+      // A DB write must never break the confirm flow — log and continue
+      console.error("[NutEgg] updateNut failed:", err);
+    }
   }
 
   /** Aggregate stats over the nuts table (RAG corpus size + time saved). */
@@ -279,6 +328,7 @@ export class NutEggDatabase {
     } catch { /* corrupted — ignore */ }
 
     return {
+      id: row.id,
       url: row.url,
       title: row.title,
       sourceType: row.source_type,

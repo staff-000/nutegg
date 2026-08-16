@@ -24,6 +24,8 @@ const captureState = document.getElementById("capture-state");
 const resultsState = document.getElementById("results-state");
 const processedNote = document.getElementById("processed-note");
 const processedMessage = document.getElementById("processed-message");
+const reanalyzeBtn = document.getElementById("reanalyze-btn");
+const historySelect = document.getElementById("history-select");
 const verdictAnswer = document.getElementById("verdict-answer");
 const coreSummaryEl = document.getElementById("core-summary");
 const chapterSection = document.getElementById("chapter-section");
@@ -61,6 +63,10 @@ let followUpQa = [];
 /** Save-state of the shown result this session. Hatch implies both. */
 let nutCollected = false;
 let eggHatched = false;
+/** Capture history for the current URL (newest first) — URLs change over time. */
+let captureHistory = [];
+/** Row id of the capture currently shown / last analyzed. */
+let currentNutId = null;
 
 // --- Init ---
 
@@ -91,6 +97,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   followupBtn.addEventListener("click", handleFollowUp);
   followupInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleFollowUp();
+  });
+  reanalyzeBtn.addEventListener("click", () => handleAnalyze(true));
+  historySelect.addEventListener("change", () => {
+    const idx = parseInt(historySelect.value, 10);
+    if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
   });
 });
 
@@ -208,7 +219,7 @@ function applyTranscriptBlock() {
 
 // --- Analyze ---
 
-async function handleAnalyze() {
+async function handleAnalyze(force = false) {
   if (!serverOnline) {
     showError("Obsidian server is offline. Start Obsidian with NutEgg plugin.");
     return;
@@ -240,29 +251,24 @@ async function handleAnalyze() {
       metadata: extractedContent.metadata,
       chapters: extractedContent.chapters || undefined,
       questions,
+      force,
     };
 
+    if (force) {
+      reanalyzeBtn.disabled = true;
+      reanalyzeBtn.textContent = "Analyzing…";
+    }
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
+    if (force) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
 
-    if (response?.alreadyProcessed) {
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
-      if (response.cachedResult) {
-        // Replay the result from the last process — initialize save state
-        // from the DB row so re-clicking never duplicates work.
-        cachedProcessedSaved = response.saved === "saved" || response.saved === "analyzed"
-          ? response.saved
-          : "skip";
-        nutCollected = cachedProcessedSaved === "saved" || cachedProcessedSaved === "skip";
-        eggHatched = cachedProcessedSaved === "saved";
-        analysisResult = response.cachedResult;
-        showResultsState(response.cachedResult);
-        updateActionButtons();
-        processedMessage.textContent = response.alreadyProcessed;
-        processedNote.classList.remove("hidden");
-      } else {
-        showDuplicate(response.alreadyProcessed);
-      }
+    // This URL has cached captures — show the latest with its timestamp,
+    // plus history browsing and a way to force a fresh analysis.
+    if (response?.history) {
+      captureHistory = response.history;
+      showHistoryEntry(response.latest || response.history[0]);
       return;
     }
 
@@ -273,7 +279,10 @@ async function handleAnalyze() {
       return;
     }
 
+    // Fresh analysis — a NEW capture row was created in the DB
     cachedProcessedSaved = null;
+    captureHistory = [];
+    currentNutId = response.nutId ?? null;
     followUpQa = [];
     followupInput.value = "";
     nutCollected = false;
@@ -415,6 +424,38 @@ function updateActionButtons() {
   }
 }
 
+/** Show one cached capture (from history) with its capture timestamp. */
+function showHistoryEntry(entry) {
+  cachedProcessedSaved = entry.saved || "analyzed";
+  nutCollected = cachedProcessedSaved === "saved" || cachedProcessedSaved === "skip";
+  eggHatched = cachedProcessedSaved === "saved";
+  currentNutId = entry.nutId ?? null;
+  analysisResult = entry.result;
+  showResultsState(entry.result);
+  updateActionButtons();
+
+  const when = new Date(entry.capturedAt).toLocaleString();
+  const stateLabel = entry.saved === "saved"
+    ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
+  processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+  processedNote.classList.remove("hidden");
+
+  // Version selector when multiple captures exist
+  if (captureHistory.length > 1) {
+    historySelect.classList.remove("hidden");
+    historySelect.innerHTML = captureHistory
+      .map((h, i) => {
+        const d = new Date(h.capturedAt).toLocaleString();
+        const s = h.saved === "saved" ? "saved" : h.saved === "skip" ? "collected" : "analyzed";
+        const selected = h.nutId === entry.nutId ? " selected" : "";
+        return `<option value="${i}"${selected}>${d} — ${s}</option>`;
+      })
+      .join("");
+  } else {
+    historySelect.classList.add("hidden");
+  }
+}
+
 /** Render the "Your Questions" section: initial answers + follow-ups. */
 function renderCustomQuestions() {
   const all = [
@@ -518,6 +559,8 @@ function showCaptureState() {
   followupInput.value = "";
   nutCollected = false;
   eggHatched = false;
+  captureHistory = [];
+  currentNutId = null;
   hideMessages();
 }
 
@@ -553,6 +596,7 @@ async function doSave(newKnowledge) {
       matchedEggs: analysisResult?.matchedEggs || [],
       newKnowledge,
       analysis: analysisResult || undefined,
+      nutId: currentNutId ?? undefined,
       // Hatching collects the nut too — skip the raw save only when the
       // nut was already collected (this session or a previous one).
       // "analyzed" means processed but never saved, so the raw must be saved.
@@ -570,6 +614,9 @@ async function doSave(newKnowledge) {
       } else {
         nutCollected = true;
       }
+      // Keep the capture history entry in sync with the new save state
+      const entry = captureHistory.find((h) => h.nutId === currentNutId);
+      if (entry) entry.saved = newKnowledge.length > 0 ? "saved" : "skip";
       successMessage.textContent = newKnowledge.length > 0
         ? "Egg hatched — knowledge added and nut collected!"
         : "Nut collected!";

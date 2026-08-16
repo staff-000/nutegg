@@ -90,6 +90,45 @@ body {
 
 .duplicate-icon { flex-shrink: 0; margin-top: 1px; }
 
+.processed-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.processed-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reanalyze-btn {
+  padding: 4px 10px;
+  background: #7c3aed;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reanalyze-btn:hover:not(:disabled) { background: #6d28d9; }
+.reanalyze-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+.history-select {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #1e40af;
+  background: #ffffff;
+  max-width: 100%;
+}
+
 /* Page Info */
 .page-info {
   background: #ffffff;

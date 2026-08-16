@@ -28,6 +28,30 @@ const plugin = {
 const mkdir = (p: string) => fs.mkdirSync(path.join(tmp, p), { recursive: true });
 const exists = (p: string) => fs.existsSync(path.join(tmp, p));
 
+function capture(content: string, savedAt: string) {
+  return {
+    url: "https://example.com/video",
+    title: "How transformers actually work",
+    sourceType: "youtube",
+    content,
+    savedAt,
+    publishedAt: "2026-08-10",
+    author: "3Blue1Brown",
+    timeEstimateMinutes: 18,
+    processingResult: "analyzed" as const,
+    summary: "Clear explanation of attention.",
+    matchedEggs: ["nutegg/ai_ml.md"],
+    fileName: "",
+    analysisResult: {
+      titleVerdict: "Yes — attention is weighted context lookup.",
+      coreSummary: ["bullet"], isLongForm: false, chapterMap: [],
+      customQuestionAnswers: [],
+      shouldRead: true, shouldReadReason: "x", matchedEggs: ["nutegg/ai_ml.md"],
+      eggResults: [], newKnowledge: [],
+    },
+  };
+}
+
 async function main() {
   mkdir("nutegg");
 
@@ -36,45 +60,30 @@ async function main() {
   console.log("available:", db.available);
   console.log("db file exists:", exists("nutegg/.nutegg.db"));
 
-  // --- Upsert + conflict update ---
-  db.upsertNut({
-    url: "https://example.com/video",
-    title: "How transformers actually work",
-    sourceType: "youtube",
-    content: "Attention mechanisms and positional encodings explained with clear diagrams.",
-    savedAt: "2026-08-14T10:00:00Z",
-    publishedAt: "2026-08-10",
-    author: "3Blue1Brown",
-    timeEstimateMinutes: 18,
-    processingResult: "saved",
-    summary: "Clear explanation of attention.",
-    matchedEggs: ["nutegg/ai_ml.md"],
-    fileName: "nutegg/_raw/2026-08-14-youtube-test.md",
-    analysisResult: {
-      titleVerdict: "Yes — attention is weighted context lookup.",
-      coreSummary: ["bullet"], isLongForm: false, chapterMap: [],
-      shouldRead: true, shouldReadReason: "x", matchedEggs: ["nutegg/ai_ml.md"],
-      eggResults: [], newKnowledge: [],
-    },
-  });
-  // Re-save same URL (raw-only) → should update, not duplicate
-  db.upsertNut({
-    url: "https://example.com/video", title: "How transformers actually work",
-    sourceType: "youtube", content: "Updated content.",
-    savedAt: "2026-08-14T11:00:00Z", publishedAt: "", author: "",
-    timeEstimateMinutes: 18, processingResult: "skip", summary: "",
-    matchedEggs: [], fileName: "nutegg/_raw/2026-08-14-youtube-test-2.md",
-    analysisResult: null,
-  });
-  const stats = db.getStats();
-  console.log("stats:", stats.nuts, "nuts |", stats.timeSavedMinutes, "min (expect 1 | 18)");
+  // --- Versioned captures: same URL captured twice → two rows ---
+  const id1 = db.insertNut(capture("Original content about attention.", "2026-08-14T10:00:00Z"));
+  const id2 = db.insertNut(capture("Updated content about attention and MLX.", "2026-08-15T09:00:00Z"));
+  console.log("insert ids:", id1, id2, "(expect 1 2)");
 
-  const replayed = db.getNutByUrl("https://example.com/video");
-  console.log("re-save updated row:", replayed?.processingResult, "|", replayed?.savedAt.slice(11, 16));
+  const history = db.getNutHistory("https://example.com/video");
+  console.log("history count:", history.length, "(expect 2)");
+  console.log("newest first:", history[0].id === id2 && history[1].id === id1 ? "OK" : "WRONG");
+  console.log("latest by url:", db.getNutByUrl("https://example.com/video")?.id, "(expect", id2, ")");
+  console.log("by id:", db.getNutById(id1 ?? 0)?.processingResult, "(expect analyzed)");
+
+  // --- updateNut (confirm flow) touches only the targeted capture ---
+  db.updateNut(id2 ?? 0, { processingResult: "saved", fileName: "nutegg/_raw/x.md" });
+  const updated = db.getNutById(id2 ?? 0);
+  console.log("updated state:", updated?.processingResult, "| file:", updated?.fileName, "(expect saved)");
+  console.log("older capture untouched:", db.getNutById(id1 ?? 0)?.processingResult, "(expect analyzed)");
+
+  // --- Stats count every capture ---
+  const stats = db.getStats();
+  console.log("stats:", stats.nuts, "nuts |", stats.timeSavedMinutes, "min (expect 2 | 36)");
 
   // --- BM25 search ---
   const hits = db.search("transformers attention");
-  console.log("search hits:", hits.length, "| top:", hits[0]?.title, "| snippet:", hits[0]?.snippet);
+  console.log("search hits:", hits.length, "| top:", hits[0]?.title);
   const miss = db.search("quantum chromodynamics");
   console.log("search miss:", miss.length);
 

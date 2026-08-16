@@ -60,7 +60,13 @@
     <div id="results-state" class="hidden">
       <div id="processed-note" class="duplicate-banner hidden">
         <span class="duplicate-icon">📎</span>
-        <span id="processed-message"></span>
+        <div class="processed-info">
+          <span id="processed-message"></span>
+          <div class="processed-actions">
+            <button id="reanalyze-btn" class="reanalyze-btn">🔄 Re-analyze</button>
+            <select id="history-select" class="history-select hidden"></select>
+          </div>
+        </div>
       </div>
 
       <div class="result-section">

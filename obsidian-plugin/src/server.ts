@@ -13,6 +13,8 @@ interface AnalyzeRequest {
   chapters?: Array<{ time: string; title: string }>;
   /** Custom questions from the popup — answered alongside the eggs' key questions. */
   questions?: string[];
+  /** Force a fresh analysis even when cached captures exist for this URL. */
+  force?: boolean;
 }
 
 interface AskRequest {
@@ -43,15 +45,18 @@ interface ConfirmRequest {
   analysis?: AnalysisResult;
   /** Skip saving the raw nut (it was already saved) — only apply knowledge. */
   skipRaw?: boolean;
+  /** Row id of the capture this confirm belongs to (from /analyze or history). */
+  nutId?: number;
 }
 
-/** One processed nut, as exposed to /analyze for dedup + result replay. */
-interface ProcessedEntry {
-  processedAt: string;
-  /** Last state: "saved" (knowledge added), "skip" (raw only), "analyzed" (never saved). */
-  saved?: "saved" | "skip" | "analyzed";
-  /** Analysis result from the last process — replayed when the URL is reopened. */
-  result?: AnalysisResult;
+/** One capture of a URL, as exposed to /analyze for history + result replay. */
+interface CaptureEntry {
+  nutId: number;
+  /** When this capture was analyzed (ISO timestamp). */
+  capturedAt: string;
+  /** "saved" (knowledge added), "skip" (raw only), "analyzed" (never saved). */
+  saved: "saved" | "skip" | "analyzed";
+  result: AnalysisResult | null;
 }
 
 export class NutEggServer {
@@ -66,21 +71,19 @@ export class NutEggServer {
 
   // --- Dedup + metrics helpers (backed by SQLite) ---
 
-  /** Look up the processed entry for a URL. Null = never processed / DB unavailable. */
-  private getProcessedEntry(url: string): ProcessedEntry | null {
+  /** All captures of a URL, newest first. Empty = never processed / DB unavailable. */
+  private getCaptureHistory(url: string): CaptureEntry[] {
     const db = this.plugin.db;
-    if (!db?.available) return null;
-    const row = db.getNutByUrl(this.normalizeUrl(url));
-    if (!row) return null;
-    const state =
-      row.processingResult === "saved" || row.processingResult === "skip"
-        ? row.processingResult
-        : "analyzed";
-    return {
-      processedAt: row.savedAt,
-      saved: state,
-      result: row.analysisResult ?? undefined,
-    };
+    if (!db?.available) return [];
+    return db.getNutHistory(this.normalizeUrl(url)).map((row) => ({
+      nutId: row.id,
+      capturedAt: row.savedAt,
+      saved:
+        row.processingResult === "saved" || row.processingResult === "skip"
+          ? row.processingResult
+          : "analyzed",
+      result: row.analysisResult,
+    }));
   }
 
   /** Reading/watch time estimate from metadata, or word-count fallback. */
@@ -321,31 +324,17 @@ export class NutEggServer {
         return;
       }
 
-      // Check if already processed — replay the stored result when available.
-      // Custom questions bypass the replay so they get fresh answers.
+      // If this URL has cached captures (and no fresh analysis was forced or
+      // custom questions asked), return the capture history — the popup shows
+      // the latest result with its timestamp and offers "Re-analyze".
       const hasQuestions = capture.questions && capture.questions.length > 0;
-      const processedEntry = hasQuestions ? null : this.getProcessedEntry(capture.url);
-      if (processedEntry) {
-        const date = new Date(processedEntry.processedAt).toLocaleDateString();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        if (processedEntry.result) {
-          const state = processedEntry.saved || "analyzed";
-          const label = state === "analyzed" ? "Analyzed" : "Processed";
-          res.end(
-            JSON.stringify({
-              alreadyProcessed: `${label} on ${date} — showing stored result.`,
-              cachedResult: processedEntry.result,
-              saved: state,
-            })
-          );
-        } else {
-          res.end(
-            JSON.stringify({
-              alreadyProcessed: `Already processed on ${date}. You can still save the raw content with "Save Raw".`,
-            })
-          );
+      if (!hasQuestions && !capture.force) {
+        const history = this.getCaptureHistory(capture.url);
+        if (history.length > 0) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ history, latest: history[0] }));
+          return;
         }
-        return;
       }
 
       // Step 1: Read _index.md and match content to relevant egg files
@@ -363,12 +352,10 @@ export class NutEggServer {
       // Custom questions are deduplicated by the AI against the eggs' key questions.
       const result = await this.plugin.aiProcessor.analyze(capture, eggs);
 
-      // Record EVERY processed nut in SQLite — metrics count all analyses,
-      // not just saved ones. A later /confirm upgrades the row to saved/skip.
-      const normalizedUrl = this.normalizeUrl(capture.url);
-      const existing = this.plugin.db?.getNutByUrl(normalizedUrl) ?? null;
-      this.plugin.db?.upsertNut({
-        url: normalizedUrl,
+      // Record EVERY processed result in SQLite — one NEW row per capture, so
+      // re-analysis creates a new version instead of overwriting history.
+      const nutId = this.plugin.db?.insertNut({
+        url: this.normalizeUrl(capture.url),
         title: capture.title,
         sourceType: capture.sourceType,
         content: capture.content || "",
@@ -376,22 +363,21 @@ export class NutEggServer {
         publishedAt: capture.metadata?.published || "",
         author: capture.metadata?.author || capture.metadata?.channel || "",
         timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
-        // Preserve the save state of an already-saved nut on re-analysis
-        processingResult: existing ? existing.processingResult : "analyzed",
+        processingResult: "analyzed",
         summary: [result.titleVerdict, ...(result.coreSummary || [])]
           .filter(Boolean)
           .join("\n"),
         matchedEggs: result.matchedEggs || [],
-        fileName: existing?.fileName || "",
+        fileName: "",
         analysisResult: result,
-      });
+      }) ?? undefined;
 
       console.log(
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify({ ...result, nutId }));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
 
@@ -496,22 +482,35 @@ export class NutEggServer {
         );
       }
 
-      // Upsert into SQLite — dedup, replay, metrics and the RAG corpus
-      this.plugin.db?.upsertNut({
-        url: this.normalizeUrl(confirm.url),
-        title: confirm.title,
-        sourceType: confirm.sourceType,
-        content: confirm.content || "",
-        savedAt: new Date().toISOString(),
-        publishedAt: confirm.metadata?.published || "",
-        author: confirm.metadata?.author || confirm.metadata?.channel || "",
-        timeEstimateMinutes: timeEstimate,
-        processingResult: saved,
-        summary: summary || "",
-        matchedEggs: eggNames,
-        fileName,
-        analysisResult: confirm.analysis ?? null,
-      });
+      // Update THIS capture's row in SQLite (identified by nutId from
+      // /analyze or the history). Fall back to the latest row for the URL.
+      const db = this.plugin.db;
+      const normalizedUrl = this.normalizeUrl(confirm.url);
+      const targetId =
+        confirm.nutId ?? db?.getNutByUrl(normalizedUrl)?.id ?? null;
+      if (targetId != null) {
+        db?.updateNut(targetId, {
+          processingResult: saved,
+          ...(fileName ? { fileName } : {}),
+        });
+      } else {
+        // No prior row (e.g. DB was down during analyze) — record the save now
+        db?.insertNut({
+          url: normalizedUrl,
+          title: confirm.title,
+          sourceType: confirm.sourceType,
+          content: confirm.content || "",
+          savedAt: new Date().toISOString(),
+          publishedAt: confirm.metadata?.published || "",
+          author: confirm.metadata?.author || confirm.metadata?.channel || "",
+          timeEstimateMinutes: timeEstimate,
+          processingResult: saved,
+          summary: summary || "",
+          matchedEggs: eggNames,
+          fileName,
+          analysisResult: confirm.analysis ?? null,
+        });
+      }
 
       console.log(
         `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
