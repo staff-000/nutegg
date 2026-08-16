@@ -451,12 +451,18 @@ function updateActionButtons() {
     confirmBtn.classList.remove("hidden");
     confirmBtn.disabled = true;
     confirmBtn.textContent = "✅ Egg hatched";
+    confirmBtn.title = "";
   } else if (hasDelta) {
     confirmBtn.classList.remove("hidden");
     confirmBtn.disabled = false;
     confirmBtn.textContent = "🥚 Hatch Egg";
+    confirmBtn.title = "";
   } else {
-    confirmBtn.classList.add("hidden");
+    // No novel delta — show the button but keep it unclickable
+    confirmBtn.classList.remove("hidden");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "🥚 Hatch Egg";
+    confirmBtn.title = "No new knowledge found to add";
   }
 }
 
@@ -624,7 +630,7 @@ function showCaptureState() {
 // --- Confirm (add to knowledge base) ---
 
 async function handleConfirm() {
-  if (!analysisResult || eggHatched) return;
+  if (!analysisResult || eggHatched || !(analysisResult.newKnowledge?.length)) return;
   confirmBtn.disabled = true;
   confirmBtn.textContent = "Hatching...";
   await doSave(analysisResult.newKnowledge || []);
