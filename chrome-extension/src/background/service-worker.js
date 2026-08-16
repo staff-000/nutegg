@@ -45,6 +45,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "history") {
+    fetchHistory(message.url)
+      .then((r) => sendResponse(r))
+      .catch(() => sendResponse({ history: [], latest: null }));
+    return true;
+  }
+
   if (message.action === "check-server") {
     checkServer()
       .then((r) => sendResponse(r))
@@ -110,6 +117,22 @@ async function handleConfirm(payload) {
   }
 
   return data;
+}
+
+async function fetchHistory(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(
+      `${getServerUrl()}/history?url=${encodeURIComponent(url)}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    return await response.json();
+  } catch {
+    clearTimeout(timeout);
+    return { history: [], latest: null };
+  }
 }
 
 async function handleAsk(payload) {

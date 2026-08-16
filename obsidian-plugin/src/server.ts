@@ -161,6 +161,11 @@ export class NutEggServer {
         return;
       }
 
+      if (req.method === "GET" && req.url?.startsWith("/history")) {
+        this.handleHistory(req, res);
+        return;
+      }
+
       if (req.method === "POST" && req.url === "/ask") {
         this.handleAsk(req, res);
         return;
@@ -257,6 +262,18 @@ export class NutEggServer {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to answer. Please try again.", answers: [] }));
     }
+  }
+
+  /**
+   * GET /history?url=... — cached captures for a URL, newest first.
+   * The popup loads this on open so processed URLs show their result immediately.
+   */
+  private handleHistory(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const url = new URL(req.url || "/history", `http://127.0.0.1:${this.port}`);
+    const target = url.searchParams.get("url")?.trim() || "";
+    const history = target ? this.getCaptureHistory(target) : [];
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ history, latest: history[0] ?? null }));
   }
 
   /**

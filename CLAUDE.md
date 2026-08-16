@@ -38,6 +38,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], customQuestionAnswers[], shouldRead, eggResults[], newKnowledge[], nutId}`. If the URL has cached captures (and no `force`/`questions`), returns `{history[], latest}` instead — each capture is its own versioned DB row |
 | `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + inserts deltas into egg knowledge trees + upserts into SQLite |
 | `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
+| `GET /history?url=` | Cached captures for a URL, newest first — popup auto-loads the latest result on open |
 
 ### Vault structure (all under `nutegg/`)
 

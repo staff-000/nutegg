@@ -81,6 +81,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
     }
+    // If this URL was processed before, show the latest result immediately
+    await loadHistoryIfAny();
   }
 
   analyzeBtn.addEventListener("click", handleAnalyze);
@@ -421,6 +423,26 @@ function updateActionButtons() {
     confirmBtn.textContent = "🥚 Hatch Egg";
   } else {
     confirmBtn.classList.add("hidden");
+  }
+}
+
+/**
+ * On popup open: if this URL has cached captures, show the latest result
+ * without waiting for the user to click Analyze.
+ */
+async function loadHistoryIfAny() {
+  if (!serverOnline || !extractedContent?.url) return;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "history",
+      url: extractedContent.url,
+    });
+    if (response?.history?.length) {
+      captureHistory = response.history;
+      showHistoryEntry(response.latest || response.history[0]);
+    }
+  } catch {
+    // Server unreachable or no history — stay in capture state
   }
 }
 
