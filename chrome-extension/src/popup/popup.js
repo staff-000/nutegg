@@ -95,7 +95,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(() => refreshForCurrentTab());
+  // Reopen handling: browsers that keep the side-panel document alive while
+  // the panel is closed don't re-fire DOMContentLoaded — refresh on show.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshForCurrentTab();
+  });
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
+    // Page finished loading: retry extraction when it ran mid-load or failed
+    // (e.g. YouTube captions not ready yet).
+    if (changeInfo.status === "complete") {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id === tabId && (lastLoadWasLoading || extractionFailed)) {
+        refreshForCurrentTab();
+      }
+      return;
+    }
     if (!changeInfo.url) return;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id === tabId) refreshForCurrentTab();
@@ -118,6 +132,7 @@ async function refreshForCurrentTab() {
   processedNote.classList.add("hidden");
   historySelect.classList.add("hidden");
   historySelect.innerHTML = "";
+  captureHistory = []; // fresh URL — old history doesn't apply
   showCaptureState();
   analyzeBtn.disabled = true;
   analyzeBtnText.textContent = "Analyze";
@@ -192,11 +207,19 @@ async function checkServerStatus() {
 
 // --- Content extraction ---
 
+/** True when extraction ran against a still-loading page (retry on complete). */
+let lastLoadWasLoading = false;
+/** True when extraction failed (restricted page, mid-load injection, ...). */
+let extractionFailed = false;
+
 async function extractPageContent() {
+  extractionFailed = false;
+  lastLoadWasLoading = false;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) { pageTitle.textContent = "Unknown Page"; return; }
     activeTabId = tab.id;
+    lastLoadWasLoading = tab.status === "loading";
 
     pageTitle.textContent = tab.title || "Untitled";
     pageUrl.textContent = tab.url || "";
@@ -208,22 +231,45 @@ async function extractPageContent() {
         extractedContent = response.content;
         pageTitle.textContent = response.content.title || tab.title || "Untitled";
         pageType.textContent = response.content.sourceType || pageType.textContent;
+      } else {
+        extractionFailed = true;
       }
     } catch {
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ["src/content/content-script.js"],
-      });
+      // Content script not injected yet (page mid-load, or never injected)
       try {
-        const resp = await chrome.tabs.sendMessage(tab.id, { action: "extract-content" });
-        if (resp?.success) {
-          extractedContent = resp.content;
-          pageTitle.textContent = resp.content.title || tab.title || "Untitled";
-          pageType.textContent = resp.content.sourceType || pageType.textContent;
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ["src/content/content-script.js"],
+        });
+      } catch {
+        // Restricted page (chrome://, Web Store, PDF viewer) — cannot inject
+        extractionFailed = true;
+      }
+      if (!extractionFailed) {
+        try {
+          const resp = await chrome.tabs.sendMessage(tab.id, { action: "extract-content" });
+          if (resp?.success) {
+            extractedContent = resp.content;
+            pageTitle.textContent = resp.content.title || tab.title || "Untitled";
+            pageType.textContent = resp.content.sourceType || pageType.textContent;
+          } else {
+            extractionFailed = true;
+          }
+        } catch {
+          extractionFailed = true;
         }
-      } catch { /* injection failed */ }
+      }
     }
-  } catch { pageTitle.textContent = "Error loading page"; }
+  } catch {
+    // Unexpected (e.g. extension context invalidated by a reload) — keep the
+    // page title rather than showing a misleading "Error loading page"
+    extractionFailed = true;
+  }
+  if (extractionFailed && !extractedContent) {
+    showWarning(
+      "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. The panel will retry once the page finishes loading."
+    );
+  }
   applyTranscriptBlock();
 }
 
@@ -315,9 +361,18 @@ async function handleAnalyze(force = false) {
       return;
     }
 
-    // Fresh analysis — a NEW capture row was created in the DB
+    // Fresh analysis — a NEW capture row was created in the DB.
+    // Keep it in captureHistory so Back shows "Analyze Again".
     cachedProcessedSaved = null;
-    captureHistory = [];
+    captureHistory = [
+      {
+        nutId: response.nutId,
+        capturedAt: new Date().toISOString(),
+        saved: "analyzed",
+        result: response,
+      },
+      ...captureHistory,
+    ];
     currentNutId = response.nutId ?? null;
     followUpQa = [];
     followupInput.value = "";
@@ -481,6 +536,7 @@ async function loadHistoryIfAny(seq = refreshSeq) {
     if (response?.history?.length) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
+      analyzeBtnText.textContent = "🔄 Analyze Again";
     }
   } catch {
     // Server unreachable or no history — stay in capture state
@@ -615,14 +671,14 @@ function showCaptureState() {
   resultsState.classList.add("hidden");
   captureState.classList.remove("hidden");
   analyzeBtn.disabled = false;
-  analyzeBtnText.textContent = "Analyze";
+  // Label reflects that this URL was processed before
+  analyzeBtnText.textContent = captureHistory.length > 0 ? "🔄 Analyze Again" : "Analyze";
   analysisResult = null;
   cachedProcessedSaved = null;
   followUpQa = [];
   followupInput.value = "";
   nutCollected = false;
   eggHatched = false;
-  captureHistory = [];
   currentNutId = null;
   hideMessages();
 }
