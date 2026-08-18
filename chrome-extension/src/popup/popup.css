@@ -164,19 +164,47 @@ body {
   color: #6b7280;
 }
 
+/* Extracted content preview (fixed height, scrollable) */
+.content-preview {
+  height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Custom questions */
 .questions-toggle {
-  background: none;
-  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #c4b5fd;
   color: #7c3aed;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
   margin-bottom: 8px;
+  text-align: left;
 }
 
 .questions-toggle:hover {
-  text-decoration: underline;
+  background: #f5f3ff;
+}
+
+.questions-toggle-chevron {
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .questions-area {
@@ -272,7 +300,7 @@ body {
   display: none !important;
 }
 
-/* Analyze Button */
+/* Analyze Button — pinned so it stays visible while scrolling */
 .analyze-btn {
   width: 100%;
   padding: 10px;
@@ -285,6 +313,10 @@ body {
   cursor: pointer;
   transition: background 0.15s;
   margin-bottom: 8px;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -4px 12px rgba(26, 26, 46, 0.08);
 }
 
 .analyze-btn:hover:not(:disabled) {

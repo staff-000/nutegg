@@ -6,6 +6,7 @@ const settingsBtn = document.getElementById("settings-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
+const contentPreview = document.getElementById("content-preview");
 const questionsToggle = document.getElementById("questions-toggle");
 const questionsArea = document.getElementById("questions-area");
 const customQuestionsEl = document.getElementById("custom-questions");
@@ -215,6 +216,7 @@ let extractionFailed = false;
 async function extractPageContent() {
   extractionFailed = false;
   lastLoadWasLoading = false;
+  contentPreview.textContent = "Loading content…";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) { pageTitle.textContent = "Unknown Page"; return; }
@@ -231,6 +233,7 @@ async function extractPageContent() {
         extractedContent = response.content;
         pageTitle.textContent = response.content.title || tab.title || "Untitled";
         pageType.textContent = response.content.sourceType || pageType.textContent;
+        contentPreview.textContent = response.content.content || "(No content extracted)";
       } else {
         extractionFailed = true;
       }
@@ -252,6 +255,7 @@ async function extractPageContent() {
             extractedContent = resp.content;
             pageTitle.textContent = resp.content.title || tab.title || "Untitled";
             pageType.textContent = resp.content.sourceType || pageType.textContent;
+            contentPreview.textContent = resp.content.content || "(No content extracted)";
           } else {
             extractionFailed = true;
           }
@@ -266,6 +270,7 @@ async function extractPageContent() {
     extractionFailed = true;
   }
   if (extractionFailed && !extractedContent) {
+    contentPreview.textContent = "(Could not extract content)";
     showWarning(
       "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. The panel will retry once the page finishes loading."
     );
