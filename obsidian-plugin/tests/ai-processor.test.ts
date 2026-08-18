@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AIProcessor, type EggContent } from "../src/ai-processor";
-import { makeFakePlugin } from "./helpers";
+import {
+  AIProcessor,
+  MERGE_THRESHOLD,
+  type EggContent,
+} from "../src/ai-processor";
+import { EggParser } from "../src/egg-parser";
+import { makeFakePlugin, makeFakeVault } from "./helpers";
 
 function egg(fileName: string, overrides: Partial<EggContent> = {}): EggContent {
   return {
@@ -13,6 +18,7 @@ function egg(fileName: string, overrides: Partial<EggContent> = {}): EggContent 
     rejectionCriteria: ["Reject noise."],
     formattingRules: "Keep the tree.",
     knowledge: "- existing\n",
+    unprocessed: "",
     ...overrides,
   };
 }
@@ -249,6 +255,100 @@ describe("AIProcessor.askFollowUp", () => {
     const out = await new AIProcessor(plugin as any).askFollowUp(capture, [], []);
     assert.deepEqual(out, []);
     assert.equal(calls, 0);
+  });
+});
+
+describe("AIProcessor.maybeMergeEgg", () => {
+  /** Egg file with `n` top-level entries in ## Unprocessed. */
+  function unprocessedEgg(n: number): string {
+    const entries = Array.from(
+      { length: n },
+      (_, i) => `- entry ${i + 1}`
+    ).join("\n");
+    return `## Knowledge\n\n- existing\n\n## Unprocessed\n\n${entries}\n`;
+  }
+
+  function makeProcessor(
+    files: Record<string, string>,
+    overrides: any = {}
+  ) {
+    const store = makeFakeVault(files);
+    const plugin = makeFakePlugin({ vault: store.vault, ...overrides });
+    plugin.eggParser = new EggParser(plugin as any);
+    return { p: new AIProcessor(plugin as any), files: store.files };
+  }
+
+  it("exports MERGE_THRESHOLD = 20", () => {
+    assert.equal(MERGE_THRESHOLD, 20);
+  });
+
+  it("does nothing below the threshold (no AI call)", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(19) },
+      { aiClient: { chat: async () => (calls++, "{}") } }
+    );
+    const out = await p.maybeMergeEgg("egg.md");
+    assert.equal(out, null);
+    assert.equal(calls, 0);
+  });
+
+  it("merges 20 entries into the tree via one AI call", async () => {
+    let seenPrompt = "";
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      {
+        aiClient: {
+          chat: async (prompt: string) => {
+            seenPrompt = prompt;
+            return JSON.stringify({
+              knowledge: "- existing\n  - merged 1\n  - merged 2",
+              unprocessed: "",
+            });
+          },
+        },
+      }
+    );
+    const out = await p.maybeMergeEgg("egg.md");
+    assert.deepEqual(out, { egg: "egg.md", entries: 20 });
+    const content = files.get("egg.md")!;
+    assert.ok(
+      content.includes("## Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
+      "Knowledge tree replaced with the merged output"
+    );
+    assert.ok(!content.includes("- entry 1"), "Unprocessed entries consumed");
+    // The prompt carries the tree + the entries to merge
+    assert.ok(seenPrompt.includes("- existing"));
+    assert.ok(seenPrompt.includes("- entry 20"));
+  });
+
+  it("leaves the egg untouched when the AI returns no knowledge", async () => {
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      { aiClient: { chat: async () => JSON.stringify({ unprocessed: "x" }) } }
+    );
+    const before = files.get("egg.md")!;
+    const out = await p.maybeMergeEgg("egg.md");
+    assert.equal(out, null);
+    assert.equal(files.get("egg.md"), before);
+  });
+
+  it("skips the merge without an API key", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      {
+        settings: { aiApiKey: "" },
+        aiClient: { chat: async () => (calls++, "{}") },
+      }
+    );
+    assert.equal(await p.maybeMergeEgg("egg.md"), null);
+    assert.equal(calls, 0);
+  });
+
+  it("returns null for a missing egg file", async () => {
+    const { p } = makeProcessor({});
+    assert.equal(await p.maybeMergeEgg("nope.md"), null);
   });
 });
 

@@ -114,7 +114,7 @@ describe("KnowledgeBase.saveRaw", () => {
 });
 
 describe("KnowledgeBase.appendKnowledge", () => {
-  it("inserts each knowledge item into its egg file with a source link", async () => {
+  it("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
       "a.md": "## Knowledge\n\n- existing a\n",
       "b.md": "## Knowledge\n\n- existing b\n",
@@ -128,18 +128,35 @@ describe("KnowledgeBase.appendKnowledge", () => {
         { egg: "a.md", parent: "existing a", content: "- one" },
         { egg: "b.md", content: "- two" },
       ],
-      "https://example.com/src"
+      "Article Title",
+      "https://example.com/src",
+      "Jane Doe"
     );
     const a = files.get("a.md")!;
     const b = files.get("b.md")!;
+    assert.ok(a.includes("## Unprocessed"));
     assert.ok(a.includes("- one"));
-    assert.ok(a.includes("_source: [link](https://example.com/src)_"));
+    assert.ok(a.includes("_author: Jane Doe_"));
+    assert.ok(a.includes("_source: [Article Title](https://example.com/src)_"));
     assert.ok(b.includes("- two"));
-    // a.md item was nested under its anchor (deeper indent than the anchor)
-    const anchor = a.split("\n").find((l) => l.includes("existing a"))!;
-    const added = a.split("\n").find((l) => l.includes("- one"))!;
-    assert.ok(
-      added.match(/^\s*/)![0].length > anchor.match(/^\s*/)![0].length
+    // Entries go to Unprocessed — the Knowledge tree is left alone
+    assert.ok(!a.split("## Unprocessed")[0].includes("- one"));
+  });
+
+  it("omits the author line when unknown", async () => {
+    const { vault, files } = makeFakeVault({ "a.md": "## Knowledge\n" });
+    const kb = new KnowledgeBase({
+      settings: { rawFolder: "nutegg/_raw" },
+      app: { vault },
+    } as any);
+    await kb.appendKnowledge(
+      [{ egg: "a.md", content: "- one" }],
+      "Title",
+      "https://example.com/src",
+      ""
     );
+    const a = files.get("a.md")!;
+    assert.ok(!a.includes("_author:"));
+    assert.ok(a.includes("_source: [Title](https://example.com/src)_"));
   });
 });

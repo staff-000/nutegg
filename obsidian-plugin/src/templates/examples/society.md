@@ -22,7 +22,12 @@ last_updated: "2026-08-14"
 > - Reject partisan commentary, emotional narratives, or short-term noise that fails to indicate a broader systemic shift.
 >
 > **Formatting Rules:** 
-> - Respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
+> - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for geopolitics/society, examples are specific events, policies, or country cases. Author and source are appended automatically.
+> - New entries are added to the "## Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
+> - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
 ## Knowledge
+
+
+## Unprocessed
 

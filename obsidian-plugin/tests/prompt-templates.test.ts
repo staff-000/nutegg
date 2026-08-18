@@ -44,6 +44,8 @@ describe("PROMPTS", () => {
       "action_guide", "title", "url", "source_type", "chapters", "questions",
       "egg_key_questions", "content", "grounding_rule", "egg_file",
       "egg_instructions", "prior_qa", "index",
+      // merge-unprocessed.md
+      "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

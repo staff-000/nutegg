@@ -316,13 +316,13 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 
 ## Task
 1. Answer each Key Question (if any) directly and concisely. Grounding: {{grounding_rule}}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge. If the content is entirely redundant, return an empty array.
+2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. If the content is entirely redundant, return an empty array.
 3. Apply the Rejection Criteria \u2014 if the content should be rejected, set rejected to true and give a one-line reason.
 4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight.
 
 For each Novel Delta entry:
-- "parent": copy the EXACT text of the existing bullet or heading in the Current Knowledge tree that the new information nests under. Use "" if no suitable parent exists.
-- "content": the new information as markdown nested bullets, written relative to that parent (top-level lines are children of the parent). Follow the Formatting Rules.
+- "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information \u2014 used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
+- "content": ONE insight per entry, as a single top-level bullet with optional indented sub-bullets. Include concrete examples from the content that illustrate the insight (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -384,7 +384,8 @@ IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
+- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
+- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.
 - Apply the Rejection Criteria strictly \u2014 set rejected to true when the content is noise for this egg.
 `;
 
@@ -421,6 +422,33 @@ var egg_routing_default = 'Given this content and egg index, which egg file(s) d
 // src/prompts/action-guide-default.md
 var action_guide_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
 
+// src/prompts/merge-unprocessed.md
+var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
+
+## Formatting Rules
+{{formatting_rules}}
+
+## Existing Knowledge Tree
+{{knowledge_tree}}
+
+## Unprocessed Entries
+{{unprocessed}}
+
+## Task
+1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches \u2014 the user may have edited them by hand.
+2. Nest each unprocessed entry under the most relevant existing concept as sub-bullets.
+3. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
+4. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
+5. If an entry duplicates existing knowledge, drop it entirely.
+6. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in",
+  "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged"
+}
+`;
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -434,7 +462,9 @@ var PROMPTS = {
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: egg_routing_default,
   /** Default Action Guide when no egg provides one. */
-  actionGuideDefault: action_guide_default_default.trim()
+  actionGuideDefault: action_guide_default_default.trim(),
+  /** Merge 20+ Unprocessed entries into the Knowledge tree. */
+  mergeUnprocessed: merge_unprocessed_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -448,6 +478,7 @@ var grounding_rule_default = 'The content is the ONLY source of truth for every 
 
 // src/ai-processor.ts
 var GROUNDING_RULE = grounding_rule_default.trim();
+var MERGE_THRESHOLD = 20;
 var AIProcessor = class {
   plugin;
   constructor(plugin) {
@@ -691,6 +722,50 @@ A: ${qa.answer}`).join("\n")}` : "";
       }));
     }
   }
+  /**
+   * Merge an egg's Unprocessed entries into its Knowledge tree once
+   * MERGE_THRESHOLD is reached. Best-effort: on any failure the egg is left
+   * untouched and the entries stay in Unprocessed for the next attempt.
+   */
+  async maybeMergeEgg(fileName) {
+    const egg2 = await this.plugin.eggParser.readEgg(fileName);
+    if (!egg2)
+      return null;
+    const entries = this.plugin.eggParser.countUnprocessed(egg2);
+    if (entries < MERGE_THRESHOLD)
+      return null;
+    if (!this.plugin.settings.aiApiKey) {
+      console.log(
+        `[NutEgg] ${fileName} has ${entries} unprocessed entries \u2014 skipped merge (no API key)`
+      );
+      return null;
+    }
+    const prompt = renderPrompt(PROMPTS.mergeUnprocessed, {
+      egg_file: fileName,
+      formatting_rules: egg2.formattingRules || "(none)",
+      knowledge_tree: egg2.knowledge || "(empty)",
+      unprocessed: egg2.unprocessed,
+      unprocessed_count: entries
+    });
+    try {
+      const response = await this.callAI(prompt, 2e3);
+      const parsed = this.parseJson(response);
+      const knowledge = typeof parsed.knowledge === "string" ? parsed.knowledge.trim() : "";
+      if (!knowledge) {
+        console.warn(
+          `[NutEgg] Merge for ${fileName} returned no knowledge \u2014 egg untouched`
+        );
+        return null;
+      }
+      const unprocessed = typeof parsed.unprocessed === "string" ? parsed.unprocessed.trim() : "";
+      await this.plugin.eggParser.applyMerge(fileName, knowledge, unprocessed);
+      console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
+      return { egg: fileName, entries };
+    } catch (err) {
+      console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
+      return null;
+    }
+  }
   // --- Prompt building helpers ---
   /** `## Video Chapters (use these EXACT timestamps)` block, or "". */
   chaptersBlock(chapters) {
@@ -740,6 +815,253 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
     if (text.length <= maxChars)
       return text;
     return text.substring(0, maxChars) + "\n\n[...truncated]";
+  }
+};
+
+// src/egg-parser.ts
+var EggParser = class {
+  plugin;
+  constructor(plugin) {
+    this.plugin = plugin;
+  }
+  async readEgg(fileName) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Egg file not found: ${fileName}`);
+      return null;
+    }
+    const content = await this.plugin.app.vault.read(file);
+    return this.parseEggFile(fileName, content);
+  }
+  async readEggs(entries) {
+    const eggs = [];
+    for (const entry of entries) {
+      const egg2 = await this.readEgg(entry.fileName);
+      if (egg2)
+        eggs.push(egg2);
+    }
+    return eggs;
+  }
+  parseEggFile(fileName, content) {
+    const result = {
+      fileName,
+      topic: "Unknown",
+      scope: "",
+      actionGuide: "",
+      keyQuestions: [],
+      rejectionCriteria: [],
+      formattingRules: "",
+      knowledge: "",
+      unprocessed: ""
+    };
+    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (fmMatch) {
+      for (const line of fmMatch[1].split("\n")) {
+        const kv = line.match(/^(\w+):\s*(.*)$/);
+        if (!kv)
+          continue;
+        const key = kv[1].toLowerCase();
+        const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
+        if (key === "topic")
+          result.topic = value;
+      }
+    }
+    const callout = this.extractCallout(content);
+    const sections = callout ? this.splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+    result.scope = (sections.get("scope") || "").trim();
+    result.actionGuide = (sections.get("action guide") || "").trim();
+    result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
+    result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
+    result.formattingRules = (sections.get("formatting rules") || "").trim();
+    const lines = content.split("\n");
+    const knowledgeSection = this.findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      result.knowledge = this.sectionBody(lines, knowledgeSection);
+    }
+    const unprocessedSection = this.findSection(lines, "unprocessed");
+    if (unprocessedSection) {
+      result.unprocessed = this.sectionBody(lines, unprocessedSection);
+    }
+    return result;
+  }
+  /**
+   * Section content without the surrounding blank lines. Indentation of the
+   * first line is preserved (unlike trim()) so re-indented sections survive.
+   */
+  sectionBody(lines, section) {
+    return lines.slice(section.start + 1, section.end).join("\n").replace(/^\n+|\n+$/g, "");
+  }
+  /** Format one egg's instructions + knowledge for an AI prompt. */
+  formatEggForPrompt(egg2) {
+    const parts = [];
+    parts.push(`**Scope:** ${egg2.scope || "(not specified)"}`);
+    if (egg2.keyQuestions.length > 0) {
+      parts.push(
+        `**Key Questions:**
+${egg2.keyQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
+      );
+    }
+    if (egg2.rejectionCriteria.length > 0) {
+      parts.push(
+        `**Rejection Criteria:**
+${egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n")}`
+      );
+    }
+    if (egg2.formattingRules) {
+      parts.push(`**Formatting Rules:**
+${egg2.formattingRules}`);
+    }
+    parts.push(
+      `**Current Knowledge:**
+${egg2.knowledge || "(empty)"}`
+    );
+    if (egg2.unprocessed.trim()) {
+      parts.push(
+        `**Unprocessed (pending merge):**
+${egg2.unprocessed}`
+      );
+    }
+    return parts.join("\n\n");
+  }
+  /**
+   * Append one new knowledge entry to the egg's Unprocessed section.
+   *
+   * Entries land here first and are merged into the Knowledge tree later,
+   * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
+   * its insight + examples (AI-generated `content`), plus mechanical
+   * `_author` / `_source` lines for provenance.
+   */
+  async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
+      return;
+    }
+    const existing = await this.plugin.app.vault.read(file);
+    const lines = existing.replace(/\n+$/, "").split("\n");
+    const section = this.findSection(lines, "unprocessed");
+    const trimmed = content.trim();
+    const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+    const meta = [];
+    if (author)
+      meta.push(`_author: ${author}_`);
+    const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+    meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+    const block = [withBullet, ...meta].join("\n");
+    if (section) {
+      lines.splice(section.end, 0, "", block);
+    } else {
+      lines.push("", "## Unprocessed", "", block);
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
+  }
+  /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */
+  countUnprocessed(egg2) {
+    const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
+    const bullets = egg2.unprocessed.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
+    if (bullets.length === 0)
+      return 0;
+    const base = Math.min(...bullets.map(indentOf));
+    return bullets.filter((l) => indentOf(l) === base).length;
+  }
+  /**
+   * Replace the Knowledge and Unprocessed sections with the merged output
+   * from the merge AI call. Missing sections are created as needed.
+   */
+  async applyMerge(fileName, knowledge, unprocessed) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
+      return;
+    }
+    const existing = await this.plugin.app.vault.read(file);
+    let lines = existing.replace(/\n+$/, "").split("\n");
+    const knowledgeSection = this.findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      lines = [
+        ...lines.slice(0, knowledgeSection.start + 1),
+        "",
+        ...knowledge.trim().split("\n"),
+        ...lines.slice(knowledgeSection.end)
+      ];
+    } else {
+      lines = [...lines, "", "## Knowledge", "", ...knowledge.trim().split("\n")];
+    }
+    const unprocessedSection = this.findSection(lines, "unprocessed");
+    const remainder = unprocessed.trim();
+    if (unprocessedSection) {
+      lines = [
+        ...lines.slice(0, unprocessedSection.start + 1),
+        ...remainder ? ["", ...remainder.split("\n")] : [],
+        ...lines.slice(unprocessedSection.end)
+      ];
+    } else if (remainder) {
+      lines = [...lines, "", "## Unprocessed", "", ...remainder.split("\n")];
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
+  }
+  /**
+   * Locate a `## Name`-style section: `{start, level, end}`. `end` is the
+   * index of the next heading of the same-or-higher level (or lines.length).
+   * Returns null when the heading doesn't exist.
+   */
+  findSection(lines, name) {
+    const start = lines.findIndex((l) => {
+      const m = l.trim().match(/^(#{1,6})\s*(.*)$/);
+      return m !== null && m[2].trim().toLowerCase() === name.toLowerCase();
+    });
+    if (start === -1)
+      return null;
+    const level = (lines[start].match(/^#+/) || [""])[0].length;
+    const end = lines.findIndex((l, i) => {
+      if (i <= start)
+        return false;
+      const m = l.trim().match(/^(#{1,6})\s/);
+      return m !== null && m[1].length <= level;
+    });
+    return { start, level, end: end === -1 ? lines.length : end };
+  }
+  /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
+  extractCallout(content) {
+    const calloutLines = [];
+    for (const line of content.split("\n")) {
+      if (line.startsWith(">")) {
+        calloutLines.push(line.replace(/^>\s?/, ""));
+      } else if (calloutLines.length > 0) {
+        break;
+      }
+    }
+    if (calloutLines.length === 0)
+      return null;
+    const marker = calloutLines.findIndex((l) => l.includes("[!abstract]"));
+    const body = marker >= 0 ? calloutLines.slice(marker + 1) : calloutLines.slice(1);
+    return body.join("\n");
+  }
+  /** Split instruction text into sections by `**Label:**` lines (content may follow on the same line). */
+  splitLabeledSections(text) {
+    const map = /* @__PURE__ */ new Map();
+    let current = null;
+    let buffer = [];
+    for (const line of text.split("\n")) {
+      const labelMatch = line.match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
+      if (labelMatch) {
+        if (current)
+          map.set(current, buffer.join("\n"));
+        current = labelMatch[1].toLowerCase();
+        buffer = labelMatch[2] ? [labelMatch[2]] : [];
+      } else {
+        buffer.push(line);
+      }
+    }
+    if (current)
+      map.set(current, buffer.join("\n"));
+    return map;
+  }
+  /** Parse numbered (`1.`) or bulleted (`-`) list items, stripping markers. */
+  parseListItems(text) {
+    return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l)).map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
   }
 };
 
@@ -815,6 +1137,7 @@ function egg(fileName, overrides = {}) {
     rejectionCriteria: ["Reject noise."],
     formattingRules: "Keep the tree.",
     knowledge: "- existing\n",
+    unprocessed: "",
     ...overrides
   };
 }
@@ -1032,6 +1355,94 @@ var capture = {
     const out = await new AIProcessor(plugin).askFollowUp(capture, [], []);
     import_strict.default.deepEqual(out, []);
     import_strict.default.equal(calls, 0);
+  });
+});
+(0, import_node_test.describe)("AIProcessor.maybeMergeEgg", () => {
+  function unprocessedEgg(n) {
+    const entries = Array.from(
+      { length: n },
+      (_, i) => `- entry ${i + 1}`
+    ).join("\n");
+    return `## Knowledge
+
+- existing
+
+## Unprocessed
+
+${entries}
+`;
+  }
+  function makeProcessor(files, overrides = {}) {
+    const store = makeFakeVault(files);
+    const plugin = makeFakePlugin({ vault: store.vault, ...overrides });
+    plugin.eggParser = new EggParser(plugin);
+    return { p: new AIProcessor(plugin), files: store.files };
+  }
+  (0, import_node_test.it)("exports MERGE_THRESHOLD = 20", () => {
+    import_strict.default.equal(MERGE_THRESHOLD, 20);
+  });
+  (0, import_node_test.it)("does nothing below the threshold (no AI call)", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(19) },
+      { aiClient: { chat: async () => (calls++, "{}") } }
+    );
+    const out = await p.maybeMergeEgg("egg.md");
+    import_strict.default.equal(out, null);
+    import_strict.default.equal(calls, 0);
+  });
+  (0, import_node_test.it)("merges 20 entries into the tree via one AI call", async () => {
+    let seenPrompt = "";
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      {
+        aiClient: {
+          chat: async (prompt) => {
+            seenPrompt = prompt;
+            return JSON.stringify({
+              knowledge: "- existing\n  - merged 1\n  - merged 2",
+              unprocessed: ""
+            });
+          }
+        }
+      }
+    );
+    const out = await p.maybeMergeEgg("egg.md");
+    import_strict.default.deepEqual(out, { egg: "egg.md", entries: 20 });
+    const content = files.get("egg.md");
+    import_strict.default.ok(
+      content.includes("## Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
+      "Knowledge tree replaced with the merged output"
+    );
+    import_strict.default.ok(!content.includes("- entry 1"), "Unprocessed entries consumed");
+    import_strict.default.ok(seenPrompt.includes("- existing"));
+    import_strict.default.ok(seenPrompt.includes("- entry 20"));
+  });
+  (0, import_node_test.it)("leaves the egg untouched when the AI returns no knowledge", async () => {
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      { aiClient: { chat: async () => JSON.stringify({ unprocessed: "x" }) } }
+    );
+    const before = files.get("egg.md");
+    const out = await p.maybeMergeEgg("egg.md");
+    import_strict.default.equal(out, null);
+    import_strict.default.equal(files.get("egg.md"), before);
+  });
+  (0, import_node_test.it)("skips the merge without an API key", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(20) },
+      {
+        settings: { aiApiKey: "" },
+        aiClient: { chat: async () => (calls++, "{}") }
+      }
+    );
+    import_strict.default.equal(await p.maybeMergeEgg("egg.md"), null);
+    import_strict.default.equal(calls, 0);
+  });
+  (0, import_node_test.it)("returns null for a missing egg file", async () => {
+    const { p } = makeProcessor({});
+    import_strict.default.equal(await p.maybeMergeEgg("nope.md"), null);
   });
 });
 (0, import_node_test.describe)("AIProcessor prompt building helpers", () => {

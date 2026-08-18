@@ -378,11 +378,20 @@ var NutEggServer = class {
           processingResult: saved
         });
       }
+      let mergedEggs = [];
       if (hasKnowledge) {
+        const author = confirm.metadata?.author || confirm.metadata?.channel || confirm.metadata?.handle || "";
         await this.plugin.knowledgeBase.appendKnowledge(
           confirm.newKnowledge,
-          confirm.url
+          confirm.title,
+          confirm.url,
+          author
         );
+        const eggs = [...new Set(confirm.newKnowledge.map((k) => k.egg))];
+        const results = await Promise.all(
+          eggs.map((egg) => this.plugin.aiProcessor.maybeMergeEgg(egg))
+        );
+        mergedEggs = results.filter((r) => r !== null);
       }
       const db = this.plugin.db;
       const normalizedUrl = this.normalizeUrl(confirm.url);
@@ -410,14 +419,15 @@ var NutEggServer = class {
         });
       }
       console.log(
-        `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
+        `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}` + (mergedEggs.length > 0 ? `, merged: ${mergedEggs.map((m) => `${m.egg} (${m.entries})`).join(", ")}` : "")
       );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
           success: true,
           fileName,
-          message: fileName ? `Saved to ${fileName}` : "Added to egg files"
+          message: fileName ? `Saved to ${fileName}` : "Added to egg files",
+          merged: mergedEggs
         })
       );
     } catch (err) {
@@ -595,5 +605,91 @@ function makeServer(overrides = {}) {
     });
     const s = makeServer({ vault });
     import_strict.default.equal(s.countEggs(), 2);
+  });
+});
+(0, import_node_test.describe)("NutEggServer.handleConfirm", () => {
+  function makeReq(body) {
+    const req = {
+      on(ev, cb) {
+        if (ev === "data")
+          cb(body);
+        if (ev === "end")
+          cb();
+        return req;
+      }
+    };
+    return req;
+  }
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code) {
+        this.statusCode = code;
+      },
+      end(body) {
+        this.body = body;
+      }
+    };
+  }
+  const baseConfirm = {
+    url: "https://x.com/a",
+    title: "Article Title",
+    content: "content",
+    sourceType: "article",
+    metadata: { author: "Jane Doe" },
+    skipRaw: true
+  };
+  (0, import_node_test.it)("appends entries with author/source and triggers the merge for crossed eggs", async () => {
+    let appended = null;
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => "nutegg/_raw/x.md",
+        appendKnowledge: async (...args) => {
+          appended = args;
+        }
+      },
+      aiProcessor: {
+        maybeMergeEgg: async (egg) => egg === "egg.md" ? { egg, entries: 20 } : null
+      }
+    });
+    const newKnowledge = [
+      { egg: "egg.md", parent: "p", content: "- one" },
+      { egg: "other.md", content: "- two" }
+    ];
+    const req = makeReq(JSON.stringify({ ...baseConfirm, newKnowledge }));
+    const res = makeRes();
+    await s.handleConfirm(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.success, true);
+    import_strict.default.deepEqual(body.merged, [{ egg: "egg.md", entries: 20 }]);
+    import_strict.default.deepEqual(appended[0], newKnowledge);
+    import_strict.default.equal(appended[1], "Article Title");
+    import_strict.default.equal(appended[2], "https://x.com/a");
+    import_strict.default.equal(appended[3], "Jane Doe");
+  });
+  (0, import_node_test.it)("resolves the author from channel metadata when author is absent", async () => {
+    let appended = null;
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => "f",
+        appendKnowledge: async (...args) => {
+          appended = args;
+        }
+      },
+      aiProcessor: { maybeMergeEgg: async () => null }
+    });
+    const req = makeReq(
+      JSON.stringify({
+        ...baseConfirm,
+        metadata: { channel: "TechChannel" },
+        newKnowledge: [{ egg: "egg.md", content: "- one" }]
+      })
+    );
+    const res = makeRes();
+    await s.handleConfirm(req, res);
+    import_strict.default.equal(appended[3], "TechChannel");
+    import_strict.default.deepEqual(JSON.parse(res.body).merged, []);
   });
 });

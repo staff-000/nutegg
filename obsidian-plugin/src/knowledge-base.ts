@@ -125,8 +125,9 @@ export class KnowledgeBase {
   }
 
   /**
-   * Insert new knowledge into egg files, nested under the anchor each
-   * delta picked from the existing knowledge tree.
+   * Append new knowledge entries to each egg's Unprocessed section (insight +
+   * examples from the AI, plus mechanical author/source lines). Entries are
+   * merged into the Knowledge tree later, once 20+ accumulate per egg.
    */
   async appendKnowledge(
     newKnowledge: Array<{
@@ -134,16 +135,19 @@ export class KnowledgeBase {
       parent?: string;
       content: string;
     }>,
-    sourceUrl: string
+    sourceTitle: string,
+    sourceUrl: string,
+    author: string
   ): Promise<void> {
     const { EggParser } = await import("./egg-parser");
     const eggParser = new EggParser(this.plugin);
 
     for (const item of newKnowledge) {
-      await eggParser.insertKnowledge(
+      await eggParser.appendUnprocessed(
         item.egg,
-        item.parent || "",
         item.content,
+        author,
+        sourceTitle,
         sourceUrl
       );
     }

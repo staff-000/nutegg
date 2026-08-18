@@ -22,6 +22,12 @@ last_updated: "2026-08-14"
 > - Reject concepts that lack specific psychological mechanisms or scientific grounding.
 >
 > **Formatting Rules:** 
-> - Respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
+> - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for psychology, examples are experiments, studies, or real-world observations. Author and source are appended automatically.
+> - New entries are added to the "## Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
+> - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
 ## Knowledge
+
+
+## Unprocessed
+

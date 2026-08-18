@@ -12,6 +12,7 @@ import eggCombinedTpl from "./prompts/egg-combined.md";
 import followUpTpl from "./prompts/follow-up.md";
 import eggRoutingTpl from "./prompts/egg-routing.md";
 import actionGuideDefaultTpl from "./prompts/action-guide-default.md";
+import mergeUnprocessedTpl from "./prompts/merge-unprocessed.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -26,6 +27,8 @@ export const PROMPTS = {
   eggRouting: eggRoutingTpl,
   /** Default Action Guide when no egg provides one. */
   actionGuideDefault: actionGuideDefaultTpl.trim(),
+  /** Merge 20+ Unprocessed entries into the Knowledge tree. */
+  mergeUnprocessed: mergeUnprocessedTpl,
 };
 
 /** Substitute {{placeholder}} variables in a template. */

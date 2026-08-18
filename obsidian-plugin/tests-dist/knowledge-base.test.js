@@ -70,7 +70,8 @@ var init_egg_parser = __esm({
           keyQuestions: [],
           rejectionCriteria: [],
           formattingRules: "",
-          knowledge: ""
+          knowledge: "",
+          unprocessed: ""
         };
         const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
         if (fmMatch) {
@@ -91,13 +92,23 @@ var init_egg_parser = __esm({
         result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
         result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
         result.formattingRules = (sections.get("formatting rules") || "").trim();
-        const knowledgeMatch = content.match(
-          /^#{1,6}\s*knowledge\s*\n([\s\S]*)$/im
-        );
-        if (knowledgeMatch) {
-          result.knowledge = knowledgeMatch[1].trim();
+        const lines = content.split("\n");
+        const knowledgeSection = this.findSection(lines, "knowledge");
+        if (knowledgeSection) {
+          result.knowledge = this.sectionBody(lines, knowledgeSection);
+        }
+        const unprocessedSection = this.findSection(lines, "unprocessed");
+        if (unprocessedSection) {
+          result.unprocessed = this.sectionBody(lines, unprocessedSection);
         }
         return result;
+      }
+      /**
+       * Section content without the surrounding blank lines. Indentation of the
+       * first line is preserved (unlike trim()) so re-indented sections survive.
+       */
+      sectionBody(lines, section) {
+        return lines.slice(section.start + 1, section.end).join("\n").replace(/^\n+|\n+$/g, "");
       }
       /** Format one egg's instructions + knowledge for an AI prompt. */
       formatEggForPrompt(egg) {
@@ -123,73 +134,113 @@ ${egg.formattingRules}`);
           `**Current Knowledge:**
 ${egg.knowledge || "(empty)"}`
         );
+        if (egg.unprocessed.trim()) {
+          parts.push(
+            `**Unprocessed (pending merge):**
+${egg.unprocessed}`
+          );
+        }
         return parts.join("\n\n");
       }
       /**
-       * Insert new knowledge into the egg's Knowledge section.
+       * Append one new knowledge entry to the egg's Unprocessed section.
        *
-       * If `parentAnchor` matches a line in the knowledge tree, the new content is
-       * inserted beneath it as nested sub-bullets (indent = anchor indent + 2).
-       * Otherwise the content is appended to the end of the section.
+       * Entries land here first and are merged into the Knowledge tree later,
+       * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
+       * its insight + examples (AI-generated `content`), plus mechanical
+       * `_author` / `_source` lines for provenance.
        */
-      async insertKnowledge(fileName, parentAnchor, content, sourceUrl) {
+      async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
         const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
         if (!file) {
-          console.warn(`[NutEgg] Cannot insert \u2014 egg file not found: ${fileName}`);
+          console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
           return;
         }
         const existing = await this.plugin.app.vault.read(file);
-        const lines = existing.split("\n");
-        const sectionIdx = lines.findIndex(
-          (l) => /^#{1,6}\s*knowledge\s*$/i.test(l.trim())
-        );
-        const sectionLevel = sectionIdx >= 0 ? (lines[sectionIdx].match(/^#+/) || [""])[0].length : 2;
-        const sectionEnd = sectionIdx >= 0 ? lines.findIndex((l, i) => {
-          if (i <= sectionIdx)
+        const lines = existing.replace(/\n+$/, "").split("\n");
+        const section = this.findSection(lines, "unprocessed");
+        const trimmed = content.trim();
+        const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+        const meta = [];
+        if (author)
+          meta.push(`_author: ${author}_`);
+        const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+        meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+        const block = [withBullet, ...meta].join("\n");
+        if (section) {
+          lines.splice(section.end, 0, "", block);
+        } else {
+          lines.push("", "## Unprocessed", "", block);
+        }
+        await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+        console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
+      }
+      /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */
+      countUnprocessed(egg) {
+        const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
+        const bullets = egg.unprocessed.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
+        if (bullets.length === 0)
+          return 0;
+        const base = Math.min(...bullets.map(indentOf));
+        return bullets.filter((l) => indentOf(l) === base).length;
+      }
+      /**
+       * Replace the Knowledge and Unprocessed sections with the merged output
+       * from the merge AI call. Missing sections are created as needed.
+       */
+      async applyMerge(fileName, knowledge, unprocessed) {
+        const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+        if (!file) {
+          console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
+          return;
+        }
+        const existing = await this.plugin.app.vault.read(file);
+        let lines = existing.replace(/\n+$/, "").split("\n");
+        const knowledgeSection = this.findSection(lines, "knowledge");
+        if (knowledgeSection) {
+          lines = [
+            ...lines.slice(0, knowledgeSection.start + 1),
+            "",
+            ...knowledge.trim().split("\n"),
+            ...lines.slice(knowledgeSection.end)
+          ];
+        } else {
+          lines = [...lines, "", "## Knowledge", "", ...knowledge.trim().split("\n")];
+        }
+        const unprocessedSection = this.findSection(lines, "unprocessed");
+        const remainder = unprocessed.trim();
+        if (unprocessedSection) {
+          lines = [
+            ...lines.slice(0, unprocessedSection.start + 1),
+            ...remainder ? ["", ...remainder.split("\n")] : [],
+            ...lines.slice(unprocessedSection.end)
+          ];
+        } else if (remainder) {
+          lines = [...lines, "", "## Unprocessed", "", ...remainder.split("\n")];
+        }
+        await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+        console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
+      }
+      /**
+       * Locate a `## Name`-style section: `{start, level, end}`. `end` is the
+       * index of the next heading of the same-or-higher level (or lines.length).
+       * Returns null when the heading doesn't exist.
+       */
+      findSection(lines, name) {
+        const start = lines.findIndex((l) => {
+          const m = l.trim().match(/^(#{1,6})\s*(.*)$/);
+          return m !== null && m[2].trim().toLowerCase() === name.toLowerCase();
+        });
+        if (start === -1)
+          return null;
+        const level = (lines[start].match(/^#+/) || [""])[0].length;
+        const end = lines.findIndex((l, i) => {
+          if (i <= start)
             return false;
           const m = l.trim().match(/^(#{1,6})\s/);
-          return m !== null && m[1].length <= sectionLevel;
-        }) : -1;
-        const endIdx = sectionEnd === -1 ? lines.length : sectionEnd;
-        let anchorIdx = -1;
-        let anchorIndent = 0;
-        if (parentAnchor && sectionIdx >= 0) {
-          const anchorText = parentAnchor.replace(/^#+\s*/, "").trim().toLowerCase();
-          for (let i = sectionIdx + 1; i < endIdx; i++) {
-            if (lines[i].trim().toLowerCase().includes(anchorText)) {
-              anchorIdx = i;
-              anchorIndent = (lines[i].match(/^\s*/) || [""])[0].length;
-              break;
-            }
-          }
-        }
-        const baseIndent = anchorIdx >= 0 ? anchorIndent + 2 : 0;
-        const indented = content.split("\n").map((l) => l.trim() ? " ".repeat(baseIndent) + l.trim() : "").join("\n");
-        const block = indented + `
-${" ".repeat(baseIndent)}_source: [link](${sourceUrl})_`;
-        if (anchorIdx >= 0) {
-          let insertIdx = anchorIdx + 1;
-          while (insertIdx < endIdx) {
-            const l = lines[insertIdx];
-            if (!l.trim()) {
-              insertIdx++;
-              continue;
-            }
-            const indent = (l.match(/^\s*/) || [""])[0].length;
-            if (indent <= anchorIndent)
-              break;
-            insertIdx++;
-          }
-          lines.splice(insertIdx, 0, block);
-        } else if (sectionIdx >= 0) {
-          const insertAt = endIdx;
-          const prev = lines[insertAt - 1];
-          lines.splice(insertAt, 0, ...prev && prev.trim() ? [""] : [], block);
-        } else {
-          lines.push("", "## Knowledge", "", block);
-        }
-        await this.plugin.app.vault.modify(file, lines.join("\n"));
-        console.log(`[NutEgg] Inserted knowledge into ${fileName}`);
+          return m !== null && m[1].length <= level;
+        });
+        return { start, level, end: end === -1 ? lines.length : end };
       }
       /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
       extractCallout(content) {
@@ -315,17 +366,19 @@ var KnowledgeBase = class {
     return fileName;
   }
   /**
-   * Insert new knowledge into egg files, nested under the anchor each
-   * delta picked from the existing knowledge tree.
+   * Append new knowledge entries to each egg's Unprocessed section (insight +
+   * examples from the AI, plus mechanical author/source lines). Entries are
+   * merged into the Knowledge tree later, once 20+ accumulate per egg.
    */
-  async appendKnowledge(newKnowledge, sourceUrl) {
+  async appendKnowledge(newKnowledge, sourceTitle, sourceUrl, author) {
     const { EggParser: EggParser2 } = await Promise.resolve().then(() => (init_egg_parser(), egg_parser_exports));
     const eggParser = new EggParser2(this.plugin);
     for (const item of newKnowledge) {
-      await eggParser.insertKnowledge(
+      await eggParser.appendUnprocessed(
         item.egg,
-        item.parent || "",
         item.content,
+        author,
+        sourceTitle,
         sourceUrl
       );
     }
@@ -492,7 +545,7 @@ function makeKb() {
   });
 });
 (0, import_node_test.describe)("KnowledgeBase.appendKnowledge", () => {
-  (0, import_node_test.it)("inserts each knowledge item into its egg file with a source link", async () => {
+  (0, import_node_test.it)("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
       "a.md": "## Knowledge\n\n- existing a\n",
       "b.md": "## Knowledge\n\n- existing b\n"
@@ -506,17 +559,33 @@ function makeKb() {
         { egg: "a.md", parent: "existing a", content: "- one" },
         { egg: "b.md", content: "- two" }
       ],
-      "https://example.com/src"
+      "Article Title",
+      "https://example.com/src",
+      "Jane Doe"
     );
     const a = files.get("a.md");
     const b = files.get("b.md");
+    import_strict.default.ok(a.includes("## Unprocessed"));
     import_strict.default.ok(a.includes("- one"));
-    import_strict.default.ok(a.includes("_source: [link](https://example.com/src)_"));
+    import_strict.default.ok(a.includes("_author: Jane Doe_"));
+    import_strict.default.ok(a.includes("_source: [Article Title](https://example.com/src)_"));
     import_strict.default.ok(b.includes("- two"));
-    const anchor = a.split("\n").find((l) => l.includes("existing a"));
-    const added = a.split("\n").find((l) => l.includes("- one"));
-    import_strict.default.ok(
-      added.match(/^\s*/)[0].length > anchor.match(/^\s*/)[0].length
+    import_strict.default.ok(!a.split("## Unprocessed")[0].includes("- one"));
+  });
+  (0, import_node_test.it)("omits the author line when unknown", async () => {
+    const { vault, files } = makeFakeVault({ "a.md": "## Knowledge\n" });
+    const kb = new KnowledgeBase({
+      settings: { rawFolder: "nutegg/_raw" },
+      app: { vault }
+    });
+    await kb.appendKnowledge(
+      [{ egg: "a.md", content: "- one" }],
+      "Title",
+      "https://example.com/src",
+      ""
     );
+    const a = files.get("a.md");
+    import_strict.default.ok(!a.includes("_author:"));
+    import_strict.default.ok(a.includes("_source: [Title](https://example.com/src)_"));
   });
 });

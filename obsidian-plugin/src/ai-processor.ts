@@ -59,6 +59,16 @@ export interface NewKnowledgeItem {
   content: string;
 }
 
+/** Unprocessed entries accumulate per egg; the merge runs at this threshold. */
+export const MERGE_THRESHOLD = 20;
+
+/** Result of a successful Unprocessed → Knowledge-tree merge. */
+export interface MergeResult {
+  egg: string;
+  /** How many entries were merged. */
+  entries: number;
+}
+
 export interface AnalysisResult extends ContentAnalysis {
   shouldRead: boolean;
   shouldReadReason: string;
@@ -423,6 +433,58 @@ export class AIProcessor {
         question: q,
         answer: "Failed to answer — please try again.",
       }));
+    }
+  }
+
+  /**
+   * Merge an egg's Unprocessed entries into its Knowledge tree once
+   * MERGE_THRESHOLD is reached. Best-effort: on any failure the egg is left
+   * untouched and the entries stay in Unprocessed for the next attempt.
+   */
+  async maybeMergeEgg(fileName: string): Promise<MergeResult | null> {
+    const egg = await this.plugin.eggParser.readEgg(fileName);
+    if (!egg) return null;
+
+    const entries = this.plugin.eggParser.countUnprocessed(egg);
+    if (entries < MERGE_THRESHOLD) return null;
+
+    if (!this.plugin.settings.aiApiKey) {
+      console.log(
+        `[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (no API key)`
+      );
+      return null;
+    }
+
+    const prompt = renderPrompt(PROMPTS.mergeUnprocessed, {
+      egg_file: fileName,
+      formatting_rules: egg.formattingRules || "(none)",
+      knowledge_tree: egg.knowledge || "(empty)",
+      unprocessed: egg.unprocessed,
+      unprocessed_count: entries,
+    });
+
+    try {
+      const response = await this.callAI(prompt, 2000);
+      const parsed = this.parseJson(response);
+      const knowledge =
+        typeof parsed.knowledge === "string" ? parsed.knowledge.trim() : "";
+      if (!knowledge) {
+        console.warn(
+          `[NutEgg] Merge for ${fileName} returned no knowledge — egg untouched`
+        );
+        return null;
+      }
+      const unprocessed =
+        typeof parsed.unprocessed === "string"
+          ? parsed.unprocessed.trim()
+          : "";
+      await this.plugin.eggParser.applyMerge(fileName, knowledge, unprocessed);
+      console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
+      return { egg: fileName, entries };
+    } catch (err) {
+      // Best-effort — the save already succeeded; leave entries for the next run
+      console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
+      return null;
     }
   }
 

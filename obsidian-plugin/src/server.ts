@@ -1,7 +1,7 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError } from "./ai-client";
-import type { AnalysisResult } from "./ai-processor";
+import type { AnalysisResult, MergeResult } from "./ai-processor";
 
 interface AnalyzeRequest {
   url: string;
@@ -491,12 +491,28 @@ export class NutEggServer {
         });
       }
 
-      // Insert new knowledge into egg files
+      // Insert new knowledge into the eggs' Unprocessed sections. Entries
+      // carry the insight + examples from the AI, plus author and source.
+      let mergedEggs: MergeResult[] = [];
       if (hasKnowledge) {
+        const author =
+          confirm.metadata?.author ||
+          confirm.metadata?.channel ||
+          confirm.metadata?.handle ||
+          "";
         await this.plugin.knowledgeBase.appendKnowledge(
           confirm.newKnowledge,
-          confirm.url
+          confirm.title,
+          confirm.url,
+          author
         );
+
+        // Auto-merge any egg whose Unprocessed section crossed the threshold
+        const eggs = [...new Set(confirm.newKnowledge.map((k) => k.egg))];
+        const results = await Promise.all(
+          eggs.map((egg) => this.plugin.aiProcessor.maybeMergeEgg(egg))
+        );
+        mergedEggs = results.filter((r): r is MergeResult => r !== null);
       }
 
       // Update THIS capture's row in SQLite (identified by nutId from
@@ -530,7 +546,10 @@ export class NutEggServer {
       }
 
       console.log(
-        `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}`
+        `[NutEgg] Confirmed: ${confirm.title}${fileName ? ` -> ${fileName}` : ""}, knowledge entries: ${confirm.newKnowledge?.length || 0}` +
+          (mergedEggs.length > 0
+            ? `, merged: ${mergedEggs.map((m) => `${m.egg} (${m.entries})`).join(", ")}`
+            : "")
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -539,6 +558,7 @@ export class NutEggServer {
           success: true,
           fileName,
           message: fileName ? `Saved to ${fileName}` : "Added to egg files",
+          merged: mergedEggs,
         })
       );
     } catch (err) {

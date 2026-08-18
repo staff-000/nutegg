@@ -469,7 +469,7 @@ function showResultsState(result) {
           ${r.novelDelta
             .map((d) => `
               <div class="delta-item">
-                ${d.parent ? `<div class="delta-parent">↳ under: ${escapeHtml(d.parent)}</div>` : ""}
+                <div class="delta-parent">🐣 → Unprocessed${d.parent ? ` · suggested under: ${escapeHtml(d.parent)}` : ""}</div>
                 <div class="delta-content">${escapeHtml(d.content)}</div>
               </div>`)
             .join("")}
@@ -741,8 +741,14 @@ async function doSave(newKnowledge) {
       // Keep the capture history entry in sync with the new save state
       const entry = captureHistory.find((h) => h.nutId === currentNutId);
       if (entry) entry.saved = newKnowledge.length > 0 ? "saved" : "skip";
+      const merged = response?.merged || [];
+      const mergedNote = merged.length > 0
+        ? ` 🧹 ${merged
+            .map((m) => `${m.entries} unprocessed entries merged into ${m.egg}`)
+            .join(", ")}`
+        : "";
       successMessage.textContent = newKnowledge.length > 0
-        ? "Egg hatched — knowledge added and nut collected!"
+        ? `Egg hatched — knowledge added and nut collected!${mergedNote}`
         : "Nut collected!";
       successBanner.classList.remove("hidden");
       updateActionButtons();

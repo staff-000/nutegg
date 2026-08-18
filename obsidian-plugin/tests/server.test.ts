@@ -96,3 +96,95 @@ describe("NutEggServer.countEggs", () => {
     assert.equal(s.countEggs(), 2);
   });
 });
+
+describe("NutEggServer.handleConfirm", () => {
+  function makeReq(body: string) {
+    const req: any = {
+      on(ev: string, cb: (...a: any[]) => void) {
+        if (ev === "data") cb(body);
+        if (ev === "end") cb();
+        return req;
+      },
+    };
+    return req;
+  }
+
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code: number) {
+        this.statusCode = code;
+      },
+      end(body: string) {
+        this.body = body;
+      },
+    };
+  }
+
+  const baseConfirm = {
+    url: "https://x.com/a",
+    title: "Article Title",
+    content: "content",
+    sourceType: "article",
+    metadata: { author: "Jane Doe" },
+    skipRaw: true,
+  };
+
+  it("appends entries with author/source and triggers the merge for crossed eggs", async () => {
+    let appended: any = null;
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => "nutegg/_raw/x.md",
+        appendKnowledge: async (...args: any[]) => {
+          appended = args;
+        },
+      },
+      aiProcessor: {
+        maybeMergeEgg: async (egg: string) =>
+          egg === "egg.md" ? { egg, entries: 20 } : null,
+      },
+    });
+    const newKnowledge = [
+      { egg: "egg.md", parent: "p", content: "- one" },
+      { egg: "other.md", content: "- two" },
+    ];
+    const req = makeReq(JSON.stringify({ ...baseConfirm, newKnowledge }));
+    const res = makeRes();
+    await s.handleConfirm(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.success, true);
+    assert.deepEqual(body.merged, [{ egg: "egg.md", entries: 20 }]);
+    // appendKnowledge got (newKnowledge, sourceTitle, sourceUrl, author)
+    assert.deepEqual(appended[0], newKnowledge);
+    assert.equal(appended[1], "Article Title");
+    assert.equal(appended[2], "https://x.com/a");
+    assert.equal(appended[3], "Jane Doe");
+  });
+
+  it("resolves the author from channel metadata when author is absent", async () => {
+    let appended: any = null;
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => "f",
+        appendKnowledge: async (...args: any[]) => {
+          appended = args;
+        },
+      },
+      aiProcessor: { maybeMergeEgg: async () => null },
+    });
+    const req = makeReq(
+      JSON.stringify({
+        ...baseConfirm,
+        metadata: { channel: "TechChannel" },
+        newKnowledge: [{ egg: "egg.md", content: "- one" }],
+      })
+    );
+    const res = makeRes();
+    await s.handleConfirm(req, res);
+    assert.equal(appended[3], "TechChannel");
+    assert.deepEqual(JSON.parse(res.body).merged, []);
+  });
+});

@@ -59,7 +59,8 @@ var EggParser = class {
       keyQuestions: [],
       rejectionCriteria: [],
       formattingRules: "",
-      knowledge: ""
+      knowledge: "",
+      unprocessed: ""
     };
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
     if (fmMatch) {
@@ -80,13 +81,23 @@ var EggParser = class {
     result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
     result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
     result.formattingRules = (sections.get("formatting rules") || "").trim();
-    const knowledgeMatch = content.match(
-      /^#{1,6}\s*knowledge\s*\n([\s\S]*)$/im
-    );
-    if (knowledgeMatch) {
-      result.knowledge = knowledgeMatch[1].trim();
+    const lines = content.split("\n");
+    const knowledgeSection = this.findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      result.knowledge = this.sectionBody(lines, knowledgeSection);
+    }
+    const unprocessedSection = this.findSection(lines, "unprocessed");
+    if (unprocessedSection) {
+      result.unprocessed = this.sectionBody(lines, unprocessedSection);
     }
     return result;
+  }
+  /**
+   * Section content without the surrounding blank lines. Indentation of the
+   * first line is preserved (unlike trim()) so re-indented sections survive.
+   */
+  sectionBody(lines, section) {
+    return lines.slice(section.start + 1, section.end).join("\n").replace(/^\n+|\n+$/g, "");
   }
   /** Format one egg's instructions + knowledge for an AI prompt. */
   formatEggForPrompt(egg) {
@@ -112,73 +123,113 @@ ${egg.formattingRules}`);
       `**Current Knowledge:**
 ${egg.knowledge || "(empty)"}`
     );
+    if (egg.unprocessed.trim()) {
+      parts.push(
+        `**Unprocessed (pending merge):**
+${egg.unprocessed}`
+      );
+    }
     return parts.join("\n\n");
   }
   /**
-   * Insert new knowledge into the egg's Knowledge section.
+   * Append one new knowledge entry to the egg's Unprocessed section.
    *
-   * If `parentAnchor` matches a line in the knowledge tree, the new content is
-   * inserted beneath it as nested sub-bullets (indent = anchor indent + 2).
-   * Otherwise the content is appended to the end of the section.
+   * Entries land here first and are merged into the Knowledge tree later,
+   * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
+   * its insight + examples (AI-generated `content`), plus mechanical
+   * `_author` / `_source` lines for provenance.
    */
-  async insertKnowledge(fileName, parentAnchor, content, sourceUrl) {
+  async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
     const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
     if (!file) {
-      console.warn(`[NutEgg] Cannot insert \u2014 egg file not found: ${fileName}`);
+      console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
       return;
     }
     const existing = await this.plugin.app.vault.read(file);
-    const lines = existing.split("\n");
-    const sectionIdx = lines.findIndex(
-      (l) => /^#{1,6}\s*knowledge\s*$/i.test(l.trim())
-    );
-    const sectionLevel = sectionIdx >= 0 ? (lines[sectionIdx].match(/^#+/) || [""])[0].length : 2;
-    const sectionEnd = sectionIdx >= 0 ? lines.findIndex((l, i) => {
-      if (i <= sectionIdx)
+    const lines = existing.replace(/\n+$/, "").split("\n");
+    const section = this.findSection(lines, "unprocessed");
+    const trimmed = content.trim();
+    const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+    const meta = [];
+    if (author)
+      meta.push(`_author: ${author}_`);
+    const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+    meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+    const block = [withBullet, ...meta].join("\n");
+    if (section) {
+      lines.splice(section.end, 0, "", block);
+    } else {
+      lines.push("", "## Unprocessed", "", block);
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
+  }
+  /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */
+  countUnprocessed(egg) {
+    const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
+    const bullets = egg.unprocessed.split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
+    if (bullets.length === 0)
+      return 0;
+    const base = Math.min(...bullets.map(indentOf));
+    return bullets.filter((l) => indentOf(l) === base).length;
+  }
+  /**
+   * Replace the Knowledge and Unprocessed sections with the merged output
+   * from the merge AI call. Missing sections are created as needed.
+   */
+  async applyMerge(fileName, knowledge, unprocessed) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
+      return;
+    }
+    const existing = await this.plugin.app.vault.read(file);
+    let lines = existing.replace(/\n+$/, "").split("\n");
+    const knowledgeSection = this.findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      lines = [
+        ...lines.slice(0, knowledgeSection.start + 1),
+        "",
+        ...knowledge.trim().split("\n"),
+        ...lines.slice(knowledgeSection.end)
+      ];
+    } else {
+      lines = [...lines, "", "## Knowledge", "", ...knowledge.trim().split("\n")];
+    }
+    const unprocessedSection = this.findSection(lines, "unprocessed");
+    const remainder = unprocessed.trim();
+    if (unprocessedSection) {
+      lines = [
+        ...lines.slice(0, unprocessedSection.start + 1),
+        ...remainder ? ["", ...remainder.split("\n")] : [],
+        ...lines.slice(unprocessedSection.end)
+      ];
+    } else if (remainder) {
+      lines = [...lines, "", "## Unprocessed", "", ...remainder.split("\n")];
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
+  }
+  /**
+   * Locate a `## Name`-style section: `{start, level, end}`. `end` is the
+   * index of the next heading of the same-or-higher level (or lines.length).
+   * Returns null when the heading doesn't exist.
+   */
+  findSection(lines, name) {
+    const start = lines.findIndex((l) => {
+      const m = l.trim().match(/^(#{1,6})\s*(.*)$/);
+      return m !== null && m[2].trim().toLowerCase() === name.toLowerCase();
+    });
+    if (start === -1)
+      return null;
+    const level = (lines[start].match(/^#+/) || [""])[0].length;
+    const end = lines.findIndex((l, i) => {
+      if (i <= start)
         return false;
       const m = l.trim().match(/^(#{1,6})\s/);
-      return m !== null && m[1].length <= sectionLevel;
-    }) : -1;
-    const endIdx = sectionEnd === -1 ? lines.length : sectionEnd;
-    let anchorIdx = -1;
-    let anchorIndent = 0;
-    if (parentAnchor && sectionIdx >= 0) {
-      const anchorText = parentAnchor.replace(/^#+\s*/, "").trim().toLowerCase();
-      for (let i = sectionIdx + 1; i < endIdx; i++) {
-        if (lines[i].trim().toLowerCase().includes(anchorText)) {
-          anchorIdx = i;
-          anchorIndent = (lines[i].match(/^\s*/) || [""])[0].length;
-          break;
-        }
-      }
-    }
-    const baseIndent = anchorIdx >= 0 ? anchorIndent + 2 : 0;
-    const indented = content.split("\n").map((l) => l.trim() ? " ".repeat(baseIndent) + l.trim() : "").join("\n");
-    const block = indented + `
-${" ".repeat(baseIndent)}_source: [link](${sourceUrl})_`;
-    if (anchorIdx >= 0) {
-      let insertIdx = anchorIdx + 1;
-      while (insertIdx < endIdx) {
-        const l = lines[insertIdx];
-        if (!l.trim()) {
-          insertIdx++;
-          continue;
-        }
-        const indent = (l.match(/^\s*/) || [""])[0].length;
-        if (indent <= anchorIndent)
-          break;
-        insertIdx++;
-      }
-      lines.splice(insertIdx, 0, block);
-    } else if (sectionIdx >= 0) {
-      const insertAt = endIdx;
-      const prev = lines[insertAt - 1];
-      lines.splice(insertAt, 0, ...prev && prev.trim() ? [""] : [], block);
-    } else {
-      lines.push("", "## Knowledge", "", block);
-    }
-    await this.plugin.app.vault.modify(file, lines.join("\n"));
-    console.log(`[NutEgg] Inserted knowledge into ${fileName}`);
+      return m !== null && m[1].length <= level;
+    });
+    return { start, level, end: end === -1 ? lines.length : end };
   }
   /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
   extractCallout(content) {
@@ -311,6 +362,13 @@ status: "active"
 
 - Risk Management
   - tail hedging
+
+## Unprocessed
+
+- pending insight
+  - \u{1F3AF} Example: a concrete case
+_author: Jane Doe_
+_source: [Source Title](https://e.com/p)_
 `;
 (0, import_node_test.describe)("EggParser.parseEggFile (new format)", () => {
   const parser = new EggParser(makeFakePlugin());
@@ -338,9 +396,16 @@ status: "active"
       "Reject FOMO content."
     ]);
   });
-  (0, import_node_test.it)("extracts the Knowledge section content", () => {
+  (0, import_node_test.it)("extracts the Knowledge section content (stops at ## Unprocessed)", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     import_strict.default.equal(egg.knowledge, "- Risk Management\n  - tail hedging");
+  });
+  (0, import_node_test.it)("extracts the Unprocessed section content", () => {
+    const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
+    import_strict.default.ok(egg.unprocessed.includes("- pending insight"));
+    import_strict.default.ok(egg.unprocessed.includes("_author: Jane Doe_"));
+    import_strict.default.ok(egg.unprocessed.includes("_source: [Source Title](https://e.com/p)_"));
+    import_strict.default.ok(!egg.unprocessed.includes("tail hedging"));
   });
   (0, import_node_test.it)("defaults topic to Unknown when frontmatter is missing", () => {
     const egg = parser.parseEggFile("x.md", "## Knowledge\n\n- stuff\n");
@@ -365,81 +430,211 @@ status: "active"
     import_strict.default.ok(out.includes("- Respect the existing knowledge tree."));
     import_strict.default.ok(out.includes("**Current Knowledge:**\n- Risk Management"));
   });
+  (0, import_node_test.it)("includes the Unprocessed section so the AI can avoid duplicates", () => {
+    const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
+    const out = parser.formatEggForPrompt(egg);
+    import_strict.default.ok(out.includes("**Unprocessed (pending merge):**"));
+    import_strict.default.ok(out.includes("- pending insight"));
+  });
   (0, import_node_test.it)("marks empty knowledge as (empty)", () => {
     const egg = parser.parseEggFile("x.md", "## Knowledge\n");
     import_strict.default.ok(parser.formatEggForPrompt(egg).includes("(empty)"));
   });
 });
-(0, import_node_test.describe)("EggParser.insertKnowledge", () => {
+(0, import_node_test.describe)("EggParser.appendUnprocessed", () => {
   const baseEgg = [
+    "---",
+    "topic: X",
+    "---",
+    "",
+    "> [!abstract]- Instructions:",
+    "> **Scope:** s",
+    "",
     "## Knowledge",
     "",
-    "### Risk Management",
-    "  - tail hedging",
-    "    - OTM puts",
-    "### Psychology",
-    "  - loss aversion"
+    "- existing knowledge",
+    "",
+    "## Unprocessed"
   ].join("\n");
-  async function insert(files, parent, content, source = "https://example.com") {
+  async function append(files, content, author = "Jane Doe", title = "Post", url = "https://example.com/post") {
     const store = makeFakeVault(files);
     const fake = makeFakePlugin({ vault: store.vault });
     const parser = new EggParser(fake);
-    await parser.insertKnowledge("egg.md", parent, content, source);
+    await parser.appendUnprocessed("egg.md", content, author, title, url);
     return store;
   }
-  (0, import_node_test.it)("nests new content under the parent anchor (indent = anchor + 2)", async () => {
-    const store = await insert(
+  (0, import_node_test.it)("appends the entry with author and source to ## Unprocessed", async () => {
+    const store = await append(
       { "egg.md": baseEgg },
-      "tail hedging",
-      "- crash-proofing study (2026)"
+      "- insight\n  - \u{1F3AF} Example: case"
     );
     const out = store.files.get("egg.md");
-    const anchorLine = out.split("\n").find((l) => l.includes("tail hedging"));
-    const anchorIndent = anchorLine.match(/^\s*/)[0].length;
-    const added = out.split("\n").find((l) => l.includes("crash-proofing study"));
-    import_strict.default.equal(
-      added.match(/^\s*/)[0].length,
-      anchorIndent + 2,
-      "new bullet must be nested one level under the anchor"
-    );
-    const addedIdx = out.split("\n").indexOf(added);
-    const psychIdx = out.split("\n").findIndex((l) => l.includes("### Psychology"));
-    import_strict.default.ok(addedIdx < psychIdx, "inserted inside the anchor block");
+    import_strict.default.ok(out.includes("## Unprocessed\n\n- insight"));
+    import_strict.default.ok(out.includes("  - \u{1F3AF} Example: case"));
+    import_strict.default.ok(out.includes("_author: Jane Doe_"));
+    import_strict.default.ok(out.includes("_source: [Post](https://example.com/post)_"));
   });
-  (0, import_node_test.it)("appends at the end of Knowledge when no anchor is given", async () => {
-    const store = await insert({ "egg.md": baseEgg }, "", "- orphan bullet");
-    const lines = store.files.get("egg.md").trimEnd().split("\n");
-    import_strict.default.ok(lines.includes("- orphan bullet"));
-    import_strict.default.equal(
-      lines[lines.length - 1],
-      "_source: [link](https://example.com)_"
-    );
-  });
-  (0, import_node_test.it)("appends at the end when the anchor doesn't match anything", async () => {
-    const store = await insert(
-      { "egg.md": baseEgg },
-      "no such concept",
-      "- new stuff"
-    );
-    import_strict.default.ok(store.files.get("egg.md").includes("- new stuff"));
-  });
-  (0, import_node_test.it)("creates a Knowledge section when the egg has none", async () => {
-    const store = await insert({ "egg.md": "---\ntopic: X\n---\n" }, "", "- first");
+  (0, import_node_test.it)("does not touch the Knowledge tree", async () => {
+    const store = await append({ "egg.md": baseEgg }, "- insight");
     const out = store.files.get("egg.md");
-    import_strict.default.ok(out.includes("## Knowledge"));
+    const knowledge = out.split("## Unprocessed")[0];
+    import_strict.default.ok(knowledge.includes("- existing knowledge"));
+    import_strict.default.ok(!knowledge.includes("- insight"));
+  });
+  (0, import_node_test.it)("prefixes a bullet when the content has none", async () => {
+    const store = await append({ "egg.md": baseEgg }, "bare insight text");
+    import_strict.default.ok(store.files.get("egg.md").includes("- bare insight text"));
+  });
+  (0, import_node_test.it)("omits the _author line when the author is unknown", async () => {
+    const store = await append({ "egg.md": baseEgg }, "- insight", "");
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(!out.includes("_author:"));
+    import_strict.default.ok(out.includes("_source: [Post](https://example.com/post)_"));
+  });
+  (0, import_node_test.it)("separates consecutive entries with a blank line", async () => {
+    const store = makeFakeVault({ "egg.md": baseEgg });
+    const fake = makeFakePlugin({ vault: store.vault });
+    const parser = new EggParser(fake);
+    await parser.appendUnprocessed(
+      "egg.md",
+      "- first",
+      "Jane Doe",
+      "Post",
+      "https://example.com/post"
+    );
+    await parser.appendUnprocessed(
+      "egg.md",
+      "- second",
+      "Jane Doe",
+      "Post",
+      "https://example.com/post"
+    );
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(
+      /_source: \[Post\]\(https:\/\/example\.com\/post\)_\n\n- second/.test(out)
+    );
+  });
+  (0, import_node_test.it)("creates the Unprocessed section when the egg has none", async () => {
+    const store = await append(
+      { "egg.md": "## Knowledge\n\n- tree\n" },
+      "- first"
+    );
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(out.includes("## Unprocessed"));
     import_strict.default.ok(out.includes("- first"));
+    import_strict.default.ok(out.includes("## Knowledge\n\n- tree\n\n## Unprocessed"));
   });
-  (0, import_node_test.it)("adds a source link under the inserted content", async () => {
-    const store = await insert(
+  (0, import_node_test.it)("sanitizes link brackets out of the source title", async () => {
+    const store = await append(
       { "egg.md": baseEgg },
-      "",
-      "- bullet",
-      "https://src.example/x"
+      "- insight",
+      "Jane",
+      "A [bracket] title"
     );
-    import_strict.default.ok(store.files.get("egg.md").includes("_source: [link](https://src.example/x)_"));
+    import_strict.default.ok(
+      store.files.get("egg.md").includes("_source: [A bracket title](https://example.com/post)_")
+    );
   });
   (0, import_node_test.it)("does nothing when the egg file is missing", async () => {
-    const store = await insert({}, "", "- bullet");
+    const store = await append({}, "- bullet");
+    import_strict.default.equal(store.files.size, 0);
+  });
+});
+(0, import_node_test.describe)("EggParser.countUnprocessed", () => {
+  const parser = new EggParser(makeFakePlugin());
+  (0, import_node_test.it)("counts top-level entry bullets, ignoring indented example sub-bullets", () => {
+    const egg = parser.parseEggFile(
+      "x.md",
+      [
+        "## Unprocessed",
+        "",
+        "- entry one",
+        "  - \u{1F3AF} Example: a",
+        "- entry two",
+        "- entry three"
+      ].join("\n")
+    );
+    import_strict.default.equal(parser.countUnprocessed(egg), 3);
+  });
+  (0, import_node_test.it)("returns 0 for a missing or empty section", () => {
+    import_strict.default.equal(parser.countUnprocessed(parser.parseEggFile("x.md", "")), 0);
+    import_strict.default.equal(
+      parser.countUnprocessed(parser.parseEggFile("x.md", "## Unprocessed\n")),
+      0
+    );
+  });
+  (0, import_node_test.it)("counts entries at the user's base indent (re-indented section)", () => {
+    const egg = parser.parseEggFile(
+      "x.md",
+      [
+        "## Unprocessed",
+        "",
+        "  - entry one",
+        "    - sub bullet",
+        "  - entry two"
+      ].join("\n")
+    );
+    import_strict.default.equal(parser.countUnprocessed(egg), 2);
+  });
+});
+(0, import_node_test.describe)("EggParser.applyMerge", () => {
+  const fullEgg = [
+    "---",
+    "topic: X",
+    "---",
+    "",
+    "> [!abstract]- Instructions:",
+    "> **Scope:** s",
+    "",
+    "## Knowledge",
+    "",
+    "### Old Branch",
+    "  - old stuff",
+    "",
+    "## Unprocessed",
+    "",
+    "- stale entry"
+  ].join("\n");
+  async function merge(files, knowledge, unprocessed) {
+    const store = makeFakeVault(files);
+    const fake = makeFakePlugin({ vault: store.vault });
+    const parser = new EggParser(fake);
+    await parser.applyMerge("egg.md", knowledge, unprocessed);
+    return store;
+  }
+  (0, import_node_test.it)("replaces both sections while preserving frontmatter and instructions", async () => {
+    const store = await merge(
+      { "egg.md": fullEgg },
+      "### Old Branch\n  - old stuff\n  - merged entry",
+      "- leftover entry"
+    );
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(out.includes("topic: X"));
+    import_strict.default.ok(out.includes("> **Scope:** s"));
+    import_strict.default.ok(out.includes("### Old Branch\n  - old stuff\n  - merged entry"));
+    import_strict.default.ok(out.includes("## Unprocessed\n\n- leftover entry"));
+    import_strict.default.ok(!out.includes("stale entry"));
+    import_strict.default.equal(out.split("## Knowledge").length - 1, 1);
+    import_strict.default.equal(out.split("## Unprocessed").length - 1, 1);
+  });
+  (0, import_node_test.it)("empties the Unprocessed section when nothing is left over", async () => {
+    const store = await merge({ "egg.md": fullEgg }, "- all merged", "");
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(out.includes("## Unprocessed"));
+    import_strict.default.ok(!out.includes("- stale entry"));
+  });
+  (0, import_node_test.it)("creates missing sections", async () => {
+    const store = await merge(
+      { "egg.md": "---\ntopic: X\n---\n" },
+      "- new tree",
+      "- leftover"
+    );
+    const out = store.files.get("egg.md");
+    import_strict.default.ok(out.includes("## Knowledge\n\n- new tree"));
+    import_strict.default.ok(out.includes("## Unprocessed\n\n- leftover"));
+  });
+  (0, import_node_test.it)("does nothing when the egg file is missing", async () => {
+    const store = await merge({}, "- tree", "");
     import_strict.default.equal(store.files.size, 0);
   });
 });

@@ -60,14 +60,17 @@ nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
  *   > **Key Questions:** ...
  *   > **Rejection Criteria:** ...
  *   > **Formatting Rules:** ...
- *   (knowledge tree)
+ *   ## Knowledge
+ *   (knowledge tree — new insights nest under existing concepts)
  *   ## Foo
  *   - Foo1.1
  *       - Foo 1.1.1
  *   ## Bar
  *   - Bar1.1
  *       - Bar1.1.1
- *           - Specific insight here ([source](https://...))
+ *   ## Unprocessed
+ *   (new entries: insight + concrete examples, with _author/_source lines;
+ *    auto-merged into the knowledge tree when 20+ accumulate)
  *
  */
 ```

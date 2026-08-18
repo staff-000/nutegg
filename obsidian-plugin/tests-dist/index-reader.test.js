@@ -79,13 +79,13 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 
 ## Task
 1. Answer each Key Question (if any) directly and concisely. Grounding: {{grounding_rule}}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge. If the content is entirely redundant, return an empty array.
+2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. If the content is entirely redundant, return an empty array.
 3. Apply the Rejection Criteria \u2014 if the content should be rejected, set rejected to true and give a one-line reason.
 4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight.
 
 For each Novel Delta entry:
-- "parent": copy the EXACT text of the existing bullet or heading in the Current Knowledge tree that the new information nests under. Use "" if no suitable parent exists.
-- "content": the new information as markdown nested bullets, written relative to that parent (top-level lines are children of the parent). Follow the Formatting Rules.
+- "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information \u2014 used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
+- "content": ONE insight per entry, as a single top-level bullet with optional indented sub-bullets. Include concrete examples from the content that illustrate the insight (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -147,7 +147,8 @@ IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
+- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
+- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.
 - Apply the Rejection Criteria strictly \u2014 set rejected to true when the content is noise for this egg.
 `;
 
@@ -184,6 +185,33 @@ var egg_routing_default = 'Given this content and egg index, which egg file(s) d
 // src/prompts/action-guide-default.md
 var action_guide_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
 
+// src/prompts/merge-unprocessed.md
+var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
+
+## Formatting Rules
+{{formatting_rules}}
+
+## Existing Knowledge Tree
+{{knowledge_tree}}
+
+## Unprocessed Entries
+{{unprocessed}}
+
+## Task
+1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches \u2014 the user may have edited them by hand.
+2. Nest each unprocessed entry under the most relevant existing concept as sub-bullets.
+3. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
+4. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
+5. If an entry duplicates existing knowledge, drop it entirely.
+6. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in",
+  "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged"
+}
+`;
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -197,7 +225,9 @@ var PROMPTS = {
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: egg_routing_default,
   /** Default Action Guide when no egg provides one. */
-  actionGuideDefault: action_guide_default_default.trim()
+  actionGuideDefault: action_guide_default_default.trim(),
+  /** Merge 20+ Unprocessed entries into the Knowledge tree. */
+  mergeUnprocessed: merge_unprocessed_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {

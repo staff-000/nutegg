@@ -42,5 +42,6 @@ IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
+- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) — a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - 🎯 Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source — they are appended automatically.
+- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.
 - Apply the Rejection Criteria strictly — set rejected to true when the content is noise for this egg.
