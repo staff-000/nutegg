@@ -16,6 +16,19 @@ npm run dev                         # watch mode
 ```
 Chrome extension: no build — load unpacked from `chrome-extension/` at `chrome://extensions`.
 
+## Testing
+
+```bash
+cd obsidian-plugin && npm test      # esbuild-bundle tests/*.test.ts → tests-dist/, run node --test
+node --test "tests-dist/*.test.js"  # re-run without rebundling
+```
+
+- Tests use Node's built-in test runner (`node:test`) — no test framework deps.
+- One file per module under `obsidian-plugin/tests/`: prompt-templates, index-reader, egg-parser, knowledge-base, db (skips when `node:sqlite` is unavailable), ai-processor, server.
+- `tests/helpers.ts` provides an in-memory fake vault + plugin stub — no Obsidian runtime needed.
+- Add a new test as `tests/<module>.test.ts` next to the module it covers; it's picked up automatically.
+- `.md` prompt/template files are bundled as text in tests too (see `esbuild.test.mjs`).
+
 ## Architecture
 
 Two-part system: **Obsidian plugin** ↔ local HTTP (`127.0.0.1:*`) ↔ **Chrome extension**.

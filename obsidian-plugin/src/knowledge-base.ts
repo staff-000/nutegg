@@ -51,7 +51,8 @@ export class KnowledgeBase {
       capture.metadata?.handle ||
       "unknown";
     
-    const fileName = `${folder}/${timestamp}-${source}-${author}-${safeTitle}.md`;
+    const safeAuthor = this.sanitizeFileName(author);
+    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}.md`;
 
     // 4. Source link
     const sourceUrl = capture.url;

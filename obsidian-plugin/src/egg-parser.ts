@@ -89,7 +89,7 @@ export class EggParser {
 
     // Instructions callout (new format)
     const callout = this.extractCallout(content);
-    const sections = this.splitLabeledSections(callout);
+    const sections = callout ? this.splitLabeledSections(callout) : new Map();
     result.scope = (sections.get("scope") || "").trim();
     result.actionGuide = (sections.get("action guide") || "").trim();
     result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
