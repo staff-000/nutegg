@@ -18,7 +18,6 @@ import type { IndexEntry } from "./index-reader";
  *   ## Knowledge
  *   (knowledge tree)
  *
- * Legacy format (`instruct:` block + `# knowledge` heading) is still parsed.
  */
 export interface EggContent {
   fileName: string;
@@ -90,24 +89,12 @@ export class EggParser {
 
     // Instructions callout (new format)
     const callout = this.extractCallout(content);
-    if (callout) {
-      const sections = this.splitLabeledSections(callout);
-      result.scope = (sections.get("scope") || "").trim();
-      result.actionGuide = (sections.get("action guide") || "").trim();
-      result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
-      result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
-      result.formattingRules = (sections.get("formatting rules") || "").trim();
-    } else {
-      // Legacy format: `instruct:` block before `---`
-      const instructMatch = content.match(/^instruct:\s*\n([\s\S]*?)(?:\n---|$)/i);
-      if (instructMatch) {
-        result.scope = instructMatch[1].trim();
-        const rejectMatch = instructMatch[1].match(
-          /\*\s*reject\s*criteria\s*:\s*(.+)/i
-        );
-        if (rejectMatch) result.rejectionCriteria = [rejectMatch[1].trim()];
-      }
-    }
+    const sections = this.splitLabeledSections(callout);
+    result.scope = (sections.get("scope") || "").trim();
+    result.actionGuide = (sections.get("action guide") || "").trim();
+    result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
+    result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
+    result.formattingRules = (sections.get("formatting rules") || "").trim();
 
     // Knowledge section — `## Knowledge` (new) or `# knowledge` (legacy)
     const knowledgeMatch = content.match(

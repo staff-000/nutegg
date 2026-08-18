@@ -26,7 +26,7 @@ Everything lives under a `nutegg/` folder in your vault:
 vault/
 └── nutegg/
     ├── _raw/                          # Captured nuts (raw web content)
-    │   └── 2026-08-10-14-30-youtube-How-AI-Works.md
+    │   └── 2026-08-10-14-30-youtube-Staff000-How-AI-Works.md
     ├── _index.md                      # Egg routing guide
     ├── invest_strategy.md             # Egg: investment knowledge
     ├── psychology.md                  # Egg: psychology knowledge
@@ -46,20 +46,35 @@ nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
 ### Egg file format
 
 ```
-instruct:
-  * key questions: what new insights does this add?
-  * reject criteria: ignore content that repeats existing knowledge
----
-# knowledge
-- **2026-08-10** — Specific insight here ([source](https://...))
-
-# ideas
-- **2026-08-05** — A new idea or perspective ([source](https://...))
+/**
+ * Parsed egg file content.
+ *
+ * New format (see src/templates/egg.md):
+ *   ---
+ *   topic: "..."
+ *   status: "active"
+ *   ---
+ *   > [!abstract]- Instructions:
+ *   > **Scope:** ...
+ *   > **Action Guide:** ...
+ *   > **Key Questions:** ...
+ *   > **Rejection Criteria:** ...
+ *   > **Formatting Rules:** ...
+ *   (knowledge tree)
+ *   ## Foo
+ *   - Foo1.1
+ *       - Foo 1.1.1
+ *   ## Bar
+ *   - Bar1.1
+ *       - Bar1.1.1
+ *           - Specific insight here ([source](https://...))
+ *
+ */
 ```
 
 ### Raw file naming
 
-`YYYY-MM-DD-HH-MM-<sourceType>-<title>.md`
+`YYYY-MM-DD-HH-MM-<sourceType>-<author>-<title>.md`
 
 ## Setup
 
@@ -113,4 +128,4 @@ All processing happens locally. Content is sent to your chosen AI provider for a
 
 ## License
 
-MIT
+GNU General Public License v3.0

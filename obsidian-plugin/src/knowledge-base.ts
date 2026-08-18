@@ -12,7 +12,7 @@ export class KnowledgeBase {
 
   /**
    * Save the captured content to the raw folder.
-   * File naming: YYYY-MM-DD-HH-MM-Source-title.md
+   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title.md
    */
   async saveRaw(capture: {
     url: string;
@@ -38,7 +38,6 @@ export class KnowledgeBase {
       pad(now.getMinutes()),
     ].join("-");
     const source = this.sanitizeFileName(capture.sourceType);
-    const fileName = `${folder}/${timestamp}-${source}-${safeTitle}.md`;
 
     // 1. Published timestamp
     const publishedAt = capture.metadata?.published || "unknown";
@@ -51,6 +50,8 @@ export class KnowledgeBase {
       capture.metadata?.channel ||
       capture.metadata?.handle ||
       "unknown";
+    
+    const fileName = `${folder}/${timestamp}-${source}-${author}-${safeTitle}.md`;
 
     // 4. Source link
     const sourceUrl = capture.url;
