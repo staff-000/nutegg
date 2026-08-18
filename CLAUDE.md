@@ -55,6 +55,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | [db.ts](obsidian-plugin/src/db.ts) | SQLite via `node:sqlite`: nuts table, BM25 search |
 | [ai-client.ts](obsidian-plugin/src/ai-client.ts) | `PROVIDER_CATALOG`: 7 providers × 2 sources (official/OpenRouter). Two formats. `AIError` with typed codes. |
 | [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. |
+| [prompt-templates.ts](obsidian-plugin/src/prompt-templates.ts) | Loads `src/prompts/*.md` (user-editable, translatable) + `renderPrompt()` for `{{placeholder}}` substitution |
 | [index-reader.ts](obsidian-plugin/src/index-reader.ts) | Parses `_index.md`, `matchEggs()` to route content to egg files |
 | [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules), `insertKnowledge()` nests deltas under anchors in the `## Knowledge` tree |
 | [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |

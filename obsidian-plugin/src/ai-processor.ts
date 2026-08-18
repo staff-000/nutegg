@@ -1,6 +1,11 @@
 import type NutEggPlugin from "./main";
 import type { EggContent } from "./egg-parser";
 import { AIError } from "./ai-client";
+import { PROMPTS, renderPrompt } from "./prompt-templates";
+import groundingRuleTpl from "./prompts/grounding-rule.md";
+
+/** Shared grounding rule injected into every prompt. */
+const GROUNDING_RULE = groundingRuleTpl.trim();
 
 /**
  * One chapter in the Chapter Map. `time` is the video timestamp ("MM:SS" or
@@ -67,6 +72,8 @@ export interface AnalysisResult extends ContentAnalysis {
  *   Phase 1 — content analysis (title verdict, core summary, chapter map).
  *   Phase 2 — per-egg analysis (key questions, novel delta, reject, verdict).
  * With exactly one matched egg, both phases are merged into a single call.
+ *
+ * All prompt text lives in src/prompts/*.md (user-editable templates).
  */
 export class AIProcessor {
   private plugin: NutEggPlugin;
@@ -74,20 +81,6 @@ export class AIProcessor {
   constructor(plugin: NutEggPlugin) {
     this.plugin = plugin;
   }
-
-  /** Default content-level guide when no egg provides an Action Guide. */
-  private static readonly DEFAULT_ACTION_GUIDE = [
-    "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.",
-    "2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.",
-    "3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.",
-  ].join("\n");
-
-  /**
-   * Grounding rule injected into every prompt: the content is the sole source
-   * of truth for answers — even when it contradicts common sense.
-   */
-  private static readonly GROUNDING_RULE =
-    'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts — never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".';
 
   async analyze(
     capture: {
@@ -122,7 +115,7 @@ export class AIProcessor {
       // Phase 1: content analysis (shared guide — eggs carry the same steps).
       // The eggs' key questions are passed along so the AI can skip
       // user questions that are equivalent to them.
-      const guide = (eggs[0]?.actionGuide || AIProcessor.DEFAULT_ACTION_GUIDE).trim();
+      const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
       contentAnalysis = await this.analyzeContent(
         capture,
         guide,
@@ -168,57 +161,23 @@ export class AIProcessor {
     actionGuide: string,
     eggKeyQuestions: string[]
   ): Promise<ContentAnalysis> {
-    const chaptersHint = capture.chapters?.length
-      ? `\n## Video Chapters (use these EXACT timestamps)\n${capture.chapters
-          .map((c) => `- ${c.time} — ${c.title}`)
-          .join("\n")}`
-      : "";
-    const questionsHint = capture.questions?.length
-      ? `\n## User Questions (answer each directly and concisely)\n${capture.questions
-          .map((q, i) => `${i + 1}. ${q}`)
-          .join("\n")}`
-      : "";
-    const eggQuestionsHint = eggKeyQuestions.length > 0
-      ? `\n## Egg Key Questions (answered separately — skip equivalent user questions)\n${eggKeyQuestions
-          .map((q, i) => `${i + 1}. ${q}`)
-          .join("\n")}`
-      : "";
-
-    const prompt = `You are a knowledge curator. Analyze the content below following this Action Guide.
-
-## Action Guide
-${actionGuide}
-
-## Content to Analyze
-**Title:** ${capture.title}
-**Source:** ${capture.url}
-**Type:** ${capture.sourceType}
-${chaptersHint}
-${questionsHint}
-${eggQuestionsHint}
-
-${this.truncate(capture.content, 8000)}
-
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
-  "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ]
-}
-
-IMPORTANT:
-- Grounding: ${AIProcessor.GROUNDING_RULE}
-- titleVerdict must be a single sentence.
-- coreSummary: at most 3 bullets, plain language.
-- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.`;
+    const prompt = renderPrompt(PROMPTS.contentAnalysis, {
+      action_guide: actionGuide,
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      chapters: this.chaptersBlock(capture.chapters),
+      questions: this.questionsBlock(
+        capture.questions,
+        "User Questions (answer each directly and concisely)"
+      ),
+      egg_key_questions: this.questionsBlock(
+        eggKeyQuestions,
+        "Egg Key Questions (answered separately — skip equivalent user questions)"
+      ),
+      content: this.truncate(capture.content, 8000),
+      grounding_rule: GROUNDING_RULE,
+    });
 
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response);
@@ -246,41 +205,15 @@ IMPORTANT:
     capture: { title: string; url: string; content: string; sourceType: string },
     egg: EggContent
   ): Promise<EggAnalysis | null> {
-    const prompt = `You are a knowledge curator for the egg file "${egg.fileName}". Analyze the content below against this egg's instructions.
-
-## Egg Instructions
-${this.plugin.eggParser.formatEggForPrompt(egg)}
-
-## Content to Analyze
-**Title:** ${capture.title}
-**Source:** ${capture.url}
-**Type:** ${capture.sourceType}
-
-${this.truncate(capture.content, 6000)}
-
-## Task
-1. Answer each Key Question (if any) directly and concisely. Grounding: ${AIProcessor.GROUNDING_RULE}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge. If the content is entirely redundant, return an empty array.
-3. Apply the Rejection Criteria — if the content should be rejected, set rejected to true and give a one-line reason.
-4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight.
-
-For each Novel Delta entry:
-- "parent": copy the EXACT text of the existing bullet or heading in the Current Knowledge tree that the new information nests under. Use "" if no suitable parent exists.
-- "content": the new information as markdown nested bullets, written relative to that parent (top-level lines are children of the parent). Follow the Formatting Rules.
-
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
-}`;
+    const prompt = renderPrompt(PROMPTS.eggAnalysis, {
+      egg_file: egg.fileName,
+      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      content: this.truncate(capture.content, 6000),
+      grounding_rule: GROUNDING_RULE,
+    });
 
     try {
       const response = await this.callAI(prompt, 800);
@@ -321,63 +254,20 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     },
     egg: EggContent
   ): Promise<EggAnalysis & ContentAnalysis> {
-    const chaptersHint = capture.chapters?.length
-      ? `\n## Video Chapters (use these EXACT timestamps)\n${capture.chapters
-          .map((c) => `- ${c.time} — ${c.title}`)
-          .join("\n")}`
-      : "";
-    const questionsHint = capture.questions?.length
-      ? `\n## User Questions (answer each directly and concisely)\n${capture.questions
-          .map((q, i) => `${i + 1}. ${q}`)
-          .join("\n")}`
-      : "";
-
-    const prompt = `You are a knowledge curator for the egg file "${egg.fileName}". Analyze the content below against this egg's instructions.
-
-## Egg Instructions
-${this.plugin.eggParser.formatEggForPrompt(egg)}
-
-## Content to Analyze
-**Title:** ${capture.title}
-**Source:** ${capture.url}
-**Type:** ${capture.sourceType}
-${chaptersHint}
-${questionsHint}
-
-${this.truncate(capture.content, 8000)}
-
-## Task
-Follow the Action Guide steps, answer the Key Questions, answer the User Questions, and extract the Novel Delta against the Current Knowledge.
-
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
-  "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
-}
-
-IMPORTANT:
-- Grounding: ${AIProcessor.GROUNDING_RULE}
-- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it nests under ("" if none), "content" follows the Formatting Rules.
-- Apply the Rejection Criteria strictly — set rejected to true when the content is noise for this egg.`;
+    const prompt = renderPrompt(PROMPTS.eggCombined, {
+      egg_file: egg.fileName,
+      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      chapters: this.chaptersBlock(capture.chapters),
+      questions: this.questionsBlock(
+        capture.questions,
+        "User Questions (answer each directly and concisely)"
+      ),
+      content: this.truncate(capture.content, 8000),
+      grounding_rule: GROUNDING_RULE,
+    });
 
     const response = await this.callAI(prompt, 1000);
     const parsed = this.parseJson(response);
@@ -498,37 +388,22 @@ IMPORTANT:
       }));
     }
 
-    const priorHint =
+    const priorBlock =
       priorQa.length > 0
-        ? `\n## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
+        ? `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
             .map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`)
             .join("\n")}`
         : "";
 
-    const prompt = `You are a knowledge curator. Answer the user's follow-up questions about this content.
-
-## Content to Analyze
-**Title:** ${capture.title}
-**Source:** ${capture.url}
-**Type:** ${capture.sourceType}
-${priorHint}
-
-${this.truncate(capture.content, 8000)}
-
-## New Questions (answer each directly and concisely)
-${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}
-
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "answers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ]
-}
-
-IMPORTANT:
-- One entry per question, in the same order.
-- Grounding: ${AIProcessor.GROUNDING_RULE}
-- If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.`;
+    const prompt = renderPrompt(PROMPTS.followUp, {
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      prior_qa: priorBlock,
+      content: this.truncate(capture.content, 8000),
+      questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
+      grounding_rule: GROUNDING_RULE,
+    });
 
     try {
       const response = await this.callAI(prompt, 500);
@@ -549,6 +424,22 @@ IMPORTANT:
         answer: "Failed to answer — please try again.",
       }));
     }
+  }
+
+  // --- Prompt building helpers ---
+
+  /** `## Video Chapters (use these EXACT timestamps)` block, or "". */
+  private chaptersBlock(chapters?: Array<{ time: string; title: string }>): string {
+    if (!chapters?.length) return "";
+    return `## Video Chapters (use these EXACT timestamps)\n${chapters
+      .map((c) => `- ${c.time} — ${c.title}`)
+      .join("\n")}`;
+  }
+
+  /** Numbered questions block with a heading, or "". */
+  private questionsBlock(questions: string[] | undefined, heading: string): string {
+    if (!questions?.length) return "";
+    return `## ${heading}\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   }
 
   private async callAI(prompt: string, maxTokens: number): Promise<string> {

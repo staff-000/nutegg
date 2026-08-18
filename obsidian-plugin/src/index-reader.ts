@@ -1,4 +1,5 @@
 import type NutEggPlugin from "./main";
+import { PROMPTS, renderPrompt } from "./prompt-templates";
 
 /**
  * Parsed entry from _index.md.
@@ -56,17 +57,12 @@ export class IndexReader {
       .map((e) => `- ${e.fileName}: ${e.description}`)
       .join("\n");
 
-    const prompt = `Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".
-
-## Content
-Title: ${content.title}
-URL: ${content.url}
-${this.truncate(content.content, 2000)}
-
-## Egg Index
-${indexText}
-
-Return matching file names (one per line):`;
+    const prompt = renderPrompt(PROMPTS.eggRouting, {
+      title: content.title,
+      url: content.url,
+      content: this.truncate(content.content, 2000),
+      index: indexText,
+    });
 
     try {
       const response = await this.plugin.aiClient.chat(prompt, 100);
