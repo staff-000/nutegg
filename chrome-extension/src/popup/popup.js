@@ -134,6 +134,10 @@ async function refreshForCurrentTab() {
   historySelect.classList.add("hidden");
   historySelect.innerHTML = "";
   captureHistory = []; // fresh URL — old history doesn't apply
+  // Drop the previous tab's content too — if the new tab can't be extracted
+  // (restricted page, PDF, ...), a stale url must not re-render old results
+  // via loadHistoryIfAny or re-apply the old transcript warning.
+  extractedContent = null;
   showCaptureState();
   analyzeBtn.disabled = true;
   analyzeBtnText.textContent = "Analyze";
