@@ -60,7 +60,10 @@ var NutEggServer = class {
       nutId: row.id,
       capturedAt: row.savedAt,
       saved: row.processingResult === "saved" || row.processingResult === "skip" ? row.processingResult : "analyzed",
-      result: row.analysisResult
+      result: row.analysisResult,
+      title: row.title,
+      author: row.author,
+      publishedAt: row.publishedAt
     }));
   }
   /** Reading/watch time estimate from metadata, or word-count fallback. */
@@ -293,7 +296,7 @@ var NutEggServer = class {
         content: capture.content || "",
         savedAt: (/* @__PURE__ */ new Date()).toISOString(),
         publishedAt: capture.metadata?.published || "",
-        author: capture.metadata?.author || capture.metadata?.channel || "",
+        author: capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "",
         timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
         processingResult: "analyzed",
         summary: [result.titleVerdict, ...result.coreSummary || []].filter(Boolean).join("\n"),
@@ -409,7 +412,7 @@ var NutEggServer = class {
           content: confirm.content || "",
           savedAt: (/* @__PURE__ */ new Date()).toISOString(),
           publishedAt: confirm.metadata?.published || "",
-          author: confirm.metadata?.author || confirm.metadata?.channel || "",
+          author: confirm.metadata?.author || confirm.metadata?.channel || confirm.metadata?.handle || "",
           timeEstimateMinutes: timeEstimate,
           processingResult: saved,
           summary: summary || "",

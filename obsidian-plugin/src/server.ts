@@ -57,6 +57,10 @@ interface CaptureEntry {
   /** "saved" (knowledge added), "skip" (raw only), "analyzed" (never saved). */
   saved: "saved" | "skip" | "analyzed";
   result: AnalysisResult | null;
+  /** Provenance stored with the capture (content title, author, publish time). */
+  title: string;
+  author: string;
+  publishedAt: string;
 }
 
 export class NutEggServer {
@@ -83,6 +87,9 @@ export class NutEggServer {
           ? row.processingResult
           : "analyzed",
       result: row.analysisResult,
+      title: row.title,
+      author: row.author,
+      publishedAt: row.publishedAt,
     }));
   }
 
@@ -378,7 +385,10 @@ export class NutEggServer {
         content: capture.content || "",
         savedAt: new Date().toISOString(),
         publishedAt: capture.metadata?.published || "",
-        author: capture.metadata?.author || capture.metadata?.channel || "",
+        author: capture.metadata?.author ||
+          capture.metadata?.channel ||
+          capture.metadata?.handle ||
+          "",
         timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
         processingResult: "analyzed",
         summary: [result.titleVerdict, ...(result.coreSummary || [])]
@@ -535,7 +545,10 @@ export class NutEggServer {
           content: confirm.content || "",
           savedAt: new Date().toISOString(),
           publishedAt: confirm.metadata?.published || "",
-          author: confirm.metadata?.author || confirm.metadata?.channel || "",
+          author: confirm.metadata?.author ||
+            confirm.metadata?.channel ||
+            confirm.metadata?.handle ||
+            "",
           timeEstimateMinutes: timeEstimate,
           processingResult: saved,
           summary: summary || "",

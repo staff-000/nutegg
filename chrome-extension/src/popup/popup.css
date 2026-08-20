@@ -164,6 +164,15 @@ body {
   color: #6b7280;
 }
 
+/* Author + published date, extracted with the content */
+.page-provenance {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
 /* Extracted content preview (fixed height, scrollable) */
 .content-preview {
   height: 220px;

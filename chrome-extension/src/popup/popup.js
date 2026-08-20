@@ -6,6 +6,8 @@ const settingsBtn = document.getElementById("settings-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
+const pageAuthorEl = document.getElementById("page-author");
+const pagePublishedEl = document.getElementById("page-published");
 const contentPreview = document.getElementById("content-preview");
 const questionsToggle = document.getElementById("questions-toggle");
 const questionsArea = document.getElementById("questions-area");
@@ -23,6 +25,10 @@ const duplicateMessage = document.getElementById("duplicate-message");
 // DOM — Results state
 const captureState = document.getElementById("capture-state");
 const resultsState = document.getElementById("results-state");
+const resultPageInfo = document.getElementById("result-page-info");
+const resultPageTitle = document.getElementById("result-page-title");
+const resultPageAuthor = document.getElementById("result-page-author");
+const resultPagePublished = document.getElementById("result-page-published");
 const processedNote = document.getElementById("processed-note");
 const processedMessage = document.getElementById("processed-message");
 const reanalyzeBtn = document.getElementById("reanalyze-btn");
@@ -221,6 +227,8 @@ async function extractPageContent() {
   extractionFailed = false;
   lastLoadWasLoading = false;
   contentPreview.textContent = "Loading content…";
+  pageAuthorEl.textContent = "";
+  pagePublishedEl.textContent = "";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) { pageTitle.textContent = "Unknown Page"; return; }
@@ -238,6 +246,7 @@ async function extractPageContent() {
         pageTitle.textContent = response.content.title || tab.title || "Untitled";
         pageType.textContent = response.content.sourceType || pageType.textContent;
         contentPreview.textContent = response.content.content || "(No content extracted)";
+        showProvenance(response.content.metadata || {});
       } else {
         extractionFailed = true;
       }
@@ -260,6 +269,7 @@ async function extractPageContent() {
             pageTitle.textContent = resp.content.title || tab.title || "Untitled";
             pageType.textContent = resp.content.sourceType || pageType.textContent;
             contentPreview.textContent = resp.content.content || "(No content extracted)";
+            showProvenance(resp.content.metadata || {});
           } else {
             extractionFailed = true;
           }
@@ -287,6 +297,48 @@ function detectPageTypeFromUrl(url) {
   if (url.includes("youtube.com/watch")) return "📺 YouTube";
   if (url.includes("youtube.com")) return "📺 YouTube";
   return "🌐 Webpage";
+}
+
+/** Show the author + published date extracted from the page itself. */
+function showProvenance(metadata) {
+  const author = metadata.author || metadata.channel || metadata.handle || "";
+  pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
+  pagePublishedEl.textContent = metadata.published
+    ? `📅 ${formatPublishedDate(metadata.published)}`
+    : "";
+}
+
+/** ISO/date string → short locale date (e.g. "Aug 10, 2026"); raw on failure. */
+function formatPublishedDate(raw) {
+  const d = new Date(raw);
+  return isNaN(d.getTime())
+    ? raw
+    : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Provenance of the currently extracted page (fresh analyses). */
+function provenanceFromExtraction() {
+  if (!extractedContent) return null;
+  const m = extractedContent.metadata || {};
+  return {
+    title: extractedContent.title || "",
+    author: m.author || m.channel || m.handle || "",
+    publishedAt: m.published || "",
+  };
+}
+
+/** Title/author/publish-time card at the top of the results view. */
+function renderResultProvenance(prov) {
+  if (!prov?.title) {
+    resultPageInfo.classList.add("hidden");
+    return;
+  }
+  resultPageInfo.classList.remove("hidden");
+  resultPageTitle.textContent = prov.title;
+  resultPageAuthor.textContent = prov.author ? `✍️ ${prov.author}` : "";
+  resultPagePublished.textContent = prov.publishedAt
+    ? `📅 ${formatPublishedDate(prov.publishedAt)}`
+    : "";
 }
 
 /**
@@ -388,7 +440,7 @@ async function handleAnalyze(force = false) {
     nutCollected = false;
     eggHatched = false;
     analysisResult = response;
-    showResultsState(response);
+    showResultsState(response, provenanceFromExtraction());
   } catch (err) {
     showError(err instanceof Error ? err.message : "Analysis failed");
     analyzeBtn.disabled = false;
@@ -398,10 +450,11 @@ async function handleAnalyze(force = false) {
 
 // --- Show results ---
 
-function showResultsState(result) {
+function showResultsState(result, provenance = null) {
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
   processedNote.classList.add("hidden");
+  renderResultProvenance(provenance);
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";
@@ -559,7 +612,13 @@ function showHistoryEntry(entry) {
   eggHatched = cachedProcessedSaved === "saved";
   currentNutId = entry.nutId ?? null;
   analysisResult = entry.result;
-  showResultsState(entry.result);
+  // Stored provenance from the DB row, falling back to the live extraction
+  const live = provenanceFromExtraction();
+  showResultsState(entry.result, {
+    title: entry.title || live?.title || "",
+    author: entry.author || live?.author || "",
+    publishedAt: entry.publishedAt || live?.publishedAt || "",
+  });
   updateActionButtons();
 
   const when = new Date(entry.capturedAt).toLocaleString();
@@ -678,6 +737,7 @@ function timeToSeconds(time) {
 
 function showCaptureState() {
   resultsState.classList.add("hidden");
+  resultPageInfo.classList.add("hidden");
   captureState.classList.remove("hidden");
   analyzeBtn.disabled = false;
   // Label reflects that this URL was processed before
