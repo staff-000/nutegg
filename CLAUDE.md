@@ -35,7 +35,7 @@ Two-part system: **Obsidian plugin** ↔ local HTTP (`127.0.0.1:*`) ↔ **Chrome
 
 ### Composition
 
-`NutEggPlugin` ([main.ts](obsidian-plugin/src/main.ts)) is the service locator. Subsystems: `aiClient`, `server`, `aiProcessor`, `knowledgeBase`, `indexReader`, `eggParser`.
+`NutEggPlugin` ([main.ts](obsidian-plugin/src/main.ts)) is the service locator. Subsystems: `aiClient`, `server`, `aiProcessor`, `knowledgeBase`, `indexReader`, `eggParser`, `indexSync`.
 
 ### Data flow
 
@@ -70,6 +70,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. `maybeMergeEgg()`: merge 20+ `## Unprocessed` entries into the knowledge tree (`MERGE_THRESHOLD = 20`) |
 | [prompt-templates.ts](obsidian-plugin/src/prompt-templates.ts) | Loads `src/prompts/*.md` (user-editable, translatable) + `renderPrompt()` for `{{placeholder}}` substitution |
 | [index-reader.ts](obsidian-plugin/src/index-reader.ts) | Parses `_index.md`, `matchEggs()` to route content to egg files |
+| [index-sync.ts](obsidian-plugin/src/index-sync.ts) | Consistency check (on load + every 5 min): egg without index entry → append `* path: topic`; index entry without egg → create from template seeded with the description; relative index paths upgraded to full vault paths |
 | [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `## Knowledge`/`## Unprocessed` sections. `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
 | [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |
 | [settings.ts](obsidian-plugin/src/settings.ts) | Settings tab, developer mode toggle |

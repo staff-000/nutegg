@@ -10,6 +10,7 @@ import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
 import { IndexReader } from "./index-reader";
 import { EggParser } from "./egg-parser";
+import { IndexSync } from "./index-sync";
 import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 
@@ -21,6 +22,7 @@ export default class NutEggPlugin extends Plugin {
   knowledgeBase!: KnowledgeBase;
   indexReader!: IndexReader;
   eggParser!: EggParser;
+  indexSync!: IndexSync;
   db!: NutEggDatabase;
 
   async onload(): Promise<void> {
@@ -36,6 +38,7 @@ export default class NutEggPlugin extends Plugin {
     this.knowledgeBase = new KnowledgeBase(this);
     this.indexReader = new IndexReader(this);
     this.eggParser = new EggParser(this);
+    this.indexSync = new IndexSync(this);
 
     // SQLite database (dedup cache, replay, RAG foundation). Never throws.
     this.db = new NutEggDatabase(this);
@@ -53,6 +56,21 @@ export default class NutEggPlugin extends Plugin {
 
     // Add settings tab
     this.addSettingTab(new NutEggSettingTab(this.app, this));
+
+    // Keep _index.md and the egg files consistent: check on load, then
+    // regularly. Fixes missing index entries and missing egg files.
+    try {
+      await this.indexSync.checkAndFix();
+    } catch (err) {
+      console.error("[NutEgg] Index sync check failed:", err);
+    }
+    this.registerInterval(
+      window.setInterval(() => {
+        this.indexSync.checkAndFix().catch((err) => {
+          console.error("[NutEgg] Index sync check failed:", err);
+        });
+      }, 5 * 60 * 1000)
+    );
 
     // Ribbon icon — opens the index file for editing
     this.addRibbonIcon("egg", "NutEgg", async () => {
