@@ -146,6 +146,58 @@ describe("NutEggServer.handleCreateEgg", () => {
   });
 });
 
+describe("NutEggServer.handleGetEggs", () => {
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code: number) {
+        this.statusCode = code;
+      },
+      end(body: string) {
+        this.body = body;
+      },
+    };
+  }
+
+  it("lists index entries enriched with their frontmatter topics", async () => {
+    const s = makeServer({
+      indexReader: {
+        getIndexContent: async () =>
+          "* nutegg/a.md: desc a\n* nutegg/b.md: desc b\n",
+        parseIndexContent: () => [
+          { fileName: "nutegg/a.md", description: "desc a" },
+          { fileName: "nutegg/b.md", description: "desc b" },
+        ],
+      },
+      eggParser: {
+        readEgg: async (path: string) =>
+          path.endsWith("a.md") ? { topic: "Alpha" } : null,
+      },
+    });
+    const req = {} as any;
+    const res = makeRes();
+    await s.handleGetEggs(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), {
+      eggs: [
+        { fileName: "nutegg/a.md", description: "desc a", topic: "Alpha" },
+        { fileName: "nutegg/b.md", description: "desc b", topic: "Unknown" },
+      ],
+    });
+  });
+
+  it("returns an empty list when the index is missing", async () => {
+    const s = makeServer({
+      indexReader: { getIndexContent: async () => "(No _index.md found)" },
+    });
+    const req = {} as any;
+    const res = makeRes();
+    await s.handleGetEggs(req, res);
+    assert.deepEqual(JSON.parse(res.body), { eggs: [] });
+  });
+});
+
 describe("NutEggServer.countEggs", () => {
   it("counts markdown under nutegg/ excluding _raw and _index", () => {
     const { vault } = makeFakeVault({

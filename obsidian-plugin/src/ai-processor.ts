@@ -242,7 +242,7 @@ export class AIProcessor {
 
     // Room for a full chapter map (one summary per chapter) + questions
     const response = await this.callAI(prompt, 1200);
-    const parsed = this.parseJson(response);
+    const parsed = this.parseJson(response, "content-analysis");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary)
@@ -284,7 +284,7 @@ export class AIProcessor {
 
     try {
       const response = await this.callAI(prompt, 800);
-      const parsed = this.parseJson(response);
+      const parsed = this.parseJson(response, "egg-analysis");
       return {
         egg: egg.fileName,
         keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
@@ -342,7 +342,7 @@ export class AIProcessor {
 
     // Room for a full chapter map (one summary per chapter) + questions
     const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response);
+    const parsed = this.parseJson(response, "egg-combined");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary)
@@ -518,8 +518,8 @@ export class AIProcessor {
       grounding_rule: GROUNDING_RULE,
     });
 
-    const response = await this.callAI(prompt, 500);
-    const parsed = this.parseJson(response);
+    const response = await this.callAI(prompt, 800);
+    const parsed = this.parseJson(response, "follow-up");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary)
@@ -553,8 +553,8 @@ export class AIProcessor {
       grounding_rule: GROUNDING_RULE,
     });
 
-    const response = await this.callAI(prompt, 500);
-    const parsed = this.parseJson(response);
+    const response = await this.callAI(prompt, 1500);
+    const parsed = this.parseJson(response, "aggregate-content");
     return {
       keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
       rejected: parsed.rejected === true,
@@ -579,8 +579,8 @@ export class AIProcessor {
         url: capture.url,
         summary: summary || "",
       });
-      const response = await this.callAI(prompt, 100);
-      const parsed = this.parseJson(response);
+      const response = await this.callAI(prompt, 1500);
+      const parsed = this.parseJson(response, "aggregate-egg");
       const name = String(parsed.name || "")
         .toLowerCase()
         .replace(/[^a-z0-9_-]+/g, "_")
@@ -888,8 +888,8 @@ export class AIProcessor {
     });
 
     try {
-      const response = await this.callAI(prompt, 500);
-      const parsed = this.parseJson(response);
+      const response = await this.callAI(prompt, 2000);
+      const parsed = this.parseJson(response, "merge-unprocessed");
       const answers = this.parseKeyAnswers(parsed.answers);
       // Ensure every asked question has an entry (model may have skipped one)
       const byQuestion = new Map(answers.map((a) => [a.question, a]));
@@ -937,7 +937,7 @@ export class AIProcessor {
 
     try {
       const response = await this.callAI(prompt, 2000);
-      const parsed = this.parseJson(response);
+      const parsed = this.parseJson(response, "suggest-egg");
       const knowledge =
         typeof parsed.knowledge === "string" ? parsed.knowledge.trim() : "";
       if (!knowledge) {
@@ -1017,8 +1017,14 @@ export class AIProcessor {
       : [];
   }
 
-  /** Parse an AI response that should be JSON, stripping markdown fences. */
-  private parseJson(response: string): Record<string, any> {
+  /**
+   * Parse an AI response that should be JSON, stripping markdown fences.
+   * `context` names the prompt for diagnostics when parsing fails.
+   */
+  private parseJson(
+    response: string,
+    context = "response"
+  ): Record<string, any> {
     let jsonStr = response.trim();
     if (jsonStr.startsWith("```")) {
       jsonStr = jsonStr
@@ -1038,7 +1044,10 @@ export class AIProcessor {
           // fall through
         }
       }
-      console.warn("[NutEgg] Failed to parse AI JSON response");
+      console.warn(
+        `[NutEgg] Failed to parse AI JSON response (${context}):`,
+        jsonStr.slice(0, 300)
+      );
       return {};
     }
   }

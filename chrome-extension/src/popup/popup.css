@@ -628,6 +628,66 @@ body {
   font-size: 14px;
 }
 
+/* Egg picker (manual egg selection in the results view) */
+.eggs-toggle-label {
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.eggs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
+.egg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.egg-row input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.egg-row-name {
+  font-weight: 600;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.egg-row-desc {
+  color: #6b7280;
+}
+
+.reanalyze-eggs-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.eggs-error {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
 /* Action Buttons */
 .action-buttons {
   display: flex;

@@ -54,6 +54,14 @@ const noEggSection = document.getElementById("no-egg-section");
 const newEggName = document.getElementById("new-egg-name");
 const newEggDescription = document.getElementById("new-egg-description");
 const createEggBtn = document.getElementById("create-egg-btn");
+const eggsSection = document.getElementById("eggs-section");
+const eggsToggle = document.getElementById("eggs-toggle");
+const eggsToggleLabel = document.getElementById("eggs-toggle-label");
+const eggsToggleChevron = document.getElementById("eggs-toggle-chevron");
+const eggsExpanded = document.getElementById("eggs-expanded");
+const eggsList = document.getElementById("eggs-list");
+const reanalyzeEggsBtn = document.getElementById("reanalyze-eggs-btn");
+const eggsErrorEl = document.getElementById("eggs-error");
 const confirmBtn = document.getElementById("confirm-btn");
 const saveRawBtn = document.getElementById("save-raw-btn");
 const discardBtn = document.getElementById("discard-btn");
@@ -79,6 +87,10 @@ let eggHatched = false;
 let captureHistory = [];
 /** Row id of the capture currently shown / last analyzed. */
 let currentNutId = null;
+/** All eggs from _index.md (for the manual egg picker). */
+let allEggs = [];
+/** The user's checkbox selection in the egg picker. */
+let selectedEggs = new Set();
 
 // --- Init ---
 
@@ -100,6 +112,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   refreshBtn.addEventListener("click", handleRefresh);
   createEggBtn.addEventListener("click", handleCreateEgg);
+  reanalyzeEggsBtn.addEventListener("click", async () => {
+    if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
+    // The analysis runs in the background while the old results stay
+    // visible — reflect that on the button so the UI doesn't look dead.
+    reanalyzeEggsBtn.disabled = true;
+    const original = reanalyzeEggsBtn.textContent;
+    reanalyzeEggsBtn.textContent = "⏳ Re-analyzing…";
+    eggsErrorEl.classList.add("hidden");
+    const error = await handleAnalyze(true, [...selectedEggs]);
+    reanalyzeEggsBtn.disabled = false;
+    reanalyzeEggsBtn.textContent = original;
+    if (error) {
+      // The capture-state error banner is hidden in the results view —
+      // surface the failure inline under the egg picker.
+      eggsErrorEl.textContent = `❌ ${error}`;
+      eggsErrorEl.classList.remove("hidden");
+    }
+  });
+  // Egg picker is collapsed by default — expand on demand
+  eggsToggle.addEventListener("click", () => {
+    const expanded = eggsExpanded.classList.toggle("hidden");
+    eggsToggleChevron.textContent = expanded ? "▾" : "▸";
+  });
   reanalyzeBtn.addEventListener("click", () => handleAnalyze(true));
   historySelect.addEventListener("change", () => {
     const idx = parseInt(historySelect.value, 10);
@@ -222,6 +257,64 @@ function slugify(text) {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
+}
+
+/** Load the full egg list from _index.md for the manual picker. */
+async function fetchEggs() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: "get-eggs" });
+    allEggs = response?.eggs || [];
+  } catch {
+    allEggs = [];
+  }
+}
+
+/**
+ * Render the egg picker: the matched eggs are checked; changing any box
+ * reveals the "Re-analyze with selected eggs" button.
+ */
+function renderEggsSection(matchedEggs) {
+  // Include matched eggs that are missing from the index list (index drift)
+  for (const m of matchedEggs) {
+    if (!allEggs.some((e) => e.fileName === m)) {
+      allEggs.push({ fileName: m, description: "", topic: "" });
+    }
+  }
+
+  if (allEggs.length === 0) {
+    eggsSection.classList.add("hidden");
+    eggsList.innerHTML = "";
+    return;
+  }
+
+  selectedEggs = new Set(matchedEggs);
+  eggsSection.classList.remove("hidden");
+  // Collapsed by default — the checklist only appears when asked for
+  eggsExpanded.classList.add("hidden");
+  eggsToggleChevron.textContent = "▸";
+  eggsErrorEl.classList.add("hidden");
+  eggsToggleLabel.textContent = matchedEggs.length > 0
+    ? `— ${matchedEggs.length} matched`
+    : "— none matched";
+  eggsList.innerHTML = allEggs
+    .map((e) => {
+      const checked = selectedEggs.has(e.fileName) ? "checked" : "";
+      return `<label class="egg-row">
+        <input type="checkbox" data-egg="${escapeHtml(e.fileName)}" ${checked} />
+        <span class="egg-row-name">${escapeHtml(e.fileName)}</span>
+        <span class="egg-row-desc">${escapeHtml(e.description || e.topic || "")}</span>
+      </label>`;
+    })
+    .join("");
+  eggsList.querySelectorAll("input").forEach((cb) => {
+    cb.addEventListener("change", (ev) => {
+      const name = ev.target.dataset.egg;
+      if (ev.target.checked) selectedEggs.add(name);
+      else selectedEggs.delete(name);
+      reanalyzeEggsBtn.classList.remove("hidden");
+    });
+  });
+  reanalyzeEggsBtn.classList.add("hidden");
 }
 
 // --- Metrics ---
@@ -492,18 +585,23 @@ function applyTranscriptBlock() {
 
 // --- Analyze ---
 
-async function handleAnalyze(force = false) {
+/**
+ * Run the analysis. Returns null on success (results rendered) or an error
+ * message on failure — callers in the results view surface it inline, since
+ * the capture-state error banner is hidden there.
+ */
+async function handleAnalyze(force = false, eggsOverride = null) {
   if (!serverOnline) {
     showError("Obsidian server is offline. Start Obsidian with NutEgg plugin.");
-    return;
+    return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
   }
   if (!extractedContent) {
     showError("Could not extract page content. Try refreshing.");
-    return;
+    return "Could not extract page content. Try refreshing.";
   }
   if (isTranscriptBlocked()) {
     applyTranscriptBlock();
-    return;
+    return "Video transcript unavailable — NutEgg will not process this video.";
   }
 
   analyzeBtn.disabled = true;
@@ -525,6 +623,7 @@ async function handleAnalyze(force = false) {
       chapters: extractedContent.chapters || undefined,
       questions,
       force,
+      ...(eggsOverride ? { eggs: eggsOverride } : {}),
     };
 
     if (force) {
@@ -542,14 +641,14 @@ async function handleAnalyze(force = false) {
     if (response?.history) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
-      return;
+      return null;
     }
 
     if (response?.error) {
       showError(response.error, response.errorCode);
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
-      return;
+      return response.error;
     }
 
     // Fresh analysis — a NEW capture row was created in the DB.
@@ -571,10 +670,13 @@ async function handleAnalyze(force = false) {
     eggHatched = false;
     analysisResult = response;
     showResultsState(response, provenanceFromExtraction());
+    return null;
   } catch (err) {
-    showError(err instanceof Error ? err.message : "Analysis failed");
+    const message = err instanceof Error ? err.message : "Analysis failed";
+    showError(message);
     analyzeBtn.disabled = false;
     analyzeBtnText.textContent = "Analyze";
+    return message;
   }
 }
 
@@ -596,6 +698,10 @@ function showResultsState(result, provenance = null) {
   } else {
     noEggSection.classList.add("hidden");
   }
+
+  // Egg picker — sync the checklist with _index.md, then render it with
+  // this result's matched eggs (user edits + re-analyze changes the match)
+  fetchEggs().then(() => renderEggsSection(result.matchedEggs || []));
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";

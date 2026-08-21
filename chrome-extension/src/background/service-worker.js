@@ -52,6 +52,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "get-eggs") {
+    fetchEggs()
+      .then((r) => sendResponse(r))
+      .catch(() => sendResponse({ eggs: [] }));
+    return true;
+  }
+
   if (message.action === "history") {
     fetchHistory(message.url)
       .then((r) => sendResponse(r))
@@ -156,6 +163,21 @@ async function handleCreateEgg({ name, description }) {
   }
 
   return data;
+}
+
+async function fetchEggs() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${getServerUrl()}/eggs`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return await response.json();
+  } catch {
+    clearTimeout(timeout);
+    return { eggs: [] };
+  }
 }
 
 async function handleAsk(payload) {

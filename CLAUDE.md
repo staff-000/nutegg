@@ -51,6 +51,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], customQuestionAnswers[], shouldRead, eggResults[], newKnowledge[], nutId}`. If the URL has cached captures (and no `force`/`questions`), returns `{history[], latest}` instead — each capture is its own versioned DB row |
 | `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + appends new entries (insight + examples + mechanical `_author`/`_source` lines) to each egg's `## Unprocessed` + upserts into SQLite. Eggs with ≥20 unprocessed entries are auto-merged into their `## Knowledge` tree by an AI call; response carries `merged` |
 | `POST /create-egg` | Creates `nutegg/<name>.md` from the template (topic/scope seeded from `description`) + appends the `_index.md` entry. Used by the popup's "no egg matched" flow; `/analyze` also returns `suggestedEgg` for unmatched content |
+| `GET /eggs` | All eggs from `_index.md` (`{fileName, description, topic}`) — feeds the popup's manual egg picker. `/analyze` accepts an `eggs: string[]` override that skips AI routing and analyzes against exactly those eggs |
 | `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
 | `GET /history?url=` | Cached captures for a URL, newest first — popup auto-loads the latest result on open |
 

@@ -124,6 +124,10 @@ var NutEggServer = class {
         this.handleHistory(req, res);
         return;
       }
+      if (req.method === "GET" && req.url === "/eggs") {
+        this.handleGetEggs(req, res);
+        return;
+      }
       if (req.method === "POST" && req.url === "/ask") {
         this.handleAsk(req, res);
         return;
@@ -262,6 +266,37 @@ var NutEggServer = class {
     }
   }
   /**
+   * GET /eggs — all eggs from _index.md (name, routing description, topic).
+   * The popup uses this for the manual egg picker.
+   */
+  async handleGetEggs(_req, res) {
+    try {
+      const indexContent = await this.plugin.indexReader.getIndexContent();
+      const entries = indexContent === "(No _index.md found)" ? [] : this.plugin.indexReader.parseIndexContent(indexContent);
+      const eggs = [];
+      for (const entry of entries) {
+        let topic = "Unknown";
+        try {
+          const egg = await this.plugin.eggParser.readEgg(entry.fileName);
+          if (egg?.topic && egg.topic !== "Unknown")
+            topic = egg.topic;
+        } catch {
+        }
+        eggs.push({
+          fileName: entry.fileName,
+          description: entry.description,
+          topic
+        });
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ eggs }));
+    } catch (err) {
+      console.error("[NutEgg] Get eggs error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ eggs: [] }));
+    }
+  }
+  /**
    * POST /analyze — Analyze content against knowledge base, return results.
    * Does NOT save anything — the user must confirm via /confirm first.
    */
@@ -277,7 +312,8 @@ var NutEggServer = class {
         return;
       }
       const hasQuestions = capture.questions && capture.questions.length > 0;
-      if (!hasQuestions && !capture.force) {
+      const hasEggOverride = !!capture.eggs && capture.eggs.length > 0;
+      if (!hasQuestions && !capture.force && !hasEggOverride) {
         const history = this.getCaptureHistory(capture.url);
         if (history.length > 0) {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -287,10 +323,7 @@ var NutEggServer = class {
       }
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
-      const matchedEggs = await this.plugin.indexReader.matchEggs(
-        capture,
-        index
-      );
+      const matchedEggs = hasEggOverride ? capture.eggs.map((fileName) => ({ fileName, description: "" })) : await this.plugin.indexReader.matchEggs(capture, index);
       const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
       const result = await this.plugin.aiProcessor.analyze(capture, eggs);
       const nutId = this.plugin.db?.insertNut({
@@ -701,6 +734,53 @@ function makeServer(overrides = {}) {
     const res = makeRes();
     await s.handleCreateEgg(req, res);
     import_strict.default.equal(res.statusCode, 400);
+  });
+});
+(0, import_node_test.describe)("NutEggServer.handleGetEggs", () => {
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code) {
+        this.statusCode = code;
+      },
+      end(body) {
+        this.body = body;
+      }
+    };
+  }
+  (0, import_node_test.it)("lists index entries enriched with their frontmatter topics", async () => {
+    const s = makeServer({
+      indexReader: {
+        getIndexContent: async () => "* nutegg/a.md: desc a\n* nutegg/b.md: desc b\n",
+        parseIndexContent: () => [
+          { fileName: "nutegg/a.md", description: "desc a" },
+          { fileName: "nutegg/b.md", description: "desc b" }
+        ]
+      },
+      eggParser: {
+        readEgg: async (path) => path.endsWith("a.md") ? { topic: "Alpha" } : null
+      }
+    });
+    const req = {};
+    const res = makeRes();
+    await s.handleGetEggs(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(JSON.parse(res.body), {
+      eggs: [
+        { fileName: "nutegg/a.md", description: "desc a", topic: "Alpha" },
+        { fileName: "nutegg/b.md", description: "desc b", topic: "Unknown" }
+      ]
+    });
+  });
+  (0, import_node_test.it)("returns an empty list when the index is missing", async () => {
+    const s = makeServer({
+      indexReader: { getIndexContent: async () => "(No _index.md found)" }
+    });
+    const req = {};
+    const res = makeRes();
+    await s.handleGetEggs(req, res);
+    import_strict.default.deepEqual(JSON.parse(res.body), { eggs: [] });
   });
 });
 (0, import_node_test.describe)("NutEggServer.countEggs", () => {

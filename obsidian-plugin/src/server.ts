@@ -15,6 +15,8 @@ interface AnalyzeRequest {
   questions?: string[];
   /** Force a fresh analysis even when cached captures exist for this URL. */
   force?: boolean;
+  /** Manual egg selection from the popup — skips AI routing when non-empty. */
+  eggs?: string[];
 }
 
 interface AskRequest {
@@ -175,6 +177,11 @@ export class NutEggServer {
 
       if (req.method === "GET" && req.url?.startsWith("/history")) {
         this.handleHistory(req, res);
+        return;
+      }
+
+      if (req.method === "GET" && req.url === "/eggs") {
+        this.handleGetEggs(req, res);
         return;
       }
 
@@ -339,6 +346,46 @@ export class NutEggServer {
   }
 
   /**
+   * GET /eggs — all eggs from _index.md (name, routing description, topic).
+   * The popup uses this for the manual egg picker.
+   */
+  private async handleGetEggs(
+    _req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    try {
+      const indexContent = await this.plugin.indexReader.getIndexContent();
+      const entries =
+        indexContent === "(No _index.md found)"
+          ? []
+          : this.plugin.indexReader.parseIndexContent(indexContent);
+
+      const eggs = [];
+      for (const entry of entries) {
+        let topic = "Unknown";
+        try {
+          const egg = await this.plugin.eggParser.readEgg(entry.fileName);
+          if (egg?.topic && egg.topic !== "Unknown") topic = egg.topic;
+        } catch {
+          // Egg file unreadable — keep Unknown
+        }
+        eggs.push({
+          fileName: entry.fileName,
+          description: entry.description,
+          topic,
+        });
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ eggs }));
+    } catch (err) {
+      console.error("[NutEgg] Get eggs error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ eggs: [] }));
+    }
+  }
+
+  /**
    * POST /analyze — Analyze content against knowledge base, return results.
    * Does NOT save anything — the user must confirm via /confirm first.
    */
@@ -358,11 +405,13 @@ export class NutEggServer {
         return;
       }
 
-      // If this URL has cached captures (and no fresh analysis was forced or
-      // custom questions asked), return the capture history — the popup shows
-      // the latest result with its timestamp and offers "Re-analyze".
+      // If this URL has cached captures (and no fresh analysis was forced,
+      // no custom questions asked, no manual egg selection), return the
+      // capture history — the popup shows the latest result with its
+      // timestamp and offers "Re-analyze".
       const hasQuestions = capture.questions && capture.questions.length > 0;
-      if (!hasQuestions && !capture.force) {
+      const hasEggOverride = !!capture.eggs && capture.eggs.length > 0;
+      if (!hasQuestions && !capture.force && !hasEggOverride) {
         const history = this.getCaptureHistory(capture.url);
         if (history.length > 0) {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -371,13 +420,13 @@ export class NutEggServer {
         }
       }
 
-      // Step 1: Read _index.md and match content to relevant egg files
+      // Step 1: Read _index.md and match content to relevant egg files.
+      // A manual egg selection from the popup skips AI routing entirely.
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
-      const matchedEggs = await this.plugin.indexReader.matchEggs(
-        capture,
-        index
-      );
+      const matchedEggs = hasEggOverride
+        ? capture.eggs!.map((fileName) => ({ fileName, description: "" }))
+        : await this.plugin.indexReader.matchEggs(capture, index);
 
       // Step 2: Read and parse the matched egg files (scope, action guide, knowledge)
       const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
