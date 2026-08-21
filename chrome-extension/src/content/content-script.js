@@ -146,50 +146,187 @@ async function extractYouTube() {
 
 /**
  * Fetch YouTube captions via the timedtext API (no auth required).
+ *
+ * Three layers, in order:
+ *   1. `ytInitialPlayerResponse` parsed from the page's own <script> tag
+ *      (page globals are NOT visible to the isolated content-script world,
+ *      but the script tag's text is plain DOM).
+ *   2. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
+ *      with balanced-bracket scanning, not a truncating regex.
+ *   3. The on-page transcript panel ("Show transcript" → segments), which
+ *      works even when the player response is missing (consent walls, ...).
  */
 async function fetchYouTubeCaptions() {
   const videoId = new URL(window.location.href).searchParams.get("v");
   if (!videoId) return "";
 
-  // Try to get captions from ytInitialPlayerResponse
-  try {
-    const playerResponse = window.ytInitialPlayerResponse || {};
-    const captions = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (captions && captions.length > 0) {
-      // Prefer English, then first available
-      const track = captions.find((t) => t.languageCode === "en") || captions[0];
-      if (track.baseUrl) {
-        const resp = await fetch(track.baseUrl);
-        const xml = await resp.text();
-        return parseYouTubeCaptionXML(xml);
-      }
-    }
-  } catch (e) {
-    // Fall through to page scraping
+  // Layer 1: ytInitialPlayerResponse from the page's <script> tag
+  let tracks =
+    readYtInitialPlayerResponse()?.captions?.playerCaptionsTracklistRenderer
+      ?.captionTracks;
+  if (tracks?.length) {
+    const transcript = await fetchTimedtext(tracks);
+    if (transcript) return transcript;
   }
 
-  // Fallback: try fetching from timedtext API
+  // Layer 2: watch-page HTML
   try {
     const resp = await fetch(
       `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`
     );
     const html = await resp.text();
-    const match = html.match(/"captionTracks":\s*(\[.*?\])/);
-    if (match) {
-      const tracks = JSON.parse(match[1]);
-      if (tracks.length > 0) {
-        const track = tracks.find((t) => t.languageCode === "en") || tracks[0];
-        if (track.baseUrl) {
-          const cr = await fetch(track.baseUrl);
-          return parseYouTubeCaptionXML(await cr.text());
-        }
+    const raw = extractBalanced(html, html.indexOf('"captionTracks"'));
+    if (raw) {
+      tracks = JSON.parse(raw);
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        const transcript = await fetchTimedtext(tracks);
+        if (transcript) return transcript;
       }
     }
   } catch {
-    // No captions available
+    // Fall through to the transcript panel
   }
 
+  // Layer 3: the on-page transcript panel
+  return readTranscriptPanel();
+}
+
+/**
+ * Pick the best caption track and fetch its timedtext XML.
+ * English is preferred, then non-auto-generated, then whatever exists.
+ */
+async function fetchTimedtext(tracks) {
+  if (!Array.isArray(tracks) || tracks.length === 0) return "";
+  const pick =
+    tracks.find((t) => t.languageCode === "en" && t.kind !== "asr") ||
+    tracks.find((t) => t.languageCode === "en") ||
+    tracks.find((t) => t.kind !== "asr") ||
+    tracks[0];
+  if (!pick?.baseUrl) return "";
+  // baseUrl escapes & as & — normalize before fetching
+  const url = pick.baseUrl.replace(/\\u0026/g, "&");
+  const resp = await fetch(url);
+  if (!resp.ok) return "";
+  return parseYouTubeCaptionXML(await resp.text());
+}
+
+/**
+ * Parse the page's `ytInitialPlayerResponse` JSON from its <script> tag.
+ * Content scripts cannot see page globals (isolated world), but the script
+ * tag text is regular DOM — extract the object with balanced-brace scanning.
+ */
+function readYtInitialPlayerResponse() {
+  for (const script of document.querySelectorAll("script")) {
+    const text = script.textContent || "";
+    const marker = text.indexOf("ytInitialPlayerResponse");
+    if (marker === -1) continue;
+    const eq = text.indexOf("=", marker);
+    if (eq === -1) continue;
+    const json = extractBalanced(text, eq + 1);
+    if (!json) continue;
+    try {
+      return JSON.parse(json);
+    } catch {
+      // Try the next script tag
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract a balanced JSON object/array starting at the first `{` or `[` at
+ * or after `from`. String-aware, so braces/brackets inside string values
+ * don't break the scan. Returns "" when unbalanced (truncated input).
+ */
+function extractBalanced(text, from) {
+  const brace = text.indexOf("{", from);
+  const bracket = text.indexOf("[", from);
+  let start, open, close;
+  if (brace === -1 && bracket === -1) return "";
+  if (brace !== -1 && (bracket === -1 || brace < bracket)) {
+    start = brace; open = "{"; close = "}";
+  } else {
+    start = bracket; open = "["; close = "]";
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === open) depth++;
+    else if (c === close) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
   return "";
+}
+
+/**
+ * Open the "Show transcript" panel, read its segments, and close it again.
+ * The last resort — works even when the player response and page HTML are
+ * unavailable (consent walls, A/B layouts, ...).
+ */
+async function readTranscriptPanel() {
+  try {
+    let button = document.querySelector(
+      "ytd-video-description-transcript-section-renderer button"
+    );
+    if (!button) {
+      button = [...document.querySelectorAll("button")].find((b) => {
+        const label = (b.getAttribute("aria-label") || "").toLowerCase();
+        const text = (b.textContent || "").trim().toLowerCase();
+        return label.includes("transcript") || text === "show transcript";
+      });
+    }
+    if (button) button.click();
+
+    const segments = await waitFor(() => {
+      const els = document.querySelectorAll("ytd-transcript-segment-renderer");
+      return els.length > 0 ? els : null;
+    }, 3000);
+    if (!segments) return "";
+
+    const lines = [...segments]
+      .map((s) => {
+        const t = s.querySelector(".segment-timestamp")?.textContent?.trim() || "";
+        const text = s.querySelector(".segment-text, yt-formatted-string")?.textContent?.trim() || "";
+        return text ? (t ? `[${t}] ${text}` : text) : "";
+      })
+      .filter(Boolean);
+
+    // Restore the panel state when we opened it
+    const closeBtn = document.querySelector(
+      "ytd-engagement-panel-title-header-renderer #close-button"
+    );
+    closeBtn?.click();
+
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+/** Poll until `getter` returns a truthy value (or null after `timeoutMs`). */
+function waitFor(getter, timeoutMs) {
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      const value = getter();
+      if (value) return resolve(value);
+      if (Date.now() > deadline) return resolve(null);
+      setTimeout(tick, 200);
+    };
+    tick();
+  });
 }
 
 function parseYouTubeCaptionXML(xml) {
