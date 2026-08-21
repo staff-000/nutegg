@@ -311,7 +311,7 @@ async function readTranscriptPanel() {
     );
     closeBtn?.click();
 
-    return lines.join("\n");
+    return dedupTranscriptLines(lines).join("\n");
   } catch {
     return "";
   }
@@ -332,19 +332,12 @@ function waitFor(getter, timeoutMs) {
 }
 
 function parseYouTubeCaptionXML(xml) {
-  const segments = [];
+  const raw = [];
   const regex = /<text\b([^>]*)>([\s\S]*?)<\/text>/g;
   let match;
-  let lastStart = -1;
   while ((match = regex.exec(xml)) !== null) {
     const startAttr = (match[1].match(/\bstart="([\d.]+)"/) || [])[1];
     const start = startAttr !== undefined ? parseFloat(startAttr) : NaN;
-    // YouTube occasionally serves duplicate/overlapping caption spans for
-    // long videos — drop any segment that doesn't advance the timeline.
-    if (Number.isFinite(start)) {
-      if (start <= lastStart) continue;
-      lastStart = start;
-    }
     const text = match[2]
       .replace(/<[^>]+>/g, "")
       .replace(/&amp;/g, "&")
@@ -354,9 +347,58 @@ function parseYouTubeCaptionXML(xml) {
     if (!text) continue;
     // One line per caption with its timestamp — powers the chapter-aware
     // chunking and the clickable chapter map.
-    segments.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
+    raw.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
   }
-  return segments.join("\n");
+  const out = dedupTranscriptLines(raw);
+  if (out.length < raw.length) {
+    console.log(
+      `[NutEgg] Captions: ${raw.length} raw segments → ${out.length} after dedup (YouTube duplication)`
+    );
+  }
+  return out.join("\n");
+}
+
+/**
+ * Remove repeated caption lines. YouTube serves duplicated caption spans for
+ * long videos — sometimes with identical timestamps, sometimes as a verbatim
+ * second copy of the whole track (different or missing start times). Rules:
+ *   - drop any line whose text was already seen (normalized)
+ *   - drop any line that doesn't advance the timeline
+ *   - once several consecutive lines repeat, treat the REST of the track as
+ *     a duplicate copy and stop (keeps legit repeated phrases intact)
+ */
+function dedupTranscriptLines(lines) {
+  const out = [];
+  const seen = new Set();
+  let lastStart = -1;
+  let repeatedRun = 0;
+
+  for (const line of lines) {
+    const timeMatch = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
+    const start = timeMatch ? parseTimestamp(timeMatch[0]) : -1;
+    const text = line.replace(/^\[[^\]]*\]\s*/, "").trim();
+    const key = text.toLowerCase().replace(/\s+/g, " ").replace(/[^a-z0-9 ]/g, "");
+
+    const isRepeat = (key && seen.has(key)) || (start >= 0 && start <= lastStart);
+    if (isRepeat) {
+      repeatedRun++;
+      if (repeatedRun >= 3) break; // the rest is a duplicate copy of the track
+      continue; // skip this duplicated line, keep scanning
+    }
+    repeatedRun = 0;
+    if (key) seen.add(key);
+    if (start >= 0) lastStart = start;
+    out.push(line);
+  }
+  return out;
+}
+
+/** "[MM:SS]" / "[H:MM:SS]" → seconds, or -1. */
+function parseTimestamp(ts) {
+  const parts = ts.slice(1, -1).split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return -1;
 }
 
 /** Seconds → "MM:SS" or "H:MM:SS". */
