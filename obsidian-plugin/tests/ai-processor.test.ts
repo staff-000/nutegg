@@ -321,6 +321,79 @@ describe("AIProcessor.chunkContent", () => {
       late?.startTime,
       "chapters in different time ranges land in different chunks"
     );
+    // Real chapters → no section grid
+    assert.ok(chunks.every((c: any) => c.sections.length === 0));
+  });
+
+  it("gives videos WITHOUT chapters a 5-minute section grid per chunk", () => {
+    const lines = [];
+    for (let m = 0; m < 47; m++) {
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
+      }
+    }
+    const chunks = p.chunkContent(lines.join("\n"), []);
+    const allSections = chunks.flatMap((c: any) => c.sections);
+    assert.ok(allSections.length >= 8, "grid covers the whole video");
+    assert.equal(allSections[0], "00:00");
+    assert.ok(
+      allSections.includes("40:00"),
+      "sections continue past the first chunk boundary"
+    );
+    // No gaps: every 5 minutes from the first section
+    for (let i = 1; i < allSections.length; i++) {
+      assert.equal(
+        p.toSeconds(allSections[i]) - p.toSeconds(allSections[i - 1]),
+        300,
+        `sections are a continuous 5-minute grid (${allSections[i - 1]} → ${allSections[i]})`
+      );
+    }
+  });
+
+  it("short timestamped videos get a grid too (single chunk)", () => {
+    const lines = [];
+    for (let m = 0; m < 8; m++) {
+      lines.push(`[0${m}:00] short caption line here`);
+    }
+    const chunks = p.chunkContent(lines.join("\n"), []);
+    assert.equal(chunks.length, 1);
+    assert.deepEqual(chunks[0].sections, ["00:00", "05:00"]);
+  });
+});
+
+describe("AIProcessor.completeChapterMap", () => {
+  const p = new AIProcessor(makeFakePlugin() as any) as any;
+
+  it("passes entries through when no section grid is provided", () => {
+    const parsed = [{ time: "00:12", title: "X", summary: "s" }];
+    assert.deepEqual(p.completeChapterMap(parsed, undefined), parsed);
+  });
+
+  it("keeps AI titles for matching sections and backfills the rest", () => {
+    const parsed = [
+      { time: "00:00", title: "Intro", summary: "a" },
+      { time: "10:00", title: "Middle", summary: "c" },
+    ];
+    const out = p.completeChapterMap(parsed, [
+      "00:00", "05:00", "10:00", "15:00",
+    ]);
+    assert.equal(out.length, 4, "one entry per section, guaranteed");
+    assert.deepEqual(out[0], { time: "00:00", title: "Intro", summary: "a" });
+    assert.deepEqual(out[1], { time: "05:00", title: "", summary: "" });
+    assert.deepEqual(out[2], { time: "10:00", title: "Middle", summary: "c" });
+    assert.deepEqual(out[3], { time: "15:00", title: "", summary: "" });
+  });
+
+  it("drops AI entries whose time is not on the grid", () => {
+    const parsed = [
+      { time: "00:04", title: "Off-grid", summary: "x" },
+      { time: "05:00", title: "On-grid", summary: "y" },
+    ];
+    const out = p.completeChapterMap(parsed, ["00:00", "05:00"]);
+    assert.deepEqual(out, [
+      { time: "00:00", title: "", summary: "" },
+      { time: "05:00", title: "On-grid", summary: "y" },
+    ]);
   });
 });
 

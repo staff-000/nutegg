@@ -212,7 +212,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{questions}}
+{{sections}}{{questions}}
 {{egg_key_questions}}
 
 {{content}}
@@ -236,6 +236,8 @@ IMPORTANT:
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
+- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
+- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
 `;
 
@@ -289,7 +291,7 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{questions}}
+{{sections}}{{questions}}
 
 {{content}}
 
@@ -321,7 +323,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
-- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
+- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
 - For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
 - Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.

@@ -92,12 +92,7 @@ async function extractYouTube() {
     getMeta("datePublished") || "";
 
   // Chapters (with timestamps, for the clickable Chapter Map)
-  const chapters = [];
-  document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
-    const time = el.querySelector("#time")?.textContent?.trim();
-    const chTitle = el.querySelector("h4")?.textContent?.trim();
-    if (time && chTitle) chapters.push({ time, title: chTitle });
-  });
+  const chapters = await extractChapters();
 
   // Captions / transcript via YouTube timedtext API
   let transcript = "";
@@ -213,14 +208,153 @@ async function fetchTimedtext(tracks) {
 }
 
 /**
- * Parse the page's `ytInitialPlayerResponse` JSON from its <script> tag.
- * Content scripts cannot see page globals (isolated world), but the script
- * tag text is regular DOM — extract the object with balanced-brace scanning.
+ * Video chapters — four layers, in order:
+ *   1. ytInitialPlayerResponse → multiMarkersPlayerBarRenderer (chapter ring)
+ *   2. ytInitialData → macroMarkersListItemRenderer (description chapters)
+ *   3. the chapter list already visible in the DOM
+ *   4. open the on-page chapter panel, read its items, close it again
+ * Each layer logs which one produced the list, for easy debugging.
  */
-function readYtInitialPlayerResponse() {
+function extractChapters() {
+  // Layer 1: player response — the source the chapter ring renders from
+  const pr = readYtInitialPlayerResponse();
+  const markerPaths = [
+    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer
+      ?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer
+      ?.markersMap,
+    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer
+      ?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap,
+  ];
+  for (const markers of markerPaths) {
+    const chapters = chaptersFromMarkersMap(markers);
+    if (chapters.length > 0) {
+      console.log(`[NutEgg] Chapters: ${chapters.length} from player response`);
+      return chapters;
+    }
+  }
+
+  // Layer 2: ytInitialData — macro markers (description chapter list)
+  const initialData = readYtInitialData();
+  const macroChapters = chaptersFromMacroMarkers(initialData);
+  if (macroChapters.length > 0) {
+    console.log(`[NutEgg] Chapters: ${macroChapters.length} from ytInitialData`);
+    return macroChapters;
+  }
+
+  // Layer 3: chapter list already rendered in the DOM
+  const domChapters = readChapterListDom();
+  if (domChapters.length > 0) {
+    console.log(`[NutEgg] Chapters: ${domChapters.length} from DOM list`);
+    return domChapters;
+  }
+
+  // Layer 4: open the chapter panel, read, close (async — handled below)
+  return readChapterPanel().then((chapters) => {
+    if (chapters.length > 0) {
+      console.log(`[NutEgg] Chapters: ${chapters.length} from chapter panel`);
+    } else {
+      console.log("[NutEgg] Chapters: none found (player response parsed:", pr !== null, ")");
+    }
+    return chapters;
+  });
+}
+
+/** Chapters from a multiMarkersPlayerBarRenderer markersMap array. */
+function chaptersFromMarkersMap(markers) {
+  if (!Array.isArray(markers)) return [];
+  for (const m of markers) {
+    const list = m?.value?.chapters;
+    if (!Array.isArray(list) || list.length === 0) continue;
+    const out = [];
+    for (const c of list) {
+      const ms = c?.chapterRenderer?.timeRangeStartMillis;
+      const title = c?.chapterRenderer?.title?.simpleText;
+      if (ms != null && title) out.push({ time: formatTime(ms / 1000), title });
+    }
+    if (out.length > 0) return out;
+  }
+  return [];
+}
+
+/** Chapters from macroMarkersListItemRenderer objects anywhere in the data. */
+function chaptersFromMacroMarkers(data) {
+  const found = [];
+  if (!data || typeof data !== "object") return found;
+  (function walk(node) {
+    if (!node || typeof node !== "object" || found.length >= 500) return;
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if ("macroMarkersListItemRenderer" in node) {
+      const r = node.macroMarkersListItemRenderer;
+      const title =
+        r?.title?.simpleText || (r?.title?.runs || []).map((x) => x.text).join("");
+      const timeDesc =
+        r?.timeDescription?.simpleText ||
+        (r?.timeDescription?.runs || []).map((x) => x.text).join("");
+      if (title && timeDesc) {
+        // Titles embed the time ("0:00 Introduction") — strip it
+        found.push({
+          time: timeDesc,
+          title: title.replace(/^\d{1,2}:\d{2}(?::\d{2})?\s*/, ""),
+        });
+      }
+      return;
+    }
+    for (const v of Object.values(node)) walk(v);
+  })(data);
+  return found;
+}
+
+/** `ytd-macro-markers-list-item-renderer` items currently in the DOM. */
+function readChapterListDom() {
+  const chapters = [];
+  document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
+    const time = el.querySelector("#time")?.textContent?.trim();
+    const title = el.querySelector("h4")?.textContent?.trim();
+    if (time && title) chapters.push({ time, title });
+  });
+  return chapters;
+}
+
+/** Open the chapter-list panel (player chapter button), read it, close it. */
+async function readChapterPanel() {
+  try {
+    const button = [...document.querySelectorAll("button")].find((b) => {
+      const label = (b.getAttribute("aria-label") || "").toLowerCase();
+      return label === "chapters" || label.includes("chapters");
+    });
+    if (button) button.click();
+
+    const items = await waitFor(() => {
+      const els = document.querySelectorAll("ytd-macro-markers-list-item-renderer");
+      return els.length > 0 ? els : null;
+    }, 3000);
+    if (!items) return [];
+
+    const chapters = readChapterListDom();
+
+    const closeBtn = document.querySelector(
+      "ytd-engagement-panel-title-header-renderer #close-button"
+    );
+    closeBtn?.click();
+
+    return chapters;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Parse a top-level `var ytXxx = {...}` JSON object from the page's <script>
+ * tags. Content scripts cannot see page globals (isolated world), but the
+ * script tag text is regular DOM — extract with balanced-brace scanning.
+ */
+function readYtVar(name) {
   for (const script of document.querySelectorAll("script")) {
     const text = script.textContent || "";
-    const marker = text.indexOf("ytInitialPlayerResponse");
+    const marker = text.indexOf(name);
     if (marker === -1) continue;
     const eq = text.indexOf("=", marker);
     if (eq === -1) continue;
@@ -233,6 +367,16 @@ function readYtInitialPlayerResponse() {
     }
   }
   return null;
+}
+
+/** The page's `ytInitialPlayerResponse` (captions, chapters, ...). */
+function readYtInitialPlayerResponse() {
+  return readYtVar("ytInitialPlayerResponse");
+}
+
+/** The page's `ytInitialData` (description chapter markers, ...). */
+function readYtInitialData() {
+  return readYtVar("ytInitialData");
 }
 
 /**

@@ -29,7 +29,15 @@ interface ContentChunk {
   chapters: Array<{ time: string; title: string }>;
   /** Start timestamp of the chunk ("MM:SS" / "H:MM:SS"), "" for plain text. */
   startTime: string;
+  /**
+   * 5-minute time grid for videos WITHOUT chapter markers — the AI fills one
+   * chapterMap entry per section, guaranteeing whole-video coverage.
+   */
+  sections: string[];
 }
+
+/** Grid step for section-based chapter maps (videos without chapters). */
+const SECTION_SECS = 300;
 
 /**
  * One chapter in the Chapter Map. `time` is the video timestamp ("MM:SS" or
@@ -137,12 +145,21 @@ export class AIProcessor {
       return this.analyzeChunked(capture, eggs, chunks);
     }
 
+    // Single chunk may still carry a section grid (short video without
+    // chapters) — use it for the chapter map
+    const single = chunks[0];
+    const effective = {
+      ...capture,
+      chapters: single.chapters,
+      sections: single.sections,
+    };
+
     let contentAnalysis: ContentAnalysis;
     let eggResults: EggAnalysis[] = [];
 
     if (eggs.length === 1) {
       // Common case — one combined call using the egg's full instructions
-      const combined = await this.analyzeSingleEgg(capture, eggs[0]);
+      const combined = await this.analyzeSingleEgg(effective, eggs[0]);
       contentAnalysis = {
         titleVerdict: combined.titleVerdict,
         coreSummary: combined.coreSummary,
@@ -196,6 +213,7 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
+      sections?: string[];
       questions?: string[];
     },
     actionGuide: string,
@@ -209,6 +227,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNote,
       chapters: this.chaptersBlock(capture.chapters),
+      sections: this.sectionsBlock(capture.sections),
       questions: this.questionsBlock(
         capture.questions,
         "User Questions (answer each directly and concisely)"
@@ -221,7 +240,8 @@ export class AIProcessor {
       grounding_rule: GROUNDING_RULE,
     });
 
-    const response = await this.callAI(prompt, 800);
+    // Room for a full chapter map (one summary per chapter) + questions
+    const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response);
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
@@ -229,15 +249,18 @@ export class AIProcessor {
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: Array.isArray(parsed.chapterMap)
-        ? parsed.chapterMap
-            .filter((c: any) => c && (c.time || c.title))
-            .map((c: any) => ({
-              time: String(c.time || ""),
-              title: String(c.title || ""),
-              summary: String(c.summary || ""),
-            }))
-        : [],
+      chapterMap: this.completeChapterMap(
+        Array.isArray(parsed.chapterMap)
+          ? parsed.chapterMap
+              .filter((c: any) => c && (c.time || c.title))
+              .map((c: any) => ({
+                time: String(c.time || ""),
+                title: String(c.title || ""),
+                summary: String(c.summary || ""),
+              }))
+          : [],
+        capture.sections
+      ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
     };
   }
@@ -294,6 +317,7 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
+      sections?: string[];
       questions?: string[];
     },
     egg: EggContent,
@@ -307,6 +331,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNote,
       chapters: this.chaptersBlock(capture.chapters),
+      sections: this.sectionsBlock(capture.sections),
       questions: this.questionsBlock(
         capture.questions,
         "User Questions (answer each directly and concisely)"
@@ -315,7 +340,8 @@ export class AIProcessor {
       grounding_rule: GROUNDING_RULE,
     });
 
-    const response = await this.callAI(prompt, 1000);
+    // Room for a full chapter map (one summary per chapter) + questions
+    const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response);
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
@@ -323,15 +349,18 @@ export class AIProcessor {
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: Array.isArray(parsed.chapterMap)
-        ? parsed.chapterMap
-            .filter((c: any) => c && (c.time || c.title))
-            .map((c: any) => ({
-              time: String(c.time || ""),
-              title: String(c.title || ""),
-              summary: String(c.summary || ""),
-            }))
-        : [],
+      chapterMap: this.completeChapterMap(
+        Array.isArray(parsed.chapterMap)
+          ? parsed.chapterMap
+              .filter((c: any) => c && (c.time || c.title))
+              .map((c: any) => ({
+                time: String(c.time || ""),
+                title: String(c.title || ""),
+                summary: String(c.summary || ""),
+              }))
+          : [],
+        capture.sections
+      ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
       egg: egg.fileName,
       keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
@@ -377,7 +406,13 @@ export class AIProcessor {
     const partResults = await Promise.all(
       chunks.map((chunk) =>
         this.analyzeContent(
-          { ...capture, content: chunk.content, chapters: chunk.chapters, questions: [] },
+          {
+            ...capture,
+            content: chunk.content,
+            chapters: chunk.chapters,
+            sections: chunk.sections,
+            questions: [],
+          },
           guide,
           eggs.flatMap((e) => e.keyQuestions),
           this.partNote(chunk)
@@ -540,15 +575,18 @@ export class AIProcessor {
     content: string,
     chapters: Array<{ time: string; title: string }>
   ): ContentChunk[] {
-    if (content.length <= CHUNK_CHARS) {
-      return [{ index: 0, total: 1, content, chapters, startTime: "" }];
-    }
     const lines = content.split("\n");
     const firstTsIdx = lines.findIndex((l) => this.lineSeconds(l) !== null);
-    if (firstTsIdx === -1) {
-      return this.paragraphChunks(content, chapters);
+    if (firstTsIdx !== -1) {
+      // Timestamped transcript — even a short one gets the section grid
+      return this.timestampedChunks(lines, firstTsIdx, chapters);
     }
-    return this.timestampedChunks(lines, firstTsIdx, chapters);
+    if (content.length <= CHUNK_CHARS) {
+      return [
+        { index: 0, total: 1, content, chapters, startTime: "", sections: [] },
+      ];
+    }
+    return this.paragraphChunks(content, chapters);
   }
 
   private paragraphChunks(
@@ -561,7 +599,7 @@ export class AIProcessor {
     let bufChars = 0;
     const flush = () => {
       if (!buf.length) return;
-      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "" });
+      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "", sections: [] });
       buf = [];
       bufChars = 0;
     };
@@ -575,6 +613,7 @@ export class AIProcessor {
             content: p.slice(i, i + CHUNK_CHARS),
             chapters: [],
             startTime: "",
+            sections: [],
           });
         }
         continue;
@@ -585,7 +624,7 @@ export class AIProcessor {
     }
     flush();
     if (chunks.length === 0) {
-      chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
+      chunks.push({ index: 0, total: 1, content, chapters, startTime: "", sections: [] });
     }
     chunks.forEach((c, i) => {
       c.index = i;
@@ -604,10 +643,12 @@ export class AIProcessor {
     // first chunk's preamble so the AI still gets the context.
     const preamble = lines.slice(0, firstTsIdx).join("\n");
     const units: Array<{ sec: number; line: string }> = [];
+    let lastCaptionSec = 0;
     for (let i = firstTsIdx; i < lines.length; i++) {
       const sec = this.lineSeconds(lines[i]);
       if (sec === null) continue;
       units.push({ sec, line: lines[i] });
+      lastCaptionSec = Math.max(lastCaptionSec, sec);
     }
 
     const chunks: ContentChunk[] = [];
@@ -621,6 +662,7 @@ export class AIProcessor {
         content: buf.join("\n"),
         chapters: [],
         startTime: this.formatSeconds(startSec),
+        sections: [],
       });
       buf = [];
       bufChars = 0;
@@ -652,6 +694,24 @@ export class AIProcessor {
         }
       }
       chunks[idx].chapters.push(ch);
+    }
+
+    // Videos WITHOUT chapter markers: build ONE continuous 5-minute lattice
+    // over the whole video and hand each lattice point to the chunk covering
+    // it. The AI fills one chapterMap entry per section — whole-video
+    // coverage no longer depends on the model inventing section boundaries.
+    if (chapters.length === 0) {
+      const begins = chunks.map((c) => this.toSeconds(c.startTime));
+      for (let t = 0; t < lastCaptionSec + 1; t += SECTION_SECS) {
+        let idx = 0;
+        for (let i = begins.length - 1; i >= 0; i--) {
+          if (t >= begins[i]) {
+            idx = i;
+            break;
+          }
+        }
+        chunks[idx].sections.push(this.formatSeconds(t));
+      }
     }
 
     chunks.forEach((c, i) => {
@@ -878,6 +938,31 @@ export class AIProcessor {
     return `## Video Chapters (use these EXACT timestamps)\n${chapters
       .map((c) => `- ${c.time} — ${c.title}`)
       .join("\n")}`;
+  }
+
+  /** 5-minute section grid for videos without chapters, or "". */
+  private sectionsBlock(sections?: string[]): string {
+    if (!sections?.length) return "";
+    return `## Video Sections (one chapterMap entry per section, EXACT start time)\n${sections
+      .map((s) => `- [${s}]`)
+      .join("\n")}`;
+  }
+
+  /**
+   * Guarantee the chapter map covers the whole video: when a section grid
+   * was provided, keep one entry per section (the AI's title/summary for
+   * matching times, blank for any section the model skipped).
+   */
+  private completeChapterMap(
+    parsed: ChapterEntry[],
+    sections?: string[]
+  ): ChapterEntry[] {
+    if (!sections?.length) return parsed;
+    const byTime = new Map(parsed.map((e) => [this.toSeconds(e.time), e]));
+    return sections.map((s) => {
+      const e = byTime.get(this.toSeconds(s));
+      return { time: s, title: e?.title || "", summary: e?.summary || "" };
+    });
   }
 
   /** Numbered questions block with a heading, or "". */

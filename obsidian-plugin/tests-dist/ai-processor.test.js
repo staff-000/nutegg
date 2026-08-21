@@ -274,7 +274,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{questions}}
+{{sections}}{{questions}}
 {{egg_key_questions}}
 
 {{content}}
@@ -298,6 +298,8 @@ IMPORTANT:
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
+- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
+- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
 `;
 
@@ -351,7 +353,7 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{questions}}
+{{sections}}{{questions}}
 
 {{content}}
 
@@ -383,7 +385,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
-- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided.
+- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
 - For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source \u2014 they are appended automatically.
 - Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.
@@ -519,6 +521,7 @@ var grounding_rule_default = 'The content is the ONLY source of truth for every 
 var GROUNDING_RULE = grounding_rule_default.trim();
 var CONTENT_WINDOW_CHARS = 3e4;
 var CHUNK_CHARS = CONTENT_WINDOW_CHARS;
+var SECTION_SECS = 300;
 var MERGE_THRESHOLD = 20;
 var AIProcessor = class {
   plugin;
@@ -533,10 +536,16 @@ var AIProcessor = class {
     if (chunks.length > 1) {
       return this.analyzeChunked(capture2, eggs, chunks);
     }
+    const single = chunks[0];
+    const effective = {
+      ...capture2,
+      chapters: single.chapters,
+      sections: single.sections
+    };
     let contentAnalysis;
     let eggResults = [];
     if (eggs.length === 1) {
-      const combined = await this.analyzeSingleEgg(capture2, eggs[0]);
+      const combined = await this.analyzeSingleEgg(effective, eggs[0]);
       contentAnalysis = {
         titleVerdict: combined.titleVerdict,
         coreSummary: combined.coreSummary,
@@ -581,6 +590,7 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNote,
       chapters: this.chaptersBlock(capture2.chapters),
+      sections: this.sectionsBlock(capture2.sections),
       questions: this.questionsBlock(
         capture2.questions,
         "User Questions (answer each directly and concisely)"
@@ -592,17 +602,20 @@ var AIProcessor = class {
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
-    const response = await this.callAI(prompt, 800);
+    const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response);
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
-        time: String(c.time || ""),
-        title: String(c.title || ""),
-        summary: String(c.summary || "")
-      })) : [],
+      chapterMap: this.completeChapterMap(
+        Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
+          time: String(c.time || ""),
+          title: String(c.title || ""),
+          summary: String(c.summary || "")
+        })) : [],
+        capture2.sections
+      ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
     };
   }
@@ -650,6 +663,7 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNote,
       chapters: this.chaptersBlock(capture2.chapters),
+      sections: this.sectionsBlock(capture2.sections),
       questions: this.questionsBlock(
         capture2.questions,
         "User Questions (answer each directly and concisely)"
@@ -657,17 +671,20 @@ var AIProcessor = class {
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
-    const response = await this.callAI(prompt, 1e3);
+    const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response);
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
-        time: String(c.time || ""),
-        title: String(c.title || ""),
-        summary: String(c.summary || "")
-      })) : [],
+      chapterMap: this.completeChapterMap(
+        Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
+          time: String(c.time || ""),
+          title: String(c.title || ""),
+          summary: String(c.summary || "")
+        })) : [],
+        capture2.sections
+      ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
       egg: egg2.fileName,
       keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
@@ -694,7 +711,13 @@ var AIProcessor = class {
     const partResults = await Promise.all(
       chunks.map(
         (chunk) => this.analyzeContent(
-          { ...capture2, content: chunk.content, chapters: chunk.chapters, questions: [] },
+          {
+            ...capture2,
+            content: chunk.content,
+            chapters: chunk.chapters,
+            sections: chunk.sections,
+            questions: []
+          },
           guide,
           eggs.flatMap((e) => e.keyQuestions),
           this.partNote(chunk)
@@ -823,15 +846,17 @@ ${delta || "- (no novel delta)"}`;
    * chunk covering their start time; plain text is split at paragraphs.
    */
   chunkContent(content, chapters) {
-    if (content.length <= CHUNK_CHARS) {
-      return [{ index: 0, total: 1, content, chapters, startTime: "" }];
-    }
     const lines = content.split("\n");
     const firstTsIdx = lines.findIndex((l) => this.lineSeconds(l) !== null);
-    if (firstTsIdx === -1) {
-      return this.paragraphChunks(content, chapters);
+    if (firstTsIdx !== -1) {
+      return this.timestampedChunks(lines, firstTsIdx, chapters);
     }
-    return this.timestampedChunks(lines, firstTsIdx, chapters);
+    if (content.length <= CHUNK_CHARS) {
+      return [
+        { index: 0, total: 1, content, chapters, startTime: "", sections: [] }
+      ];
+    }
+    return this.paragraphChunks(content, chapters);
   }
   paragraphChunks(content, chapters) {
     const paras = content.split(/\n\n+/);
@@ -841,7 +866,7 @@ ${delta || "- (no novel delta)"}`;
     const flush = () => {
       if (!buf.length)
         return;
-      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "" });
+      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "", sections: [] });
       buf = [];
       bufChars = 0;
     };
@@ -854,7 +879,8 @@ ${delta || "- (no novel delta)"}`;
             total: 0,
             content: p.slice(i, i + CHUNK_CHARS),
             chapters: [],
-            startTime: ""
+            startTime: "",
+            sections: []
           });
         }
         continue;
@@ -866,7 +892,7 @@ ${delta || "- (no novel delta)"}`;
     }
     flush();
     if (chunks.length === 0) {
-      chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
+      chunks.push({ index: 0, total: 1, content, chapters, startTime: "", sections: [] });
     }
     chunks.forEach((c, i) => {
       c.index = i;
@@ -879,11 +905,13 @@ ${delta || "- (no novel delta)"}`;
   timestampedChunks(lines, firstTsIdx, chapters) {
     const preamble = lines.slice(0, firstTsIdx).join("\n");
     const units = [];
+    let lastCaptionSec = 0;
     for (let i = firstTsIdx; i < lines.length; i++) {
       const sec = this.lineSeconds(lines[i]);
       if (sec === null)
         continue;
       units.push({ sec, line: lines[i] });
+      lastCaptionSec = Math.max(lastCaptionSec, sec);
     }
     const chunks = [];
     let buf = [];
@@ -897,7 +925,8 @@ ${delta || "- (no novel delta)"}`;
         total: 0,
         content: buf.join("\n"),
         chapters: [],
-        startTime: this.formatSeconds(startSec)
+        startTime: this.formatSeconds(startSec),
+        sections: []
       });
       buf = [];
       bufChars = 0;
@@ -928,6 +957,19 @@ ${chunks[0].content}`;
         }
       }
       chunks[idx].chapters.push(ch);
+    }
+    if (chapters.length === 0) {
+      const begins = chunks.map((c) => this.toSeconds(c.startTime));
+      for (let t = 0; t < lastCaptionSec + 1; t += SECTION_SECS) {
+        let idx = 0;
+        for (let i = begins.length - 1; i >= 0; i--) {
+          if (t >= begins[i]) {
+            idx = i;
+            break;
+          }
+        }
+        chunks[idx].sections.push(this.formatSeconds(t));
+      }
     }
     chunks.forEach((c, i) => {
       c.index = i;
@@ -1112,6 +1154,27 @@ A: ${qa.answer}`).join("\n")}` : "";
       return "";
     return `## Video Chapters (use these EXACT timestamps)
 ${chapters.map((c) => `- ${c.time} \u2014 ${c.title}`).join("\n")}`;
+  }
+  /** 5-minute section grid for videos without chapters, or "". */
+  sectionsBlock(sections) {
+    if (!sections?.length)
+      return "";
+    return `## Video Sections (one chapterMap entry per section, EXACT start time)
+${sections.map((s) => `- [${s}]`).join("\n")}`;
+  }
+  /**
+   * Guarantee the chapter map covers the whole video: when a section grid
+   * was provided, keep one entry per section (the AI's title/summary for
+   * matching times, blank for any section the model skipped).
+   */
+  completeChapterMap(parsed, sections) {
+    if (!sections?.length)
+      return parsed;
+    const byTime = new Map(parsed.map((e) => [this.toSeconds(e.time), e]));
+    return sections.map((s) => {
+      const e = byTime.get(this.toSeconds(s));
+      return { time: s, title: e?.title || "", summary: e?.summary || "" };
+    });
   }
   /** Numbered questions block with a heading, or "". */
   questionsBlock(questions, heading) {
@@ -1753,6 +1816,74 @@ var capture = {
       late?.startTime,
       "chapters in different time ranges land in different chunks"
     );
+    import_strict.default.ok(chunks.every((c) => c.sections.length === 0));
+  });
+  (0, import_node_test.it)("gives videos WITHOUT chapters a 5-minute section grid per chunk", () => {
+    const lines = [];
+    for (let m = 0; m < 47; m++) {
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
+      }
+    }
+    const chunks = p.chunkContent(lines.join("\n"), []);
+    const allSections = chunks.flatMap((c) => c.sections);
+    import_strict.default.ok(allSections.length >= 8, "grid covers the whole video");
+    import_strict.default.equal(allSections[0], "00:00");
+    import_strict.default.ok(
+      allSections.includes("40:00"),
+      "sections continue past the first chunk boundary"
+    );
+    for (let i = 1; i < allSections.length; i++) {
+      import_strict.default.equal(
+        p.toSeconds(allSections[i]) - p.toSeconds(allSections[i - 1]),
+        300,
+        `sections are a continuous 5-minute grid (${allSections[i - 1]} \u2192 ${allSections[i]})`
+      );
+    }
+  });
+  (0, import_node_test.it)("short timestamped videos get a grid too (single chunk)", () => {
+    const lines = [];
+    for (let m = 0; m < 8; m++) {
+      lines.push(`[0${m}:00] short caption line here`);
+    }
+    const chunks = p.chunkContent(lines.join("\n"), []);
+    import_strict.default.equal(chunks.length, 1);
+    import_strict.default.deepEqual(chunks[0].sections, ["00:00", "05:00"]);
+  });
+});
+(0, import_node_test.describe)("AIProcessor.completeChapterMap", () => {
+  const p = new AIProcessor(makeFakePlugin());
+  (0, import_node_test.it)("passes entries through when no section grid is provided", () => {
+    const parsed = [{ time: "00:12", title: "X", summary: "s" }];
+    import_strict.default.deepEqual(p.completeChapterMap(parsed, void 0), parsed);
+  });
+  (0, import_node_test.it)("keeps AI titles for matching sections and backfills the rest", () => {
+    const parsed = [
+      { time: "00:00", title: "Intro", summary: "a" },
+      { time: "10:00", title: "Middle", summary: "c" }
+    ];
+    const out = p.completeChapterMap(parsed, [
+      "00:00",
+      "05:00",
+      "10:00",
+      "15:00"
+    ]);
+    import_strict.default.equal(out.length, 4, "one entry per section, guaranteed");
+    import_strict.default.deepEqual(out[0], { time: "00:00", title: "Intro", summary: "a" });
+    import_strict.default.deepEqual(out[1], { time: "05:00", title: "", summary: "" });
+    import_strict.default.deepEqual(out[2], { time: "10:00", title: "Middle", summary: "c" });
+    import_strict.default.deepEqual(out[3], { time: "15:00", title: "", summary: "" });
+  });
+  (0, import_node_test.it)("drops AI entries whose time is not on the grid", () => {
+    const parsed = [
+      { time: "00:04", title: "Off-grid", summary: "x" },
+      { time: "05:00", title: "On-grid", summary: "y" }
+    ];
+    const out = p.completeChapterMap(parsed, ["00:00", "05:00"]);
+    import_strict.default.deepEqual(out, [
+      { time: "00:00", title: "", summary: "" },
+      { time: "05:00", title: "On-grid", summary: "y" }
+    ]);
   });
 });
 (0, import_node_test.describe)("AIProcessor.analyze (chunked)", () => {

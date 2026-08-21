@@ -74,5 +74,5 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `## Knowledge`/`## Unprocessed` sections. `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
 | [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |
 | [settings.ts](obsidian-plugin/src/settings.ts) | Settings tab, developer mode toggle |
-| [content-script.js](chrome-extension/src/content/content-script.js) | Extractor registry: `detect()` → `extract()`. youtube (captions), twitter (threads), article, generic. |
+| [content-script.js](chrome-extension/src/content/content-script.js) | Extractor registry: `detect()` → `extract()`. youtube (captions via timedtext/script-tag/panel with dedup, chapters from `multiMarkersPlayerBarRenderer`), twitter (threads), article, generic. |
 | [options.html/js/css](chrome-extension/src/options/) | Standalone settings page (port config, test connection) |

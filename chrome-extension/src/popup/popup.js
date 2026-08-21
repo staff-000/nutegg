@@ -473,7 +473,8 @@ function showResultsState(result, provenance = null) {
         const data = clickable ? ` data-seconds="${timeToSeconds(c.time)}"` : "";
         const timeLabel = c.time ? `<span class="chapter-time">⏱ ${escapeHtml(c.time)}</span>` : "";
         const titleLabel = c.title ? `<span class="chapter-title">${escapeHtml(c.title)}</span>` : "";
-        return `<div class="chapter-row${clickable ? " chapter-clickable" : ""}"${data}>${timeLabel}${titleLabel}<span class="chapter-summary">${escapeHtml(c.summary)}</span></div>`;
+        const summaryLabel = c.summary ? `<span class="chapter-summary">${escapeHtml(c.summary)}</span>` : "";
+        return `<div class="chapter-row${clickable ? " chapter-clickable" : ""}"${data}>${timeLabel}${titleLabel}${summaryLabel}</div>`;
       })
       .join("");
     chapterList.querySelectorAll(".chapter-clickable").forEach((row) => {

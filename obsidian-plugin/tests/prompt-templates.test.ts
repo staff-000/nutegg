@@ -47,7 +47,7 @@ describe("PROMPTS", () => {
       // merge-unprocessed.md
       "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
       // chunked analysis (per-part labels + aggregates)
-      "part_note", "chunk_summaries", "chunk_findings",
+      "part_note", "chunk_summaries", "chunk_findings", "sections",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);
