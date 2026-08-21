@@ -121,7 +121,9 @@ async function extractYouTube() {
     parts.push(`\n## Chapters\n\n${chapters.map((c) => `- ${c.time} — ${c.title}`).join("\n")}`);
   }
   if (transcript) {
-    parts.push(`\n## Transcript\n\n${truncate(transcript, 10000)}`);
+    // 100k chars ≈ 2 hours of speech — only a sanity cap, so long videos
+    // keep their full transcript (the AI trims its own prompt window).
+    parts.push(`\n## Transcript\n\n${truncate(transcript, 100000)}`);
   } else {
     parts.push(`\n## Transcript\n\n*No transcript available for this video.*`);
   }

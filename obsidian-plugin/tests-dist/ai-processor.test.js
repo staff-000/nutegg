@@ -478,6 +478,7 @@ var grounding_rule_default = 'The content is the ONLY source of truth for every 
 
 // src/ai-processor.ts
 var GROUNDING_RULE = grounding_rule_default.trim();
+var CONTENT_WINDOW_CHARS = 3e4;
 var MERGE_THRESHOLD = 20;
 var AIProcessor = class {
   plugin;
@@ -543,7 +544,7 @@ var AIProcessor = class {
         eggKeyQuestions,
         "Egg Key Questions (answered separately \u2014 skip equivalent user questions)"
       ),
-      content: this.truncate(capture2.content, 8e3),
+      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
     const response = await this.callAI(prompt, 800);
@@ -568,7 +569,7 @@ var AIProcessor = class {
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
-      content: this.truncate(capture2.content, 6e3),
+      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
     try {
@@ -606,7 +607,7 @@ var AIProcessor = class {
         capture2.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      content: this.truncate(capture2.content, 8e3),
+      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
     const response = await this.callAI(prompt, 1e3);
@@ -699,7 +700,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       url: capture2.url,
       source_type: capture2.sourceType,
       prior_qa: priorBlock,
-      content: this.truncate(capture2.content, 8e3),
+      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       grounding_rule: GROUNDING_RULE
     });

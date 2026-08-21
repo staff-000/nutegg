@@ -8,6 +8,13 @@ import groundingRuleTpl from "./prompts/grounding-rule.md";
 const GROUNDING_RULE = groundingRuleTpl.trim();
 
 /**
+ * Max characters of the nut's content sent in each AI call. ~30k chars ≈
+ * 35 minutes of speech (~8k tokens) — long videos get real coverage instead
+ * of a 7-minute slice. Tune here to trade cost against coverage.
+ */
+const CONTENT_WINDOW_CHARS = 30000;
+
+/**
  * One chapter in the Chapter Map. `time` is the video timestamp ("MM:SS" or
  * "HH:MM:SS") when available — the popup uses it to seek the video.
  */
@@ -185,7 +192,7 @@ export class AIProcessor {
         eggKeyQuestions,
         "Egg Key Questions (answered separately — skip equivalent user questions)"
       ),
-      content: this.truncate(capture.content, 8000),
+      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE,
     });
 
@@ -221,7 +228,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
-      content: this.truncate(capture.content, 6000),
+      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE,
     });
 
@@ -275,7 +282,7 @@ export class AIProcessor {
         capture.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      content: this.truncate(capture.content, 8000),
+      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE,
     });
 
@@ -410,7 +417,7 @@ export class AIProcessor {
       url: capture.url,
       source_type: capture.sourceType,
       prior_qa: priorBlock,
-      content: this.truncate(capture.content, 8000),
+      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       grounding_rule: GROUNDING_RULE,
     });
