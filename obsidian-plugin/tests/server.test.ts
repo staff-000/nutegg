@@ -83,6 +83,69 @@ describe("NutEggServer.getCaptureHistory", () => {
   });
 });
 
+describe("NutEggServer.handleCreateEgg", () => {
+  function makeReq(body: string) {
+    const req: any = {
+      on(ev: string, cb: (...a: any[]) => void) {
+        if (ev === "data") cb(body);
+        if (ev === "end") cb();
+        return req;
+      },
+    };
+    return req;
+  }
+
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code: number) {
+        this.statusCode = code;
+      },
+      end(body: string) {
+        this.body = body;
+      },
+    };
+  }
+
+  it("sanitizes the name and creates the egg via indexSync", async () => {
+    let createdWith: any = null;
+    const s = makeServer({
+      indexSync: {
+        createEgg: async (name: string, description: string) => {
+          createdWith = [name, description];
+          return { path: `nutegg/${name}.md`, alreadyExists: false };
+        },
+      },
+    });
+    const req = makeReq(
+      JSON.stringify({ name: "Productivity 101", description: "systems" })
+    );
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), {
+      success: true,
+      path: "nutegg/productivity_101.md",
+      alreadyExists: false,
+    });
+    assert.deepEqual(createdWith, ["productivity_101", "systems"]);
+  });
+
+  it("rejects a blank name with 400", async () => {
+    const s = makeServer({
+      indexSync: {
+        createEgg: async () => ({ path: "x.md", alreadyExists: false }),
+      },
+    });
+    const req = makeReq(JSON.stringify({ name: "   " }));
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+    assert.equal(res.statusCode, 400);
+  });
+});
+
 describe("NutEggServer.countEggs", () => {
   it("counts markdown under nutegg/ excluding _raw and _index", () => {
     const { vault } = makeFakeVault({

@@ -564,6 +564,36 @@ export class AIProcessor {
     };
   }
 
+  /**
+   * Suggest a new egg (name + description) for content that matched no
+   * existing egg. Returns null when unavailable (no API key, AI failure).
+   */
+  async suggestEgg(
+    capture: { title: string; url: string },
+    summary: string
+  ): Promise<{ name: string; description: string } | null> {
+    if (!this.plugin.settings.aiApiKey) return null;
+    try {
+      const prompt = renderPrompt(PROMPTS.suggestEgg, {
+        title: capture.title,
+        url: capture.url,
+        summary: summary || "",
+      });
+      const response = await this.callAI(prompt, 100);
+      const parsed = this.parseJson(response);
+      const name = String(parsed.name || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 60);
+      if (!name) return null;
+      return { name, description: String(parsed.description || "").trim() };
+    } catch (err) {
+      console.warn("[NutEgg] Egg suggestion failed:", err);
+      return null;
+    }
+  }
+
   // --- Chunking ---
 
   /**

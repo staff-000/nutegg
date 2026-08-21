@@ -486,6 +486,9 @@ IMPORTANT:
 // src/prompts/aggregate-egg.md
 var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n2. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n3. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
 
+// src/prompts/suggest-egg.md
+var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -505,7 +508,9 @@ var PROMPTS = {
   /** Combine per-part results into one result for long content. */
   aggregateContent: aggregate_content_default,
   /** Per-egg verdict + key questions for long content (after per-part delta). */
-  aggregateEgg: aggregate_egg_default
+  aggregateEgg: aggregate_egg_default,
+  /** Suggest a new egg for content that matched no existing egg. */
+  suggestEgg: suggest_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -838,6 +843,30 @@ ${delta || "- (no novel delta)"}`;
       readVerdict: parsed.readVerdict !== false,
       readVerdictReason: String(parsed.readVerdictReason || "")
     };
+  }
+  /**
+   * Suggest a new egg (name + description) for content that matched no
+   * existing egg. Returns null when unavailable (no API key, AI failure).
+   */
+  async suggestEgg(capture2, summary) {
+    if (!this.plugin.settings.aiApiKey)
+      return null;
+    try {
+      const prompt = renderPrompt(PROMPTS.suggestEgg, {
+        title: capture2.title,
+        url: capture2.url,
+        summary: summary || ""
+      });
+      const response = await this.callAI(prompt, 100);
+      const parsed = this.parseJson(response);
+      const name = String(parsed.name || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+      if (!name)
+        return null;
+      return { name, description: String(parsed.description || "").trim() };
+    } catch (err) {
+      console.warn("[NutEgg] Egg suggestion failed:", err);
+      return null;
+    }
   }
   // --- Chunking ---
   /**
@@ -1975,6 +2004,35 @@ var capture = {
     });
     await new AIProcessor(plugin).analyze({ ...capture }, [egg("a.md")]);
     import_strict.default.equal(calls, 1, "no chunking below the limit");
+  });
+});
+(0, import_node_test.describe)("AIProcessor.suggestEgg", () => {
+  (0, import_node_test.it)("returns the AI-suggested name + description (sanitized)", async () => {
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => JSON.stringify({ name: "Strategic Thinking", description: "  One line.  " })
+      }
+    });
+    const out = await new AIProcessor(plugin).suggestEgg(
+      { title: "T", url: "https://x.com/a" },
+      "summary text"
+    );
+    import_strict.default.deepEqual(out, {
+      name: "strategic_thinking",
+      description: "One line."
+    });
+  });
+  (0, import_node_test.it)("returns null without an API key or on unparseable output", async () => {
+    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
+    import_strict.default.equal(
+      await new AIProcessor(noKey).suggestEgg({ title: "T", url: "u" }, ""),
+      null
+    );
+    const badJson = makeFakePlugin({ aiClient: { chat: async () => "not json" } });
+    import_strict.default.equal(
+      await new AIProcessor(badJson).suggestEgg({ title: "T", url: "u" }, ""),
+      null
+    );
   });
 });
 (0, import_node_test.describe)("AIProcessor.maybeMergeEgg", () => {

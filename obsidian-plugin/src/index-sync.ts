@@ -101,6 +101,28 @@ export class IndexSync {
     return result;
   }
 
+  /**
+   * Create a new egg file from a name + description (the popup's "no egg
+   * matched — create one?" flow). Seeds the template's topic/scope from the
+   * description and appends the matching _index.md entry. `alreadyExists`
+   * when the file was already there (nothing is overwritten).
+   */
+  async createEgg(
+    name: string,
+    description: string
+  ): Promise<{ path: string; alreadyExists: boolean }> {
+    const fileName = `nutegg/${name}.md`;
+    if (await this.plugin.app.vault.adapter.exists(fileName)) {
+      return { path: fileName, alreadyExists: true };
+    }
+    await this.createEggFromTemplate(fileName, { fileName, description });
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
+      this.plugin.settings.indexFile
+    );
+    await this.appendIndexEntry(indexFile, fileName, description || name);
+    return { path: fileName, alreadyExists: false };
+  }
+
   /** Description for a new index entry — the egg's frontmatter topic, or "". */
   private async describeEgg(eggPath: string): Promise<string> {
     try {

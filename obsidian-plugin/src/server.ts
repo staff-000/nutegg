@@ -28,6 +28,11 @@ interface AskRequest {
   priorQa?: Array<{ question: string; answer: string }>;
 }
 
+interface CreateEggRequest {
+  name: string;
+  description?: string;
+}
+
 interface ConfirmRequest {
   url: string;
   title: string;
@@ -185,6 +190,11 @@ export class NutEggServer {
 
       if (req.method === "POST" && req.url === "/confirm") {
         this.handleConfirm(req, res);
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/create-egg") {
+        this.handleCreateEgg(req, res);
         return;
       }
 
@@ -403,8 +413,17 @@ export class NutEggServer {
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
 
+      // When no egg matched, suggest one so the popup can offer to create it
+      let suggestedEgg = null;
+      if (result.matchedEggs.length === 0) {
+        suggestedEgg = await this.plugin.aiProcessor.suggestEgg(
+          capture,
+          [result.titleVerdict, ...(result.coreSummary || [])].join(" ")
+        );
+      }
+
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId }));
+      res.end(JSON.stringify({ ...result, nutId, suggestedEgg }));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
 
@@ -578,6 +597,53 @@ export class NutEggServer {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to save content" }));
+    }
+  }
+
+  /**
+   * POST /create-egg — create a new egg file + index entry. Used by the
+   * popup's "no egg matched — create one?" flow.
+   */
+  private async handleCreateEgg(
+    req: http.IncomingMessage,
+    res: http.ServerResponse
+  ): Promise<void> {
+    try {
+      const body = await this.readBody(req);
+      const { name, description }: CreateEggRequest = JSON.parse(body);
+
+      const safeName = String(name || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 60);
+      if (!safeName) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing egg name" }));
+        return;
+      }
+
+      const result = await this.plugin.indexSync.createEgg(
+        safeName,
+        String(description || "")
+      );
+      console.log(
+        `[NutEgg] Created egg via popup: ${result.path}` +
+          (result.alreadyExists ? " (already existed)" : "")
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          path: result.path,
+          alreadyExists: result.alreadyExists,
+        })
+      );
+    } catch (err) {
+      console.error("[NutEgg] Create egg error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to create egg" }));
     }
   }
 

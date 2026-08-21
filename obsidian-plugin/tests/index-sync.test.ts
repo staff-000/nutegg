@@ -124,6 +124,39 @@ describe("IndexSync.checkAndFix", () => {
     assert.ok(!index.includes("* investment.md"));
   });
 
+  it("createEgg builds the file from the description and adds the index entry", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "* nutegg/investment.md: investment strategies\n",
+      "nutegg/investment.md": egg("Investment"),
+    });
+    const result = await sync.createEgg(
+      "productivity",
+      "productivity and systems"
+    );
+    assert.deepEqual(result, {
+      path: "nutegg/productivity.md",
+      alreadyExists: false,
+    });
+    const created = files.get("nutegg/productivity.md")!;
+    assert.ok(created.includes('topic: "productivity and systems"'));
+    assert.ok(created.includes("> **Scope:** productivity and systems"));
+    assert.ok(
+      files
+        .get("nutegg/_index.md")!
+        .includes("* nutegg/productivity.md: productivity and systems")
+    );
+  });
+
+  it("createEgg reports alreadyExists without overwriting", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "",
+      "nutegg/productivity.md": egg("P"),
+    });
+    const result = await sync.createEgg("productivity", "x");
+    assert.equal(result.alreadyExists, true);
+    assert.ok(files.get("nutegg/productivity.md")!.includes('topic: "P"'));
+  });
+
   it("does nothing when _index.md is missing", async () => {
     const { sync, files } = makeSync({ "nutegg/eg.md": egg("EG") });
     const result = await sync.checkAndFix();

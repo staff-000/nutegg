@@ -122,6 +122,24 @@ var IndexSync = class {
     }
     return result;
   }
+  /**
+   * Create a new egg file from a name + description (the popup's "no egg
+   * matched — create one?" flow). Seeds the template's topic/scope from the
+   * description and appends the matching _index.md entry. `alreadyExists`
+   * when the file was already there (nothing is overwritten).
+   */
+  async createEgg(name, description) {
+    const fileName = `nutegg/${name}.md`;
+    if (await this.plugin.app.vault.adapter.exists(fileName)) {
+      return { path: fileName, alreadyExists: true };
+    }
+    await this.createEggFromTemplate(fileName, { fileName, description });
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
+      this.plugin.settings.indexFile
+    );
+    await this.appendIndexEntry(indexFile, fileName, description || name);
+    return { path: fileName, alreadyExists: false };
+  }
   /** Description for a new index entry — the egg's frontmatter topic, or "". */
   async describeEgg(eggPath) {
     try {
@@ -424,6 +442,9 @@ IMPORTANT:
 // src/prompts/aggregate-egg.md
 var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n2. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n3. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
 
+// src/prompts/suggest-egg.md
+var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -443,7 +464,9 @@ var PROMPTS = {
   /** Combine per-part results into one result for long content. */
   aggregateContent: aggregate_content_default,
   /** Per-egg verdict + key questions for long content (after per-part delta). */
-  aggregateEgg: aggregate_egg_default
+  aggregateEgg: aggregate_egg_default,
+  /** Suggest a new egg for content that matched no existing egg. */
+  suggestEgg: suggest_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -955,6 +978,35 @@ function egg(topic) {
     const index = files.get("nutegg/_index.md");
     import_strict.default.ok(index.includes("* nutegg/investment.md: investment strategies"));
     import_strict.default.ok(!index.includes("* investment.md"));
+  });
+  (0, import_node_test.it)("createEgg builds the file from the description and adds the index entry", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "* nutegg/investment.md: investment strategies\n",
+      "nutegg/investment.md": egg("Investment")
+    });
+    const result = await sync.createEgg(
+      "productivity",
+      "productivity and systems"
+    );
+    import_strict.default.deepEqual(result, {
+      path: "nutegg/productivity.md",
+      alreadyExists: false
+    });
+    const created = files.get("nutegg/productivity.md");
+    import_strict.default.ok(created.includes('topic: "productivity and systems"'));
+    import_strict.default.ok(created.includes("> **Scope:** productivity and systems"));
+    import_strict.default.ok(
+      files.get("nutegg/_index.md").includes("* nutegg/productivity.md: productivity and systems")
+    );
+  });
+  (0, import_node_test.it)("createEgg reports alreadyExists without overwriting", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "",
+      "nutegg/productivity.md": egg("P")
+    });
+    const result = await sync.createEgg("productivity", "x");
+    import_strict.default.equal(result.alreadyExists, true);
+    import_strict.default.ok(files.get("nutegg/productivity.md").includes('topic: "P"'));
   });
   (0, import_node_test.it)("does nothing when _index.md is missing", async () => {
     const { sync, files } = makeSync({ "nutegg/eg.md": egg("EG") });

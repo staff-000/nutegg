@@ -595,6 +595,39 @@ body {
   white-space: pre-wrap;
 }
 
+/* Create-an-egg box (shown when no egg matched) */
+.create-egg-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.create-egg-box input {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #374151;
+}
+
+.create-egg-box input:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.create-egg-btn {
+  width: 100%;
+  /* `flex: 1` from confirm-btn would collapse the height in the column box */
+  flex: none;
+  height: 44px;
+  font-size: 14px;
+}
+
 /* Action Buttons */
 .action-buttons {
   display: flex;

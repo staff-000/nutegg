@@ -136,6 +136,10 @@ var NutEggServer = class {
         this.handleConfirm(req, res);
         return;
       }
+      if (req.method === "POST" && req.url === "/create-egg") {
+        this.handleCreateEgg(req, res);
+        return;
+      }
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Not found" }));
     });
@@ -307,8 +311,15 @@ var NutEggServer = class {
       console.log(
         `[NutEgg] Analyzed: ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
+      let suggestedEgg = null;
+      if (result.matchedEggs.length === 0) {
+        suggestedEgg = await this.plugin.aiProcessor.suggestEgg(
+          capture,
+          [result.titleVerdict, ...result.coreSummary || []].join(" ")
+        );
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId }));
+      res.end(JSON.stringify({ ...result, nutId, suggestedEgg }));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
       if (err instanceof AIError) {
@@ -437,6 +448,41 @@ var NutEggServer = class {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to save content" }));
+    }
+  }
+  /**
+   * POST /create-egg — create a new egg file + index entry. Used by the
+   * popup's "no egg matched — create one?" flow.
+   */
+  async handleCreateEgg(req, res) {
+    try {
+      const body = await this.readBody(req);
+      const { name, description } = JSON.parse(body);
+      const safeName = String(name || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+      if (!safeName) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing egg name" }));
+        return;
+      }
+      const result = await this.plugin.indexSync.createEgg(
+        safeName,
+        String(description || "")
+      );
+      console.log(
+        `[NutEgg] Created egg via popup: ${result.path}` + (result.alreadyExists ? " (already existed)" : "")
+      );
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          path: result.path,
+          alreadyExists: result.alreadyExists
+        })
+      );
+    } catch (err) {
+      console.error("[NutEgg] Create egg error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to create egg" }));
     }
   }
   readBody(req) {
@@ -595,6 +641,66 @@ function makeServer(overrides = {}) {
   (0, import_node_test.it)("returns empty when the DB is unavailable", () => {
     const s = makeServer({ db: { available: false } });
     import_strict.default.deepEqual(s.getCaptureHistory("https://x.com/a"), []);
+  });
+});
+(0, import_node_test.describe)("NutEggServer.handleCreateEgg", () => {
+  function makeReq(body) {
+    const req = {
+      on(ev, cb) {
+        if (ev === "data")
+          cb(body);
+        if (ev === "end")
+          cb();
+        return req;
+      }
+    };
+    return req;
+  }
+  function makeRes() {
+    return {
+      statusCode: 0,
+      body: "",
+      writeHead(code) {
+        this.statusCode = code;
+      },
+      end(body) {
+        this.body = body;
+      }
+    };
+  }
+  (0, import_node_test.it)("sanitizes the name and creates the egg via indexSync", async () => {
+    let createdWith = null;
+    const s = makeServer({
+      indexSync: {
+        createEgg: async (name, description) => {
+          createdWith = [name, description];
+          return { path: `nutegg/${name}.md`, alreadyExists: false };
+        }
+      }
+    });
+    const req = makeReq(
+      JSON.stringify({ name: "Productivity 101", description: "systems" })
+    );
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(JSON.parse(res.body), {
+      success: true,
+      path: "nutegg/productivity_101.md",
+      alreadyExists: false
+    });
+    import_strict.default.deepEqual(createdWith, ["productivity_101", "systems"]);
+  });
+  (0, import_node_test.it)("rejects a blank name with 400", async () => {
+    const s = makeServer({
+      indexSync: {
+        createEgg: async () => ({ path: "x.md", alreadyExists: false })
+      }
+    });
+    const req = makeReq(JSON.stringify({ name: "   " }));
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+    import_strict.default.equal(res.statusCode, 400);
   });
 });
 (0, import_node_test.describe)("NutEggServer.countEggs", () => {

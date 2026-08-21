@@ -15,6 +15,7 @@ import actionGuideDefaultTpl from "./prompts/action-guide-default.md";
 import mergeUnprocessedTpl from "./prompts/merge-unprocessed.md";
 import aggregateContentTpl from "./prompts/aggregate-content.md";
 import aggregateEggTpl from "./prompts/aggregate-egg.md";
+import suggestEggTpl from "./prompts/suggest-egg.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -35,6 +36,8 @@ export const PROMPTS = {
   aggregateContent: aggregateContentTpl,
   /** Per-egg verdict + key questions for long content (after per-part delta). */
   aggregateEgg: aggregateEggTpl,
+  /** Suggest a new egg for content that matched no existing egg. */
+  suggestEgg: suggestEggTpl,
 };
 
 /** Substitute {{placeholder}} variables in a template. */

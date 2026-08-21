@@ -50,6 +50,10 @@ const verdictIcon = document.getElementById("verdict-icon");
 const verdictText = document.getElementById("verdict-text");
 const verdictBadge = document.getElementById("verdict-badge");
 const verdictReason = document.getElementById("verdict-reason");
+const noEggSection = document.getElementById("no-egg-section");
+const newEggName = document.getElementById("new-egg-name");
+const newEggDescription = document.getElementById("new-egg-description");
+const createEggBtn = document.getElementById("create-egg-btn");
 const confirmBtn = document.getElementById("confirm-btn");
 const saveRawBtn = document.getElementById("save-raw-btn");
 const discardBtn = document.getElementById("discard-btn");
@@ -95,6 +99,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (e.key === "Enter") handleFollowUp();
   });
   refreshBtn.addEventListener("click", handleRefresh);
+  createEggBtn.addEventListener("click", handleCreateEgg);
   reanalyzeBtn.addEventListener("click", () => handleAnalyze(true));
   historySelect.addEventListener("change", () => {
     const idx = parseInt(historySelect.value, 10);
@@ -182,6 +187,41 @@ async function refreshForCurrentTab() {
 async function handleRefresh() {
   if (extractionPending) return; // still retrieving — do nothing
   await refreshForCurrentTab();
+}
+
+/** 🐣 Create an egg from the no-match form, then re-analyze against it. */
+async function handleCreateEgg() {
+  const name = newEggName.value.trim();
+  if (!name || createEggBtn.disabled) return;
+  createEggBtn.disabled = true;
+  createEggBtn.textContent = "Creating…";
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "create-egg",
+      name,
+      description: newEggDescription.value.trim(),
+    });
+    if (response?.success) {
+      // The new egg now matches — re-analyze so its key questions and novel
+      // delta show up (handleAnalyze re-renders everything on success)
+      await handleAnalyze(true);
+      return;
+    }
+    showError(response?.error || "Failed to create egg");
+  } catch (err) {
+    showError(err instanceof Error ? err.message : "Failed to create egg");
+  }
+  createEggBtn.disabled = false;
+  createEggBtn.textContent = "Create Egg";
+}
+
+/** Title → snake_case egg name fallback. */
+function slugify(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
 }
 
 // --- Metrics ---
@@ -545,6 +585,17 @@ function showResultsState(result, provenance = null) {
   resultsState.classList.remove("hidden");
   processedNote.classList.add("hidden");
   renderResultProvenance(provenance);
+
+  // No egg matched — offer to create one (prefilled with the AI suggestion)
+  const noEgg = (result.matchedEggs || []).length === 0;
+  if (noEgg) {
+    noEggSection.classList.remove("hidden");
+    newEggName.value =
+      result.suggestedEgg?.name || slugify(extractedContent?.title || "");
+    newEggDescription.value = result.suggestedEgg?.description || "";
+  } else {
+    noEggSection.classList.add("hidden");
+  }
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";

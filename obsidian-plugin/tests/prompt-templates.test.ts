@@ -48,6 +48,8 @@ describe("PROMPTS", () => {
       "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
       // chunked analysis (per-part labels + aggregates)
       "part_note", "chunk_summaries", "chunk_findings", "sections",
+      // suggest-egg.md
+      "summary",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);
