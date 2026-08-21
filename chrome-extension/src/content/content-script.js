@@ -871,6 +871,21 @@ function extractContent() {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "page-identity") {
+    // Cheap page-state check (no transcript fetching) — the popup uses it to
+    // wait for the page to settle and to detect SPA navigation races.
+    sendResponse({
+      success: true,
+      url: window.location.href,
+      title: document.title,
+      readyState: document.readyState,
+      // YouTube: the watch page shell has rendered (not the loading skeleton)
+      youtubeReady: !window.location.href.includes("youtube.com/watch") ||
+        !!document.querySelector("ytd-watch-flexy"),
+    });
+    return false;
+  }
+
   if (message.action === "nutegg-seek") {
     // Seek the page's video to the given timestamp (seconds) — used by the
     // clickable Chapter Map in the popup.

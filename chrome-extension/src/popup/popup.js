@@ -8,6 +8,7 @@ const pageUrl = document.getElementById("page-url");
 const pageType = document.getElementById("page-type");
 const pageAuthorEl = document.getElementById("page-author");
 const pagePublishedEl = document.getElementById("page-published");
+const refreshBtn = document.getElementById("refresh-btn");
 const contentPreview = document.getElementById("content-preview");
 const questionsToggle = document.getElementById("questions-toggle");
 const questionsArea = document.getElementById("questions-area");
@@ -93,6 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   followupInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleFollowUp();
   });
+  refreshBtn.addEventListener("click", handleRefresh);
   reanalyzeBtn.addEventListener("click", () => handleAnalyze(true));
   historySelect.addEventListener("change", () => {
     const idx = parseInt(historySelect.value, 10);
@@ -103,9 +105,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(() => refreshForCurrentTab());
   // Reopen handling: browsers that keep the side-panel document alive while
-  // the panel is closed don't re-fire DOMContentLoaded — refresh on show.
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") refreshForCurrentTab();
+  // the panel is closed don't re-fire DOMContentLoaded. Refresh on show —
+  // but only when the displayed content belongs to a DIFFERENT tab. Plain
+  // window focus loss/regain also fires visibilitychange, and that must NOT
+  // reset the results the user was looking at.
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible") return;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id != null && tab.id !== activeTabId) refreshForCurrentTab();
+    } catch {
+      // tabs API unavailable — leave the current state alone
+    }
   });
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     // Page finished loading: retry extraction when it ran mid-load or failed
@@ -150,7 +161,7 @@ async function refreshForCurrentTab() {
 
   await checkServerStatus();
   if (seq !== refreshSeq) return;
-  await extractPageContent();
+  await extractPageContent(seq);
   if (seq !== refreshSeq) return;
 
   if (serverOnline) {
@@ -165,6 +176,12 @@ async function refreshForCurrentTab() {
     // If this URL was processed before, show the latest result immediately
     await loadHistoryIfAny(seq);
   }
+}
+
+/** 🔄 Refresh button — no-op while a retrieval is already in flight. */
+async function handleRefresh() {
+  if (extractionPending) return; // still retrieving — do nothing
+  await refreshForCurrentTab();
 }
 
 // --- Metrics ---
@@ -222,74 +239,147 @@ async function checkServerStatus() {
 let lastLoadWasLoading = false;
 /** True when extraction failed (restricted page, mid-load injection, ...). */
 let extractionFailed = false;
+/** True while an extraction attempt is in flight — the refresh button no-ops. */
+let extractionPending = false;
 
-async function extractPageContent() {
+/**
+ * Extract content from the active tab. `seq` guards the UI: a superseded
+ * attempt (newer tab refresh started meanwhile) must not write stale
+ * content — or worse, its failure message — over the current attempt's
+ * "retrieving" state.
+ *
+ * Two defenses against "early" snapshots:
+ *   1. wait for the page to settle (document complete + YouTube shell
+ *      rendered) before extracting,
+ *   2. after extracting, verify the page's URL didn't change mid-flight
+ *      (SPA navigation race) — retry once when it did.
+ */
+async function extractPageContent(seq = refreshSeq) {
   extractionFailed = false;
   lastLoadWasLoading = false;
-  contentPreview.textContent = "Loading content…";
+  extractionPending = true;
+  refreshBtn.disabled = true;
+  contentPreview.textContent = "Retrieving content…";
   pageAuthorEl.textContent = "";
   pagePublishedEl.textContent = "";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (seq !== refreshSeq) return;
     if (!tab?.id) { pageTitle.textContent = "Unknown Page"; return; }
     activeTabId = tab.id;
     lastLoadWasLoading = tab.status === "loading";
 
-    pageTitle.textContent = tab.title || "Untitled";
+    pageTitle.textContent = tab.title || "Retrieving…";
     pageUrl.textContent = tab.url || "";
     pageType.textContent = detectPageTypeFromUrl(tab.url || "");
 
-    try {
-      const response = await chrome.tabs.sendMessage(tab.id, { action: "extract-content" });
-      if (response?.success) {
-        extractedContent = response.content;
-        pageTitle.textContent = response.content.title || tab.title || "Untitled";
-        pageType.textContent = response.content.sourceType || pageType.textContent;
-        contentPreview.textContent = response.content.content || "(No content extracted)";
-        showProvenance(response.content.metadata || {});
-      } else {
+    // 1. Let the page settle — an early snapshot of a half-rendered or
+    // mid-navigation page is not the content the user wants.
+    await waitForPageSettle(tab.id, seq);
+    if (seq !== refreshSeq) return;
+
+    // 2. Extract, then verify the page didn't navigate during the fetch
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await tryExtract(tab.id);
+      if (seq !== refreshSeq) return;
+      if (!response?.success) {
         extractionFailed = true;
+        break;
       }
-    } catch {
-      // Content script not injected yet (page mid-load, or never injected)
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ["src/content/content-script.js"],
-        });
-      } catch {
-        // Restricted page (chrome://, Web Store, PDF viewer) — cannot inject
-        extractionFailed = true;
+      const after = await requestPageIdentity(tab.id);
+      if (seq !== refreshSeq) return;
+      if (
+        after?.url &&
+        response.content?.url &&
+        after.url !== response.content.url
+      ) {
+        // The page navigated while extraction ran — take a fresh snapshot
+        console.warn("[NutEgg] Page navigated during extraction — retrying");
+        continue;
       }
-      if (!extractionFailed) {
-        try {
-          const resp = await chrome.tabs.sendMessage(tab.id, { action: "extract-content" });
-          if (resp?.success) {
-            extractedContent = resp.content;
-            pageTitle.textContent = resp.content.title || tab.title || "Untitled";
-            pageType.textContent = resp.content.sourceType || pageType.textContent;
-            contentPreview.textContent = resp.content.content || "(No content extracted)";
-            showProvenance(resp.content.metadata || {});
-          } else {
-            extractionFailed = true;
-          }
-        } catch {
-          extractionFailed = true;
-        }
-      }
+      extractedContent = response.content;
+      pageTitle.textContent = response.content.title || tab.title || "Untitled";
+      pageType.textContent = response.content.sourceType || pageType.textContent;
+      contentPreview.textContent = response.content.content || "(No content extracted)";
+      showProvenance(response.content.metadata || {});
+      break;
     }
   } catch {
     // Unexpected (e.g. extension context invalidated by a reload) — keep the
     // page title rather than showing a misleading "Error loading page"
     extractionFailed = true;
+  } finally {
+    // Only the CURRENT attempt may flip the pending state — an older attempt
+    // finishing late must not re-enable the button while a newer one runs.
+    if (seq === refreshSeq) {
+      extractionPending = false;
+      refreshBtn.disabled = false;
+    }
   }
+  if (seq !== refreshSeq) return; // superseded — leave the UI alone
   if (extractionFailed && !extractedContent) {
     contentPreview.textContent = "(Could not extract content)";
     showWarning(
-      "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. The panel will retry once the page finishes loading."
+      "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. Click 🔄 to try again, or the panel retries once the page finishes loading."
     );
   }
   applyTranscriptBlock();
+}
+
+/**
+ * Extract via the content script, injecting it first when needed.
+ * Returns the message response or null (restricted page / unreachable).
+ */
+async function tryExtract(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { action: "extract-content" });
+    if (response?.success) return response;
+  } catch {
+    // Content script not injected yet (page mid-load, or never injected)
+  }
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["src/content/content-script.js"],
+    });
+  } catch {
+    return null; // Restricted page (chrome://, Web Store, PDF viewer)
+  }
+  try {
+    return await chrome.tabs.sendMessage(tabId, { action: "extract-content" });
+  } catch {
+    return null;
+  }
+}
+
+/** Cheap page-state check (no transcript fetching). Null when unreachable. */
+async function requestPageIdentity(tabId) {
+  try {
+    const resp = await chrome.tabs.sendMessage(tabId, { action: "page-identity" });
+    return resp?.success ? resp : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Poll page-identity until the page settles (document complete, and for
+ * YouTube the watch shell rendered), bounded to ~8s. Returns null when the
+ * content script is unreachable — extraction proceeds and reports failure
+ * itself.
+ */
+async function waitForPageSettle(tabId, seq) {
+  const deadline = Date.now() + 8000;
+  while (Date.now() < deadline) {
+    if (seq !== refreshSeq) return null;
+    const identity = await requestPageIdentity(tabId);
+    if (!identity) return null;
+    if (identity.readyState === "complete" && identity.youtubeReady !== false) {
+      return identity;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null; // timed out — extract anyway (the failure path will report)
 }
 
 function detectPageTypeFromUrl(url) {

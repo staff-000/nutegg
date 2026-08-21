@@ -138,17 +138,41 @@ body {
   margin-bottom: 12px;
 }
 
+.page-info-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
 .page-title {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
   font-size: 13px;
   line-height: 1.3;
   color: #1a1a2e;
-  margin-bottom: 4px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.refresh-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.refresh-btn:hover:not(:disabled) { opacity: 1; }
+.refresh-btn:disabled { opacity: 0.3; cursor: default; }
 
 .page-url {
   font-size: 11px;
