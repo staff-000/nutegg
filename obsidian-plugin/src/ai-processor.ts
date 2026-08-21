@@ -15,6 +15,23 @@ const GROUNDING_RULE = groundingRuleTpl.trim();
 const CONTENT_WINDOW_CHARS = 30000;
 
 /**
+ * Content longer than this is split into parts and analyzed part by part
+ * (one AI call per part + aggregate calls — see analyzeChunked).
+ */
+const CHUNK_CHARS = CONTENT_WINDOW_CHARS;
+
+/** One part of a long content, aligned to chapter starts when possible. */
+interface ContentChunk {
+  index: number;
+  total: number;
+  content: string;
+  /** Chapters whose start time falls inside this chunk (for the Chapter Map). */
+  chapters: Array<{ time: string; title: string }>;
+  /** Start timestamp of the chunk ("MM:SS" / "H:MM:SS"), "" for plain text. */
+  startTime: string;
+}
+
+/**
  * One chapter in the Chapter Map. `time` is the video timestamp ("MM:SS" or
  * "HH:MM:SS") when available — the popup uses it to seek the video.
  */
@@ -114,6 +131,12 @@ export class AIProcessor {
       return this.fallbackAnalysis(capture, eggs);
     }
 
+    // Long content (long videos, books, ...) — process part by part
+    const chunks = this.chunkContent(capture.content, capture.chapters || []);
+    if (chunks.length > 1) {
+      return this.analyzeChunked(capture, eggs, chunks);
+    }
+
     let contentAnalysis: ContentAnalysis;
     let eggResults: EggAnalysis[] = [];
 
@@ -176,13 +199,15 @@ export class AIProcessor {
       questions?: string[];
     },
     actionGuide: string,
-    eggKeyQuestions: string[]
+    eggKeyQuestions: string[],
+    partNote = ""
   ): Promise<ContentAnalysis> {
     const prompt = renderPrompt(PROMPTS.contentAnalysis, {
       action_guide: actionGuide,
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      part_note: partNote,
       chapters: this.chaptersBlock(capture.chapters),
       questions: this.questionsBlock(
         capture.questions,
@@ -220,7 +245,8 @@ export class AIProcessor {
   /** Phase 2 — content against one egg: key questions, delta, reject, verdict. */
   private async analyzeAgainstEgg(
     capture: { title: string; url: string; content: string; sourceType: string },
-    egg: EggContent
+    egg: EggContent,
+    partNote = ""
   ): Promise<EggAnalysis | null> {
     const prompt = renderPrompt(PROMPTS.eggAnalysis, {
       egg_file: egg.fileName,
@@ -228,6 +254,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      part_note: partNote,
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE,
     });
@@ -269,7 +296,8 @@ export class AIProcessor {
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
     },
-    egg: EggContent
+    egg: EggContent,
+    partNote = ""
   ): Promise<EggAnalysis & ContentAnalysis> {
     const prompt = renderPrompt(PROMPTS.eggCombined, {
       egg_file: egg.fileName,
@@ -277,6 +305,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      part_note: partNote,
       chapters: this.chaptersBlock(capture.chapters),
       questions: this.questionsBlock(
         capture.questions,
@@ -319,6 +348,352 @@ export class AIProcessor {
       readVerdict: parsed.readVerdict !== false,
       readVerdictReason: String(parsed.readVerdictReason || ""),
     };
+  }
+
+  /**
+   * Long content: one analysis call per part, then aggregate calls that
+   * combine the parts into a single result.
+   *   Phase 1 — per-part content analysis → aggregate (verdict, 3-bullet
+   *   summary, custom questions). Chapter maps are unioned directly.
+   *   Phase 2 — per egg: per-part delta calls → aggregate (key questions,
+   *   reject, read verdict). Novel deltas are the union of the parts.
+   */
+  private async analyzeChunked(
+    capture: {
+      url: string;
+      title: string;
+      content: string;
+      sourceType: string;
+      chapters?: Array<{ time: string; title: string }>;
+      questions?: string[];
+    },
+    eggs: EggContent[],
+    chunks: ContentChunk[]
+  ): Promise<AnalysisResult> {
+    const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+
+    // Phase 1 — per-part content analysis (custom questions are answered
+    // once, in the aggregate call, so parts run without them)
+    const partResults = await Promise.all(
+      chunks.map((chunk) =>
+        this.analyzeContent(
+          { ...capture, content: chunk.content, chapters: chunk.chapters, questions: [] },
+          guide,
+          eggs.flatMap((e) => e.keyQuestions),
+          this.partNote(chunk)
+        )
+      )
+    );
+    const summary = await this.aggregateContent(
+      capture,
+      partResults.map((r, i) => ({
+        part: i + 1,
+        startTime: chunks[i].startTime,
+        bullets: r.coreSummary,
+      }))
+    );
+    const chapterMap = partResults.flatMap((r) => r.chapterMap);
+
+    // Phase 2 — per egg: per-part delta calls, then one aggregate call
+    const eggResults: EggAnalysis[] = [];
+    for (const egg of eggs) {
+      const partEggs = await Promise.all(
+        chunks.map((chunk) =>
+          this.analyzeAgainstEgg(
+            { ...capture, content: chunk.content },
+            egg,
+            this.partNote(chunk)
+          )
+        )
+      );
+      const aggregate = await this.aggregateEgg(
+        egg,
+        chunks.map((chunk, i) => ({
+          part: i + 1,
+          startTime: chunk.startTime,
+          delta: partEggs[i]?.novelDelta || [],
+        }))
+      );
+      // Union of per-part deltas (deduped — parts may re-find the same thing)
+      const seen = new Set<string>();
+      const novelDelta = partEggs
+        .flatMap((r) => r?.novelDelta || [])
+        .filter((d) => {
+          const key = `${d.parent}\n${d.content}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      eggResults.push({
+        egg: egg.fileName,
+        keyQuestionAnswers: aggregate.keyQuestionAnswers,
+        novelDelta,
+        rejected: aggregate.rejected,
+        rejectReason: aggregate.rejectReason,
+        readVerdict: aggregate.readVerdict,
+        readVerdictReason: aggregate.readVerdictReason,
+      });
+    }
+
+    const verdict = this.mergeVerdict(eggResults);
+    const newKnowledge: NewKnowledgeItem[] = eggResults.flatMap((r) =>
+      r.novelDelta.map((d) => ({
+        egg: r.egg,
+        parent: d.parent,
+        content: d.content,
+      }))
+    );
+
+    return {
+      titleVerdict: summary.titleVerdict,
+      coreSummary: summary.coreSummary,
+      isLongForm: true,
+      chapterMap,
+      customQuestionAnswers: summary.customQuestionAnswers,
+      ...verdict,
+      matchedEggs: eggs.map((e) => e.fileName),
+      eggResults,
+      newKnowledge,
+    };
+  }
+
+  /** Aggregate the per-part content summaries into one result. */
+  private async aggregateContent(
+    capture: { title: string; url: string; questions?: string[] },
+    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>
+  ): Promise<{
+    titleVerdict: string;
+    coreSummary: string[];
+    customQuestionAnswers: KeyAnswer[];
+  }> {
+    const prompt = renderPrompt(PROMPTS.aggregateContent, {
+      title: capture.title,
+      url: capture.url,
+      chunk_summaries: chunkSummaries
+        .map((c) => {
+          const at = c.startTime ? ` (${c.startTime})` : "";
+          const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
+          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || "- (no summary)"}`;
+        })
+        .join("\n\n"),
+      questions: this.questionsBlock(
+        capture.questions,
+        "User Questions (answer each directly and concisely)"
+      ),
+      grounding_rule: GROUNDING_RULE,
+    });
+
+    const response = await this.callAI(prompt, 500);
+    const parsed = this.parseJson(response);
+    return {
+      titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
+      coreSummary: Array.isArray(parsed.coreSummary)
+        ? parsed.coreSummary.map(String).slice(0, 3)
+        : [],
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+    };
+  }
+
+  /** Aggregate per-part delta findings into the egg's key answers + verdict. */
+  private async aggregateEgg(
+    egg: EggContent,
+    chunkFindings: Array<{ part: number; startTime: string; delta: NovelDelta[] }>
+  ): Promise<{
+    keyQuestionAnswers: KeyAnswer[];
+    rejected: boolean;
+    rejectReason: string;
+    readVerdict: boolean;
+    readVerdictReason: string;
+  }> {
+    const prompt = renderPrompt(PROMPTS.aggregateEgg, {
+      egg_file: egg.fileName,
+      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
+      chunk_findings: chunkFindings
+        .map((f) => {
+          const at = f.startTime ? ` (${f.startTime})` : "";
+          const delta = f.delta.map((d) => d.content).join("\n");
+          return `## Part ${f.part} of ${chunkFindings.length}${at}\n${delta || "- (no novel delta)"}`;
+        })
+        .join("\n\n"),
+      grounding_rule: GROUNDING_RULE,
+    });
+
+    const response = await this.callAI(prompt, 500);
+    const parsed = this.parseJson(response);
+    return {
+      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
+      rejected: parsed.rejected === true,
+      rejectReason: String(parsed.rejectReason || ""),
+      readVerdict: parsed.readVerdict !== false,
+      readVerdictReason: String(parsed.readVerdictReason || ""),
+    };
+  }
+
+  // --- Chunking ---
+
+  /**
+   * Split content into ≤CHUNK_CHARS parts. Timestamped transcripts
+   * (YouTube) are split at caption lines and chapters are attached to the
+   * chunk covering their start time; plain text is split at paragraphs.
+   */
+  private chunkContent(
+    content: string,
+    chapters: Array<{ time: string; title: string }>
+  ): ContentChunk[] {
+    if (content.length <= CHUNK_CHARS) {
+      return [{ index: 0, total: 1, content, chapters, startTime: "" }];
+    }
+    const lines = content.split("\n");
+    const firstTsIdx = lines.findIndex((l) => this.lineSeconds(l) !== null);
+    if (firstTsIdx === -1) {
+      return this.paragraphChunks(content, chapters);
+    }
+    return this.timestampedChunks(lines, firstTsIdx, chapters);
+  }
+
+  private paragraphChunks(
+    content: string,
+    chapters: Array<{ time: string; title: string }>
+  ): ContentChunk[] {
+    const paras = content.split(/\n\n+/);
+    const chunks: ContentChunk[] = [];
+    let buf: string[] = [];
+    let bufChars = 0;
+    const flush = () => {
+      if (!buf.length) return;
+      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "" });
+      buf = [];
+      bufChars = 0;
+    };
+    for (const p of paras) {
+      if (p.length > CHUNK_CHARS) {
+        flush();
+        // One oversized paragraph — hard-split by chars
+        for (let i = 0; i < p.length; i += CHUNK_CHARS) {
+          chunks.push({
+            index: 0, total: 0,
+            content: p.slice(i, i + CHUNK_CHARS),
+            chapters: [],
+            startTime: "",
+          });
+        }
+        continue;
+      }
+      if (bufChars + p.length > CHUNK_CHARS) flush();
+      buf.push(p);
+      bufChars += p.length + 2;
+    }
+    flush();
+    if (chunks.length === 0) {
+      chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
+    }
+    chunks.forEach((c, i) => {
+      c.index = i;
+      c.total = chunks.length;
+    });
+    if (chunks.length === 1) chunks[0].chapters = chapters;
+    return chunks;
+  }
+
+  private timestampedChunks(
+    lines: string[],
+    firstTsIdx: number,
+    chapters: Array<{ time: string; title: string }>
+  ): ContentChunk[] {
+    // Title/meta/description lines before the first caption — kept as the
+    // first chunk's preamble so the AI still gets the context.
+    const preamble = lines.slice(0, firstTsIdx).join("\n");
+    const units: Array<{ sec: number; line: string }> = [];
+    for (let i = firstTsIdx; i < lines.length; i++) {
+      const sec = this.lineSeconds(lines[i]);
+      if (sec === null) continue;
+      units.push({ sec, line: lines[i] });
+    }
+
+    const chunks: ContentChunk[] = [];
+    let buf: string[] = [];
+    let bufChars = 0;
+    let startSec = 0;
+    const flush = () => {
+      if (!buf.length) return;
+      chunks.push({
+        index: 0, total: 0,
+        content: buf.join("\n"),
+        chapters: [],
+        startTime: this.formatSeconds(startSec),
+      });
+      buf = [];
+      bufChars = 0;
+    };
+    for (const u of units) {
+      if (bufChars + u.line.length > CHUNK_CHARS) flush();
+      if (!buf.length) startSec = u.sec;
+      buf.push(u.line);
+      bufChars += u.line.length + 1;
+    }
+    flush();
+
+    if (chunks.length === 0) {
+      // No caption lines at all — fall back to paragraph chunking
+      return this.paragraphChunks(lines.join("\n"), chapters);
+    }
+
+    chunks[0].content = `${preamble}\n\n${chunks[0].content}`;
+
+    // Attach each chapter to the chunk covering its start time
+    const starts = chunks.map((c) => this.toSeconds(c.startTime));
+    for (const ch of chapters) {
+      const t = this.toSeconds(ch.time);
+      let idx = 0;
+      for (let i = starts.length - 1; i >= 0; i--) {
+        if (t >= starts[i]) {
+          idx = i;
+          break;
+        }
+      }
+      chunks[idx].chapters.push(ch);
+    }
+
+    chunks.forEach((c, i) => {
+      c.index = i;
+      c.total = chunks.length;
+    });
+    return chunks;
+  }
+
+  /** `**Part:** i of N (from MM:SS)` label for per-part calls. */
+  private partNote(chunk: ContentChunk): string {
+    const at = chunk.startTime ? ` (from ${chunk.startTime})` : "";
+    return `**Part:** ${chunk.index + 1} of ${chunk.total}${at}`;
+  }
+
+  /** Seconds of a `[MM:SS]` / `[H:MM:SS]` caption line, or null. */
+  private lineSeconds(line: string): number | null {
+    const m = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
+    if (!m) return null;
+    const parts = m[0].slice(1, -1).split(":").map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return null;
+  }
+
+  /** "MM:SS" / "H:MM:SS" → seconds (0 when unparseable). */
+  private toSeconds(time: string): number {
+    const parts = time.split(":").map(Number);
+    if (parts.some((n) => Number.isNaN(n))) return 0;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return 0;
+  }
+
+  /** Seconds → "MM:SS" / "H:MM:SS". */
+  private formatSeconds(sec: number): string {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
   }
 
   /** Combine per-egg verdicts into one global read recommendation. */

@@ -258,6 +258,166 @@ describe("AIProcessor.askFollowUp", () => {
   });
 });
 
+describe("AIProcessor.chunkContent", () => {
+  const p = new AIProcessor(makeFakePlugin() as any) as any;
+
+  it("returns one chunk for content under the limit", () => {
+    const chunks = p.chunkContent("short", [{ time: "00:01", title: "C1" }]);
+    assert.equal(chunks.length, 1);
+    assert.deepEqual(chunks[0].chapters, [{ time: "00:01", title: "C1" }]);
+  });
+
+  it("splits plain text at paragraph boundaries", () => {
+    const para = "x".repeat(10000);
+    const content = [para, para, para, para].join("\n\n"); // 4 × 10k paras
+    const chunks = p.chunkContent(content, []);
+    assert.ok(chunks.length >= 2);
+    assert.ok(chunks.every((c: any) => c.content.length <= 30000));
+    assert.ok(chunks[0].content.includes(para));
+  });
+
+  it("hard-splits a single oversized paragraph", () => {
+    const chunks = p.chunkContent("y".repeat(65000), []);
+    assert.ok(chunks.length >= 3);
+    assert.ok(chunks.every((c: any) => c.content.length <= 30000));
+  });
+
+  it("splits timestamped transcripts and keeps the preamble in part 1", () => {
+    const lines = ["# Title", "", "**Channel:** X", ""];
+    for (let m = 0; m < 50; m++) {
+      // 50 minutes × 20 lines × ~45 chars ≈ 45k chars → must split
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] caption text line with words`);
+      }
+    }
+    const content = lines.join("\n");
+    const chunks = p.chunkContent(content, []);
+    assert.ok(chunks.length >= 2, "long timestamped content must split");
+    assert.ok(chunks[0].content.includes("# Title"), "preamble in part 1");
+    assert.ok(chunks.every((c: any) => c.startTime !== ""));
+    assert.ok(chunks.every((c: any) => c.content.length <= 30000 + 1000));
+  });
+
+  it("attaches chapters to the chunk covering their start time", () => {
+    const lines = [];
+    for (let m = 0; m < 50; m++) {
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
+      }
+    }
+    const chapters = [
+      { time: "05:00", title: "Early" },
+      // The chunk boundary lands around minute 40 — pick a chapter clearly
+      // inside the second chunk's time range.
+      { time: "48:00", title: "Late" },
+    ];
+    const chunks = p.chunkContent(lines.join("\n"), chapters);
+    const early = chunks.find((c: any) => c.chapters.some((ch: any) => ch.title === "Early"));
+    const late = chunks.find((c: any) => c.chapters.some((ch: any) => ch.title === "Late"));
+    assert.ok(early, "Early chapter assigned to some chunk");
+    assert.ok(late, "Late chapter assigned to some chunk");
+    assert.notEqual(
+      early?.startTime,
+      late?.startTime,
+      "chapters in different time ranges land in different chunks"
+    );
+  });
+});
+
+describe("AIProcessor.analyze (chunked)", () => {
+  // ~65k chars → 3 parts; two eggs → 3 content + 1 aggregate + 2×(3+1) = 12 calls
+  const longContent = "word ".repeat(13000); // 65k chars
+
+  function chunkResponses() {
+    const contentPart = (i: number) =>
+      JSON.stringify({
+        titleVerdict: `V${i}`,
+        coreSummary: [`part${i}-b1`, `part${i}-b2`],
+        isLongForm: true,
+        chapterMap: [{ time: "00:00", title: `Ch${i}`, summary: `s${i}` }],
+        customQuestionAnswers: [],
+      });
+    const eggPart = (i: number) =>
+      JSON.stringify({
+        keyQuestionAnswers: [],
+        novelDelta: [{ parent: "", content: `- delta from part ${i}` }],
+        rejected: false,
+        readVerdict: true,
+        readVerdictReason: "novel",
+      });
+    return [
+      contentPart(1), contentPart(2), contentPart(3),
+      JSON.stringify({
+        titleVerdict: "Overall verdict.",
+        coreSummary: ["all-1", "all-2"],
+        customQuestionAnswers: [{ question: "Q?", answer: "A" }],
+      }),
+      eggPart(1), eggPart(2), eggPart(3),
+      JSON.stringify({
+        keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
+        rejected: false,
+        readVerdict: true,
+        readVerdictReason: "adds insight",
+      }),
+      eggPart(1), eggPart(2), eggPart(3),
+      JSON.stringify({
+        keyQuestionAnswers: [],
+        rejected: true,
+        rejectReason: "noise for this egg",
+        readVerdict: false,
+        readVerdictReason: "",
+      }),
+    ];
+  }
+
+  it("runs per-part calls + aggregates and merges the results", async () => {
+    const responses = chunkResponses();
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => responses[Math.min(calls++, responses.length - 1)],
+      },
+    });
+    const result = await new AIProcessor(plugin as any).analyze(
+      { ...capture, content: longContent, questions: ["Q?"] },
+      [egg("a.md"), egg("b.md")]
+    );
+    assert.equal(calls, 12);
+    assert.equal(result.titleVerdict, "Overall verdict.");
+    assert.deepEqual(result.coreSummary, ["all-1", "all-2"]);
+    assert.equal(result.chapterMap.length, 3, "chapter maps unioned");
+    assert.equal(result.customQuestionAnswers[0].answer, "A");
+    assert.equal(result.eggResults.length, 2);
+    // deltas are the union of per-part deltas, deduped
+    assert.deepEqual(
+      result.newKnowledge.map((k) => k.content).sort(),
+      [
+        "- delta from part 1",
+        "- delta from part 2",
+        "- delta from part 3",
+        "- delta from part 1",
+        "- delta from part 2",
+        "- delta from part 3",
+      ].sort()
+    );
+    // verdict from the aggregate egg calls
+    assert.equal(result.eggResults[0].keyQuestionAnswers[0].answer, "Yes");
+    assert.equal(result.eggResults[1].rejected, true);
+    assert.equal(result.shouldRead, true, "one egg says read");
+  });
+
+  it("short content still uses the single-pass pipeline", async () => {
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => (calls++, "{}"),
+      },
+    });
+    await new AIProcessor(plugin as any).analyze({ ...capture }, [egg("a.md")]);
+    assert.equal(calls, 1, "no chunking below the limit");
+  });
+});
+
 describe("AIProcessor.maybeMergeEgg", () => {
   /** Egg file with `n` top-level entries in ## Unprocessed. */
   function unprocessedEgg(n: number): string {

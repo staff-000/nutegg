@@ -7,7 +7,7 @@ You are a knowledge curator. Analyze the content below following this Action Gui
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 {{egg_key_questions}}
 

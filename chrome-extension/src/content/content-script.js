@@ -332,15 +332,41 @@ function waitFor(getter, timeoutMs) {
 }
 
 function parseYouTubeCaptionXML(xml) {
-  const texts = [];
-  const regex = /<text[^>]*>(.*?)<\/text>/g;
+  const segments = [];
+  const regex = /<text\b([^>]*)>([\s\S]*?)<\/text>/g;
   let match;
+  let lastStart = -1;
   while ((match = regex.exec(xml)) !== null) {
-    // Strip HTML tags from caption text
-    const text = match[1].replace(/<[^>]+>/g, "").trim();
-    if (text) texts.push(text);
+    const startAttr = (match[1].match(/\bstart="([\d.]+)"/) || [])[1];
+    const start = startAttr !== undefined ? parseFloat(startAttr) : NaN;
+    // YouTube occasionally serves duplicate/overlapping caption spans for
+    // long videos — drop any segment that doesn't advance the timeline.
+    if (Number.isFinite(start)) {
+      if (start <= lastStart) continue;
+      lastStart = start;
+    }
+    const text = match[2]
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .trim();
+    if (!text) continue;
+    // One line per caption with its timestamp — powers the chapter-aware
+    // chunking and the clickable chapter map.
+    segments.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
   }
-  return texts.join(" ");
+  return segments.join("\n");
+}
+
+/** Seconds → "MM:SS" or "H:MM:SS". */
+function formatTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 // ============================================================

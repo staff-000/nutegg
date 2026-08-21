@@ -13,6 +13,8 @@ import followUpTpl from "./prompts/follow-up.md";
 import eggRoutingTpl from "./prompts/egg-routing.md";
 import actionGuideDefaultTpl from "./prompts/action-guide-default.md";
 import mergeUnprocessedTpl from "./prompts/merge-unprocessed.md";
+import aggregateContentTpl from "./prompts/aggregate-content.md";
+import aggregateEggTpl from "./prompts/aggregate-egg.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -29,6 +31,10 @@ export const PROMPTS = {
   actionGuideDefault: actionGuideDefaultTpl.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: mergeUnprocessedTpl,
+  /** Combine per-part results into one result for long content. */
+  aggregateContent: aggregateContentTpl,
+  /** Per-egg verdict + key questions for long content (after per-part delta). */
+  aggregateEgg: aggregateEggTpl,
 };
 
 /** Substitute {{placeholder}} variables in a template. */

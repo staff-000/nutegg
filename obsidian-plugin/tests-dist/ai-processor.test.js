@@ -273,7 +273,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 {{egg_key_questions}}
 
@@ -311,6 +311,7 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
+{{part_note}}
 
 {{content}}
 
@@ -349,7 +350,7 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 
 {{content}}
@@ -449,6 +450,40 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 `;
 
+// src/prompts/aggregate-content.md
+var aggregate_content_default = `You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.
+
+## Content
+**Title:** {{title}}
+**Source:** {{url}}
+
+## Per-Part Summaries
+{{chunk_summaries}}
+
+{{questions}}
+
+## Task
+1. Title Verdict: answer the question posed in the title (or intro) in a single direct sentence, drawing on ALL parts.
+2. Core Summary: at most 3 plain-language bullets covering the WHOLE content, not just one part.
+3. Answer each User Question directly and concisely. Grounding: {{grounding_rule}}
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "titleVerdict": "direct answer to the title's question",
+  "coreSummary": ["bullet 1", "bullet 2"],
+  "customQuestionAnswers": [
+    {"question": "exact question text", "answer": "direct answer"}
+  ]
+}
+
+IMPORTANT:
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
+- Grounding: {{grounding_rule}}
+`;
+
+// src/prompts/aggregate-egg.md
+var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n2. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n3. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -464,7 +499,11 @@ var PROMPTS = {
   /** Default Action Guide when no egg provides one. */
   actionGuideDefault: action_guide_default_default.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
-  mergeUnprocessed: merge_unprocessed_default
+  mergeUnprocessed: merge_unprocessed_default,
+  /** Combine per-part results into one result for long content. */
+  aggregateContent: aggregate_content_default,
+  /** Per-egg verdict + key questions for long content (after per-part delta). */
+  aggregateEgg: aggregate_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -479,6 +518,7 @@ var grounding_rule_default = 'The content is the ONLY source of truth for every 
 // src/ai-processor.ts
 var GROUNDING_RULE = grounding_rule_default.trim();
 var CONTENT_WINDOW_CHARS = 3e4;
+var CHUNK_CHARS = CONTENT_WINDOW_CHARS;
 var MERGE_THRESHOLD = 20;
 var AIProcessor = class {
   plugin;
@@ -488,6 +528,10 @@ var AIProcessor = class {
   async analyze(capture2, eggs) {
     if (!this.plugin.settings.aiApiKey) {
       return this.fallbackAnalysis(capture2, eggs);
+    }
+    const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
+    if (chunks.length > 1) {
+      return this.analyzeChunked(capture2, eggs, chunks);
     }
     let contentAnalysis;
     let eggResults = [];
@@ -529,12 +573,13 @@ var AIProcessor = class {
     };
   }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  async analyzeContent(capture2, actionGuide, eggKeyQuestions) {
+  async analyzeContent(capture2, actionGuide, eggKeyQuestions, partNote = "") {
     const prompt = renderPrompt(PROMPTS.contentAnalysis, {
       action_guide: actionGuide,
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
+      part_note: partNote,
       chapters: this.chaptersBlock(capture2.chapters),
       questions: this.questionsBlock(
         capture2.questions,
@@ -562,13 +607,14 @@ var AIProcessor = class {
     };
   }
   /** Phase 2 — content against one egg: key questions, delta, reject, verdict. */
-  async analyzeAgainstEgg(capture2, egg2) {
+  async analyzeAgainstEgg(capture2, egg2, partNote = "") {
     const prompt = renderPrompt(PROMPTS.eggAnalysis, {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
+      part_note: partNote,
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       grounding_rule: GROUNDING_RULE
     });
@@ -595,13 +641,14 @@ var AIProcessor = class {
     }
   }
   /** Single combined call — used when exactly one egg matches. */
-  async analyzeSingleEgg(capture2, egg2) {
+  async analyzeSingleEgg(capture2, egg2, partNote = "") {
     const prompt = renderPrompt(PROMPTS.eggCombined, {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
+      part_note: partNote,
       chapters: this.chaptersBlock(capture2.chapters),
       questions: this.questionsBlock(
         capture2.questions,
@@ -633,6 +680,297 @@ var AIProcessor = class {
       readVerdict: parsed.readVerdict !== false,
       readVerdictReason: String(parsed.readVerdictReason || "")
     };
+  }
+  /**
+   * Long content: one analysis call per part, then aggregate calls that
+   * combine the parts into a single result.
+   *   Phase 1 — per-part content analysis → aggregate (verdict, 3-bullet
+   *   summary, custom questions). Chapter maps are unioned directly.
+   *   Phase 2 — per egg: per-part delta calls → aggregate (key questions,
+   *   reject, read verdict). Novel deltas are the union of the parts.
+   */
+  async analyzeChunked(capture2, eggs, chunks) {
+    const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+    const partResults = await Promise.all(
+      chunks.map(
+        (chunk) => this.analyzeContent(
+          { ...capture2, content: chunk.content, chapters: chunk.chapters, questions: [] },
+          guide,
+          eggs.flatMap((e) => e.keyQuestions),
+          this.partNote(chunk)
+        )
+      )
+    );
+    const summary = await this.aggregateContent(
+      capture2,
+      partResults.map((r, i) => ({
+        part: i + 1,
+        startTime: chunks[i].startTime,
+        bullets: r.coreSummary
+      }))
+    );
+    const chapterMap = partResults.flatMap((r) => r.chapterMap);
+    const eggResults = [];
+    for (const egg2 of eggs) {
+      const partEggs = await Promise.all(
+        chunks.map(
+          (chunk) => this.analyzeAgainstEgg(
+            { ...capture2, content: chunk.content },
+            egg2,
+            this.partNote(chunk)
+          )
+        )
+      );
+      const aggregate = await this.aggregateEgg(
+        egg2,
+        chunks.map((chunk, i) => ({
+          part: i + 1,
+          startTime: chunk.startTime,
+          delta: partEggs[i]?.novelDelta || []
+        }))
+      );
+      const seen = /* @__PURE__ */ new Set();
+      const novelDelta = partEggs.flatMap((r) => r?.novelDelta || []).filter((d) => {
+        const key = `${d.parent}
+${d.content}`;
+        if (seen.has(key))
+          return false;
+        seen.add(key);
+        return true;
+      });
+      eggResults.push({
+        egg: egg2.fileName,
+        keyQuestionAnswers: aggregate.keyQuestionAnswers,
+        novelDelta,
+        rejected: aggregate.rejected,
+        rejectReason: aggregate.rejectReason,
+        readVerdict: aggregate.readVerdict,
+        readVerdictReason: aggregate.readVerdictReason
+      });
+    }
+    const verdict = this.mergeVerdict(eggResults);
+    const newKnowledge = eggResults.flatMap(
+      (r) => r.novelDelta.map((d) => ({
+        egg: r.egg,
+        parent: d.parent,
+        content: d.content
+      }))
+    );
+    return {
+      titleVerdict: summary.titleVerdict,
+      coreSummary: summary.coreSummary,
+      isLongForm: true,
+      chapterMap,
+      customQuestionAnswers: summary.customQuestionAnswers,
+      ...verdict,
+      matchedEggs: eggs.map((e) => e.fileName),
+      eggResults,
+      newKnowledge
+    };
+  }
+  /** Aggregate the per-part content summaries into one result. */
+  async aggregateContent(capture2, chunkSummaries) {
+    const prompt = renderPrompt(PROMPTS.aggregateContent, {
+      title: capture2.title,
+      url: capture2.url,
+      chunk_summaries: chunkSummaries.map((c) => {
+        const at = c.startTime ? ` (${c.startTime})` : "";
+        const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
+        return `## Part ${c.part} of ${chunkSummaries.length}${at}
+${bullets || "- (no summary)"}`;
+      }).join("\n\n"),
+      questions: this.questionsBlock(
+        capture2.questions,
+        "User Questions (answer each directly and concisely)"
+      ),
+      grounding_rule: GROUNDING_RULE
+    });
+    const response = await this.callAI(prompt, 500);
+    const parsed = this.parseJson(response);
+    return {
+      titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
+      coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
+    };
+  }
+  /** Aggregate per-part delta findings into the egg's key answers + verdict. */
+  async aggregateEgg(egg2, chunkFindings) {
+    const prompt = renderPrompt(PROMPTS.aggregateEgg, {
+      egg_file: egg2.fileName,
+      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
+      chunk_findings: chunkFindings.map((f) => {
+        const at = f.startTime ? ` (${f.startTime})` : "";
+        const delta = f.delta.map((d) => d.content).join("\n");
+        return `## Part ${f.part} of ${chunkFindings.length}${at}
+${delta || "- (no novel delta)"}`;
+      }).join("\n\n"),
+      grounding_rule: GROUNDING_RULE
+    });
+    const response = await this.callAI(prompt, 500);
+    const parsed = this.parseJson(response);
+    return {
+      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
+      rejected: parsed.rejected === true,
+      rejectReason: String(parsed.rejectReason || ""),
+      readVerdict: parsed.readVerdict !== false,
+      readVerdictReason: String(parsed.readVerdictReason || "")
+    };
+  }
+  // --- Chunking ---
+  /**
+   * Split content into ≤CHUNK_CHARS parts. Timestamped transcripts
+   * (YouTube) are split at caption lines and chapters are attached to the
+   * chunk covering their start time; plain text is split at paragraphs.
+   */
+  chunkContent(content, chapters) {
+    if (content.length <= CHUNK_CHARS) {
+      return [{ index: 0, total: 1, content, chapters, startTime: "" }];
+    }
+    const lines = content.split("\n");
+    const firstTsIdx = lines.findIndex((l) => this.lineSeconds(l) !== null);
+    if (firstTsIdx === -1) {
+      return this.paragraphChunks(content, chapters);
+    }
+    return this.timestampedChunks(lines, firstTsIdx, chapters);
+  }
+  paragraphChunks(content, chapters) {
+    const paras = content.split(/\n\n+/);
+    const chunks = [];
+    let buf = [];
+    let bufChars = 0;
+    const flush = () => {
+      if (!buf.length)
+        return;
+      chunks.push({ index: 0, total: 0, content: buf.join("\n\n"), chapters: [], startTime: "" });
+      buf = [];
+      bufChars = 0;
+    };
+    for (const p of paras) {
+      if (p.length > CHUNK_CHARS) {
+        flush();
+        for (let i = 0; i < p.length; i += CHUNK_CHARS) {
+          chunks.push({
+            index: 0,
+            total: 0,
+            content: p.slice(i, i + CHUNK_CHARS),
+            chapters: [],
+            startTime: ""
+          });
+        }
+        continue;
+      }
+      if (bufChars + p.length > CHUNK_CHARS)
+        flush();
+      buf.push(p);
+      bufChars += p.length + 2;
+    }
+    flush();
+    if (chunks.length === 0) {
+      chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
+    }
+    chunks.forEach((c, i) => {
+      c.index = i;
+      c.total = chunks.length;
+    });
+    if (chunks.length === 1)
+      chunks[0].chapters = chapters;
+    return chunks;
+  }
+  timestampedChunks(lines, firstTsIdx, chapters) {
+    const preamble = lines.slice(0, firstTsIdx).join("\n");
+    const units = [];
+    for (let i = firstTsIdx; i < lines.length; i++) {
+      const sec = this.lineSeconds(lines[i]);
+      if (sec === null)
+        continue;
+      units.push({ sec, line: lines[i] });
+    }
+    const chunks = [];
+    let buf = [];
+    let bufChars = 0;
+    let startSec = 0;
+    const flush = () => {
+      if (!buf.length)
+        return;
+      chunks.push({
+        index: 0,
+        total: 0,
+        content: buf.join("\n"),
+        chapters: [],
+        startTime: this.formatSeconds(startSec)
+      });
+      buf = [];
+      bufChars = 0;
+    };
+    for (const u of units) {
+      if (bufChars + u.line.length > CHUNK_CHARS)
+        flush();
+      if (!buf.length)
+        startSec = u.sec;
+      buf.push(u.line);
+      bufChars += u.line.length + 1;
+    }
+    flush();
+    if (chunks.length === 0) {
+      return this.paragraphChunks(lines.join("\n"), chapters);
+    }
+    chunks[0].content = `${preamble}
+
+${chunks[0].content}`;
+    const starts = chunks.map((c) => this.toSeconds(c.startTime));
+    for (const ch of chapters) {
+      const t = this.toSeconds(ch.time);
+      let idx = 0;
+      for (let i = starts.length - 1; i >= 0; i--) {
+        if (t >= starts[i]) {
+          idx = i;
+          break;
+        }
+      }
+      chunks[idx].chapters.push(ch);
+    }
+    chunks.forEach((c, i) => {
+      c.index = i;
+      c.total = chunks.length;
+    });
+    return chunks;
+  }
+  /** `**Part:** i of N (from MM:SS)` label for per-part calls. */
+  partNote(chunk) {
+    const at = chunk.startTime ? ` (from ${chunk.startTime})` : "";
+    return `**Part:** ${chunk.index + 1} of ${chunk.total}${at}`;
+  }
+  /** Seconds of a `[MM:SS]` / `[H:MM:SS]` caption line, or null. */
+  lineSeconds(line) {
+    const m = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
+    if (!m)
+      return null;
+    const parts = m[0].slice(1, -1).split(":").map(Number);
+    if (parts.length === 3)
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2)
+      return parts[0] * 60 + parts[1];
+    return null;
+  }
+  /** "MM:SS" / "H:MM:SS" → seconds (0 when unparseable). */
+  toSeconds(time) {
+    const parts = time.split(":").map(Number);
+    if (parts.some((n) => Number.isNaN(n)))
+      return 0;
+    if (parts.length === 3)
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2)
+      return parts[0] * 60 + parts[1];
+    return 0;
+  }
+  /** Seconds → "MM:SS" / "H:MM:SS". */
+  formatSeconds(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor(sec % 3600 / 60);
+    const s = Math.floor(sec % 60);
+    const mm = String(m).padStart(2, "0");
+    const ss = String(s).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
   }
   /** Combine per-egg verdicts into one global read recommendation. */
   mergeVerdict(eggResults) {
@@ -1356,6 +1694,156 @@ var capture = {
     const out = await new AIProcessor(plugin).askFollowUp(capture, [], []);
     import_strict.default.deepEqual(out, []);
     import_strict.default.equal(calls, 0);
+  });
+});
+(0, import_node_test.describe)("AIProcessor.chunkContent", () => {
+  const p = new AIProcessor(makeFakePlugin());
+  (0, import_node_test.it)("returns one chunk for content under the limit", () => {
+    const chunks = p.chunkContent("short", [{ time: "00:01", title: "C1" }]);
+    import_strict.default.equal(chunks.length, 1);
+    import_strict.default.deepEqual(chunks[0].chapters, [{ time: "00:01", title: "C1" }]);
+  });
+  (0, import_node_test.it)("splits plain text at paragraph boundaries", () => {
+    const para = "x".repeat(1e4);
+    const content = [para, para, para, para].join("\n\n");
+    const chunks = p.chunkContent(content, []);
+    import_strict.default.ok(chunks.length >= 2);
+    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4));
+    import_strict.default.ok(chunks[0].content.includes(para));
+  });
+  (0, import_node_test.it)("hard-splits a single oversized paragraph", () => {
+    const chunks = p.chunkContent("y".repeat(65e3), []);
+    import_strict.default.ok(chunks.length >= 3);
+    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4));
+  });
+  (0, import_node_test.it)("splits timestamped transcripts and keeps the preamble in part 1", () => {
+    const lines = ["# Title", "", "**Channel:** X", ""];
+    for (let m = 0; m < 50; m++) {
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] caption text line with words`);
+      }
+    }
+    const content = lines.join("\n");
+    const chunks = p.chunkContent(content, []);
+    import_strict.default.ok(chunks.length >= 2, "long timestamped content must split");
+    import_strict.default.ok(chunks[0].content.includes("# Title"), "preamble in part 1");
+    import_strict.default.ok(chunks.every((c) => c.startTime !== ""));
+    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4 + 1e3));
+  });
+  (0, import_node_test.it)("attaches chapters to the chunk covering their start time", () => {
+    const lines = [];
+    for (let m = 0; m < 50; m++) {
+      for (let s = 0; s < 20; s++) {
+        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
+      }
+    }
+    const chapters = [
+      { time: "05:00", title: "Early" },
+      // The chunk boundary lands around minute 40 — pick a chapter clearly
+      // inside the second chunk's time range.
+      { time: "48:00", title: "Late" }
+    ];
+    const chunks = p.chunkContent(lines.join("\n"), chapters);
+    const early = chunks.find((c) => c.chapters.some((ch) => ch.title === "Early"));
+    const late = chunks.find((c) => c.chapters.some((ch) => ch.title === "Late"));
+    import_strict.default.ok(early, "Early chapter assigned to some chunk");
+    import_strict.default.ok(late, "Late chapter assigned to some chunk");
+    import_strict.default.notEqual(
+      early?.startTime,
+      late?.startTime,
+      "chapters in different time ranges land in different chunks"
+    );
+  });
+});
+(0, import_node_test.describe)("AIProcessor.analyze (chunked)", () => {
+  const longContent = "word ".repeat(13e3);
+  function chunkResponses() {
+    const contentPart = (i) => JSON.stringify({
+      titleVerdict: `V${i}`,
+      coreSummary: [`part${i}-b1`, `part${i}-b2`],
+      isLongForm: true,
+      chapterMap: [{ time: "00:00", title: `Ch${i}`, summary: `s${i}` }],
+      customQuestionAnswers: []
+    });
+    const eggPart = (i) => JSON.stringify({
+      keyQuestionAnswers: [],
+      novelDelta: [{ parent: "", content: `- delta from part ${i}` }],
+      rejected: false,
+      readVerdict: true,
+      readVerdictReason: "novel"
+    });
+    return [
+      contentPart(1),
+      contentPart(2),
+      contentPart(3),
+      JSON.stringify({
+        titleVerdict: "Overall verdict.",
+        coreSummary: ["all-1", "all-2"],
+        customQuestionAnswers: [{ question: "Q?", answer: "A" }]
+      }),
+      eggPart(1),
+      eggPart(2),
+      eggPart(3),
+      JSON.stringify({
+        keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
+        rejected: false,
+        readVerdict: true,
+        readVerdictReason: "adds insight"
+      }),
+      eggPart(1),
+      eggPart(2),
+      eggPart(3),
+      JSON.stringify({
+        keyQuestionAnswers: [],
+        rejected: true,
+        rejectReason: "noise for this egg",
+        readVerdict: false,
+        readVerdictReason: ""
+      })
+    ];
+  }
+  (0, import_node_test.it)("runs per-part calls + aggregates and merges the results", async () => {
+    const responses = chunkResponses();
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => responses[Math.min(calls++, responses.length - 1)]
+      }
+    });
+    const result = await new AIProcessor(plugin).analyze(
+      { ...capture, content: longContent, questions: ["Q?"] },
+      [egg("a.md"), egg("b.md")]
+    );
+    import_strict.default.equal(calls, 12);
+    import_strict.default.equal(result.titleVerdict, "Overall verdict.");
+    import_strict.default.deepEqual(result.coreSummary, ["all-1", "all-2"]);
+    import_strict.default.equal(result.chapterMap.length, 3, "chapter maps unioned");
+    import_strict.default.equal(result.customQuestionAnswers[0].answer, "A");
+    import_strict.default.equal(result.eggResults.length, 2);
+    import_strict.default.deepEqual(
+      result.newKnowledge.map((k) => k.content).sort(),
+      [
+        "- delta from part 1",
+        "- delta from part 2",
+        "- delta from part 3",
+        "- delta from part 1",
+        "- delta from part 2",
+        "- delta from part 3"
+      ].sort()
+    );
+    import_strict.default.equal(result.eggResults[0].keyQuestionAnswers[0].answer, "Yes");
+    import_strict.default.equal(result.eggResults[1].rejected, true);
+    import_strict.default.equal(result.shouldRead, true, "one egg says read");
+  });
+  (0, import_node_test.it)("short content still uses the single-pass pipeline", async () => {
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => (calls++, "{}")
+      }
+    });
+    await new AIProcessor(plugin).analyze({ ...capture }, [egg("a.md")]);
+    import_strict.default.equal(calls, 1, "no chunking below the limit");
   });
 });
 (0, import_node_test.describe)("AIProcessor.maybeMergeEgg", () => {

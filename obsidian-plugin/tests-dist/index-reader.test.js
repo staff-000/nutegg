@@ -36,7 +36,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 {{egg_key_questions}}
 
@@ -74,6 +74,7 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
+{{part_note}}
 
 {{content}}
 
@@ -112,7 +113,7 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 
 {{content}}
@@ -212,6 +213,40 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 `;
 
+// src/prompts/aggregate-content.md
+var aggregate_content_default = `You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.
+
+## Content
+**Title:** {{title}}
+**Source:** {{url}}
+
+## Per-Part Summaries
+{{chunk_summaries}}
+
+{{questions}}
+
+## Task
+1. Title Verdict: answer the question posed in the title (or intro) in a single direct sentence, drawing on ALL parts.
+2. Core Summary: at most 3 plain-language bullets covering the WHOLE content, not just one part.
+3. Answer each User Question directly and concisely. Grounding: {{grounding_rule}}
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "titleVerdict": "direct answer to the title's question",
+  "coreSummary": ["bullet 1", "bullet 2"],
+  "customQuestionAnswers": [
+    {"question": "exact question text", "answer": "direct answer"}
+  ]
+}
+
+IMPORTANT:
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
+- Grounding: {{grounding_rule}}
+`;
+
+// src/prompts/aggregate-egg.md
+var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n2. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n3. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -227,7 +262,11 @@ var PROMPTS = {
   /** Default Action Guide when no egg provides one. */
   actionGuideDefault: action_guide_default_default.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
-  mergeUnprocessed: merge_unprocessed_default
+  mergeUnprocessed: merge_unprocessed_default,
+  /** Combine per-part results into one result for long content. */
+  aggregateContent: aggregate_content_default,
+  /** Per-egg verdict + key questions for long content (after per-part delta). */
+  aggregateEgg: aggregate_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {

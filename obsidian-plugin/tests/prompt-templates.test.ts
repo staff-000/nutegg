@@ -46,6 +46,8 @@ describe("PROMPTS", () => {
       "egg_instructions", "prior_qa", "index",
       // merge-unprocessed.md
       "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
+      // chunked analysis (per-part labels + aggregates)
+      "part_note", "chunk_summaries", "chunk_findings",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

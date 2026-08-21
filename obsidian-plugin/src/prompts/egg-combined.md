@@ -7,7 +7,7 @@ You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
-{{chapters}}
+{{part_note}}{{chapters}}
 {{questions}}
 
 {{content}}
