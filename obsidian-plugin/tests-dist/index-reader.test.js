@@ -197,7 +197,7 @@ var merge_unprocessed_default = `You are a knowledge curator for the egg file "{
 ## Existing Knowledge Tree
 {{knowledge_tree}}
 
-## Unprocessed Entries
+## Entries to Merge
 {{unprocessed}}
 
 ## Task
@@ -210,8 +210,8 @@ var merge_unprocessed_default = `You are a knowledge curator for the egg file "{
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
-  "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in",
-  "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged"
+  "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in. Only the section BODY: do NOT include the '# Knowledge' heading line itself.",
+  "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged. Only the section BODY: do NOT include the '# Unprocessed' heading line itself."
 }
 `;
 

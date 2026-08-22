@@ -524,13 +524,13 @@ describe("AIProcessor.suggestEgg", () => {
 });
 
 describe("AIProcessor.maybeMergeEgg", () => {
-  /** Egg file with `n` top-level entries in ## Unprocessed. */
+  /** Egg file with `n` top-level entries in # Unprocessed. */
   function unprocessedEgg(n: number): string {
     const entries = Array.from(
       { length: n },
       (_, i) => `- entry ${i + 1}`
     ).join("\n");
-    return `## Knowledge\n\n- existing\n\n## Unprocessed\n\n${entries}\n`;
+    return `# Knowledge\n\n- existing\n\n# Unprocessed\n\n${entries}\n`;
   }
 
   function makeProcessor(
@@ -578,7 +578,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
     assert.deepEqual(out, { egg: "egg.md", entries: 20 });
     const content = files.get("egg.md")!;
     assert.ok(
-      content.includes("## Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
+      content.includes("# Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
       "Knowledge tree replaced with the merged output"
     );
     assert.ok(!content.includes("- entry 1"), "Unprocessed entries consumed");

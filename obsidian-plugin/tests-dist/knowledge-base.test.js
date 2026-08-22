@@ -32,12 +32,16 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 // src/egg-parser.ts
 var egg_parser_exports = {};
 __export(egg_parser_exports, {
-  EggParser: () => EggParser
+  EggParser: () => EggParser,
+  KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
+  UNPROCESSED_HEADING: () => UNPROCESSED_HEADING
 });
-var EggParser;
+var KNOWLEDGE_HEADING, UNPROCESSED_HEADING, EggParser;
 var init_egg_parser = __esm({
   "src/egg-parser.ts"() {
     "use strict";
+    KNOWLEDGE_HEADING = "# Knowledge";
+    UNPROCESSED_HEADING = "# Unprocessed";
     EggParser = class {
       plugin;
       constructor(plugin) {
@@ -95,20 +99,28 @@ var init_egg_parser = __esm({
         const lines = content.split("\n");
         const knowledgeSection = this.findSection(lines, "knowledge");
         if (knowledgeSection) {
-          result.knowledge = this.sectionBody(lines, knowledgeSection);
+          result.knowledge = this.sectionBody(lines, knowledgeSection, "knowledge");
         }
         const unprocessedSection = this.findSection(lines, "unprocessed");
         if (unprocessedSection) {
-          result.unprocessed = this.sectionBody(lines, unprocessedSection);
+          result.unprocessed = this.sectionBody(lines, unprocessedSection, "unprocessed");
         }
         return result;
       }
       /**
        * Section content without the surrounding blank lines. Indentation of the
        * first line is preserved (unlike trim()) so re-indented sections survive.
+       *
+       * A stray duplicate heading of the same name (AI merge output that included
+       * its own `# Knowledge`-style line) is stripped so the body starts with the
+       * actual content.
        */
-      sectionBody(lines, section) {
-        return lines.slice(section.start + 1, section.end).join("\n").replace(/^\n+|\n+$/g, "");
+      sectionBody(lines, section, name) {
+        const body = lines.slice(section.start + 1, section.end);
+        while (body.length > 0 && (body[0].trim() === "" || this.headingName(body[0]) === name.toLowerCase())) {
+          body.shift();
+        }
+        return body.join("\n").replace(/\n+$/g, "");
       }
       /** Format one egg's instructions + knowledge for an AI prompt. */
       formatEggForPrompt(egg) {
@@ -170,7 +182,7 @@ ${egg.unprocessed}`
         if (section) {
           lines.splice(section.end, 0, "", block);
         } else {
-          lines.push("", "## Unprocessed", "", block);
+          lines.push("", UNPROCESSED_HEADING, "", block);
         }
         await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
         console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
@@ -194,6 +206,19 @@ ${egg.unprocessed}`
           console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
           return;
         }
+        knowledge = this.stripSectionHeading(knowledge, "knowledge");
+        unprocessed = this.stripSectionHeading(unprocessed, "unprocessed");
+        const kLines = knowledge.split("\n");
+        const uIdx = kLines.findIndex((l) => this.headingName(l) === "unprocessed");
+        if (uIdx !== -1) {
+          const rest = this.stripSectionHeading(
+            kLines.slice(uIdx).join("\n"),
+            "unprocessed"
+          );
+          knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
+          if (!unprocessed)
+            unprocessed = rest;
+        }
         const existing = await this.plugin.app.vault.read(file);
         let lines = existing.replace(/\n+$/, "").split("\n");
         const knowledgeSection = this.findSection(lines, "knowledge");
@@ -205,7 +230,20 @@ ${egg.unprocessed}`
             ...lines.slice(knowledgeSection.end)
           ];
         } else {
-          lines = [...lines, "", "## Knowledge", "", ...knowledge.trim().split("\n")];
+          const unprocessedSection2 = this.findSection(lines, "unprocessed");
+          if (unprocessedSection2) {
+            lines = [
+              ...lines.slice(0, unprocessedSection2.start),
+              "",
+              KNOWLEDGE_HEADING,
+              "",
+              ...knowledge.trim().split("\n"),
+              "",
+              ...lines.slice(unprocessedSection2.start)
+            ];
+          } else {
+            lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+          }
         }
         const unprocessedSection = this.findSection(lines, "unprocessed");
         const remainder = unprocessed.trim();
@@ -216,31 +254,69 @@ ${egg.unprocessed}`
             ...lines.slice(unprocessedSection.end)
           ];
         } else if (remainder) {
-          lines = [...lines, "", "## Unprocessed", "", ...remainder.split("\n")];
+          lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
         }
         await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
         console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
       }
       /**
-       * Locate a `## Name`-style section: `{start, level, end}`. `end` is the
-       * index of the next heading of the same-or-higher level (or lines.length).
-       * Returns null when the heading doesn't exist.
+       * Locate a `# Name` section heading: `{start, end}`. Returns null when the
+       * heading doesn't exist. Sections are h1; `##` lines are knowledge-tree
+       * branches and are never treated as section headings.
+       *
+       * The Knowledge section runs until its successor — the `# Unprocessed`
+       * heading — instead of stopping at the next `#` heading, so the tree can
+       * use `##` branches as its top level. Other sections end at the next `#`
+       * heading.
+       *
+       * A duplicate heading of the SAME name (a `# Knowledge` line that slipped
+       * in below the section heading via a merge) is never treated as the
+       * boundary — it stays inside the section, where sectionBody strips it.
        */
       findSection(lines, name) {
-        const start = lines.findIndex((l) => {
-          const m = l.trim().match(/^(#{1,6})\s*(.*)$/);
-          return m !== null && m[2].trim().toLowerCase() === name.toLowerCase();
-        });
+        const wanted = name.toLowerCase();
+        const start = lines.findIndex(
+          (l) => this.headingName(l) === wanted
+        );
         if (start === -1)
           return null;
-        const level = (lines[start].match(/^#+/) || [""])[0].length;
-        const end = lines.findIndex((l, i) => {
-          if (i <= start)
-            return false;
-          const m = l.trim().match(/^(#{1,6})\s/);
-          return m !== null && m[1].length <= level;
-        });
-        return { start, level, end: end === -1 ? lines.length : end };
+        let end = -1;
+        if (wanted === "knowledge") {
+          end = lines.findIndex(
+            (l, i) => i > start && this.headingName(l) === "unprocessed"
+          );
+        }
+        if (end === -1) {
+          end = lines.findIndex((l, i) => {
+            if (i <= start)
+              return false;
+            const head = this.headingName(l);
+            return head !== null && head !== wanted;
+          });
+        }
+        return { start, end: end === -1 ? lines.length : end };
+      }
+      /**
+       * Lowercased name of an h1 (`# Name`) heading line, or null when the line
+       * is not one.
+       */
+      headingName(line) {
+        const m = line.trim().match(/^#\s+(.+?)\s*#*\s*$/);
+        if (!m)
+          return null;
+        return m[1].trim().toLowerCase();
+      }
+      /**
+       * Drop a leading duplicate `# Name` heading plus the blank lines around
+       * it, so the body starts with the actual content.
+       */
+      stripSectionHeading(body, name) {
+        const lines = body.split("\n");
+        const wanted = name.toLowerCase();
+        while (lines.length > 0 && (lines[0].trim() === "" || this.headingName(lines[0]) === wanted)) {
+          lines.shift();
+        }
+        return lines.join("\n").replace(/\s+$/g, "");
       }
       /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
       extractCallout(content) {
@@ -547,8 +623,8 @@ function makeKb() {
 (0, import_node_test.describe)("KnowledgeBase.appendKnowledge", () => {
   (0, import_node_test.it)("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
-      "a.md": "## Knowledge\n\n- existing a\n",
-      "b.md": "## Knowledge\n\n- existing b\n"
+      "a.md": "# Knowledge\n\n- existing a\n",
+      "b.md": "# Knowledge\n\n- existing b\n"
     });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
@@ -565,15 +641,15 @@ function makeKb() {
     );
     const a = files.get("a.md");
     const b = files.get("b.md");
-    import_strict.default.ok(a.includes("## Unprocessed"));
+    import_strict.default.ok(a.includes("# Unprocessed"));
     import_strict.default.ok(a.includes("- one"));
     import_strict.default.ok(a.includes("_author: Jane Doe_"));
     import_strict.default.ok(a.includes("_source: [Article Title](https://example.com/src)_"));
     import_strict.default.ok(b.includes("- two"));
-    import_strict.default.ok(!a.split("## Unprocessed")[0].includes("- one"));
+    import_strict.default.ok(!a.split("# Unprocessed")[0].includes("- one"));
   });
   (0, import_node_test.it)("omits the author line when unknown", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "## Knowledge\n" });
+    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
       app: { vault }

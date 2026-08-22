@@ -49,7 +49,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | `GET /health` | Server check + port sync |
 | `GET /config-status` | `{status, issues[]}` — missing API key, missing index |
 | `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], customQuestionAnswers[], shouldRead, eggResults[], newKnowledge[], nutId}`. If the URL has cached captures (and no `force`/`questions`), returns `{history[], latest}` instead — each capture is its own versioned DB row |
-| `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + appends new entries (insight + examples + mechanical `_author`/`_source` lines) to each egg's `## Unprocessed` + upserts into SQLite. Eggs with ≥20 unprocessed entries are auto-merged into their `## Knowledge` tree by an AI call; response carries `merged` |
+| `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + appends new entries (insight + examples + mechanical `_author`/`_source` lines) to each egg's `# Unprocessed` + upserts into SQLite. Eggs with ≥20 unprocessed entries are auto-merged into their `# Knowledge` tree by an AI call; response carries `merged` |
 | `POST /create-egg` | Creates `nutegg/<name>.md` from the template (topic/scope seeded from `description`) + appends the `_index.md` entry. Used by the popup's "no egg matched" flow; `/analyze` also returns `suggestedEgg` for unmatched content |
 | `GET /eggs` | All eggs from `_index.md` (`{fileName, description, topic}`) — feeds the popup's manual egg picker. `/analyze` accepts an `eggs: string[]` override that skips AI routing and analyzes against exactly those eggs |
 | `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
@@ -59,7 +59,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 
 - `nutegg/_raw/*` — collected nuts (raw web content)
 - `nutegg/_index.md` — egg routing: `* path/to/egg.md: description` (one per line, `#`/`>` lines skipped)
-- `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `## Knowledge` tree + `## Unprocessed` (new entries land here first and are auto-merged into the tree at 20+; entries keep `_author`/`_source` provenance lines)
+- `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `# Knowledge` tree (h1; tree branches nest at `##`) + `# Unprocessed` (new entries land here first and are auto-merged into the tree at 20+; entries keep `_author`/`_source` provenance lines)
 - `nutegg/.nutegg.db` — SQLite: `nuts` table (dedup + replay + RAG corpus, JSON columns for results).
 
 ### Source files
@@ -69,11 +69,11 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | [server.ts](obsidian-plugin/src/server.ts) | HTTP server, `/analyze` + `/confirm` + `/search`, metrics aggregation |
 | [db.ts](obsidian-plugin/src/db.ts) | SQLite via `node:sqlite`: nuts table, BM25 search |
 | [ai-client.ts](obsidian-plugin/src/ai-client.ts) | `PROVIDER_CATALOG`: 7 providers × 2 sources (official/OpenRouter). Two formats. `AIError` with typed codes. |
-| [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. Content >30k chars is **chunked** (chapter-aware for timestamped transcripts, paragraph-based otherwise) — one call per part + `aggregate-content.md`/`aggregate-egg.md` calls. `maybeMergeEgg()`: merge 20+ `## Unprocessed` entries into the knowledge tree (`MERGE_THRESHOLD = 20`). `suggestEgg()`: name/description suggestion for unmatched content |
+| [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. Content >30k chars is **chunked** (chapter-aware for timestamped transcripts, paragraph-based otherwise) — one call per part + `aggregate-content.md`/`aggregate-egg.md` calls. `maybeMergeEgg()`: merge 20+ `# Unprocessed` entries into the knowledge tree (`MERGE_THRESHOLD = 20`). `suggestEgg()`: name/description suggestion for unmatched content |
 | [prompt-templates.ts](obsidian-plugin/src/prompt-templates.ts) | Loads `src/prompts/*.md` (user-editable, translatable) + `renderPrompt()` for `{{placeholder}}` substitution |
 | [index-reader.ts](obsidian-plugin/src/index-reader.ts) | Parses `_index.md`, `matchEggs()` to route content to egg files |
 | [index-sync.ts](obsidian-plugin/src/index-sync.ts) | Consistency check (on load + every 5 min): egg without index entry → append `* path: topic`; index entry without egg → create from template seeded with the description; relative index paths upgraded to full vault paths |
-| [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `## Knowledge`/`## Unprocessed` sections. `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
+| [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `# Knowledge`/`# Unprocessed` sections (h1; the tree nests `##` branches under `# Knowledge`). `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
 | [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |
 | [settings.ts](obsidian-plugin/src/settings.ts) | Settings tab, developer mode toggle |
 | [content-script.js](chrome-extension/src/content/content-script.js) | Extractor registry: `detect()` → `extract()`. youtube (captions via timedtext/script-tag/panel with dedup, chapters from `multiMarkersPlayerBarRenderer`), twitter (threads), article, generic. |

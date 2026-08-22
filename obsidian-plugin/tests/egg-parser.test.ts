@@ -26,12 +26,12 @@ status: "active"
 > **Formatting Rules:**
 > - Respect the existing knowledge tree.
 
-## Knowledge
+# Knowledge
 
 - Risk Management
   - tail hedging
 
-## Unprocessed
+# Unprocessed
 
 - pending insight
   - 🎯 Example: a concrete case
@@ -70,7 +70,7 @@ describe("EggParser.parseEggFile (new format)", () => {
     ]);
   });
 
-  it("extracts the Knowledge section content (stops at ## Unprocessed)", () => {
+  it("extracts the Knowledge section content (stops at # Unprocessed)", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     assert.equal(egg.knowledge, "- Risk Management\n  - tail hedging");
   });
@@ -84,7 +84,7 @@ describe("EggParser.parseEggFile (new format)", () => {
   });
 
   it("defaults topic to Unknown when frontmatter is missing", () => {
-    const egg = parser.parseEggFile("x.md", "## Knowledge\n\n- stuff\n");
+    const egg = parser.parseEggFile("x.md", "# Knowledge\n\n- stuff\n");
     assert.equal(egg.topic, "Unknown");
     assert.equal(egg.knowledge, "- stuff");
   });
@@ -118,7 +118,7 @@ describe("EggParser.formatEggForPrompt", () => {
   });
 
   it("marks empty knowledge as (empty)", () => {
-    const egg = parser.parseEggFile("x.md", "## Knowledge\n");
+    const egg = parser.parseEggFile("x.md", "# Knowledge\n");
     assert.ok(parser.formatEggForPrompt(egg).includes("(empty)"));
   });
 });
@@ -132,11 +132,11 @@ describe("EggParser.appendUnprocessed", () => {
     "> [!abstract]- Instructions:",
     "> **Scope:** s",
     "",
-    "## Knowledge",
+    "# Knowledge",
     "",
     "- existing knowledge",
     "",
-    "## Unprocessed",
+    "# Unprocessed",
   ].join("\n");
 
   async function append(
@@ -153,13 +153,13 @@ describe("EggParser.appendUnprocessed", () => {
     return store;
   }
 
-  it("appends the entry with author and source to ## Unprocessed", async () => {
+  it("appends the entry with author and source to # Unprocessed", async () => {
     const store = await append(
       { "egg.md": baseEgg },
       "- insight\n  - 🎯 Example: case"
     );
     const out = store.files.get("egg.md")!;
-    assert.ok(out.includes("## Unprocessed\n\n- insight"));
+    assert.ok(out.includes("# Unprocessed\n\n- insight"));
     assert.ok(out.includes("  - 🎯 Example: case"));
     assert.ok(out.includes("_author: Jane Doe_"));
     assert.ok(out.includes("_source: [Post](https://example.com/post)_"));
@@ -168,7 +168,7 @@ describe("EggParser.appendUnprocessed", () => {
   it("does not touch the Knowledge tree", async () => {
     const store = await append({ "egg.md": baseEgg }, "- insight");
     const out = store.files.get("egg.md")!;
-    const knowledge = out.split("## Unprocessed")[0];
+    const knowledge = out.split("# Unprocessed")[0];
     assert.ok(knowledge.includes("- existing knowledge"));
     assert.ok(!knowledge.includes("- insight"));
   });
@@ -203,13 +203,13 @@ describe("EggParser.appendUnprocessed", () => {
 
   it("creates the Unprocessed section when the egg has none", async () => {
     const store = await append(
-      { "egg.md": "## Knowledge\n\n- tree\n" },
+      { "egg.md": "# Knowledge\n\n- tree\n" },
       "- first"
     );
     const out = store.files.get("egg.md")!;
-    assert.ok(out.includes("## Unprocessed"));
+    assert.ok(out.includes("# Unprocessed"));
     assert.ok(out.includes("- first"));
-    assert.ok(out.includes("## Knowledge\n\n- tree\n\n## Unprocessed"));
+    assert.ok(out.includes("# Knowledge\n\n- tree\n\n# Unprocessed"));
   });
 
   it("sanitizes link brackets out of the source title", async () => {
@@ -237,7 +237,7 @@ describe("EggParser.countUnprocessed", () => {
     const egg = parser.parseEggFile(
       "x.md",
       [
-        "## Unprocessed",
+        "# Unprocessed",
         "",
         "- entry one",
         "  - 🎯 Example: a",
@@ -251,7 +251,7 @@ describe("EggParser.countUnprocessed", () => {
   it("returns 0 for a missing or empty section", () => {
     assert.equal(parser.countUnprocessed(parser.parseEggFile("x.md", "")), 0);
     assert.equal(
-      parser.countUnprocessed(parser.parseEggFile("x.md", "## Unprocessed\n")),
+      parser.countUnprocessed(parser.parseEggFile("x.md", "# Unprocessed\n")),
       0
     );
   });
@@ -260,7 +260,7 @@ describe("EggParser.countUnprocessed", () => {
     const egg = parser.parseEggFile(
       "x.md",
       [
-        "## Unprocessed",
+        "# Unprocessed",
         "",
         "  - entry one",
         "    - sub bullet",
@@ -280,12 +280,12 @@ describe("EggParser.applyMerge", () => {
     "> [!abstract]- Instructions:",
     "> **Scope:** s",
     "",
-    "## Knowledge",
+    "# Knowledge",
     "",
     "### Old Branch",
     "  - old stuff",
     "",
-    "## Unprocessed",
+    "# Unprocessed",
     "",
     "- stale entry",
   ].join("\n");
@@ -312,17 +312,17 @@ describe("EggParser.applyMerge", () => {
     assert.ok(out.includes("topic: X"));
     assert.ok(out.includes("> **Scope:** s"));
     assert.ok(out.includes("### Old Branch\n  - old stuff\n  - merged entry"));
-    assert.ok(out.includes("## Unprocessed\n\n- leftover entry"));
+    assert.ok(out.includes("# Unprocessed\n\n- leftover entry"));
     assert.ok(!out.includes("stale entry"));
     // Sections appear exactly once each
-    assert.equal(out.split("## Knowledge").length - 1, 1);
-    assert.equal(out.split("## Unprocessed").length - 1, 1);
+    assert.equal(out.split("# Knowledge").length - 1, 1);
+    assert.equal(out.split("# Unprocessed").length - 1, 1);
   });
 
   it("empties the Unprocessed section when nothing is left over", async () => {
     const store = await merge({ "egg.md": fullEgg }, "- all merged", "");
     const out = store.files.get("egg.md")!;
-    assert.ok(out.includes("## Unprocessed"));
+    assert.ok(out.includes("# Unprocessed"));
     assert.ok(!out.includes("- stale entry"));
   });
 
@@ -333,12 +333,121 @@ describe("EggParser.applyMerge", () => {
       "- leftover"
     );
     const out = store.files.get("egg.md")!;
-    assert.ok(out.includes("## Knowledge\n\n- new tree"));
-    assert.ok(out.includes("## Unprocessed\n\n- leftover"));
+    assert.ok(out.includes("# Knowledge\n\n- new tree"));
+    assert.ok(out.includes("# Unprocessed\n\n- leftover"));
   });
 
   it("does nothing when the egg file is missing", async () => {
     const store = await merge({}, "- tree", "");
     assert.equal(store.files.size, 0);
+  });
+
+  // --- Regression: merges must never break the Knowledge/Unprocessed pair ---
+
+  it("strips a leading '# Knowledge' heading from the AI output", async () => {
+    // The model sometimes includes the section heading in its answer
+    const store = await merge(
+      { "egg.md": fullEgg },
+      "# Knowledge\n\n- merged entry",
+      ""
+    );
+    const out = store.files.get("egg.md")!;
+    // exactly one heading survives
+    assert.equal(out.split("\n").filter((l) => l === "# Knowledge").length, 1);
+    assert.ok(out.includes("# Knowledge\n\n- merged entry"));
+  });
+
+  it("strips a leading '# Unprocessed' heading from the AI leftovers", async () => {
+    const store = await merge(
+      { "egg.md": fullEgg },
+      "- merged entry",
+      "# Unprocessed\n\n- leftover entry"
+    );
+    const out = store.files.get("egg.md")!;
+    assert.equal(out.split("\n").filter((l) => l === "# Unprocessed").length, 1);
+    assert.ok(out.includes("- leftover entry"));
+  });
+
+  it("cuts an embedded Unprocessed section out of the knowledge field", async () => {
+    const store = await merge(
+      { "egg.md": fullEgg },
+      "- merged entry\n\n# Unprocessed\n- leftover entry",
+      ""
+    );
+    const out = store.files.get("egg.md")!;
+    assert.equal(out.split("\n").filter((l) => l === "# Unprocessed").length, 1);
+    assert.ok(out.includes("- merged entry"));
+    assert.ok(out.includes("- leftover entry"));
+    // the leftover must live under Unprocessed, not inside the tree
+    assert.ok(!out.split("# Unprocessed")[0].includes("- leftover entry"));
+  });
+
+  it("self-heals a file already broken by a duplicate '# Knowledge' heading", async () => {
+    const broken = fullEgg.replace(
+      "# Knowledge\n",
+      "# Knowledge\n\n# Knowledge\n"
+    );
+    const store = await merge({ "egg.md": broken }, "- fresh tree", "");
+    const out = store.files.get("egg.md")!;
+    assert.equal(out.split("\n").filter((l) => l === "# Knowledge").length, 1);
+    // the old tree (under the stray heading) is replaced, not left dangling
+    assert.ok(!out.includes("### Old Branch"));
+    assert.ok(out.includes("- fresh tree"));
+  });
+
+  it("inserts a missing Knowledge section before Unprocessed", async () => {
+    const store = await merge(
+      { "egg.md": "# Unprocessed\n\n- stale entry" },
+      "- new tree",
+      ""
+    );
+    const out = store.files.get("egg.md")!;
+    assert.ok(out.indexOf("# Knowledge") < out.indexOf("# Unprocessed"));
+    assert.ok(out.includes("- new tree"));
+  });
+});
+
+describe("EggParser.parseEggFile knowledge-tree structure (regression)", () => {
+  const parser = new EggParser(makeFakePlugin() as any);
+
+  it("includes same-level ## branches as part of the Knowledge tree", () => {
+    const egg = parser.parseEggFile(
+      "x.md",
+      [
+        "# Knowledge",
+        "",
+        "## Learning",
+        "- real tree",
+        "",
+        "# Unprocessed",
+        "",
+        "- pending",
+      ].join("\n")
+    );
+    assert.ok(egg.knowledge.includes("## Learning"));
+    assert.ok(egg.knowledge.includes("- real tree"));
+    assert.ok(!egg.knowledge.includes("- pending"));
+    assert.ok(egg.unprocessed.includes("- pending"));
+  });
+
+  it("ignores a stray '# Knowledge' duplicate when reading a broken file", () => {
+    const egg = parser.parseEggFile(
+      "x.md",
+      [
+        "# Knowledge",
+        "",
+        "# Knowledge",
+        "",
+        "## Learning",
+        "- real tree",
+        "",
+        "# Unprocessed",
+        "",
+        "- pending",
+      ].join("\n")
+    );
+    assert.ok(egg.knowledge.includes("- real tree"));
+    assert.ok(!egg.knowledge.split("\n").includes("# Knowledge"));
+    assert.ok(egg.unprocessed.includes("- pending"));
   });
 });

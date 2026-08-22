@@ -31,9 +31,9 @@ function egg(topic: string): string {
     "> [!abstract]- Instructions:",
     "> **Scope:** high-signal data",
     "",
-    "## Knowledge",
+    "# Knowledge",
     "",
-    "## Unprocessed",
+    "# Unprocessed",
     "",
   ].join("\n");
 }
@@ -64,7 +64,7 @@ describe("IndexSync.checkAndFix", () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,
       "nutegg/investment.md": egg("Investment"),
-      "nutegg/x.md": "## Knowledge\n",
+      "nutegg/x.md": "# Knowledge\n",
     });
     await sync.checkAndFix();
     assert.ok(files.get("nutegg/_index.md")!.includes("* nutegg/x.md\n"));
@@ -80,8 +80,8 @@ describe("IndexSync.checkAndFix", () => {
     const created = files.get("nutegg/investment.md")!;
     assert.ok(created.includes('topic: "investment strategies"'));
     assert.ok(created.includes("> **Scope:** investment strategies"));
-    assert.ok(created.includes("## Knowledge"));
-    assert.ok(created.includes("## Unprocessed"));
+    assert.ok(created.includes("# Knowledge"));
+    assert.ok(created.includes("# Unprocessed"));
     assert.match(created, /last_updated: "\d{4}-\d{2}-\d{2}"/);
   });
 

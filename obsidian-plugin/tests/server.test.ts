@@ -202,8 +202,8 @@ describe("NutEggServer.countEggs", () => {
   it("counts markdown under nutegg/ excluding _raw and _index", () => {
     const { vault } = makeFakeVault({
       "nutegg/_index.md": "# index",
-      "nutegg/investment.md": "## Knowledge",
-      "nutegg/ai.md": "## Knowledge",
+      "nutegg/investment.md": "# Knowledge",
+      "nutegg/ai.md": "# Knowledge",
       "nutegg/_raw/2026-08-16-x.md": "raw",
       "outside.md": "outside",
     });

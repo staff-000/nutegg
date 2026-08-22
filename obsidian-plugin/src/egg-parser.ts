@@ -2,6 +2,14 @@ import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
 
 /**
+ * Canonical headings of the two editable sections. They are h1 (`#`) — the
+ * egg's top-level structure — with the knowledge tree's branches nested at
+ * `##` below them.
+ */
+export const KNOWLEDGE_HEADING = "# Knowledge";
+export const UNPROCESSED_HEADING = "# Unprocessed";
+
+/**
  * Parsed egg file content.
  *
  * New format (see src/templates/egg.md):
@@ -15,9 +23,9 @@ import type { IndexEntry } from "./index-reader";
  *   > **Key Questions:** ...
  *   > **Rejection Criteria:** ...
  *   > **Formatting Rules:** ...
- *   ## Knowledge
+ *   # Knowledge
  *   (knowledge tree)
- *   ## Unprocessed
+ *   # Unprocessed
  *   (entries pending merge into the knowledge tree)
  *
  */
@@ -101,16 +109,16 @@ export class EggParser {
     result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
     result.formattingRules = (sections.get("formatting rules") || "").trim();
 
-    // Knowledge + Unprocessed sections — each ends at the next heading of
-    // the same-or-higher level (the old regex also swallowed `## Unprocessed`).
+    // Knowledge ends at the `# Unprocessed` heading; Unprocessed at the next
+    // `#` heading (see findSection).
     const lines = content.split("\n");
     const knowledgeSection = this.findSection(lines, "knowledge");
     if (knowledgeSection) {
-      result.knowledge = this.sectionBody(lines, knowledgeSection);
+      result.knowledge = this.sectionBody(lines, knowledgeSection, "knowledge");
     }
     const unprocessedSection = this.findSection(lines, "unprocessed");
     if (unprocessedSection) {
-      result.unprocessed = this.sectionBody(lines, unprocessedSection);
+      result.unprocessed = this.sectionBody(lines, unprocessedSection, "unprocessed");
     }
 
     return result;
@@ -119,15 +127,24 @@ export class EggParser {
   /**
    * Section content without the surrounding blank lines. Indentation of the
    * first line is preserved (unlike trim()) so re-indented sections survive.
+   *
+   * A stray duplicate heading of the same name (AI merge output that included
+   * its own `# Knowledge`-style line) is stripped so the body starts with the
+   * actual content.
    */
   private sectionBody(
     lines: string[],
-    section: { start: number; end: number }
+    section: { start: number; end: number },
+    name: string
   ): string {
-    return lines
-      .slice(section.start + 1, section.end)
-      .join("\n")
-      .replace(/^\n+|\n+$/g, "");
+    const body = lines.slice(section.start + 1, section.end);
+    while (
+      body.length > 0 &&
+      (body[0].trim() === "" || this.headingName(body[0]) === name.toLowerCase())
+    ) {
+      body.shift();
+    }
+    return body.join("\n").replace(/\n+$/g, "");
   }
 
   /** Format one egg's instructions + knowledge for an AI prompt. */
@@ -202,7 +219,7 @@ export class EggParser {
       lines.splice(section.end, 0, "", block);
     } else {
       // No Unprocessed section yet — create it
-      lines.push("", "## Unprocessed", "", block);
+      lines.push("", UNPROCESSED_HEADING, "", block);
     }
 
     await this.plugin.app.vault.modify(file as any, lines.join("\n") + "\n");
@@ -238,6 +255,24 @@ export class EggParser {
       return;
     }
 
+    // The AI sometimes includes the section headings themselves ("# Knowledge",
+    // "# Unprocessed") in its output. Strip them — the file keeps exactly one
+    // heading per section, written by us below.
+    knowledge = this.stripSectionHeading(knowledge, "knowledge");
+    unprocessed = this.stripSectionHeading(unprocessed, "unprocessed");
+    // If the model dumped the whole file into `knowledge`, cut at the embedded
+    // Unprocessed heading and treat the rest as the leftovers.
+    const kLines = knowledge.split("\n");
+    const uIdx = kLines.findIndex((l) => this.headingName(l) === "unprocessed");
+    if (uIdx !== -1) {
+      const rest = this.stripSectionHeading(
+        kLines.slice(uIdx).join("\n"),
+        "unprocessed"
+      );
+      knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
+      if (!unprocessed) unprocessed = rest;
+    }
+
     const existing = await this.plugin.app.vault.read(file as any);
     let lines = existing.replace(/\n+$/, "").split("\n");
 
@@ -250,7 +285,22 @@ export class EggParser {
         ...lines.slice(knowledgeSection.end),
       ];
     } else {
-      lines = [...lines, "", "## Knowledge", "", ...knowledge.trim().split("\n")];
+      // No Knowledge section yet — insert it before Unprocessed (or append
+      // at the end) so the canonical Knowledge → Unprocessed order holds.
+      const unprocessedSection = this.findSection(lines, "unprocessed");
+      if (unprocessedSection) {
+        lines = [
+          ...lines.slice(0, unprocessedSection.start),
+          "",
+          KNOWLEDGE_HEADING,
+          "",
+          ...knowledge.trim().split("\n"),
+          "",
+          ...lines.slice(unprocessedSection.start),
+        ];
+      } else {
+        lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+      }
     }
 
     const unprocessedSection = this.findSection(lines, "unprocessed");
@@ -262,7 +312,7 @@ export class EggParser {
         ...lines.slice(unprocessedSection.end),
       ];
     } else if (remainder) {
-      lines = [...lines, "", "## Unprocessed", "", ...remainder.split("\n")];
+      lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
     }
 
     await this.plugin.app.vault.modify(file as any, lines.join("\n") + "\n");
@@ -270,26 +320,72 @@ export class EggParser {
   }
 
   /**
-   * Locate a `## Name`-style section: `{start, level, end}`. `end` is the
-   * index of the next heading of the same-or-higher level (or lines.length).
-   * Returns null when the heading doesn't exist.
+   * Locate a `# Name` section heading: `{start, end}`. Returns null when the
+   * heading doesn't exist. Sections are h1; `##` lines are knowledge-tree
+   * branches and are never treated as section headings.
+   *
+   * The Knowledge section runs until its successor — the `# Unprocessed`
+   * heading — instead of stopping at the next `#` heading, so the tree can
+   * use `##` branches as its top level. Other sections end at the next `#`
+   * heading.
+   *
+   * A duplicate heading of the SAME name (a `# Knowledge` line that slipped
+   * in below the section heading via a merge) is never treated as the
+   * boundary — it stays inside the section, where sectionBody strips it.
    */
   private findSection(
     lines: string[],
     name: string
-  ): { start: number; level: number; end: number } | null {
-    const start = lines.findIndex((l) => {
-      const m = l.trim().match(/^(#{1,6})\s*(.*)$/);
-      return m !== null && m[2].trim().toLowerCase() === name.toLowerCase();
-    });
+  ): { start: number; end: number } | null {
+    const wanted = name.toLowerCase();
+    const start = lines.findIndex(
+      (l) => this.headingName(l) === wanted
+    );
     if (start === -1) return null;
-    const level = (lines[start].match(/^#+/) || [""])[0].length;
-    const end = lines.findIndex((l, i) => {
-      if (i <= start) return false;
-      const m = l.trim().match(/^(#{1,6})\s/);
-      return m !== null && m[1].length <= level;
-    });
-    return { start, level, end: end === -1 ? lines.length : end };
+
+    let end = -1;
+    if (wanted === "knowledge") {
+      // The Knowledge section's successor is the Unprocessed section
+      end = lines.findIndex(
+        (l, i) => i > start && this.headingName(l) === "unprocessed"
+      );
+    }
+    if (end === -1) {
+      // Generic boundary: the next `#` heading with a different name
+      // (same-name duplicates are corruption, not boundaries)
+      end = lines.findIndex((l, i) => {
+        if (i <= start) return false;
+        const head = this.headingName(l);
+        return head !== null && head !== wanted;
+      });
+    }
+    return { start, end: end === -1 ? lines.length : end };
+  }
+
+  /**
+   * Lowercased name of an h1 (`# Name`) heading line, or null when the line
+   * is not one.
+   */
+  private headingName(line: string): string | null {
+    const m = line.trim().match(/^#\s+(.+?)\s*#*\s*$/);
+    if (!m) return null;
+    return m[1].trim().toLowerCase();
+  }
+
+  /**
+   * Drop a leading duplicate `# Name` heading plus the blank lines around
+   * it, so the body starts with the actual content.
+   */
+  private stripSectionHeading(body: string, name: string): string {
+    const lines = body.split("\n");
+    const wanted = name.toLowerCase();
+    while (
+      lines.length > 0 &&
+      (lines[0].trim() === "" || this.headingName(lines[0]) === wanted)
+    ) {
+      lines.shift();
+    }
+    return lines.join("\n").replace(/\s+$/g, "");
   }
 
   /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */

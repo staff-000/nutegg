@@ -116,8 +116,8 @@ describe("KnowledgeBase.saveRaw", () => {
 describe("KnowledgeBase.appendKnowledge", () => {
   it("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
-      "a.md": "## Knowledge\n\n- existing a\n",
-      "b.md": "## Knowledge\n\n- existing b\n",
+      "a.md": "# Knowledge\n\n- existing a\n",
+      "b.md": "# Knowledge\n\n- existing b\n",
     });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
@@ -134,17 +134,17 @@ describe("KnowledgeBase.appendKnowledge", () => {
     );
     const a = files.get("a.md")!;
     const b = files.get("b.md")!;
-    assert.ok(a.includes("## Unprocessed"));
+    assert.ok(a.includes("# Unprocessed"));
     assert.ok(a.includes("- one"));
     assert.ok(a.includes("_author: Jane Doe_"));
     assert.ok(a.includes("_source: [Article Title](https://example.com/src)_"));
     assert.ok(b.includes("- two"));
     // Entries go to Unprocessed — the Knowledge tree is left alone
-    assert.ok(!a.split("## Unprocessed")[0].includes("- one"));
+    assert.ok(!a.split("# Unprocessed")[0].includes("- one"));
   });
 
   it("omits the author line when unknown", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "## Knowledge\n" });
+    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
       app: { vault },
