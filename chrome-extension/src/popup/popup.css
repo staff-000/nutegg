@@ -620,11 +620,11 @@ body {
   border-color: #7c3aed;
 }
 
-.create-egg-btn {
+.confirm-btn.create-egg-btn {
   width: 100%;
-  /* `flex: 1` from confirm-btn would collapse the height in the column box */
   flex: none;
-  height: 44px;
+  height: 32px;
+  padding: 0 14px;
   font-size: 14px;
 }
 
@@ -686,6 +686,30 @@ body {
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
+}
+
+/* Inline create-egg inside egg picker */
+.create-egg-inline {
+  margin-top: 6px;
+}
+
+.eggs-create-toggle {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #7c3aed;
+  cursor: pointer;
+  text-align: left;
+}
+
+.eggs-create-toggle:hover {
+  background: #f5f3ff;
+  border-color: #7c3aed;
 }
 
 /* Action Buttons */

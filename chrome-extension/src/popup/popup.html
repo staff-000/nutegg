@@ -145,6 +145,14 @@
         </button>
         <div id="eggs-expanded" class="hidden">
           <div id="eggs-list" class="eggs-list"></div>
+          <div id="eggs-create-inline" class="create-egg-inline">
+            <button id="eggs-create-toggle" class="eggs-create-toggle">➕ Create new egg</button>
+            <div id="eggs-create-form" class="create-egg-box hidden">
+              <input id="eggs-new-name" type="text" placeholder="egg name (e.g. productivity)" />
+              <input id="eggs-new-desc" type="text" placeholder="what this egg captures (one line)" />
+              <button id="eggs-create-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+            </div>
+          </div>
           <button id="reanalyze-eggs-btn" class="reanalyze-btn reanalyze-eggs-btn hidden">🔄 Re-analyze with selected eggs</button>
           <div id="eggs-error" class="eggs-error hidden"></div>
         </div>

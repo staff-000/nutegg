@@ -62,6 +62,11 @@ const eggsExpanded = document.getElementById("eggs-expanded");
 const eggsList = document.getElementById("eggs-list");
 const reanalyzeEggsBtn = document.getElementById("reanalyze-eggs-btn");
 const eggsErrorEl = document.getElementById("eggs-error");
+const eggsCreateToggle = document.getElementById("eggs-create-toggle");
+const eggsCreateForm = document.getElementById("eggs-create-form");
+const eggsNewName = document.getElementById("eggs-new-name");
+const eggsNewDesc = document.getElementById("eggs-new-desc");
+const eggsCreateBtn = document.getElementById("eggs-create-btn");
 const confirmBtn = document.getElementById("confirm-btn");
 const saveRawBtn = document.getElementById("save-raw-btn");
 const discardBtn = document.getElementById("discard-btn");
@@ -112,6 +117,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   refreshBtn.addEventListener("click", handleRefresh);
   createEggBtn.addEventListener("click", handleCreateEgg);
+  eggsCreateToggle.addEventListener("click", () => {
+    const form = eggsCreateForm;
+    const isHidden = form.classList.toggle("hidden");
+    eggsCreateToggle.textContent = isHidden ? "➕ Create new egg" : "✕ Cancel";
+  });
+  eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   reanalyzeEggsBtn.addEventListener("click", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
     // The analysis runs in the background while the old results stay
@@ -250,6 +261,33 @@ async function handleCreateEgg() {
   createEggBtn.textContent = "Create Egg";
 }
 
+/** 🐣 Create an egg from the inline form inside the egg picker. */
+async function handleCreateEggInline() {
+  const name = eggsNewName.value.trim();
+  if (!name || eggsCreateBtn.disabled) return;
+  eggsCreateBtn.disabled = true;
+  eggsCreateBtn.textContent = "Creating…";
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: "create-egg",
+      name,
+      description: eggsNewDesc.value.trim(),
+    });
+    if (response?.success) {
+      // Re-analyze with the new egg included
+      await handleAnalyze(true);
+      return;
+    }
+    eggsErrorEl.textContent = `❌ ${response?.error || "Failed to create egg"}`;
+    eggsErrorEl.classList.remove("hidden");
+  } catch (err) {
+    eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : "Failed to create egg"}`;
+    eggsErrorEl.classList.remove("hidden");
+  }
+  eggsCreateBtn.disabled = false;
+  eggsCreateBtn.textContent = "Create Egg";
+}
+
 /** Title → snake_case egg name fallback. */
 function slugify(text) {
   return (text || "")
@@ -315,6 +353,14 @@ function renderEggsSection(matchedEggs) {
     });
   });
   reanalyzeEggsBtn.classList.add("hidden");
+
+  // Reset inline create-egg form
+  eggsCreateForm.classList.add("hidden");
+  eggsCreateToggle.textContent = "➕ Create new egg";
+  eggsNewName.value = "";
+  eggsNewDesc.value = "";
+  eggsCreateBtn.disabled = false;
+  eggsCreateBtn.textContent = "Create Egg";
 }
 
 // --- Metrics ---
