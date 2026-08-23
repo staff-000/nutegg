@@ -19,7 +19,7 @@ You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content
 
 For each Novel Delta entry:
 - "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information — used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
-- "content": ONE insight per entry, as a single top-level bullet with optional indented sub-bullets. Include concrete examples from the content that illustrate the insight (e.g. "  - 🎯 Example: ...") when present. Follow the Formatting Rules. Do NOT include author or source — they are appended automatically.
+- "content": ONE insight per entry, as a single top-level bullet with optional indented sub-bullets. Include concrete examples from the content that illustrate the insight (e.g. "  - 🎯 Example: ...") when present. Follow the Formatting Rules — including any Entry Tags defined there. Do NOT include author or source — they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {

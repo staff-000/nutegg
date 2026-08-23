@@ -25,6 +25,14 @@ last_updated: "2026-08-12"
 > - Reject basic financial definitions (e.g., "What is an ETF?").
 > 
 > **Formatting Rules:** 
+> - Each bullet MUST begin with exactly one entry tag. Format: "- [tag] The insight text…". Pick the single best fit:
+>   * [concept] — a definition or explanation of what something IS (e.g. a financial instrument, market mechanism)
+>   * [signal] — a macro-economic shift, market signal, or structural trend worth monitoring
+>   * [framework] — a quantifiable model, strategy, or analytical approach for portfolio/risk decisions
+>   * [method] — a how-to, workflow, or step-by-step process for investing or analysis
+>   * [opinion] — a subjective market thesis, recommendation, or viewpoint from the author
+>   * [fact] — a verifiable data point, earnings figure, statistic, or historical event
+>   * [example] — a concrete case study, trade, or real-world market event that illustrates an idea
 > - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.

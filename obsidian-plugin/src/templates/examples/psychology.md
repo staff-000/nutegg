@@ -22,6 +22,13 @@ last_updated: "2026-08-14"
 > - Reject concepts that lack specific psychological mechanisms or scientific grounding.
 >
 > **Formatting Rules:** 
+> - Each bullet MUST begin with exactly one entry tag. Format: "- [tag] The insight text…". Pick the single best fit:
+>   * [bias] — a named cognitive bias or systematic error in human judgment
+>   * [model] — a mental model, decision-making framework, or heuristic
+>   * [mechanism] — an underlying psychological process or behavioral mechanic (the "how" of cognition)
+>   * [explain] — reasoning or rationale behind why a bias or behavior occurs
+>   * [fact] — a verifiable research finding, study result, or statistical data
+>   * [example] — a concrete experiment, study, or real-world observation that illustrates a concept
 > - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for psychology, examples are experiments, studies, or real-world observations. Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
