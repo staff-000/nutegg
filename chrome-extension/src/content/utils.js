@@ -28,7 +28,44 @@ function extractText(element) {
 }
 
 function getMeta(name) {
-  return document.querySelector(`meta[name="${name}"], meta[property="${name}"]`)?.getAttribute("content")?.trim() || "";
+  return (
+    document
+      .querySelector(
+        `meta[name="${name}"], meta[property="${name}"], meta[itemprop="${name}"]`
+      )
+      ?.getAttribute("content")
+      ?.trim() || ""
+  );
+}
+
+/**
+ * Parse JSON-LD scripts on the page. If typeFilter is given, returns the first
+ * matching object by @type (or type array). Otherwise returns the first JSON-LD object.
+ */
+function readJsonLd(typeFilter) {
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const parsed = JSON.parse(script.textContent || "");
+      const items = Array.isArray(parsed)
+        ? parsed
+        : parsed["@graph"]
+        ? parsed["@graph"]
+        : [parsed];
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        if (!typeFilter) return item;
+        const itemType = item["@type"];
+        if (
+          Array.isArray(itemType)
+            ? itemType.includes(typeFilter)
+            : itemType === typeFilter
+        ) {
+          return item;
+        }
+      }
+    } catch {}
+  }
+  return null;
 }
 
 function truncate(text, max) {

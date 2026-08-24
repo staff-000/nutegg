@@ -44,7 +44,13 @@ function extractGeneric() {
   // Metadata
   const description = getMeta("description") || getMeta("og:description");
   const author = getMeta("author") || getMeta("article:author");
-  const published = getMeta("article:published_time");
+  const published =
+    getMeta("article:published_time") ||
+    getMeta("datePublished") ||
+    getMeta("uploadDate") ||
+    getMeta("pubdate") ||
+    getMeta("date") ||
+    getMeta("DC.date.issued");
   const siteName = getMeta("og:site_name");
 
   const metadata = {};

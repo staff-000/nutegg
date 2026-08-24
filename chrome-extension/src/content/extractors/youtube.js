@@ -14,32 +14,7 @@ function detectYouTube() {
 
 async function extractYouTube() {
   const url = window.location.href;
-
-  const title =
-    document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector('meta[name="title"]')?.getAttribute("content")?.trim() ||
-    document.title.replace(" - YouTube", "").trim();
-
-  const channelName =
-    document.querySelector("#channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("#owner-name a")?.textContent?.trim() || "";
-
-  // Description
-  const descEl = document.querySelector("#description-inline-expander, ytd-expander#description");
-  let description = "";
-  if (descEl) {
-    const snippet = descEl.querySelector("yt-formatted-string, #snippet") ||
-      descEl.querySelector('[slot="content"]');
-    if (snippet) description = snippet.textContent?.trim() || "";
-  }
-  if (!description) description = getMeta("og:description");
-
-  // Stats
-  const viewCount = document.querySelector("#info .view-count")?.textContent?.trim() || "";
-  const date = document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
-    getMeta("datePublished") || "";
+  const meta = extractYouTubeMetadata(url);
 
   // Chapters (with timestamps, for the clickable Chapter Map)
   const chapters = await extractChapters();
@@ -52,15 +27,14 @@ async function extractYouTube() {
     // Captions not available — that's fine
   }
 
-  const videoId = new URL(url).searchParams.get("v") || "";
-  const parts = [`# ${title}`];
-  if (channelName) parts.push(`**Channel:** ${channelName}`);
-  if (viewCount) parts.push(`**Views:** ${viewCount}`);
-  if (date) parts.push(`**Published:** ${date}`);
-  if (videoId) parts.push(`**Video ID:** ${videoId}`);
+  const parts = [`# ${meta.title}`];
+  if (meta.channelName) parts.push(`**Channel:** ${meta.channelName}`);
+  if (meta.viewCount) parts.push(`**Views:** ${meta.viewCount}`);
+  if (meta.date) parts.push(`**Published:** ${meta.date}`);
+  if (meta.videoId) parts.push(`**Video ID:** ${meta.videoId}`);
 
-  if (description) {
-    parts.push(`\n## Description\n\n${description}`);
+  if (meta.description) {
+    parts.push(`\n## Description\n\n${meta.description}`);
   }
   if (chapters.length > 0) {
     parts.push(`\n## Chapters\n\n${chapters.map((c) => `- ${c.time} — ${c.title}`).join("\n")}`);
@@ -73,8 +47,13 @@ async function extractYouTube() {
     parts.push(`\n## Transcript\n\n*No transcript available for this video.*`);
   }
 
+  const timeMinutes = meta.durationSeconds > 0
+    ? Math.ceil(meta.durationSeconds / 60)
+    : estimateTime(parts.join(" "), "youtube");
+
   return {
-    url, title,
+    url,
+    title: meta.title,
     content: parts.join("\n"),
     sourceType: "youtube",
     chapters,
@@ -83,11 +62,119 @@ async function extractYouTube() {
     transcriptAvailable: !!transcript,
     metadata: {
       platform: "YouTube",
-      ...(channelName && { channel: channelName }),
-      ...(date && { published: date }),
-      ...(videoId && { video_id: videoId }),
-      time_estimate_minutes: estimateTime(parts.join(" "), "youtube"),
+      ...(meta.channelName && { channel: meta.channelName }),
+      ...(meta.date && { published: meta.date }),
+      ...(meta.videoId && { video_id: meta.videoId }),
+      time_estimate_minutes: timeMinutes,
     },
+  };
+}
+
+/**
+ * Extract YouTube metadata with layered fallbacks:
+ *   Layer 1: ytInitialPlayerResponse (in-memory player response — most reliable)
+ *   Layer 2: JSON-LD (schema.org VideoObject)
+ *   Layer 3: Standard meta tags (itemprop, property, name)
+ *   Layer 4: Current DOM elements (Polymer custom elements)
+ */
+function extractYouTubeMetadata(url) {
+  const pr = readYtInitialPlayerResponse();
+  const jsonLd = readJsonLd("VideoObject") || readJsonLd();
+  const videoDetails = pr?.videoDetails || {};
+  const microformat = pr?.microformat?.playerMicroformatRenderer || {};
+  const videoId = new URL(url).searchParams.get("v") || videoDetails.videoId || "";
+
+  // 1. Title
+  const title =
+    videoDetails.title ||
+    microformat.title?.simpleText ||
+    jsonLd?.name ||
+    document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
+    document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
+    getMeta("title") ||
+    getMeta("og:title") ||
+    getMeta("name") ||
+    document.title.replace(" - YouTube", "").trim();
+
+  // 2. Channel / Author
+  const channelName =
+    videoDetails.author ||
+    microformat.ownerChannelName ||
+    (typeof jsonLd?.author === "string" ? jsonLd.author : jsonLd?.author?.name) ||
+    document.querySelector("#channel-name yt-formatted-string a")?.textContent?.trim() ||
+    document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
+    document.querySelector("#owner-name a")?.textContent?.trim() ||
+    document.querySelector("#upload-info ytd-channel-name a")?.textContent?.trim() ||
+    getMeta("author") || "";
+
+  // 3. Published Date
+  let date =
+    microformat.publishDate ||
+    microformat.uploadDate ||
+    jsonLd?.datePublished ||
+    jsonLd?.uploadDate ||
+    getMeta("datePublished") ||
+    getMeta("uploadDate") ||
+    getMeta("date") ||
+    document.querySelector("#info-strings yt-formatted-string")?.textContent?.trim() ||
+    document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
+    "";
+
+  if (date) {
+    // Normalize date strings that may have text prefixes (e.g. from DOM fallbacks)
+    date = date.replace(/^(?:Streamed live on|Premiered on|Premiered)\s+/i, "").trim();
+  }
+
+  // 4. Description
+  let description =
+    videoDetails.shortDescription ||
+    microformat.description?.simpleText ||
+    jsonLd?.description ||
+    "";
+  if (!description) {
+    const descEl = document.querySelector("#description-inline-expander, ytd-expander#description");
+    if (descEl) {
+      const snippet = descEl.querySelector("yt-formatted-string, #snippet") ||
+        descEl.querySelector('[slot="content"]');
+      if (snippet) description = snippet.textContent?.trim() || "";
+    }
+  }
+  if (!description) description = getMeta("og:description") || getMeta("description");
+
+  // 5. View Count
+  let viewCount = "";
+  if (videoDetails.viewCount) {
+    const n = Number(videoDetails.viewCount);
+    viewCount = isNaN(n) ? videoDetails.viewCount : n.toLocaleString();
+  } else if (microformat.viewCount) {
+    const n = Number(microformat.viewCount);
+    viewCount = isNaN(n) ? microformat.viewCount : n.toLocaleString();
+  } else if (jsonLd?.interactionCount) {
+    viewCount = String(jsonLd.interactionCount);
+  } else {
+    viewCount =
+      document.querySelector("ytd-video-view-count-renderer .view-count")?.textContent?.trim() ||
+      document.querySelector("#info .view-count")?.textContent?.trim() ||
+      "";
+  }
+
+  // 6. Duration in seconds
+  let durationSeconds = parseInt(videoDetails.lengthSeconds, 10);
+  if (isNaN(durationSeconds) || durationSeconds <= 0) {
+    const video = document.querySelector("video");
+    if (video && video.duration && !isNaN(video.duration)) {
+      durationSeconds = Math.ceil(video.duration);
+    }
+  }
+
+  return {
+    videoId,
+    title,
+    channelName,
+    date,
+    description,
+    viewCount,
+    durationSeconds: durationSeconds || 0,
   };
 }
 
