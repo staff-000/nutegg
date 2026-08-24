@@ -5,6 +5,19 @@
 // Utility functions used by multiple extractors. Loaded first
 // via manifest.json so all extractors can reference them.
 
+/**
+ * fetch() with an abort timeout. Some endpoints (e.g. YouTube's timedtext
+ * API for certain signed URLs) stall without answering — extraction must
+ * never hang on them. Rejects with an AbortError on timeout.
+ */
+function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() =>
+    clearTimeout(timer)
+  );
+}
+
 function extractText(element) {
   const clone = element.cloneNode(true);
   clone.querySelectorAll("script, style, noscript, svg, img, video, audio, iframe, nav, footer")

@@ -94,3 +94,4 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     unprocessedHeading.insertAdjacentElement("afterend", container);
   });
 }
+

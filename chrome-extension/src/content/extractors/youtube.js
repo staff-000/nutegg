@@ -6,7 +6,7 @@
 // description, chapters, and captions/transcript.
 //
 // Depends on: utils.js (extractText, getMeta, truncate, estimateTime,
-//   waitFor, extractBalanced, formatTime, parseTimestamp)
+//   waitFor, extractBalanced, formatTime, parseTimestamp, fetchWithTimeout)
 
 function detectYouTube() {
   return window.location.href.includes("youtube.com/watch");
@@ -94,67 +94,186 @@ async function extractYouTube() {
 /**
  * Fetch YouTube captions via the timedtext API (no auth required).
  *
- * Three layers, in order:
- *   1. `ytInitialPlayerResponse` parsed from the page's own <script> tag
- *      (page globals are NOT visible to the isolated content-script world,
- *      but the script tag's text is plain DOM).
+ * Four layers, in order:
+ *   1. `captionTracks` scanned from the page's `<script>` tags & player response
  *   2. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
- *      with balanced-bracket scanning, not a truncating regex.
- *   3. The on-page transcript panel ("Show transcript" → segments), which
- *      works even when the player response is missing (consent walls, ...).
+ *      (skipped when the player response parsed — it holds the same data)
+ *   3. YouTube Innertube player API (`/youtubei/v1/player`) — fresh track
+ *      URLs, plus tracks the page's player response omits
+ *   4. The on-page transcript panel ("Show transcript" → segments)
+ *
+ * Every network layer has a timeout — a stalled request must never hang
+ * extraction. Each layer logs its outcome for debugging.
  */
 async function fetchYouTubeCaptions() {
   const videoId = new URL(window.location.href).searchParams.get("v");
   if (!videoId) return "";
 
-  // Layer 1: ytInitialPlayerResponse from the page's <script> tag
+  const started = Date.now();
+  const pr = readYtInitialPlayerResponse();
+
+  // Layer 1: captionTracks from DOM scripts / ytInitialPlayerResponse
   let tracks =
-    readYtInitialPlayerResponse()?.captions?.playerCaptionsTracklistRenderer
-      ?.captionTracks;
+    findCaptionTracksInDom() ||
+    pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (tracks?.length) {
     const transcript = await fetchTimedtext(tracks);
-    if (transcript) return transcript;
+    if (transcript) {
+      console.log(`[NutEgg] Captions: page tracks in ${Date.now() - started}ms`);
+      return transcript;
+    }
   }
 
-  // Layer 2: watch-page HTML
+  // Layer 2: watch-page HTML — the raw string scan can find captionTracks
+  // that readYtVar missed (failed parse, renamed var, ...)
+  if (!pr) {
+    try {
+      const resp = await fetchWithTimeout(
+        `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`,
+        {},
+        10000
+      );
+      const html = await resp.text();
+      const idx = html.indexOf('"captionTracks"');
+      if (idx !== -1) {
+        const raw = extractBalanced(html, idx);
+        if (raw) {
+          tracks = JSON.parse(raw);
+          if (Array.isArray(tracks) && tracks.length > 0) {
+            const transcript = await fetchTimedtext(tracks);
+            if (transcript) {
+              console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
+              return transcript;
+            }
+          }
+        }
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Layer 3: Innertube player API — always worth one (timeout-bounded) call:
+  // it can succeed even when the page's own tracks are missing or stale.
   try {
-    const resp = await fetch(
-      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`
-    );
-    const html = await resp.text();
-    const raw = extractBalanced(html, html.indexOf('"captionTracks"'));
-    if (raw) {
-      tracks = JSON.parse(raw);
-      if (Array.isArray(tracks) && tracks.length > 0) {
-        const transcript = await fetchTimedtext(tracks);
-        if (transcript) return transcript;
+    const playerResp = await fetchInnertubePlayer(videoId);
+    const innertubeTracks =
+      playerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (Array.isArray(innertubeTracks) && innertubeTracks.length > 0) {
+      const transcript = await fetchTimedtext(innertubeTracks);
+      if (transcript) {
+        console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
+        return transcript;
       }
     }
   } catch {
-    // Fall through to the transcript panel
+    // Fall through to transcript panel
   }
 
-  // Layer 3: the on-page transcript panel
-  return readTranscriptPanel();
+  // Layer 4: the on-page transcript panel
+  const panel = await readTranscriptPanel();
+  console.log(
+    panel
+      ? `[NutEgg] Captions: transcript panel in ${Date.now() - started}ms`
+      : `[NutEgg] Captions: all layers failed in ${Date.now() - started}ms (player response parsed: ${pr !== null})`
+  );
+  return panel;
 }
 
 /**
- * Pick the best caption track and fetch its timedtext XML.
- * English is preferred, then non-auto-generated, then whatever exists.
+ * Scan all <script> tags in the current page DOM for `"captionTracks"`.
+ */
+function findCaptionTracksInDom() {
+  for (const script of document.querySelectorAll("script")) {
+    const text = script.textContent || "";
+    const idx = text.indexOf('"captionTracks"');
+    if (idx === -1) continue;
+    const raw = extractBalanced(text, idx);
+    if (raw) {
+      try {
+        const tracks = JSON.parse(raw);
+        if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+      } catch {}
+    }
+  }
+  return null;
+}
+
+/**
+ * Fetch video metadata via YouTube's public web client API.
+ */
+async function fetchInnertubePlayer(videoId) {
+  const resp = await fetchWithTimeout(
+    "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId,
+        context: {
+          client: {
+            clientName: "WEB",
+            clientVersion: "2.20240101.00.00",
+            hl: "en",
+            gl: "US",
+          },
+        },
+      }),
+    },
+    8000
+  );
+  if (!resp.ok) return null;
+  return resp.json();
+}
+
+/** "json3" / "srv3" / "default" label for a timedtext URL, for logs. */
+function timedtextFormat(url) {
+  if (url.includes("fmt=json3")) return "json3";
+  if (url.includes("fmt=srv3")) return "srv3";
+  return "default";
+}
+
+/**
+ * Pick the best caption track and fetch it, each attempt timeout-bounded.
+ *
+ * `&fmt=json3` goes FIRST: it is the fastest-responding format and the
+ * richest for parsing, while the bare default endpoint now stalls for many
+ * signed URLs. The bare URL and srv3 stay as fallbacks.
  */
 async function fetchTimedtext(tracks) {
   if (!Array.isArray(tracks) || tracks.length === 0) return "";
   const pick =
     tracks.find((t) => t.languageCode === "en" && t.kind !== "asr") ||
     tracks.find((t) => t.languageCode === "en") ||
+    tracks.find((t) => (t.languageCode || "").startsWith("en") && t.kind !== "asr") ||
+    tracks.find((t) => (t.languageCode || "").startsWith("en")) ||
     tracks.find((t) => t.kind !== "asr") ||
     tracks[0];
   if (!pick?.baseUrl) return "";
-  // baseUrl escapes & as \u0026 — normalize before fetching
-  const url = pick.baseUrl.replace(/\\u0026/g, "&");
-  const resp = await fetch(url);
-  if (!resp.ok) return "";
-  return parseYouTubeCaptionXML(await resp.text());
+
+  const baseUrl = pick.baseUrl.replace(/\\u0026/g, "&");
+  const urls = baseUrl.includes("fmt=")
+    ? [baseUrl]
+    : [`${baseUrl}&fmt=json3`, baseUrl, `${baseUrl}&fmt=srv3`];
+
+  for (const url of urls) {
+    try {
+      const resp = await fetchWithTimeout(url, {}, 5000);
+      if (!resp.ok) {
+        console.warn(`[NutEgg] Captions: ${timedtextFormat(url)} → HTTP ${resp.status}`);
+        continue;
+      }
+      const parsed = parseYouTubeCaptionResponse(await resp.text());
+      if (parsed) return parsed;
+      console.warn(`[NutEgg] Captions: ${timedtextFormat(url)} → unparseable response`);
+    } catch (err) {
+      console.warn(
+        `[NutEgg] Captions: ${timedtextFormat(url)} → ${err.name === "AbortError" ? "timed out" : err.message}`
+      );
+    }
+  }
+
+  return "";
 }
 
 /**
@@ -405,35 +524,55 @@ function readYtInitialData() {
  */
 async function readTranscriptPanel() {
   try {
+    // 1. Try expanding the description first if it's collapsed
+    const expandBtn = document.querySelector(
+      "#description-inline-expander #expand, ytd-expander#description #expand, #expand-button"
+    );
+    if (expandBtn && expandBtn.offsetParent !== null) {
+      expandBtn.click();
+      await new Promise((r) => setTimeout(r, 300));
+    }
+
+    // 2. Find and click the transcript button
     let button = document.querySelector(
-      "ytd-video-description-transcript-section-renderer button"
+      "ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button"
     );
     if (!button) {
       button = [...document.querySelectorAll("button")].find((b) => {
         const label = (b.getAttribute("aria-label") || "").toLowerCase();
         const text = (b.textContent || "").trim().toLowerCase();
-        return label.includes("transcript") || text === "show transcript";
+        return (
+          label.includes("transcript") ||
+          text === "show transcript" ||
+          text.includes("transcript")
+        );
       });
     }
     if (button) button.click();
 
+    // 3. Wait for transcript segment renderers to appear in the DOM
     const segments = await waitFor(() => {
-      const els = document.querySelectorAll("ytd-transcript-segment-renderer");
+      const els = document.querySelectorAll(
+        "ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer, ytd-transcript-segment-list-renderer [role='button']"
+      );
       return els.length > 0 ? els : null;
-    }, 3000);
-    if (!segments) return "";
+    }, 4500);
+    if (!segments || segments.length === 0) return "";
 
     const lines = [...segments]
       .map((s) => {
-        const t = s.querySelector(".segment-timestamp")?.textContent?.trim() || "";
-        const text = s.querySelector(".segment-text, yt-formatted-string")?.textContent?.trim() || "";
+        const t =
+          s.querySelector(".segment-timestamp, [class*='timestamp']")?.textContent?.trim() || "";
+        const textEl =
+          s.querySelector(".segment-text, yt-formatted-string, [class*='text']") || s;
+        const text = decodeHtmlEntities(textEl.textContent?.trim() || "");
         return text ? (t ? `[${t}] ${text}` : text) : "";
       })
       .filter(Boolean);
 
     // Restore the panel state when we opened it
     const closeBtn = document.querySelector(
-      "ytd-engagement-panel-title-header-renderer #close-button"
+      "ytd-engagement-panel-title-header-renderer #close-button, ytd-engagement-panel-section-list-renderer #close-button"
     );
     closeBtn?.click();
 
@@ -443,64 +582,162 @@ async function readTranscriptPanel() {
   }
 }
 
-function parseYouTubeCaptionXML(xml) {
+/**
+ * Parses caption responses from YouTube in JSON3, TTML / srv3, legacy XML, or WebVTT format.
+ */
+function parseYouTubeCaptionResponse(rawText) {
+  if (!rawText || !rawText.trim()) return "";
+  const trimmed = rawText.trim();
+
+  // 1. JSON (json3 format: events array with segs)
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const data = JSON.parse(trimmed);
+      const events = data.events;
+      if (Array.isArray(events)) {
+        const raw = [];
+        for (const ev of events) {
+          if (!ev.segs) continue;
+          const text = decodeHtmlEntities(
+            ev.segs.map((s) => s.utf8 || "").join("").trim()
+          );
+          if (!text || text === "\n") continue;
+          const startMs = ev.tStartMs;
+          if (startMs != null && !isNaN(startMs)) {
+            raw.push(`[${formatTime(startMs / 1000)}] ${text}`);
+          } else {
+            raw.push(text);
+          }
+        }
+        const out = dedupTranscriptLines(raw);
+        if (out.length > 0) return out.join("\n");
+      }
+    } catch {}
+  }
+
+  // 2. XML formats
   const raw = [];
-  const regex = /<text\b([^>]*)>([\s\S]*?)<\/text>/g;
+
+  // Format 2A: <text start="12.3">content</text>
+  const textRegex = /<text\b([^>]*)>([\s\S]*?)<\/text>/gi;
   let match;
-  while ((match = regex.exec(xml)) !== null) {
-    const startAttr = (match[1].match(/\bstart="([\d.]+)"/) || [])[1];
+  while ((match = textRegex.exec(trimmed)) !== null) {
+    const startAttr = (match[1].match(/\bstart="([\d.]+)"/i) || [])[1];
     const start = startAttr !== undefined ? parseFloat(startAttr) : NaN;
-    const text = match[2]
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim();
-    if (!text) continue;
-    // One line per caption with its timestamp — powers the chapter-aware
-    // chunking and the clickable chapter map.
-    raw.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
+    const text = decodeHtmlEntities(match[2].replace(/<[^>]+>/g, "")).trim();
+    if (text) {
+      raw.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
+    }
   }
+
+  // Format 2B: <p t="12340" d="3000">content</p> (srv3 format where t is milliseconds)
+  if (raw.length === 0) {
+    const pRegex = /<p\b([^>]*)>([\s\S]*?)<\/p>/gi;
+    while ((match = pRegex.exec(trimmed)) !== null) {
+      const tAttr = (match[1].match(/\bt="(\d+)"/i) || [])[1];
+      const startMs = tAttr !== undefined ? parseInt(tAttr, 10) : NaN;
+      const text = decodeHtmlEntities(match[2].replace(/<[^>]+>/g, "")).trim();
+      if (text) {
+        raw.push(Number.isFinite(startMs) ? `[${formatTime(startMs / 1000)}] ${text}` : text);
+      }
+    }
+  }
+
+  // 3. WebVTT format
+  if (raw.length === 0 && trimmed.includes("-->")) {
+    const vttLines = trimmed.split(/\r?\n/);
+    let currentTime = "";
+    for (const line of vttLines) {
+      const timeMatch = line.match(/^(\d{1,2}:)?(\d{2}):(\d{2})\.\d{3}\s*-->/);
+      if (timeMatch) {
+        currentTime = line.split("-->")[0].trim().replace(/\.\d{3}$/, "");
+      } else if (
+        line.trim() &&
+        !line.startsWith("WEBVTT") &&
+        !line.match(/^\d+$/) &&
+        currentTime
+      ) {
+        const text = decodeHtmlEntities(line.replace(/<[^>]+>/g, "")).trim();
+        if (text) {
+          raw.push(`[${currentTime}] ${text}`);
+        }
+      }
+    }
+  }
+
   const out = dedupTranscriptLines(raw);
-  if (out.length < raw.length) {
-    console.log(
-      `[NutEgg] Captions: ${raw.length} raw segments → ${out.length} after dedup (YouTube duplication)`
-    );
-  }
   return out.join("\n");
+}
+
+/** Decodes XML and HTML entity strings into plain unicode characters. */
+function decodeHtmlEntities(str) {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\s+/g, " ");
 }
 
 /**
  * Remove repeated caption lines. YouTube serves duplicated caption spans for
  * long videos — sometimes with identical timestamps, sometimes as a verbatim
  * second copy of the whole track (different or missing start times). Rules:
- *   - drop any line whose text was already seen (normalized)
- *   - drop any line that doesn't advance the timeline
- *   - once several consecutive lines repeat, treat the REST of the track as
- *     a duplicate copy and stop (keeps legit repeated phrases intact)
+ *   - drop any line whose text was already seen (normalized) — this also
+ *     swallows a looped second copy of the track, line by line
+ *   - drop any line where the timeline runs BACKWARDS (a looped copy
+ *     restarting at 0:00)
+ *   - drop lines whose whole text is just a timestamp ("0:01") — the ASR
+ *     reading the on-screen timer / caption track markers
+ *
+ * Lines that share a whole-second timestamp are NOT duplicates — short
+ * caption segments legitimately cluster inside one second (the timestamps
+ * are quantized to whole seconds). Treating them as repeats truncated
+ * transcripts mid-video (e.g. "stops at 00:38").
  */
 function dedupTranscriptLines(lines) {
   const out = [];
   const seen = new Set();
   let lastStart = -1;
-  let repeatedRun = 0;
+  let dropped = 0;
 
   for (const line of lines) {
     const timeMatch = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
     const start = timeMatch ? parseTimestamp(timeMatch[0]) : -1;
     const text = line.replace(/^\[[^\]]*\]\s*/, "").trim();
-    const key = text.toLowerCase().replace(/\s+/g, " ").replace(/[^a-z0-9 ]/g, "");
 
-    const isRepeat = (key && seen.has(key)) || (start >= 0 && start <= lastStart);
-    if (isRepeat) {
-      repeatedRun++;
-      if (repeatedRun >= 3) break; // the rest is a duplicate copy of the track
-      continue; // skip this duplicated line, keep scanning
+    // Junk: the whole caption is a timestamp (on-screen timer read by the ASR)
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {
+      dropped++;
+      continue;
     }
-    repeatedRun = 0;
+
+    // CJK-safe key: lowercase + collapsed whitespace only. (Stripping
+    // non-Latin characters made every Chinese line's key empty, so the
+    // text-dedup silently stopped working for non-English tracks.)
+    const key = text.toLowerCase().replace(/\s+/g, " ").trim();
+
+    const isRepeat =
+      (key && seen.has(key)) ||
+      (start >= 0 && start < lastStart); // backwards jump = looped copy
+    if (isRepeat) {
+      dropped++;
+      continue;
+    }
     if (key) seen.add(key);
     if (start >= 0) lastStart = start;
     out.push(line);
+  }
+
+  if (dropped > 0) {
+    console.log(
+      `[NutEgg] Captions: dedup dropped ${dropped} of ${lines.length} lines`
+    );
   }
   return out;
 }
