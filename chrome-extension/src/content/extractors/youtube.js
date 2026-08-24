@@ -218,10 +218,13 @@ function chaptersFromMarkersMap(markers) {
     const out = [];
     for (const c of list) {
       const ms = c?.chapterRenderer?.timeRangeStartMillis;
-      const title = c?.chapterRenderer?.title?.simpleText;
-      if (ms != null && title) out.push({ time: formatTime(ms / 1000), title });
+      const title =
+        c?.chapterRenderer?.title?.simpleText ||
+        (c?.chapterRenderer?.title?.runs || []).map((x) => x.text).join("");
+      if (ms != null && title) out.push({ time: formatTime(ms / 1000), title: cleanChapterTitle(title) });
     }
-    if (out.length > 0) return out;
+    const deduped = dedupChapters(out);
+    if (deduped.length > 0) return deduped;
   }
   return [];
 }
@@ -244,17 +247,16 @@ function chaptersFromMacroMarkers(data) {
         r?.timeDescription?.simpleText ||
         (r?.timeDescription?.runs || []).map((x) => x.text).join("");
       if (title && timeDesc) {
-        // Titles embed the time ("0:00 Introduction") — strip it
         found.push({
           time: timeDesc,
-          title: title.replace(/^\d{1,2}:\d{2}(?::\d{2})?\s*/, ""),
+          title: cleanChapterTitle(title),
         });
       }
       return;
     }
     for (const v of Object.values(node)) walk(v);
   })(data);
-  return found;
+  return dedupChapters(found);
 }
 
 /** `ytd-macro-markers-list-item-renderer` items currently in the DOM. */
@@ -262,10 +264,77 @@ function readChapterListDom() {
   const chapters = [];
   document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
     const time = el.querySelector("#time")?.textContent?.trim();
-    const title = el.querySelector("h4")?.textContent?.trim();
+    // YouTube's h4 contains both #title and child yt-formatted-string or spans, which causes textContent to repeat if we query `h4` directly
+    const titleEl = el.querySelector("h4 yt-formatted-string, h4 [id='title'], h4 #endpoint") || el.querySelector("h4");
+    const rawTitle = titleEl?.textContent?.trim() || "";
+    const title = cleanChapterTitle(rawTitle);
     if (time && title) chapters.push({ time, title });
   });
-  return chapters;
+  return dedupChapters(chapters);
+}
+
+/** Clean chapter title: strip timestamps and eliminate duplicated repeated strings. */
+function cleanChapterTitle(raw) {
+  if (!raw) return "";
+  let title = raw.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+  // Strip leading timestamp if present: e.g. "0:00 - Intro", "[01:23] Intro", "0:00 Intro"
+  title = title.replace(/^\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*[-—–:]?\s*/, "").trim();
+
+  // Check for duplicated halves:
+  // Case A: "Introduction - Introduction"
+  const midDash = title.split(/\s*[-—–]\s*/);
+  if (midDash.length === 2 && midDash[0].trim() && midDash[0].trim() === midDash[1].trim()) {
+    title = midDash[0].trim();
+  } else {
+    // Case B: "Introduction Introduction" (even split by words)
+    const words = title.split(" ");
+    if (words.length >= 2 && words.length % 2 === 0) {
+      const half1 = words.slice(0, words.length / 2).join(" ");
+      const half2 = words.slice(words.length / 2).join(" ");
+      if (half1 === half2) {
+        title = half1;
+      }
+    } else {
+      // Case C: "IntroductionIntroduction" (no space, exact even string split)
+      const len = title.length;
+      if (len >= 4 && len % 2 === 0) {
+        const half1 = title.slice(0, len / 2);
+        const half2 = title.slice(len / 2);
+        if (half1 === half2) {
+          title = half1;
+        }
+      }
+    }
+  }
+
+  return title.trim();
+}
+
+/** Deduplicate chapters array by timestamp and eliminate looped/duplicated sequences. */
+function dedupChapters(chapters) {
+  if (!Array.isArray(chapters) || chapters.length === 0) return [];
+  const out = [];
+  const seenTimes = new Set();
+  let lastSeconds = -1;
+
+  for (const c of chapters) {
+    const time = (c.time || "").trim();
+    const title = cleanChapterTitle(c.title || "");
+    if (!time || !title) continue;
+
+    const seconds = parseTimestamp(`[${time.replace(/^\[|\]$/g, "")}]`);
+    // If the list starts repeating from 0 or earlier time, or duplicate timestamp
+    if (seenTimes.has(time) || (seconds >= 0 && seconds <= lastSeconds && seenTimes.size >= 2)) {
+      if (seconds >= 0 && seconds <= 0 && seenTimes.size >= 2) break;
+      continue;
+    }
+
+    seenTimes.add(time);
+    if (seconds >= 0) lastSeconds = seconds;
+    out.push({ time, title });
+  }
+
+  return out;
 }
 
 /** Open the chapter-list panel (player chapter button), read it, close it. */
