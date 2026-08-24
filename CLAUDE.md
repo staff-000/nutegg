@@ -76,5 +76,10 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 | [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `# Knowledge`/`# Unprocessed` sections (h1; the tree nests `##` branches under `# Knowledge`). `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
 | [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |
 | [settings.ts](obsidian-plugin/src/settings.ts) | Settings tab, developer mode toggle |
-| [content-script.js](chrome-extension/src/content/content-script.js) | Extractor registry: `detect()` → `extract()`. youtube (captions via timedtext/script-tag/panel with dedup, chapters from `multiMarkersPlayerBarRenderer`), twitter (threads), article, generic. |
+| [content-script.js](chrome-extension/src/content/content-script.js) | Slim entry point: `EXTRACTORS` registry, `extractContent()`, and `chrome.runtime.onMessage` listener. Extractors live in separate files under `extractors/`. |
+| [utils.js](chrome-extension/src/content/utils.js) | Shared utilities: `extractText`, `getMeta`, `truncate`, `estimateTime`, `readingTime`, `waitFor`, `extractBalanced`, `formatTime`, `parseTimestamp` |
+| [extractors/youtube.js](chrome-extension/src/content/extractors/youtube.js) | YouTube: captions via timedtext/script-tag/panel with dedup, chapters from `multiMarkersPlayerBarRenderer` |
+| [extractors/twitter.js](chrome-extension/src/content/extractors/twitter.js) | Twitter/X: tweet text, threads, author info |
+| [extractors/article.js](chrome-extension/src/content/extractors/article.js) | Article: Medium, Substack, blogs, news (og:type, schema.org) |
+| [extractors/generic.js](chrome-extension/src/content/extractors/generic.js) | Generic fallback for any webpage |
 | [options.html/js/css](chrome-extension/src/options/) | Standalone settings page (port config, test connection) |

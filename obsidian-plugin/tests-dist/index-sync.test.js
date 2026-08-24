@@ -51,13 +51,14 @@ last_updated: "2026-08-14"
 > - Ignore content that repeats existing knowledge
 >
 > **Formatting Rules:** 
-> - Each top-level bullet MUST begin with exactly one entry tag. Format: "- [tag] The insight text\u2026". Pick the single best fit:
->   * [concept] \u2014 a definition or explanation of what something IS
->   * [method] \u2014 a how-to, workflow, step-by-step process, or technique
->   * [opinion] \u2014 a subjective claim, recommendation, or personal viewpoint
->   * [explain] \u2014 reasoning or rationale behind a conclusion (the "why")
+> - Each bullet MUST begin with exactly one entry tag. Format: "- [tag] The insight text\u2026". Pick the single best fit:
+>   * [concept] \u2014 a definition or explanation of what something IS (e.g. a technique, algorithm, or paradigm)
+>   * [architecture] \u2014 a model architecture, system design, or structural approach
+>   * [method] \u2014 a how-to, workflow, training recipe, or step-by-step process
+>   * [benchmark] \u2014 a measurable result, performance comparison, or empirical finding
+>   * [explain] \u2014 reasoning or rationale behind a design choice or conclusion (the "why")
 >   * [fact] \u2014 a verifiable data point, statistic, or empirical finding
->   * [example] \u2014 a concrete example, analogy, or metaphor that illustrates an idea
+>   * [example] \u2014 a concrete demo, paper, deployment, or case study that illustrates an idea
 > - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets. Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.

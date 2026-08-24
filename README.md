@@ -123,7 +123,15 @@ No build step required — all plain JavaScript.
 | **Articles/Blogs** | Content, headings structure, author, published date |
 | **Generic webpages** | Main content area, metadata, description |
 
-To add a new site extractor, edit `chrome-extension/src/content/content-script.js` and add a detect + extract pair to the `EXTRACTORS` registry.
+To add a new site extractor:
+
+1. Create a new file in `chrome-extension/src/content/extractors/` (e.g. `reddit.js`)
+2. Define a `detect` function (returns `true` if this page should use your extractor)
+3. Define an `extract` function (returns `{url, title, content, sourceType, metadata?}`)
+4. Register both in the `EXTRACTORS` array in `content-script.js`
+5. Add your file to `manifest.json` `content_scripts.js` (before `content-script.js`) and to the `executeScript` calls in `popup.js`
+
+Shared utilities (`extractText`, `getMeta`, `truncate`, etc.) live in `utils.js` and are available as globals.
 
 ## Privacy
 

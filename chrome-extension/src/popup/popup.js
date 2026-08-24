@@ -519,7 +519,14 @@ async function tryExtract(tabId) {
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
-      files: ["src/content/content-script.js"],
+      files: [
+        "src/content/utils.js",
+        "src/content/extractors/youtube.js",
+        "src/content/extractors/twitter.js",
+        "src/content/extractors/article.js",
+        "src/content/extractors/generic.js",
+        "src/content/content-script.js",
+      ],
     });
   } catch {
     return null; // Restricted page (chrome://, Web Store, PDF viewer)
@@ -1015,7 +1022,14 @@ async function seekToChapter(seconds) {
     try {
       await chrome.scripting.executeScript({
         target: { tabId: activeTabId },
-        files: ["src/content/content-script.js"],
+        files: [
+          "src/content/utils.js",
+          "src/content/extractors/youtube.js",
+          "src/content/extractors/twitter.js",
+          "src/content/extractors/article.js",
+          "src/content/extractors/generic.js",
+          "src/content/content-script.js",
+        ],
       });
       await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
     } catch { /* page doesn't allow injection */ }

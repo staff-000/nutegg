@@ -38,7 +38,14 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content/content-script.js"],
+      "js": [
+        "src/content/utils.js",
+        "src/content/extractors/youtube.js",
+        "src/content/extractors/twitter.js",
+        "src/content/extractors/article.js",
+        "src/content/extractors/generic.js",
+        "src/content/content-script.js"
+      ],
       "run_at": "document_idle"
     }
   ],
