@@ -41,3 +41,37 @@
 .nutegg-decision-modal button {
   min-width: 140px;
 }
+
+/* Merge widget banner in egg notes */
+.nutegg-merge-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 12px 0 16px 0;
+}
+
+.nutegg-merge-badge {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.nutegg-merge-btn {
+  font-size: 0.85em;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 14px;
+  border-radius: 6px;
+  transition: opacity 0.15s ease;
+}
+
+.nutegg-merge-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

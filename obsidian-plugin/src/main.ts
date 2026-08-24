@@ -13,6 +13,7 @@ import { EggParser } from "./egg-parser";
 import { IndexSync } from "./index-sync";
 import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
+import { registerMergeWidget } from "./merge-widget";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -126,6 +127,34 @@ export default class NutEggPlugin extends Plugin {
         }
       },
     });
+
+    // Command: Merge unprocessed entries in current egg file
+    this.addCommand({
+      id: "nutegg-merge-current-egg",
+      name: "Merge unprocessed entries in current egg",
+      callback: async () => {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile) {
+          new Notice("NutEgg: No active file");
+          return;
+        }
+        if (!activeFile.path.endsWith(".md") || activeFile.path.endsWith("_index.md") || activeFile.path.includes("/_raw/")) {
+          new Notice("NutEgg: Active file is not an egg note");
+          return;
+        }
+
+        new Notice(`NutEgg: Merging unprocessed entries in ${activeFile.basename}...`);
+        const result = await this.aiProcessor.mergeEgg(activeFile.path);
+        if (result && result.entries > 0) {
+          new Notice(`[NutEgg] Merged ${result.entries} entries into knowledge tree`);
+        } else {
+          new Notice("[NutEgg] No unprocessed entries to merge or merge failed.");
+        }
+      },
+    });
+
+    // Register Markdown post-processor for interactive merge button in egg notes
+    registerMergeWidget(this);
 
     console.log("[NutEgg] Plugin loaded");
   }

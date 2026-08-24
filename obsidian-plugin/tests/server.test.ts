@@ -246,7 +246,7 @@ describe("NutEggServer.handleConfirm", () => {
     skipRaw: true,
   };
 
-  it("appends entries with author/source and triggers the merge for crossed eggs", async () => {
+  it("appends entries with author/source upon confirmation", async () => {
     let appended: any = null;
     const s = makeServer({
       knowledgeBase: {
@@ -254,10 +254,6 @@ describe("NutEggServer.handleConfirm", () => {
         appendKnowledge: async (...args: any[]) => {
           appended = args;
         },
-      },
-      aiProcessor: {
-        maybeMergeEgg: async (egg: string) =>
-          egg === "egg.md" ? { egg, entries: 20 } : null,
       },
     });
     const newKnowledge = [
@@ -271,7 +267,7 @@ describe("NutEggServer.handleConfirm", () => {
     assert.equal(res.statusCode, 200);
     const body = JSON.parse(res.body);
     assert.equal(body.success, true);
-    assert.deepEqual(body.merged, [{ egg: "egg.md", entries: 20 }]);
+    assert.deepEqual(body.merged, []);
     // appendKnowledge got (newKnowledge, sourceTitle, sourceUrl, author)
     assert.deepEqual(appended[0], newKnowledge);
     assert.equal(appended[1], "Article Title");

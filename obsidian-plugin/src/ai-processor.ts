@@ -909,16 +909,18 @@ export class AIProcessor {
   }
 
   /**
-   * Merge an egg's Unprocessed entries into its Knowledge tree once
-   * MERGE_THRESHOLD is reached. Best-effort: on any failure the egg is left
-   * untouched and the entries stay in Unprocessed for the next attempt.
+   * Merge an egg's Unprocessed entries into its Knowledge tree on demand.
+   * Merges whenever there is at least 1 unprocessed entry.
    */
-  async maybeMergeEgg(fileName: string): Promise<MergeResult | null> {
+  async mergeEgg(fileName: string): Promise<MergeResult | null> {
     const egg = await this.plugin.eggParser.readEgg(fileName);
     if (!egg) return null;
 
     const entries = this.plugin.eggParser.countUnprocessed(egg);
-    if (entries < MERGE_THRESHOLD) return null;
+    if (entries === 0) {
+      console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
+      return null;
+    }
 
     if (!this.plugin.settings.aiApiKey) {
       console.log(
@@ -954,10 +956,22 @@ export class AIProcessor {
       console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
       return { egg: fileName, entries };
     } catch (err) {
-      // Best-effort — the save already succeeded; leave entries for the next run
       console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
       return null;
     }
+  }
+
+  /**
+   * Threshold-based merge helper (kept for backward compatibility and testing).
+   */
+  async maybeMergeEgg(fileName: string): Promise<MergeResult | null> {
+    const egg = await this.plugin.eggParser.readEgg(fileName);
+    if (!egg) return null;
+
+    const entries = this.plugin.eggParser.countUnprocessed(egg);
+    if (entries < MERGE_THRESHOLD) return null;
+
+    return this.mergeEgg(fileName);
   }
 
   // --- Prompt building helpers ---

@@ -615,6 +615,37 @@ describe("AIProcessor.maybeMergeEgg", () => {
     const { p } = makeProcessor({});
     assert.equal(await p.maybeMergeEgg("nope.md"), null);
   });
+
+  it("mergeEgg merges on demand even with few entries (e.g. 3 entries)", async () => {
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(3) },
+      {
+        aiClient: {
+          chat: async () =>
+            JSON.stringify({
+              knowledge: "- existing\n  - merged item",
+              unprocessed: "",
+            }),
+        },
+      }
+    );
+    const out = await p.mergeEgg("egg.md");
+    assert.deepEqual(out, { egg: "egg.md", entries: 3 });
+    const content = files.get("egg.md")!;
+    assert.ok(content.includes("- merged item"));
+    assert.ok(!content.includes("- entry 1"));
+  });
+
+  it("mergeEgg returns null when there are 0 unprocessed entries", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(0) },
+      { aiClient: { chat: async () => (calls++, "{}") } }
+    );
+    const out = await p.mergeEgg("egg.md");
+    assert.equal(out, null);
+    assert.equal(calls, 0);
+  });
 });
 
 describe("AIProcessor prompt building helpers", () => {

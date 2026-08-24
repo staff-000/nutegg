@@ -1133,17 +1133,18 @@ A: ${qa.answer}`).join("\n")}` : "";
     }
   }
   /**
-   * Merge an egg's Unprocessed entries into its Knowledge tree once
-   * MERGE_THRESHOLD is reached. Best-effort: on any failure the egg is left
-   * untouched and the entries stay in Unprocessed for the next attempt.
+   * Merge an egg's Unprocessed entries into its Knowledge tree on demand.
+   * Merges whenever there is at least 1 unprocessed entry.
    */
-  async maybeMergeEgg(fileName) {
+  async mergeEgg(fileName) {
     const egg2 = await this.plugin.eggParser.readEgg(fileName);
     if (!egg2)
       return null;
     const entries = this.plugin.eggParser.countUnprocessed(egg2);
-    if (entries < MERGE_THRESHOLD)
+    if (entries === 0) {
+      console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
       return null;
+    }
     if (!this.plugin.settings.aiApiKey) {
       console.log(
         `[NutEgg] ${fileName} has ${entries} unprocessed entries \u2014 skipped merge (no API key)`
@@ -1175,6 +1176,18 @@ A: ${qa.answer}`).join("\n")}` : "";
       console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
       return null;
     }
+  }
+  /**
+   * Threshold-based merge helper (kept for backward compatibility and testing).
+   */
+  async maybeMergeEgg(fileName) {
+    const egg2 = await this.plugin.eggParser.readEgg(fileName);
+    if (!egg2)
+      return null;
+    const entries = this.plugin.eggParser.countUnprocessed(egg2);
+    if (entries < MERGE_THRESHOLD)
+      return null;
+    return this.mergeEgg(fileName);
   }
   // --- Prompt building helpers ---
   /** `## Video Chapters (use these EXACT timestamps)` block, or "". */
@@ -2201,6 +2214,34 @@ ${entries}
   (0, import_node_test.it)("returns null for a missing egg file", async () => {
     const { p } = makeProcessor({});
     import_strict.default.equal(await p.maybeMergeEgg("nope.md"), null);
+  });
+  (0, import_node_test.it)("mergeEgg merges on demand even with few entries (e.g. 3 entries)", async () => {
+    const { p, files } = makeProcessor(
+      { "egg.md": unprocessedEgg(3) },
+      {
+        aiClient: {
+          chat: async () => JSON.stringify({
+            knowledge: "- existing\n  - merged item",
+            unprocessed: ""
+          })
+        }
+      }
+    );
+    const out = await p.mergeEgg("egg.md");
+    import_strict.default.deepEqual(out, { egg: "egg.md", entries: 3 });
+    const content = files.get("egg.md");
+    import_strict.default.ok(content.includes("- merged item"));
+    import_strict.default.ok(!content.includes("- entry 1"));
+  });
+  (0, import_node_test.it)("mergeEgg returns null when there are 0 unprocessed entries", async () => {
+    let calls = 0;
+    const { p } = makeProcessor(
+      { "egg.md": unprocessedEgg(0) },
+      { aiClient: { chat: async () => (calls++, "{}") } }
+    );
+    const out = await p.mergeEgg("egg.md");
+    import_strict.default.equal(out, null);
+    import_strict.default.equal(calls, 0);
   });
 });
 (0, import_node_test.describe)("AIProcessor prompt building helpers", () => {

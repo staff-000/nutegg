@@ -425,7 +425,7 @@ var NutEggServer = class {
           processingResult: saved
         });
       }
-      let mergedEggs = [];
+      const mergedEggs = [];
       if (hasKnowledge) {
         const author = confirm.metadata?.author || confirm.metadata?.channel || confirm.metadata?.handle || "";
         await this.plugin.knowledgeBase.appendKnowledge(
@@ -434,11 +434,6 @@ var NutEggServer = class {
           confirm.url,
           author
         );
-        const eggs = [...new Set(confirm.newKnowledge.map((k) => k.egg))];
-        const results = await Promise.all(
-          eggs.map((egg) => this.plugin.aiProcessor.maybeMergeEgg(egg))
-        );
-        mergedEggs = results.filter((r) => r !== null);
       }
       const db = this.plugin.db;
       const normalizedUrl = this.normalizeUrl(confirm.url);
@@ -829,7 +824,7 @@ function makeServer(overrides = {}) {
     metadata: { author: "Jane Doe" },
     skipRaw: true
   };
-  (0, import_node_test.it)("appends entries with author/source and triggers the merge for crossed eggs", async () => {
+  (0, import_node_test.it)("appends entries with author/source upon confirmation", async () => {
     let appended = null;
     const s = makeServer({
       knowledgeBase: {
@@ -837,9 +832,6 @@ function makeServer(overrides = {}) {
         appendKnowledge: async (...args) => {
           appended = args;
         }
-      },
-      aiProcessor: {
-        maybeMergeEgg: async (egg) => egg === "egg.md" ? { egg, entries: 20 } : null
       }
     });
     const newKnowledge = [
@@ -852,7 +844,7 @@ function makeServer(overrides = {}) {
     import_strict.default.equal(res.statusCode, 200);
     const body = JSON.parse(res.body);
     import_strict.default.equal(body.success, true);
-    import_strict.default.deepEqual(body.merged, [{ egg: "egg.md", entries: 20 }]);
+    import_strict.default.deepEqual(body.merged, []);
     import_strict.default.deepEqual(appended[0], newKnowledge);
     import_strict.default.equal(appended[1], "Article Title");
     import_strict.default.equal(appended[2], "https://x.com/a");

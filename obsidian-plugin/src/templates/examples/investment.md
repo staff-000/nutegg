@@ -34,7 +34,7 @@ last_updated: "2026-08-12"
 >   * [fact] — a verifiable data point, earnings figure, statistic, or historical event
 >   * [example] — a concrete case study, trade, or real-world market event that illustrates an idea
 > - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
-> - New entries are added to the "# Unprocessed" section first and are merged into the knowledge tree automatically once 20+ accumulate.
+> - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
 # Knowledge

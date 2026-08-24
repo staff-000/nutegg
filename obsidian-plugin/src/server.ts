@@ -571,7 +571,7 @@ export class NutEggServer {
 
       // Insert new knowledge into the eggs' Unprocessed sections. Entries
       // carry the insight + examples from the AI, plus author and source.
-      let mergedEggs: MergeResult[] = [];
+      const mergedEggs: MergeResult[] = [];
       if (hasKnowledge) {
         const author =
           confirm.metadata?.author ||
@@ -584,13 +584,6 @@ export class NutEggServer {
           confirm.url,
           author
         );
-
-        // Auto-merge any egg whose Unprocessed section crossed the threshold
-        const eggs = [...new Set(confirm.newKnowledge.map((k) => k.egg))];
-        const results = await Promise.all(
-          eggs.map((egg) => this.plugin.aiProcessor.maybeMergeEgg(egg))
-        );
-        mergedEggs = results.filter((r): r is MergeResult => r !== null);
       }
 
       // Update THIS capture's row in SQLite (identified by nutId from
