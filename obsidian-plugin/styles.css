@@ -85,6 +85,15 @@
   padding: 6px 12px;
 }
 
+/* Status bar credit item */
+.nutegg-statusbar-credit {
+  cursor: pointer;
+}
+.nutegg-statusbar-credit:hover {
+  color: var(--text-accent);
+}
+
+
 .nutegg-merge-editor-widget .nutegg-merge-btn {
   padding: 4px 12px;
 }

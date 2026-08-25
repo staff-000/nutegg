@@ -63,7 +63,20 @@ async function handleTest() {
     clearTimeout(timeout);
 
     if (response.ok) {
-      showResult("✅ Connected successfully.", "ok");
+      let creditInfo = "";
+      try {
+        const creditResp = await fetch(`http://127.0.0.1:${port}/credit`);
+        if (creditResp.ok) {
+          const credit = await creditResp.json();
+          if (credit.hasBalance && credit.balanceFormatted) {
+            creditInfo = ` | 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;
+          } else if (credit.providerLabel) {
+            const label = credit.source === "openrouter" ? "OpenRouter" : credit.providerLabel;
+            creditInfo = ` | 🪙 ${label} (${credit.statusText})`;
+          }
+        }
+      } catch {}
+      showResult(`✅ Connected successfully.${creditInfo}`, "ok");
     } else {
       showResult("❌ Server responded with error.", "error");
     }

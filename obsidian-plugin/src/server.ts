@@ -165,6 +165,11 @@ export class NutEggServer {
         return;
       }
 
+      if (req.method === "GET" && req.url === "/credit") {
+        this.handleCredit(res);
+        return;
+      }
+
       if (req.method === "GET" && req.url === "/metrics") {
         this.handleMetrics(req, res);
         return;
@@ -222,7 +227,7 @@ export class NutEggServer {
   }
 
   /**
-   * GET /config-status — Returns AI configuration status for the popup to show warnings.
+   * GET /config-status — Returns AI configuration status for the popup to show warnings and credit info.
    */
   private async handleConfigStatus(res: http.ServerResponse): Promise<void> {
     const settings = this.plugin.settings;
@@ -241,8 +246,27 @@ export class NutEggServer {
       status = status === "error" ? "error" : "warning";
     }
 
+    let credit = null;
+    try {
+      credit = await this.plugin.aiClient.checkCredit(settings);
+    } catch {}
+
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status, issues, port: this.port }));
+    res.end(JSON.stringify({ status, issues, port: this.port, credit }));
+  }
+
+  /**
+   * GET /credit — Returns live balance and credit status for the current AI provider.
+   */
+  private async handleCredit(res: http.ServerResponse): Promise<void> {
+    try {
+      const credit = await this.plugin.aiClient.checkCredit(this.plugin.settings);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(credit));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
   }
 
   /**

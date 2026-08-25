@@ -180,6 +180,132 @@ var init_ai_client = __esm({
       constructor(settings) {
         this.config = resolveConfig(settings);
       }
+      /**
+       * Check remaining credit/balance for the configured provider.
+       */
+      async checkCredit(settings) {
+        const provider = PROVIDER_CATALOG[settings.aiProvider];
+        const source = settings.aiSource;
+        const apiKey = settings.aiApiKey;
+        const model = settings.aiModel;
+        const baseInfo = {
+          provider: settings.aiProvider,
+          providerLabel: provider?.label || settings.aiProvider,
+          source,
+          model,
+          hasBalance: false,
+          statusText: "Checking..."
+        };
+        if (!apiKey) {
+          return {
+            ...baseInfo,
+            statusText: "No API key configured",
+            error: "No API key"
+          };
+        }
+        if (source === "openrouter") {
+          try {
+            const resp = await fetch("https://openrouter.ai/api/v1/credits", {
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json"
+              }
+            });
+            if (resp.ok) {
+              const json = await resp.json();
+              const totalCredits = Number(json?.data?.total_credits ?? 0);
+              const totalUsage = Number(json?.data?.total_usage ?? 0);
+              const remaining = Math.max(0, totalCredits - totalUsage);
+              const balanceFormatted = `$${remaining.toFixed(2)}`;
+              return {
+                ...baseInfo,
+                hasBalance: true,
+                balanceFormatted,
+                currency: "USD",
+                totalCredits,
+                totalUsage,
+                statusText: `${balanceFormatted} left ($${totalUsage.toFixed(2)} used / $${totalCredits.toFixed(2)} total)`
+              };
+            } else if (resp.status === 401) {
+              return {
+                ...baseInfo,
+                statusText: "Invalid API key",
+                error: "Authentication failed"
+              };
+            } else {
+              return {
+                ...baseInfo,
+                statusText: "OpenRouter (Active)"
+              };
+            }
+          } catch (err) {
+            return {
+              ...baseInfo,
+              statusText: "OpenRouter (Network error)",
+              error: String(err)
+            };
+          }
+        }
+        if (settings.aiProvider === "deepseek") {
+          try {
+            const resp = await fetch("https://api.deepseek.com/user/balance", {
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                Accept: "application/json"
+              }
+            });
+            if (resp.ok) {
+              const json = await resp.json();
+              const info = json?.balance_infos?.[0];
+              const curr = info?.currency || "CNY";
+              const symbol = curr === "USD" ? "$" : "\xA5";
+              const balance = parseFloat(info?.total_balance || "0");
+              const balanceFormatted = `${symbol}${balance.toFixed(2)}`;
+              return {
+                ...baseInfo,
+                hasBalance: true,
+                balanceFormatted,
+                currency: curr,
+                statusText: `${balanceFormatted} available`
+              };
+            } else if (resp.status === 401) {
+              return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+            }
+          } catch {
+          }
+          return { ...baseInfo, statusText: "DeepSeek (Active)" };
+        }
+        if (settings.aiProvider === "kimi") {
+          try {
+            const resp = await fetch("https://api.moonshot.cn/v1/users/me/balance", {
+              headers: {
+                Authorization: `Bearer ${apiKey}`
+              }
+            });
+            if (resp.ok) {
+              const json = await resp.json();
+              const balance = json?.data?.available_balance ?? 0;
+              const balanceFormatted = `\xA5${Number(balance).toFixed(2)}`;
+              return {
+                ...baseInfo,
+                hasBalance: true,
+                balanceFormatted,
+                currency: "CNY",
+                statusText: `${balanceFormatted} available`
+              };
+            } else if (resp.status === 401) {
+              return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+            }
+          } catch {
+          }
+          return { ...baseInfo, statusText: "Kimi (Active)" };
+        }
+        return {
+          ...baseInfo,
+          hasBalance: false,
+          statusText: `${provider.label} (Pay-as-you-go / Direct)`
+        };
+      }
       async chat(prompt, maxTokens) {
         if (!this.config.apiKey) {
           throw new AIError(

@@ -2,6 +2,8 @@
 
 // DOM — Capture state
 const serverStatus = document.getElementById("server-status");
+const aiCreditPill = document.getElementById("ai-credit-pill");
+const aiCreditText = document.getElementById("ai-credit-text");
 const settingsBtn = document.getElementById("settings-btn");
 const pageTitle = document.getElementById("page-title");
 const pageUrl = document.getElementById("page-url");
@@ -108,6 +110,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   settingsBtn.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
+  if (aiCreditPill) {
+    aiCreditPill.addEventListener("click", () => {
+      if (aiCreditText) aiCreditText.textContent = "Checking...";
+      checkCreditStatus();
+    });
+  }
   questionsToggle.addEventListener("click", () => {
     questionsArea.classList.toggle("hidden");
   });
@@ -378,7 +386,7 @@ async function fetchMetrics() {
   }
 }
 
-// --- Config status ---
+// --- Config & Credit status ---
 
 async function checkConfigStatus() {
   try {
@@ -388,8 +396,55 @@ async function checkConfigStatus() {
     } else {
       hideWarning();
     }
+    if (response?.credit) {
+      renderCreditPill(response.credit);
+    }
   } catch {
     // handled by server status dot
+  }
+}
+
+async function checkCreditStatus() {
+  if (!serverOnline) {
+    aiCreditPill?.classList.add("hidden");
+    return;
+  }
+  try {
+    const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
+    renderCreditPill(credit);
+  } catch {
+    aiCreditPill?.classList.add("hidden");
+  }
+}
+
+function renderCreditPill(credit) {
+  if (!credit || credit.error || !serverOnline) {
+    aiCreditPill?.classList.add("hidden");
+    return;
+  }
+  aiCreditPill?.classList.remove("hidden");
+
+  const providerName =
+    credit.source === "openrouter"
+      ? "OpenRouter"
+      : credit.provider === "anthropic"
+      ? "Claude"
+      : credit.provider === "kimi"
+      ? "Kimi"
+      : credit.provider === "gemini"
+      ? "Gemini"
+      : credit.provider === "openai"
+      ? "OpenAI"
+      : credit.providerLabel || credit.provider;
+
+  if (credit.hasBalance && credit.balanceFormatted) {
+    aiCreditText.textContent = `${providerName}: ${credit.balanceFormatted}`;
+    aiCreditPill.title = `NutEgg AI (${credit.providerLabel}): ${credit.statusText} (Click to refresh)`;
+    aiCreditPill.classList.remove("has-warning");
+  } else {
+    aiCreditText.textContent = providerName;
+    aiCreditPill.title = `NutEgg AI: ${credit.statusText} (Click to refresh)`;
+    aiCreditPill.classList.remove("has-warning");
   }
 }
 
@@ -406,9 +461,11 @@ async function checkServerStatus() {
   if (serverOnline) {
     serverStatus.className = "status-dot online";
     serverStatus.title = "Obsidian server is online";
+    checkCreditStatus();
   } else {
     serverStatus.className = "status-dot offline";
     serverStatus.title = "Obsidian server is offline — start Obsidian with NutEgg";
+    aiCreditPill?.classList.add("hidden");
   }
 }
 

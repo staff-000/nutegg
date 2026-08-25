@@ -214,6 +214,31 @@ function classifyError(statusCode: number, body: string): AIError {
 }
 
 // ============================================================
+// AI Credit & Balance Monitor Info
+// ============================================================
+
+export interface AICreditInfo {
+  provider: AIProviderId;
+  providerLabel: string;
+  source: AISource;
+  model: string;
+  /** Whether a numeric balance was successfully fetched */
+  hasBalance: boolean;
+  /** Formatted remaining balance or credit string, e.g. "$7.45" or "¥15.20" */
+  balanceFormatted?: string;
+  /** Currency code if known (e.g. "USD", "CNY") */
+  currency?: string;
+  /** Total credits (if supported by provider) */
+  totalCredits?: number;
+  /** Total usage (if supported by provider) */
+  totalUsage?: number;
+  /** Status description e.g. "OpenRouter credits available" or "Pay-as-you-go / Direct billing" */
+  statusText: string;
+  /** Error message if balance check failed */
+  error?: string;
+}
+
+// ============================================================
 // AIClient
 // ============================================================
 
@@ -222,6 +247,141 @@ export class AIClient {
 
   constructor(settings: NutEggSettings) {
     this.config = resolveConfig(settings);
+  }
+
+  /**
+   * Check remaining credit/balance for the configured provider.
+   */
+  async checkCredit(settings: NutEggSettings): Promise<AICreditInfo> {
+    const provider = PROVIDER_CATALOG[settings.aiProvider];
+    const source = settings.aiSource;
+    const apiKey = settings.aiApiKey;
+    const model = settings.aiModel;
+
+    const baseInfo: AICreditInfo = {
+      provider: settings.aiProvider,
+      providerLabel: provider?.label || settings.aiProvider,
+      source,
+      model,
+      hasBalance: false,
+      statusText: "Checking...",
+    };
+
+    if (!apiKey) {
+      return {
+        ...baseInfo,
+        statusText: "No API key configured",
+        error: "No API key",
+      };
+    }
+
+    // 1. OpenRouter
+    if (source === "openrouter") {
+      try {
+        const resp = await fetch("https://openrouter.ai/api/v1/credits", {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          const totalCredits = Number(json?.data?.total_credits ?? 0);
+          const totalUsage = Number(json?.data?.total_usage ?? 0);
+          const remaining = Math.max(0, totalCredits - totalUsage);
+          const balanceFormatted = `$${remaining.toFixed(2)}`;
+          return {
+            ...baseInfo,
+            hasBalance: true,
+            balanceFormatted,
+            currency: "USD",
+            totalCredits,
+            totalUsage,
+            statusText: `${balanceFormatted} left ($${totalUsage.toFixed(2)} used / $${totalCredits.toFixed(2)} total)`,
+          };
+        } else if (resp.status === 401) {
+          return {
+            ...baseInfo,
+            statusText: "Invalid API key",
+            error: "Authentication failed",
+          };
+        } else {
+          return {
+            ...baseInfo,
+            statusText: "OpenRouter (Active)",
+          };
+        }
+      } catch (err) {
+        return {
+          ...baseInfo,
+          statusText: "OpenRouter (Network error)",
+          error: String(err),
+        };
+      }
+    }
+
+    // 2. Official DeepSeek
+    if (settings.aiProvider === "deepseek") {
+      try {
+        const resp = await fetch("https://api.deepseek.com/user/balance", {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+          },
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          const info = json?.balance_infos?.[0];
+          const curr = info?.currency || "CNY";
+          const symbol = curr === "USD" ? "$" : "¥";
+          const balance = parseFloat(info?.total_balance || "0");
+          const balanceFormatted = `${symbol}${balance.toFixed(2)}`;
+          return {
+            ...baseInfo,
+            hasBalance: true,
+            balanceFormatted,
+            currency: curr,
+            statusText: `${balanceFormatted} available`,
+          };
+        } else if (resp.status === 401) {
+          return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+        }
+      } catch {}
+      return { ...baseInfo, statusText: "DeepSeek (Active)" };
+    }
+
+    // 3. Official Kimi (Moonshot)
+    if (settings.aiProvider === "kimi") {
+      try {
+        const resp = await fetch("https://api.moonshot.cn/v1/users/me/balance", {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+          },
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          const balance = json?.data?.available_balance ?? 0;
+          const balanceFormatted = `¥${Number(balance).toFixed(2)}`;
+          return {
+            ...baseInfo,
+            hasBalance: true,
+            balanceFormatted,
+            currency: "CNY",
+            statusText: `${balanceFormatted} available`,
+          };
+        } else if (resp.status === 401) {
+          return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+        }
+      } catch {}
+      return { ...baseInfo, statusText: "Kimi (Active)" };
+    }
+
+    // 4. Anthropic / OpenAI / Gemini / Zhipu / Qwen (Direct Pay-As-You-Go)
+    return {
+      ...baseInfo,
+      hasBalance: false,
+      statusText: `${provider.label} (Pay-as-you-go / Direct)`,
+    };
   }
 
   async chat(prompt: string, maxTokens: number): Promise<string> {

@@ -204,6 +204,43 @@ export class NutEggSettingTab extends PluginSettingTab {
         return dropdown;
       });
 
+    // Credit & Balance Monitor Setting
+    const creditSetting = new Setting(containerEl)
+      .setName("AI credit & balance")
+      .setDesc("Checking credit balance with provider...")
+      .addButton((btn) => {
+        btn
+          .setButtonText("Refresh")
+          .setCta()
+          .onClick(async () => {
+            btn.setDisabled(true);
+            btn.setButtonText("Checking...");
+            await updateCreditDisplay();
+            btn.setDisabled(false);
+            btn.setButtonText("Refresh");
+          });
+        return btn;
+      });
+
+    const updateCreditDisplay = async () => {
+      try {
+        const credit = await this.plugin.aiClient.checkCredit(settings);
+        if (credit.hasBalance && credit.balanceFormatted) {
+          creditSetting.setDesc(
+            `💰 Remaining Balance: ${credit.balanceFormatted} (${credit.statusText})`
+          );
+        } else {
+          creditSetting.setDesc(
+            `ℹ️ Provider: ${credit.providerLabel} — ${credit.statusText}`
+          );
+        }
+      } catch (err) {
+        creditSetting.setDesc(`⚠️ Failed to check credit: ${String(err)}`);
+      }
+    };
+
+    updateCreditDisplay();
+
     // ==========================================
     // Server
     // ==========================================

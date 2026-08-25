@@ -25,6 +25,7 @@ export default class NutEggPlugin extends Plugin {
   eggParser!: EggParser;
   indexSync!: IndexSync;
   db!: NutEggDatabase;
+  creditStatusBarItem: HTMLElement | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -157,13 +158,70 @@ export default class NutEggPlugin extends Plugin {
       },
     });
 
+    // Command: Check AI credit & balance
+    this.addCommand({
+      id: "nutegg-check-credit",
+      name: "Check AI provider credit & balance",
+      callback: async () => {
+        await this.updateCreditStatusBar(true);
+      },
+    });
+
+    // Status Bar Item for AI Credit / Balance
+    this.creditStatusBarItem = this.addStatusBarItem();
+    this.creditStatusBarItem.addClass("nutegg-statusbar-credit");
+    this.creditStatusBarItem.setText("🪙 NutEgg AI");
+    this.creditStatusBarItem.addEventListener("click", () => {
+      this.updateCreditStatusBar(true);
+    });
+    this.updateCreditStatusBar();
+
+    // Periodically update credit status (every 10 minutes)
+    this.registerInterval(
+      window.setInterval(() => {
+        this.updateCreditStatusBar();
+      }, 10 * 60 * 1000)
+    );
+
     // Register Markdown post-processor for interactive merge button in egg notes
     registerMergeWidget(this);
 
-    // Editor extension: merge button next to `# Unprocessed` in editing mode
-    registerMergeEditorExtension(this);
-
     console.log("[NutEgg] Plugin loaded");
+  }
+
+  /**
+   * Update the status bar credit item with live balance or status.
+   */
+  async updateCreditStatusBar(showNotice = false): Promise<void> {
+    if (!this.creditStatusBarItem) return;
+    try {
+      const credit = await this.aiClient.checkCredit(this.settings);
+      if (credit.hasBalance && credit.balanceFormatted) {
+        this.creditStatusBarItem.setText(`🪙 ${credit.balanceFormatted}`);
+        this.creditStatusBarItem.setAttribute(
+          "aria-label",
+          `NutEgg AI (${credit.providerLabel}): ${credit.statusText} (Click to refresh)`
+        );
+        if (showNotice) {
+          new Notice(`[NutEgg] ${credit.providerLabel}: ${credit.statusText}`);
+        }
+      } else {
+        const label =
+          this.settings.aiSource === "openrouter"
+            ? "OpenRouter"
+            : credit.providerLabel;
+        this.creditStatusBarItem.setText(`🪙 ${label}`);
+        this.creditStatusBarItem.setAttribute(
+          "aria-label",
+          `NutEgg AI: ${credit.statusText} (Click to refresh)`
+        );
+        if (showNotice) {
+          new Notice(`[NutEgg] AI Provider: ${credit.statusText}`);
+        }
+      }
+    } catch {
+      this.creditStatusBarItem.setText("🪙 AI");
+    }
   }
 
   async onunload(): Promise<void> {

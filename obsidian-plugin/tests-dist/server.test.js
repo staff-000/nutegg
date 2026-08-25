@@ -112,6 +112,10 @@ var NutEggServer = class {
         this.handleConfigStatus(res);
         return;
       }
+      if (req.method === "GET" && req.url === "/credit") {
+        this.handleCredit(res);
+        return;
+      }
       if (req.method === "GET" && req.url === "/metrics") {
         this.handleMetrics(req, res);
         return;
@@ -159,7 +163,7 @@ var NutEggServer = class {
     });
   }
   /**
-   * GET /config-status — Returns AI configuration status for the popup to show warnings.
+   * GET /config-status — Returns AI configuration status for the popup to show warnings and credit info.
    */
   async handleConfigStatus(res) {
     const settings = this.plugin.settings;
@@ -174,8 +178,26 @@ var NutEggServer = class {
       issues.push(`Index file "${settings.indexFile}" not found. Click the egg icon in Obsidian to create it.`);
       status = status === "error" ? "error" : "warning";
     }
+    let credit = null;
+    try {
+      credit = await this.plugin.aiClient.checkCredit(settings);
+    } catch {
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status, issues, port: this.port }));
+    res.end(JSON.stringify({ status, issues, port: this.port, credit }));
+  }
+  /**
+   * GET /credit — Returns live balance and credit status for the current AI provider.
+   */
+  async handleCredit(res) {
+    try {
+      const credit = await this.plugin.aiClient.checkCredit(this.plugin.settings);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(credit));
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: String(err) }));
+    }
   }
   /**
    * POST /ask — answer follow-up questions about already-analyzed content.
@@ -872,5 +894,85 @@ function makeServer(overrides = {}) {
     await s.handleConfirm(req, res);
     import_strict.default.equal(appended[3], "TechChannel");
     import_strict.default.deepEqual(JSON.parse(res.body).merged, []);
+  });
+});
+(0, import_node_test.describe)("NutEggServer.handleCredit & handleConfigStatus", () => {
+  (0, import_node_test.it)("returns credit info via handleCredit", async () => {
+    const s = makeServer({
+      aiClient: {
+        checkCredit: async () => ({
+          provider: "anthropic",
+          providerLabel: "Anthropic (Claude)",
+          source: "openrouter",
+          model: "claude-sonnet-5",
+          hasBalance: true,
+          balanceFormatted: "$8.45",
+          currency: "USD",
+          totalCredits: 10,
+          totalUsage: 1.55,
+          statusText: "$8.45 left"
+        })
+      }
+    });
+    const res = {
+      statusCode: 0,
+      headers: {},
+      body: "",
+      writeHead(code, headers) {
+        this.statusCode = code;
+        this.headers = headers;
+      },
+      end(data) {
+        this.body = data;
+      }
+    };
+    await s.handleCredit(res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.hasBalance, true);
+    import_strict.default.equal(body.balanceFormatted, "$8.45");
+  });
+  (0, import_node_test.it)("includes credit info in handleConfigStatus", async () => {
+    const s = makeServer({
+      settings: {
+        aiApiKey: "sk-test",
+        indexFile: "nutegg/_index.md"
+      },
+      app: {
+        vault: {
+          adapter: {
+            exists: async () => true
+          }
+        }
+      },
+      aiClient: {
+        checkCredit: async () => ({
+          provider: "deepseek",
+          providerLabel: "DeepSeek",
+          source: "official",
+          model: "deepseek-chat",
+          hasBalance: true,
+          balanceFormatted: "\xA510.00",
+          statusText: "\xA510.00 available"
+        })
+      }
+    });
+    const res = {
+      statusCode: 0,
+      headers: {},
+      body: "",
+      writeHead(code, headers) {
+        this.statusCode = code;
+        this.headers = headers;
+      },
+      end(data) {
+        this.body = data;
+      }
+    };
+    await s.handleConfigStatus(res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.status, "ok");
+    import_strict.default.equal(body.credit?.balanceFormatted, "\xA510.00");
   });
 });

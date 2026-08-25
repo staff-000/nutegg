@@ -37,6 +37,43 @@ body {
   gap: 6px;
 }
 
+.ai-credit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0f3f9;
+  border: 1px solid #d8e0ed;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #3b4252;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-credit-pill:hover {
+  background: #e5ecf6;
+  border-color: #ccd7e6;
+  color: #1a1a2e;
+}
+
+.ai-credit-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.ai-credit-pill.has-warning {
+  background: #fff8e6;
+  border-color: #fce3a2;
+  color: #8f5b00;
+}
+
 .settings-btn {
   background: none;
   border: none;

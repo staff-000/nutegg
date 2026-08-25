@@ -299,3 +299,85 @@ describe("NutEggServer.handleConfirm", () => {
     assert.deepEqual(JSON.parse(res.body).merged, []);
   });
 });
+
+describe("NutEggServer.handleCredit & handleConfigStatus", () => {
+  it("returns credit info via handleCredit", async () => {
+    const s = makeServer({
+      aiClient: {
+        checkCredit: async () => ({
+          provider: "anthropic",
+          providerLabel: "Anthropic (Claude)",
+          source: "openrouter",
+          model: "claude-sonnet-5",
+          hasBalance: true,
+          balanceFormatted: "$8.45",
+          currency: "USD",
+          totalCredits: 10,
+          totalUsage: 1.55,
+          statusText: "$8.45 left",
+        }),
+      },
+    });
+    const res = {
+      statusCode: 0,
+      headers: {},
+      body: "",
+      writeHead(code: number, headers: any) {
+        this.statusCode = code;
+        this.headers = headers;
+      },
+      end(data: string) {
+        this.body = data;
+      },
+    };
+    await s.handleCredit(res);
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.hasBalance, true);
+    assert.equal(body.balanceFormatted, "$8.45");
+  });
+
+  it("includes credit info in handleConfigStatus", async () => {
+    const s = makeServer({
+      settings: {
+        aiApiKey: "sk-test",
+        indexFile: "nutegg/_index.md",
+      },
+      app: {
+        vault: {
+          adapter: {
+            exists: async () => true,
+          },
+        },
+      },
+      aiClient: {
+        checkCredit: async () => ({
+          provider: "deepseek",
+          providerLabel: "DeepSeek",
+          source: "official",
+          model: "deepseek-chat",
+          hasBalance: true,
+          balanceFormatted: "¥10.00",
+          statusText: "¥10.00 available",
+        }),
+      },
+    });
+    const res = {
+      statusCode: 0,
+      headers: {},
+      body: "",
+      writeHead(code: number, headers: any) {
+        this.statusCode = code;
+        this.headers = headers;
+      },
+      end(data: string) {
+        this.body = data;
+      },
+    };
+    await s.handleConfigStatus(res);
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.status, "ok");
+    assert.equal(body.credit?.balanceFormatted, "¥10.00");
+  });
+});
