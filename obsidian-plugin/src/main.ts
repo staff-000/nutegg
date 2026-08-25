@@ -75,13 +75,18 @@ export default class NutEggPlugin extends Plugin {
     );
 
     // Ribbon icon — opens the index file for editing
-    this.addRibbonIcon("egg", "NutEgg", async () => {
+    this.addRibbonIcon("egg", "NutEgg: Open Index", async () => {
       const indexPath = this.settings.indexFile;
       const file = this.app.vault.getAbstractFileByPath(indexPath);
       if (file) {
         const leaf = this.app.workspace.getLeaf(false);
         await leaf.openFile(file as any);
       }
+    });
+
+    // Ribbon icon — 1-click AI credit & balance check
+    this.addRibbonIcon("coins", "NutEgg: Check AI Credit & Balance", async () => {
+      await this.updateCreditStatusBar(true);
     });
 
     // Command: Create a new egg file
