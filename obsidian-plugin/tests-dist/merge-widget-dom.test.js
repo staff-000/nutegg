@@ -56,6 +56,28 @@ async function runMerge(plugin, filePath, currentDoc) {
   }
   return plugin.aiProcessor.mergeEgg(filePath);
 }
+function appendCreditPill(plugin, targetBadge) {
+  if (typeof plugin.aiClient?.checkCredit !== "function")
+    return;
+  const creditPill = document.createElement("span");
+  creditPill.className = "nutegg-merge-credit";
+  creditPill.style.opacity = "0.75";
+  creditPill.style.marginLeft = "8px";
+  creditPill.style.fontSize = "0.85em";
+  plugin.aiClient.checkCredit(plugin.settings).then((credit) => {
+    if (credit.hasBalance && credit.balanceFormatted) {
+      creditPill.textContent = `\u2022 \u{1FA99} ${credit.providerLabel}: ${credit.balanceFormatted}`;
+      creditPill.title = `NutEgg AI: ${credit.statusText}`;
+      targetBadge.appendChild(creditPill);
+    } else if (credit.providerLabel) {
+      const label = plugin.settings.aiSource === "openrouter" ? "OpenRouter" : credit.providerLabel;
+      creditPill.textContent = `\u2022 \u{1FA99} ${label}`;
+      creditPill.title = `NutEgg AI: ${credit.statusText}`;
+      targetBadge.appendChild(creditPill);
+    }
+  }).catch(() => {
+  });
+}
 var MergeButtonWidget = class extends import_view.WidgetType {
   constructor(plugin, view, filePath, count) {
     super();
@@ -70,6 +92,7 @@ var MergeButtonWidget = class extends import_view.WidgetType {
     const badge = document.createElement("div");
     badge.className = "nutegg-merge-badge";
     badge.textContent = this.count > 0 ? `\u{1F95A} ${this.count} unprocessed ${this.count === 1 ? "entry" : "entries"}` : "\u2705 Knowledge tree is up to date";
+    appendCreditPill(this.plugin, badge);
     wrap.appendChild(badge);
     if (this.count > 0) {
       const button = document.createElement("button");
@@ -226,7 +249,18 @@ function makeFakePlugin(overrides = {}) {
       ...overrides.settings || {}
     },
     app: { vault: overrides.vault ?? vault },
-    aiClient: overrides.aiClient ?? { chat: async () => "{}" },
+    aiClient: overrides.aiClient ?? {
+      chat: async () => "{}",
+      checkCredit: async () => ({
+        provider: "anthropic",
+        providerLabel: "Anthropic (Claude)",
+        source: "openrouter",
+        model: "claude-sonnet-5",
+        hasBalance: true,
+        balanceFormatted: "$8.45",
+        statusText: "$8.45 left"
+      })
+    },
     eggParser: overrides.eggParser ?? {
       formatEggForPrompt: (e) => `egg:${e.fileName}`
     },

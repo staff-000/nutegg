@@ -1765,7 +1765,18 @@ function makeFakePlugin(overrides = {}) {
       ...overrides.settings || {}
     },
     app: { vault: overrides.vault ?? vault },
-    aiClient: overrides.aiClient ?? { chat: async () => "{}" },
+    aiClient: overrides.aiClient ?? {
+      chat: async () => "{}",
+      checkCredit: async () => ({
+        provider: "anthropic",
+        providerLabel: "Anthropic (Claude)",
+        source: "openrouter",
+        model: "claude-sonnet-5",
+        hasBalance: true,
+        balanceFormatted: "$8.45",
+        statusText: "$8.45 left"
+      })
+    },
     eggParser: overrides.eggParser ?? {
       formatEggForPrompt: (e) => `egg:${e.fileName}`
     },

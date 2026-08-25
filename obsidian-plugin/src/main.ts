@@ -188,8 +188,11 @@ export default class NutEggPlugin extends Plugin {
       }, 10 * 60 * 1000)
     );
 
-    // Register Markdown post-processor for interactive merge button in egg notes
+    // Register Markdown post-processor for interactive merge button in egg notes (reading mode)
     registerMergeWidget(this);
+
+    // Editor extension: merge button next to `# Unprocessed` in editing mode / Live Preview
+    registerMergeEditorExtension(this);
 
     console.log("[NutEgg] Plugin loaded");
   }

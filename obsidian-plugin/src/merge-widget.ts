@@ -52,6 +52,34 @@ export async function runMerge(
   return plugin.aiProcessor.mergeEgg(filePath);
 }
 
+/** Appends the asynchronous AI credit badge to a badge container element. */
+function appendCreditPill(plugin: NutEggPlugin, targetBadge: HTMLElement): void {
+  if (typeof plugin.aiClient?.checkCredit !== "function") return;
+  const creditPill = document.createElement("span");
+  creditPill.className = "nutegg-merge-credit";
+  creditPill.style.opacity = "0.75";
+  creditPill.style.marginLeft = "8px";
+  creditPill.style.fontSize = "0.85em";
+  plugin.aiClient
+    .checkCredit(plugin.settings)
+    .then((credit) => {
+      if (credit.hasBalance && credit.balanceFormatted) {
+        creditPill.textContent = `• 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;
+        creditPill.title = `NutEgg AI: ${credit.statusText}`;
+        targetBadge.appendChild(creditPill);
+      } else if (credit.providerLabel) {
+        const label =
+          plugin.settings.aiSource === "openrouter"
+            ? "OpenRouter"
+            : credit.providerLabel;
+        creditPill.textContent = `• 🪙 ${label}`;
+        creditPill.title = `NutEgg AI: ${credit.statusText}`;
+        targetBadge.appendChild(creditPill);
+      }
+    })
+    .catch(() => {});
+}
+
 // --- Reading mode ------------------------------------------------------
 
 export function registerMergeWidget(plugin: NutEggPlugin): void {
@@ -98,6 +126,7 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
         ? `🥚 ${count} unprocessed ${count === 1 ? "entry" : "entries"}`
         : "✅ Knowledge tree is up to date";
 
+    appendCreditPill(plugin, badge);
     container.appendChild(badge);
 
     if (count > 0) {
@@ -168,6 +197,7 @@ class MergeButtonWidget extends WidgetType {
       this.count > 0
         ? `🥚 ${this.count} unprocessed ${this.count === 1 ? "entry" : "entries"}`
         : "✅ Knowledge tree is up to date";
+    appendCreditPill(this.plugin, badge);
     wrap.appendChild(badge);
 
     if (this.count > 0) {
