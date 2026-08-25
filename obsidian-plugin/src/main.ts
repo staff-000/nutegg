@@ -1,4 +1,4 @@
-import { Notice, Plugin, SuggestModal } from "obsidian";
+import { MarkdownView, Notice, Plugin, SuggestModal } from "obsidian";
 import {
   NutEggSettings,
   DEFAULT_SETTINGS,
@@ -13,7 +13,7 @@ import { EggParser } from "./egg-parser";
 import { IndexSync } from "./index-sync";
 import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
-import { registerMergeWidget } from "./merge-widget";
+import { registerMergeWidget, registerMergeEditorExtension, runMerge } from "./merge-widget";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -144,7 +144,11 @@ export default class NutEggPlugin extends Plugin {
         }
 
         new Notice(`NutEgg: Merging unprocessed entries in ${activeFile.basename}...`);
-        const result = await this.aiProcessor.mergeEgg(activeFile.path);
+        // Merge against the editor's live buffer (saved first when dirty)
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        const cm = (activeView as any)?.editor?.cm;
+        const docText = cm ? cm.state.doc.toString() : null;
+        const result = await runMerge(this, activeFile.path, docText);
         if (result && result.entries > 0) {
           new Notice(`[NutEgg] Merged ${result.entries} entries into knowledge tree`);
         } else {
@@ -155,6 +159,9 @@ export default class NutEggPlugin extends Plugin {
 
     // Register Markdown post-processor for interactive merge button in egg notes
     registerMergeWidget(this);
+
+    // Editor extension: merge button next to `# Unprocessed` in editing mode
+    registerMergeEditorExtension(this);
 
     console.log("[NutEgg] Plugin loaded");
   }

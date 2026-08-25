@@ -75,3 +75,16 @@
   cursor: not-allowed;
 }
 
+
+/* Merge widget in editing mode — a block below the # Unprocessed heading.
+   Reuses the reading-mode container classes so both look identical; only
+   the spacing is tuned for the tighter editor layout. */
+.nutegg-merge-editor-widget {
+  margin: 6px 0 14px 0;
+  font-size: 0.7em;
+  padding: 6px 12px;
+}
+
+.nutegg-merge-editor-widget .nutegg-merge-btn {
+  padding: 4px 12px;
+}
