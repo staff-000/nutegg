@@ -1,22 +1,43 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { findUnprocessedLine, runMerge } from "../src/merge-widget";
+import { findInstructionTargetLine, findUnprocessedLine, runMerge } from "../src/merge-widget";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 
-describe("merge-widget.findUnprocessedLine", () => {
-  it("finds the h1 # Unprocessed heading (1-based line)", () => {
-    assert.equal(findUnprocessedLine("---\ntopic: x\n---\n\n# Knowledge\n\n# Unprocessed\n\n- entry\n"), 7);
+describe("merge-widget.findInstructionTargetLine", () => {
+  it("finds the end line of a callout block with instructions", () => {
+    const doc = [
+      "---",
+      "topic: x",
+      "---",
+      "",
+      "> [!abstract]- Instructions:",
+      "> **Scope:** ...",
+      "> **Action Guide:** ...",
+      "",
+      "# Knowledge",
+      "",
+      "# Unprocessed",
+    ].join("\n");
+    assert.equal(findInstructionTargetLine(doc), 7);
+  });
+
+  it("finds the # Instructions heading line", () => {
+    const doc = ["---", "topic: x", "---", "", "# Instructions", "", "# Knowledge"].join("\n");
+    assert.equal(findInstructionTargetLine(doc), 5);
+  });
+
+  it("falls back to # Unprocessed when no instructions block is found", () => {
+    assert.equal(findInstructionTargetLine("---\ntopic: x\n---\n\n# Knowledge\n\n# Unprocessed\n\n- entry\n"), 7);
   });
 
   it("tolerates extra spacing and case", () => {
-    assert.equal(findUnprocessedLine("#  UNPROCESSED  "), 1);
-    assert.equal(findUnprocessedLine("a\n\n# unprocessed\n"), 3);
+    assert.equal(findInstructionTargetLine("#  INSTRUCTIONS  "), 1);
+    assert.equal(findInstructionTargetLine("a\n\n# unprocessed\n"), 3);
   });
 
-  it("does not match other heading levels or names", () => {
-    assert.equal(findUnprocessedLine("## Unprocessed\n"), null);
-    assert.equal(findUnprocessedLine("# Knowledge\n\n- entry\n"), null);
-    assert.equal(findUnprocessedLine(""), null);
+  it("returns null for completely empty or unrelated files", () => {
+    assert.equal(findInstructionTargetLine(""), null);
+    assert.equal(findInstructionTargetLine("Just plain text without headers"), null);
   });
 });
 

@@ -22,11 +22,54 @@ import type { MergeResult } from "./ai-processor";
  * a dirty editor buffer.
  */
 
-/** Line number (1-based) of the `# Unprocessed` heading in `docText`, or null. */
-export function findUnprocessedLine(docText: string): number | null {
+/** Line number (1-based) where the instruction block or heading ends. */
+export function findInstructionTargetLine(docText: string): number | null {
   const lines = docText.split("\n");
-  const idx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
-  return idx === -1 ? null : idx + 1;
+
+  // 1. Check for callout: > [!...]- Instructions or > [!abstract]
+  const calloutStart = lines.findIndex((l) =>
+    /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
+  );
+  if (calloutStart !== -1) {
+    // Scan downwards for the end of the callout (the last line starting with '>')
+    let calloutEnd = calloutStart;
+    for (let i = calloutStart + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith(">")) {
+        calloutEnd = i;
+      } else if (trimmed === "") {
+        // Empty lines can be inside callouts if followed by more '>' lines
+        let moreCallout = false;
+        for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+          const nextTrimmed = lines[j].trim();
+          if (nextTrimmed === "") continue;
+          if (nextTrimmed.startsWith(">")) moreCallout = true;
+          break;
+        }
+        if (moreCallout) continue;
+        break;
+      } else {
+        break;
+      }
+    }
+    return calloutEnd + 1;
+  }
+
+  // 2. Check for heading: # Instructions or ## Instructions
+  const headingIdx = lines.findIndex((l) =>
+    /^#+\s*instructions?\s*:?$/i.test(l.trim())
+  );
+  if (headingIdx !== -1) {
+    return headingIdx + 1;
+  }
+
+  // 3. Fallback: # Unprocessed
+  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
+  if (unprocIdx !== -1) {
+    return unprocIdx + 1;
+  }
+
+  return null;
 }
 
 /**
@@ -89,23 +132,51 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
       return;
     }
 
-    // Find any h1 heading that represents the Unprocessed section
-    const headings = el.querySelectorAll("h1, h2, h3");
-    let unprocessedHeading: HTMLElement | null = null;
+    // Look for instruction callout or heading first, then fallback to unprocessed
+    let targetElement: HTMLElement | null = null;
 
-    for (let i = 0; i < headings.length; i++) {
-      const h = headings[i] as HTMLElement;
-      const text = h.textContent?.trim().toLowerCase() || "";
-      if (text === "unprocessed" || text.startsWith("unprocessed")) {
-        unprocessedHeading = h;
+    // 1. Callout (e.g. [!abstract]- Instructions)
+    const callouts = el.querySelectorAll(".callout");
+    for (let i = 0; i < callouts.length; i++) {
+      const c = callouts[i] as HTMLElement;
+      const title = c.querySelector(".callout-title, .callout-title-inner")?.textContent?.toLowerCase() || "";
+      const type = c.getAttribute("data-callout")?.toLowerCase() || "";
+      if (title.includes("instruction") || type === "abstract" || type === "info") {
+        targetElement = c;
         break;
       }
     }
 
-    if (!unprocessedHeading) return;
+    // 2. Headings (h1, h2, h3)
+    if (!targetElement) {
+      const headings = el.querySelectorAll("h1, h2, h3");
+      for (let i = 0; i < headings.length; i++) {
+        const h = headings[i] as HTMLElement;
+        const text = h.textContent?.trim().toLowerCase() || "";
+        if (text.startsWith("instruction") || text.includes("instruction")) {
+          targetElement = h;
+          break;
+        }
+      }
+    }
 
-    // Check if a widget has already been inserted next to this heading
-    if (unprocessedHeading.parentElement?.querySelector(".nutegg-merge-container")) {
+    // 3. Fallback: # Unprocessed heading
+    if (!targetElement) {
+      const headings = el.querySelectorAll("h1, h2, h3");
+      for (let i = 0; i < headings.length; i++) {
+        const h = headings[i] as HTMLElement;
+        const text = h.textContent?.trim().toLowerCase() || "";
+        if (text === "unprocessed" || text.startsWith("unprocessed")) {
+          targetElement = h;
+          break;
+        }
+      }
+    }
+
+    if (!targetElement) return;
+
+    // Check if a widget has already been inserted next to this element
+    if (targetElement.parentElement?.querySelector(".nutegg-merge-container")) {
       return;
     }
 
@@ -168,8 +239,8 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
       container.appendChild(button);
     }
 
-    // Insert widget right after the "# Unprocessed" heading
-    unprocessedHeading.insertAdjacentElement("afterend", container);
+    // Insert widget right after the target element (instruction block or heading)
+    targetElement.insertAdjacentElement("afterend", container);
   });
 }
 
@@ -272,9 +343,9 @@ class EggMergeEditorPlugin {
 
   private build(): DecorationSet {
     const docText = this.view.state.doc.toString();
-    const lineNo = findUnprocessedLine(docText);
+    const lineNo = findInstructionTargetLine(docText);
     if (lineNo === null) {
-      return this.logState("no-heading", Decoration.none);
+      return this.logState("no-target", Decoration.none);
     }
 
     // Count from the LIVE document (reflects unsaved edits). The badge
@@ -303,8 +374,8 @@ class EggMergeEditorPlugin {
     if (state !== this.lastState) {
       this.lastState = state;
       const detail =
-        state === "no-heading"
-          ? "no # Unprocessed heading in this file"
+        state === "no-target"
+          ? "no instruction block or heading in this file"
           : state === "up-to-date"
             ? "0 entries — showing up-to-date badge"
             : `${state.replace("count-", "")} entries — showing merge button`;
@@ -328,7 +399,7 @@ export function mergeEditorExtension(plugin: NutEggPlugin) {
   );
 }
 
-/** Editor extension: merge button next to `# Unprocessed` in editing mode. */
+/** Editor extension: merge button & credit bar under instructions in editing mode. */
 export function registerMergeEditorExtension(plugin: NutEggPlugin): void {
   plugin.registerEditorExtension(mergeEditorExtension(plugin));
 }

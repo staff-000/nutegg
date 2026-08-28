@@ -38,10 +38,47 @@ var Notice = class {
 
 // src/merge-widget.ts
 var import_view = require("@codemirror/view");
-function findUnprocessedLine(docText) {
+function findInstructionTargetLine(docText) {
   const lines = docText.split("\n");
-  const idx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
-  return idx === -1 ? null : idx + 1;
+  const calloutStart = lines.findIndex(
+    (l) => /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
+  );
+  if (calloutStart !== -1) {
+    let calloutEnd = calloutStart;
+    for (let i = calloutStart + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith(">")) {
+        calloutEnd = i;
+      } else if (trimmed === "") {
+        let moreCallout = false;
+        for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+          const nextTrimmed = lines[j].trim();
+          if (nextTrimmed === "")
+            continue;
+          if (nextTrimmed.startsWith(">"))
+            moreCallout = true;
+          break;
+        }
+        if (moreCallout)
+          continue;
+        break;
+      } else {
+        break;
+      }
+    }
+    return calloutEnd + 1;
+  }
+  const headingIdx = lines.findIndex(
+    (l) => /^#+\s*instructions?\s*:?$/i.test(l.trim())
+  );
+  if (headingIdx !== -1) {
+    return headingIdx + 1;
+  }
+  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
+  if (unprocIdx !== -1) {
+    return unprocIdx + 1;
+  }
+  return null;
 }
 async function runMerge(plugin, filePath, currentDoc) {
   if (currentDoc !== null) {
@@ -156,9 +193,9 @@ var EggMergeEditorPlugin = class {
   }
   build() {
     const docText = this.view.state.doc.toString();
-    const lineNo = findUnprocessedLine(docText);
+    const lineNo = findInstructionTargetLine(docText);
     if (lineNo === null) {
-      return this.logState("no-heading", import_view.Decoration.none);
+      return this.logState("no-target", import_view.Decoration.none);
     }
     const egg = this.plugin.eggParser.parseEggFile(this.filePath(), docText);
     const count = this.plugin.eggParser.countUnprocessed(egg);
@@ -180,7 +217,7 @@ var EggMergeEditorPlugin = class {
   logState(state, decorations) {
     if (state !== this.lastState) {
       this.lastState = state;
-      const detail = state === "no-heading" ? "no # Unprocessed heading in this file" : state === "up-to-date" ? "0 entries \u2014 showing up-to-date badge" : `${state.replace("count-", "")} entries \u2014 showing merge button`;
+      const detail = state === "no-target" ? "no instruction block or heading in this file" : state === "up-to-date" ? "0 entries \u2014 showing up-to-date badge" : `${state.replace("count-", "")} entries \u2014 showing merge button`;
       console.log(`[NutEgg] Editor merge widget (${this.filePath() || "?"}): ${detail}`);
     }
     return decorations;

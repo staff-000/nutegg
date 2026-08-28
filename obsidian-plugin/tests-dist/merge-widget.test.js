@@ -28,10 +28,47 @@ var import_strict = __toESM(require("node:assert/strict"));
 
 // src/merge-widget.ts
 var import_view = require("@codemirror/view");
-function findUnprocessedLine(docText) {
+function findInstructionTargetLine(docText) {
   const lines = docText.split("\n");
-  const idx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
-  return idx === -1 ? null : idx + 1;
+  const calloutStart = lines.findIndex(
+    (l) => /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
+  );
+  if (calloutStart !== -1) {
+    let calloutEnd = calloutStart;
+    for (let i = calloutStart + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith(">")) {
+        calloutEnd = i;
+      } else if (trimmed === "") {
+        let moreCallout = false;
+        for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+          const nextTrimmed = lines[j].trim();
+          if (nextTrimmed === "")
+            continue;
+          if (nextTrimmed.startsWith(">"))
+            moreCallout = true;
+          break;
+        }
+        if (moreCallout)
+          continue;
+        break;
+      } else {
+        break;
+      }
+    }
+    return calloutEnd + 1;
+  }
+  const headingIdx = lines.findIndex(
+    (l) => /^#+\s*instructions?\s*:?$/i.test(l.trim())
+  );
+  if (headingIdx !== -1) {
+    return headingIdx + 1;
+  }
+  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
+  if (unprocIdx !== -1) {
+    return unprocIdx + 1;
+  }
+  return null;
 }
 async function runMerge(plugin, filePath, currentDoc) {
   if (currentDoc !== null) {
@@ -120,18 +157,37 @@ function makeFakePlugin(overrides = {}) {
 }
 
 // tests/merge-widget.test.ts
-(0, import_node_test.describe)("merge-widget.findUnprocessedLine", () => {
-  (0, import_node_test.it)("finds the h1 # Unprocessed heading (1-based line)", () => {
-    import_strict.default.equal(findUnprocessedLine("---\ntopic: x\n---\n\n# Knowledge\n\n# Unprocessed\n\n- entry\n"), 7);
+(0, import_node_test.describe)("merge-widget.findInstructionTargetLine", () => {
+  (0, import_node_test.it)("finds the end line of a callout block with instructions", () => {
+    const doc = [
+      "---",
+      "topic: x",
+      "---",
+      "",
+      "> [!abstract]- Instructions:",
+      "> **Scope:** ...",
+      "> **Action Guide:** ...",
+      "",
+      "# Knowledge",
+      "",
+      "# Unprocessed"
+    ].join("\n");
+    import_strict.default.equal(findInstructionTargetLine(doc), 7);
+  });
+  (0, import_node_test.it)("finds the # Instructions heading line", () => {
+    const doc = ["---", "topic: x", "---", "", "# Instructions", "", "# Knowledge"].join("\n");
+    import_strict.default.equal(findInstructionTargetLine(doc), 5);
+  });
+  (0, import_node_test.it)("falls back to # Unprocessed when no instructions block is found", () => {
+    import_strict.default.equal(findInstructionTargetLine("---\ntopic: x\n---\n\n# Knowledge\n\n# Unprocessed\n\n- entry\n"), 7);
   });
   (0, import_node_test.it)("tolerates extra spacing and case", () => {
-    import_strict.default.equal(findUnprocessedLine("#  UNPROCESSED  "), 1);
-    import_strict.default.equal(findUnprocessedLine("a\n\n# unprocessed\n"), 3);
+    import_strict.default.equal(findInstructionTargetLine("#  INSTRUCTIONS  "), 1);
+    import_strict.default.equal(findInstructionTargetLine("a\n\n# unprocessed\n"), 3);
   });
-  (0, import_node_test.it)("does not match other heading levels or names", () => {
-    import_strict.default.equal(findUnprocessedLine("## Unprocessed\n"), null);
-    import_strict.default.equal(findUnprocessedLine("# Knowledge\n\n- entry\n"), null);
-    import_strict.default.equal(findUnprocessedLine(""), null);
+  (0, import_node_test.it)("returns null for completely empty or unrelated files", () => {
+    import_strict.default.equal(findInstructionTargetLine(""), null);
+    import_strict.default.equal(findInstructionTargetLine("Just plain text without headers"), null);
   });
 });
 (0, import_node_test.describe)("merge-widget.runMerge", () => {
