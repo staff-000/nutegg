@@ -33,7 +33,7 @@ last_updated: "2026-08-12"
 >   * [opinion] — a subjective market thesis, recommendation, or viewpoint from the author
 >   * [fact] — a verifiable data point, earnings figure, statistic, or historical event
 >   * [example] — a concrete case study, trade, or real-world market event that illustrates an idea
-> - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
+> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 

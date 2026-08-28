@@ -29,7 +29,7 @@ last_updated: "2026-08-14"
 >   * [explain] — reasoning or rationale behind why a bias or behavior occurs
 >   * [fact] — a verifiable research finding, study result, or statistical data
 >   * [example] — a concrete experiment, study, or real-world observation that illustrates a concept
-> - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets — for psychology, examples are experiments, studies, or real-world observations. Author and source are appended automatically.
+> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For psychology, examples are experiments, studies, or real-world observations. Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 

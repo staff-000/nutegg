@@ -59,7 +59,7 @@ popup → content-script → POST /analyze (AI) → popup (results) → POST /co
 
 - `nutegg/_raw/*` — collected nuts (raw web content)
 - `nutegg/_index.md` — egg routing: `* path/to/egg.md: description` (one per line, `#`/`>` lines skipped)
-- `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `# Knowledge` tree (h1; tree branches nest at `##`) + `# Unprocessed` (new entries land here first and are auto-merged into the tree at 20+; entries keep `_author`/`_source` provenance lines)
+- `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `# Knowledge` tree (h1; tree branches nest at `##`) + `# Unprocessed` (new entries land here first and are auto-merged into the tree at 20+; entries keep `_author`/`_source` provenance lines). Entry structure is concept → explanation → example: `- [tag] **Concept**: short phrases` + indented + `[EXPLAIN]: explanation` + indented `- 🎯 Example:` bullets — the Concept is the dedup/novelty key for analysis and merge prompts
 - `nutegg/.nutegg.db` — SQLite: `nuts` table (dedup + replay + RAG corpus, JSON columns for results).
 
 ### Source files

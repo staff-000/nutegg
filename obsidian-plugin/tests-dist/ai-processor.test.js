@@ -445,13 +445,13 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 
 ## Task
 1. Answer each Key Question (if any) directly and concisely. Grounding: {{grounding_rule}}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. If the content is entirely redundant, return an empty array.
+2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. Compare by CONCEPT: an insight is new only when its concept is not already covered \u2014 the same concept with a different example or wording is a duplicate, NOT new. If the content is entirely redundant, return an empty array.
 3. Apply the Rejection Criteria \u2014 if the content should be rejected, set rejected to true and give a one-line reason.
-4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight.
+4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight (by concept, per step 2).
 
 For each Novel Delta entry:
 - "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information \u2014 used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
-- "content": ONE insight per entry, as a single top-level bullet with optional indented sub-bullets. Include concrete examples from the content that illustrate the insight (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules \u2014 including any Entry Tags defined there. Do NOT include author or source \u2014 they are appended automatically.
+- "content": ONE insight per entry, in the Formatting Rules' entry structure: a single top-level bullet "- [tag] **Concept**: one-sentence explanation" (without "[tag] " when the egg defines no tags), with concrete examples from the content as indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks. Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -513,8 +513,8 @@ IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry: a single top-level bullet, plus concrete examples from the content as indented sub-bullets (e.g. "  - \u{1F3AF} Example: ...") when present. Follow the Formatting Rules \u2014 including any Entry Tags defined there. Do NOT include author or source \u2014 they are appended automatically.
-- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries.
+- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "content" is ONE insight per entry, in the Formatting Rules' entry structure: a single top-level bullet "- [tag] **Concept**: one-sentence explanation" (without "[tag] " when the egg defines no tags), with concrete examples from the content as indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks. Do NOT include author or source \u2014 they are appended automatically.
+- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries \u2014 compare by CONCEPT: the same concept with a different example or wording is a duplicate, not a new insight.
 - Apply the Rejection Criteria strictly \u2014 set rejected to true when the content is noise for this egg.
 `;
 
@@ -565,11 +565,11 @@ var merge_unprocessed_default = `You are a knowledge curator for the egg file "{
 
 ## Task
 1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches \u2014 the user may have edited them by hand.
-2. Deduplicate the entries against EACH OTHER first: entries that say essentially the same thing in slightly different words are ONE entry. Keep the clearest, most complete phrasing, fold the others' examples into it, and keep every distinct _author/_source line. A near-duplicate must never appear twice in the merged tree \u2014 dropping redundant rewordings is more valuable than preserving slight wording differences.
+2. Deduplicate the entries against EACH OTHER first, comparing their Concepts: entries with the same or equivalent concept are ONE entry, even when the explanations differ \u2014 keep the clearest explanation, fold the others' examples into it, and keep every distinct _author/_source line. A near-duplicate must never appear twice in the merged tree \u2014 dropping redundant rewordings is more valuable than preserving slight wording differences.
 3. Nest each deduplicated entry under the most relevant existing concept as sub-bullets.
 4. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
 5. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
-6. If an entry duplicates existing knowledge, drop it entirely.
+6. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
 7. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):

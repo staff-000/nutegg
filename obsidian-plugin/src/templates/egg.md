@@ -30,7 +30,7 @@ last_updated: "2026-08-14"
 >   * [explain] — reasoning or rationale behind a design choice or conclusion (the "why")
 >   * [fact] — a verifiable data point, statistic, or empirical finding
 >   * [example] — a concrete demo, paper, deployment, or case study that illustrates an idea
-> - Each new entry contains: the insight itself, plus concrete examples from the content (if any) as indented sub-bullets. Author and source are appended automatically.
+> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as a indented sub-bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). Author and source are appended automatically.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
