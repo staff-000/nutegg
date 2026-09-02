@@ -12,11 +12,12 @@ You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed sec
 ## Task
 1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches — the user may have edited them by hand.
 2. Deduplicate the entries against EACH OTHER first, comparing their Concepts: entries with the same or equivalent concept are ONE entry, even when the explanations differ — keep the clearest explanation, fold the others' examples into it, and keep every distinct _author/_source line. A near-duplicate must never appear twice in the merged tree — dropping redundant rewordings is more valuable than preserving slight wording differences.
-3. Nest each deduplicated entry under the most relevant existing concept as sub-bullets.
-4. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
-5. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
-6. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
-7. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
+3. Structured lists (entries holding a numbered enumeration / framework): entries with the same title are fragments of ONE list — union their items (drop exact-duplicate items), keep the source's item order. Never truncate a list: every item the source enumerated must survive the merge.
+4. Nest each deduplicated entry under the most relevant existing concept as sub-bullets.
+5. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
+6. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
+7. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
+8. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {

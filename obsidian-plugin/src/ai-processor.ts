@@ -283,7 +283,8 @@ export class AIProcessor {
     });
 
     try {
-      const response = await this.callAI(prompt, 800);
+      // Room for key answers + several entries incl. complete framework lists
+      const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "egg-analysis");
       return {
         egg: egg.fileName,

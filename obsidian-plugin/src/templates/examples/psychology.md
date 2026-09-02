@@ -30,6 +30,7 @@ last_updated: "2026-08-14"
 >   * [fact] — a verifiable research finding, study result, or statistical data
 >   * [example] — a concrete experiment, study, or real-world observation that illustrates a concept
 > - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For psychology, examples are experiments, studies, or real-world observations. Author and source are appended automatically.
+> - Structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete entry — the list's title as the Concept and EVERY item as an indented sub-bullet, in the source's own order. A partial list is worse than no entry.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 

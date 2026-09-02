@@ -33,6 +33,7 @@ last_updated: "2026-08-14"
 >   * [fact] — a verifiable data point, statistic, or empirical finding
 >   * [example] — a concrete demo, paper, deployment, or case study that illustrates an idea
 > - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For AI/ML, examples are papers, benchmarks, model/code demos, or real-world deployments. Author and source are appended automatically.
+> - Structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete entry — the list's title as the Concept and EVERY item as an indented sub-bullet, in the source's own order. A partial list is worse than no entry.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
 > - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
