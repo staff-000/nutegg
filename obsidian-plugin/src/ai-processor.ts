@@ -468,14 +468,39 @@ export class AIProcessor {
               content: String(d.content),
             }))
         : [];
-      const redundantEntries = Array.isArray(parsed.redundantEntries)
+      const rawRedundant = Array.isArray(parsed.redundantEntries)
         ? parsed.redundantEntries
-            .filter((r: any) => r && r.content)
-            .map((r: any) => ({
-              existingParent: String(r.existingParent || ""),
-              content: String(r.content),
-            }))
+        : Array.isArray(parsed.duplicateEntries)
+        ? parsed.duplicateEntries
+        : Array.isArray(parsed.duplicates)
+        ? parsed.duplicates
         : [];
+
+      const redundantEntries: RedundantEntry[] = rawRedundant
+        .filter((r: any) => r && r.content)
+        .map((r: any) => ({
+          existingParent: String(r.existingParent || r.parent || ""),
+          content: String(r.content),
+        }));
+
+      // Reconcile: ensure any candidate entry not in novelDelta is preserved in redundantEntries
+      for (const ext of extractedEntries) {
+        const extClean = ext.content.trim().toLowerCase();
+        const isInDelta = novelDelta.some((n) => {
+          const nClean = n.content.trim().toLowerCase();
+          return nClean === extClean || nClean.includes(extClean) || extClean.includes(nClean);
+        });
+        const isInRedundant = redundantEntries.some((r) => {
+          const rClean = r.content.trim().toLowerCase();
+          return rClean === extClean || rClean.includes(extClean) || extClean.includes(rClean);
+        });
+        if (!isInDelta && !isInRedundant) {
+          redundantEntries.push({
+            existingParent: "Existing Knowledge Tree",
+            content: ext.content,
+          });
+        }
+      }
 
       return {
         novelDelta,
@@ -597,10 +622,15 @@ export class AIProcessor {
           ? aggregate.novelDelta
           : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
 
+      const redundantEntries = partEggs.flatMap((r) => r?.redundantEntries || []);
+      const existingKnowledge = partEggs.find((r) => r?.existingKnowledge)?.existingKnowledge || egg.knowledge;
+
       eggResults.push({
         egg: egg.fileName,
         keyQuestionAnswers: aggregate.keyQuestionAnswers,
         novelDelta,
+        redundantEntries,
+        existingKnowledge,
         rejected: aggregate.rejected,
         rejectReason: aggregate.rejectReason,
         readVerdict: aggregate.readVerdict,

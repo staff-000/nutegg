@@ -766,4 +766,39 @@ describe("AIProcessor.compareEggKnowledge (Step 2)", () => {
     assert.equal(res.readVerdict, true);
     assert.equal(res.readVerdictReason, "Contains novel architecture insight");
   });
+
+  it("parses redundant entries and reconciles non-novel candidate entries", async () => {
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () =>
+          JSON.stringify({
+            novelDelta: [{ parent: "## Ideas", content: "- new insight" }],
+            redundantEntries: [
+              { existingParent: "## Core", content: "- already covered insight" },
+            ],
+            rejected: false,
+            readVerdict: true,
+            readVerdictReason: "Has new insight",
+          }),
+      },
+    });
+    const p = new AIProcessor(plugin as any) as any;
+    const res = await p.compareEggKnowledge(
+      { title: "Article", url: "https://example.com" },
+      egg("test.md", { knowledge: "## Core\n- already covered insight" }),
+      [
+        { kind: "insight", content: "- new insight" },
+        { kind: "insight", content: "- already covered insight" },
+        { kind: "insight", content: "- another existing fact" },
+      ]
+    );
+
+    assert.equal(res.novelDelta.length, 1);
+    assert.equal(res.novelDelta[0].content, "- new insight");
+    // Explicitly returned redundant entry + reconciled entry not in novelDelta
+    assert.equal(res.redundantEntries.length, 2);
+    assert.equal(res.redundantEntries[0].content, "- already covered insight");
+    assert.equal(res.redundantEntries[0].existingParent, "## Core");
+    assert.equal(res.redundantEntries[1].content, "- another existing fact");
+  });
 });
