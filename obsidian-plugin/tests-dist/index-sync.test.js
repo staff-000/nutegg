@@ -579,20 +579,86 @@ var IndexReader = class {
     const prompt = renderPrompt(PROMPTS.eggRouting, {
       title: content.title,
       url: content.url,
-      content: this.truncate(content.content, 2e3),
+      content: this.truncate(content.content, 8e3),
       index: indexText
     });
     try {
-      const response = await this.plugin.aiClient.chat(prompt, 100);
-      const matchedNames = response.split("\n").map((line) => line.trim()).filter((line) => line.endsWith(".md"));
-      if (matchedNames.length === 0)
-        return [];
-      return index.filter(
-        (e) => matchedNames.some((name) => name === e.fileName)
-      );
-    } catch {
+      const response = await this.plugin.aiClient.chat(prompt, 800);
+      return this.parseMatchedEggs(response, index);
+    } catch (err) {
+      console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);
       return index;
     }
+  }
+  /**
+   * Parse matching egg files from the AI routing response.
+   * Tolerates JSON arrays, bullet points (- / *), numbering, backticks,
+   * quotes, path prefixes (nutegg/file.md vs file.md), and conversational text.
+   */
+  parseMatchedEggs(response, index) {
+    if (!response || !response.trim() || index.length === 0)
+      return [];
+    const text = response.trim();
+    const isExplicitNone = /^\s*(\[\]|none|no\s+match|no\s+matching\s+eggs?)\.?\s*$/i.test(text);
+    const entryMap = /* @__PURE__ */ new Map();
+    for (const entry of index) {
+      const full = entry.fileName.trim().toLowerCase();
+      const base = entry.fileName.split("/").pop().trim().toLowerCase();
+      const stem = base.replace(/\.md$/, "");
+      entryMap.set(entry, { full, base, stem });
+    }
+    const matchedEntries = /* @__PURE__ */ new Set();
+    const jsonMatch = text.match(/\[[\s\S]*?\]/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            const str = String(item).trim().toLowerCase();
+            for (const [entry, names] of entryMap.entries()) {
+              if (str === names.full || str === names.base || str.endsWith("/" + names.base)) {
+                matchedEntries.add(entry);
+              }
+            }
+          }
+        }
+      } catch {
+      }
+    }
+    const mdMatches = text.match(/[\w\-./\\]+\.md\b/gi) || [];
+    for (const rawMatch of mdMatches) {
+      const clean = rawMatch.replace(/^[\\/]+/, "").trim().toLowerCase();
+      for (const [entry, names] of entryMap.entries()) {
+        if (clean === names.full || clean === names.base || clean.endsWith("/" + names.base)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    const lines = text.split("\n");
+    for (const rawLine of lines) {
+      let line = rawLine.trim();
+      if (!line)
+        continue;
+      line = line.replace(/^```[a-z]*\s*/i, "").replace(/```$/, "").replace(/^[\s*\-•+]+/, "").replace(/^\d+[.)]\s*/, "").replace(/^[`"']+|[`"']+$/g, "").replace(/[.:;,!?]+$/, "").trim().toLowerCase();
+      if (!line)
+        continue;
+      for (const [entry, names] of entryMap.entries()) {
+        if (line === names.full || line === names.base || line.endsWith("/" + names.base)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    if (matchedEntries.size === 0 && !isExplicitNone) {
+      for (const [entry, names] of entryMap.entries()) {
+        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const basePattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.base)}($|[^a-z0-9_-])`, "i");
+        const fullPattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.full)}($|[^a-z0-9_-])`, "i");
+        if (basePattern.test(text) || fullPattern.test(text)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    return Array.from(matchedEntries);
   }
   /**
    * Get the full content of _index.md as a string, for passing to the main analysis prompt.
@@ -638,13 +704,26 @@ var EggParser = class {
     this.plugin = plugin;
   }
   async readEgg(fileName) {
-    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file && !fileName.includes("/")) {
+      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
+      file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
+    }
+    if (!file) {
+      const allFiles = this.plugin.app.vault.getMarkdownFiles?.() || [];
+      const base = fileName.split("/").pop().toLowerCase();
+      const match = allFiles.find(
+        (f) => f.path.split("/").pop().toLowerCase() === base
+      );
+      if (match)
+        file = match;
+    }
     if (!file) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
     const content = await this.plugin.app.vault.read(file);
-    return this.parseEggFile(fileName, content);
+    return this.parseEggFile(file.path || fileName, content);
   }
   async readEggs(entries) {
     const eggs = [];

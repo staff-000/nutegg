@@ -377,20 +377,86 @@ var IndexReader = class {
     const prompt = renderPrompt(PROMPTS.eggRouting, {
       title: content.title,
       url: content.url,
-      content: this.truncate(content.content, 2e3),
+      content: this.truncate(content.content, 8e3),
       index: indexText
     });
     try {
-      const response = await this.plugin.aiClient.chat(prompt, 100);
-      const matchedNames = response.split("\n").map((line) => line.trim()).filter((line) => line.endsWith(".md"));
-      if (matchedNames.length === 0)
-        return [];
-      return index.filter(
-        (e) => matchedNames.some((name) => name === e.fileName)
-      );
-    } catch {
+      const response = await this.plugin.aiClient.chat(prompt, 800);
+      return this.parseMatchedEggs(response, index);
+    } catch (err) {
+      console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);
       return index;
     }
+  }
+  /**
+   * Parse matching egg files from the AI routing response.
+   * Tolerates JSON arrays, bullet points (- / *), numbering, backticks,
+   * quotes, path prefixes (nutegg/file.md vs file.md), and conversational text.
+   */
+  parseMatchedEggs(response, index) {
+    if (!response || !response.trim() || index.length === 0)
+      return [];
+    const text = response.trim();
+    const isExplicitNone = /^\s*(\[\]|none|no\s+match|no\s+matching\s+eggs?)\.?\s*$/i.test(text);
+    const entryMap = /* @__PURE__ */ new Map();
+    for (const entry of index) {
+      const full = entry.fileName.trim().toLowerCase();
+      const base = entry.fileName.split("/").pop().trim().toLowerCase();
+      const stem = base.replace(/\.md$/, "");
+      entryMap.set(entry, { full, base, stem });
+    }
+    const matchedEntries = /* @__PURE__ */ new Set();
+    const jsonMatch = text.match(/\[[\s\S]*?\]/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            const str = String(item).trim().toLowerCase();
+            for (const [entry, names] of entryMap.entries()) {
+              if (str === names.full || str === names.base || str.endsWith("/" + names.base)) {
+                matchedEntries.add(entry);
+              }
+            }
+          }
+        }
+      } catch {
+      }
+    }
+    const mdMatches = text.match(/[\w\-./\\]+\.md\b/gi) || [];
+    for (const rawMatch of mdMatches) {
+      const clean = rawMatch.replace(/^[\\/]+/, "").trim().toLowerCase();
+      for (const [entry, names] of entryMap.entries()) {
+        if (clean === names.full || clean === names.base || clean.endsWith("/" + names.base)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    const lines = text.split("\n");
+    for (const rawLine of lines) {
+      let line = rawLine.trim();
+      if (!line)
+        continue;
+      line = line.replace(/^```[a-z]*\s*/i, "").replace(/```$/, "").replace(/^[\s*\-•+]+/, "").replace(/^\d+[.)]\s*/, "").replace(/^[`"']+|[`"']+$/g, "").replace(/[.:;,!?]+$/, "").trim().toLowerCase();
+      if (!line)
+        continue;
+      for (const [entry, names] of entryMap.entries()) {
+        if (line === names.full || line === names.base || line.endsWith("/" + names.base)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    if (matchedEntries.size === 0 && !isExplicitNone) {
+      for (const [entry, names] of entryMap.entries()) {
+        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const basePattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.base)}($|[^a-z0-9_-])`, "i");
+        const fullPattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.full)}($|[^a-z0-9_-])`, "i");
+        if (basePattern.test(text) || fullPattern.test(text)) {
+          matchedEntries.add(entry);
+        }
+      }
+    }
+    return Array.from(matchedEntries);
   }
   /**
    * Get the full content of _index.md as a string, for passing to the main analysis prompt.
@@ -552,5 +618,50 @@ function parse(content) {
   });
   (0, import_node_test.it)("returns empty list for empty content", () => {
     import_strict.default.deepEqual(parse(""), []);
+  });
+});
+(0, import_node_test.describe)("IndexReader.parseMatchedEggs", () => {
+  const reader = new IndexReader(makeFakePlugin());
+  const index = [
+    { fileName: "nutegg/investment.md", description: "investment strategies" },
+    { fileName: "nutegg/ai_ml.md", description: "artificial intelligence and machine learning" },
+    { fileName: "nutegg/psychology.md", description: "mental models and psychology" }
+  ];
+  (0, import_node_test.it)("matches JSON array of full paths", () => {
+    const res = reader.parseMatchedEggs('["nutegg/ai_ml.md"]', index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("matches JSON array of basenames", () => {
+    const res = reader.parseMatchedEggs('["ai_ml.md"]', index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("matches markdown bullet list (- nutegg/ai_ml.md)", () => {
+    const res = reader.parseMatchedEggs("- nutegg/ai_ml.md\n- nutegg/investment.md", index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md", "nutegg/investment.md"]);
+  });
+  (0, import_node_test.it)("matches markdown bullet list with basenames (* ai_ml.md)", () => {
+    const res = reader.parseMatchedEggs("* ai_ml.md\n", index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("matches numbered list (1. nutegg/ai_ml.md)", () => {
+    const res = reader.parseMatchedEggs("1. nutegg/ai_ml.md", index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("matches backticks (`nutegg/ai_ml.md`)", () => {
+    const res = reader.parseMatchedEggs("`nutegg/ai_ml.md`", index);
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("matches conversational text mentioning the egg file", () => {
+    const res = reader.parseMatchedEggs(
+      "Based on the provided article, this content belongs to nutegg/ai_ml.md as it discusses neural networks.",
+      index
+    );
+    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
+  });
+  (0, import_node_test.it)("returns empty array for explicit 'none' or '[]'", () => {
+    import_strict.default.deepEqual(reader.parseMatchedEggs("none", index), []);
+    import_strict.default.deepEqual(reader.parseMatchedEggs("None.", index), []);
+    import_strict.default.deepEqual(reader.parseMatchedEggs("[]", index), []);
+    import_strict.default.deepEqual(reader.parseMatchedEggs("No match found", index), []);
   });
 });

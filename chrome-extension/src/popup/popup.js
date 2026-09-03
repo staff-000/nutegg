@@ -78,6 +78,11 @@ const successMessage = document.getElementById("success-message");
 const metricNuts = document.getElementById("metric-nuts");
 const metricEggs = document.getElementById("metric-eggs");
 const metricTime = document.getElementById("metric-time");
+const captureEggsToggle = document.getElementById("capture-eggs-toggle");
+const captureEggsLabel = document.getElementById("capture-eggs-label");
+const captureEggsChevron = document.getElementById("capture-eggs-chevron");
+const captureEggsArea = document.getElementById("capture-eggs-area");
+const captureEggsList = document.getElementById("capture-eggs-list");
 
 let extractedContent = null;
 let serverOnline = false;
@@ -98,6 +103,8 @@ let currentNutId = null;
 let allEggs = [];
 /** The user's checkbox selection in the egg picker. */
 let selectedEggs = new Set();
+/** Pre-selected eggs on the capture screen (before analyze). Empty = auto-detect. */
+let preSelectedEggs = new Set();
 
 // --- Init ---
 
@@ -119,6 +126,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   questionsToggle.addEventListener("click", () => {
     questionsArea.classList.toggle("hidden");
   });
+  if (captureEggsToggle) {
+    captureEggsToggle.addEventListener("click", () => {
+      const isExpanded = !captureEggsArea.classList.toggle("hidden");
+      captureEggsChevron.textContent = isExpanded ? "▾" : "▸";
+    });
+  }
   followupBtn.addEventListener("click", handleFollowUp);
   followupInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleFollowUp();
@@ -206,6 +219,8 @@ async function refreshForCurrentTab() {
   const seq = ++refreshSeq;
   customQuestionsEl.value = "";
   followupInput.value = "";
+  preSelectedEggs.clear();
+  updateCaptureEggsLabel();
   processedNote.classList.add("hidden");
   historySelect.classList.add("hidden");
   historySelect.innerHTML = "";
@@ -227,6 +242,8 @@ async function refreshForCurrentTab() {
     await checkConfigStatus();
     if (seq !== refreshSeq) return;
     await fetchMetrics();
+    if (seq !== refreshSeq) return;
+    await fetchEggs();
     if (seq !== refreshSeq) return;
     if (extractedContent && !isTranscriptBlocked()) {
       analyzeBtn.disabled = false;
@@ -312,6 +329,49 @@ async function fetchEggs() {
     allEggs = response?.eggs || [];
   } catch {
     allEggs = [];
+  }
+  renderCaptureEggsList();
+}
+
+/** Render target egg checklist on the capture screen (State 1). */
+function renderCaptureEggsList() {
+  if (!captureEggsList || !captureEggsToggle) return;
+  if (allEggs.length === 0) {
+    captureEggsToggle.classList.add("hidden");
+    return;
+  }
+  captureEggsToggle.classList.remove("hidden");
+  captureEggsList.innerHTML = allEggs
+    .map((e) => {
+      const checked = preSelectedEggs.has(e.fileName) ? "checked" : "";
+      return `<label class="egg-row">
+        <input type="checkbox" data-capture-egg="${escapeHtml(e.fileName)}" ${checked} />
+        <span class="egg-row-name">${escapeHtml(e.fileName)}</span>
+        <span class="egg-row-desc">${escapeHtml(e.description || e.topic || "")}</span>
+      </label>`;
+    })
+    .join("");
+
+  captureEggsList.querySelectorAll("input").forEach((cb) => {
+    cb.addEventListener("change", (ev) => {
+      const name = ev.target.dataset.captureEgg;
+      if (ev.target.checked) preSelectedEggs.add(name);
+      else preSelectedEggs.delete(name);
+      updateCaptureEggsLabel();
+    });
+  });
+  updateCaptureEggsLabel();
+}
+
+function updateCaptureEggsLabel() {
+  if (!captureEggsLabel) return;
+  if (preSelectedEggs.size === 0) {
+    captureEggsLabel.textContent = "(Auto-detect)";
+  } else if (preSelectedEggs.size === 1) {
+    const egg = [...preSelectedEggs][0].split("/").pop();
+    captureEggsLabel.textContent = `(${egg})`;
+  } else {
+    captureEggsLabel.textContent = `(${preSelectedEggs.size} selected)`;
   }
 }
 
@@ -724,6 +784,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       .map((q) => q.trim())
       .filter(Boolean);
 
+    const targetEggs = eggsOverride || (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
     const payload = {
       url: extractedContent.url || "",
       title: extractedContent.title || "",
@@ -733,7 +794,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       chapters: extractedContent.chapters || undefined,
       questions,
       force,
-      ...(eggsOverride ? { eggs: eggsOverride } : {}),
+      ...(targetEggs ? { eggs: targetEggs } : {}),
     };
 
     if (force) {

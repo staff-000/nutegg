@@ -35,13 +35,26 @@ var EggParser = class {
     this.plugin = plugin;
   }
   async readEgg(fileName) {
-    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file && !fileName.includes("/")) {
+      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
+      file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
+    }
+    if (!file) {
+      const allFiles = this.plugin.app.vault.getMarkdownFiles?.() || [];
+      const base = fileName.split("/").pop().toLowerCase();
+      const match = allFiles.find(
+        (f) => f.path.split("/").pop().toLowerCase() === base
+      );
+      if (match)
+        file = match;
+    }
     if (!file) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
     const content = await this.plugin.app.vault.read(file);
-    return this.parseEggFile(fileName, content);
+    return this.parseEggFile(file.path || fileName, content);
   }
   async readEggs(entries) {
     const eggs = [];
