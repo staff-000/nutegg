@@ -122,8 +122,8 @@ var init_egg_parser = __esm({
         }
         return body.join("\n").replace(/\n+$/g, "");
       }
-      /** Format one egg's instructions + knowledge for an AI prompt. */
-      formatEggForPrompt(egg) {
+      /** Format only the egg's instructions (Scope, Key Questions, Rejection Criteria, Formatting Rules) for Step 1 extraction. */
+      formatEggInstructionsForPrompt(egg) {
         const parts = [];
         parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
         if (egg.keyQuestions.length > 0) {
@@ -142,17 +142,25 @@ ${egg.rejectionCriteria.map((c) => `- ${c}`).join("\n")}`
           parts.push(`**Formatting Rules:**
 ${egg.formattingRules}`);
         }
-        parts.push(
-          `**Current Knowledge:**
-${egg.knowledge || "(empty)"}`
-        );
+        return parts.join("\n\n");
+      }
+      /** Format only the egg's existing Knowledge tree and Unprocessed entries for Step 2 comparison. */
+      formatEggKnowledgeForPrompt(egg) {
+        const parts = [];
+        parts.push(`**Current Knowledge:**
+${egg.knowledge || "(empty)"}`);
         if (egg.unprocessed.trim()) {
-          parts.push(
-            `**Unprocessed (pending merge):**
-${egg.unprocessed}`
-          );
+          parts.push(`**Unprocessed (pending merge):**
+${egg.unprocessed}`);
         }
         return parts.join("\n\n");
+      }
+      /** Format one egg's instructions + knowledge for an AI prompt (backward compatibility). */
+      formatEggForPrompt(egg) {
+        return [
+          this.formatEggInstructionsForPrompt(egg),
+          this.formatEggKnowledgeForPrompt(egg)
+        ].join("\n\n");
       }
       /**
        * Append one new knowledge entry to the egg's Unprocessed section.

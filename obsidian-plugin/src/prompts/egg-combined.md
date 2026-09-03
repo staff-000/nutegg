@@ -1,4 +1,4 @@
-You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below against this egg's instructions.
+You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below according to this egg's instructions.
 
 ## Egg Instructions
 {{egg_instructions}}
@@ -13,7 +13,16 @@ You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content
 {{content}}
 
 ## Task
-Follow the Action Guide steps, answer the Key Questions, answer the User Questions, and extract the Novel Delta against the Current Knowledge.
+1. Follow the Action Guide:
+   - titleVerdict: provide a single, direct sentence resolving the core question in the title or intro.
+   - coreSummary: summarize the main concepts in plain language using at most 3 bullet points.
+   - chapterMap: timestamped breakdown for long-form / video content. Empty array if not long-form.
+2. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content. Grounding: {{grounding_rule}}
+3. Answer User Questions: answer any custom user questions directly and concisely.
+4. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
+   - Follow the concept → explanation → example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - 🎯 Example: ...") when present. Name each Concept clearly.
+   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
+   - Do NOT include author or source — they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -29,20 +38,13 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "customQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "kind": "insight", "content": "- nested bullet\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "extractedEntries": [
+    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\n  - explanation\n  - 🎯 Example: ..."}
+  ]
 }
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" — give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) — a suggestion used when the entry is merged into the tree later. "kind" is "insight" (default) or "list" — "list" only for structured enumerations (see below). "content" for "insight" entries follows the Formatting Rules' entry structure: a single top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - 🎯 Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks. Do NOT include author or source — they are appended automatically.
-- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries — compare by CONCEPT: the same concept with a different example or wording is a duplicate, not a new insight.
-- EXCEPTION — structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete "list" entry preserving EVERY item: the list's title as the top bullet ("- [tag] **Title**"), then ONE indented sub-bullet per item with its explanation, with "- 🎯 Example: ..." nested under an item when the source gives one. Every item, in the source's own order — novelty filtering must not mangle structure (a list with missing items is worse than no entry; drop only items that are exact duplicates of the tree). In a part-based analysis, emit the items that appear in THIS part; fragments with the same title are combined later.
-- Apply the Rejection Criteria strictly — set rejected to true when the content is noise for this egg.
+- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).

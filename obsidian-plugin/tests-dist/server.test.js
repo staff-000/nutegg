@@ -622,7 +622,9 @@ function makeFakePlugin(overrides = {}) {
       })
     },
     eggParser: overrides.eggParser ?? {
-      formatEggForPrompt: (e) => `egg:${e.fileName}`
+      formatEggForPrompt: (e) => `egg:${e.fileName}`,
+      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
+      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
     indexReader: overrides.indexReader ?? {},
     knowledgeBase: overrides.knowledgeBase ?? {},

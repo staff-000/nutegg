@@ -73,11 +73,26 @@ export interface NovelDelta {
   content: string;
 }
 
+/** Candidate knowledge entry extracted from content per formatting rules. */
+export interface ExtractedKnowledgeEntry {
+  kind?: "insight" | "list";
+  content: string;
+}
+
+/** Entry from content that was already covered in the existing knowledge tree. */
+export interface RedundantEntry {
+  existingParent?: string;
+  content: string;
+}
+
 /** Result of analyzing content against one egg. */
 export interface EggAnalysis {
   egg: string;
   keyQuestionAnswers: KeyAnswer[];
+  extractedEntries?: ExtractedKnowledgeEntry[];
   novelDelta: NovelDelta[];
+  redundantEntries?: RedundantEntry[];
+  existingKnowledge?: string;
   rejected: boolean;
   rejectReason: string;
   readVerdict: boolean;
@@ -265,15 +280,20 @@ export class AIProcessor {
     };
   }
 
-  /** Phase 2 — content against one egg: key questions, delta, reject, verdict. */
+  /**
+   * Multiple eggs — per-egg analysis:
+   *   Step 1: Extract candidate knowledge entries + key question answers using ONLY the egg's instructions.
+   *   Step 2: Compare candidate entries against egg's Knowledge tree & Unprocessed entries to find novel delta and read verdict.
+   */
   private async analyzeAgainstEgg(
     capture: { title: string; url: string; content: string; sourceType: string },
     egg: EggContent,
     partNote = ""
   ): Promise<EggAnalysis | null> {
+    // Step 1: Extract knowledge entries using ONLY the instruction part of the egg file
     const prompt = renderPrompt(PROMPTS.eggAnalysis, {
       egg_file: egg.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
+      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -283,24 +303,25 @@ export class AIProcessor {
     });
 
     try {
-      // Room for key answers + several entries incl. complete framework lists
       const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "egg-analysis");
+      const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
+      const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+
+      // Step 2: Compare candidate entries with knowledge entries in the egg file
+      const diff = await this.compareEggKnowledge(capture, egg, extractedEntries);
+
       return {
         egg: egg.fileName,
-        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-        novelDelta: Array.isArray(parsed.novelDelta)
-          ? parsed.novelDelta
-              .filter((d: any) => d && d.content)
-              .map((d: any) => ({
-                parent: String(d.parent || ""),
-                content: String(d.content),
-              }))
-          : [],
-        rejected: parsed.rejected === true,
-        rejectReason: String(parsed.rejectReason || ""),
-        readVerdict: parsed.readVerdict !== false,
-        readVerdictReason: String(parsed.readVerdictReason || ""),
+        keyQuestionAnswers,
+        extractedEntries,
+        novelDelta: diff.novelDelta,
+        redundantEntries: diff.redundantEntries,
+        existingKnowledge: diff.existingKnowledge,
+        rejected: diff.rejected,
+        rejectReason: diff.rejectReason,
+        readVerdict: diff.readVerdict,
+        readVerdictReason: diff.readVerdictReason,
       };
     } catch (err) {
       // Typed AI errors (auth, quota, ...) must reach the popup's error hints
@@ -310,7 +331,11 @@ export class AIProcessor {
     }
   }
 
-  /** Single combined call — used when exactly one egg matches. */
+  /**
+   * Single egg:
+   *   Step 1: Extract candidate knowledge entries + content summary using ONLY the egg instructions.
+   *   Step 2: Compare candidate entries against the egg's Current Knowledge & Unprocessed entries.
+   */
   private async analyzeSingleEgg(
     capture: {
       title: string;
@@ -324,9 +349,10 @@ export class AIProcessor {
     egg: EggContent,
     partNote = ""
   ): Promise<EggAnalysis & ContentAnalysis> {
+    // Step 1: Extract candidate entries and content analysis using ONLY egg instructions
     const prompt = renderPrompt(PROMPTS.eggCombined, {
       egg_file: egg.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
+      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -341,10 +367,10 @@ export class AIProcessor {
       grounding_rule: GROUNDING_RULE,
     });
 
-    // Room for a full chapter map (one summary per chapter) + questions
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "egg-combined");
-    return {
+
+    const contentAnalysis: ContentAnalysis = {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary)
         ? parsed.coreSummary.map(String).slice(0, 3)
@@ -363,21 +389,134 @@ export class AIProcessor {
         capture.sections
       ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+    };
+
+    const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
+    const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+
+    // Step 2: Compare candidate entries against egg knowledge tree to find new insights and read verdict
+    const diff = await this.compareEggKnowledge(capture, egg, extractedEntries);
+
+    return {
+      ...contentAnalysis,
       egg: egg.fileName,
-      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-      novelDelta: Array.isArray(parsed.novelDelta)
+      keyQuestionAnswers,
+      extractedEntries,
+      novelDelta: diff.novelDelta,
+      redundantEntries: diff.redundantEntries,
+      existingKnowledge: diff.existingKnowledge,
+      rejected: diff.rejected,
+      rejectReason: diff.rejectReason,
+      readVerdict: diff.readVerdict,
+      readVerdictReason: diff.readVerdictReason,
+    };
+  }
+
+  /**
+   * Step 2 — Compare extracted candidate knowledge entries against the egg's
+   * existing Knowledge tree and Unprocessed entries to find novel delta and read verdict.
+   */
+  private async compareEggKnowledge(
+    capture: { title: string; url: string },
+    egg: EggContent,
+    extractedEntries: ExtractedKnowledgeEntry[]
+  ): Promise<{
+    novelDelta: NovelDelta[];
+    redundantEntries: RedundantEntry[];
+    existingKnowledge: string;
+    rejected: boolean;
+    rejectReason: string;
+    readVerdict: boolean;
+    readVerdictReason: string;
+  }> {
+    const existingKnowledge = egg.knowledge || "";
+    if (extractedEntries.length === 0) {
+      return {
+        novelDelta: [],
+        redundantEntries: [],
+        existingKnowledge,
+        rejected: false,
+        rejectReason: "",
+        readVerdict: false,
+        readVerdictReason: "No knowledge entries extracted matching this egg's scope.",
+      };
+    }
+
+    const prompt = renderPrompt(PROMPTS.eggCompare, {
+      egg_file: egg.fileName,
+      title: capture.title,
+      url: capture.url,
+      current_knowledge: existingKnowledge || "(empty)",
+      unprocessed: egg.unprocessed || "(empty)",
+      rejection_criteria: egg.rejectionCriteria.length > 0
+        ? egg.rejectionCriteria.map((c) => `- ${c}`).join("\n")
+        : "(none)",
+      extracted_entries: extractedEntries
+        .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
+        .join("\n\n"),
+      grounding_rule: GROUNDING_RULE,
+    });
+
+    try {
+      const response = await this.callAI(prompt, 1500);
+      const parsed = this.parseJson(response, "egg-compare");
+      const novelDelta = Array.isArray(parsed.novelDelta)
         ? parsed.novelDelta
             .filter((d: any) => d && d.content)
             .map((d: any) => ({
               parent: String(d.parent || ""),
               content: String(d.content),
             }))
-        : [],
-      rejected: parsed.rejected === true,
-      rejectReason: String(parsed.rejectReason || ""),
-      readVerdict: parsed.readVerdict !== false,
-      readVerdictReason: String(parsed.readVerdictReason || ""),
-    };
+        : [];
+      const redundantEntries = Array.isArray(parsed.redundantEntries)
+        ? parsed.redundantEntries
+            .filter((r: any) => r && r.content)
+            .map((r: any) => ({
+              existingParent: String(r.existingParent || ""),
+              content: String(r.content),
+            }))
+        : [];
+
+      return {
+        novelDelta,
+        redundantEntries,
+        existingKnowledge,
+        rejected: parsed.rejected === true,
+        rejectReason: String(parsed.rejectReason || ""),
+        readVerdict: parsed.readVerdict !== false,
+        readVerdictReason: String(parsed.readVerdictReason || ""),
+      };
+    } catch (err) {
+      if (err instanceof AIError) throw err;
+      console.error(`[NutEgg] Knowledge comparison failed for ${egg.fileName}:`, err);
+      // Fallback: preserve extracted entries as delta if comparison call failed
+      return {
+        novelDelta: extractedEntries.map((e) => ({ parent: "", content: e.content })),
+        redundantEntries: [],
+        existingKnowledge,
+        rejected: false,
+        rejectReason: "",
+        readVerdict: true,
+        readVerdictReason: "Extracted novel knowledge entries.",
+      };
+    }
+  }
+
+  /** Normalize a candidate knowledge entries array from the AI response. */
+  private parseExtractedEntries(raw: any): ExtractedKnowledgeEntry[] {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((e: any) => e && (typeof e === "string" || e.content))
+      .map((e: any) => {
+        if (typeof e === "string") {
+          return { kind: "insight" as const, content: e.trim() };
+        }
+        return {
+          kind: e.kind === "list" ? ("list" as const) : ("insight" as const),
+          content: String(e.content).trim(),
+        };
+      })
+      .filter((e) => e.content.length > 0);
   }
 
   /**

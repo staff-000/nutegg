@@ -430,7 +430,7 @@ IMPORTANT:
 `;
 
 // src/prompts/egg-analysis.md
-var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below against this egg's instructions.
+var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge entries from the content below according to this egg's instructions.
 
 ## Egg Instructions
 {{egg_instructions}}
@@ -444,37 +444,29 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-1. Answer each Key Question (if any) directly and concisely. Grounding: {{grounding_rule}}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. Compare by CONCEPT: an insight is new only when its concept is not already covered \u2014 the same concept with a different example or wording is a duplicate, NOT new. If the content is entirely redundant, return an empty array.
-   EXCEPTION \u2014 structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete "list" entry preserving EVERY item. Novelty filtering must not mangle structure \u2014 a list with missing items is worse than no entry. Drop only items that are exact duplicates of what the tree already holds. In a part-based analysis, emit the items that appear in THIS part; fragments with the same title are combined later.
-3. Apply the Rejection Criteria \u2014 if the content should be rejected, set rejected to true and give a one-line reason.
-4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight (by concept, per step 2).
-
-For each Novel Delta entry:
-- "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information \u2014 used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
-- "kind": "insight" (default) or "list" \u2014 "list" only for structured enumerations (see step 2).
-- "content":
-  * insight entries follow the Formatting Rules' entry structure: a top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks.
-  * list entries preserve the enumeration COMPLETELY: the list's title as the top bullet ("- [tag] **Title**"), then ONE indented sub-bullet per item with its explanation, with "- \u{1F3AF} Example: ..." nested under an item when the source gives one. Every item, in the source's own order \u2014 never summarize items away, never truncate.
-  * Do NOT include author or source \u2014 they are appended automatically.
+1. Answer each Key Question (if any) directly and concisely based on the content. Grounding: {{grounding_rule}}
+2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
+   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
+   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
+   - Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "keyQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "extractedEntries": [
+    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
+  ]
 }
+
+IMPORTANT:
+- Grounding: {{grounding_rule}}
+- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 `;
 
 // src/prompts/egg-combined.md
-var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below against this egg's instructions.
+var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below according to this egg's instructions.
 
 ## Egg Instructions
 {{egg_instructions}}
@@ -489,7 +481,16 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-Follow the Action Guide steps, answer the Key Questions, answer the User Questions, and extract the Novel Delta against the Current Knowledge.
+1. Follow the Action Guide:
+   - titleVerdict: provide a single, direct sentence resolving the core question in the title or intro.
+   - coreSummary: summarize the main concepts in plain language using at most 3 bullet points.
+   - chapterMap: timestamped breakdown for long-form / video content. Empty array if not long-form.
+2. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content. Grounding: {{grounding_rule}}
+3. Answer User Questions: answer any custom user questions directly and concisely.
+4. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
+   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
+   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
+   - Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -505,23 +506,16 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "customQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "kind": "insight", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "extractedEntries": [
+    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
+  ]
 }
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "kind" is "insight" (default) or "list" \u2014 "list" only for structured enumerations (see below). "content" for "insight" entries follows the Formatting Rules' entry structure: a single top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks. Do NOT include author or source \u2014 they are appended automatically.
-- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries \u2014 compare by CONCEPT: the same concept with a different example or wording is a duplicate, not a new insight.
-- EXCEPTION \u2014 structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete "list" entry preserving EVERY item: the list's title as the top bullet ("- [tag] **Title**"), then ONE indented sub-bullet per item with its explanation, with "- \u{1F3AF} Example: ..." nested under an item when the source gives one. Every item, in the source's own order \u2014 novelty filtering must not mangle structure (a list with missing items is worse than no entry; drop only items that are exact duplicates of the tree). In a part-based analysis, emit the items that appear in THIS part; fragments with the same title are combined later.
-- Apply the Rejection Criteria strictly \u2014 set rejected to true when the content is noise for this egg.
+- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 `;
 
 // src/prompts/follow-up.md
@@ -623,14 +617,70 @@ var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg
 // src/prompts/suggest-egg.md
 var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
 
+// src/prompts/egg-compare.md
+var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
+Your task is to compare newly extracted candidate knowledge entries from a source against this egg's existing Knowledge tree and Unprocessed entries to identify genuinely NEW insights and decide if the source is worth reading.
+
+## Existing Knowledge in Egg
+### Current Knowledge Tree
+{{current_knowledge}}
+
+### Unprocessed Entries (pending merge)
+{{unprocessed}}
+
+## Rejection Criteria
+{{rejection_criteria}}
+
+## Candidate Knowledge Entries Extracted from Source
+**Source Title:** {{title}}
+**Source URL:** {{url}}
+
+{{extracted_entries}}
+
+## Task
+1. Novel Delta: compare each candidate knowledge entry against the Current Knowledge Tree AND the Unprocessed entries.
+   - Compare by CONCEPT: an insight is new only when its core concept is not already covered in the existing knowledge. The same concept with different wording or a different minor example is a DUPLICATE, not new.
+   - Separate candidate entries into "novelDelta" (genuinely new) and "redundantEntries" (already covered/known in the existing knowledge tree).
+   - EXCEPTION \u2014 structured content: when an entry is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), preserve the COMPLETE list intact in novelDelta unless the entire framework already exists in the tree.
+   - For each kept novel entry: determine "parent" \u2014 the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits as a parent topic to nest under (use "" if no suitable parent exists in the tree).
+   - For each redundant entry: determine "existingParent" \u2014 the existing concept or heading it was already covered under.
+2. Rejection Criteria:
+   - If the content violates the Rejection Criteria or has NO new/novel knowledge for this egg, set "rejected": true and give a one-line "rejectReason".
+3. Read Verdict:
+   - Decide if the user should spend time reading/watching this source fully ("readVerdict": true/false).
+   - If novel, valuable insights were found, set "readVerdict": true with a one-line "readVerdictReason".
+   - If redundant, superficial, or noise, set "readVerdict": false with a one-line "readVerdictReason".
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "novelDelta": [
+    {"parent": "exact parent bullet text from knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}
+  ],
+  "redundantEntries": [
+    {"existingParent": "matched concept or heading in knowledge tree", "content": "- candidate entry text that was already known"}
+  ],
+  "rejected": false,
+  "rejectReason": "",
+  "readVerdict": true,
+  "readVerdictReason": "one-line explanation"
+}
+
+IMPORTANT:
+- Grounding: {{grounding_rule}}
+- "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
+- "kind" is "insight" or "list".
+`;
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: content_analysis_default,
-  /** Phase 2 — content against one egg (key questions, delta, reject, verdict). */
+  /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
-  /** Single-egg combined call (phases 1 + 2 in one prompt). */
+  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
   eggCombined: egg_combined_default,
+  /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
+  eggCompare: egg_compare_default,
   /** Follow-up questions after the initial analysis. */
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
@@ -758,11 +808,15 @@ var AIProcessor = class {
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
     };
   }
-  /** Phase 2 — content against one egg: key questions, delta, reject, verdict. */
+  /**
+   * Multiple eggs — per-egg analysis:
+   *   Step 1: Extract candidate knowledge entries + key question answers using ONLY the egg's instructions.
+   *   Step 2: Compare candidate entries against egg's Knowledge tree & Unprocessed entries to find novel delta and read verdict.
+   */
   async analyzeAgainstEgg(capture2, egg2, partNote = "") {
     const prompt = renderPrompt(PROMPTS.eggAnalysis, {
       egg_file: egg2.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
+      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
@@ -773,17 +827,20 @@ var AIProcessor = class {
     try {
       const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "egg-analysis");
+      const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
+      const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+      const diff = await this.compareEggKnowledge(capture2, egg2, extractedEntries);
       return {
         egg: egg2.fileName,
-        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-        novelDelta: Array.isArray(parsed.novelDelta) ? parsed.novelDelta.filter((d) => d && d.content).map((d) => ({
-          parent: String(d.parent || ""),
-          content: String(d.content)
-        })) : [],
-        rejected: parsed.rejected === true,
-        rejectReason: String(parsed.rejectReason || ""),
-        readVerdict: parsed.readVerdict !== false,
-        readVerdictReason: String(parsed.readVerdictReason || "")
+        keyQuestionAnswers,
+        extractedEntries,
+        novelDelta: diff.novelDelta,
+        redundantEntries: diff.redundantEntries,
+        existingKnowledge: diff.existingKnowledge,
+        rejected: diff.rejected,
+        rejectReason: diff.rejectReason,
+        readVerdict: diff.readVerdict,
+        readVerdictReason: diff.readVerdictReason
       };
     } catch (err) {
       if (err instanceof AIError)
@@ -792,11 +849,15 @@ var AIProcessor = class {
       return null;
     }
   }
-  /** Single combined call — used when exactly one egg matches. */
+  /**
+   * Single egg:
+   *   Step 1: Extract candidate knowledge entries + content summary using ONLY the egg instructions.
+   *   Step 2: Compare candidate entries against the egg's Current Knowledge & Unprocessed entries.
+   */
   async analyzeSingleEgg(capture2, egg2, partNote = "") {
     const prompt = renderPrompt(PROMPTS.eggCombined, {
       egg_file: egg2.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
+      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
@@ -812,7 +873,7 @@ var AIProcessor = class {
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "egg-combined");
-    return {
+    const contentAnalysis = {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       isLongForm: parsed.isLongForm === true,
@@ -824,18 +885,101 @@ var AIProcessor = class {
         })) : [],
         capture2.sections
       ),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
+    };
+    const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
+    const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+    const diff = await this.compareEggKnowledge(capture2, egg2, extractedEntries);
+    return {
+      ...contentAnalysis,
       egg: egg2.fileName,
-      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-      novelDelta: Array.isArray(parsed.novelDelta) ? parsed.novelDelta.filter((d) => d && d.content).map((d) => ({
+      keyQuestionAnswers,
+      extractedEntries,
+      novelDelta: diff.novelDelta,
+      redundantEntries: diff.redundantEntries,
+      existingKnowledge: diff.existingKnowledge,
+      rejected: diff.rejected,
+      rejectReason: diff.rejectReason,
+      readVerdict: diff.readVerdict,
+      readVerdictReason: diff.readVerdictReason
+    };
+  }
+  /**
+   * Step 2 — Compare extracted candidate knowledge entries against the egg's
+   * existing Knowledge tree and Unprocessed entries to find novel delta and read verdict.
+   */
+  async compareEggKnowledge(capture2, egg2, extractedEntries) {
+    const existingKnowledge = egg2.knowledge || "";
+    if (extractedEntries.length === 0) {
+      return {
+        novelDelta: [],
+        redundantEntries: [],
+        existingKnowledge,
+        rejected: false,
+        rejectReason: "",
+        readVerdict: false,
+        readVerdictReason: "No knowledge entries extracted matching this egg's scope."
+      };
+    }
+    const prompt = renderPrompt(PROMPTS.eggCompare, {
+      egg_file: egg2.fileName,
+      title: capture2.title,
+      url: capture2.url,
+      current_knowledge: existingKnowledge || "(empty)",
+      unprocessed: egg2.unprocessed || "(empty)",
+      rejection_criteria: egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
+      extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
+${e.content}`).join("\n\n"),
+      grounding_rule: GROUNDING_RULE
+    });
+    try {
+      const response = await this.callAI(prompt, 1500);
+      const parsed = this.parseJson(response, "egg-compare");
+      const novelDelta = Array.isArray(parsed.novelDelta) ? parsed.novelDelta.filter((d) => d && d.content).map((d) => ({
         parent: String(d.parent || ""),
         content: String(d.content)
-      })) : [],
-      rejected: parsed.rejected === true,
-      rejectReason: String(parsed.rejectReason || ""),
-      readVerdict: parsed.readVerdict !== false,
-      readVerdictReason: String(parsed.readVerdictReason || "")
-    };
+      })) : [];
+      const redundantEntries = Array.isArray(parsed.redundantEntries) ? parsed.redundantEntries.filter((r) => r && r.content).map((r) => ({
+        existingParent: String(r.existingParent || ""),
+        content: String(r.content)
+      })) : [];
+      return {
+        novelDelta,
+        redundantEntries,
+        existingKnowledge,
+        rejected: parsed.rejected === true,
+        rejectReason: String(parsed.rejectReason || ""),
+        readVerdict: parsed.readVerdict !== false,
+        readVerdictReason: String(parsed.readVerdictReason || "")
+      };
+    } catch (err) {
+      if (err instanceof AIError)
+        throw err;
+      console.error(`[NutEgg] Knowledge comparison failed for ${egg2.fileName}:`, err);
+      return {
+        novelDelta: extractedEntries.map((e) => ({ parent: "", content: e.content })),
+        redundantEntries: [],
+        existingKnowledge,
+        rejected: false,
+        rejectReason: "",
+        readVerdict: true,
+        readVerdictReason: "Extracted novel knowledge entries."
+      };
+    }
+  }
+  /** Normalize a candidate knowledge entries array from the AI response. */
+  parseExtractedEntries(raw) {
+    if (!Array.isArray(raw))
+      return [];
+    return raw.filter((e) => e && (typeof e === "string" || e.content)).map((e) => {
+      if (typeof e === "string") {
+        return { kind: "insight", content: e.trim() };
+      }
+      return {
+        kind: e.kind === "list" ? "list" : "insight",
+        content: String(e.content).trim()
+      };
+    }).filter((e) => e.content.length > 0);
   }
   /**
    * Long content: one analysis call per part, then aggregate calls that
@@ -1485,8 +1629,8 @@ var EggParser = class {
     }
     return body.join("\n").replace(/\n+$/g, "");
   }
-  /** Format one egg's instructions + knowledge for an AI prompt. */
-  formatEggForPrompt(egg2) {
+  /** Format only the egg's instructions (Scope, Key Questions, Rejection Criteria, Formatting Rules) for Step 1 extraction. */
+  formatEggInstructionsForPrompt(egg2) {
     const parts = [];
     parts.push(`**Scope:** ${egg2.scope || "(not specified)"}`);
     if (egg2.keyQuestions.length > 0) {
@@ -1505,17 +1649,25 @@ ${egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n")}`
       parts.push(`**Formatting Rules:**
 ${egg2.formattingRules}`);
     }
-    parts.push(
-      `**Current Knowledge:**
-${egg2.knowledge || "(empty)"}`
-    );
+    return parts.join("\n\n");
+  }
+  /** Format only the egg's existing Knowledge tree and Unprocessed entries for Step 2 comparison. */
+  formatEggKnowledgeForPrompt(egg2) {
+    const parts = [];
+    parts.push(`**Current Knowledge:**
+${egg2.knowledge || "(empty)"}`);
     if (egg2.unprocessed.trim()) {
-      parts.push(
-        `**Unprocessed (pending merge):**
-${egg2.unprocessed}`
-      );
+      parts.push(`**Unprocessed (pending merge):**
+${egg2.unprocessed}`);
     }
     return parts.join("\n\n");
+  }
+  /** Format one egg's instructions + knowledge for an AI prompt (backward compatibility). */
+  formatEggForPrompt(egg2) {
+    return [
+      this.formatEggInstructionsForPrompt(egg2),
+      this.formatEggKnowledgeForPrompt(egg2)
+    ].join("\n\n");
   }
   /**
    * Append one new knowledge entry to the egg's Unprocessed section.
@@ -1786,7 +1938,9 @@ function makeFakePlugin(overrides = {}) {
       })
     },
     eggParser: overrides.eggParser ?? {
-      formatEggForPrompt: (e) => `egg:${e.fileName}`
+      formatEggForPrompt: (e) => `egg:${e.fileName}`,
+      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
+      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
     indexReader: overrides.indexReader ?? {},
     knowledgeBase: overrides.knowledgeBase ?? {},
@@ -1880,8 +2034,9 @@ var capture = {
   });
 });
 (0, import_node_test.describe)("AIProcessor.analyze", () => {
-  (0, import_node_test.it)("single egg: one combined call, all fields parsed", async () => {
+  (0, import_node_test.it)("single egg: Step 1 extraction + Step 2 knowledge comparison", async () => {
     const responses = [
+      // Step 1: Extract candidate entries & content analysis using egg instructions
       JSON.stringify({
         titleVerdict: "Verdict.",
         coreSummary: ["b1", "b2", "b3", "b4"],
@@ -1894,12 +2049,17 @@ var capture = {
         ],
         keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         customQuestionAnswers: [{ question: "custom?", answer: "custom a" }],
-        novelDelta: [
-          { parent: "## X", content: "- new stuff" },
-          { parent: "## Y", content: "" }
+        extractedEntries: [
+          { kind: "insight", content: "- new stuff" },
+          { kind: "insight", content: "" }
           // dropped
-        ],
+        ]
+      }),
+      // Step 2: Compare candidate entries against egg knowledge tree
+      JSON.stringify({
+        novelDelta: [{ parent: "## X", content: "- new stuff" }],
         rejected: false,
+        rejectReason: "",
         readVerdict: true,
         readVerdictReason: "has delta"
       })
@@ -1912,7 +2072,7 @@ var capture = {
       { ...capture, chapters: [{ time: "00:10", title: "Ch1" }], questions: ["custom?"] },
       [egg("one.md")]
     );
-    import_strict.default.equal(calls, 1);
+    import_strict.default.equal(calls, 2);
     import_strict.default.equal(result.titleVerdict, "Verdict.");
     import_strict.default.deepEqual(result.coreSummary, ["b1", "b2", "b3"]);
     import_strict.default.equal(result.chapterMap.length, 1);
@@ -1925,8 +2085,9 @@ var capture = {
     ]);
     import_strict.default.equal(result.shouldRead, true);
   });
-  (0, import_node_test.it)("two eggs: one content call + one call per egg", async () => {
+  (0, import_node_test.it)("two eggs: content call + per-egg extract and compare", async () => {
     const responses = [
+      // Phase 1: Content summary
       JSON.stringify({
         titleVerdict: "V.",
         coreSummary: [],
@@ -1934,15 +2095,18 @@ var capture = {
         chapterMap: [],
         customQuestionAnswers: []
       }),
+      // Egg A Step 1: Extract (empty -> compare is skipped)
       JSON.stringify({
         keyQuestionAnswers: [{ question: "Is this new?", answer: "no" }],
-        novelDelta: [],
-        rejected: false,
-        readVerdict: false,
-        readVerdictReason: "redundant"
+        extractedEntries: []
       }),
+      // Egg B Step 1: Extract
       JSON.stringify({
         keyQuestionAnswers: [],
+        extractedEntries: [{ kind: "insight", content: "- fresh" }]
+      }),
+      // Egg B Step 2: Compare
+      JSON.stringify({
         novelDelta: [{ parent: "", content: "- fresh" }],
         rejected: false,
         readVerdict: true,
@@ -1957,7 +2121,7 @@ var capture = {
       { ...capture },
       [egg("a.md"), egg("b.md")]
     );
-    import_strict.default.equal(calls, 3);
+    import_strict.default.equal(calls, 4);
     import_strict.default.equal(result.matchedEggs.length, 2);
     import_strict.default.equal(result.eggResults.length, 2);
     import_strict.default.equal(result.shouldRead, true);
@@ -2163,8 +2327,11 @@ var capture = {
       chapterMap: [{ time: "00:00", title: `Ch${i}`, summary: `s${i}` }],
       customQuestionAnswers: []
     });
-    const eggPart = (i) => JSON.stringify({
+    const eggPartExtract = (i) => JSON.stringify({
       keyQuestionAnswers: [],
+      extractedEntries: [{ kind: "insight", content: `- delta from part ${i}` }]
+    });
+    const eggPartCompare = (i) => JSON.stringify({
       novelDelta: [{ parent: "", content: `- delta from part ${i}` }],
       rejected: false,
       readVerdict: true,
@@ -2179,18 +2346,26 @@ var capture = {
         coreSummary: ["all-1", "all-2"],
         customQuestionAnswers: [{ question: "Q?", answer: "A" }]
       }),
-      eggPart(1),
-      eggPart(2),
-      eggPart(3),
+      // Egg A per-part: 3 extracts run concurrently, then 3 compares
+      eggPartExtract(1),
+      eggPartExtract(2),
+      eggPartExtract(3),
+      eggPartCompare(1),
+      eggPartCompare(2),
+      eggPartCompare(3),
       JSON.stringify({
         keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         rejected: false,
         readVerdict: true,
         readVerdictReason: "adds insight"
       }),
-      eggPart(1),
-      eggPart(2),
-      eggPart(3),
+      // Egg B per-part: 3 extracts run concurrently, then 3 compares
+      eggPartExtract(1),
+      eggPartExtract(2),
+      eggPartExtract(3),
+      eggPartCompare(1),
+      eggPartCompare(2),
+      eggPartCompare(3),
       JSON.stringify({
         keyQuestionAnswers: [],
         rejected: true,
@@ -2212,7 +2387,7 @@ var capture = {
       { ...capture, content: longContent, questions: ["Q?"] },
       [egg("a.md"), egg("b.md")]
     );
-    import_strict.default.equal(calls, 12);
+    import_strict.default.equal(calls, 18);
     import_strict.default.equal(result.titleVerdict, "Overall verdict.");
     import_strict.default.deepEqual(result.coreSummary, ["all-1", "all-2"]);
     import_strict.default.equal(result.chapterMap.length, 3, "chapter maps unioned");
@@ -2237,11 +2412,11 @@ var capture = {
     let calls = 0;
     const plugin = makeFakePlugin({
       aiClient: {
-        chat: async () => (calls++, "{}")
+        chat: async () => (calls++, JSON.stringify({ titleVerdict: "V", coreSummary: [], extractedEntries: [] }))
       }
     });
     await new AIProcessor(plugin).analyze({ ...capture }, [egg("a.md")]);
-    import_strict.default.equal(calls, 1, "no chunking below the limit");
+    import_strict.default.equal(calls, 1, "no chunking below the limit (single egg extract with 0 entries)");
   });
 });
 (0, import_node_test.describe)("AIProcessor.suggestEgg", () => {
@@ -2405,5 +2580,80 @@ ${entries}
       "## Custom\n1. a\n2. b"
     );
     import_strict.default.equal(p.questionsBlock([], "Custom"), "");
+  });
+});
+(0, import_node_test.describe)("EggParser prompt formatting (Step 1 vs Step 2)", () => {
+  const parser = new EggParser(makeFakePlugin());
+  const testEgg = egg("test.md", {
+    scope: "Only AI engineering.",
+    keyQuestions: ["What architecture is used?"],
+    rejectionCriteria: ["Reject marketing hype."],
+    formattingRules: "Use - [tag] **Concept**.",
+    knowledge: "## AI\n- transformer\n",
+    unprocessed: "- candidate one\n"
+  });
+  (0, import_node_test.it)("formatEggInstructionsForPrompt includes only instructions (no knowledge or unprocessed)", () => {
+    const formatted = parser.formatEggInstructionsForPrompt(testEgg);
+    import_strict.default.ok(formatted.includes("**Scope:** Only AI engineering."));
+    import_strict.default.ok(formatted.includes("**Key Questions:**"));
+    import_strict.default.ok(formatted.includes("1. What architecture is used?"));
+    import_strict.default.ok(formatted.includes("**Rejection Criteria:**"));
+    import_strict.default.ok(formatted.includes("- Reject marketing hype."));
+    import_strict.default.ok(formatted.includes("**Formatting Rules:**\nUse - [tag] **Concept**."));
+    import_strict.default.ok(!formatted.includes("transformer"), "Current knowledge must NOT be in instructions");
+    import_strict.default.ok(!formatted.includes("candidate one"), "Unprocessed entries must NOT be in instructions");
+  });
+  (0, import_node_test.it)("formatEggKnowledgeForPrompt includes only knowledge tree and unprocessed", () => {
+    const formatted = parser.formatEggKnowledgeForPrompt(testEgg);
+    import_strict.default.ok(formatted.includes("**Current Knowledge:**\n## AI\n- transformer"));
+    import_strict.default.ok(formatted.includes("**Unprocessed (pending merge):**\n- candidate one"));
+    import_strict.default.ok(!formatted.includes("**Scope:**"), "Scope must not be in knowledge-only format");
+    import_strict.default.ok(!formatted.includes("**Key Questions:**"), "Key questions must not be in knowledge-only format");
+  });
+});
+(0, import_node_test.describe)("AIProcessor.compareEggKnowledge (Step 2)", () => {
+  (0, import_node_test.it)("short-circuits when extracted candidate entries are empty", async () => {
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: { chat: async () => (calls++, "{}") }
+    });
+    const p = new AIProcessor(plugin);
+    const res = await p.compareEggKnowledge(
+      { title: "T", url: "U" },
+      egg("test.md"),
+      []
+    );
+    import_strict.default.equal(calls, 0);
+    import_strict.default.deepEqual(res.novelDelta, []);
+    import_strict.default.equal(res.readVerdict, false);
+    import_strict.default.ok(res.readVerdictReason.includes("No knowledge entries extracted"));
+  });
+  (0, import_node_test.it)("calls compare prompt and returns novel delta & verdict", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({
+            novelDelta: [{ parent: "## Existing", content: "- novel concept" }],
+            rejected: false,
+            readVerdict: true,
+            readVerdictReason: "Contains novel architecture insight"
+          });
+        }
+      }
+    });
+    const p = new AIProcessor(plugin);
+    const res = await p.compareEggKnowledge(
+      { title: "Article", url: "https://example.com" },
+      egg("test.md", { knowledge: "## Existing\n- old" }),
+      [{ kind: "insight", content: "- novel concept" }]
+    );
+    import_strict.default.ok(capturedPrompt.includes("## Existing Knowledge in Egg"));
+    import_strict.default.ok(capturedPrompt.includes("## Existing\n- old"));
+    import_strict.default.ok(capturedPrompt.includes("- novel concept"));
+    import_strict.default.deepEqual(res.novelDelta, [{ parent: "## Existing", content: "- novel concept" }]);
+    import_strict.default.equal(res.readVerdict, true);
+    import_strict.default.equal(res.readVerdictReason, "Contains novel architecture insight");
   });
 });

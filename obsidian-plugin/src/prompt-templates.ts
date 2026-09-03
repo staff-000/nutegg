@@ -16,14 +16,17 @@ import mergeUnprocessedTpl from "./prompts/merge-unprocessed.md";
 import aggregateContentTpl from "./prompts/aggregate-content.md";
 import aggregateEggTpl from "./prompts/aggregate-egg.md";
 import suggestEggTpl from "./prompts/suggest-egg.md";
+import eggCompareTpl from "./prompts/egg-compare.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
-  /** Phase 2 — content against one egg (key questions, delta, reject, verdict). */
+  /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: eggAnalysisTpl,
-  /** Single-egg combined call (phases 1 + 2 in one prompt). */
+  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
   eggCombined: eggCombinedTpl,
+  /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
+  eggCompare: eggCompareTpl,
   /** Follow-up questions after the initial analysis. */
   followUp: followUpTpl,
   /** Egg routing — match content to egg files from _index.md. */

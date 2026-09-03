@@ -67,7 +67,7 @@ IMPORTANT:
 `;
 
 // src/prompts/egg-analysis.md
-var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below against this egg's instructions.
+var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge entries from the content below according to this egg's instructions.
 
 ## Egg Instructions
 {{egg_instructions}}
@@ -81,37 +81,29 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-1. Answer each Key Question (if any) directly and concisely. Grounding: {{grounding_rule}}
-2. Novel Delta: identify genuinely NEW insights vs the Current Knowledge AND the Unprocessed entries. Compare by CONCEPT: an insight is new only when its concept is not already covered \u2014 the same concept with a different example or wording is a duplicate, NOT new. If the content is entirely redundant, return an empty array.
-   EXCEPTION \u2014 structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete "list" entry preserving EVERY item. Novelty filtering must not mangle structure \u2014 a list with missing items is worse than no entry. Drop only items that are exact duplicates of what the tree already holds. In a part-based analysis, emit the items that appear in THIS part; fragments with the same title are combined later.
-3. Apply the Rejection Criteria \u2014 if the content should be rejected, set rejected to true and give a one-line reason.
-4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether it adds new insight (by concept, per step 2).
-
-For each Novel Delta entry:
-- "parent": the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits the new information \u2014 used as a suggestion when the entry is merged into the tree later. Use "" if no suitable parent exists.
-- "kind": "insight" (default) or "list" \u2014 "list" only for structured enumerations (see step 2).
-- "content":
-  * insight entries follow the Formatting Rules' entry structure: a top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks.
-  * list entries preserve the enumeration COMPLETELY: the list's title as the top bullet ("- [tag] **Title**"), then ONE indented sub-bullet per item with its explanation, with "- \u{1F3AF} Example: ..." nested under an item when the source gives one. Every item, in the source's own order \u2014 never summarize items away, never truncate.
-  * Do NOT include author or source \u2014 they are appended automatically.
+1. Answer each Key Question (if any) directly and concisely based on the content. Grounding: {{grounding_rule}}
+2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
+   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
+   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
+   - Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "keyQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "extractedEntries": [
+    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
+  ]
 }
+
+IMPORTANT:
+- Grounding: {{grounding_rule}}
+- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 `;
 
 // src/prompts/egg-combined.md
-var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below against this egg's instructions.
+var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below according to this egg's instructions.
 
 ## Egg Instructions
 {{egg_instructions}}
@@ -126,7 +118,16 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-Follow the Action Guide steps, answer the Key Questions, answer the User Questions, and extract the Novel Delta against the Current Knowledge.
+1. Follow the Action Guide:
+   - titleVerdict: provide a single, direct sentence resolving the core question in the title or intro.
+   - coreSummary: summarize the main concepts in plain language using at most 3 bullet points.
+   - chapterMap: timestamped breakdown for long-form / video content. Empty array if not long-form.
+2. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content. Grounding: {{grounding_rule}}
+3. Answer User Questions: answer any custom user questions directly and concisely.
+4. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
+   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
+   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
+   - Do NOT include author or source \u2014 they are appended automatically.
 
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
@@ -142,23 +143,16 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "customQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
-  "novelDelta": [
-    {"parent": "exact anchor text from the knowledge tree", "kind": "insight", "content": "- nested bullet\\n  - sub bullet"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "extractedEntries": [
+    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
+  ]
 }
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- For each Novel Delta entry: "parent" is the EXACT text of the existing bullet or heading it best fits under ("" if none) \u2014 a suggestion used when the entry is merged into the tree later. "kind" is "insight" (default) or "list" \u2014 "list" only for structured enumerations (see below). "content" for "insight" entries follows the Formatting Rules' entry structure: a single top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept so it can be compared against the tree for dedup and novelty checks. Do NOT include author or source \u2014 they are appended automatically.
-- Novel Delta must be genuinely NEW vs the Current Knowledge AND the Unprocessed entries \u2014 compare by CONCEPT: the same concept with a different example or wording is a duplicate, not a new insight.
-- EXCEPTION \u2014 structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete "list" entry preserving EVERY item: the list's title as the top bullet ("- [tag] **Title**"), then ONE indented sub-bullet per item with its explanation, with "- \u{1F3AF} Example: ..." nested under an item when the source gives one. Every item, in the source's own order \u2014 novelty filtering must not mangle structure (a list with missing items is worse than no entry; drop only items that are exact duplicates of the tree). In a part-based analysis, emit the items that appear in THIS part; fragments with the same title are combined later.
-- Apply the Rejection Criteria strictly \u2014 set rejected to true when the content is noise for this egg.
+- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 `;
 
 // src/prompts/follow-up.md
@@ -260,14 +254,70 @@ var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg
 // src/prompts/suggest-egg.md
 var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
 
+// src/prompts/egg-compare.md
+var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
+Your task is to compare newly extracted candidate knowledge entries from a source against this egg's existing Knowledge tree and Unprocessed entries to identify genuinely NEW insights and decide if the source is worth reading.
+
+## Existing Knowledge in Egg
+### Current Knowledge Tree
+{{current_knowledge}}
+
+### Unprocessed Entries (pending merge)
+{{unprocessed}}
+
+## Rejection Criteria
+{{rejection_criteria}}
+
+## Candidate Knowledge Entries Extracted from Source
+**Source Title:** {{title}}
+**Source URL:** {{url}}
+
+{{extracted_entries}}
+
+## Task
+1. Novel Delta: compare each candidate knowledge entry against the Current Knowledge Tree AND the Unprocessed entries.
+   - Compare by CONCEPT: an insight is new only when its core concept is not already covered in the existing knowledge. The same concept with different wording or a different minor example is a DUPLICATE, not new.
+   - Separate candidate entries into "novelDelta" (genuinely new) and "redundantEntries" (already covered/known in the existing knowledge tree).
+   - EXCEPTION \u2014 structured content: when an entry is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), preserve the COMPLETE list intact in novelDelta unless the entire framework already exists in the tree.
+   - For each kept novel entry: determine "parent" \u2014 the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits as a parent topic to nest under (use "" if no suitable parent exists in the tree).
+   - For each redundant entry: determine "existingParent" \u2014 the existing concept or heading it was already covered under.
+2. Rejection Criteria:
+   - If the content violates the Rejection Criteria or has NO new/novel knowledge for this egg, set "rejected": true and give a one-line "rejectReason".
+3. Read Verdict:
+   - Decide if the user should spend time reading/watching this source fully ("readVerdict": true/false).
+   - If novel, valuable insights were found, set "readVerdict": true with a one-line "readVerdictReason".
+   - If redundant, superficial, or noise, set "readVerdict": false with a one-line "readVerdictReason".
+
+Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+{
+  "novelDelta": [
+    {"parent": "exact parent bullet text from knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}
+  ],
+  "redundantEntries": [
+    {"existingParent": "matched concept or heading in knowledge tree", "content": "- candidate entry text that was already known"}
+  ],
+  "rejected": false,
+  "rejectReason": "",
+  "readVerdict": true,
+  "readVerdictReason": "one-line explanation"
+}
+
+IMPORTANT:
+- Grounding: {{grounding_rule}}
+- "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
+- "kind" is "insight" or "list".
+`;
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: content_analysis_default,
-  /** Phase 2 — content against one egg (key questions, delta, reject, verdict). */
+  /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
-  /** Single-egg combined call (phases 1 + 2 in one prompt). */
+  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
   eggCombined: egg_combined_default,
+  /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
+  eggCompare: egg_compare_default,
   /** Follow-up questions after the initial analysis. */
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
@@ -440,7 +490,9 @@ function makeFakePlugin(overrides = {}) {
       })
     },
     eggParser: overrides.eggParser ?? {
-      formatEggForPrompt: (e) => `egg:${e.fileName}`
+      formatEggForPrompt: (e) => `egg:${e.fileName}`,
+      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
+      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
     indexReader: overrides.indexReader ?? {},
     knowledgeBase: overrides.knowledgeBase ?? {},

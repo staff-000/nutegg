@@ -147,8 +147,8 @@ export class EggParser {
     return body.join("\n").replace(/\n+$/g, "");
   }
 
-  /** Format one egg's instructions + knowledge for an AI prompt. */
-  formatEggForPrompt(egg: EggContent): string {
+  /** Format only the egg's instructions (Scope, Key Questions, Rejection Criteria, Formatting Rules) for Step 1 extraction. */
+  formatEggInstructionsForPrompt(egg: EggContent): string {
     const parts: string[] = [];
     parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
     if (egg.keyQuestions.length > 0) {
@@ -168,15 +168,25 @@ export class EggParser {
     if (egg.formattingRules) {
       parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
     }
-    parts.push(
-      `**Current Knowledge:**\n${egg.knowledge || "(empty)"}`
-    );
+    return parts.join("\n\n");
+  }
+
+  /** Format only the egg's existing Knowledge tree and Unprocessed entries for Step 2 comparison. */
+  formatEggKnowledgeForPrompt(egg: EggContent): string {
+    const parts: string[] = [];
+    parts.push(`**Current Knowledge:**\n${egg.knowledge || "(empty)"}`);
     if (egg.unprocessed.trim()) {
-      parts.push(
-        `**Unprocessed (pending merge):**\n${egg.unprocessed}`
-      );
+      parts.push(`**Unprocessed (pending merge):**\n${egg.unprocessed}`);
     }
     return parts.join("\n\n");
+  }
+
+  /** Format one egg's instructions + knowledge for an AI prompt (backward compatibility). */
+  formatEggForPrompt(egg: EggContent): string {
+    return [
+      this.formatEggInstructionsForPrompt(egg),
+      this.formatEggKnowledgeForPrompt(egg),
+    ].join("\n\n");
   }
 
   /**

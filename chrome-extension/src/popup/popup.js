@@ -871,25 +871,91 @@ function showResultsState(result, provenance = null) {
     keyQuestionsList.innerHTML = "";
   }
 
-  // Novel Delta — show confirm button only when there's something to add
-  const deltaGroups = (result.eggResults || []).filter(
-    (r) => r.novelDelta && r.novelDelta.length > 0
+  // Knowledge Entries (New Insights vs Existing Tree)
+  const eggResults = result.eggResults || [];
+  const hasAnyKnowledge = eggResults.some(
+    (r) =>
+      (r.novelDelta && r.novelDelta.length > 0) ||
+      (r.redundantEntries && r.redundantEntries.length > 0) ||
+      (r.existingKnowledge && r.existingKnowledge.trim().length > 0)
   );
-  if (deltaGroups.length > 0) {
+
+  if (hasAnyKnowledge) {
     deltaSection.classList.remove("hidden");
-    deltaList.innerHTML = deltaGroups
-      .map((r) => `
-        <div class="egg-group">
-          <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
-          ${r.novelDelta
-            .map((d) => `
-              <div class="delta-item">
-                <div class="delta-parent">🐣 → Unprocessed${d.parent ? ` · suggested under: ${escapeHtml(d.parent)}` : ""}</div>
-                <div class="delta-content">${escapeHtml(d.content)}</div>
-              </div>`)
-            .join("")}
-        </div>`)
+    deltaList.innerHTML = eggResults
+      .map((r) => {
+        const newDeltas = r.novelDelta || [];
+        const redundantDeltas = r.redundantEntries || [];
+        const existingKnowledge = (r.existingKnowledge || "").trim();
+
+        let newHtml = "";
+        if (newDeltas.length > 0) {
+          newHtml = `
+            <div class="knowledge-subsection">
+              <div class="knowledge-subhead new-subhead">✨ New Insights (${newDeltas.length})</div>
+              ${newDeltas
+                .map((d) => `
+                  <div class="delta-item is-new">
+                    <div class="delta-header">
+                      <span class="delta-badge badge-new">+ New Entry</span>
+                      <span class="delta-parent">🐣 → Unprocessed${d.parent ? ` · suggested under: <strong>${escapeHtml(d.parent)}</strong>` : ""}</span>
+                    </div>
+                    <div class="delta-content">${escapeHtml(d.content)}</div>
+                  </div>`)
+                .join("")}
+            </div>`;
+        }
+
+        let redundantHtml = "";
+        if (redundantDeltas.length > 0) {
+          redundantHtml = `
+            <div class="knowledge-subsection">
+              <div class="knowledge-subhead covered-subhead">✅ Already in Tree (${redundantDeltas.length})</div>
+              ${redundantDeltas
+                .map((d) => `
+                  <div class="delta-item is-covered">
+                    <div class="delta-header">
+                      <span class="delta-badge badge-covered">Covered</span>
+                      <span class="delta-parent">${d.existingParent ? `under: <strong>${escapeHtml(d.existingParent)}</strong>` : "Already known"}</span>
+                    </div>
+                    <div class="delta-content">${escapeHtml(d.content)}</div>
+                  </div>`)
+                .join("")}
+            </div>`;
+        }
+
+        let treeHtml = "";
+        if (existingKnowledge) {
+          treeHtml = `
+            <div class="existing-tree-container">
+              <div class="existing-tree-header">
+                <span class="existing-tree-title">📚 Current Knowledge in Egg</span>
+                <button type="button" class="existing-tree-toggle">▸ View Tree</button>
+              </div>
+              <div class="existing-tree-body hidden">${escapeHtml(existingKnowledge)}</div>
+            </div>`;
+        }
+
+        return `
+          <div class="egg-group">
+            <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
+            ${newHtml}
+            ${redundantHtml}
+            ${treeHtml}
+          </div>`;
+      })
       .join("");
+
+    // Wire tree toggle buttons
+    deltaList.querySelectorAll(".existing-tree-toggle").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = btn.closest(".existing-tree-container")?.querySelector(".existing-tree-body");
+        if (body) {
+          const isHidden = body.classList.toggle("hidden");
+          btn.textContent = isHidden ? "▸ View Tree" : "▾ Hide Tree";
+        }
+      });
+    });
   } else {
     deltaSection.classList.add("hidden");
     deltaList.innerHTML = "";

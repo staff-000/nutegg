@@ -107,8 +107,9 @@ describe("AIProcessor.mergeVerdict", () => {
 });
 
 describe("AIProcessor.analyze", () => {
-  it("single egg: one combined call, all fields parsed", async () => {
+  it("single egg: Step 1 extraction + Step 2 knowledge comparison", async () => {
     const responses = [
+      // Step 1: Extract candidate entries & content analysis using egg instructions
       JSON.stringify({
         titleVerdict: "Verdict.",
         coreSummary: ["b1", "b2", "b3", "b4"], // must be sliced to 3
@@ -119,11 +120,16 @@ describe("AIProcessor.analyze", () => {
         ],
         keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         customQuestionAnswers: [{ question: "custom?", answer: "custom a" }],
-        novelDelta: [
-          { parent: "## X", content: "- new stuff" },
-          { parent: "## Y", content: "" }, // dropped
+        extractedEntries: [
+          { kind: "insight", content: "- new stuff" },
+          { kind: "insight", content: "" }, // dropped
         ],
+      }),
+      // Step 2: Compare candidate entries against egg knowledge tree
+      JSON.stringify({
+        novelDelta: [{ parent: "## X", content: "- new stuff" }],
         rejected: false,
+        rejectReason: "",
         readVerdict: true,
         readVerdictReason: "has delta",
       }),
@@ -136,7 +142,7 @@ describe("AIProcessor.analyze", () => {
       { ...capture, chapters: [{ time: "00:10", title: "Ch1" }], questions: ["custom?"] },
       [egg("one.md")]
     );
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
     assert.equal(result.titleVerdict, "Verdict.");
     assert.deepEqual(result.coreSummary, ["b1", "b2", "b3"]);
     assert.equal(result.chapterMap.length, 1);
@@ -150,8 +156,9 @@ describe("AIProcessor.analyze", () => {
     assert.equal(result.shouldRead, true);
   });
 
-  it("two eggs: one content call + one call per egg", async () => {
+  it("two eggs: content call + per-egg extract and compare", async () => {
     const responses = [
+      // Phase 1: Content summary
       JSON.stringify({
         titleVerdict: "V.",
         coreSummary: [],
@@ -159,15 +166,18 @@ describe("AIProcessor.analyze", () => {
         chapterMap: [],
         customQuestionAnswers: [],
       }),
+      // Egg A Step 1: Extract (empty -> compare is skipped)
       JSON.stringify({
         keyQuestionAnswers: [{ question: "Is this new?", answer: "no" }],
-        novelDelta: [],
-        rejected: false,
-        readVerdict: false,
-        readVerdictReason: "redundant",
+        extractedEntries: [],
       }),
+      // Egg B Step 1: Extract
       JSON.stringify({
         keyQuestionAnswers: [],
+        extractedEntries: [{ kind: "insight", content: "- fresh" }],
+      }),
+      // Egg B Step 2: Compare
+      JSON.stringify({
         novelDelta: [{ parent: "", content: "- fresh" }],
         rejected: false,
         readVerdict: true,
@@ -182,7 +192,7 @@ describe("AIProcessor.analyze", () => {
       { ...capture },
       [egg("a.md"), egg("b.md")]
     );
-    assert.equal(calls, 3);
+    assert.equal(calls, 4);
     assert.equal(result.matchedEggs.length, 2);
     assert.equal(result.eggResults.length, 2);
     assert.equal(result.shouldRead, true);
@@ -398,7 +408,7 @@ describe("AIProcessor.completeChapterMap", () => {
 });
 
 describe("AIProcessor.analyze (chunked)", () => {
-  // ~65k chars → 3 parts; two eggs → 3 content + 1 aggregate + 2×(3+1) = 12 calls
+  // ~65k chars → 3 parts; two eggs → 3 content + 1 aggregate + 2×(3×2+1) = 18 calls
   const longContent = "word ".repeat(13000); // 65k chars
 
   function chunkResponses() {
@@ -410,14 +420,19 @@ describe("AIProcessor.analyze (chunked)", () => {
         chapterMap: [{ time: "00:00", title: `Ch${i}`, summary: `s${i}` }],
         customQuestionAnswers: [],
       });
-    const eggPart = (i: number) =>
+    const eggPartExtract = (i: number) =>
       JSON.stringify({
         keyQuestionAnswers: [],
+        extractedEntries: [{ kind: "insight", content: `- delta from part ${i}` }],
+      });
+    const eggPartCompare = (i: number) =>
+      JSON.stringify({
         novelDelta: [{ parent: "", content: `- delta from part ${i}` }],
         rejected: false,
         readVerdict: true,
         readVerdictReason: "novel",
       });
+
     return [
       contentPart(1), contentPart(2), contentPart(3),
       JSON.stringify({
@@ -425,14 +440,18 @@ describe("AIProcessor.analyze (chunked)", () => {
         coreSummary: ["all-1", "all-2"],
         customQuestionAnswers: [{ question: "Q?", answer: "A" }],
       }),
-      eggPart(1), eggPart(2), eggPart(3),
+      // Egg A per-part: 3 extracts run concurrently, then 3 compares
+      eggPartExtract(1), eggPartExtract(2), eggPartExtract(3),
+      eggPartCompare(1), eggPartCompare(2), eggPartCompare(3),
       JSON.stringify({
         keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         rejected: false,
         readVerdict: true,
         readVerdictReason: "adds insight",
       }),
-      eggPart(1), eggPart(2), eggPart(3),
+      // Egg B per-part: 3 extracts run concurrently, then 3 compares
+      eggPartExtract(1), eggPartExtract(2), eggPartExtract(3),
+      eggPartCompare(1), eggPartCompare(2), eggPartCompare(3),
       JSON.stringify({
         keyQuestionAnswers: [],
         rejected: true,
@@ -455,7 +474,7 @@ describe("AIProcessor.analyze (chunked)", () => {
       { ...capture, content: longContent, questions: ["Q?"] },
       [egg("a.md"), egg("b.md")]
     );
-    assert.equal(calls, 12);
+    assert.equal(calls, 18);
     assert.equal(result.titleVerdict, "Overall verdict.");
     assert.deepEqual(result.coreSummary, ["all-1", "all-2"]);
     assert.equal(result.chapterMap.length, 3, "chapter maps unioned");
@@ -483,11 +502,11 @@ describe("AIProcessor.analyze (chunked)", () => {
     let calls = 0;
     const plugin = makeFakePlugin({
       aiClient: {
-        chat: async () => (calls++, "{}"),
+        chat: async () => (calls++, JSON.stringify({ titleVerdict: "V", coreSummary: [], extractedEntries: [] })),
       },
     });
     await new AIProcessor(plugin as any).analyze({ ...capture }, [egg("a.md")]);
-    assert.equal(calls, 1, "no chunking below the limit");
+    assert.equal(calls, 1, "no chunking below the limit (single egg extract with 0 entries)");
   });
 });
 
@@ -666,5 +685,85 @@ describe("AIProcessor prompt building helpers", () => {
       "## Custom\n1. a\n2. b"
     );
     assert.equal(p.questionsBlock([], "Custom"), "");
+  });
+});
+
+describe("EggParser prompt formatting (Step 1 vs Step 2)", () => {
+  const parser = new EggParser(makeFakePlugin() as any);
+  const testEgg = egg("test.md", {
+    scope: "Only AI engineering.",
+    keyQuestions: ["What architecture is used?"],
+    rejectionCriteria: ["Reject marketing hype."],
+    formattingRules: "Use - [tag] **Concept**.",
+    knowledge: "## AI\n- transformer\n",
+    unprocessed: "- candidate one\n",
+  });
+
+  it("formatEggInstructionsForPrompt includes only instructions (no knowledge or unprocessed)", () => {
+    const formatted = parser.formatEggInstructionsForPrompt(testEgg);
+    assert.ok(formatted.includes("**Scope:** Only AI engineering."));
+    assert.ok(formatted.includes("**Key Questions:**"));
+    assert.ok(formatted.includes("1. What architecture is used?"));
+    assert.ok(formatted.includes("**Rejection Criteria:**"));
+    assert.ok(formatted.includes("- Reject marketing hype."));
+    assert.ok(formatted.includes("**Formatting Rules:**\nUse - [tag] **Concept**."));
+    assert.ok(!formatted.includes("transformer"), "Current knowledge must NOT be in instructions");
+    assert.ok(!formatted.includes("candidate one"), "Unprocessed entries must NOT be in instructions");
+  });
+
+  it("formatEggKnowledgeForPrompt includes only knowledge tree and unprocessed", () => {
+    const formatted = parser.formatEggKnowledgeForPrompt(testEgg);
+    assert.ok(formatted.includes("**Current Knowledge:**\n## AI\n- transformer"));
+    assert.ok(formatted.includes("**Unprocessed (pending merge):**\n- candidate one"));
+    assert.ok(!formatted.includes("**Scope:**"), "Scope must not be in knowledge-only format");
+    assert.ok(!formatted.includes("**Key Questions:**"), "Key questions must not be in knowledge-only format");
+  });
+});
+
+describe("AIProcessor.compareEggKnowledge (Step 2)", () => {
+  it("short-circuits when extracted candidate entries are empty", async () => {
+    let calls = 0;
+    const plugin = makeFakePlugin({
+      aiClient: { chat: async () => (calls++, "{}") },
+    });
+    const p = new AIProcessor(plugin as any) as any;
+    const res = await p.compareEggKnowledge(
+      { title: "T", url: "U" },
+      egg("test.md"),
+      []
+    );
+    assert.equal(calls, 0);
+    assert.deepEqual(res.novelDelta, []);
+    assert.equal(res.readVerdict, false);
+    assert.ok(res.readVerdictReason.includes("No knowledge entries extracted"));
+  });
+
+  it("calls compare prompt and returns novel delta & verdict", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({
+            novelDelta: [{ parent: "## Existing", content: "- novel concept" }],
+            rejected: false,
+            readVerdict: true,
+            readVerdictReason: "Contains novel architecture insight",
+          });
+        },
+      },
+    });
+    const p = new AIProcessor(plugin as any) as any;
+    const res = await p.compareEggKnowledge(
+      { title: "Article", url: "https://example.com" },
+      egg("test.md", { knowledge: "## Existing\n- old" }),
+      [{ kind: "insight", content: "- novel concept" }]
+    );
+    assert.ok(capturedPrompt.includes("## Existing Knowledge in Egg"));
+    assert.ok(capturedPrompt.includes("## Existing\n- old"));
+    assert.ok(capturedPrompt.includes("- novel concept"));
+    assert.deepEqual(res.novelDelta, [{ parent: "## Existing", content: "- novel concept" }]);
+    assert.equal(res.readVerdict, true);
+    assert.equal(res.readVerdictReason, "Contains novel architecture insight");
   });
 });
