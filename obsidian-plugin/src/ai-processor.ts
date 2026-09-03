@@ -589,16 +589,14 @@ export class AIProcessor {
           delta: partEggs[i]?.novelDelta || [],
         }))
       );
-      // Union of per-part deltas (deduped — parts may re-find the same thing)
-      const seen = new Set<string>();
-      const novelDelta = partEggs
-        .flatMap((r) => r?.novelDelta || [])
-        .filter((d) => {
-          const key = `${d.parent}\n${d.content}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
+      // Synthesize cross-part findings:
+      // If aggregate call synthesized novelDelta across parts, use it.
+      // Otherwise, merge per-part deltas, preferring fuller explanations when a concept appears across parts.
+      const novelDelta =
+        aggregate.novelDelta && aggregate.novelDelta.length > 0
+          ? aggregate.novelDelta
+          : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
+
       eggResults.push({
         egg: egg.fileName,
         keyQuestionAnswers: aggregate.keyQuestionAnswers,
@@ -630,6 +628,44 @@ export class AIProcessor {
       eggResults,
       newKnowledge,
     };
+  }
+
+  /**
+   * Deduplicate and merge per-part deltas. When multiple parts report on the same concept,
+   * prefer the fuller, more comprehensive entry over a partial or stub mention.
+   */
+  private mergePerPartDeltas(deltas: NovelDelta[]): NovelDelta[] {
+    const conceptMap = new Map<string, NovelDelta>();
+    const result: NovelDelta[] = [];
+
+    for (const d of deltas) {
+      // Extract the concept name, e.g. from "- **Concept Name**: ..." or "- [tag] **Concept Name**: ..."
+      const match = d.content.match(/\*\*([^*]+)\*\*/);
+      const conceptKey = match ? match[1].trim().toLowerCase() : "";
+
+      if (!conceptKey) {
+        // No distinct concept header — dedup by exact parent + content
+        if (!result.some((r) => r.parent === d.parent && r.content === d.content)) {
+          result.push(d);
+        }
+        continue;
+      }
+
+      const existing = conceptMap.get(conceptKey);
+      if (!existing) {
+        conceptMap.set(conceptKey, d);
+        result.push(d);
+      } else if (d.content.length > existing.content.length) {
+        // Replace shorter/partial entry with the fuller explanation
+        const idx = result.indexOf(existing);
+        if (idx !== -1) {
+          result[idx] = d;
+        }
+        conceptMap.set(conceptKey, d);
+      }
+    }
+
+    return result;
   }
 
   /** Aggregate the per-part content summaries into one result. */
@@ -674,6 +710,7 @@ export class AIProcessor {
     egg: EggContent,
     chunkFindings: Array<{ part: number; startTime: string; delta: NovelDelta[] }>
   ): Promise<{
+    novelDelta?: NovelDelta[];
     keyQuestionAnswers: KeyAnswer[];
     rejected: boolean;
     rejectReason: string;
@@ -694,8 +731,18 @@ export class AIProcessor {
     });
 
     const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response, "aggregate-content");
+    const parsed = this.parseJson(response, "aggregate-egg");
+    const novelDelta = Array.isArray(parsed.novelDelta)
+      ? parsed.novelDelta
+          .filter((d: any) => d && d.content)
+          .map((d: any) => ({
+            parent: String(d.parent || ""),
+            content: String(d.content),
+          }))
+      : undefined;
+
     return {
+      novelDelta,
       keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
       rejected: parsed.rejected === true,
       rejectReason: String(parsed.rejectReason || ""),
@@ -809,9 +856,24 @@ export class AIProcessor {
     firstTsIdx: number,
     chapters: Array<{ time: string; title: string }>
   ): ContentChunk[] {
-    // Title/meta/description lines before the first caption — kept as the
-    // first chunk's preamble so the AI still gets the context.
-    const preamble = lines.slice(0, firstTsIdx).join("\n");
+    // Title/meta/description lines before the first caption
+    const preambleLines = lines.slice(0, firstTsIdx);
+    const filteredPreamble: string[] = [];
+    let inChaptersSection = false;
+    for (const line of preambleLines) {
+      if (line.trim().startsWith("## Chapters")) {
+        inChaptersSection = true;
+        continue;
+      }
+      if (inChaptersSection && line.trim().startsWith("#")) {
+        inChaptersSection = false;
+      }
+      if (!inChaptersSection) {
+        filteredPreamble.push(line);
+      }
+    }
+    const cleanPreamble = filteredPreamble.join("\n").trim();
+
     const units: Array<{ sec: number; line: string }> = [];
     let lastCaptionSec = 0;
     for (let i = firstTsIdx; i < lines.length; i++) {
@@ -850,8 +912,6 @@ export class AIProcessor {
       return this.paragraphChunks(lines.join("\n"), chapters);
     }
 
-    chunks[0].content = `${preamble}\n\n${chunks[0].content}`;
-
     // Attach each chapter to the chunk covering its start time
     const starts = chunks.map((c) => this.toSeconds(c.startTime));
     for (const ch of chapters) {
@@ -887,6 +947,11 @@ export class AIProcessor {
     chunks.forEach((c, i) => {
       c.index = i;
       c.total = chunks.length;
+      if (chunks.length === 1) {
+        c.content = `${preambleLines.join("\n")}\n\n${c.content}`;
+      } else if (cleanPreamble) {
+        c.content = `${cleanPreamble}\n\n${c.content}`;
+      }
     });
     return chunks;
   }

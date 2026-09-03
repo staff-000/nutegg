@@ -63,7 +63,7 @@ function extractGeneric() {
 
   return {
     url, title,
-    content: `# ${title}\n\n${truncate(mainContent, 15000)}`,
+    content: `# ${title}\n\n${truncate(mainContent, 60000)}`,
     sourceType: "webpage",
     metadata,
   };

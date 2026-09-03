@@ -54,17 +54,9 @@ function extractArticle() {
 
   const contentText = extractArticleText(articleEl);
 
-  // Extract headings for structure
-  const headings = articleEl.querySelectorAll("h1, h2, h3");
-  const headingStructure = [...headings]
-    .filter((h) => h.textContent?.trim())
-    .map((h) => `${"  ".repeat(Math.max(0, parseInt(h.tagName[1]) - 2))}- ${h.textContent.trim()}`)
-    .join("\n");
-
   const parts = [`# ${title}`];
   if (author) parts.push(`**Author:** ${author}`);
   if (published) parts.push(`**Published:** ${published}`);
-  if (headingStructure) parts.push(`\n## Structure\n\n${headingStructure}`);
   parts.push(`\n## Content\n\n${contentText}`);
 
   return {
@@ -112,7 +104,7 @@ function extractMedium(url, siteName) {
   const parts = [`# ${title}`];
   if (author) parts.push(`**Author:** ${author}`);
   if (published) parts.push(`**Published:** ${published}`);
-  parts.push(`\n## Content\n\n${truncate(contentText, 12000)}`);
+  parts.push(`\n## Content\n\n${truncate(contentText, 60000)}`);
 
   return {
     url, title,
@@ -139,5 +131,5 @@ function extractArticleText(article) {
   let text = clone.textContent || "";
   text = text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
     .replace(/^\s+|\s+$/gm, "").trim();
-  return truncate(text, 12000);
+  return truncate(text, 60000);
 }

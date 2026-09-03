@@ -612,7 +612,7 @@ IMPORTANT:
 `;
 
 // src/prompts/aggregate-egg.md
-var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n2. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n3. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
+var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
 
 // src/prompts/suggest-egg.md
 var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
@@ -1035,15 +1035,7 @@ ${e.content}`).join("\n\n"),
           delta: partEggs[i]?.novelDelta || []
         }))
       );
-      const seen = /* @__PURE__ */ new Set();
-      const novelDelta = partEggs.flatMap((r) => r?.novelDelta || []).filter((d) => {
-        const key = `${d.parent}
-${d.content}`;
-        if (seen.has(key))
-          return false;
-        seen.add(key);
-        return true;
-      });
+      const novelDelta = aggregate.novelDelta && aggregate.novelDelta.length > 0 ? aggregate.novelDelta : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
       eggResults.push({
         egg: egg2.fileName,
         keyQuestionAnswers: aggregate.keyQuestionAnswers,
@@ -1073,6 +1065,36 @@ ${d.content}`;
       eggResults,
       newKnowledge
     };
+  }
+  /**
+   * Deduplicate and merge per-part deltas. When multiple parts report on the same concept,
+   * prefer the fuller, more comprehensive entry over a partial or stub mention.
+   */
+  mergePerPartDeltas(deltas) {
+    const conceptMap = /* @__PURE__ */ new Map();
+    const result = [];
+    for (const d of deltas) {
+      const match = d.content.match(/\*\*([^*]+)\*\*/);
+      const conceptKey = match ? match[1].trim().toLowerCase() : "";
+      if (!conceptKey) {
+        if (!result.some((r) => r.parent === d.parent && r.content === d.content)) {
+          result.push(d);
+        }
+        continue;
+      }
+      const existing = conceptMap.get(conceptKey);
+      if (!existing) {
+        conceptMap.set(conceptKey, d);
+        result.push(d);
+      } else if (d.content.length > existing.content.length) {
+        const idx = result.indexOf(existing);
+        if (idx !== -1) {
+          result[idx] = d;
+        }
+        conceptMap.set(conceptKey, d);
+      }
+    }
+    return result;
   }
   /** Aggregate the per-part content summaries into one result. */
   async aggregateContent(capture2, chunkSummaries) {
@@ -1113,8 +1135,13 @@ ${delta || "- (no novel delta)"}`;
       grounding_rule: GROUNDING_RULE
     });
     const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response, "aggregate-content");
+    const parsed = this.parseJson(response, "aggregate-egg");
+    const novelDelta = Array.isArray(parsed.novelDelta) ? parsed.novelDelta.filter((d) => d && d.content).map((d) => ({
+      parent: String(d.parent || ""),
+      content: String(d.content)
+    })) : void 0;
     return {
+      novelDelta,
       keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
       rejected: parsed.rejected === true,
       rejectReason: String(parsed.rejectReason || ""),
@@ -1210,7 +1237,22 @@ ${delta || "- (no novel delta)"}`;
     return chunks;
   }
   timestampedChunks(lines, firstTsIdx, chapters) {
-    const preamble = lines.slice(0, firstTsIdx).join("\n");
+    const preambleLines = lines.slice(0, firstTsIdx);
+    const filteredPreamble = [];
+    let inChaptersSection = false;
+    for (const line of preambleLines) {
+      if (line.trim().startsWith("## Chapters")) {
+        inChaptersSection = true;
+        continue;
+      }
+      if (inChaptersSection && line.trim().startsWith("#")) {
+        inChaptersSection = false;
+      }
+      if (!inChaptersSection) {
+        filteredPreamble.push(line);
+      }
+    }
+    const cleanPreamble = filteredPreamble.join("\n").trim();
     const units = [];
     let lastCaptionSec = 0;
     for (let i = firstTsIdx; i < lines.length; i++) {
@@ -1250,9 +1292,6 @@ ${delta || "- (no novel delta)"}`;
     if (chunks.length === 0) {
       return this.paragraphChunks(lines.join("\n"), chapters);
     }
-    chunks[0].content = `${preamble}
-
-${chunks[0].content}`;
     const starts = chunks.map((c) => this.toSeconds(c.startTime));
     for (const ch of chapters) {
       const t = this.toSeconds(ch.time);
@@ -1281,6 +1320,15 @@ ${chunks[0].content}`;
     chunks.forEach((c, i) => {
       c.index = i;
       c.total = chunks.length;
+      if (chunks.length === 1) {
+        c.content = `${preambleLines.join("\n")}
+
+${c.content}`;
+      } else if (cleanPreamble) {
+        c.content = `${cleanPreamble}
+
+${c.content}`;
+      }
     });
     return chunks;
   }
