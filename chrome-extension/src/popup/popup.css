@@ -1,4 +1,10 @@
-/* NutEgg Popup Styles */
+:root {
+  --primary: #a8561e;
+  --primary-hover: #8c4414;
+  --primary-light: #fdf6ed;
+  --primary-border: #ebd6b7;
+  --primary-text: #8c4414;
+}
 
 * {
   margin: 0;
@@ -164,7 +170,7 @@ body {
 
 .reanalyze-btn {
   padding: 4px 10px;
-  background: #7c3aed;
+  background: var(--primary, #a8561e);
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -174,7 +180,7 @@ body {
   white-space: nowrap;
 }
 
-.reanalyze-btn:hover:not(:disabled) { background: #6d28d9; }
+.reanalyze-btn:hover:not(:disabled) { background: var(--primary-hover, #8c4414); }
 .reanalyze-btn:disabled { background: #d1d5db; cursor: not-allowed; }
 
 .history-select {
@@ -295,8 +301,8 @@ body {
   align-items: center;
   justify-content: space-between;
   background: #ffffff;
-  border: 1px solid #c4b5fd;
-  color: #7c3aed;
+  border: 1px solid var(--primary-border, #ebd6b7);
+  color: var(--primary, #a8561e);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -307,7 +313,7 @@ body {
 }
 
 .questions-toggle:hover {
-  background: #f5f3ff;
+  background: var(--primary-light, #fdf6ed);
 }
 
 .questions-toggle-chevron {
@@ -334,7 +340,7 @@ body {
 
 .questions-area textarea:focus {
   outline: none;
-  border-color: #7c3aed;
+  border-color: var(--primary, #a8561e);
 }
 
 /* Warning */
@@ -442,7 +448,7 @@ body {
 .analyze-btn {
   width: 100%;
   padding: 10px;
-  background: #7c3aed;
+  background: var(--primary, #a8561e);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -458,7 +464,7 @@ body {
 }
 
 .analyze-btn:hover:not(:disabled) {
-  background: #6d28d9;
+  background: var(--primary-hover, #8c4414);
 }
 
 .analyze-btn:disabled {
@@ -573,16 +579,16 @@ body {
 
 .chapter-clickable {
   cursor: pointer;
-  border-color: #c4b5fd;
+  border-color: var(--primary-border, #ebd6b7);
 }
 
 .chapter-clickable:hover {
-  background: #f5f3ff;
+  background: var(--primary-light, #fdf6ed);
 }
 
 .chapter-time {
   font-weight: 600;
-  color: #7c3aed;
+  color: var(--primary, #a8561e);
   margin-right: 6px;
 }
 
@@ -618,14 +624,14 @@ body {
 
 .followup-area input:focus {
   outline: none;
-  border-color: #7c3aed;
+  border-color: var(--primary, #a8561e);
 }
 
 .followup-btn {
   width: 64px;
   padding: 8px 0;
   text-align: center;
-  background: #7c3aed;
+  background: var(--primary, #a8561e);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -636,7 +642,7 @@ body {
 }
 
 .followup-btn:hover:not(:disabled) {
-  background: #6d28d9;
+  background: var(--primary-hover, #8c4414);
 }
 
 .followup-btn:disabled {
@@ -662,7 +668,7 @@ body {
 .knowledge-egg {
   font-size: 11px;
   font-weight: 600;
-  color: #7c3aed;
+  color: var(--primary, #a8561e);
   margin-bottom: 4px;
 }
 
@@ -846,7 +852,7 @@ body {
 
 .create-egg-box input:focus {
   outline: none;
-  border-color: #7c3aed;
+  border-color: var(--primary, #a8561e);
 }
 
 .confirm-btn.create-egg-btn {
@@ -891,7 +897,7 @@ body {
 
 .egg-row-name {
   font-weight: 600;
-  color: #7c3aed;
+  color: var(--primary, #a8561e);
   flex-shrink: 0;
 }
 
@@ -931,14 +937,14 @@ body {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
-  color: #7c3aed;
+  color: var(--primary, #a8561e);
   cursor: pointer;
   text-align: left;
 }
 
 .eggs-create-toggle:hover {
-  background: #f5f3ff;
-  border-color: #7c3aed;
+  background: var(--primary-light, #fdf6ed);
+  border-color: var(--primary, #a8561e);
 }
 
 /* Action Buttons */
@@ -953,7 +959,7 @@ body {
   min-width: 0;
   height: 38px;
   padding: 0 10px;
-  background: #7c3aed;
+  background: var(--primary, #a8561e);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -966,7 +972,7 @@ body {
 }
 
 .confirm-btn:hover:not(:disabled) {
-  background: #6d28d9;
+  background: var(--primary-hover, #8c4414);
 }
 
 .confirm-btn:disabled {
@@ -974,14 +980,14 @@ body {
   cursor: not-allowed;
 }
 
-.save-raw-btn {
+.collect-nut-btn {
   flex: 1;
   min-width: 0;
   height: 38px;
   padding: 0 10px;
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -989,10 +995,19 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: all 0.15s ease;
 }
 
-.save-raw-btn:hover:not(:disabled) { background: #dcfce7; }
-.save-raw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.collect-nut-btn:hover:not(:disabled) {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #78350f;
+}
+
+.collect-nut-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .discard-btn {
   padding: 10px 16px;

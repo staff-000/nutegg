@@ -70,7 +70,7 @@ const eggsNewName = document.getElementById("eggs-new-name");
 const eggsNewDesc = document.getElementById("eggs-new-desc");
 const eggsCreateBtn = document.getElementById("eggs-create-btn");
 const confirmBtn = document.getElementById("confirm-btn");
-const saveRawBtn = document.getElementById("save-raw-btn");
+const collectNutBtn = document.getElementById("collect-nut-btn");
 const discardBtn = document.getElementById("discard-btn");
 const backBtn = document.getElementById("back-btn");
 const successBanner = document.getElementById("success-banner");
@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   analyzeBtn.addEventListener("click", () => handleAnalyze(false));
   confirmBtn.addEventListener("click", handleConfirm);
-  saveRawBtn.addEventListener("click", handleSaveRaw);
+  collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
   backBtn.addEventListener("click", showCaptureState);
   settingsBtn.addEventListener("click", () => {
@@ -1047,11 +1047,11 @@ function showResultsState(result, provenance = null) {
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
   if (nutCollected) {
-    saveRawBtn.disabled = true;
-    saveRawBtn.textContent = "✅ Nut collected";
+    collectNutBtn.disabled = true;
+    collectNutBtn.textContent = "✅ Nut collected";
   } else {
-    saveRawBtn.disabled = false;
-    saveRawBtn.textContent = "🥜 Collect Nut";
+    collectNutBtn.disabled = false;
+    collectNutBtn.textContent = "🥜 Collect Nut";
   }
 
   const hasDelta = (analysisResult?.newKnowledge?.length || 0) > 0;
@@ -1264,8 +1264,8 @@ async function handleConfirm() {
 
 async function handleSaveRaw() {
   if (!extractedContent || nutCollected) return; // already collected — no duplicate work
-  saveRawBtn.disabled = true;
-  saveRawBtn.textContent = "Collecting...";
+  collectNutBtn.disabled = true;
+  collectNutBtn.textContent = "Collecting...";
   await doSave([]);
   updateActionButtons();
 }
