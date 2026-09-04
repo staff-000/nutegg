@@ -1,0 +1,110 @@
+name: Release Chrome Extension
+
+on:
+  push:
+    tags:
+      - 'chrome-v*'
+      - 'chrome-extension-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package & Push to Release Repository
+    runs-on: ubuntu-latest
+
+    env:
+      TARGET_REPO: ${{ github.repository_owner }}/nutegg-chrome-extension-release
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Determine Chrome Extension workspace
+        run: |
+          # Support both packages/chrome-extension and chrome-extension directory paths
+          if [ -d "packages/chrome-extension" ]; then
+            EXT_DIR="packages/chrome-extension"
+          else
+            EXT_DIR="chrome-extension"
+          fi
+          echo "EXT_DIR=$EXT_DIR" >> $GITHUB_ENV
+
+      - name: Verify extension files
+        run: |
+          echo "Verifying extension files in $EXT_DIR..."
+          if [ ! -f "$EXT_DIR/manifest.json" ]; then
+            echo "❌ Error: Missing $EXT_DIR/manifest.json"
+            exit 1
+          fi
+          if [ ! -d "$EXT_DIR/src" ]; then
+            echo "❌ Error: Missing $EXT_DIR/src directory"
+            exit 1
+          fi
+          echo "✅ Validated manifest.json and src directory."
+
+      - name: Checkout release repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          path: release-repo
+
+      - name: Package zip and push to release repository
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Extract clean version, e.g. chrome-extension-v1.0.0 or chrome-v1.0.0 -> 1.0.0
+          CLEAN_TAG="${TAG#chrome-extension-}"
+          VERSION="${CLEAN_TAG#chrome-v}"
+          RELEASE_TAG="v$VERSION"
+
+          ROOT_DIR="$(pwd)"
+          ZIP_NAME="nutegg-chrome-extension-${RELEASE_TAG}.zip"
+          ZIP_PATH="$ROOT_DIR/$ZIP_NAME"
+
+          echo "Preparing Chrome extension release for $TAG ($RELEASE_TAG)..."
+
+          # 1. Build standalone zip distribution artifact
+          (cd "$EXT_DIR" && zip -r "$ZIP_PATH" manifest.json icons src -x "*.DS_Store*")
+          echo "✅ Created $ZIP_NAME ($(wc -c < "$ZIP_PATH") bytes)"
+
+          # 2. Sync source files to release repository
+          rm -rf release-repo/src release-repo/icons
+          cp -r "$EXT_DIR/src" release-repo/
+          cp -r "$EXT_DIR/icons" release-repo/
+          cp "$EXT_DIR/manifest.json" release-repo/
+          [ -f "$EXT_DIR/package.json" ] && cp "$EXT_DIR/package.json" release-repo/
+
+          # 3. Commit and push to release repo
+          cd release-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add manifest.json src icons
+          [ -f package.json ] && git add package.json
+          
+          DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || echo "main")
+
+          if git diff --staged --quiet; then
+            echo "No changes in files to commit."
+          else
+            git commit -m "Release $TAG (version $VERSION)"
+            git push origin HEAD:"$DEFAULT_BRANCH"
+          fi
+
+          # Tag the release in the destination repository
+          git tag -fa "$RELEASE_TAG" -m "Release $RELEASE_TAG from $TAG"
+          git push origin "$RELEASE_TAG" --force
+
+          # 4. Create or update GitHub Release with zip asset attached
+          if command -v gh >/dev/null 2>&1 && [ -n "$GH_TOKEN" ]; then
+            echo "Publishing GitHub Release $RELEASE_TAG..."
+            gh release view "$RELEASE_TAG" >/dev/null 2>&1 && gh release delete "$RELEASE_TAG" --yes || true
+            gh release create "$RELEASE_TAG" \
+              "$ZIP_PATH" \
+              --title "NutEgg Chrome Extension $RELEASE_TAG" \
+              --notes "Automated release triggered by tag \`$TAG\` in [${{ github.repository }}](https://github.com/${{ github.repository }})." || echo "gh release create skipped or failed"
+          fi
