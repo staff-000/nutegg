@@ -66,7 +66,7 @@ jobs:
           echo "Preparing Chrome extension release for $TAG ($RELEASE_TAG)..."
 
           # 1. Build standalone zip distribution artifact
-          (cd "$EXT_DIR" && zip -r "$ZIP_PATH" manifest.json icons src -x "*.DS_Store*")
+          (cd "$EXT_DIR" && zip -r "$ZIP_PATH" manifest.json icons src $([ -f README.md ] && echo README.md) -x "*.DS_Store*")
           echo "✅ Created $ZIP_NAME ($(wc -c < "$ZIP_PATH") bytes)"
 
           # 2. Sync source files to release repository
@@ -75,6 +75,7 @@ jobs:
           cp -r "$EXT_DIR/icons" release-repo/
           cp "$EXT_DIR/manifest.json" release-repo/
           [ -f "$EXT_DIR/package.json" ] && cp "$EXT_DIR/package.json" release-repo/
+          [ -f "$EXT_DIR/README.md" ] && cp "$EXT_DIR/README.md" release-repo/
 
           # 3. Commit and push to release repo
           cd release-repo
@@ -83,6 +84,7 @@ jobs:
 
           git add manifest.json src icons
           [ -f package.json ] && git add package.json
+          [ -f README.md ] && git add README.md
           
           DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
           DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"

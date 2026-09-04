@@ -72,12 +72,14 @@ jobs:
           cp "$PLUGIN_DIR/main.js" release-repo/
           cp "$PLUGIN_DIR/manifest.json" release-repo/
           cp "$PLUGIN_DIR/styles.css" release-repo/
+          [ -f "$PLUGIN_DIR/README.md" ] && cp "$PLUGIN_DIR/README.md" release-repo/
 
           cd release-repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add main.js manifest.json styles.css
+          [ -f README.md ] && git add README.md
           
           DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
           DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
