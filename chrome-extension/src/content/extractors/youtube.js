@@ -179,15 +179,67 @@ function extractYouTubeMetadata(url) {
 }
 
 /**
+ * Query active caption tracks directly from `#movie_player` or
+ * `window.ytInitialPlayerResponse` via a nonce-authenticated page script.
+ * In YouTube, the player element holds live tracks (including auto-generated ASR).
+ */
+async function queryPlayerCaptionTracks() {
+  return new Promise((resolve) => {
+    const eventId = "nutegg_yt_tracks_" + Math.random().toString(36).slice(2);
+    const handler = (e) => {
+      window.removeEventListener(eventId, handler);
+      resolve(Array.isArray(e.detail) ? e.detail : []);
+    };
+    window.addEventListener(eventId, handler);
+
+    try {
+      const script = document.createElement("script");
+      const nonce =
+        document.querySelector("script[nonce]")?.nonce ||
+        document.querySelector("script[nonce]")?.getAttribute("nonce");
+      if (nonce) script.nonce = nonce;
+
+      script.textContent = `(() => {
+        try {
+          const player = document.querySelector('#movie_player');
+          let tracks = null;
+          if (player && typeof player.getOption === 'function') {
+            tracks = player.getOption('captions', 'tracklist');
+          }
+          if ((!tracks || !tracks.length) && player && typeof player.getPlayerResponse === 'function') {
+            tracks = player.getPlayerResponse()?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          }
+          if ((!tracks || !tracks.length) && window.ytInitialPlayerResponse) {
+            tracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+          }
+          window.dispatchEvent(new CustomEvent('${eventId}', { detail: tracks || [] }));
+        } catch (_) {
+          window.dispatchEvent(new CustomEvent('${eventId}', { detail: [] }));
+        }
+      })();`;
+
+      (document.head || document.documentElement).appendChild(script);
+      script.remove();
+    } catch (_) {
+      resolve([]);
+    }
+
+    setTimeout(() => {
+      window.removeEventListener(eventId, handler);
+      resolve([]);
+    }, 1000);
+  });
+}
+
+/**
  * Fetch YouTube captions via the timedtext API (no auth required).
  *
- * Four layers, in order:
+ * Five layers, in order:
  *   1. `captionTracks` scanned from the page's `<script>` tags & player response
- *   2. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
- *      (skipped when the player response parsed — it holds the same data)
- *   3. YouTube Innertube player API (`/youtubei/v1/player`) — fresh track
- *      URLs, plus tracks the page's player response omits
- *   4. The on-page transcript panel ("Show transcript" → segments)
+ *   2. Live player tracks from `#movie_player` (including auto-generated ASR)
+ *   3. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
+ *   4. YouTube Innertube player API (`/youtubei/v1/player`)
+ *   5. The on-page transcript panel ("Show transcript" → segments)
  *
  * Every network layer has a timeout — a stalled request must never hang
  * extraction. Each layer logs its outcome for debugging.
@@ -211,7 +263,28 @@ async function fetchYouTubeCaptions() {
     }
   }
 
-  // Layer 2: watch-page HTML — the raw string scan can find captionTracks
+  // Layer 2: live player tracks directly from page context (picks up generated ASR tracks)
+  try {
+    let playerTracks = await queryPlayerCaptionTracks();
+    if (!playerTracks?.length) {
+      // If player hasn't loaded captions yet, wake up subtitles via CC button if available
+      const ccBtn = document.querySelector(".ytp-subtitles-button");
+      if (ccBtn && ccBtn.getAttribute("aria-pressed") !== "true") {
+        ccBtn.click();
+        await new Promise((r) => setTimeout(r, 600));
+        playerTracks = await queryPlayerCaptionTracks();
+      }
+    }
+    if (playerTracks?.length) {
+      const transcript = await fetchTimedtext(playerTracks);
+      if (transcript) {
+        console.log(`[NutEgg] Captions: player tracks in ${Date.now() - started}ms`);
+        return transcript;
+      }
+    }
+  } catch {}
+
+  // Layer 3: watch-page HTML — the raw string scan can find captionTracks
   // that readYtVar missed (failed parse, renamed var, ...)
   if (!pr) {
     try {
@@ -240,7 +313,7 @@ async function fetchYouTubeCaptions() {
     }
   }
 
-  // Layer 3: Innertube player API — always worth one (timeout-bounded) call:
+  // Layer 4: Innertube player API — always worth one (timeout-bounded) call:
   // it can succeed even when the page's own tracks are missing or stale.
   try {
     const playerResp = await fetchInnertubePlayer(videoId);
@@ -257,7 +330,7 @@ async function fetchYouTubeCaptions() {
     // Fall through to transcript panel
   }
 
-  // Layer 4: the on-page transcript panel
+  // Layer 5: the on-page transcript panel ("Show transcript")
   const panel = await readTranscriptPanel();
   console.log(
     panel
@@ -336,9 +409,11 @@ async function fetchTimedtext(tracks) {
     tracks.find((t) => (t.languageCode || "").startsWith("en")) ||
     tracks.find((t) => t.kind !== "asr") ||
     tracks[0];
-  if (!pick?.baseUrl) return "";
+  if (!pick) return "";
+  const rawUrl = pick.baseUrl || pick.url;
+  if (!rawUrl) return "";
 
-  const baseUrl = pick.baseUrl.replace(/\\u0026/g, "&");
+  const baseUrl = rawUrl.replace(/\\u0026/g, "&");
   const urls = baseUrl.includes("fmt=")
     ? [baseUrl]
     : [`${baseUrl}&fmt=json3`, baseUrl, `${baseUrl}&fmt=srv3`];
@@ -611,39 +686,100 @@ function readYtInitialData() {
  */
 async function readTranscriptPanel() {
   try {
-    // 1. Try expanding the description first if it's collapsed
-    const expandBtn = document.querySelector(
-      "#description-inline-expander #expand, ytd-expander#description #expand, #expand-button"
-    );
-    if (expandBtn && expandBtn.offsetParent !== null) {
-      expandBtn.click();
-      await new Promise((r) => setTimeout(r, 300));
+    // 1. Expand the description if collapsed (YouTube lazy-renders the transcript button inside it)
+    const expandSelectors = [
+      "ytd-text-inline-expander #expand",
+      "#description-inline-expander #expand",
+      "ytd-expander#description #expand",
+      "#bottom-row #expand",
+      "#expand-sizer",
+      "#description #expand",
+      "tp-yt-paper-button#expand",
+    ];
+    for (const sel of expandSelectors) {
+      const el = document.querySelector(sel);
+      if (el && (el.offsetParent !== null || el.offsetWidth > 0)) {
+        el.click();
+        break;
+      }
     }
+    // Clicking #description directly also expands it on modern YouTube
+    const descEl = document.querySelector("#description.ytd-watch-metadata");
+    if (descEl && (descEl.hasAttribute("collapse") || descEl.getAttribute("aria-expanded") === "false")) {
+      descEl.click();
+    }
+    await new Promise((r) => setTimeout(r, 400));
 
     // 2. Find and click the transcript button
-    let button = document.querySelector(
-      "ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button"
-    );
+    let button =
+      document.querySelector("ytd-video-description-transcript-section-renderer button") ||
+      document.querySelector("ytd-video-description-transcript-section-renderer yt-button-shape button") ||
+      document.querySelector("ytd-video-description-transcript-section-renderer yt-button-shape") ||
+      document.querySelector("ytd-video-description-transcript-section-renderer") ||
+      document.querySelector("ytd-transcript-section-renderer button");
+
     if (!button) {
-      button = [...document.querySelectorAll("button")].find((b) => {
-        const label = (b.getAttribute("aria-label") || "").toLowerCase();
+      const candidates = [
+        ...document.querySelectorAll(
+          "button, yt-button-shape, ytd-button-renderer, tp-yt-paper-button, tp-yt-paper-item, ytd-menu-service-item-renderer"
+        ),
+      ];
+      button = candidates.find((b) => {
         const text = (b.textContent || "").trim().toLowerCase();
+        const aria = (b.getAttribute("aria-label") || "").toLowerCase();
+        const title = (b.getAttribute("title") || "").toLowerCase();
         return (
-          label.includes("transcript") ||
           text === "show transcript" ||
-          text.includes("transcript")
+          aria === "show transcript" ||
+          text.includes("show transcript") ||
+          aria.includes("show transcript") ||
+          title.includes("show transcript") ||
+          (text.includes("transcript") && !text.includes("close") && !text.includes("toggle"))
         );
       });
     }
-    if (button) button.click();
+
+    // 2b. If still not found, check the "..." overflow menu in the action bar
+    if (!button) {
+      const overflowBtn = document.querySelector(
+        "ytd-watch-metadata #actions ytd-menu-renderer yt-button-shape button, ytd-watch-metadata #actions button[aria-label='More actions'], ytd-watch-metadata #actions #button-shape button"
+      );
+      if (overflowBtn) {
+        overflowBtn.click();
+        await new Promise((r) => setTimeout(r, 350));
+        const menuItems = [
+          ...document.querySelectorAll(
+            "ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer, tp-yt-paper-item"
+          ),
+        ];
+        button = menuItems.find((item) =>
+          (item.textContent || "").toLowerCase().includes("transcript")
+        );
+      }
+    }
+
+    if (button) {
+      button.click();
+    }
+
+    // Also trigger engagement panel visibility directly if element is present in DOM
+    const panelEl = document.querySelector(
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]'
+    );
+    if (panelEl && panelEl.getAttribute("visibility") !== "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED") {
+      panelEl.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
+      if ("visibility" in panelEl) {
+        panelEl.visibility = "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED";
+      }
+    }
 
     // 3. Wait for transcript segment renderers to appear in the DOM
     const segments = await waitFor(() => {
       const els = document.querySelectorAll(
-        "ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer, ytd-transcript-segment-list-renderer [role='button']"
+        "ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer, ytd-transcript-search-panel-renderer ytd-transcript-segment-renderer, ytd-transcript-segment-list-renderer [role='button'], [target-id='engagement-panel-searchable-transcript'] ytd-transcript-segment-renderer"
       );
       return els.length > 0 ? els : null;
-    }, 4500);
+    }, 5000);
     if (!segments || segments.length === 0) return "";
 
     const lines = [...segments]
@@ -659,7 +795,7 @@ async function readTranscriptPanel() {
 
     // Restore the panel state when we opened it
     const closeBtn = document.querySelector(
-      "ytd-engagement-panel-title-header-renderer #close-button, ytd-engagement-panel-section-list-renderer #close-button"
+      "ytd-engagement-panel-section-list-renderer[target-id='engagement-panel-searchable-transcript'] #close-button, ytd-engagement-panel-title-header-renderer #close-button, ytd-engagement-panel-section-list-renderer #close-button"
     );
     closeBtn?.click();
 
