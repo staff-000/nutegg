@@ -3,7 +3,7 @@
   "name": "NutEgg",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Capture web content from Chrome, curate your knowledge base with AI assistance via Claude.",
+  "description": "Read less, hatch more. Capture web content, curate your knowledge base in Obsidian",
   "author": "",
   "authorUrl": "",
   "isDesktopOnly": true

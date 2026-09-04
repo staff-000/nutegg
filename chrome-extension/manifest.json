@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "NutEgg",
   "version": "1.0.0",
-  "description": "Capture web content and send it to your Obsidian knowledge base with AI-powered curation.",
+  "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian.",
   "permissions": [
     "activeTab",
     "storage",

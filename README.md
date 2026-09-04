@@ -1,8 +1,9 @@
 # 🥚 NutEgg
 
-**Capture web content. Curate knowledge. Save time.**
+**Read less, hatch more, save time.**
 
-NutEgg is a two-part system that helps you stop mindless browsing and start building your knowledge base:
+Nutegg captures web content, and curates knowledge in Obsidian.
+It is a two-part system that helps you stop mindless browsing and start building your knowledge base:
 
 - **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with captions)
 - **Obsidian Plugin** — Analyzes content with AI and maintains your knowledge base

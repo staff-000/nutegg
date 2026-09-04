@@ -10,7 +10,14 @@
 ## Build
 
 ```bash
+# From workspace root:
+npm run build                       # build all packages with build script
+npm run dev:plugin                  # watch mode for obsidian plugin
+
+# Or via deploy script:
 ./deploy.sh                         # build plugin + copy to vault
+
+# Or within obsidian-plugin/:
 cd obsidian-plugin && npm run build # tsc + esbuild
 npm run dev                         # watch mode
 ```
@@ -19,6 +26,11 @@ Chrome extension: no build — load unpacked from `chrome-extension/` at `chrome
 ## Testing
 
 ```bash
+# From workspace root:
+npm test                            # run tests across all workspace packages
+npm run test:plugin                 # run obsidian-plugin tests
+
+# Or within obsidian-plugin/:
 cd obsidian-plugin && npm test      # esbuild-bundle tests/*.test.ts → tests-dist/, run node --test
 node --test "tests-dist/*.test.js"  # re-run without rebundling
 ```

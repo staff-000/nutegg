@@ -1,7 +1,7 @@
 {
-  "name": "nutegg",
+  "name": "@nutegg/obsidian-plugin",
   "version": "1.0.0",
-  "description": "Capture web content, curate knowledge with AI assistance",
+  "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
