@@ -109,6 +109,12 @@ let preSelectedEggs = new Set();
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const versionTag = document.getElementById("version-tag");
+  if (versionTag) {
+    const version = chrome.runtime?.getManifest?.()?.version;
+    if (version) versionTag.textContent = `NutEgg v${version}`;
+  }
+
   analyzeBtn.addEventListener("click", () => handleAnalyze(false));
   confirmBtn.addEventListener("click", handleConfirm);
   saveRawBtn.addEventListener("click", handleSaveRaw);
