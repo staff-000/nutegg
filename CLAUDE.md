@@ -7,15 +7,20 @@
 - **Database** — Persistence goes through `node:sqlite` (`DatabaseSync`, built into Node ≥ 22.13 / Obsidian desktop ≥ 1.9). Schema lives in `db.ts` only. Node's bundled SQLite has **no FTS5** — keyword retrieval is JS BM25 over the corpus. `db.available` gates graceful degradation.
 - **No dynamic `import()` of node builtins or `obsidian`** — Obsidian's renderer blocks them (CORS fetch). Use CommonJS `require` for node builtins (see `db.ts`) and static imports for `obsidian`.
 
-## Build
+## Build & Deploy
 
 ```bash
 # From workspace root:
 npm run build                       # build all packages with build script
 npm run dev:plugin                  # watch mode for obsidian plugin
 
-# Or via deploy script:
-./deploy.sh                         # build plugin + copy to vault
+# Deploy to Obsidian vault:
+./deploy.sh                         # local build + copy to vault
+./deploy.sh --remote [version]      # download from remote release repo & sanity check
+
+# Release (tags, triggers GitHub Actions, and optionally deploys):
+./release.sh v0.0.1                 # publish release v0.0.1
+./release.sh v0.0.1 --deploy        # publish and run remote deploy sanity check
 
 # Or within obsidian-plugin/:
 cd obsidian-plugin && npm run build # tsc + esbuild
