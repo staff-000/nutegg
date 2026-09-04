@@ -1,0 +1,9 @@
+{
+  "name": "@nutegg/chrome-extension",
+  "version": "1.0.0",
+  "description": "NutEgg Chrome Extension — capture web content to Obsidian",
+  "private": true,
+  "scripts": {
+    "test": "echo \"No tests specified for chrome-extension\" && exit 0"
+  }
+}

@@ -56,9 +56,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          # Extract clean version, e.g. chrome-extension-v1.0.0 or chrome-v1.0.0 -> 1.0.0
-          CLEAN_TAG="${TAG#chrome-extension-}"
-          VERSION="${CLEAN_TAG#chrome-v}"
+          VERSION=$(echo "$TAG" | sed -E 's/^(obsidian|chrome-extension|chrome)-v?//')
           RELEASE_TAG="v$VERSION"
 
           ROOT_DIR="$(pwd)"
@@ -86,7 +84,8 @@ jobs:
           git add manifest.json src icons
           [ -f package.json ] && git add package.json
           
-          DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || echo "main")
+          DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
+          DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 
           if git diff --staged --quiet; then
             echo "No changes in files to commit."

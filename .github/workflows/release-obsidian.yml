@@ -27,7 +27,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci || npm install
+        run: npm install
 
       - name: Determine Obsidian workspace & compile
         run: |
@@ -40,11 +40,7 @@ jobs:
           echo "PLUGIN_DIR=$PLUGIN_DIR" >> $GITHUB_ENV
 
           echo "Compiling Obsidian plugin in $PLUGIN_DIR..."
-          if npm run --workspaces | grep -q "build"; then
-            npm run build:plugin || (cd "$PLUGIN_DIR" && npm run build)
-          else
-            (cd "$PLUGIN_DIR" && npm run build)
-          fi
+          npm run build:plugin || (cd "$PLUGIN_DIR" && npm run build)
 
       - name: Verify build artifacts
         run: |
@@ -69,8 +65,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          # Extract clean version, e.g. obsidian-v1.0.0 -> 1.0.0
-          VERSION="${TAG#obsidian-v}"
+          VERSION=$(echo "$TAG" | sed -E 's/^(obsidian|chrome-extension|chrome)-v?//')
           RELEASE_TAG="v$VERSION"
 
           echo "Syncing artifacts to $TARGET_REPO for $TAG ($RELEASE_TAG)..."
@@ -84,8 +79,8 @@ jobs:
 
           git add main.js manifest.json styles.css
           
-          # Detect default branch (main/master)
-          DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || echo "main")
+          DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
+          DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
           
           if git diff --staged --quiet; then
             echo "No changes in files to commit."
