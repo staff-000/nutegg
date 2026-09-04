@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NutEgg",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian.",
   "permissions": [
     "activeTab",
@@ -37,7 +37,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "src/content/utils.js",
         "src/content/extractors/youtube.js",
