@@ -129,6 +129,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       checkCreditStatus();
     });
   }
+  const statusIndicatorWrap = document.getElementById("status-indicator-wrap");
+  if (statusIndicatorWrap) {
+    statusIndicatorWrap.addEventListener("click", () => {
+      const title = document.getElementById("status-tooltip-title");
+      const sub = document.getElementById("status-tooltip-sub");
+      if (title) title.textContent = "Checking...";
+      if (sub) sub.textContent = "Connecting to Obsidian...";
+      checkServerStatus();
+    });
+  }
   questionsToggle.addEventListener("click", () => {
     questionsArea.classList.toggle("hidden");
   });
@@ -526,12 +536,31 @@ async function checkServerStatus() {
 
   if (serverOnline) {
     serverStatus.className = "status-dot online";
-    serverStatus.title = "Obsidian server is online";
+    updateServerStatusTooltip(true);
     checkCreditStatus();
   } else {
     serverStatus.className = "status-dot offline";
-    serverStatus.title = "Obsidian server is offline — start Obsidian with NutEgg";
+    updateServerStatusTooltip(false);
     aiCreditPill?.classList.add("hidden");
+  }
+}
+
+function updateServerStatusTooltip(isOnline) {
+  const tooltip = document.getElementById("server-status-tooltip");
+  const title = document.getElementById("status-tooltip-title");
+  const sub = document.getElementById("status-tooltip-sub");
+  if (!tooltip || !title || !sub) return;
+
+  if (isOnline) {
+    tooltip.className = "status-tooltip online";
+    title.textContent = "Obsidian is online";
+    sub.textContent = "Ready to capture";
+    serverStatus.setAttribute("aria-label", "Obsidian is online");
+  } else {
+    tooltip.className = "status-tooltip offline";
+    title.textContent = "Obsidian is offline";
+    sub.textContent = "Start Obsidian with NutEgg";
+    serverStatus.setAttribute("aria-label", "Obsidian is offline. Start Obsidian with NutEgg");
   }
 }
 

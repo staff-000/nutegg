@@ -17,7 +17,13 @@
             <span class="ai-credit-icon">🪙</span>
             <span id="ai-credit-text">AI Credit</span>
           </div>
-          <span id="server-status" class="status-dot offline" title="Obsidian server status"></span>
+          <div class="status-indicator-wrap" id="status-indicator-wrap" role="status">
+            <span id="server-status" class="status-dot offline" aria-label="Obsidian is offline"></span>
+            <div id="server-status-tooltip" class="status-tooltip offline">
+              <div class="status-tooltip-title" id="status-tooltip-title">Obsidian is offline</div>
+              <div class="status-tooltip-sub" id="status-tooltip-sub">Start Obsidian with NutEgg</div>
+            </div>
+          </div>
           <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Settings">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3"></circle>
