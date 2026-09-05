@@ -1,23 +1,34 @@
-# 🥚 NutEgg
+# 🌰/🥚 NutEgg
 
 **Read less, hatch more, save time.**
 
 Nutegg captures web content, and curates knowledge in Obsidian.
 It is a two-part system that helps you stop mindless browsing and start building your knowledge base:
+NutEgg captures web content and curates structured knowledge in Obsidian.
+It is a two-part system that helps you stop mindless browsing and start building your personal knowledge base:
 
-- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with captions)
-- **Obsidian Plugin** — Analyzes content with AI and maintains your knowledge base
+- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with captions). We call these raw contents nuts 🌰. 
+- **Obsidian Plugin** — Analyzes content with AI and maintains your knowledge base. We call these organized knowledge eggs 🥚.
+- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰. 
+- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge  **eggs** 🥚.
 
 ## How It Works
 
 ```
-Browse Web  →  Click Analyze  →  AI Processes  →  Confirm →  Knowledge Base in Obsidian
+Browse Web  →  Click Analyze  →  AI Processes  →  Read/Hatch/Collect/Skip →  Knowledge Base in Obsidian
+Browse Web  →  Click Analyze  →  AI Processes  →  Hatch / Collect / Skip  →  Obsidian Knowledge Vault
 ```
 
-1. Click the NutEgg extension on any page
+1. Click the 🌰/🥚 NutEgg extension on any page
 2. Click **Analyze** — the AI reads your egg index and existing knowledge
 3. See a 3-line summary + "Should you read it?" verdict + what new knowledge it found
-4. Click **Add to Knowledge Base** to save — nuts go to `nutegg/_raw/`, insights go to your egg files
+4. Click **Add to Knowledge Base** to save — 🌰 nuts go to `nutegg/_raw/`, insights go to your 🥚 egg files
+1. Click the **NutEgg** extension icon on any webpage.
+2. Click **Analyze** — the AI evaluates the content against your egg index and existing knowledge trees.
+3. Review the 3-sentence summary, "Should You Read It?" verdict, and highlighted new insights vs. already-known concepts.
+4. Take action:
+   - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file. 🌰 Nuts are also collected when clicked.
+   - **🌰 Collect Nut**: Saves a raw markdown copy with metadata into your vault archive (`nutegg/_raw/`).
 
 ## Vault Structure
 
@@ -80,7 +91,7 @@ nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
 
 `YYYY-MM-DD-HH-MM-<sourceType>-<author>-<title>.md`
 
-## Setup
+## Setup from source
 
 ### 1. Obsidian Plugin
 
