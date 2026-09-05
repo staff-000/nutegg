@@ -112,7 +112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const versionTag = document.getElementById("version-tag");
   if (versionTag) {
     const version = chrome.runtime?.getManifest?.()?.version;
-    if (version) versionTag.textContent = `NutEgg v${version}`;
+    if (version) versionTag.textContent = `NutEgg ${version}`;
   }
 
   analyzeBtn.addEventListener("click", () => handleAnalyze(false));

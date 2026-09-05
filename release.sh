@@ -8,9 +8,9 @@ set -euo pipefail
 #   ./release.sh <version> [--deploy] [--vault <path>]
 #
 # Examples:
-#   ./release.sh v0.0.1
-#   ./release.sh v0.0.1 --deploy
-#   ./release.sh 0.0.1 --deploy --vault "/path/to/vault"
+#   ./release.sh 0.0.4
+#   ./release.sh 0.0.4 --deploy
+#   ./release.sh 0.0.4 --deploy --vault "/path/to/vault"
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,16 +27,16 @@ if [[ $# -lt 1 ]]; then
   echo "  ./release.sh <version> [--deploy] [--vault <path>]"
   echo ""
   echo "Example:"
-  echo "  ./release.sh v0.0.1 --deploy"
+  echo "  ./release.sh 0.0.4 --deploy"
   exit 1
 fi
 
 INPUT_VERSION="$1"
 shift
 
-# Normalize version: v0.0.1 -> 0.0.1, 0.0.1 -> 0.0.1
+# Normalize version: strip leading v if provided (e.g. v0.0.4 -> 0.0.4, 0.0.4 -> 0.0.4)
 CLEAN_VERSION="${INPUT_VERSION#v}"
-TAG="v${CLEAN_VERSION}"
+TAG="${CLEAN_VERSION}"
 
 DO_DEPLOY=false
 VAULT_ARG=""

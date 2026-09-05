@@ -3,8 +3,8 @@ name: Release Chrome Extension
 on:
   push:
     tags:
-      - 'chrome-v*'
-      - 'chrome-extension-v*'
+      - 'chrome-*'
+      - 'chrome-extension-*'
 
 permissions:
   contents: write
@@ -57,7 +57,7 @@ jobs:
         run: |
           TAG="${{ github.ref_name }}"
           VERSION=$(echo "$TAG" | sed -E 's/^(obsidian|chrome-extension|chrome)-v?//')
-          RELEASE_TAG="v$VERSION"
+          RELEASE_TAG="$VERSION"
 
           ROOT_DIR="$(pwd)"
           ZIP_NAME="nutegg-chrome-extension-${RELEASE_TAG}.zip"

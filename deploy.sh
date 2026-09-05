@@ -12,7 +12,7 @@ set -euo pipefail
 # Usage:
 #   ./deploy.sh                          # local build & deploy
 #   ./deploy.sh --remote                 # deploy latest remote release
-#   ./deploy.sh --remote v0.0.1          # deploy specific remote version
+#   ./deploy.sh --remote 0.0.4           # deploy specific remote version
 #   ./deploy.sh --vault "/path/to/vault" # specify custom vault
 # ============================================================
 
@@ -105,10 +105,10 @@ if [[ "$REMOTE_MODE" == true ]]; then
   # Resolve target tag
   if [[ -n "$REMOTE_VERSION" ]]; then
     CLEAN_VER="${REMOTE_VERSION#v}"
-    TAG="v$CLEAN_VER"
+    TAG="$CLEAN_VER"
   else
     echo "🔎 Discovering latest release from $REPO_OWNER/$REPO_OBSIDIAN..."
-    TAG=$(gh release view --repo "$REPO_OWNER/$REPO_OBSIDIAN" --json tagName -q .tagName 2>/dev/null || echo "v0.0.0")
+    TAG=$(gh release view --repo "$REPO_OWNER/$REPO_OBSIDIAN" --json tagName -q .tagName 2>/dev/null || echo "0.0.0")
   fi
 
   echo "⬇️  Fetching Obsidian release '$TAG' from $REPO_OWNER/$REPO_OBSIDIAN..."

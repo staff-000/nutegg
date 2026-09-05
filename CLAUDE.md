@@ -19,8 +19,8 @@ npm run dev:plugin                  # watch mode for obsidian plugin
 ./deploy.sh --remote [version]      # download from remote release repo & sanity check
 
 # Release (tags, triggers GitHub Actions, and optionally deploys):
-./release.sh v0.0.1                 # publish release v0.0.1
-./release.sh v0.0.1 --deploy        # publish and run remote deploy sanity check
+./release.sh 0.0.4                  # publish release 0.0.4
+./release.sh 0.0.4 --deploy         # publish and run remote deploy sanity check
 
 # Or within obsidian-plugin/:
 cd obsidian-plugin && npm run build # tsc + esbuild
