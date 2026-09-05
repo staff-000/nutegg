@@ -1,6 +1,6 @@
 {
   "name": "@nutegg/obsidian-plugin",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian",
   "main": "main.js",
   "scripts": {

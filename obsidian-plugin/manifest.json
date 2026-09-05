@@ -1,7 +1,7 @@
 {
   "id": "nutegg",
   "name": "NutEgg",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "minAppVersion": "1.5.0",
   "description": "Read less, hatch more. Capture web content, curate your knowledge base in Obsidian",
   "author": "",
