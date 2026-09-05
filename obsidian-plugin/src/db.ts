@@ -191,6 +191,15 @@ export class NutEggDatabase {
     return rows.map((r) => this.mapRow(r));
   }
 
+  /** Captures of a URL matching a LIKE pattern (e.g. YouTube video ID or status ID). */
+  getNutHistoryByPattern(pattern: string): NutRow[] {
+    if (!this.db) return [];
+    const rows = this.db
+      .prepare("SELECT * FROM nuts WHERE url LIKE ? ORDER BY id DESC")
+      .all(pattern) as Array<Record<string, any>>;
+    return rows.map((r) => this.mapRow(r));
+  }
+
   getNutById(id: number): NutRow | null {
     if (!this.db) return null;
     const row = this.db

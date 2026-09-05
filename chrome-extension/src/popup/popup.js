@@ -119,7 +119,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   confirmBtn.addEventListener("click", handleConfirm);
   collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
-  backBtn.addEventListener("click", showCaptureState);
+  backBtn.addEventListener("click", () => {
+    showCaptureState();
+    if (!extractedContent) {
+      extractPageContent();
+    }
+  });
   settingsBtn.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
@@ -227,11 +232,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 let refreshSeq = 0;
 
 /**
- * Re-run the capture flow for the currently active tab: reset state, extract
- * content, then show the cached result when the URL was processed before.
+ * Re-run the capture flow for the currently active tab: reset state, check if
+ * content has been captured before, and retrieve fresh content if needed.
  * `refreshSeq` guards against interleaved refreshes on rapid tab switches.
  */
-async function refreshForCurrentTab() {
+async function refreshForCurrentTab(forceExtract = false) {
   const seq = ++refreshSeq;
   customQuestionsEl.value = "";
   followupInput.value = "";
@@ -245,12 +250,42 @@ async function refreshForCurrentTab() {
   // (restricted page, PDF, ...), a stale url must not re-render old results
   // via loadHistoryIfAny or re-apply the old transcript warning.
   extractedContent = null;
-  showCaptureState();
   analyzeBtn.disabled = true;
   analyzeBtnText.textContent = "Analyze";
 
+  let tabUrl = "";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id != null) activeTabId = tab.id;
+    if (tab?.url) {
+      tabUrl = tab.url;
+      pageTitle.textContent = tab.title || "Loading...";
+      pageUrl.textContent = tab.url;
+      pageType.textContent = detectPageTypeFromUrl(tab.url);
+    }
+  } catch {}
+
+  if (seq !== refreshSeq) return;
+
   await checkServerStatus();
   if (seq !== refreshSeq) return;
+
+  // Check if this URL has been captured before — skip content retrieval if so!
+  if (!forceExtract && serverOnline && tabUrl) {
+    const captured = await loadHistoryIfAny(seq, tabUrl);
+    if (seq !== refreshSeq) return;
+    if (captured) {
+      await checkConfigStatus();
+      if (seq !== refreshSeq) return;
+      await fetchMetrics();
+      if (seq !== refreshSeq) return;
+      await fetchEggs();
+      return;
+    }
+  }
+
+  // Not captured before (or force-refresh requested) — show capture state and retrieve content
+  showCaptureState();
   await extractPageContent(seq);
   if (seq !== refreshSeq) return;
 
@@ -265,15 +300,17 @@ async function refreshForCurrentTab() {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
     }
-    // If this URL was processed before, show the latest result immediately
-    await loadHistoryIfAny(seq);
+    // Fallback: check if the canonical/cleaned extracted URL has history
+    if (extractedContent?.url && extractedContent.url !== tabUrl) {
+      await loadHistoryIfAny(seq, extractedContent.url);
+    }
   }
 }
 
 /** 🔄 Refresh button — no-op while a retrieval is already in flight. */
 async function handleRefresh() {
   if (extractionPending) return; // still retrieving — do nothing
-  await refreshForCurrentTab();
+  await refreshForCurrentTab(true);
 }
 
 /** 🐣 Create an egg from the no-match form, then re-analyze against it. */
@@ -801,6 +838,11 @@ async function handleAnalyze(force = false, eggsOverride = null) {
     return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
   }
   if (!extractedContent) {
+    analyzeBtn.disabled = true;
+    analyzeBtnText.textContent = "Retrieving…";
+    await extractPageContent();
+  }
+  if (!extractedContent) {
     showError("Could not extract page content. Try refreshing.");
     return "Could not extract page content. Try refreshing.";
   }
@@ -1107,22 +1149,25 @@ function updateActionButtons() {
  * On popup open: if this URL has cached captures, show the latest result
  * without waiting for the user to click Analyze.
  */
-async function loadHistoryIfAny(seq = refreshSeq) {
-  if (!serverOnline || !extractedContent?.url) return;
+async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
+  const url = urlOverride || extractedContent?.url;
+  if (!serverOnline || !url) return false;
   try {
     const response = await chrome.runtime.sendMessage({
       action: "history",
-      url: extractedContent.url,
+      url,
     });
-    if (seq !== refreshSeq) return; // a newer tab refresh superseded this one
+    if (seq !== refreshSeq) return false; // a newer tab refresh superseded this one
     if (response?.history?.length) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
       analyzeBtnText.textContent = "🔄 Analyze Again";
+      return true;
     }
   } catch {
     // Server unreachable or no history — stay in capture state
   }
+  return false;
 }
 
 /** Show one cached capture (from history) with its capture timestamp. */
@@ -1197,10 +1242,13 @@ async function handleFollowUp() {
   renderCustomQuestions();
 
   try {
+    if (!extractedContent) {
+      await extractPageContent();
+    }
     const payload = {
-      url: extractedContent.url || "",
-      title: extractedContent.title || "",
-      content: extractedContent.content || "",
+      url: extractedContent?.url || analysisResult?.url || "",
+      title: extractedContent?.title || analysisResult?.title || "",
+      content: extractedContent?.content || "",
       sourceType: extractedContent.sourceType || "generic",
       questions: [q],
       priorQa: buildPriorQa(),
@@ -1283,6 +1331,11 @@ function showCaptureState() {
 
 async function handleConfirm() {
   if (!analysisResult || eggHatched || !(analysisResult.newKnowledge?.length)) return;
+  if (!extractedContent) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Retrieving…";
+    await extractPageContent();
+  }
   confirmBtn.disabled = true;
   confirmBtn.textContent = "Hatching...";
   await doSave(analysisResult.newKnowledge || []);
@@ -1292,7 +1345,16 @@ async function handleConfirm() {
 // --- Collect Nut (save content only, no knowledge additions) ---
 
 async function handleSaveRaw() {
-  if (!extractedContent || nutCollected) return; // already collected — no duplicate work
+  if (nutCollected) return; // already collected — no duplicate work
+  if (!extractedContent) {
+    collectNutBtn.disabled = true;
+    collectNutBtn.textContent = "Retrieving…";
+    await extractPageContent();
+  }
+  if (!extractedContent) {
+    showError("Could not extract page content to save.");
+    return;
+  }
   collectNutBtn.disabled = true;
   collectNutBtn.textContent = "Collecting...";
   await doSave([]);
@@ -1301,12 +1363,15 @@ async function handleSaveRaw() {
 
 async function doSave(newKnowledge) {
   try {
+    if (!extractedContent) {
+      await extractPageContent();
+    }
     const payload = {
-      url: extractedContent.url || "",
-      title: extractedContent.title || "",
-      content: extractedContent.content || "",
-      sourceType: extractedContent.sourceType || "generic",
-      metadata: extractedContent.metadata,
+      url: extractedContent?.url || analysisResult?.url || "",
+      title: extractedContent?.title || analysisResult?.title || "",
+      content: extractedContent?.content || "",
+      sourceType: extractedContent?.sourceType || "generic",
+      metadata: extractedContent?.metadata,
       summary: analysisResult?.summary || "",
       matchedEggs: analysisResult?.matchedEggs || [],
       newKnowledge,

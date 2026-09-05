@@ -5,6 +5,7 @@
   "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian.",
   "permissions": [
     "activeTab",
+    "tabs",
     "storage",
     "scripting",
     "sidePanel"

@@ -27,6 +27,34 @@ describe("NutEggServer.normalizeUrl", () => {
     const s = makeServer();
     assert.equal(s.normalizeUrl("not a url#frag/"), "not a url");
   });
+
+  it("normalizes YouTube watch, shorts, and youtu.be URLs to canonical watch URL", () => {
+    const s = makeServer();
+    assert.equal(
+      s.normalizeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&feature=youtu.be"),
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    );
+    assert.equal(
+      s.normalizeUrl("https://m.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123"),
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    );
+    assert.equal(
+      s.normalizeUrl("https://youtu.be/dQw4w9WgXcQ?t=10"),
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    );
+    assert.equal(
+      s.normalizeUrl("https://www.youtube.com/shorts/dQw4w9WgXcQ"),
+      "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    );
+  });
+
+  it("normalizes Twitter/X status URLs", () => {
+    const s = makeServer();
+    assert.equal(
+      s.normalizeUrl("https://twitter.com/elonmusk/status/123456789?s=20&t=abc"),
+      "https://x.com/elonmusk/status/123456789"
+    );
+  });
 });
 
 describe("NutEggServer.estimateTime", () => {

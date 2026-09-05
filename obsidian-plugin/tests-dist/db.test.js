@@ -151,6 +151,13 @@ var NutEggDatabase = class {
     const rows = this.db.prepare("SELECT * FROM nuts WHERE url = ? ORDER BY id DESC").all(url);
     return rows.map((r) => this.mapRow(r));
   }
+  /** Captures of a URL matching a LIKE pattern (e.g. YouTube video ID or status ID). */
+  getNutHistoryByPattern(pattern) {
+    if (!this.db)
+      return [];
+    const rows = this.db.prepare("SELECT * FROM nuts WHERE url LIKE ? ORDER BY id DESC").all(pattern);
+    return rows.map((r) => this.mapRow(r));
+  }
   getNutById(id) {
     if (!this.db)
       return null;

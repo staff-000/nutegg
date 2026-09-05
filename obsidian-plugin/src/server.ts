@@ -86,7 +86,27 @@ export class NutEggServer {
   private getCaptureHistory(url: string): CaptureEntry[] {
     const db = this.plugin.db;
     if (!db?.available) return [];
-    return db.getNutHistory(this.normalizeUrl(url)).map((row) => ({
+    const normalized = this.normalizeUrl(url);
+    let rows = db.getNutHistory(normalized);
+
+    // Fallback: If not found by exact normalized URL, match older captures in DB
+    if (rows.length === 0) {
+      const ytMatch = normalized.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+      if (ytMatch) {
+        const v = ytMatch[1];
+        rows = db.getNutHistoryByPattern(`%watch%v=${v}%`);
+        if (rows.length === 0) {
+          rows = db.getNutHistoryByPattern(`%youtu.be/${v}%`);
+        }
+      } else {
+        const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
+        if (twMatch) {
+          rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
+        }
+      }
+    }
+
+    return rows.map((row) => ({
       nutId: row.id,
       capturedAt: row.savedAt,
       saved:
@@ -119,13 +139,53 @@ export class NutEggServer {
         !f.path.endsWith("/_index.md")).length;
   }
 
-  /** Strip trailing slashes, fragment, and common tracking params. */
-  private normalizeUrl(url: string): string {
+  /** Strip trailing slashes, fragment, and common tracking/session params. */
+  normalizeUrl(url: string): string {
     try {
       const u = new URL(url);
       u.hash = "";
+
+      const hostname = u.hostname.toLowerCase();
+
+      // YouTube: normalize to https://www.youtube.com/watch?v=VIDEO_ID
+      if (
+        hostname === "youtube.com" ||
+        hostname === "www.youtube.com" ||
+        hostname === "m.youtube.com" ||
+        hostname === "music.youtube.com"
+      ) {
+        if (u.pathname === "/watch") {
+          const v = u.searchParams.get("v");
+          if (v) return `https://www.youtube.com/watch?v=${v}`;
+        } else if (u.pathname.startsWith("/shorts/")) {
+          const id = u.pathname.replace(/^\/shorts\//, "").split("/")[0]?.split("?")[0];
+          if (id) return `https://www.youtube.com/watch?v=${id}`;
+        }
+      } else if (hostname === "youtu.be") {
+        const id = u.pathname.replace(/^\//, "").split("/")[0]?.split("?")[0];
+        if (id) return `https://www.youtube.com/watch?v=${id}`;
+      }
+
+      // Twitter / X: normalize domain to x.com and strip tracking on tweet URLs
+      if (
+        hostname === "twitter.com" ||
+        hostname === "www.twitter.com" ||
+        hostname === "mobile.twitter.com" ||
+        hostname === "x.com" ||
+        hostname === "www.x.com"
+      ) {
+        u.hostname = "x.com";
+        if (/\/status\/\d+/.test(u.pathname)) {
+          u.search = "";
+          return u.toString().replace(/\/$/, "");
+        }
+      }
+
       // Common tracking params
-      const stripParams = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "source", "fbclid", "gclid"];
+      const stripParams = [
+        "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+        "ref", "source", "fbclid", "gclid", "si", "pp", "feature", "spm"
+      ];
       for (const p of stripParams) {
         u.searchParams.delete(p);
       }
