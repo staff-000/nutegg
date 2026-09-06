@@ -10,6 +10,8 @@ It is a two-part system that helps you stop mindless browsing and start building
 - **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰. 
 - **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
 
+> 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
+
 ---
 
 ## ✨ Features
@@ -31,6 +33,15 @@ It is a two-part system that helps you stop mindless browsing and start building
   - **🌰 Collect Nut**: Saves a clean, raw markdown copy of the web page or video transcript into your vault archive (`nutegg/_raw/`).
 - **Knowledge Tree Curation**:
   - Keeps knowledge organized by structuring new insights under matching concepts, filtering out duplicates, and maintaining clean topic trees.
+
+---
+
+## What You Should Not Expect
+
+1. **No magic**: You won't get smarter just by clicking a button. Truly mastering knowledge still requires active reading, critical thinking, and practice.
+2. **Built for fluff and clickbait, not structured textbooks**: NutEgg is designed to save you time on bloated clickbait videos, repetitive blog posts, and AI-generated articles puffed up from a few simple ideas. It is not intended for deeply structured long-form material like textbooks or online courses—doing so will give you fragmented knowledge snippets rather than an organized learning system.
+3. **Not tailored for entertainment**: NutEgg is built for information density and insight extraction, not for summarizing comedy, movies, or entertainment videos (though you may make custom prompts that might work).
+4. **Work in progress**: Support for podcasts, PDF files, and additional formats is actively in development.
 
 ---
 

@@ -2,33 +2,33 @@
 
 **Read less, hatch more, save time.**
 
-Nutegg captures web content, and curates knowledge in Obsidian.
-It is a two-part system that helps you stop mindless browsing and start building your knowledge base:
-NutEgg captures web content and curates structured knowledge in Obsidian.
-It is a two-part system that helps you stop mindless browsing and start building your personal knowledge base:
+NutEgg captures web content and curates structured knowledge in Obsidian. It is a two-part system designed to help you stop mindless browsing and start building your personal knowledge base:
 
-- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with captions). We call these raw contents nuts 🌰. 
-- **Obsidian Plugin** — Analyzes content with AI and maintains your knowledge base. We call these organized knowledge eggs 🥚.
-- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰. 
-- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge  **eggs** 🥚.
+- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰.
+- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+
+> 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 
 ## How It Works
 
 ```
-Browse Web  →  Click Analyze  →  AI Processes  →  Read/Hatch/Collect/Skip →  Knowledge Base in Obsidian
-Browse Web  →  Click Analyze  →  AI Processes  →  Hatch / Collect / Skip  →  Obsidian Knowledge Vault
+Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Skip  →  Obsidian Knowledge Vault
 ```
 
-1. Click the 🌰/🥚 NutEgg extension on any page
-2. Click **Analyze** — the AI reads your egg index and existing knowledge
-3. See a 3-line summary + "Should you read it?" verdict + what new knowledge it found
-4. Click **Add to Knowledge Base** to save — 🌰 nuts go to `nutegg/_raw/`, insights go to your 🥚 egg files
-1. Click the **NutEgg** extension icon on any webpage.
-2. Click **Analyze** — the AI evaluates the content against your egg index and existing knowledge trees.
-3. Review the 3-sentence summary, "Should You Read It?" verdict, and highlighted new insights vs. already-known concepts.
-4. Take action:
-   - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file. 🌰 Nuts are also collected when clicked.
+1. **Open NutEgg** — Click the extension icon on any webpage or video.
+2. **Retrieve Content** — Wait for page content to load in NutEgg. (If it ever gets stuck, click 🔄 to retry).
+3. **Click Analyze** — AI evaluates the content against your egg index and existing knowledge trees in Obsidian.
+4. **Review Results** — Check the 3-sentence summary, the "Should You Read It?" verdict, and highlighted new insights vs. already-known concepts.
+5. **Take Action**:
+   - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file (the raw 🌰 nut is also archived automatically).
    - **🌰 Collect Nut**: Saves a raw markdown copy with metadata into your vault archive (`nutegg/_raw/`).
+
+## What You Should Not Expect
+
+1. **No magic**: You won't get smarter just by clicking a button. Truly mastering knowledge still requires active reading, critical thinking, and practice.
+2. **Built for fluff and clickbait, not structured textbooks**: NutEgg is designed to save you time on bloated clickbait videos, repetitive blog posts, and AI-generated articles puffed up from a few simple ideas. It is not intended for deeply structured long-form material like textbooks or online courses—doing so will give you fragmented knowledge snippets rather than an organized learning system.
+3. **Not tailored for entertainment**: NutEgg is built for information density and insight extraction, not for summarizing comedy, movies, or entertainment videos (though you may make custom prompts that might work).
+4. **Work in progress**: Support for podcasts, PDF files, and additional formats is actively in development.
 
 ## Vault Structure
 
