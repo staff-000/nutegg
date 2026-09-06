@@ -74,3 +74,4 @@ We may update this Privacy Policy from time to time to reflect changes in functi
 If you have any questions, feedback, or concerns regarding this Privacy Policy or NutEgg's privacy practices, please contact us:
 * **Email**: [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com)
 * **GitHub Issues**: [https://github.com/staff-000/nutegg/issues](https://github.com/staff-000/nutegg/issues)
+
