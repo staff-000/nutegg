@@ -3,8 +3,7 @@ name: Release Chrome Extension
 on:
   push:
     tags:
-      - 'chrome-*'
-      - 'chrome-extension-*'
+      - 'nutegg-chrome-extension-*'
 
 permissions:
   contents: write
@@ -56,7 +55,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          VERSION=$(echo "$TAG" | sed -E 's/^(obsidian|chrome-extension|chrome)-v?//')
+          VERSION="${TAG#nutegg-chrome-extension-}"
           RELEASE_TAG="$VERSION"
 
           ROOT_DIR="$(pwd)"

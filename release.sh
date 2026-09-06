@@ -131,10 +131,10 @@ fi
 # --- 5. Create and push tags ---
 echo "🏷️  Tagging and pushing release triggers..."
 git tag -fa "$TAG" -m "Release $TAG"
-git tag -fa "obsidian-$TAG" -m "Release obsidian-$TAG"
-git tag -fa "chrome-extension-$TAG" -m "Release chrome-extension-$TAG"
-git push origin "$TAG" "obsidian-$TAG" "chrome-extension-$TAG" --force
-echo "   ✅ Tags pushed to GitHub ($TAG, obsidian-$TAG, chrome-extension-$TAG)"
+git tag -fa "nutegg-obsidian-plugin-$TAG" -m "Release nutegg-obsidian-plugin-$TAG"
+git tag -fa "nutegg-chrome-extension-$TAG" -m "Release nutegg-chrome-extension-$TAG"
+git push origin "$TAG" "nutegg-obsidian-plugin-$TAG" "nutegg-chrome-extension-$TAG" --force
+echo "   ✅ Tags pushed to GitHub ($TAG, nutegg-obsidian-plugin-$TAG, nutegg-chrome-extension-$TAG)"
 echo ""
 
 # --- 6. Create release on main repo ---

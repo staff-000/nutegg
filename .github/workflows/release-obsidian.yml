@@ -3,7 +3,7 @@ name: Release Obsidian Plugin
 on:
   push:
     tags:
-      - 'obsidian-*'
+      - 'nutegg-obsidian-plugin-*'
 
 permissions:
   contents: write
@@ -65,7 +65,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          VERSION=$(echo "$TAG" | sed -E 's/^(obsidian|chrome-extension|chrome)-v?//')
+          VERSION="${TAG#nutegg-obsidian-plugin-}"
           RELEASE_TAG="$VERSION"
 
           echo "Syncing artifacts to $TARGET_REPO for $TAG ($RELEASE_TAG)..."
