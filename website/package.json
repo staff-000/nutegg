@@ -1,0 +1,19 @@
+{
+  "name": "@nutegg/website",
+  "version": "0.0.5",
+  "description": "Official website and documentation for NutEgg",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js && npx --yes serve dist -l 3000"
+  },
+  "keywords": [
+    "nutegg",
+    "obsidian",
+    "chrome-extension",
+    "knowledge-management"
+  ],
+  "author": "Staff #000 <staffhacker.000@gmail.com>",
+  "license": "GPL-3.0"
+}
+

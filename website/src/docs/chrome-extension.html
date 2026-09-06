@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chrome Extension Guide — NutEgg</title>
+  <link rel="icon" type="image/png" href="../icons/icon32.png">
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+  <header class="docs-header">
+    <div class="docs-header-content">
+      <a href="../index.html" class="brand-link">
+        <img src="../icons/icon48.png" alt="NutEgg icon">
+        <span>NutEgg Docs</span>
+      </a>
+      <div class="header-nav">
+        <a href="../index.html">← Back to Website</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-container">
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">Getting Started</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Overview & Core Concepts</a></li>
+          <li><a href="chrome-extension.html" class="active">Chrome Extension</a></li>
+          <li><a href="obsidian-plugin.html">Obsidian Plugin</a></li>
+          <li><a href="knowledge-structuring.html">Knowledge Structuring</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">Resources</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/staff-000/nutegg-chrome-extension-release/releases" target="_blank" rel="noopener">Extension Releases</a></li>
+          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="docs-content">
+      <h1>Chrome Extension Setup & Usage</h1>
+      <p class="lead">
+        The NutEgg Chrome extension lives in your browser's side panel, providing on-demand content extraction, YouTube chapter maps, and one-click capture to Obsidian.
+      </p>
+
+      <h2>Installation</h2>
+
+      <h3>From GitHub Release (.zip)</h3>
+      <ol>
+        <li>Download the latest <code>nutegg-chrome-extension-*.zip</code> from the <a href="https://github.com/staff-000/nutegg-chrome-extension-release/releases" target="_blank" rel="noopener">Releases page</a>.</li>
+        <li>Unzip the archive to a local folder on your computer.</li>
+        <li>Open Google Chrome and go to <code>chrome://extensions</code>.</li>
+        <li>Toggle <strong>Developer mode</strong> on in the upper-right corner.</li>
+        <li>Click <strong>Load unpacked</strong> and select the unzipped directory containing <code>manifest.json</code>.</li>
+        <li>Click the puzzle icon in the Chrome toolbar and pin <strong>NutEgg</strong> for easy access.</li>
+      </ol>
+
+      <h2>Side Panel Workflow</h2>
+      <p>
+        Clicking the NutEgg extension icon opens Chrome's side panel:
+      </p>
+      <ul>
+        <li><strong>Auto-Extraction</strong>: As you browse, NutEgg detects the active tab (YouTube video, Twitter/X thread, or blog post) and extracts its text and structure.</li>
+        <li><strong>Status Indicator</strong>: A green dot indicates a healthy connection to your local Obsidian server (<code>127.0.0.1:27123</code>). If red, ensure Obsidian is running with the NutEgg plugin enabled.</li>
+        <li><strong>Retry Button (🔄)</strong>: If content loading ever gets stuck on dynamic single-page apps, click the refresh button to trigger a fresh extraction.</li>
+      </ul>
+
+      <h2>YouTube Integration</h2>
+      <p>
+        On YouTube video pages, NutEgg extracts:
+      </p>
+      <ul>
+        <li>Full video captions & transcripts (including auto-generated captions).</li>
+        <li>An interactive <strong>Chapter Map</strong> with clickable timestamp buttons that scrub your active YouTube video player directly to that segment.</li>
+        <li>Anti-clickbait verdict and summary answering what the video actually demonstrates.</li>
+      </ul>
+
+      <h2>Configuring Custom Ports</h2>
+      <p>
+        If port <code>27123</code> conflicts with another service on your machine:
+      </p>
+      <ol>
+        <li>Right-click the NutEgg extension icon and select <strong>Options</strong>.</li>
+        <li>Update the port number (e.g. <code>28123</code>).</li>
+        <li>Match the same port in your Obsidian Plugin settings and click <strong>Test Connection</strong>.</li>
+      </ol>
+    </main>
+  </div>
+
+</body>
+</html>
+

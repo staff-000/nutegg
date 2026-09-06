@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsidian Plugin Guide — NutEgg</title>
+  <link rel="icon" type="image/png" href="../icons/icon32.png">
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+  <header class="docs-header">
+    <div class="docs-header-content">
+      <a href="../index.html" class="brand-link">
+        <img src="../icons/icon48.png" alt="NutEgg icon">
+        <span>NutEgg Docs</span>
+      </a>
+      <div class="header-nav">
+        <a href="../index.html">← Back to Website</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-container">
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">Getting Started</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Overview & Core Concepts</a></li>
+          <li><a href="chrome-extension.html">Chrome Extension</a></li>
+          <li><a href="obsidian-plugin.html" class="active">Obsidian Plugin</a></li>
+          <li><a href="knowledge-structuring.html">Knowledge Structuring</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">Resources</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/staff-000/nutegg-obsidian-release/releases" target="_blank" rel="noopener">Plugin Releases</a></li>
+          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="docs-content">
+      <h1>Obsidian Plugin Setup & Configuration</h1>
+      <p class="lead">
+        The NutEgg Obsidian plugin hosts the local sync server, manages AI communication, matches incoming content to your knowledge trees, and maintains your vault files.
+      </p>
+
+      <h2>Installation</h2>
+
+      <h3>Option 1: Manual Installation (Recommended)</h3>
+      <ol>
+        <li>Download <code>main.js</code>, <code>manifest.json</code>, and <code>styles.css</code> from the <a href="https://github.com/staff-000/nutegg-obsidian-release/releases" target="_blank" rel="noopener">NutEgg Obsidian Plugin Releases</a>.</li>
+        <li>In your Obsidian vault, open <code>.obsidian/plugins/</code> (show hidden folders in your OS if needed).</li>
+        <li>Create a new directory named <code>nutegg</code> and place the three files inside:
+          <pre><code>your-vault/.obsidian/plugins/nutegg/
+├── main.js
+├── manifest.json
+└── styles.css</code></pre>
+        </li>
+        <li>In Obsidian, open <strong>Settings → Community plugins</strong>, click <strong>Reload</strong>, and toggle <strong>NutEgg</strong> on.</li>
+      </ol>
+
+      <h3>Option 2: Using BRAT</h3>
+      <ol>
+        <li>Install the <a href="https://github.com/tfthacker/obsidian42-brat" target="_blank" rel="noopener">BRAT</a> community plugin in Obsidian.</li>
+        <li>Go to <strong>Settings → BRAT → Add Beta plugin</strong>.</li>
+        <li>Enter <code>staff-000/nutegg-obsidian-release</code> and click <strong>Add Plugin</strong>.</li>
+        <li>Enable NutEgg once installed.</li>
+      </ol>
+
+      <h2>AI Provider Configuration</h2>
+      <p>
+        NutEgg puts you in complete control of your AI model and keys. In Obsidian, go to <strong>Settings → NutEgg</strong>:
+      </p>
+
+      <ul>
+        <li><strong>AI Provider</strong>: Select your preferred model provider:
+          <ul>
+            <li>Google Gemini (Flash, Pro)</li>
+            <li>Anthropic Claude (Haiku, Sonnet, Opus)</li>
+            <li>OpenAI (GPT-4o, GPT-4o-mini)</li>
+            <li>DeepSeek (V3, R1)</li>
+            <li>Kimi / Moonshot</li>
+            <li>Qwen</li>
+            <li>OpenRouter (allows routing to dozens of community & proprietary models)</li>
+          </ul>
+        </li>
+        <li><strong>API Source</strong>: Choose between official provider API or OpenRouter.</li>
+        <li><strong>API Key</strong>: Enter your private API key. It is saved securely in your Obsidian local storage and never leaves your machine except to contact your chosen provider.</li>
+      </ul>
+
+      <h2>Local Sync Server</h2>
+      <p>
+        When the plugin is enabled, it automatically boots a background HTTP listener on <code>127.0.0.1:27123</code>.
+      </p>
+      <div class="callout">
+        <div class="callout-title">🔒 Privacy Assurance</div>
+        <p>
+          The local server binds strictly to the localhost loopback address (<code>127.0.0.1</code>). It is completely inaccessible to other devices on your local network or the internet.
+        </p>
+      </div>
+    </main>
+  </div>
+
+</body>
+</html>
+

@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "chrome-extension",
-    "obsidian-plugin"
+    "obsidian-plugin",
+    "website"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -11,6 +12,9 @@
     "dev:plugin": "npm run dev --workspace=@nutegg/obsidian-plugin",
     "build:plugin": "npm run build --workspace=@nutegg/obsidian-plugin",
     "test:plugin": "npm run test --workspace=@nutegg/obsidian-plugin",
+    "build:website": "npm run build --workspace=@nutegg/website",
+    "dev:website": "./preview-website.sh",
+    "preview:website": "./preview-website.sh",
     "deploy": "./deploy.sh",
     "deploy:remote": "./deploy.sh --remote",
     "release": "./release.sh"

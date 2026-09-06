@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation Overview — NutEgg</title>
+  <link rel="icon" type="image/png" href="../icons/icon32.png">
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+  <header class="docs-header">
+    <div class="docs-header-content">
+      <a href="../index.html" class="brand-link">
+        <img src="../icons/icon48.png" alt="NutEgg icon">
+        <span>NutEgg Docs</span>
+      </a>
+      <div class="header-nav">
+        <a href="../index.html">← Back to Website</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-container">
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">Getting Started</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html" class="active">Overview & Core Concepts</a></li>
+          <li><a href="chrome-extension.html">Chrome Extension</a></li>
+          <li><a href="obsidian-plugin.html">Obsidian Plugin</a></li>
+          <li><a href="knowledge-structuring.html">Knowledge Structuring</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">Resources</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
+          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
+          <li><a href="https://github.com/staff-000/nutegg/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="docs-content">
+      <h1>Overview & Core Concepts</h1>
+      <p class="lead">
+        NutEgg is a local-first system designed to bridge the gap between passive web browsing and active knowledge curation in Obsidian.
+      </p>
+
+      <h2>The Metaphor</h2>
+      <p>
+        NutEgg structures your information flow using a simple three-part metaphor:
+      </p>
+
+      <ul>
+        <li><strong>🌰 The Nut (Raw Capture)</strong>: The raw web page, tweet thread, or YouTube transcript extracted from the browser. Nuts are archived untouched with full metadata into <code>nutegg/_raw/</code> in your vault.</li>
+        <li><strong>🥚 The Egg (Knowledge Tree)</strong>: A living, structured markdown note in your vault representing a domain of knowledge (e.g., <code>ai_architecture.md</code>, <code>invest_strategy.md</code>).</li>
+        <li><strong>🐣 The Hatch (Synthesis & Delta)</strong>: When content is analyzed, the AI matches it against your eggs, identifies what is novel compared to what is already documented, and weaves new insights into your egg.</li>
+      </ul>
+
+      <div class="callout">
+        <div class="callout-title">💡 Why NutEgg Exists</div>
+        <p>
+          Most web clippers dump raw articles into your vault, creating an unorganized graveyard of unread bookmarks. NutEgg checks novelty against your existing knowledge tree upfront, so you immediately know if an article is worth your time or if it's just repeating concepts you already know.
+        </p>
+      </div>
+
+      <h2>System Architecture</h2>
+      <p>
+        NutEgg consists of two decoupled components that communicate locally:
+      </p>
+      <ol>
+        <li><strong>Chrome Extension</strong>: Lives in Chrome's side panel. Interacts with the active tab, extracts text and video transcripts, and displays AI summaries and chapter maps.</li>
+        <li><strong>Obsidian Plugin</strong>: Runs a lightweight HTTP server on <code>127.0.0.1:27123</code>. Connects to your chosen AI provider using your own API key, reads your vault's <code>_index.md</code>, and saves files directly to disk.</li>
+      </ol>
+
+      <pre><code>Chrome Extension (Side Panel)
+         │
+         │  HTTP /analyze + /confirm (127.0.0.1:27123)
+         ▼
+Obsidian Plugin (Local Server)
+         ├── Evaluates against vault/nutegg/_index.md
+         ├── Queries AI Provider (Gemini / Claude / OpenAI / etc.)
+         └── Writes to vault/nutegg/_raw/ and vault/nutegg/&lt;egg&gt;.md</code></pre>
+
+      <h2>Quick Start Roadmap</h2>
+      <ol>
+        <li>Install and configure the <a href="obsidian-plugin.html">Obsidian Plugin</a> with your AI API key.</li>
+        <li>Install the <a href="chrome-extension.html">Chrome Extension</a>.</li>
+        <li>Define your first knowledge topics in <a href="knowledge-structuring.html">_index.md</a> and start hatching!</li>
+      </ol>
+    </main>
+  </div>
+
+</body>
+</html>
+

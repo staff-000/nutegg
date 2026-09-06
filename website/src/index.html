@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NutEgg — Read Less, Hatch More, Save Time</title>
+  <meta name="description" content="NutEgg captures web content and curates structured knowledge in Obsidian. Stop mindless browsing and build your personal knowledge trees.">
+  <link rel="icon" type="image/png" href="icons/icon32.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="container nav-content">
+      <a href="#" class="brand">
+        <img src="icons/icon48.png" alt="NutEgg" class="brand-icon">
+        <span>NutEgg</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#metaphor">The Metaphor</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#features">Features</a>
+        <a href="#expectations">Expectations</a>
+        <a href="docs/index.html">Documentation</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+        <a href="docs/index.html" class="nav-btn">Get Started</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container">
+        <div class="badge">
+          <span>🌰 Nuts: Raw Web Content</span>
+          <span>→</span>
+          <span>🥚 Eggs: Curated Knowledge</span>
+        </div>
+        <h1>Read Less. Hatch More.<br><span class="gradient-text">Save Time.</span></h1>
+        <p class="hero-subtitle">
+          NutEgg is the open-source, privacy-first bridge between web browsing and your Obsidian vault. Capture articles, tweets, and YouTube transcripts with AI novelty evaluation.
+        </p>
+
+        <div class="cta-group">
+          <a href="https://github.com/staff-000/nutegg-chrome-extension-release/releases" target="_blank" rel="noopener" class="btn-primary">
+            <span>🌐 Download Chrome Extension</span>
+          </a>
+          <a href="https://github.com/staff-000/nutegg-obsidian-release/releases" target="_blank" rel="noopener" class="btn-secondary">
+            <span>💎 Get Obsidian Plugin</span>
+          </a>
+          <a href="docs/index.html" class="btn-secondary">
+            <span>📖 Read Docs</span>
+          </a>
+        </div>
+
+        <!-- Visual Preview Simulation -->
+        <div class="preview-container">
+          <div class="preview-header">
+            <div class="dots">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+            </div>
+            <div class="preview-title">nutegg-sidepanel // active-tab: youtube.com/watch?v=...</div>
+          </div>
+          <div class="preview-body">
+            <!-- Left: Captured Raw Nut -->
+            <div class="preview-left">
+              <span class="tag-label tag-nut">🌰 Captured Nut (Raw Web Content)</span>
+              <div class="card-snippet">
+                <h4>"Why Most AI Agents Fail" — YouTube (24:12)</h4>
+                <p>Full 24-minute transcript extracted with 6 clickable chapter timestamps. Stripped of ads, sponsors, and filler intros.</p>
+                <div class="pill-verdict">
+                  <span>🎯 Anti-Clickbait Verdict:</span>
+                  <span>Missing evaluation loops cause context drift.</span>
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 10px;">
+                  Archived to: <code>nutegg/_raw/2026-09-06-ai-agents.md</code>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Knowledge Egg Diff -->
+            <div class="preview-right">
+              <span class="tag-label tag-egg">🥚 Obsidian Egg (Knowledge Tree)</span>
+              <div class="card-snippet">
+                <h4>Matching Tree: <code>nutegg/ai_architecture.md</code></h4>
+                <div class="insight-box">
+                  <div class="insight-title">✨ Novel Insight (Delta)</div>
+                  <div>"Multi-agent setups need bounded replay buffers rather than unbounded chat history."</div>
+                </div>
+                <div style="margin-top: 12px; font-size: 0.8rem; color: var(--success);">
+                  ✅ Filtered: "What is an LLM" (Already in your knowledge tree)
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 8px;">
+                  <button style="background: var(--egg-gradient); border: none; color: #fff; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
+                    🥚 Hatch into Obsidian
+                  </button>
+                  <button style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); color: var(--text-main); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem;">
+                    🌰 Collect Nut Only
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Metaphor Section -->
+    <section id="metaphor" class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>The Metaphor: Nuts & Eggs</h2>
+          <p>A sensible, intuitive mental model for personal knowledge management.</p>
+        </div>
+        <div class="metaphor-grid">
+          <div class="metaphor-card">
+            <span class="metaphor-icon">🌰</span>
+            <h3>The Nut: Raw Captures</h3>
+            <p>
+              Whenever you find an interesting article, tweet thread, or YouTube video, NutEgg extracts its raw content into a "nut". Complete with metadata, timestamps, and full context stored safely in <code>nutegg/_raw/</code>.
+            </p>
+          </div>
+          <div class="metaphor-card">
+            <span class="metaphor-icon">🥚</span>
+            <h3>The Egg: Structured Knowledge</h3>
+            <p>
+              An "egg" is a living, topic-specific knowledge tree in your Obsidian vault. Each egg contains defined scopes, key questions, and an organized hierarchy of concepts you actually care about.
+            </p>
+          </div>
+          <div class="metaphor-card">
+            <span class="metaphor-icon">🐣</span>
+            <h3>The Hatch: Novelty Synthesis</h3>
+            <p>
+              AI compares incoming nuts against your existing eggs. Instead of dumping duplicate notes into your vault, NutEgg isolates the novel deltas and weaves them directly into your knowledge structure.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>How It Works</h2>
+          <p>From browsing the open web to curated Obsidian knowledge in seconds.</p>
+        </div>
+        <div class="pipeline">
+          <div class="pipeline-step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4>Open NutEgg on Any Webpage</h4>
+              <p>Click the extension icon to summon the side panel. NutEgg automatically grabs the article text, X thread, or YouTube transcript for the active tab.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4>Instant Anti-Clickbait & Summary</h4>
+              <p>Get a direct 1-sentence answer to the title's hook, a 3-sentence executive summary, and an explicit "Should You Read It?" verdict.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4>AI Evaluates Against Your Existing Vault</h4>
+              <p>Your local Obsidian plugin matches the content against your <code>_index.md</code> eggs. It highlights truly new ideas while filtering out what you already know.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <h4>Hatch or Collect</h4>
+              <p>Click <strong>🥚 Hatch Egg</strong> to weave insights directly into your matching knowledge tree, or <strong>🌰 Collect Nut</strong> to archive the raw content for future reference.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>Built for Information Clarity</h2>
+          <p>Everything you need to beat digital overload and stop bookmark hoarding.</p>
+        </div>
+        <div class="features-grid">
+          <div class="feature-box">
+            <div class="feature-emoji">🎯</div>
+            <h3>Anti-Clickbait Verdicts</h3>
+            <p>Cuts through clickbait titles immediately by answering the headline's core question upfront so you don't waste 15 minutes finding it.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🎬</div>
+            <h3>Timestamped Chapter Maps</h3>
+            <p>Extracts full YouTube transcripts and interactive chapter buttons that let you jump to the exact moment in video playback with one click.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🔍</div>
+            <h3>Novelty-First AI Analysis</h3>
+            <p>Prevents redundant notes. Compares content against your existing knowledge and highlights only what's new and genuinely insightful.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🔒</div>
+            <h3>100% Local & Private</h3>
+            <p>No centralized servers. Your notes and browsing stay entirely on your machine. The Chrome extension talks directly to your local Obsidian app.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🤖</div>
+            <h3>Bring Your Own Model</h3>
+            <p>Works with Google Gemini, Anthropic Claude, OpenAI, DeepSeek, Kimi, Qwen, or OpenRouter using your own private API keys.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🔄</div>
+            <h3>Auto-Merge Knowledge Trees</h3>
+            <p>Accumulated raw insights are automatically structured and synthesized into clean branch hierarchies once threshold counts are reached.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Expectations Section -->
+    <section id="expectations" class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2>What You Should Not Expect</h2>
+          <p>Honest boundaries on where NutEgg excels and what it is not designed for.</p>
+        </div>
+        <div class="expectations-card">
+          <ul class="expectations-list">
+            <li>
+              <strong>No magic buttons:</strong> You won't get smarter just by clicking a button. Truly mastering knowledge still requires active reading, critical thinking, and deliberate practice.
+            </li>
+            <li>
+              <strong>Built for fluff & clickbait, not deep textbooks:</strong> NutEgg shines at saving time on bloated videos, repetitive posts, and AI-inflated articles. It is not intended for processing comprehensive textbooks or full online courses into instant expertise.
+            </li>
+            <li>
+              <strong>Not tailored for entertainment:</strong> NutEgg is built for density and insight extraction, not for summarizing comedy, films, or entertainment videos.
+            </li>
+            <li>
+              <strong>Work in progress:</strong> Support for podcasts, PDF files, and additional specialized extractors is actively under development.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Banner -->
+    <section class="container">
+      <div class="cta-banner">
+        <h2>Start Hatching Knowledge Today</h2>
+        <p>Take back your reading time and build an Obsidian knowledge base that actually grows with you.</p>
+        <div class="cta-group" style="margin-bottom: 0;">
+          <a href="docs/index.html" class="btn-primary">
+            <span>🚀 Get Started in 3 Minutes</span>
+          </a>
+          <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener" class="btn-secondary">
+            <span>⭐ Star on GitHub</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-content">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <img src="icons/icon16.png" alt="NutEgg icon">
+        <span>NutEgg — Read less, hatch more. GNU GPLv3 Licensed.</span>
+      </div>
+      <div class="footer-links">
+        <a href="docs/index.html">Docs</a>
+        <a href="docs/chrome-extension.html">Chrome Extension</a>
+        <a href="docs/obsidian-plugin.html">Obsidian Plugin</a>
+        <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
+

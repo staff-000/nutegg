@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Structuring & Eggs — NutEgg</title>
+  <link rel="icon" type="image/png" href="../icons/icon32.png">
+  <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+
+  <header class="docs-header">
+    <div class="docs-header-content">
+      <a href="../index.html" class="brand-link">
+        <img src="../icons/icon48.png" alt="NutEgg icon">
+        <span>NutEgg Docs</span>
+      </a>
+      <div class="header-nav">
+        <a href="../index.html">← Back to Website</a>
+        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-container">
+    <aside class="docs-sidebar">
+      <div class="sidebar-group">
+        <div class="sidebar-title">Getting Started</div>
+        <ul class="sidebar-links">
+          <li><a href="index.html">Overview & Core Concepts</a></li>
+          <li><a href="chrome-extension.html">Chrome Extension</a></li>
+          <li><a href="obsidian-plugin.html">Obsidian Plugin</a></li>
+          <li><a href="knowledge-structuring.html" class="active">Knowledge Structuring</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-title">Resources</div>
+        <ul class="sidebar-links">
+          <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
+          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="docs-content">
+      <h1>Knowledge Structuring & Eggs</h1>
+      <p class="lead">
+        Learn how NutEgg organizes your Obsidian vault, matches web content to topics using <code>_index.md</code>, and merges accumulated entries into knowledge trees.
+      </p>
+
+      <h2>The <code>nutegg/</code> Vault Layout</h2>
+      <p>
+        All NutEgg content is confined to a clean, isolated <code>nutegg/</code> folder in your Obsidian vault:
+      </p>
+
+      <pre><code>vault/
+└── nutegg/
+    ├── _raw/                          # Captured nuts (raw web content + metadata)
+    │   └── 2026-09-06-14-30-youtube-author-title.md
+    ├── _index.md                      # Topic routing guide
+    ├── ai_architecture.md             # Knowledge egg
+    ├── invest_strategy.md             # Knowledge egg
+    └── productivity.md                # Knowledge egg</code></pre>
+
+      <h2>The Routing Guide: <code>_index.md</code></h2>
+      <p>
+        The <code>_index.md</code> file tells NutEgg which egg notes you maintain and what domains they cover. Each line maps a relative file path to keywords and descriptions:
+      </p>
+
+      <pre><code>nutegg/ai_architecture.md: LLMs, multi-agent systems, prompt engineering, RAG, embeddings
+nutegg/invest_strategy.md: value investing, index funds, asset allocation, macroeconomic indicators
+nutegg/productivity.md: deep work, time blocking, habits, personal knowledge management</code></pre>
+
+      <div class="callout">
+        <div class="callout-title">⚡ How Routing Works</div>
+        <p>
+          When you click <strong>Analyze</strong> in the browser, NutEgg's AI reads your <code>_index.md</code> and determines which egg (if any) matches the content. If no existing egg matches, NutEgg offers to automatically create a new egg seeded from the page's topic!
+        </p>
+      </div>
+
+      <h2>Egg File Anatomy</h2>
+      <p>
+        Egg files use Obsidian callout blocks to instruct the AI on scope, formatting, and relevance:
+      </p>
+
+      <pre><code>---
+topic: "AI Architecture & Agent Systems"
+status: "active"
+---
+
+> [!abstract]- Instructions:
+> **Scope:** Multi-agent architectures, tool calling, memory layers, and LLM evaluation.
+> **Action Guide:** Focus on actionable design patterns and real failure modes.
+> **Key Questions:** How are agent loops bounded? What memory buffers are used?
+> **Rejection Criteria:** Discard generic beginner tutorials or high-level sales pitches.
+
+# Knowledge
+## Agent Memory
+- Bounded replay buffers are required to prevent token window overflow.
+    - Ephemeral short-term memory expires after session goals terminate.
+
+# Unprocessed
+(Newly hatched entries accumulate here until auto-merged)</code></pre>
+
+      <h2>Auto-Merging Knowledge</h2>
+      <p>
+        When you click <strong>🥚 Hatch Egg</strong>, incoming insights are appended to the egg's <code># Unprocessed</code> section. Once 20 or more entries accumulate, NutEgg's AI runs an automated background synthesis that reorganizes and nests those entries into your main <code># Knowledge</code> branch tree, keeping your notes clean and scalable.
+      </p>
+    </main>
+  </div>
+
+</body>
+</html>
+

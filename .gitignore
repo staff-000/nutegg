@@ -4,3 +4,4 @@ obsidian-plugin/main.js
 .DS_Store
 .claude/
 .githooks/
+website/dist/
