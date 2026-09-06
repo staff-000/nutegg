@@ -11,7 +11,8 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "http://127.0.0.1:*/*"
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ],
   "action": {
     "default_title": "NutEgg — Read Less, Hatch More",
