@@ -3,8 +3,8 @@
   "name": "NutEgg",
   "version": "0.0.4",
   "minAppVersion": "1.5.0",
-  "description": "Read less, hatch more. Capture web content, curate your knowledge base in Obsidian",
-  "author": "",
-  "authorUrl": "",
+  "description": "Read less, hatch more. Capture web content, curate your knowledge.",
+  "author": "Staff #000",
+  "authorUrl": "https://x.com/000staff",
   "isDesktopOnly": true
 }
