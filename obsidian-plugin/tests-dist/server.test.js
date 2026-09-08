@@ -92,10 +92,11 @@ var NutEggServer = class {
   estimateTime(metadata, content) {
     return parseInt(metadata?.time_estimate_minutes || "0", 10) || Math.max(1, Math.ceil((content?.split(/\s+/)?.length || 0) / 200));
   }
-  /** Count egg files (markdown under vaultFolder/, excluding _raw and _index). */
+  /** Count egg files (markdown under vaultFolder/, excluding _raw, _workflow, and _index). */
   countEggs() {
     const folder = this.plugin.vaultFolder || "nutegg";
-    return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.endsWith("/_index.md")).length;
+    const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
+    return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.startsWith(workflowFolder) && !f.path.endsWith("/_index.md")).length;
   }
   /** Strip trailing slashes, fragment, and common tracking/session params. */
   normalizeUrl(url) {

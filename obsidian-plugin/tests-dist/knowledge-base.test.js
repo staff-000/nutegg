@@ -54,7 +54,12 @@ var init_egg_parser = __esm({
           file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
         }
         if (!file) {
-          const allFiles = this.plugin.app.vault.getMarkdownFiles?.() || [];
+          const folder = this.plugin.vaultFolder || "nutegg";
+          const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
+          const rawFolder = this.plugin.settings?.rawFolder || `${folder}/_raw`;
+          const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
+            (f) => !f.path.startsWith(workflowFolder) && !f.path.startsWith(rawFolder)
+          );
           const base = fileName.split("/").pop().toLowerCase();
           const match = allFiles.find(
             (f) => f.path.split("/").pop().toLowerCase() === base

@@ -48,14 +48,17 @@ export class IndexSync {
     };
 
     const folder = this.plugin.vaultFolder || "nutegg";
+    const workflowFolder =
+      this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
 
-    // Egg files present in the vault (raw nuts + the index itself excluded)
+    // Egg files present in the vault (raw nuts, workflow prompts, + the index itself excluded)
     const eggFiles = this.plugin.app.vault
       .getMarkdownFiles()
       .filter(
         (f) =>
           f.path.startsWith(folder + "/") &&
           !f.path.startsWith(this.plugin.settings.rawFolder) &&
+          !f.path.startsWith(workflowFolder) &&
           !f.path.endsWith("/_index.md")
       )
       .map((f) => f.path);

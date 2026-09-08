@@ -132,12 +132,15 @@ export class NutEggServer {
     );
   }
 
-  /** Count egg files (markdown under vaultFolder/, excluding _raw and _index). */
+  /** Count egg files (markdown under vaultFolder/, excluding _raw, _workflow, and _index). */
   private countEggs(): number {
     const folder = this.plugin.vaultFolder || "nutegg";
+    const workflowFolder =
+      this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
     return this.plugin.app.vault.getMarkdownFiles()
       .filter((f) => f.path.startsWith(folder + "/") &&
         !f.path.startsWith(this.plugin.settings.rawFolder) &&
+        !f.path.startsWith(workflowFolder) &&
         !f.path.endsWith("/_index.md")).length;
   }
 

@@ -48,17 +48,17 @@ For long content (e.g. 1-2 hour videos, long transcripts), NutEgg automatically 
 
 | File | Pipeline Stage | Purpose | Output Format |
 |---|---|---|---|
-| [`egg-combined.md`](file:///./egg-combined.md) | Single-Egg Fast Path | Combined 1-call prompt extracting summary, chapter map, and candidate insights for a single egg. | JSON (`titleVerdict`, `coreSummary`, `candidateKnowledge`, etc.) |
-| [`content-analysis.md`](file:///./content-analysis.md) | Multi-Egg Step 1 | High-level content analysis: single-sentence title verdict, core summary bullet points, and chapter map. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestions`) |
-| [`egg-analysis.md`](file:///./egg-analysis.md) | Multi-Egg Step 2 | Extracts candidate knowledge entries targeted to one specific egg's scope and action guide. | JSON (`relevanceVerdict`, `keyQuestions`, `candidateKnowledge`) |
-| [`egg-compare.md`](file:///./egg-compare.md) | Synthesis (All Paths) | Compares candidate entries against the existing `# Knowledge` tree in the egg note to eliminate duplicates and identify novel deltas. | JSON (`entries`, `rejectReason`) |
-| [`egg-routing.md`](file:///./egg-routing.md) | Routing | Compares content against the egg descriptions in `_index.md` to select the best matching eggs. | JSON array of egg filenames |
-| [`aggregate-content.md`](file:///./aggregate-content.md) | Long Content | Merges chunk-level summaries from long articles or video transcripts into one comprehensive overview. | JSON (`titleVerdict`, `coreSummary`) |
-| [`aggregate-egg.md`](file:///./aggregate-egg.md) | Long Content | Combines and de-duplicates candidate insights extracted across multiple chunks for one egg. | JSON (`relevanceVerdict`, `keyQuestions`, `candidateKnowledge`) |
-| [`merge-unprocessed.md`](file:///./merge-unprocessed.md) | Knowledge Maintenance | Merges entries accumulated under `# Unprocessed` into the structured `# Knowledge` tree on demand. | Full updated egg note (Markdown) |
+| [`egg-combined.md`](file:///./egg-combined.md) | Single-Egg Fast Path | Combined 1-call prompt extracting summary, chapter map, and candidate insights for a single egg. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestionAnswers`, `keyQuestionAnswers`, `extractedEntries`) |
+| [`content-analysis.md`](file:///./content-analysis.md) | Multi-Egg Step 1 | High-level content analysis: single-sentence title verdict, core summary bullet points, and chapter map. | JSON (`titleVerdict`, `coreSummary`, `isLongForm`, `chapterMap`, `customQuestionAnswers`) |
+| [`egg-analysis.md`](file:///./egg-analysis.md) | Multi-Egg Step 2 | Extracts candidate knowledge entries targeted to one specific egg's scope and action guide. | JSON (`keyQuestionAnswers`, `extractedEntries`) |
+| [`egg-compare.md`](file:///./egg-compare.md) | Synthesis (All Paths) | Compares candidate entries against the existing `# Knowledge` tree in the egg note to eliminate duplicates and identify novel deltas. | JSON (`novelDelta`, `redundantEntries`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
+| [`egg-routing.md`](file:///./egg-routing.md) | Routing | Compares content against the egg descriptions in `_index.md` to select the best matching eggs. | Plain text list of filenames (one per line, or JSON array) |
+| [`aggregate-content.md`](file:///./aggregate-content.md) | Long Content | Merges chunk-level summaries from long articles or video transcripts into one comprehensive overview. | JSON (`titleVerdict`, `coreSummary`, `customQuestionAnswers`) |
+| [`aggregate-egg.md`](file:///./aggregate-egg.md) | Long Content | Combines and de-duplicates candidate insights extracted across multiple chunks for one egg. | JSON (`novelDelta`, `keyQuestionAnswers`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
+| [`merge-unprocessed.md`](file:///./merge-unprocessed.md) | Knowledge Maintenance | Merges entries accumulated under `# Unprocessed` into the structured `# Knowledge` tree on demand. | JSON (`knowledge`, `unprocessed`) |
 | [`localize-egg.md`](file:///./localize-egg.md) | Egg Creation | Adapts the standard egg template into the language of the egg's description when a new egg is created. | Full initial egg note (Markdown) |
 | [`suggest-egg.md`](file:///./suggest-egg.md) | Fallback Routing | Suggests a new egg name and description when captured content matches no existing egg. | JSON (`name`, `description`) |
-| [`follow-up.md`](file:///./follow-up.md) | Interactive Q&A | Answers user follow-up questions about the captured content in the Chrome popup. | Plain text / Markdown answer |
+| [`follow-up.md`](file:///./follow-up.md) | Interactive Q&A | Answers user follow-up questions about the captured content in the Chrome popup. | JSON (`answers`: `[{"question", "answer"}]`) |
 | [`action-guide-default.md`](file:///./action-guide-default.md) | Default Fallback | The baseline Action Guide used when an egg note does not specify its own. | Plain text list |
 | [`grounding-rule.md`](file:///./grounding-rule.md) | Shared Rule | The strict grounding & anti-hallucination directive injected into all analysis prompts. | Plain text rule |
 
@@ -74,7 +74,7 @@ For long content (e.g. 1-2 hour videos, long transcripts), NutEgg automatically 
 ### ⚠️ What You Must Preserve (To Prevent Parser Errors)
 1. **`{{placeholders}}`**: The strings enclosed in double curly braces (e.g. `{{content}}`, `{{egg_description}}`, `{{knowledge_tree}}`) are replaced dynamically by the engine. Do not delete or rename them.
 2. **JSON Schemas**: Prompts that output JSON must keep the exact JSON key names specified in the template. The TypeScript engine parses these exact keys.
-3. **Markdown Structural Headings**: In prompts that output markdown (`merge-unprocessed.md`, `localize-egg.md`), the headings `# Knowledge` and `# Unprocessed` must remain verbatim in English for the note parser.
+3. **Markdown Structural Headings**: In prompts that output markdown (`localize-egg.md`), structural labels and headings like `# Knowledge` and `# Unprocessed` must remain verbatim in English for the note parser.
 
 ---
 

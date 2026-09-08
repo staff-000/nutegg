@@ -420,8 +420,8 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
-- titleVerdict must be a single sentence.
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as the content, or as this sentence if provided: "{{egg_description}}". Keep JSON keys in English.
+- titleVerdict: single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
@@ -545,7 +545,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 IMPORTANT:
 - One entry per question, in the same order.
 - Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+- Output Language: write ALL output text (answers) in the same language as the questions, or as this sentence if provided: "{{egg_description}}". Keep JSON keys in English.
 - If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.
 `;
 
@@ -1696,7 +1696,12 @@ var EggParser = class {
       file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
     }
     if (!file) {
-      const allFiles = this.plugin.app.vault.getMarkdownFiles?.() || [];
+      const folder = this.plugin.vaultFolder || "nutegg";
+      const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
+      const rawFolder = this.plugin.settings?.rawFolder || `${folder}/_raw`;
+      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
+        (f) => !f.path.startsWith(workflowFolder) && !f.path.startsWith(rawFolder)
+      );
       const base = fileName.split("/").pop().toLowerCase();
       const match = allFiles.find(
         (f) => f.path.split("/").pop().toLowerCase() === base
