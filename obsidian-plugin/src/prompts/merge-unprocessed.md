@@ -24,3 +24,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "knowledge": "the COMPLETE updated Knowledge section content as markdown — the existing tree with the merged entries nested in. Only the section BODY: do NOT include the '# Knowledge' heading line itself.",
   "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged. Only the section BODY: do NOT include the '# Unprocessed' heading line itself."
 }
+
+IMPORTANT:
+- Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.

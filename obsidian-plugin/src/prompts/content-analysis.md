@@ -28,6 +28,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.

@@ -399,7 +399,12 @@ var NutEggServer = class {
       }
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
-      const matchedEggs = hasEggOverride ? capture.eggs.map((fileName) => ({ fileName, description: "" })) : await this.plugin.indexReader.matchEggs(capture, index);
+      const matchedEggs = hasEggOverride ? capture.eggs.map((fileName) => {
+        const entry = index.find(
+          (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+        );
+        return { fileName, description: entry?.description || "" };
+      }) : await this.plugin.indexReader.matchEggs(capture, index);
       const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
       const result = await this.plugin.aiProcessor.analyze(capture, eggs);
       const nutId = this.plugin.db?.insertNut({
@@ -680,7 +685,10 @@ function makeFakePlugin(overrides = {}) {
       formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
       formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
-    indexReader: overrides.indexReader ?? {},
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
     knowledgeBase: overrides.knowledgeBase ?? {},
     db: overrides.db ?? null,
     ...overrides

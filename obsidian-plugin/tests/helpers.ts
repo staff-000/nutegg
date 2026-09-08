@@ -75,7 +75,10 @@ export function makeFakePlugin(overrides: any = {}) {
       formatEggInstructionsForPrompt: (e: any) => `instructions:${e.fileName}`,
       formatEggKnowledgeForPrompt: (e: any) => `knowledge:${e.fileName}`,
     },
-    indexReader: overrides.indexReader ?? {},
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => [],
+    },
     knowledgeBase: overrides.knowledgeBase ?? {},
     db: overrides.db ?? null,
     ...overrides,

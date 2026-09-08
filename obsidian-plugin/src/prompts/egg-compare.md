@@ -47,5 +47,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (knowledge entries, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
 - "kind" is "insight" or "list".

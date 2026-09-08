@@ -45,6 +45,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" — give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question — answer it only once.
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).

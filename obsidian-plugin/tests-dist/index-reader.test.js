@@ -57,6 +57,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
@@ -99,6 +100,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (answers, knowledge entries) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 `;
 
@@ -150,6 +152,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
@@ -179,6 +182,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 IMPORTANT:
 - One entry per question, in the same order.
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.
 `;
 
@@ -215,6 +219,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in. Only the section BODY: do NOT include the '# Knowledge' heading line itself.",
   "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged. Only the section BODY: do NOT include the '# Unprocessed' heading line itself."
 }
+
+IMPORTANT:
+- Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 `;
 
 // src/prompts/aggregate-content.md
@@ -246,10 +253,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 IMPORTANT:
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 `;
 
 // src/prompts/aggregate-egg.md
-var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n';
+var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\nIMPORTANT:\n- Output Language: write ALL output text (knowledge entries, answers, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.\n';
 
 // src/prompts/suggest-egg.md
 var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
@@ -304,6 +312,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (knowledge entries, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
 - "kind" is "insight" or "list".
 `;
@@ -560,7 +569,10 @@ function makeFakePlugin(overrides = {}) {
       formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
       formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
-    indexReader: overrides.indexReader ?? {},
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
     knowledgeBase: overrides.knowledgeBase ?? {},
     db: overrides.db ?? null,
     ...overrides

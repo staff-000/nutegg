@@ -46,6 +46,8 @@ export interface EggContent {
   knowledge: string;
   /** Entries in the Unprocessed section — merged into the tree when 20+ accumulate. */
   unprocessed: string;
+  /** Description from _index.md — used to detect output language for AI prompts. */
+  indexDescription: string;
 }
 
 export class EggParser {
@@ -82,7 +84,10 @@ export class EggParser {
     const eggs: EggContent[] = [];
     for (const entry of entries) {
       const egg = await this.readEgg(entry.fileName);
-      if (egg) eggs.push(egg);
+      if (egg) {
+        egg.indexDescription = entry.description;
+        eggs.push(egg);
+      }
     }
     return eggs;
   }
@@ -98,6 +103,7 @@ export class EggParser {
       formattingRules: "",
       knowledge: "",
       unprocessed: "",
+      indexDescription: "",
     };
 
     // Frontmatter

@@ -30,4 +30,5 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (answers, knowledge entries) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).

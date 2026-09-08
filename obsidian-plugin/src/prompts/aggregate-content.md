@@ -26,3 +26,4 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 IMPORTANT:
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.

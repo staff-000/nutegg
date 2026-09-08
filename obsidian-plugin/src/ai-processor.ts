@@ -191,7 +191,9 @@ export class AIProcessor {
       contentAnalysis = await this.analyzeContent(
         capture,
         guide,
-        eggs.flatMap((e) => e.keyQuestions)
+        eggs.flatMap((e) => e.keyQuestions),
+        "",
+        eggs[0]?.indexDescription || ""
       );
 
       // Phase 2: one parallel call per egg
@@ -233,10 +235,12 @@ export class AIProcessor {
     },
     actionGuide: string,
     eggKeyQuestions: string[],
-    partNote = ""
+    partNote = "",
+    eggDescription = ""
   ): Promise<ContentAnalysis> {
     const prompt = renderPrompt(PROMPTS.contentAnalysis, {
       action_guide: actionGuide,
+      egg_description: eggDescription,
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -294,6 +298,7 @@ export class AIProcessor {
     const prompt = renderPrompt(PROMPTS.eggAnalysis, {
       egg_file: egg.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
+      egg_description: egg.indexDescription,
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -353,6 +358,7 @@ export class AIProcessor {
     const prompt = renderPrompt(PROMPTS.eggCombined, {
       egg_file: egg.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
+      egg_description: egg.indexDescription,
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -444,6 +450,7 @@ export class AIProcessor {
 
     const prompt = renderPrompt(PROMPTS.eggCompare, {
       egg_file: egg.fileName,
+      egg_description: egg.indexDescription,
       title: capture.title,
       url: capture.url,
       current_knowledge: existingKnowledge || "(empty)",
@@ -580,7 +587,8 @@ export class AIProcessor {
           },
           guide,
           eggs.flatMap((e) => e.keyQuestions),
-          this.partNote(chunk)
+          this.partNote(chunk),
+          eggs[0]?.indexDescription || ""
         )
       )
     );
@@ -590,7 +598,8 @@ export class AIProcessor {
         part: i + 1,
         startTime: chunks[i].startTime,
         bullets: r.coreSummary,
-      }))
+      })),
+      eggs[0]?.indexDescription || ""
     );
     const chapterMap = partResults.flatMap((r) => r.chapterMap);
 
@@ -701,7 +710,8 @@ export class AIProcessor {
   /** Aggregate the per-part content summaries into one result. */
   private async aggregateContent(
     capture: { title: string; url: string; questions?: string[] },
-    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>
+    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>,
+    eggDescription = ""
   ): Promise<{
     titleVerdict: string;
     coreSummary: string[];
@@ -710,6 +720,7 @@ export class AIProcessor {
     const prompt = renderPrompt(PROMPTS.aggregateContent, {
       title: capture.title,
       url: capture.url,
+      egg_description: eggDescription,
       chunk_summaries: chunkSummaries
         .map((c) => {
           const at = c.startTime ? ` (${c.startTime})` : "";
@@ -749,6 +760,7 @@ export class AIProcessor {
   }> {
     const prompt = renderPrompt(PROMPTS.aggregateEgg, {
       egg_file: egg.fileName,
+      egg_description: egg.indexDescription,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
       chunk_findings: chunkFindings
         .map((f) => {
@@ -1094,7 +1106,8 @@ export class AIProcessor {
       sourceType: string;
     },
     questions: string[],
-    priorQa: KeyAnswer[]
+    priorQa: KeyAnswer[],
+    eggDescription = ""
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
@@ -1116,6 +1129,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      egg_description: eggDescription,
       prior_qa: priorBlock,
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
@@ -1164,8 +1178,16 @@ export class AIProcessor {
       return null;
     }
 
+    // Look up the egg's description from _index.md for output language
+    const indexContent = await this.plugin.indexReader.getIndexContent();
+    const indexEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const indexEntry = indexEntries.find(
+      (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+    );
+
     const prompt = renderPrompt(PROMPTS.mergeUnprocessed, {
       egg_file: fileName,
+      egg_description: indexEntry?.description || "",
       formatting_rules: egg.formattingRules || "(none)",
       knowledge_tree: egg.knowledge || "(empty)",
       unprocessed: egg.unprocessed,

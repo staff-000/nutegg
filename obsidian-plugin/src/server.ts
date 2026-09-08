@@ -509,7 +509,12 @@ export class NutEggServer {
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
       const matchedEggs = hasEggOverride
-        ? capture.eggs!.map((fileName) => ({ fileName, description: "" }))
+        ? capture.eggs!.map((fileName) => {
+            const entry = index.find(
+              (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+            );
+            return { fileName, description: entry?.description || "" };
+          })
         : await this.plugin.indexReader.matchEggs(capture, index);
 
       // Step 2: Read and parse the matched egg files (scope, action guide, knowledge)

@@ -303,7 +303,10 @@ function makeFakePlugin(overrides = {}) {
       formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
       formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
-    indexReader: overrides.indexReader ?? {},
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
     knowledgeBase: overrides.knowledgeBase ?? {},
     db: overrides.db ?? null,
     ...overrides
@@ -344,8 +347,10 @@ var EggParser = class {
     const eggs = [];
     for (const entry of entries) {
       const egg = await this.readEgg(entry.fileName);
-      if (egg)
+      if (egg) {
+        egg.indexDescription = entry.description;
         eggs.push(egg);
+      }
     }
     return eggs;
   }
@@ -359,7 +364,8 @@ var EggParser = class {
       rejectionCriteria: [],
       formattingRules: "",
       knowledge: "",
-      unprocessed: ""
+      unprocessed: "",
+      indexDescription: ""
     };
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
     if (fmMatch) {

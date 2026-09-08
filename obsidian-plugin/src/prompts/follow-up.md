@@ -21,4 +21,5 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 IMPORTANT:
 - One entry per question, in the same order.
 - Grounding: {{grounding_rule}}
+- Output Language: write ALL output text (answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 - If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.

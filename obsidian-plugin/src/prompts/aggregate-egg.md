@@ -29,3 +29,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "readVerdict": true,
   "readVerdictReason": "one-line reason"
 }
+
+IMPORTANT:
+- Output Language: write ALL output text (knowledge entries, answers, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.

@@ -151,7 +151,10 @@ function makeFakePlugin(overrides = {}) {
       formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
       formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
     },
-    indexReader: overrides.indexReader ?? {},
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
     knowledgeBase: overrides.knowledgeBase ?? {},
     db: overrides.db ?? null,
     ...overrides

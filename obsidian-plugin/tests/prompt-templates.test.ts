@@ -51,6 +51,8 @@ describe("PROMPTS", () => {
       "part_note", "chunk_summaries", "chunk_findings", "sections",
       // suggest-egg.md
       "summary",
+      // multi-lingual output language (from _index.md entry description)
+      "egg_description",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);
