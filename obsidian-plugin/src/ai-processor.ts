@@ -128,7 +128,7 @@ export interface AnalysisResult extends ContentAnalysis {
  *   Phase 2 — per-egg analysis (key questions, novel delta, reject, verdict).
  * With exactly one matched egg, both phases are merged into a single call.
  *
- * All prompt text lives in src/prompts/*.md (user-editable templates).
+ * All prompt text lives in src/workflow/*.md (user-editable templates in nutegg/_workflow/).
  */
 export class AIProcessor {
   private plugin: NutEggPlugin;
