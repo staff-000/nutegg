@@ -366,11 +366,11 @@ async function handleCreateEggInline() {
   eggsCreateBtn.textContent = "Create Egg";
 }
 
-/** Title → snake_case egg name fallback. */
+/** Title → snake_case egg name fallback (supports Unicode). */
 function slugify(text) {
   return (text || "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 60);
 }

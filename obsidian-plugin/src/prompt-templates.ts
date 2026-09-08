@@ -17,6 +17,7 @@ import aggregateContentTpl from "./prompts/aggregate-content.md";
 import aggregateEggTpl from "./prompts/aggregate-egg.md";
 import suggestEggTpl from "./prompts/suggest-egg.md";
 import eggCompareTpl from "./prompts/egg-compare.md";
+import localizeEggTpl from "./prompts/localize-egg.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -41,6 +42,8 @@ export const PROMPTS = {
   aggregateEgg: aggregateEggTpl,
   /** Suggest a new egg for content that matched no existing egg. */
   suggestEgg: suggestEggTpl,
+  /** Localize egg template matching the description language while keeping parser structure in English. */
+  localizeEgg: localizeEggTpl,
 };
 
 /** Substitute {{placeholder}} variables in a template. */

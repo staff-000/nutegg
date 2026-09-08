@@ -161,6 +161,31 @@ describe("NutEggServer.handleCreateEgg", () => {
     assert.deepEqual(createdWith, ["productivity_101", "systems"]);
   });
 
+  it("sanitizes and preserves Unicode Chinese names", async () => {
+    let createdWith: any = null;
+    const s = makeServer({
+      indexSync: {
+        createEgg: async (name: string, description: string) => {
+          createdWith = [name, description];
+          return { path: `nutegg/${name}.md`, alreadyExists: false };
+        },
+      },
+    });
+    const req = makeReq(
+      JSON.stringify({ name: "方法论", description: "做事的方法" })
+    );
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(JSON.parse(res.body), {
+      success: true,
+      path: "nutegg/方法论.md",
+      alreadyExists: false,
+    });
+    assert.deepEqual(createdWith, ["方法论", "做事的方法"]);
+  });
+
   it("rejects a blank name with 400", async () => {
     const s = makeServer({
       indexSync: {

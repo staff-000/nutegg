@@ -20,6 +20,19 @@ export interface IndexSyncResult {
  *     seeded with the entry's description (topic + scope)
  * Runs on plugin load and on an interval (see main.ts).
  */
+/**
+ * Sanitize an egg name into a valid, safe markdown file stem.
+ * Supports Unicode letters and numbers while replacing invalid characters with '_'.
+ */
+export function sanitizeEggName(name: string): string {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+}
+
 export class IndexSync {
   private plugin: NutEggPlugin;
 
@@ -34,12 +47,14 @@ export class IndexSync {
       createdEggs: [],
     };
 
+    const folder = this.plugin.vaultFolder || "nutegg";
+
     // Egg files present in the vault (raw nuts + the index itself excluded)
     const eggFiles = this.plugin.app.vault
       .getMarkdownFiles()
       .filter(
         (f) =>
-          f.path.startsWith("nutegg/") &&
+          f.path.startsWith(folder + "/") &&
           !f.path.startsWith(this.plugin.settings.rawFolder) &&
           !f.path.endsWith("/_index.md")
       )
@@ -53,7 +68,7 @@ export class IndexSync {
     const entries = this.plugin.indexReader.parseIndexContent(indexContent);
 
     const norm = (p: string) =>
-      p.startsWith("nutegg/") ? p : `nutegg/${p.replace(/^\/+/, "")}`;
+      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
 
     // Fix 1: egg files without an index entry (or with a relative-path one)
     const byPath = new Map(entries.map((e) => [norm(e.fileName), e]));
@@ -108,10 +123,16 @@ export class IndexSync {
    * when the file was already there (nothing is overwritten).
    */
   async createEgg(
-    name: string,
-    description: string
+    rawName: string,
+    rawDescription: string
   ): Promise<{ path: string; alreadyExists: boolean }> {
-    const fileName = `nutegg/${name}.md`;
+    const name = sanitizeEggName(rawName);
+    const description = (rawDescription || "").trim();
+    if (!name) {
+      throw new Error("Invalid egg name");
+    }
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const fileName = `${folder}/${name}.md`;
     if (await this.plugin.app.vault.adapter.exists(fileName)) {
       return { path: fileName, alreadyExists: true };
     }
@@ -167,15 +188,18 @@ export class IndexSync {
 
   /**
    * Create the missing egg file from the template, seeded from the index
-   * entry's description (topic + scope).
+   * entry's description (topic + scope). Reuses EGG_TEMPLATE and optionally
+   * localizes concrete instructions to match the description's language.
    */
   private async createEggFromTemplate(
     targetPath: string,
     entry: IndexEntry
   ): Promise<void> {
     await this.ensureParentFolders(targetPath);
-    const fallbackTopic = targetPath.replace(/^nutegg\//, "").replace(/\.md$/, "");
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
     const topic = (entry.description || fallbackTopic).trim();
+    const dateStr = new Date().toISOString().slice(0, 10);
 
     let content = EGG_TEMPLATE;
     content = content.replace(
@@ -190,8 +214,23 @@ export class IndexSync {
     }
     content = content.replace(
       /^last_updated: .*$/m,
-      `last_updated: "${new Date().toISOString().slice(0, 10)}"`
+      `last_updated: "${dateStr}"`
     );
+
+    // If AI is available, adapt the template instructions to match the description's language
+    if (entry.description && this.plugin.aiProcessor?.localizeEggTemplate) {
+      try {
+        const localized = await this.plugin.aiProcessor.localizeEggTemplate(
+          content,
+          entry.description
+        );
+        if (localized) {
+          content = localized;
+        }
+      } catch (err) {
+        console.warn("[NutEgg] Failed to localize egg template with AI:", err);
+      }
+    }
 
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);

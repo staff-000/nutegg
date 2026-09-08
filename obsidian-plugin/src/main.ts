@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, SuggestModal } from "obsidian";
+import { MarkdownView, Notice, Plugin } from "obsidian";
 import {
   NutEggSettings,
   DEFAULT_SETTINGS,
@@ -14,6 +14,7 @@ import { IndexSync } from "./index-sync";
 import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 import { registerMergeWidget, registerMergeEditorExtension, runMerge } from "./merge-widget";
+import { CreateEggModal, registerIndexWidget, registerIndexEditorExtension } from "./index-widget";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -26,6 +27,12 @@ export default class NutEggPlugin extends Plugin {
   indexSync!: IndexSync;
   db!: NutEggDatabase;
   creditStatusBarItem: HTMLElement | null = null;
+
+  get vaultFolder(): string {
+    return this.settings?.indexFile
+      ? this.settings.indexFile.replace(/\/[^/]+$/, "")
+      : "nutegg";
+  }
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -93,28 +100,8 @@ export default class NutEggPlugin extends Plugin {
     this.addCommand({
       id: "nutegg-new-egg",
       name: "Create a new egg file",
-      callback: async () => {
-        // Ask for egg name via a simple prompt
-        const eggName = await this.promptForEggName();
-        if (!eggName) return;
-
-        const fileName = `nutegg/${eggName}.md`;
-        await this.ensureFolder("nutegg");
-        const existingFile = this.app.vault.getAbstractFileByPath(fileName);
-
-        if (existingFile) {
-          const leaf = this.app.workspace.getLeaf(false);
-          await leaf.openFile(existingFile as any);
-          return;
-        }
-
-        await this.app.vault.create(fileName, EGG_TEMPLATE);
-        new Notice(`NutEgg: Created ${fileName}`);
-
-        // Also remind to add to _index.md
-        new Notice(
-          `NutEgg: Add "${fileName}: description" to ${this.settings.indexFile}`
-        );
+      callback: () => {
+        new CreateEggModal(this.app, this).open();
       },
     });
 
@@ -194,6 +181,12 @@ export default class NutEggPlugin extends Plugin {
 
     // Editor extension: merge button next to `# Unprocessed` in editing mode / Live Preview
     registerMergeEditorExtension(this);
+
+    // Register UI button on _index.md (reading mode)
+    registerIndexWidget(this);
+
+    // Register UI button on _index.md (editing mode / Live Preview)
+    registerIndexEditorExtension(this);
 
     console.log("[NutEgg] Plugin loaded");
   }
@@ -282,37 +275,5 @@ export default class NutEggPlugin extends Plugin {
         await this.app.vault.createFolder(currentPath);
       }
     }
-  }
-
-  /**
-   * Simple prompt modal for getting an egg name.
-   */
-  private async promptForEggName(): Promise<string | null> {
-    return new Promise((resolve) => {
-      const modal = new (class extends SuggestModal<{ text: string }> {
-        constructor(app: any) {
-          super(app);
-          this.setPlaceholder("Enter egg name (e.g., invest_strategy, psychology, ai_ml)...");
-        }
-
-        getSuggestions(query: string): { text: string }[] {
-          if (!query) return [];
-          return [{ text: query.toLowerCase().replace(/\s+/g, "-") }];
-        }
-
-        renderSuggestion(item: { text: string }, el: HTMLElement): void {
-          el.createEl("div", {
-            text: `Create egg file: ${item.text}.md`,
-          });
-        }
-
-        onChooseSuggestion(item: { text: string }): void {
-          resolve(item.text);
-        }
-      })(this.app);
-
-      modal.onClose = () => resolve(null);
-      modal.open();
-    });
   }
 }

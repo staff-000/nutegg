@@ -542,6 +542,56 @@ describe("AIProcessor.suggestEgg", () => {
   });
 });
 
+describe("AIProcessor.localizeEggTemplate", () => {
+  it("returns stripped localized template when AI produces valid egg content", async () => {
+    let sentPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          sentPrompt = prompt;
+          return "```markdown\n> [!abstract]- Instructions:\n> **Scope:** 介绍做事的具体方法\n>\n> **Action Guide:**\n> 1. Title Verdict: 核心结论\n\n# Knowledge\n\n# Unprocessed\n```";
+        },
+      },
+    });
+    const templateInput = "> [!abstract]- Instructions:\n> **Scope:** T\n>\n> **Action Guide:**\n> 1. Title Verdict: T\n\n# Knowledge\n\n# Unprocessed";
+    const out = await new AIProcessor(plugin as any).localizeEggTemplate(
+      templateInput,
+      "介绍做事的具体方法"
+    );
+    assert.ok(out);
+    assert.ok(out.startsWith("> [!abstract]- Instructions:"));
+    assert.ok(out.includes("**Scope:** 介绍做事的具体方法"));
+    assert.ok(out.includes("**Action Guide:**"));
+    assert.ok(out.includes("# Knowledge"));
+    assert.ok(out.includes("# Unprocessed"));
+    assert.ok(!out.includes("```"));
+    assert.ok(sentPrompt.includes("介绍做事的具体方法"));
+    assert.ok(sentPrompt.includes(templateInput));
+  });
+
+  it("returns null when AI output is invalid or missing required markers", async () => {
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => "Sorry, I cannot do that.",
+      },
+    });
+    const out = await new AIProcessor(plugin as any).localizeEggTemplate(
+      "bad template",
+      "test"
+    );
+    assert.equal(out, null);
+  });
+
+  it("returns null when no API key is configured", async () => {
+    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
+    const out = await new AIProcessor(noKey as any).localizeEggTemplate(
+      "template",
+      "desc"
+    );
+    assert.equal(out, null);
+  });
+});
+
 describe("AIProcessor.maybeMergeEgg", () => {
   /** Egg file with `n` top-level entries in # Unprocessed. */
   function unprocessedEgg(n: number): string {

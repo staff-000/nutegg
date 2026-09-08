@@ -53,6 +53,8 @@ describe("PROMPTS", () => {
       "summary",
       // multi-lingual output language (from _index.md entry description)
       "egg_description",
+      // localize-egg.md
+      "description", "template",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

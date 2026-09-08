@@ -2,6 +2,7 @@ import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError } from "./ai-client";
 import type { AnalysisResult, MergeResult } from "./ai-processor";
+import { sanitizeEggName } from "./index-sync";
 
 interface AnalyzeRequest {
   url: string;
@@ -131,10 +132,11 @@ export class NutEggServer {
     );
   }
 
-  /** Count egg files (markdown under nutegg/, excluding _raw and _index). */
+  /** Count egg files (markdown under vaultFolder/, excluding _raw and _index). */
   private countEggs(): number {
+    const folder = this.plugin.vaultFolder || "nutegg";
     return this.plugin.app.vault.getMarkdownFiles()
-      .filter((f) => f.path.startsWith("nutegg/") &&
+      .filter((f) => f.path.startsWith(folder + "/") &&
         !f.path.startsWith(this.plugin.settings.rawFolder) &&
         !f.path.endsWith("/_index.md")).length;
   }
@@ -742,12 +744,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const { name, description }: CreateEggRequest = JSON.parse(body);
-
-      const safeName = String(name || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .slice(0, 60);
+      const safeName = sanitizeEggName(name);
       if (!safeName) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Missing egg name" }));

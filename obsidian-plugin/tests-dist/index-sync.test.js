@@ -75,6 +75,9 @@ last_updated: "2026-08-14"
 var EGG_TEMPLATE = egg_default;
 
 // src/index-sync.ts
+function sanitizeEggName(name) {
+  return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+}
 var IndexSync = class {
   plugin;
   constructor(plugin) {
@@ -86,15 +89,16 @@ var IndexSync = class {
       fixedIndexPaths: [],
       createdEggs: []
     };
+    const folder = this.plugin.vaultFolder || "nutegg";
     const eggFiles = this.plugin.app.vault.getMarkdownFiles().filter(
-      (f) => f.path.startsWith("nutegg/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.endsWith("/_index.md")
+      (f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.endsWith("/_index.md")
     ).map((f) => f.path);
     const indexContent = await this.plugin.indexReader.getIndexContent();
     if (indexContent === "(No _index.md found)") {
       return result;
     }
     const entries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const norm = (p) => p.startsWith("nutegg/") ? p : `nutegg/${p.replace(/^\/+/, "")}`;
+    const norm = (p) => p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
     const byPath = new Map(entries.map((e) => [norm(e.fileName), e]));
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
@@ -137,8 +141,14 @@ var IndexSync = class {
    * description and appends the matching _index.md entry. `alreadyExists`
    * when the file was already there (nothing is overwritten).
    */
-  async createEgg(name, description) {
-    const fileName = `nutegg/${name}.md`;
+  async createEgg(rawName, rawDescription) {
+    const name = sanitizeEggName(rawName);
+    const description = (rawDescription || "").trim();
+    if (!name) {
+      throw new Error("Invalid egg name");
+    }
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const fileName = `${folder}/${name}.md`;
     if (await this.plugin.app.vault.adapter.exists(fileName)) {
       return { path: fileName, alreadyExists: true };
     }
@@ -188,12 +198,15 @@ ${line}
   }
   /**
    * Create the missing egg file from the template, seeded from the index
-   * entry's description (topic + scope).
+   * entry's description (topic + scope). Reuses EGG_TEMPLATE and optionally
+   * localizes concrete instructions to match the description's language.
    */
   async createEggFromTemplate(targetPath, entry) {
     await this.ensureParentFolders(targetPath);
-    const fallbackTopic = targetPath.replace(/^nutegg\//, "").replace(/\.md$/, "");
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
     const topic = (entry.description || fallbackTopic).trim();
+    const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     let content = EGG_TEMPLATE;
     content = content.replace(
       /^topic: .*$/m,
@@ -207,8 +220,21 @@ ${line}
     }
     content = content.replace(
       /^last_updated: .*$/m,
-      `last_updated: "${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}"`
+      `last_updated: "${dateStr}"`
     );
+    if (entry.description && this.plugin.aiProcessor?.localizeEggTemplate) {
+      try {
+        const localized = await this.plugin.aiProcessor.localizeEggTemplate(
+          content,
+          entry.description
+        );
+        if (localized) {
+          content = localized;
+        }
+      } catch (err) {
+        console.warn("[NutEgg] Failed to localize egg template with AI:", err);
+      }
+    }
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);
   }
@@ -519,6 +545,9 @@ IMPORTANT:
 - "kind" is "insight" or "list".
 `;
 
+// src/prompts/localize-egg.md
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\nIMPORTANT:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -542,7 +571,9 @@ var PROMPTS = {
   /** Per-egg verdict + key questions for long content (after per-part delta). */
   aggregateEgg: aggregate_egg_default,
   /** Suggest a new egg for content that matched no existing egg. */
-  suggestEgg: suggest_egg_default
+  suggestEgg: suggest_egg_default,
+  /** Localize egg template matching the description language while keeping parser structure in English. */
+  localizeEgg: localize_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -1127,12 +1158,14 @@ function makeFakePlugin(overrides = {}) {
 }
 
 // tests/index-sync.test.ts
-function makeSync(files) {
+function makeSync(files, overrides = {}) {
   const store = makeFakeVault(files);
-  const plugin = makeFakePlugin({ vault: store.vault });
-  plugin.indexReader = new IndexReader(plugin);
-  plugin.eggParser = new EggParser(plugin);
-  return { sync: new IndexSync(plugin), files: store.files };
+  const plugin = makeFakePlugin({ vault: store.vault, ...overrides });
+  plugin.indexReader = overrides.indexReader || new IndexReader(plugin);
+  plugin.eggParser = overrides.eggParser || new EggParser(plugin);
+  if (overrides.aiProcessor)
+    plugin.aiProcessor = overrides.aiProcessor;
+  return { sync: new IndexSync(plugin), files: store.files, plugin };
 }
 var INDEX = [
   "# NutEgg Egg Index",
@@ -1263,6 +1296,44 @@ function egg(topic) {
     const result = await sync.createEgg("productivity", "x");
     import_strict.default.equal(result.alreadyExists, true);
     import_strict.default.ok(files.get("nutegg/productivity.md").includes('topic: "P"'));
+  });
+  (0, import_node_test.it)("createEgg supports Unicode Chinese name and description", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": ""
+    });
+    const result = await sync.createEgg("\u65B9\u6CD5\u8BBA", "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5");
+    import_strict.default.deepEqual(result, {
+      path: "nutegg/\u65B9\u6CD5\u8BBA.md",
+      alreadyExists: false
+    });
+    const created = files.get("nutegg/\u65B9\u6CD5\u8BBA.md");
+    import_strict.default.ok(created.includes('topic: "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"'));
+    import_strict.default.ok(created.includes("> **Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
+    import_strict.default.ok(
+      files.get("nutegg/_index.md").includes("* nutegg/\u65B9\u6CD5\u8BBA.md: \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5")
+    );
+  });
+  (0, import_node_test.it)("createEgg uses localizeEggTemplate when available", async () => {
+    let calledWith = null;
+    const { sync, files } = makeSync(
+      { "nutegg/_index.md": "" },
+      {
+        aiProcessor: {
+          localizeEggTemplate: async (tpl, desc) => {
+            calledWith = [tpl, desc];
+            return tpl.replace("> **Scope:**", "> **Scope:** Localized");
+          }
+        }
+      }
+    );
+    const result = await sync.createEgg("ai_egg", "artificial intelligence");
+    import_strict.default.ok(calledWith);
+    import_strict.default.equal(calledWith[1], "artificial intelligence");
+    import_strict.default.ok(calledWith[0].includes("artificial intelligence"));
+    const created = files.get("nutegg/ai_egg.md");
+    import_strict.default.ok(created.includes("Localized"));
+    import_strict.default.ok(created.includes("# Knowledge"));
+    import_strict.default.ok(created.includes("# Unprocessed"));
   });
   (0, import_node_test.it)("does nothing when _index.md is missing", async () => {
     const { sync, files } = makeSync({ "nutegg/eg.md": egg("EG") });

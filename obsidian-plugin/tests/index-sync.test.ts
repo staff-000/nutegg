@@ -5,12 +5,13 @@ import { IndexReader } from "../src/index-reader";
 import { EggParser } from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 
-function makeSync(files: Record<string, string>) {
+function makeSync(files: Record<string, string>, overrides: any = {}) {
   const store = makeFakeVault(files);
-  const plugin = makeFakePlugin({ vault: store.vault });
-  plugin.indexReader = new IndexReader(plugin as any);
-  plugin.eggParser = new EggParser(plugin as any);
-  return { sync: new IndexSync(plugin as any), files: store.files };
+  const plugin = makeFakePlugin({ vault: store.vault, ...overrides });
+  plugin.indexReader = overrides.indexReader || new IndexReader(plugin as any);
+  plugin.eggParser = overrides.eggParser || new EggParser(plugin as any);
+  if (overrides.aiProcessor) plugin.aiProcessor = overrides.aiProcessor;
+  return { sync: new IndexSync(plugin as any), files: store.files, plugin };
 }
 
 const INDEX = [
@@ -155,6 +156,46 @@ describe("IndexSync.checkAndFix", () => {
     const result = await sync.createEgg("productivity", "x");
     assert.equal(result.alreadyExists, true);
     assert.ok(files.get("nutegg/productivity.md")!.includes('topic: "P"'));
+  });
+
+  it("createEgg supports Unicode Chinese name and description", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "",
+    });
+    const result = await sync.createEgg("方法论", "介绍做事的具体方法");
+    assert.deepEqual(result, {
+      path: "nutegg/方法论.md",
+      alreadyExists: false,
+    });
+    const created = files.get("nutegg/方法论.md")!;
+    assert.ok(created.includes('topic: "介绍做事的具体方法"'));
+    assert.ok(created.includes("> **Scope:** 介绍做事的具体方法"));
+    assert.ok(
+      files.get("nutegg/_index.md")!.includes("* nutegg/方法论.md: 介绍做事的具体方法")
+    );
+  });
+
+  it("createEgg uses localizeEggTemplate when available", async () => {
+    let calledWith: any = null;
+    const { sync, files } = makeSync(
+      { "nutegg/_index.md": "" },
+      {
+        aiProcessor: {
+          localizeEggTemplate: async (tpl: string, desc: string) => {
+            calledWith = [tpl, desc];
+            return tpl.replace("> **Scope:**", "> **Scope:** Localized");
+          },
+        } as any,
+      }
+    );
+    const result = await sync.createEgg("ai_egg", "artificial intelligence");
+    assert.ok(calledWith);
+    assert.equal(calledWith[1], "artificial intelligence");
+    assert.ok(calledWith[0].includes("artificial intelligence"));
+    const created = files.get("nutegg/ai_egg.md")!;
+    assert.ok(created.includes("Localized"));
+    assert.ok(created.includes("# Knowledge"));
+    assert.ok(created.includes("# Unprocessed"));
   });
 
   it("does nothing when _index.md is missing", async () => {

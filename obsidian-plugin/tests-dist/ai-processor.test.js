@@ -680,6 +680,9 @@ IMPORTANT:
 - "kind" is "insight" or "list".
 `;
 
+// src/prompts/localize-egg.md
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\nIMPORTANT:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -703,13 +706,20 @@ var PROMPTS = {
   /** Per-egg verdict + key questions for long content (after per-part delta). */
   aggregateEgg: aggregate_egg_default,
   /** Suggest a new egg for content that matched no existing egg. */
-  suggestEgg: suggest_egg_default
+  suggestEgg: suggest_egg_default,
+  /** Localize egg template matching the description language while keeping parser structure in English. */
+  localizeEgg: localize_egg_default
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     const value = vars[key];
     return value === void 0 ? "" : String(value);
   });
+}
+
+// src/index-sync.ts
+function sanitizeEggName(name) {
+  return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
 }
 
 // src/prompts/grounding-rule.md
@@ -1205,12 +1215,37 @@ ${delta || "- (no novel delta)"}`;
       });
       const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "aggregate-egg");
-      const name = String(parsed.name || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+      const name = sanitizeEggName(parsed.name);
       if (!name)
         return null;
       return { name, description: String(parsed.description || "").trim() };
     } catch (err) {
       console.warn("[NutEgg] Egg suggestion failed:", err);
+      return null;
+    }
+  }
+  /**
+   * Localize an egg template (from templates/egg.md) into the same language as
+   * the egg description. Keeps the structure and parser keywords in English.
+   * Returns null when unavailable (no API key, AI error).
+   */
+  async localizeEggTemplate(templateContent, description) {
+    if (!this.plugin.settings.aiApiKey)
+      return null;
+    try {
+      const prompt = renderPrompt(PROMPTS.localizeEgg, {
+        description,
+        template: templateContent
+      });
+      const response = await this.callAI(prompt, 1800);
+      let text = response.trim();
+      text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+      if (text.includes("[!abstract]") && text.includes("**Scope:**") && text.includes("**Action Guide:**") && text.includes("# Knowledge") && text.includes("# Unprocessed")) {
+        return text;
+      }
+      return null;
+    } catch (err) {
+      console.warn("[NutEgg] AI egg template localization failed:", err);
       return null;
     }
   }
@@ -2561,6 +2596,53 @@ var capture = {
       await new AIProcessor(badJson).suggestEgg({ title: "T", url: "u" }, ""),
       null
     );
+  });
+});
+(0, import_node_test.describe)("AIProcessor.localizeEggTemplate", () => {
+  (0, import_node_test.it)("returns stripped localized template when AI produces valid egg content", async () => {
+    let sentPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          sentPrompt = prompt;
+          return "```markdown\n> [!abstract]- Instructions:\n> **Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5\n>\n> **Action Guide:**\n> 1. Title Verdict: \u6838\u5FC3\u7ED3\u8BBA\n\n# Knowledge\n\n# Unprocessed\n```";
+        }
+      }
+    });
+    const templateInput = "> [!abstract]- Instructions:\n> **Scope:** T\n>\n> **Action Guide:**\n> 1. Title Verdict: T\n\n# Knowledge\n\n# Unprocessed";
+    const out = await new AIProcessor(plugin).localizeEggTemplate(
+      templateInput,
+      "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"
+    );
+    import_strict.default.ok(out);
+    import_strict.default.ok(out.startsWith("> [!abstract]- Instructions:"));
+    import_strict.default.ok(out.includes("**Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
+    import_strict.default.ok(out.includes("**Action Guide:**"));
+    import_strict.default.ok(out.includes("# Knowledge"));
+    import_strict.default.ok(out.includes("# Unprocessed"));
+    import_strict.default.ok(!out.includes("```"));
+    import_strict.default.ok(sentPrompt.includes("\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
+    import_strict.default.ok(sentPrompt.includes(templateInput));
+  });
+  (0, import_node_test.it)("returns null when AI output is invalid or missing required markers", async () => {
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => "Sorry, I cannot do that."
+      }
+    });
+    const out = await new AIProcessor(plugin).localizeEggTemplate(
+      "bad template",
+      "test"
+    );
+    import_strict.default.equal(out, null);
+  });
+  (0, import_node_test.it)("returns null when no API key is configured", async () => {
+    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
+    const out = await new AIProcessor(noKey).localizeEggTemplate(
+      "template",
+      "desc"
+    );
+    import_strict.default.equal(out, null);
   });
 });
 (0, import_node_test.describe)("AIProcessor.maybeMergeEgg", () => {

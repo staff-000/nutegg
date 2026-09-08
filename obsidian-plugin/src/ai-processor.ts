@@ -2,6 +2,7 @@ import type NutEggPlugin from "./main";
 import type { EggContent } from "./egg-parser";
 import { AIError } from "./ai-client";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
+import { sanitizeEggName } from "./index-sync";
 import groundingRuleTpl from "./prompts/grounding-rule.md";
 
 /** Shared grounding rule injected into every prompt. */
@@ -810,15 +811,47 @@ export class AIProcessor {
       });
       const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "aggregate-egg");
-      const name = String(parsed.name || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .slice(0, 60);
+      const name = sanitizeEggName(parsed.name);
       if (!name) return null;
       return { name, description: String(parsed.description || "").trim() };
     } catch (err) {
       console.warn("[NutEgg] Egg suggestion failed:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Localize an egg template (from templates/egg.md) into the same language as
+   * the egg description. Keeps the structure and parser keywords in English.
+   * Returns null when unavailable (no API key, AI error).
+   */
+  async localizeEggTemplate(
+    templateContent: string,
+    description: string
+  ): Promise<string | null> {
+    if (!this.plugin.settings.aiApiKey) return null;
+    try {
+      const prompt = renderPrompt(PROMPTS.localizeEgg, {
+        description: description,
+        template: templateContent,
+      });
+      const response = await this.callAI(prompt, 1800);
+      let text = response.trim();
+      // Strip markdown code fences if AI wrapped it in ```markdown ... ```
+      text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+      // Verify basic parser markers exist to ensure validity
+      if (
+        text.includes("[!abstract]") &&
+        text.includes("**Scope:**") &&
+        text.includes("**Action Guide:**") &&
+        text.includes("# Knowledge") &&
+        text.includes("# Unprocessed")
+      ) {
+        return text;
+      }
+      return null;
+    } catch (err) {
+      console.warn("[NutEgg] AI egg template localization failed:", err);
       return null;
     }
   }

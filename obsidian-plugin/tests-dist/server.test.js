@@ -41,6 +41,11 @@ var AIError = class extends Error {
   }
 };
 
+// src/index-sync.ts
+function sanitizeEggName(name) {
+  return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+}
+
 // src/server.ts
 var NutEggServer = class {
   server = null;
@@ -87,9 +92,10 @@ var NutEggServer = class {
   estimateTime(metadata, content) {
     return parseInt(metadata?.time_estimate_minutes || "0", 10) || Math.max(1, Math.ceil((content?.split(/\s+/)?.length || 0) / 200));
   }
-  /** Count egg files (markdown under nutegg/, excluding _raw and _index). */
+  /** Count egg files (markdown under vaultFolder/, excluding _raw and _index). */
   countEggs() {
-    return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith("nutegg/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.endsWith("/_index.md")).length;
+    const folder = this.plugin.vaultFolder || "nutegg";
+    return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.endsWith("/_index.md")).length;
   }
   /** Strip trailing slashes, fragment, and common tracking/session params. */
   normalizeUrl(url) {
@@ -567,7 +573,7 @@ var NutEggServer = class {
     try {
       const body = await this.readBody(req);
       const { name, description } = JSON.parse(body);
-      const safeName = String(name || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+      const safeName = sanitizeEggName(name);
       if (!safeName) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Missing egg name" }));
@@ -841,6 +847,29 @@ function makeServer(overrides = {}) {
       alreadyExists: false
     });
     import_strict.default.deepEqual(createdWith, ["productivity_101", "systems"]);
+  });
+  (0, import_node_test.it)("sanitizes and preserves Unicode Chinese names", async () => {
+    let createdWith = null;
+    const s = makeServer({
+      indexSync: {
+        createEgg: async (name, description) => {
+          createdWith = [name, description];
+          return { path: `nutegg/${name}.md`, alreadyExists: false };
+        }
+      }
+    });
+    const req = makeReq(
+      JSON.stringify({ name: "\u65B9\u6CD5\u8BBA", description: "\u505A\u4E8B\u7684\u65B9\u6CD5" })
+    );
+    const res = makeRes();
+    await s.handleCreateEgg(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(JSON.parse(res.body), {
+      success: true,
+      path: "nutegg/\u65B9\u6CD5\u8BBA.md",
+      alreadyExists: false
+    });
+    import_strict.default.deepEqual(createdWith, ["\u65B9\u6CD5\u8BBA", "\u505A\u4E8B\u7684\u65B9\u6CD5"]);
   });
   (0, import_node_test.it)("rejects a blank name with 400", async () => {
     const s = makeServer({
