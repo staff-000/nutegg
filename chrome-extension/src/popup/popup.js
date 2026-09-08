@@ -936,13 +936,12 @@ function showResultsState(result, provenance = null) {
   processedNote.classList.add("hidden");
   renderResultProvenance(provenance);
 
-  // No egg matched — offer to create one (prefilled with the AI suggestion)
+  // No egg matched — offer to create one
   const noEgg = (result.matchedEggs || []).length === 0;
   if (noEgg) {
     noEggSection.classList.remove("hidden");
-    newEggName.value =
-      result.suggestedEgg?.name || slugify(extractedContent?.title || "");
-    newEggDescription.value = result.suggestedEgg?.description || "";
+    newEggName.value = "";
+    newEggDescription.value = "";
   } else {
     noEggSection.classList.add("hidden");
   }

@@ -420,8 +420,8 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 IMPORTANT:
 - Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as the content, or as this sentence if provided: "{{egg_description}}". Keep JSON keys in English.
-- titleVerdict: single sentence.
+- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+- titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
@@ -622,9 +622,6 @@ IMPORTANT:
 // src/workflow/aggregate-egg.md
 var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\nIMPORTANT:\n- Output Language: write ALL output text (knowledge entries, answers, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.\n';
 
-// src/workflow/suggest-egg.md
-var suggest_egg_default = 'You are a knowledge curator. The content below matched no existing egg (knowledge file). Suggest a new egg to capture content like this.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n\n## What the content is about\n{{summary}}\n\n## Task\nSuggest a short snake_case egg name (2-4 words, e.g. "productivity" or "quant_finance") and a one-line description of what this egg captures (used as its routing description).\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "name": "snake_case_name",\n  "description": "one line description"\n}\n';
-
 // src/workflow/egg-compare.md
 var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
 Your task is to compare newly extracted candidate knowledge entries from a source against this egg's existing Knowledge tree and Unprocessed entries to identify genuinely NEW insights and decide if the source is worth reading.
@@ -708,8 +705,6 @@ var PROMPTS = {
   aggregateContent: aggregate_content_default,
   /** Per-egg verdict + key questions for long content (after per-part delta). */
   aggregateEgg: aggregate_egg_default,
-  /** Suggest a new egg for content that matched no existing egg. */
-  suggestEgg: suggest_egg_default,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localize_egg_default,
   /** Shared grounding rule injected into every prompt. */
@@ -720,11 +715,6 @@ function renderPrompt(template, vars) {
     const value = vars[key];
     return value === void 0 ? "" : String(value);
   });
-}
-
-// src/index-sync.ts
-function sanitizeEggName(name) {
-  return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
 }
 
 // src/ai-processor.ts
@@ -1203,30 +1193,6 @@ ${delta || "- (no novel delta)"}`;
       readVerdict: parsed.readVerdict !== false,
       readVerdictReason: String(parsed.readVerdictReason || "")
     };
-  }
-  /**
-   * Suggest a new egg (name + description) for content that matched no
-   * existing egg. Returns null when unavailable (no API key, AI failure).
-   */
-  async suggestEgg(capture2, summary) {
-    if (!this.plugin.settings.aiApiKey)
-      return null;
-    try {
-      const prompt = renderPrompt(this.getPrompt("suggestEgg"), {
-        title: capture2.title,
-        url: capture2.url,
-        summary: summary || ""
-      });
-      const response = await this.callAI(prompt, 1500);
-      const parsed = this.parseJson(response, "suggest-egg");
-      const name = sanitizeEggName(parsed.name);
-      if (!name)
-        return null;
-      return { name, description: String(parsed.description || "").trim() };
-    } catch (err) {
-      console.warn("[NutEgg] Egg suggestion failed:", err);
-      return null;
-    }
   }
   /**
    * Localize an egg template (from templates/egg.md) into the same language as
@@ -2609,35 +2575,6 @@ var capture = {
     });
     await new AIProcessor(plugin).analyze({ ...capture }, [egg("a.md")]);
     import_strict.default.equal(calls, 1, "no chunking below the limit (single egg extract with 0 entries)");
-  });
-});
-(0, import_node_test.describe)("AIProcessor.suggestEgg", () => {
-  (0, import_node_test.it)("returns the AI-suggested name + description (sanitized)", async () => {
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async () => JSON.stringify({ name: "Strategic Thinking", description: "  One line.  " })
-      }
-    });
-    const out = await new AIProcessor(plugin).suggestEgg(
-      { title: "T", url: "https://x.com/a" },
-      "summary text"
-    );
-    import_strict.default.deepEqual(out, {
-      name: "strategic_thinking",
-      description: "One line."
-    });
-  });
-  (0, import_node_test.it)("returns null without an API key or on unparseable output", async () => {
-    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
-    import_strict.default.equal(
-      await new AIProcessor(noKey).suggestEgg({ title: "T", url: "u" }, ""),
-      null
-    );
-    const badJson = makeFakePlugin({ aiClient: { chat: async () => "not json" } });
-    import_strict.default.equal(
-      await new AIProcessor(badJson).suggestEgg({ title: "T", url: "u" }, ""),
-      null
-    );
   });
 });
 (0, import_node_test.describe)("AIProcessor.localizeEggTemplate", () => {

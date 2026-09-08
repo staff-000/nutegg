@@ -57,7 +57,6 @@ For long content (e.g. 1-2 hour videos, long transcripts), NutEgg automatically 
 | [`aggregate-egg.md`](file:///./aggregate-egg.md) | Long Content | Combines and de-duplicates candidate insights extracted across multiple chunks for one egg. | JSON (`novelDelta`, `keyQuestionAnswers`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
 | [`merge-unprocessed.md`](file:///./merge-unprocessed.md) | Knowledge Maintenance | Merges entries accumulated under `# Unprocessed` into the structured `# Knowledge` tree on demand. | JSON (`knowledge`, `unprocessed`) |
 | [`localize-egg.md`](file:///./localize-egg.md) | Egg Creation | Adapts the standard egg template into the language of the egg's description when a new egg is created. | Full initial egg note (Markdown) |
-| [`suggest-egg.md`](file:///./suggest-egg.md) | Fallback Routing | Suggests a new egg name and description when captured content matches no existing egg. | JSON (`name`, `description`) |
 | [`follow-up.md`](file:///./follow-up.md) | Interactive Q&A | Answers user follow-up questions about the captured content in the Chrome popup. | JSON (`answers`: `[{"question", "answer"}]`) |
 | [`action-guide-default.md`](file:///./action-guide-default.md) | Default Fallback | The baseline Action Guide used when an egg note does not specify its own. | Plain text list |
 | [`grounding-rule.md`](file:///./grounding-rule.md) | Shared Rule | The strict grounding & anti-hallucination directive injected into all analysis prompts. | Plain text rule |

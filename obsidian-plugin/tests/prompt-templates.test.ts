@@ -49,8 +49,6 @@ describe("PROMPTS", () => {
       "current_knowledge", "extracted_entries", "rejection_criteria",
       // chunked analysis (per-part labels + aggregates)
       "part_note", "chunk_summaries", "chunk_findings", "sections",
-      // suggest-egg.md
-      "summary",
       // multi-lingual output language (from _index.md entry description)
       "egg_description",
       // localize-egg.md

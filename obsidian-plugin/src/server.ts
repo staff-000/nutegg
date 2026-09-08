@@ -556,17 +556,8 @@ export class NutEggServer {
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
 
-      // When no egg matched, suggest one so the popup can offer to create it
-      let suggestedEgg = null;
-      if (result.matchedEggs.length === 0) {
-        suggestedEgg = await this.plugin.aiProcessor.suggestEgg(
-          capture,
-          [result.titleVerdict, ...(result.coreSummary || [])].join(" ")
-        );
-      }
-
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId, suggestedEgg }));
+      res.end(JSON.stringify({ ...result, nutId }));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
 

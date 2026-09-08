@@ -14,7 +14,6 @@ export type WorkflowPromptKey =
   | "mergeUnprocessed"
   | "aggregateContent"
   | "aggregateEgg"
-  | "suggestEgg"
   | "localizeEgg"
   | "groundingRule";
 
@@ -29,7 +28,6 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   mergeUnprocessed: "merge-unprocessed.md",
   aggregateContent: "aggregate-content.md",
   aggregateEgg: "aggregate-egg.md",
-  suggestEgg: "suggest-egg.md",
   localizeEgg: "localize-egg.md",
   groundingRule: "grounding-rule.md",
 };
@@ -47,7 +45,6 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "merge-unprocessed.md": PROMPTS.mergeUnprocessed,
   "aggregate-content.md": PROMPTS.aggregateContent,
   "aggregate-egg.md": PROMPTS.aggregateEgg,
-  "suggest-egg.md": PROMPTS.suggestEgg,
   "localize-egg.md": PROMPTS.localizeEgg,
   "grounding-rule.md": PROMPTS.groundingRule,
 };

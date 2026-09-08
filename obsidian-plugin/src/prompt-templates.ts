@@ -15,7 +15,6 @@ import actionGuideDefaultTpl from "./workflow/action-guide-default.md";
 import mergeUnprocessedTpl from "./workflow/merge-unprocessed.md";
 import aggregateContentTpl from "./workflow/aggregate-content.md";
 import aggregateEggTpl from "./workflow/aggregate-egg.md";
-import suggestEggTpl from "./workflow/suggest-egg.md";
 import eggCompareTpl from "./workflow/egg-compare.md";
 import localizeEggTpl from "./workflow/localize-egg.md";
 import groundingRuleTpl from "./workflow/grounding-rule.md";
@@ -41,8 +40,6 @@ export const PROMPTS = {
   aggregateContent: aggregateContentTpl,
   /** Per-egg verdict + key questions for long content (after per-part delta). */
   aggregateEgg: aggregateEggTpl,
-  /** Suggest a new egg for content that matched no existing egg. */
-  suggestEgg: suggestEggTpl,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localizeEggTpl,
   /** Shared grounding rule injected into every prompt. */

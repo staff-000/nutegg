@@ -796,32 +796,6 @@ export class AIProcessor {
   }
 
   /**
-   * Suggest a new egg (name + description) for content that matched no
-   * existing egg. Returns null when unavailable (no API key, AI failure).
-   */
-  async suggestEgg(
-    capture: { title: string; url: string },
-    summary: string
-  ): Promise<{ name: string; description: string } | null> {
-    if (!this.plugin.settings.aiApiKey) return null;
-    try {
-      const prompt = renderPrompt(this.getPrompt("suggestEgg"), {
-        title: capture.title,
-        url: capture.url,
-        summary: summary || "",
-      });
-      const response = await this.callAI(prompt, 1500);
-      const parsed = this.parseJson(response, "suggest-egg");
-      const name = sanitizeEggName(parsed.name);
-      if (!name) return null;
-      return { name, description: String(parsed.description || "").trim() };
-    } catch (err) {
-      console.warn("[NutEgg] Egg suggestion failed:", err);
-      return null;
-    }
-  }
-
-  /**
    * Localize an egg template (from templates/egg.md) into the same language as
    * the egg description. Keeps the structure and parser keywords in English.
    * Returns null when unavailable (no API key, AI error).

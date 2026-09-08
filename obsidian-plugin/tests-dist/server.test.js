@@ -432,15 +432,8 @@ var NutEggServer = class {
       console.log(
         `[NutEgg] Analyzed: ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
-      let suggestedEgg = null;
-      if (result.matchedEggs.length === 0) {
-        suggestedEgg = await this.plugin.aiProcessor.suggestEgg(
-          capture,
-          [result.titleVerdict, ...result.coreSummary || []].join(" ")
-        );
-      }
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId, suggestedEgg }));
+      res.end(JSON.stringify({ ...result, nutId }));
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
       if (err instanceof AIError) {

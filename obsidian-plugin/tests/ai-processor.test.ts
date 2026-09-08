@@ -510,38 +510,6 @@ describe("AIProcessor.analyze (chunked)", () => {
   });
 });
 
-describe("AIProcessor.suggestEgg", () => {
-  it("returns the AI-suggested name + description (sanitized)", async () => {
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async () =>
-          JSON.stringify({ name: "Strategic Thinking", description: "  One line.  " }),
-      },
-    });
-    const out = await new AIProcessor(plugin as any).suggestEgg(
-      { title: "T", url: "https://x.com/a" },
-      "summary text"
-    );
-    assert.deepEqual(out, {
-      name: "strategic_thinking",
-      description: "One line.",
-    });
-  });
-
-  it("returns null without an API key or on unparseable output", async () => {
-    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
-    assert.equal(
-      await new AIProcessor(noKey as any).suggestEgg({ title: "T", url: "u" }, ""),
-      null
-    );
-    const badJson = makeFakePlugin({ aiClient: { chat: async () => "not json" } });
-    assert.equal(
-      await new AIProcessor(badJson as any).suggestEgg({ title: "T", url: "u" }, ""),
-      null
-    );
-  });
-});
-
 describe("AIProcessor.localizeEggTemplate", () => {
   it("returns stripped localized template when AI produces valid egg content", async () => {
     let sentPrompt = "";
