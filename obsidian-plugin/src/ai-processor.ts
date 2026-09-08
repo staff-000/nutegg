@@ -3,10 +3,7 @@ import type { EggContent } from "./egg-parser";
 import { AIError } from "./ai-client";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
 import { sanitizeEggName } from "./index-sync";
-import groundingRuleTpl from "./prompts/grounding-rule.md";
-
-/** Shared grounding rule injected into every prompt. */
-const GROUNDING_RULE = groundingRuleTpl.trim();
+import type { WorkflowPromptKey } from "./workflow-manager";
 
 /**
  * Max characters of the nut's content sent in each AI call. ~30k chars ≈
@@ -140,6 +137,10 @@ export class AIProcessor {
     this.plugin = plugin;
   }
 
+  private getPrompt(key: WorkflowPromptKey): string {
+    return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key as keyof typeof PROMPTS] || "";
+  }
+
   async analyze(
     capture: {
       url: string;
@@ -188,7 +189,7 @@ export class AIProcessor {
       // Phase 1: content analysis (shared guide — eggs carry the same steps).
       // The eggs' key questions are passed along so the AI can skip
       // user questions that are equivalent to them.
-      const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+      const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
       contentAnalysis = await this.analyzeContent(
         capture,
         guide,
@@ -239,7 +240,7 @@ export class AIProcessor {
     partNote = "",
     eggDescription = ""
   ): Promise<ContentAnalysis> {
-    const prompt = renderPrompt(PROMPTS.contentAnalysis, {
+    const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       action_guide: actionGuide,
       egg_description: eggDescription,
       title: capture.title,
@@ -257,7 +258,7 @@ export class AIProcessor {
         "Egg Key Questions (answered separately — skip equivalent user questions)"
       ),
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     // Room for a full chapter map (one summary per chapter) + questions
@@ -296,7 +297,7 @@ export class AIProcessor {
     partNote = ""
   ): Promise<EggAnalysis | null> {
     // Step 1: Extract knowledge entries using ONLY the instruction part of the egg file
-    const prompt = renderPrompt(PROMPTS.eggAnalysis, {
+    const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
       egg_file: egg.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
       egg_description: egg.indexDescription,
@@ -305,7 +306,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNote,
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     try {
@@ -356,7 +357,7 @@ export class AIProcessor {
     partNote = ""
   ): Promise<EggAnalysis & ContentAnalysis> {
     // Step 1: Extract candidate entries and content analysis using ONLY egg instructions
-    const prompt = renderPrompt(PROMPTS.eggCombined, {
+    const prompt = renderPrompt(this.getPrompt("eggCombined"), {
       egg_file: egg.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
       egg_description: egg.indexDescription,
@@ -371,7 +372,7 @@ export class AIProcessor {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     const response = await this.callAI(prompt, 1500);
@@ -449,7 +450,7 @@ export class AIProcessor {
       };
     }
 
-    const prompt = renderPrompt(PROMPTS.eggCompare, {
+    const prompt = renderPrompt(this.getPrompt("eggCompare"), {
       egg_file: egg.fileName,
       egg_description: egg.indexDescription,
       title: capture.title,
@@ -462,7 +463,7 @@ export class AIProcessor {
       extracted_entries: extractedEntries
         .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
         .join("\n\n"),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     try {
@@ -572,7 +573,7 @@ export class AIProcessor {
     eggs: EggContent[],
     chunks: ContentChunk[]
   ): Promise<AnalysisResult> {
-    const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+    const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
 
     // Phase 1 — per-part content analysis (custom questions are answered
     // once, in the aggregate call, so parts run without them)
@@ -718,7 +719,7 @@ export class AIProcessor {
     coreSummary: string[];
     customQuestionAnswers: KeyAnswer[];
   }> {
-    const prompt = renderPrompt(PROMPTS.aggregateContent, {
+    const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture.title,
       url: capture.url,
       egg_description: eggDescription,
@@ -733,7 +734,7 @@ export class AIProcessor {
         capture.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     const response = await this.callAI(prompt, 800);
@@ -759,7 +760,7 @@ export class AIProcessor {
     readVerdict: boolean;
     readVerdictReason: string;
   }> {
-    const prompt = renderPrompt(PROMPTS.aggregateEgg, {
+    const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
       egg_file: egg.fileName,
       egg_description: egg.indexDescription,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg),
@@ -770,7 +771,7 @@ export class AIProcessor {
           return `## Part ${f.part} of ${chunkFindings.length}${at}\n${delta || "- (no novel delta)"}`;
         })
         .join("\n\n"),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     const response = await this.callAI(prompt, 1500);
@@ -804,7 +805,7 @@ export class AIProcessor {
   ): Promise<{ name: string; description: string } | null> {
     if (!this.plugin.settings.aiApiKey) return null;
     try {
-      const prompt = renderPrompt(PROMPTS.suggestEgg, {
+      const prompt = renderPrompt(this.getPrompt("suggestEgg"), {
         title: capture.title,
         url: capture.url,
         summary: summary || "",
@@ -831,7 +832,7 @@ export class AIProcessor {
   ): Promise<string | null> {
     if (!this.plugin.settings.aiApiKey) return null;
     try {
-      const prompt = renderPrompt(PROMPTS.localizeEgg, {
+      const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
         description: description,
         template: templateContent,
       });
@@ -1158,7 +1159,7 @@ export class AIProcessor {
             .join("\n")}`
         : "";
 
-    const prompt = renderPrompt(PROMPTS.followUp, {
+    const prompt = renderPrompt(this.getPrompt("followUp"), {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
@@ -1166,7 +1167,7 @@ export class AIProcessor {
       prior_qa: priorBlock,
       content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      grounding_rule: GROUNDING_RULE,
+      grounding_rule: this.getPrompt("groundingRule"),
     });
 
     try {
@@ -1218,7 +1219,7 @@ export class AIProcessor {
       (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
     );
 
-    const prompt = renderPrompt(PROMPTS.mergeUnprocessed, {
+    const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
       egg_description: indexEntry?.description || "",
       formatting_rules: egg.formattingRules || "(none)",

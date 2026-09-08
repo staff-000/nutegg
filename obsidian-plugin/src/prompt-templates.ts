@@ -18,6 +18,7 @@ import aggregateEggTpl from "./prompts/aggregate-egg.md";
 import suggestEggTpl from "./prompts/suggest-egg.md";
 import eggCompareTpl from "./prompts/egg-compare.md";
 import localizeEggTpl from "./prompts/localize-egg.md";
+import groundingRuleTpl from "./prompts/grounding-rule.md";
 
 export const PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -44,6 +45,8 @@ export const PROMPTS = {
   suggestEgg: suggestEggTpl,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localizeEggTpl,
+  /** Shared grounding rule injected into every prompt. */
+  groundingRule: groundingRuleTpl.trim(),
 };
 
 /** Substitute {{placeholder}} variables in a template. */

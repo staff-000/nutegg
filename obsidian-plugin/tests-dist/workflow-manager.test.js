@@ -22,9 +22,24 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// tests/index-reader.test.ts
+// tests/workflow-manager.test.ts
 var import_node_test = require("node:test");
 var import_strict = __toESM(require("node:assert/strict"));
+
+// tests/obsidian-stub.ts
+var Notice = class {
+  constructor(message, _timeout) {
+    this.message = message;
+  }
+};
+var TAbstractFile = class {
+  path = "";
+  name = "";
+};
+var TFile = class extends TAbstractFile {
+  basename = "";
+  extension = "";
+};
 
 // src/prompts/content-analysis.md
 var content_analysis_default = `You are a knowledge curator. Analyze the content below following this Action Guide.
@@ -352,175 +367,206 @@ var PROMPTS = {
   /** Shared grounding rule injected into every prompt. */
   groundingRule: grounding_rule_default.trim()
 };
-function renderPrompt(template, vars) {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    const value = vars[key];
-    return value === void 0 ? "" : String(value);
-  });
-}
 
-// src/index-reader.ts
-var IndexReader = class {
+// src/templates/workflow-readme.md
+var workflow_readme_default = "# NutEgg AI Workflow & Prompt Reference\n\nWelcome to the **NutEgg Workflow Engine**. The files in this folder define the prompts, instructions, and schemas that power NutEgg's AI extraction and knowledge synthesis pipeline.\n\n> [!TIP]\n> You can freely edit and customize any file in this directory to tailor NutEgg's analysis to your specific needs (e.g. changing the tone, adding domain-specific perspectives, or adjusting extraction depth).\n\n---\n\n## Architecture Overview\n\nWhen you capture an article, video, or note in NutEgg, the AI processor executes one of several pipelines based on how many eggs match and how long the content is:\n\n```\n                  \u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                  \u2502      Captured Web Content     \u2502\n                  \u2502   (Article / YouTube / Tweet) \u2502\n                  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                 \u2502\n                 Did the user manually pick eggs?\n                    \u251C\u2500\u2500 No \u2500\u2500\u25BA [egg-routing.md] (match eggs from _index.md)\n                    \u2514\u2500\u2500 Yes \u2500\u25BA Use selected eggs\n                                 \u2502\n                 How many eggs matched?\n                    \u251C\u2500\u2500 1 Egg  \u2500\u2500\u25BA Single-Egg Fast Path (1 AI call)\n                    \u2502              [egg-combined.md]\n                    \u2502\n                    \u2514\u2500\u2500 2+ Eggs \u2500\u25BA Multi-Egg Parallel Pipeline\n                                   Step 1: [content-analysis.md] (Summary & Chapter Map)\n                                   Step 2: [egg-analysis.md] (Per-egg candidate insights)\n                                 \u2502\n                                 \u25BC\n                     Knowledge Tree Comparison\n                     [egg-compare.md]\n                     (Compare candidate insights against existing egg knowledge tree)\n                                 \u2502\n                                 \u25BC\n                     Results returned to Popup\n```\n\nFor long content (e.g. 1-2 hour videos, long transcripts), NutEgg automatically splits content into chapters and uses:\n- **`aggregate-content.md`**: Combines per-part summaries into one cohesive overview.\n- **`aggregate-egg.md`**: Synthesizes candidate entries across all chunks for each egg.\n\n---\n\n## Workflow File Directory\n\n| File | Pipeline Stage | Purpose | Output Format |\n|---|---|---|---|\n| [`egg-combined.md`](file:///./egg-combined.md) | Single-Egg Fast Path | Combined 1-call prompt extracting summary, chapter map, and candidate insights for a single egg. | JSON (`titleVerdict`, `coreSummary`, `candidateKnowledge`, etc.) |\n| [`content-analysis.md`](file:///./content-analysis.md) | Multi-Egg Step 1 | High-level content analysis: single-sentence title verdict, core summary bullet points, and chapter map. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestions`) |\n| [`egg-analysis.md`](file:///./egg-analysis.md) | Multi-Egg Step 2 | Extracts candidate knowledge entries targeted to one specific egg's scope and action guide. | JSON (`relevanceVerdict`, `keyQuestions`, `candidateKnowledge`) |\n| [`egg-compare.md`](file:///./egg-compare.md) | Synthesis (All Paths) | Compares candidate entries against the existing `# Knowledge` tree in the egg note to eliminate duplicates and identify novel deltas. | JSON (`entries`, `rejectReason`) |\n| [`egg-routing.md`](file:///./egg-routing.md) | Routing | Compares content against the egg descriptions in `_index.md` to select the best matching eggs. | JSON array of egg filenames |\n| [`aggregate-content.md`](file:///./aggregate-content.md) | Long Content | Merges chunk-level summaries from long articles or video transcripts into one comprehensive overview. | JSON (`titleVerdict`, `coreSummary`) |\n| [`aggregate-egg.md`](file:///./aggregate-egg.md) | Long Content | Combines and de-duplicates candidate insights extracted across multiple chunks for one egg. | JSON (`relevanceVerdict`, `keyQuestions`, `candidateKnowledge`) |\n| [`merge-unprocessed.md`](file:///./merge-unprocessed.md) | Knowledge Maintenance | Merges entries accumulated under `# Unprocessed` into the structured `# Knowledge` tree on demand. | Full updated egg note (Markdown) |\n| [`localize-egg.md`](file:///./localize-egg.md) | Egg Creation | Adapts the standard egg template into the language of the egg's description when a new egg is created. | Full initial egg note (Markdown) |\n| [`suggest-egg.md`](file:///./suggest-egg.md) | Fallback Routing | Suggests a new egg name and description when captured content matches no existing egg. | JSON (`name`, `description`) |\n| [`follow-up.md`](file:///./follow-up.md) | Interactive Q&A | Answers user follow-up questions about the captured content in the Chrome popup. | Plain text / Markdown answer |\n| [`action-guide-default.md`](file:///./action-guide-default.md) | Default Fallback | The baseline Action Guide used when an egg note does not specify its own. | Plain text list |\n| [`grounding-rule.md`](file:///./grounding-rule.md) | Shared Rule | The strict grounding & anti-hallucination directive injected into all analysis prompts. | Plain text rule |\n\n---\n\n## Customization Rules & Guidelines\n\n### \u2705 What You Can Safely Customize\n- **Tone and Perspective**: You can instruct the AI to be more critical, more technical, or focus on specific themes.\n- **Summary Depth**: You can change how concise or detailed summaries should be.\n- **Language / Idiom Preferences**: You can tweak phrasing, formatting preferences, or custom analytical lenses.\n\n### \u26A0\uFE0F What You Must Preserve (To Prevent Parser Errors)\n1. **`{{placeholders}}`**: The strings enclosed in double curly braces (e.g. `{{content}}`, `{{egg_description}}`, `{{knowledge_tree}}`) are replaced dynamically by the engine. Do not delete or rename them.\n2. **JSON Schemas**: Prompts that output JSON must keep the exact JSON key names specified in the template. The TypeScript engine parses these exact keys.\n3. **Markdown Structural Headings**: In prompts that output markdown (`merge-unprocessed.md`, `localize-egg.md`), the headings `# Knowledge` and `# Unprocessed` must remain verbatim in English for the note parser.\n\n---\n\n## Updates & Conflict Resolution\n\nWhen NutEgg updates to a newer version:\n- **If you haven't edited a workflow file**: The plugin automatically updates it to the latest version.\n- **If you have customized a workflow file**: NutEgg will **never overwrite your custom version**. Instead, it writes `[filename].new.md` alongside your file so you can inspect what changed in the update.\n- **Restore Defaults**: You can reset all workflow files back to factory defaults at any time from `Obsidian Settings \u2192 NutEgg \u2192 Restore Default Workflow Files`.\n\n";
+
+// src/workflow-manager.ts
+var WORKFLOW_FILE_MAP = {
+  contentAnalysis: "content-analysis.md",
+  eggAnalysis: "egg-analysis.md",
+  eggCombined: "egg-combined.md",
+  eggCompare: "egg-compare.md",
+  followUp: "follow-up.md",
+  eggRouting: "egg-routing.md",
+  actionGuideDefault: "action-guide-default.md",
+  mergeUnprocessed: "merge-unprocessed.md",
+  aggregateContent: "aggregate-content.md",
+  aggregateEgg: "aggregate-egg.md",
+  suggestEgg: "suggest-egg.md",
+  localizeEgg: "localize-egg.md",
+  groundingRule: "grounding-rule.md"
+};
+var BUILTIN_WORKFLOW_FILES = {
+  "README.md": workflow_readme_default,
+  "content-analysis.md": PROMPTS.contentAnalysis,
+  "egg-analysis.md": PROMPTS.eggAnalysis,
+  "egg-combined.md": PROMPTS.eggCombined,
+  "egg-compare.md": PROMPTS.eggCompare,
+  "follow-up.md": PROMPTS.followUp,
+  "egg-routing.md": PROMPTS.eggRouting,
+  "action-guide-default.md": PROMPTS.actionGuideDefault,
+  "merge-unprocessed.md": PROMPTS.mergeUnprocessed,
+  "aggregate-content.md": PROMPTS.aggregateContent,
+  "aggregate-egg.md": PROMPTS.aggregateEgg,
+  "suggest-egg.md": PROMPTS.suggestEgg,
+  "localize-egg.md": PROMPTS.localizeEgg,
+  "grounding-rule.md": PROMPTS.groundingRule
+};
+function simpleHash(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = hash * 33 ^ str.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(16);
+}
+var WorkflowManager = class {
   plugin;
+  cache = /* @__PURE__ */ new Map();
+  initialized = false;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  /**
-   * Parse _index.md and return all egg entries.
-   * Each non-empty line should be in format: `file.md: description`
-   * Lines starting with `#` are comments, skipped.
-   */
-  async getIndex() {
-    const indexPath = this.plugin.settings.indexFile;
-    const file = this.plugin.app.vault.getAbstractFileByPath(indexPath);
-    if (!file) {
-      console.warn(`[NutEgg] Index file not found: ${indexPath}`);
-      return [];
+  get workflowFolder() {
+    if (this.plugin.settings?.workflowFolder) {
+      return this.plugin.settings.workflowFolder;
     }
-    const content = await this.plugin.app.vault.read(file);
-    return this.parseIndexContent(content);
+    const base = this.plugin.vaultFolder || "nutegg";
+    return `${base}/_workflow`;
+  }
+  /** Initialize watcher, seed files, and load cache */
+  async init() {
+    if (!this.initialized && this.plugin.app?.vault?.on) {
+      this.plugin.app.vault.on("modify", (file) => {
+        this.onFileChanged(file);
+      });
+      this.plugin.app.vault.on("create", (file) => {
+        this.onFileChanged(file);
+      });
+      this.plugin.app.vault.on("delete", (file) => {
+        this.onFileDeleted(file);
+      });
+      this.initialized = true;
+    }
+    await this.ensureWorkflowFiles();
   }
   /**
-   * Use AI to determine which egg files are relevant to the content.
-   * Returns the matched index entries.
+   * Ensure the workflow folder and all built-in files exist in the vault.
+   * Detects version updates non-destructively:
+   * - Unmodified files are updated cleanly.
+   * - User-customized files are preserved, and new versions are written as `*.new.md`.
    */
-  async matchEggs(content, index) {
-    if (index.length === 0)
-      return [];
-    if (index.length === 1)
-      return index;
-    if (!this.plugin.settings.aiApiKey) {
-      return [index[0]];
+  async ensureWorkflowFiles() {
+    const folder = this.workflowFolder;
+    await this.ensureFolder(folder);
+    if (!this.plugin.settings.workflowHashes) {
+      this.plugin.settings.workflowHashes = {};
     }
-    const indexText = index.map((e) => `- ${e.fileName}: ${e.description}`).join("\n");
-    const promptTemplate = this.plugin.workflowManager?.getPrompt("eggRouting") || PROMPTS.eggRouting;
-    const prompt = renderPrompt(promptTemplate, {
-      title: content.title,
-      url: content.url,
-      content: this.truncate(content.content, 8e3),
-      index: indexText
-    });
-    try {
-      const response = await this.plugin.aiClient.chat(prompt, 800);
-      return this.parseMatchedEggs(response, index);
-    } catch (err) {
-      console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);
-      return index;
-    }
-  }
-  /**
-   * Parse matching egg files from the AI routing response.
-   * Tolerates JSON arrays, bullet points (- / *), numbering, backticks,
-   * quotes, path prefixes (nutegg/file.md vs file.md), and conversational text.
-   */
-  parseMatchedEggs(response, index) {
-    if (!response || !response.trim() || index.length === 0)
-      return [];
-    const text = response.trim();
-    const isExplicitNone = /^\s*(\[\]|none|no\s+match|no\s+matching\s+eggs?)\.?\s*$/i.test(text);
-    const entryMap = /* @__PURE__ */ new Map();
-    for (const entry of index) {
-      const full = entry.fileName.trim().toLowerCase();
-      const base = entry.fileName.split("/").pop().trim().toLowerCase();
-      const stem = base.replace(/\.md$/, "");
-      entryMap.set(entry, { full, base, stem });
-    }
-    const matchedEntries = /* @__PURE__ */ new Set();
-    const jsonMatch = text.match(/\[[\s\S]*?\]/);
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(parsed)) {
-          for (const item of parsed) {
-            const str = String(item).trim().toLowerCase();
-            for (const [entry, names] of entryMap.entries()) {
-              if (str === names.full || str === names.base || str.endsWith("/" + names.base)) {
-                matchedEntries.add(entry);
-              }
-            }
+    let settingsChanged = false;
+    for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
+      const filePath = `${folder}/${filename}`;
+      const builtinHash = simpleHash(builtinContent);
+      const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+      if (!file) {
+        await this.plugin.app.vault.create(filePath, builtinContent);
+        this.cache.set(filename, builtinContent);
+        this.plugin.settings.workflowHashes[filename] = builtinHash;
+        settingsChanged = true;
+        console.log(`[NutEgg] Seeded workflow file: ${filePath}`);
+      } else {
+        const vaultContent = await this.plugin.app.vault.read(file);
+        this.cache.set(filename, vaultContent);
+        const currentVaultHash = simpleHash(vaultContent);
+        const recordedHash = this.plugin.settings.workflowHashes[filename];
+        if (currentVaultHash === builtinHash) {
+          if (recordedHash !== builtinHash) {
+            this.plugin.settings.workflowHashes[filename] = builtinHash;
+            settingsChanged = true;
+          }
+        } else if (recordedHash && recordedHash === currentVaultHash) {
+          await this.plugin.app.vault.modify(file, builtinContent);
+          this.cache.set(filename, builtinContent);
+          this.plugin.settings.workflowHashes[filename] = builtinHash;
+          settingsChanged = true;
+          console.log(`[NutEgg] Auto-updated unmodified workflow file: ${filePath}`);
+        } else if (!recordedHash) {
+          this.plugin.settings.workflowHashes[filename] = currentVaultHash;
+          settingsChanged = true;
+        } else {
+          const baseName = filename.replace(/\.md$/, "");
+          const newPath = `${folder}/${baseName}.new.md`;
+          const existingNew = this.plugin.app.vault.getAbstractFileByPath(newPath);
+          if (!existingNew) {
+            await this.plugin.app.vault.create(newPath, builtinContent);
+            console.log(`[NutEgg] Saved updated workflow template to: ${newPath}`);
+            new Notice(
+              `[NutEgg] Workflow update available for ${filename}. Your custom file was preserved; see ${baseName}.new.md to compare.`,
+              8e3
+            );
           }
         }
-      } catch {
       }
     }
-    const mdMatches = text.match(/[\w\-./\\]+\.md\b/gi) || [];
-    for (const rawMatch of mdMatches) {
-      const clean = rawMatch.replace(/^[\\/]+/, "").trim().toLowerCase();
-      for (const [entry, names] of entryMap.entries()) {
-        if (clean === names.full || clean === names.base || clean.endsWith("/" + names.base)) {
-          matchedEntries.add(entry);
-        }
-      }
+    if (settingsChanged) {
+      await this.plugin.saveSettings();
     }
-    const lines = text.split("\n");
-    for (const rawLine of lines) {
-      let line = rawLine.trim();
-      if (!line)
-        continue;
-      line = line.replace(/^```[a-z]*\s*/i, "").replace(/```$/, "").replace(/^[\s*\-•+]+/, "").replace(/^\d+[.)]\s*/, "").replace(/^[`"']+|[`"']+$/g, "").replace(/[.:;,!?]+$/, "").trim().toLowerCase();
-      if (!line)
-        continue;
-      for (const [entry, names] of entryMap.entries()) {
-        if (line === names.full || line === names.base || line.endsWith("/" + names.base)) {
-          matchedEntries.add(entry);
-        }
-      }
-    }
-    if (matchedEntries.size === 0 && !isExplicitNone) {
-      for (const [entry, names] of entryMap.entries()) {
-        const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const basePattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.base)}($|[^a-z0-9_-])`, "i");
-        const fullPattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.full)}($|[^a-z0-9_-])`, "i");
-        if (basePattern.test(text) || fullPattern.test(text)) {
-          matchedEntries.add(entry);
-        }
-      }
-    }
-    return Array.from(matchedEntries);
   }
-  /**
-   * Get the full content of _index.md as a string, for passing to the main analysis prompt.
-   */
-  async getIndexContent() {
-    const indexPath = this.plugin.settings.indexFile;
-    const file = this.plugin.app.vault.getAbstractFileByPath(indexPath);
-    if (!file)
-      return "(No _index.md found)";
-    return await this.plugin.app.vault.read(file);
+  /** Retrieve prompt text dynamically from vault cache, falling back to built-in */
+  getPrompt(key) {
+    const filename = WORKFLOW_FILE_MAP[key];
+    if (!filename)
+      return "";
+    const cached = this.cache.get(filename);
+    if (cached && cached.trim().length > 0) {
+      return cached;
+    }
+    return BUILTIN_WORKFLOW_FILES[filename] || "";
   }
-  parseIndexContent(content) {
-    const entries = [];
-    for (const rawLine of content.split("\n")) {
-      const trimmed = rawLine.trim();
-      if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(">"))
+  /** Reset all workflow files to built-in defaults with backup */
+  async resetToDefaults() {
+    const folder = this.workflowFolder;
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const backupFolder = `${folder}/_backup/${timestamp}`;
+    await this.ensureFolder(backupFolder);
+    for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
+      const filePath = `${folder}/${filename}`;
+      const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+      if (file) {
+        const currentContent = await this.plugin.app.vault.read(file);
+        await this.plugin.app.vault.create(`${backupFolder}/${filename}`, currentContent);
+        await this.plugin.app.vault.modify(file, builtinContent);
+      } else {
+        await this.plugin.app.vault.create(filePath, builtinContent);
+      }
+      this.cache.set(filename, builtinContent);
+      this.plugin.settings.workflowHashes[filename] = simpleHash(builtinContent);
+    }
+    await this.plugin.saveSettings();
+    new Notice(`[NutEgg] Restored default workflow files. Previous files backed up to ${backupFolder}`);
+  }
+  async onFileChanged(file) {
+    if (!(file instanceof TFile) || !file.path.startsWith(this.workflowFolder)) {
+      return;
+    }
+    const filename = file.name;
+    if (filename in BUILTIN_WORKFLOW_FILES) {
+      const content = await this.plugin.app.vault.read(file);
+      this.cache.set(filename, content);
+    }
+  }
+  onFileDeleted(file) {
+    if (!file.path.startsWith(this.workflowFolder)) {
+      return;
+    }
+    const parts = file.path.split("/");
+    const filename = parts[parts.length - 1];
+    if (this.cache.has(filename)) {
+      this.cache.delete(filename);
+    }
+  }
+  async ensureFolder(path) {
+    const parts = path.split("/");
+    let currentPath = "";
+    for (const part of parts) {
+      if (!part)
         continue;
-      const line = trimmed.replace(/^[*\-+]\s+/, "");
-      const colonIdx = line.indexOf(":");
-      if (colonIdx === -1)
-        continue;
-      const fileName = line.substring(0, colonIdx).trim();
-      const description = line.substring(colonIdx + 1).trim();
-      if (fileName.endsWith(".md")) {
-        entries.push({ fileName, description });
+      currentPath += (currentPath ? "/" : "") + part;
+      const exists = await this.plugin.app.vault.adapter.exists(currentPath);
+      if (!exists) {
+        await this.plugin.app.vault.createFolder(currentPath);
       }
     }
-    return entries;
   }
-  truncate(text, maxChars) {
-    if (text.length <= maxChars)
-      return text;
-    return text.substring(0, maxChars) + "\n\n[...truncated]";
-  }
-};
-
-// tests/obsidian-stub.ts
-var TAbstractFile = class {
-  path = "";
-  name = "";
-};
-var TFile = class extends TAbstractFile {
-  basename = "";
-  extension = "";
 };
 
 // tests/helpers.ts
@@ -623,101 +669,141 @@ function makeFakePlugin(overrides = {}) {
   };
 }
 
-// tests/index-reader.test.ts
-function parse(content) {
-  const reader = new IndexReader(makeFakePlugin());
-  return reader.parseIndexContent(content);
+// tests/workflow-manager.test.ts
+function makeManager(files = {}, settingsOverrides = {}) {
+  const store = makeFakeVault(files);
+  const plugin = makeFakePlugin({
+    vault: store.vault,
+    settings: {
+      workflowFolder: "nutegg/_workflow",
+      workflowHashes: {},
+      ...settingsOverrides
+    },
+    saveSettings: async () => {
+    }
+  });
+  const manager = new WorkflowManager(plugin);
+  return { manager, plugin, store, files: store.files };
 }
-(0, import_node_test.describe)("IndexReader.parseIndexContent", () => {
-  (0, import_node_test.it)("parses `* path: description` bullet lines", () => {
-    const entries = parse("* nutegg/investment.md: investment strategies\n");
-    import_strict.default.equal(entries.length, 1);
-    import_strict.default.deepEqual(entries[0], {
-      fileName: "nutegg/investment.md",
-      description: "investment strategies"
+(0, import_node_test.describe)("WorkflowManager", () => {
+  (0, import_node_test.it)("seeds all built-in workflow files and populates settings.workflowHashes on initial run", async () => {
+    const { manager, files, plugin } = makeManager();
+    await manager.init();
+    for (const [filename, expectedContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
+      const fullPath = `nutegg/_workflow/${filename}`;
+      import_strict.default.equal(files.has(fullPath), true, `Missing seeded file: ${fullPath}`);
+      import_strict.default.equal(files.get(fullPath), expectedContent);
+      import_strict.default.equal(
+        plugin.settings.workflowHashes[filename],
+        simpleHash(expectedContent),
+        `Hash mismatch for ${filename}`
+      );
+    }
+    import_strict.default.equal(files.has("nutegg/_workflow/README.md"), true);
+  });
+  (0, import_node_test.it)("retrieves seeded prompts dynamically via getPrompt", async () => {
+    const { manager } = makeManager();
+    await manager.init();
+    for (const [key, filename] of Object.entries(WORKFLOW_FILE_MAP)) {
+      const prompt = manager.getPrompt(key);
+      import_strict.default.equal(
+        prompt,
+        BUILTIN_WORKFLOW_FILES[filename],
+        `Prompt mismatch for key: ${key}`
+      );
+    }
+  });
+  (0, import_node_test.it)("returns customized prompt when user edits a file", async () => {
+    const { manager, store } = makeManager();
+    await manager.init();
+    const customPrompt = "You are a custom NutEgg content analyzer. Output JSON only.";
+    await store.vault.modify(
+      { path: "nutegg/_workflow/content-analysis.md" },
+      customPrompt
+    );
+    import_strict.default.equal(manager.getPrompt("contentAnalysis"), customPrompt);
+  });
+  (0, import_node_test.it)("falls back to built-in default when file is deleted or empty", async () => {
+    const { manager, store } = makeManager();
+    await manager.init();
+    await store.vault.modify(
+      { path: "nutegg/_workflow/content-analysis.md" },
+      "   \n  "
+    );
+    import_strict.default.equal(
+      manager.getPrompt("contentAnalysis"),
+      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+    );
+    store.vault.trigger("delete", { path: "nutegg/_workflow/content-analysis.md" });
+    import_strict.default.equal(
+      manager.getPrompt("contentAnalysis"),
+      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+    );
+  });
+  (0, import_node_test.it)("auto-updates unmodified file when built-in version changes", async () => {
+    const oldBuiltin = "Old default prompt";
+    const oldHash = simpleHash(oldBuiltin);
+    const { manager, files, plugin } = makeManager(
+      {
+        "nutegg/_workflow/content-analysis.md": oldBuiltin
+      },
+      {
+        workflowHashes: {
+          "content-analysis.md": oldHash
+        }
+      }
+    );
+    await manager.init();
+    const expected = BUILTIN_WORKFLOW_FILES["content-analysis.md"];
+    import_strict.default.equal(files.get("nutegg/_workflow/content-analysis.md"), expected);
+    import_strict.default.equal(plugin.settings.workflowHashes["content-analysis.md"], simpleHash(expected));
+    import_strict.default.equal(files.has("nutegg/_workflow/content-analysis.new.md"), false);
+  });
+  (0, import_node_test.it)("preserves user customized file and writes *.new.md on version update conflict", async () => {
+    const userCustomizedContent = "My very special customized analysis prompt.";
+    const originalDefault = "Some older default";
+    const originalHash = simpleHash(originalDefault);
+    const { manager, files } = makeManager(
+      {
+        "nutegg/_workflow/content-analysis.md": userCustomizedContent
+      },
+      {
+        workflowHashes: {
+          "content-analysis.md": originalHash
+        }
+      }
+    );
+    await manager.init();
+    import_strict.default.equal(
+      files.get("nutegg/_workflow/content-analysis.md"),
+      userCustomizedContent
+    );
+    import_strict.default.equal(files.has("nutegg/_workflow/content-analysis.new.md"), true);
+    import_strict.default.equal(
+      files.get("nutegg/_workflow/content-analysis.new.md"),
+      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+    );
+    import_strict.default.equal(manager.getPrompt("contentAnalysis"), userCustomizedContent);
+  });
+  (0, import_node_test.it)("resetToDefaults creates backup and resets all workflow files", async () => {
+    const customContent = "Custom prompt before reset";
+    const { manager, files, plugin } = makeManager({
+      "nutegg/_workflow/content-analysis.md": customContent
     });
-  });
-  (0, import_node_test.it)("parses plain lines without bullets", () => {
-    const entries = parse("nutegg/ai.md: AI and machine learning\n");
-    import_strict.default.equal(entries[0].fileName, "nutegg/ai.md");
-  });
-  (0, import_node_test.it)("skips markdown headings, comments, and callout lines", () => {
-    const entries = parse([
-      "# NutEgg Egg Index",
-      "> [!abstract]- Instructions:",
-      "> - Add one line per egg file",
-      "",
-      "* nutegg/society.md: geopolitics"
-    ].join("\n"));
-    import_strict.default.deepEqual(
-      entries.map((e) => e.fileName),
-      ["nutegg/society.md"]
+    await manager.init();
+    await manager.resetToDefaults();
+    import_strict.default.equal(
+      files.get("nutegg/_workflow/content-analysis.md"),
+      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
     );
-  });
-  (0, import_node_test.it)("strips `-` and `+` bullet prefixes too", () => {
-    const entries = parse([
-      "- nutegg/a.md: first",
-      "+ nutegg/b.md: second"
-    ].join("\n"));
-    import_strict.default.deepEqual(
-      entries.map((e) => e.fileName),
-      ["nutegg/a.md", "nutegg/b.md"]
+    const backupKeys = [...files.keys()].filter(
+      (k) => k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("content-analysis.md")
     );
-  });
-  (0, import_node_test.it)("ignores lines whose path doesn't end in .md", () => {
-    const entries = parse("not-a-file.txt: description\n* nutegg/ok.md: fine\n");
-    import_strict.default.equal(entries.length, 1);
-  });
-  (0, import_node_test.it)("handles descriptions containing colons", () => {
-    const entries = parse("* nutegg/x.md: a: b: c\n");
-    import_strict.default.equal(entries[0].description, "a: b: c");
-  });
-  (0, import_node_test.it)("returns empty list for empty content", () => {
-    import_strict.default.deepEqual(parse(""), []);
-  });
-});
-(0, import_node_test.describe)("IndexReader.parseMatchedEggs", () => {
-  const reader = new IndexReader(makeFakePlugin());
-  const index = [
-    { fileName: "nutegg/investment.md", description: "investment strategies" },
-    { fileName: "nutegg/ai_ml.md", description: "artificial intelligence and machine learning" },
-    { fileName: "nutegg/psychology.md", description: "mental models and psychology" }
-  ];
-  (0, import_node_test.it)("matches JSON array of full paths", () => {
-    const res = reader.parseMatchedEggs('["nutegg/ai_ml.md"]', index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("matches JSON array of basenames", () => {
-    const res = reader.parseMatchedEggs('["ai_ml.md"]', index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("matches markdown bullet list (- nutegg/ai_ml.md)", () => {
-    const res = reader.parseMatchedEggs("- nutegg/ai_ml.md\n- nutegg/investment.md", index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md", "nutegg/investment.md"]);
-  });
-  (0, import_node_test.it)("matches markdown bullet list with basenames (* ai_ml.md)", () => {
-    const res = reader.parseMatchedEggs("* ai_ml.md\n", index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("matches numbered list (1. nutegg/ai_ml.md)", () => {
-    const res = reader.parseMatchedEggs("1. nutegg/ai_ml.md", index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("matches backticks (`nutegg/ai_ml.md`)", () => {
-    const res = reader.parseMatchedEggs("`nutegg/ai_ml.md`", index);
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("matches conversational text mentioning the egg file", () => {
-    const res = reader.parseMatchedEggs(
-      "Based on the provided article, this content belongs to nutegg/ai_ml.md as it discusses neural networks.",
-      index
+    import_strict.default.equal(backupKeys.length, 1);
+    import_strict.default.equal(files.get(backupKeys[0]), customContent);
+    import_strict.default.equal(
+      plugin.settings.workflowHashes["content-analysis.md"],
+      simpleHash(BUILTIN_WORKFLOW_FILES["content-analysis.md"])
     );
-    import_strict.default.deepEqual(res.map((e) => e.fileName), ["nutegg/ai_ml.md"]);
-  });
-  (0, import_node_test.it)("returns empty array for explicit 'none' or '[]'", () => {
-    import_strict.default.deepEqual(reader.parseMatchedEggs("none", index), []);
-    import_strict.default.deepEqual(reader.parseMatchedEggs("None.", index), []);
-    import_strict.default.deepEqual(reader.parseMatchedEggs("[]", index), []);
-    import_strict.default.deepEqual(reader.parseMatchedEggs("No match found", index), []);
   });
 });

@@ -57,7 +57,9 @@ export class IndexReader {
       .map((e) => `- ${e.fileName}: ${e.description}`)
       .join("\n");
 
-    const prompt = renderPrompt(PROMPTS.eggRouting, {
+    const promptTemplate =
+      this.plugin.workflowManager?.getPrompt("eggRouting") || PROMPTS.eggRouting;
+    const prompt = renderPrompt(promptTemplate, {
       title: content.title,
       url: content.url,
       content: this.truncate(content.content, 8000),

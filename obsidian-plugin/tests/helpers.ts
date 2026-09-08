@@ -3,9 +3,21 @@
  * No Obsidian runtime is needed: modules are tested against these fakes.
  */
 
+import { TFile } from "obsidian";
+
 export function makeFakeVault(initial: Record<string, string> = {}) {
   const files = new Map<string, string>(Object.entries(initial));
   const basePath = "/fake/vault";
+
+  const listeners = new Map<string, Array<(f: any) => void>>();
+
+  const toTFile = (p: string) =>
+    Object.assign(new TFile(), {
+      path: p,
+      name: p.split("/").pop() || "",
+      basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
+      extension: p.split(".").pop() || "",
+    });
 
   const adapter = {
     exists: async (p: string) =>
@@ -25,22 +37,34 @@ export function makeFakeVault(initial: Record<string, string> = {}) {
 
   const vault = {
     adapter,
+    listeners,
+    on: (event: string, callback: (f: any) => void) => {
+      if (!listeners.has(event)) listeners.set(event, []);
+      listeners.get(event)!.push(callback);
+    },
+    trigger: (event: string, file: any) => {
+      for (const cb of listeners.get(event) || []) {
+        cb(file);
+      }
+    },
     create: async (p: string, content: string) => {
       files.set(p, content);
+      vault.trigger("create", toTFile(p));
     },
     createFolder: async (_p: string) => { /* flat store */ },
     modify: async (file: { path: string }, content: string) => {
       files.set(file.path, content);
+      vault.trigger("modify", toTFile(file.path));
     },
     read: async (file: { path: string }) => {
       if (!files.has(file.path)) throw new Error("File not found: " + file.path);
       return files.get(file.path)!;
     },
-    getAbstractFileByPath: (p: string) => (files.has(p) ? { path: p } : null),
+    getAbstractFileByPath: (p: string) => (files.has(p) ? toTFile(p) : null),
     getMarkdownFiles: () =>
       [...files.keys()]
         .filter((k) => k.endsWith(".md"))
-        .map((p) => ({ path: p })),
+        .map((p) => toTFile(p)),
   };
 
   return { files, basePath, vault };
@@ -80,6 +104,9 @@ export function makeFakePlugin(overrides: any = {}) {
       parseIndexContent: () => [],
     },
     knowledgeBase: overrides.knowledgeBase ?? {},
+    workflowManager: overrides.workflowManager ?? {
+      getPrompt: () => "",
+    },
     db: overrides.db ?? null,
     ...overrides,
   };

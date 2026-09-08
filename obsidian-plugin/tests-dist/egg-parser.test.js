@@ -371,10 +371,27 @@ ${egg.unprocessed}`);
   }
 };
 
+// tests/obsidian-stub.ts
+var TAbstractFile = class {
+  path = "";
+  name = "";
+};
+var TFile = class extends TAbstractFile {
+  basename = "";
+  extension = "";
+};
+
 // tests/helpers.ts
 function makeFakeVault(initial = {}) {
   const files = new Map(Object.entries(initial));
   const basePath = "/fake/vault";
+  const listeners = /* @__PURE__ */ new Map();
+  const toTFile = (p) => Object.assign(new TFile(), {
+    path: p,
+    name: p.split("/").pop() || "",
+    basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
+    extension: p.split(".").pop() || ""
+  });
   const adapter = {
     exists: async (p) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + "/")),
     read: async (p) => {
@@ -392,21 +409,34 @@ function makeFakeVault(initial = {}) {
   };
   const vault = {
     adapter,
+    listeners,
+    on: (event, callback) => {
+      if (!listeners.has(event))
+        listeners.set(event, []);
+      listeners.get(event).push(callback);
+    },
+    trigger: (event, file) => {
+      for (const cb of listeners.get(event) || []) {
+        cb(file);
+      }
+    },
     create: async (p, content) => {
       files.set(p, content);
+      vault.trigger("create", toTFile(p));
     },
     createFolder: async (_p) => {
     },
     modify: async (file, content) => {
       files.set(file.path, content);
+      vault.trigger("modify", toTFile(file.path));
     },
     read: async (file) => {
       if (!files.has(file.path))
         throw new Error("File not found: " + file.path);
       return files.get(file.path);
     },
-    getAbstractFileByPath: (p) => files.has(p) ? { path: p } : null,
-    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => ({ path: p }))
+    getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
+    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
   };
   return { files, basePath, vault };
 }
@@ -443,6 +473,9 @@ function makeFakePlugin(overrides = {}) {
       parseIndexContent: () => []
     },
     knowledgeBase: overrides.knowledgeBase ?? {},
+    workflowManager: overrides.workflowManager ?? {
+      getPrompt: () => ""
+    },
     db: overrides.db ?? null,
     ...overrides
   };

@@ -23,6 +23,10 @@ export interface NutEggSettings {
   rawFolder: string;
   /** File that maps eggs to markdown files */
   indexFile: string;
+  /** Folder for AI workflow engine prompt definitions */
+  workflowFolder: string;
+  /** Hashes of default workflow files when last synced (for update conflict detection) */
+  workflowHashes: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: NutEggSettings = {
@@ -34,6 +38,8 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   serverPort: 27123,
   rawFolder: "nutegg/_raw",
   indexFile: "nutegg/_index.md",
+  workflowFolder: "nutegg/_workflow",
+  workflowHashes: {},
 };
 
 export class NutEggSettingTab extends PluginSettingTab {
@@ -81,6 +87,31 @@ export class NutEggSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             settings.indexFile = value.trim() || "nutegg/_index.md";
             await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Workflow Engine Folder")
+      .setDesc("Folder where AI prompts, schemas, and pipeline rules are stored as editable markdown files")
+      .addText((text) =>
+        text
+          .setPlaceholder("nutegg/_workflow")
+          .setValue(settings.workflowFolder)
+          .onChange(async (value) => {
+            settings.workflowFolder = value.trim() || "nutegg/_workflow";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Restore Default Workflow Files")
+      .setDesc("Reset all files in nutegg/_workflow to their built-in defaults. Existing files will be backed up.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Restore Defaults")
+          .setWarning()
+          .onClick(async () => {
+            await this.plugin.workflowManager.resetToDefaults();
           })
       );
 

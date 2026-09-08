@@ -15,6 +15,7 @@ import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 import { registerMergeWidget, registerMergeEditorExtension, runMerge } from "./merge-widget";
 import { CreateEggModal, registerIndexWidget, registerIndexEditorExtension } from "./index-widget";
+import { WorkflowManager } from "./workflow-manager";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -25,6 +26,7 @@ export default class NutEggPlugin extends Plugin {
   indexReader!: IndexReader;
   eggParser!: EggParser;
   indexSync!: IndexSync;
+  workflowManager!: WorkflowManager;
   db!: NutEggDatabase;
   creditStatusBarItem: HTMLElement | null = null;
 
@@ -36,7 +38,9 @@ export default class NutEggPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    // Ensure vault structure exists on first run
+
+    // Initialize workflow manager and ensure vault structure exists
+    this.workflowManager = new WorkflowManager(this);
     await this.initializeVault();
 
     // Initialize AI client (shared across subsystems)
@@ -245,8 +249,9 @@ export default class NutEggPlugin extends Plugin {
    * Create the nutegg/ directory structure and boilerplate _index.md on first run.
    */
   private async initializeVault(): Promise<void> {
-    await this.ensureFolder("nutegg");
+    await this.ensureFolder(this.vaultFolder);
     await this.ensureFolder(this.settings.rawFolder);
+    await this.workflowManager.init();
 
     // Create boilerplate _index.md if it doesn't exist
     const indexPath = this.settings.indexFile;

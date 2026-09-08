@@ -683,6 +683,9 @@ IMPORTANT:
 // src/prompts/localize-egg.md
 var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\nIMPORTANT:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
+// src/prompts/grounding-rule.md
+var grounding_rule_default = 'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
@@ -708,7 +711,9 @@ var PROMPTS = {
   /** Suggest a new egg for content that matched no existing egg. */
   suggestEgg: suggest_egg_default,
   /** Localize egg template matching the description language while keeping parser structure in English. */
-  localizeEgg: localize_egg_default
+  localizeEgg: localize_egg_default,
+  /** Shared grounding rule injected into every prompt. */
+  groundingRule: grounding_rule_default.trim()
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -722,11 +727,7 @@ function sanitizeEggName(name) {
   return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
 }
 
-// src/prompts/grounding-rule.md
-var grounding_rule_default = 'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n';
-
 // src/ai-processor.ts
-var GROUNDING_RULE = grounding_rule_default.trim();
 var CONTENT_WINDOW_CHARS = 3e4;
 var CHUNK_CHARS = CONTENT_WINDOW_CHARS;
 var SECTION_SECS = 300;
@@ -735,6 +736,9 @@ var AIProcessor = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
+  }
+  getPrompt(key) {
+    return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
   async analyze(capture2, eggs) {
     if (!this.plugin.settings.aiApiKey) {
@@ -763,7 +767,7 @@ var AIProcessor = class {
       };
       eggResults = [combined];
     } else {
-      const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+      const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
       contentAnalysis = await this.analyzeContent(
         capture2,
         guide,
@@ -793,7 +797,7 @@ var AIProcessor = class {
   }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
   async analyzeContent(capture2, actionGuide, eggKeyQuestions, partNote = "", eggDescription = "") {
-    const prompt = renderPrompt(PROMPTS.contentAnalysis, {
+    const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       action_guide: actionGuide,
       egg_description: eggDescription,
       title: capture2.title,
@@ -811,7 +815,7 @@ var AIProcessor = class {
         "Egg Key Questions (answered separately \u2014 skip equivalent user questions)"
       ),
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response, "content-analysis");
@@ -836,7 +840,7 @@ var AIProcessor = class {
    *   Step 2: Compare candidate entries against egg's Knowledge tree & Unprocessed entries to find novel delta and read verdict.
    */
   async analyzeAgainstEgg(capture2, egg2, partNote = "") {
-    const prompt = renderPrompt(PROMPTS.eggAnalysis, {
+    const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
       egg_description: egg2.indexDescription,
@@ -845,7 +849,7 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNote,
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -878,7 +882,7 @@ var AIProcessor = class {
    *   Step 2: Compare candidate entries against the egg's Current Knowledge & Unprocessed entries.
    */
   async analyzeSingleEgg(capture2, egg2, partNote = "") {
-    const prompt = renderPrompt(PROMPTS.eggCombined, {
+    const prompt = renderPrompt(this.getPrompt("eggCombined"), {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
       egg_description: egg2.indexDescription,
@@ -893,7 +897,7 @@ var AIProcessor = class {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "egg-combined");
@@ -945,7 +949,7 @@ var AIProcessor = class {
         readVerdictReason: "No knowledge entries extracted matching this egg's scope."
       };
     }
-    const prompt = renderPrompt(PROMPTS.eggCompare, {
+    const prompt = renderPrompt(this.getPrompt("eggCompare"), {
       egg_file: egg2.fileName,
       egg_description: egg2.indexDescription,
       title: capture2.title,
@@ -955,7 +959,7 @@ var AIProcessor = class {
       rejection_criteria: egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
       extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1033,7 +1037,7 @@ ${e.content}`).join("\n\n"),
    *   reject, read verdict). Novel deltas are the union of the parts.
    */
   async analyzeChunked(capture2, eggs, chunks) {
-    const guide = (eggs[0]?.actionGuide || PROMPTS.actionGuideDefault).trim();
+    const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
     const partResults = await Promise.all(
       chunks.map(
         (chunk) => this.analyzeContent(
@@ -1147,7 +1151,7 @@ ${e.content}`).join("\n\n"),
   }
   /** Aggregate the per-part content summaries into one result. */
   async aggregateContent(capture2, chunkSummaries, eggDescription = "") {
-    const prompt = renderPrompt(PROMPTS.aggregateContent, {
+    const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture2.title,
       url: capture2.url,
       egg_description: eggDescription,
@@ -1161,7 +1165,7 @@ ${bullets || "- (no summary)"}`;
         capture2.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response, "follow-up");
@@ -1173,7 +1177,7 @@ ${bullets || "- (no summary)"}`;
   }
   /** Aggregate per-part delta findings into the egg's key answers + verdict. */
   async aggregateEgg(egg2, chunkFindings) {
-    const prompt = renderPrompt(PROMPTS.aggregateEgg, {
+    const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
       egg_file: egg2.fileName,
       egg_description: egg2.indexDescription,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
@@ -1183,7 +1187,7 @@ ${bullets || "- (no summary)"}`;
         return `## Part ${f.part} of ${chunkFindings.length}${at}
 ${delta || "- (no novel delta)"}`;
       }).join("\n\n"),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "aggregate-egg");
@@ -1208,7 +1212,7 @@ ${delta || "- (no novel delta)"}`;
     if (!this.plugin.settings.aiApiKey)
       return null;
     try {
-      const prompt = renderPrompt(PROMPTS.suggestEgg, {
+      const prompt = renderPrompt(this.getPrompt("suggestEgg"), {
         title: capture2.title,
         url: capture2.url,
         summary: summary || ""
@@ -1233,7 +1237,7 @@ ${delta || "- (no novel delta)"}`;
     if (!this.plugin.settings.aiApiKey)
       return null;
     try {
-      const prompt = renderPrompt(PROMPTS.localizeEgg, {
+      const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
         description,
         template: templateContent
       });
@@ -1506,7 +1510,7 @@ ${c.content}`;
     const priorBlock = priorQa.length > 0 ? `## Previous Questions & Answers (context \u2014 refer back instead of repeating)
 ${priorQa.map((qa) => `Q: ${qa.question}
 A: ${qa.answer}`).join("\n")}` : "";
-    const prompt = renderPrompt(PROMPTS.followUp, {
+    const prompt = renderPrompt(this.getPrompt("followUp"), {
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
@@ -1514,7 +1518,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       prior_qa: priorBlock,
       content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      grounding_rule: GROUNDING_RULE
+      grounding_rule: this.getPrompt("groundingRule")
     });
     try {
       const response = await this.callAI(prompt, 2e3);
@@ -1559,7 +1563,7 @@ A: ${qa.answer}`).join("\n")}` : "";
     const indexEntry = indexEntries.find(
       (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
     );
-    const prompt = renderPrompt(PROMPTS.mergeUnprocessed, {
+    const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
       egg_description: indexEntry?.description || "",
       formatting_rules: egg2.formattingRules || "(none)",
@@ -2022,10 +2026,27 @@ ${egg2.unprocessed}`);
   }
 };
 
+// tests/obsidian-stub.ts
+var TAbstractFile = class {
+  path = "";
+  name = "";
+};
+var TFile = class extends TAbstractFile {
+  basename = "";
+  extension = "";
+};
+
 // tests/helpers.ts
 function makeFakeVault(initial = {}) {
   const files = new Map(Object.entries(initial));
   const basePath = "/fake/vault";
+  const listeners = /* @__PURE__ */ new Map();
+  const toTFile = (p) => Object.assign(new TFile(), {
+    path: p,
+    name: p.split("/").pop() || "",
+    basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
+    extension: p.split(".").pop() || ""
+  });
   const adapter = {
     exists: async (p) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + "/")),
     read: async (p) => {
@@ -2043,21 +2064,34 @@ function makeFakeVault(initial = {}) {
   };
   const vault = {
     adapter,
+    listeners,
+    on: (event, callback) => {
+      if (!listeners.has(event))
+        listeners.set(event, []);
+      listeners.get(event).push(callback);
+    },
+    trigger: (event, file) => {
+      for (const cb of listeners.get(event) || []) {
+        cb(file);
+      }
+    },
     create: async (p, content) => {
       files.set(p, content);
+      vault.trigger("create", toTFile(p));
     },
     createFolder: async (_p) => {
     },
     modify: async (file, content) => {
       files.set(file.path, content);
+      vault.trigger("modify", toTFile(file.path));
     },
     read: async (file) => {
       if (!files.has(file.path))
         throw new Error("File not found: " + file.path);
       return files.get(file.path);
     },
-    getAbstractFileByPath: (p) => files.has(p) ? { path: p } : null,
-    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => ({ path: p }))
+    getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
+    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
   };
   return { files, basePath, vault };
 }
@@ -2094,6 +2128,9 @@ function makeFakePlugin(overrides = {}) {
       parseIndexContent: () => []
     },
     knowledgeBase: overrides.knowledgeBase ?? {},
+    workflowManager: overrides.workflowManager ?? {
+      getPrompt: () => ""
+    },
     db: overrides.db ?? null,
     ...overrides
   };

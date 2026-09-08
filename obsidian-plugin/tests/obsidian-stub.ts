@@ -11,3 +11,11 @@ export class MarkdownView {}
 export class SuggestModal {}
 export class PluginSettingTab {}
 export class Setting {}
+export class TAbstractFile {
+  path: string = "";
+  name: string = "";
+}
+export class TFile extends TAbstractFile {
+  basename: string = "";
+  extension: string = "";
+}
