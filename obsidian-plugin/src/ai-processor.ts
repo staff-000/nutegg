@@ -738,7 +738,7 @@ export class AIProcessor {
     });
 
     const response = await this.callAI(prompt, 800);
-    const parsed = this.parseJson(response, "follow-up");
+    const parsed = this.parseJson(response, "aggregate-content");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary)
@@ -811,7 +811,7 @@ export class AIProcessor {
         summary: summary || "",
       });
       const response = await this.callAI(prompt, 1500);
-      const parsed = this.parseJson(response, "aggregate-egg");
+      const parsed = this.parseJson(response, "suggest-egg");
       const name = sanitizeEggName(parsed.name);
       if (!name) return null;
       return { name, description: String(parsed.description || "").trim() };
@@ -1172,7 +1172,7 @@ export class AIProcessor {
 
     try {
       const response = await this.callAI(prompt, 2000);
-      const parsed = this.parseJson(response, "merge-unprocessed");
+      const parsed = this.parseJson(response, "follow-up");
       const answers = this.parseKeyAnswers(parsed.answers);
       // Ensure every asked question has an entry (model may have skipped one)
       const byQuestion = new Map(answers.map((a) => [a.question, a]));
@@ -1230,7 +1230,7 @@ export class AIProcessor {
 
     try {
       const response = await this.callAI(prompt, 2000);
-      const parsed = this.parseJson(response, "suggest-egg");
+      const parsed = this.parseJson(response, "merge-unprocessed");
       const knowledge =
         typeof parsed.knowledge === "string" ? parsed.knowledge.trim() : "";
       if (!knowledge) {
