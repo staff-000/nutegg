@@ -4,8 +4,15 @@
 
 NutEgg captures web content and curates structured knowledge in Obsidian. It is a two-part system designed to help you stop mindless browsing and start building your personal knowledge base:
 
-- **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰.
-- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+- **Chrome Extension** ([Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol)) — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰.
+- **Obsidian Plugin** ([Obsidian Community Plugins](https://community.obsidian.md/plugins/nutegg)) — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+
+### 🚀 Quick Install
+
+| Component | Installation Link |
+| :--- | :--- |
+| **Google Chrome Extension** | [Install from Chrome Web Store ↗](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol) |
+| **Obsidian Community Plugin** | [Install from Obsidian Community Catalog ↗](https://community.obsidian.md/plugins/nutegg) |
 
 > 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 

@@ -47,7 +47,10 @@ It is a two-part system that helps you stop mindless browsing and start building
 
 ## 📦 Installation
 
-### From GitHub Release (.zip)
+### Option 1: Chrome Web Store (Recommended)
+Install directly with 1 click from the [Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol).
+
+### Option 2: From GitHub Release (.zip)
 1. Download the latest `nutegg-chrome-extension-v*.zip` from the [Releases](https://github.com/staff-000/nutegg-chrome-extension-release/releases) page.
 2. Unzip the file into a folder on your computer.
 3. Open Google Chrome and navigate to `chrome://extensions`.
@@ -62,7 +65,8 @@ It is a two-part system that helps you stop mindless browsing and start building
 
 Connecting the extension to Obsidian is automatic:
 
-1. **Keep Obsidian Running**: Ensure Obsidian is open with the [NutEgg Obsidian Plugin](https://github.com/staff-000/nutegg-obsidian-release) enabled. The plugin automatically runs a local sync server on port `27123`.
+1. **Install the Obsidian Plugin**: Get [NutEgg from Obsidian Community Plugins](https://community.obsidian.md/plugins/nutegg).
+2. **Keep Obsidian Running**: Ensure Obsidian is open with the NutEgg plugin enabled. The plugin automatically runs a local sync server on port `27123`.
 2. **Check Connection Status**: Open the NutEgg extension popup. When the status indicator in the header turns **green** (`Connected`), you're ready to capture!
 3. **Settings & Custom Port** *(Optional)*: If the indicator is red or disconnected, click the ⚙️ (Settings) icon to ensure the Obsidian server port matches (default: `27123`) and click **Test Connection**.
 

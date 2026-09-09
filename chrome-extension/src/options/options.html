@@ -18,12 +18,27 @@
           <input id="port-input" type="number" min="1" max="65535" value="27123">
           <span class="port-url">http://127.0.0.1:<strong id="port-display">27123</strong></span>
         </div>
-        <p class="hint">Must match the port configured in Obsidian → NutEgg → Developer Mode → Server Port.</p>
+        <p class="hint">
+          Must match the port configured in Obsidian → NutEgg → Developer Mode → Server Port.
+          Don't have the plugin yet? <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Install NutEgg for Obsidian ↗</a>
+        </p>
       </div>
       <div class="option-actions">
         <button id="save-btn" class="primary-btn">Save</button>
         <button id="test-btn" class="secondary-btn">Test Connection</button>
         <span id="test-result" class="test-result hidden"></span>
+      </div>
+    </section>
+
+    <section class="option-group">
+      <h2>Obsidian Plugin Companion</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+        NutEgg is a two-part system: this Chrome Extension captures content from your browser, while the Obsidian plugin handles AI analysis and knowledge tree curation in your vault.
+      </p>
+      <div class="option-row">
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="primary-btn companion-btn">
+          📥 Get NutEgg on Obsidian Community Plugins ↗
+        </a>
       </div>
     </section>
 

@@ -112,6 +112,11 @@ h1 {
 
 .primary-btn:hover { background: var(--primary-hover, #8c4414); }
 
+.companion-btn {
+  display: inline-block;
+  text-decoration: none !important;
+}
+
 .secondary-btn {
   padding: 8px 18px;
   background: #f3f4f6;

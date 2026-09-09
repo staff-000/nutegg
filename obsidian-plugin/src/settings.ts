@@ -59,6 +59,22 @@ export class NutEggSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "NutEgg Settings" });
 
+    // Companion Chrome Extension Card
+    new Setting(containerEl)
+      .setName("Chrome Extension Companion")
+      .setDesc("Capture and analyze articles, YouTube videos, and tweets directly from your browser into Obsidian.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Get Chrome Extension ↗")
+          .setCta()
+          .onClick(() => {
+            window.open(
+              "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
+              "_blank"
+            );
+          })
+      );
+
     // ==========================================
     // Vault Paths (always visible)
     // ==========================================
@@ -281,7 +297,7 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Server Port")
-      .setDesc("Port for the local HTTP server (requires restart)")
+      .setDesc("Port for the local HTTP server connecting with Chrome Extension (requires restart)")
       .addText((text) =>
         text
           .setPlaceholder("27123")
@@ -292,6 +308,36 @@ export class NutEggSettingTab extends PluginSettingTab {
               settings.serverPort = port;
               await this.plugin.saveSettings();
             }
+          })
+      );
+
+    // ==========================================
+    // Links & Resources
+    // ==========================================
+    containerEl.createEl("h3", { text: "Links & Resources" });
+
+    new Setting(containerEl)
+      .setName("NutEgg on Chrome Web Store")
+      .setDesc("Install or update the NutEgg companion extension for Google Chrome.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Open Chrome Web Store ↗")
+          .onClick(() => {
+            window.open(
+              "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
+              "_blank"
+            );
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("NutEgg on Obsidian Community Plugins")
+      .setDesc("View NutEgg in the Obsidian Community Plugins directory.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("Open Obsidian Directory ↗")
+          .onClick(() => {
+            window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
           })
       );
   }

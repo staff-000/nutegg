@@ -45,7 +45,10 @@
 
 ## 📦 Installation
 
-### Option 1: Manual Installation (Recommended)
+### Option 1: Obsidian Community Plugins (Recommended)
+Install directly from the [Obsidian Community Plugins Directory](https://community.obsidian.md/plugins/nutegg) or search for **NutEgg** in Obsidian under **Settings → Community Plugins → Browse**.
+
+### Option 2: Manual Installation
 1. Download the latest release files (`main.js`, `manifest.json`, `styles.css`) from the [Releases](https://github.com/staff-000/nutegg-obsidian-release/releases) page.
 2. In your Obsidian vault, navigate to `.obsidian/plugins/` (create the directory if it doesn't exist).
 3. Create a folder named `nutegg` and copy `main.js`, `manifest.json`, and `styles.css` into it:
@@ -84,7 +87,7 @@
      - `nutegg/psychology.md` — *(Sample)* Cognitive biases and mental models.
      - `nutegg/ai_ml.md` — *(Sample)* AI & Machine Learning knowledge tree.
 5. **Install Chrome Extension**:
-   - Install the companion [NutEgg Chrome Extension](https://github.com/staff-000/nutegg-chrome-extension-release).
+   - Install the companion [NutEgg from Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol).
    - Browse the web, click **Analyze**, and watch insights stream into Obsidian!
 
 ---
@@ -106,10 +109,11 @@ vault/
 
 ---
 
-## 🔗 Related Repositories
+## 🔗 Related Links
 
-- **Main Repository (Monorepo)**: [staff-000/nutegg](https://github.com/staff-000/nutegg)
-- **Chrome Extension Release**: [staff-000/nutegg-chrome-extension-release](https://github.com/staff-000/nutegg-chrome-extension-release)
+- **Chrome Extension**: [NutEgg on Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol)
+- **Obsidian Plugin**: [NutEgg on Community Plugins](https://community.obsidian.md/plugins/nutegg)
+- **Main Repository**: [staff-000/nutegg](https://github.com/staff-000/nutegg)
 
 ## 📄 License
 

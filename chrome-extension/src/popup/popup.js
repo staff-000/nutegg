@@ -175,6 +175,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const statusIndicatorWrap = document.getElementById("status-indicator-wrap");
   if (statusIndicatorWrap) {
     statusIndicatorWrap.addEventListener("click", () => {
+      if (!serverOnline) {
+        window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
+        return;
+      }
       const title = document.getElementById("status-tooltip-title");
       const sub = document.getElementById("status-tooltip-sub");
       if (title) title.textContent = "Checking...";
@@ -748,8 +752,8 @@ function updateServerStatusTooltip(isOnline) {
   } else {
     tooltip.className = "status-tooltip offline";
     title.textContent = "Obsidian is offline";
-    sub.textContent = "Start Obsidian with NutEgg";
-    serverStatus.setAttribute("aria-label", "Obsidian is offline. Start Obsidian with NutEgg");
+    sub.textContent = "Click dot to install NutEgg plugin";
+    serverStatus.setAttribute("aria-label", "Obsidian is offline. Click dot to install NutEgg plugin");
   }
 }
 
