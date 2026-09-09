@@ -805,9 +805,175 @@ body {
   cursor: not-allowed;
 }
 
-/* Key Questions + Novel Delta */
-.keyquestions-list,
-.delta-list {
+/* Unified Egg Knowledge Section & Tabs */
+.keyquestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.egg-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 2px 8px 2px;
+  margin-bottom: 8px;
+  scrollbar-width: thin;
+}
+
+.egg-tabs-bar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.egg-tabs-bar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.egg-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.egg-tab-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.egg-tab-btn.active {
+  background: var(--primary-light, #fdf6ed);
+  border-color: var(--primary, #a8561e);
+  color: var(--primary, #a8561e);
+  box-shadow: 0 1px 2px rgba(168, 86, 30, 0.1);
+}
+
+.egg-tab-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.egg-tab-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 10px;
+  line-height: 1.2;
+}
+
+.badge-tab-new {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.egg-tab-btn.active .badge-tab-new {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.badge-tab-covered {
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.egg-tab-btn.active .badge-tab-covered {
+  background: #cbd5e1;
+  color: #334155;
+}
+
+.badge-tab-reject {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.egg-tab-btn.active .badge-tab-reject {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.egg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.egg-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 2px;
+}
+
+.egg-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.egg-card-file {
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+.egg-status-banner {
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.banner-covered {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.banner-reject {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.qa-subhead {
+  color: #6366f1;
+}
+
+.covered-toggle {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--primary, #a8561e);
+  cursor: pointer;
+  padding: 0;
+}
+
+.covered-toggle:hover {
+  text-decoration: underline;
+}
+
+.covered-body {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;

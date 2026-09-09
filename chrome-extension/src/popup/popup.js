@@ -44,10 +44,10 @@ const customQuestionsSection = document.getElementById("custom-questions-section
 const customQuestionsList = document.getElementById("custom-questions-list");
 const followupInput = document.getElementById("followup-input");
 const followupBtn = document.getElementById("followup-btn");
-const keyQuestionsSection = document.getElementById("keyquestions-section");
-const keyQuestionsList = document.getElementById("keyquestions-list");
-const deltaSection = document.getElementById("delta-section");
-const deltaList = document.getElementById("delta-list");
+const eggKnowledgeSection = document.getElementById("egg-knowledge-section");
+const eggKnowledgeHint = document.getElementById("egg-knowledge-hint");
+const eggTabsBar = document.getElementById("egg-tabs-bar");
+const eggKnowledgeContent = document.getElementById("egg-knowledge-content");
 const verdictIcon = document.getElementById("verdict-icon");
 const verdictText = document.getElementById("verdict-text");
 const verdictBadge = document.getElementById("verdict-badge");
@@ -118,6 +118,7 @@ let preSelectedEggs = new Set();
 let analysisMode = "fast";
 let stage1Payload = null;
 let stage1ContentAnalysis = null;
+let activeEggTab = null;
 
 // --- Init ---
 
@@ -1030,6 +1031,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
     followupInput.value = "";
     nutCollected = false;
     eggHatched = false;
+    activeEggTab = null;
     analysisResult = response;
 
     // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
@@ -1142,119 +1144,8 @@ function showResultsState(result, provenance = null) {
   // Your Questions — initial answers + follow-ups asked this session
   renderCustomQuestions();
 
-  // Key Questions — grouped per egg
-  const qaGroups = (result.eggResults || []).filter(
-    (r) => r.keyQuestionAnswers && r.keyQuestionAnswers.length > 0
-  );
-  if (qaGroups.length > 0) {
-    keyQuestionsSection.classList.remove("hidden");
-    keyQuestionsList.innerHTML = qaGroups
-      .map((r) => `
-        <div class="egg-group">
-          <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
-          ${r.keyQuestionAnswers
-            .map((qa) => `
-              <div class="qa-item">
-                <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-                <div class="qa-answer">${escapeHtml(qa.answer)}</div>
-              </div>`)
-            .join("")}
-        </div>`)
-      .join("");
-  } else {
-    keyQuestionsSection.classList.add("hidden");
-    keyQuestionsList.innerHTML = "";
-  }
-
-  // Knowledge Entries (New Insights vs Existing Tree)
-  const eggResults = result.eggResults || [];
-  const hasAnyKnowledge = eggResults.some(
-    (r) =>
-      (r.novelDelta && r.novelDelta.length > 0) ||
-      (r.redundantEntries && r.redundantEntries.length > 0) ||
-      (r.existingKnowledge && r.existingKnowledge.trim().length > 0)
-  );
-
-  if (hasAnyKnowledge) {
-    deltaSection.classList.remove("hidden");
-    deltaList.innerHTML = eggResults
-      .map((r) => {
-        const newDeltas = r.novelDelta || [];
-        const redundantDeltas = r.redundantEntries || [];
-        const existingKnowledge = (r.existingKnowledge || "").trim();
-
-        let newHtml = "";
-        if (newDeltas.length > 0) {
-          newHtml = `
-            <div class="knowledge-subsection">
-              <div class="knowledge-subhead new-subhead">✨ New Insights (${newDeltas.length})</div>
-              ${newDeltas
-                .map((d) => `
-                  <div class="delta-item is-new">
-                    <div class="delta-header">
-                      <span class="delta-badge badge-new">+ New Entry</span>
-                      <span class="delta-parent">🐣 → Unprocessed${d.parent ? ` · suggested under: <strong>${escapeHtml(d.parent)}</strong>` : ""}</span>
-                    </div>
-                    <div class="delta-content">${escapeHtml(d.content)}</div>
-                  </div>`)
-                .join("")}
-            </div>`;
-        }
-
-        let redundantHtml = "";
-        if (redundantDeltas.length > 0) {
-          redundantHtml = `
-            <div class="knowledge-subsection">
-              <div class="knowledge-subhead covered-subhead">✅ Already in Tree (${redundantDeltas.length})</div>
-              ${redundantDeltas
-                .map((d) => `
-                  <div class="delta-item is-covered">
-                    <div class="delta-header">
-                      <span class="delta-badge badge-covered">Covered</span>
-                      <span class="delta-parent">${d.existingParent ? `under: <strong>${escapeHtml(d.existingParent)}</strong>` : "Already known"}</span>
-                    </div>
-                    <div class="delta-content">${escapeHtml(d.content)}</div>
-                  </div>`)
-                .join("")}
-            </div>`;
-        }
-
-        let treeHtml = "";
-        if (existingKnowledge) {
-          treeHtml = `
-            <div class="existing-tree-container">
-              <div class="existing-tree-header">
-                <span class="existing-tree-title">📚 Current Knowledge in Egg</span>
-                <button type="button" class="existing-tree-toggle">▸ View Tree</button>
-              </div>
-              <div class="existing-tree-body hidden">${escapeHtml(existingKnowledge)}</div>
-            </div>`;
-        }
-
-        return `
-          <div class="egg-group">
-            <div class="knowledge-egg">📄 ${escapeHtml(r.egg)}</div>
-            ${newHtml}
-            ${redundantHtml}
-            ${treeHtml}
-          </div>`;
-      })
-      .join("");
-
-    // Wire tree toggle buttons
-    deltaList.querySelectorAll(".existing-tree-toggle").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const body = btn.closest(".existing-tree-container")?.querySelector(".existing-tree-body");
-        if (body) {
-          const isHidden = body.classList.toggle("hidden");
-          btn.textContent = isHidden ? "▸ View Tree" : "▾ Hide Tree";
-        }
-      });
-    });
-  } else {
-    deltaSection.classList.add("hidden");
-    deltaList.innerHTML = "";
-  }
+  // Egg Knowledge (Tabs + unified per-egg insights, Q&A, and tree)
+  renderEggKnowledge(result.eggResults || []);
 
   // Verdict
   if (isStage1) {
@@ -1279,6 +1170,232 @@ function showResultsState(result, provenance = null) {
 
   successBanner.classList.add("hidden");
   updateActionButtons();
+}
+
+function cleanEggName(fileName) {
+  if (!fileName) return "Egg";
+  return fileName.split("/").pop().replace(/\.md$/, "");
+}
+
+function renderEggKnowledge(eggResults = []) {
+  if (!eggKnowledgeSection || !eggKnowledgeContent) return;
+
+  if (eggResults.length === 0) {
+    eggKnowledgeSection.classList.add("hidden");
+    eggKnowledgeContent.innerHTML = "";
+    if (eggTabsBar) eggTabsBar.innerHTML = "";
+    return;
+  }
+
+  eggKnowledgeSection.classList.remove("hidden");
+
+  // Determine active tab
+  const eggNames = eggResults.map((r) => r.egg);
+  if (!activeEggTab || (!eggNames.includes(activeEggTab) && activeEggTab !== "all")) {
+    // Default to the first egg that has new deltas, or the first egg
+    const eggWithDeltas = eggResults.find((r) => (r.novelDelta || []).length > 0);
+    activeEggTab = eggWithDeltas ? eggWithDeltas.egg : eggResults[0].egg;
+  }
+
+  // Render Tabs (only if 2+ eggs)
+  if (eggResults.length > 1) {
+    eggTabsBar.classList.remove("hidden");
+    if (eggKnowledgeHint) eggKnowledgeHint.textContent = `(${eggResults.length} eggs matched)`;
+
+    const totalNewCount = eggResults.reduce((acc, r) => acc + (r.novelDelta?.length || 0), 0);
+
+    const tabsHtml = eggResults
+      .map((r) => {
+        const newCount = (r.novelDelta || []).length;
+        let badgeClass = "badge-tab-covered";
+        let badgeText = "✓";
+        if (r.rejected) {
+          badgeClass = "badge-tab-reject";
+          badgeText = "✕";
+        } else if (newCount > 0) {
+          badgeClass = "badge-tab-new";
+          badgeText = `+${newCount}`;
+        }
+
+        const isActive = activeEggTab === r.egg ? " active" : "";
+        return `
+          <button type="button" class="egg-tab-btn${isActive}" data-tab="${escapeHtml(r.egg)}" title="${escapeHtml(r.egg)}">
+            <span class="egg-tab-name">${escapeHtml(cleanEggName(r.egg))}</span>
+            <span class="egg-tab-badge ${badgeClass}">${badgeText}</span>
+          </button>`;
+      })
+      .join("");
+
+    const isAllActive = activeEggTab === "all" ? " active" : "";
+    const allBadgeText = totalNewCount > 0 ? `+${totalNewCount}` : "✓";
+    const allBadgeClass = totalNewCount > 0 ? "badge-tab-new" : "badge-tab-covered";
+
+    eggTabsBar.innerHTML =
+      tabsHtml +
+      `
+      <button type="button" class="egg-tab-btn${isAllActive}" data-tab="all" title="View all eggs">
+        <span class="egg-tab-name">📋 All</span>
+        <span class="egg-tab-badge ${allBadgeClass}">${allBadgeText}</span>
+      </button>`;
+
+    // Tab click listeners
+    eggTabsBar.querySelectorAll(".egg-tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activeEggTab = btn.dataset.tab;
+        renderEggKnowledge(eggResults);
+      });
+    });
+  } else {
+    eggTabsBar.classList.add("hidden");
+    eggTabsBar.innerHTML = "";
+    if (eggKnowledgeHint) eggKnowledgeHint.textContent = `(${cleanEggName(eggResults[0]?.egg)})`;
+    activeEggTab = eggResults[0]?.egg;
+  }
+
+  // Render Egg Cards
+  eggKnowledgeContent.innerHTML = eggResults
+    .map((r) => {
+      const isVisible = activeEggTab === "all" || activeEggTab === r.egg;
+      const hideClass = isVisible ? "" : " hidden";
+      const newDeltas = r.novelDelta || [];
+      const redundantDeltas = r.redundantEntries || [];
+      const existingKnowledge = (r.existingKnowledge || "").trim();
+      const qaItems = r.keyQuestionAnswers || [];
+
+      let statusHeader = "";
+      if (eggResults.length > 1 && activeEggTab === "all") {
+        statusHeader = `
+          <div class="egg-card-header">
+            <span class="egg-card-title">📄 ${escapeHtml(cleanEggName(r.egg))}</span>
+            <span class="egg-card-file">${escapeHtml(r.egg)}</span>
+          </div>`;
+      }
+
+      let statusNote = "";
+      if (r.rejected) {
+        statusNote = `
+          <div class="egg-status-banner banner-reject">
+            ⚠️ <strong>Rejected by this egg:</strong> ${escapeHtml(r.rejectReason || "Out of scope")}
+          </div>`;
+      } else if (newDeltas.length === 0 && redundantDeltas.length > 0) {
+        statusNote = `
+          <div class="egg-status-banner banner-covered">
+            ✅ <strong>Fully covered:</strong> All concepts already exist in your knowledge tree.
+          </div>`;
+      } else if (newDeltas.length === 0 && qaItems.length === 0) {
+        statusNote = `
+          <div class="egg-status-banner banner-covered">
+            ℹ️ No new knowledge entries extracted for this egg.
+          </div>`;
+      }
+
+      let newHtml = "";
+      if (newDeltas.length > 0) {
+        newHtml = `
+          <div class="knowledge-subsection">
+            <div class="knowledge-subhead new-subhead">✨ New Insights (${newDeltas.length})</div>
+            ${newDeltas
+              .map(
+                (d) => `
+                <div class="delta-item is-new">
+                  <div class="delta-header">
+                    <span class="delta-badge badge-new">+ New Entry</span>
+                    <span class="delta-parent">🐣 → Unprocessed${d.parent ? ` · suggested under: <strong>${escapeHtml(d.parent)}</strong>` : ""}</span>
+                  </div>
+                  <div class="delta-content">${escapeHtml(d.content)}</div>
+                </div>`
+              )
+              .join("")}
+          </div>`;
+      }
+
+      let qaHtml = "";
+      if (qaItems.length > 0) {
+        qaHtml = `
+          <div class="knowledge-subsection egg-qa-block">
+            <div class="knowledge-subhead qa-subhead">💬 Key Questions for this Egg (${qaItems.length})</div>
+            ${qaItems
+              .map(
+                (qa) => `
+                <div class="qa-item">
+                  <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
+                  <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+                </div>`
+              )
+              .join("")}
+          </div>`;
+      }
+
+      let redundantHtml = "";
+      if (redundantDeltas.length > 0) {
+        redundantHtml = `
+          <div class="existing-tree-container">
+            <div class="existing-tree-header">
+              <span class="existing-tree-title">✅ Already Covered in Tree (${redundantDeltas.length})</span>
+              <button type="button" class="covered-toggle">▸ View Covered</button>
+            </div>
+            <div class="covered-body hidden">
+              ${redundantDeltas
+                .map(
+                  (d) => `
+                  <div class="delta-item is-covered">
+                    <div class="delta-header">
+                      <span class="delta-badge badge-covered">Covered</span>
+                      <span class="delta-parent">${d.existingParent ? `under: <strong>${escapeHtml(d.existingParent)}</strong>` : "Already known"}</span>
+                    </div>
+                    <div class="delta-content">${escapeHtml(d.content)}</div>
+                  </div>`
+                )
+                .join("")}
+            </div>
+          </div>`;
+      }
+
+      let treeHtml = "";
+      if (existingKnowledge) {
+        treeHtml = `
+          <div class="existing-tree-container">
+            <div class="existing-tree-header">
+              <span class="existing-tree-title">📚 Current Knowledge in Egg</span>
+              <button type="button" class="existing-tree-toggle">▸ View Tree</button>
+            </div>
+            <div class="existing-tree-body hidden">${escapeHtml(existingKnowledge)}</div>
+          </div>`;
+      }
+
+      return `
+        <div class="egg-card${hideClass}" data-egg="${escapeHtml(r.egg)}">
+          ${statusHeader}
+          ${statusNote}
+          ${newHtml}
+          ${qaHtml}
+          ${redundantHtml}
+          ${treeHtml}
+        </div>`;
+    })
+    .join("");
+
+  // Wire covered toggles
+  eggKnowledgeContent.querySelectorAll(".covered-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const body = btn.closest(".existing-tree-container")?.querySelector(".covered-body");
+      if (body) {
+        const isHidden = body.classList.toggle("hidden");
+        btn.textContent = isHidden ? "▸ View Covered" : "▾ Hide Covered";
+      }
+    });
+  });
+
+  // Wire tree toggles
+  eggKnowledgeContent.querySelectorAll(".existing-tree-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const body = btn.closest(".existing-tree-container")?.querySelector(".existing-tree-body");
+      if (body) {
+        const isHidden = body.classList.toggle("hidden");
+        btn.textContent = isHidden ? "▸ View Tree" : "▾ Hide Tree";
+      }
+    });
+  });
 }
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
@@ -1497,6 +1614,7 @@ function showCaptureState() {
   nutCollected = false;
   eggHatched = false;
   currentNutId = null;
+  activeEggTab = null;
   hideMessages();
 }
 
