@@ -163,6 +163,15 @@ export default class NutEggPlugin extends Plugin {
       },
     });
 
+    // Command: Use default workflow prompts (backup existing)
+    this.addCommand({
+      id: "nutegg-use-default-workflow-prompts",
+      name: "Use default workflow prompts (backup existing)",
+      callback: async () => {
+        await this.workflowManager.resetToDefaults();
+      },
+    });
+
     // Status Bar Item for AI Credit / Balance
     this.creditStatusBarItem = this.addStatusBarItem();
     this.creditStatusBarItem.addClass("nutegg-statusbar-credit");

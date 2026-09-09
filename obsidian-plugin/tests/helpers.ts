@@ -60,7 +60,13 @@ export function makeFakeVault(initial: Record<string, string> = {}) {
       if (!files.has(file.path)) throw new Error("File not found: " + file.path);
       return files.get(file.path)!;
     },
+    delete: async (file: { path: string }) => {
+      files.delete(file.path);
+      vault.trigger("delete", toTFile(file.path));
+    },
     getAbstractFileByPath: (p: string) => (files.has(p) ? toTFile(p) : null),
+    getFiles: () =>
+      [...files.keys()].map((p) => toTFile(p)),
     getMarkdownFiles: () =>
       [...files.keys()]
         .filter((k) => k.endsWith(".md"))

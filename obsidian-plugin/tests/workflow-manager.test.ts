@@ -155,32 +155,67 @@ describe("WorkflowManager", () => {
     assert.equal(manager.getPrompt("contentAnalysis"), userCustomizedContent);
   });
 
-  it("resetToDefaults creates backup and resets all workflow files", async () => {
+  it("resetToDefaults moves all existing files to backup and restores built-in defaults", async () => {
     const customContent = "Custom prompt before reset";
+    const obsoletePrompt = "Deprecated prompt that is no longer in code";
     const { manager, files, plugin } = makeManager({
       "nutegg/_workflow/content-analysis.md": customContent,
+      "nutegg/_workflow/obsolete-prompt.md": obsoletePrompt,
     });
     await manager.init();
 
     await manager.resetToDefaults();
 
-    // Content should now be reset to default
+    // Built-in file should now be reset to default
     assert.equal(
       files.get("nutegg/_workflow/content-analysis.md"),
       BUILTIN_WORKFLOW_FILES["content-analysis.md"]
     );
 
-    // Verify backup was created in _workflow/_backup/
-    const backupKeys = [...files.keys()].filter((k) =>
+    // Obsolete prompt should be deleted from active workflow folder
+    assert.equal(files.has("nutegg/_workflow/obsolete-prompt.md"), false);
+
+    // Both files should be safely preserved in _backup/
+    const customBackup = [...files.keys()].find((k) =>
       k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("content-analysis.md")
     );
-    assert.equal(backupKeys.length, 1);
-    assert.equal(files.get(backupKeys[0]), customContent);
+    assert.ok(customBackup);
+    assert.equal(files.get(customBackup), customContent);
 
-    // Hashes in settings should match built-in
+    const obsoleteBackup = [...files.keys()].find((k) =>
+      k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("obsolete-prompt.md")
+    );
+    assert.ok(obsoleteBackup);
+    assert.equal(files.get(obsoleteBackup), obsoletePrompt);
+
+    // Hashes in settings should match built-in defaults only
     assert.equal(
       plugin.settings.workflowHashes["content-analysis.md"],
       simpleHash(BUILTIN_WORKFLOW_FILES["content-analysis.md"])
     );
+    assert.equal(plugin.settings.workflowHashes["obsolete-prompt.md"], undefined);
+  });
+
+  it("ensureWorkflowFiles auto-removes unmodified obsolete prompts from prior versions", async () => {
+    const oldPromptContent = "Old unmodified prompt from prior version";
+    const oldHash = simpleHash(oldPromptContent);
+
+    const { manager, files, plugin } = makeManager(
+      {
+        "nutegg/_workflow/deprecated.md": oldPromptContent,
+      },
+      {
+        workflowHashes: {
+          "deprecated.md": oldHash,
+        },
+      }
+    );
+
+    await manager.init();
+
+    // Because recordedHash === currentHash and 'deprecated.md' is not in BUILTIN_WORKFLOW_FILES,
+    // ensureWorkflowFiles automatically cleans it up!
+    assert.equal(files.has("nutegg/_workflow/deprecated.md"), false);
+    assert.equal(plugin.settings.workflowHashes["deprecated.md"], undefined);
   });
 });

@@ -490,9 +490,40 @@ var WorkflowManager = class {
         }
       }
     }
+    const localFiles = this.getWorkflowFiles();
+    for (const file of localFiles) {
+      const relName = file.path.slice(folder.length + 1);
+      if (!(relName in BUILTIN_WORKFLOW_FILES) && !relName.endsWith(".new.md")) {
+        const recordedHash = this.plugin.settings.workflowHashes[relName];
+        if (recordedHash) {
+          const content = await this.plugin.app.vault.read(file);
+          if (simpleHash(content) === recordedHash) {
+            await this.plugin.app.vault.delete(file);
+            delete this.plugin.settings.workflowHashes[relName];
+            this.cache.delete(relName);
+            settingsChanged = true;
+            console.log(`[NutEgg] Auto-removed obsolete unmodified workflow file: ${file.path}`);
+          }
+        }
+      }
+    }
     if (settingsChanged) {
       await this.plugin.saveSettings();
     }
+  }
+  /** Retrieve all workflow files in workflowFolder, excluding _backup/ */
+  getWorkflowFiles() {
+    const folder = this.workflowFolder;
+    const vault = this.plugin.app.vault;
+    let allFiles = [];
+    if (typeof vault.getFiles === "function") {
+      allFiles = vault.getFiles();
+    } else if (typeof vault.getMarkdownFiles === "function") {
+      allFiles = vault.getMarkdownFiles();
+    }
+    return allFiles.filter(
+      (f) => f.path.startsWith(`${folder}/`) && !f.path.startsWith(`${folder}/_backup/`) && !f.path.endsWith("/_backup")
+    );
   }
   /** Retrieve prompt text dynamically from vault cache, falling back to built-in */
   getPrompt(key) {
@@ -505,27 +536,42 @@ var WorkflowManager = class {
     }
     return BUILTIN_WORKFLOW_FILES[filename] || "";
   }
-  /** Reset all workflow files to built-in defaults with backup */
+  /**
+   * Reset workflow files to built-in defaults:
+   * 1. Moves ALL current files in workflowFolder to a timestamped backup folder.
+   * 2. Copies clean built-in prompt files into workflowFolder.
+   * 3. Resets cache and workflow hashes.
+   */
   async resetToDefaults() {
     const folder = this.workflowFolder;
     const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const backupFolder = `${folder}/_backup/${timestamp}`;
     await this.ensureFolder(backupFolder);
+    const existingFiles = this.getWorkflowFiles();
+    for (const file of existingFiles) {
+      const relName = file.path.slice(folder.length + 1);
+      const lastSlash = relName.lastIndexOf("/");
+      if (lastSlash !== -1) {
+        await this.ensureFolder(`${backupFolder}/${relName.slice(0, lastSlash)}`);
+      }
+      const content = await this.plugin.app.vault.read(file);
+      await this.plugin.app.vault.create(`${backupFolder}/${relName}`, content);
+      await this.plugin.app.vault.delete(file);
+    }
+    this.cache.clear();
+    this.plugin.settings.workflowHashes = {};
     for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
       const filePath = `${folder}/${filename}`;
-      const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-      if (file) {
-        const currentContent = await this.plugin.app.vault.read(file);
-        await this.plugin.app.vault.create(`${backupFolder}/${filename}`, currentContent);
-        await this.plugin.app.vault.modify(file, builtinContent);
-      } else {
-        await this.plugin.app.vault.create(filePath, builtinContent);
-      }
+      await this.plugin.app.vault.create(filePath, builtinContent);
       this.cache.set(filename, builtinContent);
       this.plugin.settings.workflowHashes[filename] = simpleHash(builtinContent);
     }
     await this.plugin.saveSettings();
-    new Notice(`[NutEgg] Restored default workflow files. Previous files backed up to ${backupFolder}`);
+    new Notice(`[NutEgg] Reset workflow files to defaults. Previous files moved to ${backupFolder}`);
+  }
+  /** Alias for backward compatibility */
+  async syncToDefaults() {
+    return this.resetToDefaults();
   }
   async onFileChanged(file) {
     if (!(file instanceof TFile) || !file.path.startsWith(this.workflowFolder)) {
@@ -616,7 +662,12 @@ function makeFakeVault(initial = {}) {
         throw new Error("File not found: " + file.path);
       return files.get(file.path);
     },
+    delete: async (file) => {
+      files.delete(file.path);
+      vault.trigger("delete", toTFile(file.path));
+    },
     getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
+    getFiles: () => [...files.keys()].map((p) => toTFile(p)),
     getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
   };
   return { files, basePath, vault };
@@ -778,10 +829,12 @@ function makeManager(files = {}, settingsOverrides = {}) {
     );
     import_strict.default.equal(manager.getPrompt("contentAnalysis"), userCustomizedContent);
   });
-  (0, import_node_test.it)("resetToDefaults creates backup and resets all workflow files", async () => {
+  (0, import_node_test.it)("resetToDefaults moves all existing files to backup and restores built-in defaults", async () => {
     const customContent = "Custom prompt before reset";
+    const obsoletePrompt = "Deprecated prompt that is no longer in code";
     const { manager, files, plugin } = makeManager({
-      "nutegg/_workflow/content-analysis.md": customContent
+      "nutegg/_workflow/content-analysis.md": customContent,
+      "nutegg/_workflow/obsolete-prompt.md": obsoletePrompt
     });
     await manager.init();
     await manager.resetToDefaults();
@@ -789,14 +842,38 @@ function makeManager(files = {}, settingsOverrides = {}) {
       files.get("nutegg/_workflow/content-analysis.md"),
       BUILTIN_WORKFLOW_FILES["content-analysis.md"]
     );
-    const backupKeys = [...files.keys()].filter(
+    import_strict.default.equal(files.has("nutegg/_workflow/obsolete-prompt.md"), false);
+    const customBackup = [...files.keys()].find(
       (k) => k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("content-analysis.md")
     );
-    import_strict.default.equal(backupKeys.length, 1);
-    import_strict.default.equal(files.get(backupKeys[0]), customContent);
+    import_strict.default.ok(customBackup);
+    import_strict.default.equal(files.get(customBackup), customContent);
+    const obsoleteBackup = [...files.keys()].find(
+      (k) => k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("obsolete-prompt.md")
+    );
+    import_strict.default.ok(obsoleteBackup);
+    import_strict.default.equal(files.get(obsoleteBackup), obsoletePrompt);
     import_strict.default.equal(
       plugin.settings.workflowHashes["content-analysis.md"],
       simpleHash(BUILTIN_WORKFLOW_FILES["content-analysis.md"])
     );
+    import_strict.default.equal(plugin.settings.workflowHashes["obsolete-prompt.md"], void 0);
+  });
+  (0, import_node_test.it)("ensureWorkflowFiles auto-removes unmodified obsolete prompts from prior versions", async () => {
+    const oldPromptContent = "Old unmodified prompt from prior version";
+    const oldHash = simpleHash(oldPromptContent);
+    const { manager, files, plugin } = makeManager(
+      {
+        "nutegg/_workflow/deprecated.md": oldPromptContent
+      },
+      {
+        workflowHashes: {
+          "deprecated.md": oldHash
+        }
+      }
+    );
+    await manager.init();
+    import_strict.default.equal(files.has("nutegg/_workflow/deprecated.md"), false);
+    import_strict.default.equal(plugin.settings.workflowHashes["deprecated.md"], void 0);
   });
 });

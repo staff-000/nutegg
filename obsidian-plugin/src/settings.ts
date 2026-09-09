@@ -104,11 +104,13 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Restore Default Workflow Files")
-      .setDesc("Reset all files in nutegg/_workflow to their built-in defaults. Existing files will be backed up.")
+      .setName("Use Default Workflow Prompts")
+      .setDesc(
+        "Moves all current files in nutegg/_workflow to a timestamped backup folder under _backup/ and restores clean built-in prompt defaults."
+      )
       .addButton((btn) =>
         btn
-          .setButtonText("Restore Defaults")
+          .setButtonText("Use Defaults")
           .setWarning()
           .onClick(async () => {
             await this.plugin.workflowManager.resetToDefaults();

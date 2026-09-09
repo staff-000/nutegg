@@ -166,9 +166,47 @@ export class WorkflowManager {
       }
     }
 
+    // Auto-remove obsolete files that were unmodified defaults from a prior version
+    const localFiles = this.getWorkflowFiles();
+    for (const file of localFiles) {
+      const relName = file.path.slice(folder.length + 1);
+      if (!(relName in BUILTIN_WORKFLOW_FILES) && !relName.endsWith(".new.md")) {
+        const recordedHash = this.plugin.settings.workflowHashes[relName];
+        if (recordedHash) {
+          const content = await this.plugin.app.vault.read(file);
+          if (simpleHash(content) === recordedHash) {
+            // Unmodified prompt from an older version that is no longer in code — safe to auto-remove
+            await this.plugin.app.vault.delete(file);
+            delete this.plugin.settings.workflowHashes[relName];
+            this.cache.delete(relName);
+            settingsChanged = true;
+            console.log(`[NutEgg] Auto-removed obsolete unmodified workflow file: ${file.path}`);
+          }
+        }
+      }
+    }
+
     if (settingsChanged) {
       await this.plugin.saveSettings();
     }
+  }
+
+  /** Retrieve all workflow files in workflowFolder, excluding _backup/ */
+  getWorkflowFiles(): TFile[] {
+    const folder = this.workflowFolder;
+    const vault = this.plugin.app.vault;
+    let allFiles: TFile[] = [];
+    if (typeof vault.getFiles === "function") {
+      allFiles = vault.getFiles();
+    } else if (typeof vault.getMarkdownFiles === "function") {
+      allFiles = vault.getMarkdownFiles();
+    }
+    return allFiles.filter(
+      (f: TFile) =>
+        f.path.startsWith(`${folder}/`) &&
+        !f.path.startsWith(`${folder}/_backup/`) &&
+        !f.path.endsWith("/_backup")
+    );
   }
 
   /** Retrieve prompt text dynamically from vault cache, falling back to built-in */
@@ -185,33 +223,49 @@ export class WorkflowManager {
     return BUILTIN_WORKFLOW_FILES[filename] || "";
   }
 
-  /** Reset all workflow files to built-in defaults with backup */
+  /**
+   * Reset workflow files to built-in defaults:
+   * 1. Moves ALL current files in workflowFolder to a timestamped backup folder.
+   * 2. Copies clean built-in prompt files into workflowFolder.
+   * 3. Resets cache and workflow hashes.
+   */
   async resetToDefaults(): Promise<void> {
     const folder = this.workflowFolder;
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const backupFolder = `${folder}/_backup/${timestamp}`;
     await this.ensureFolder(backupFolder);
 
+    // 1. Move all existing files to the backup directory
+    const existingFiles = this.getWorkflowFiles();
+    for (const file of existingFiles) {
+      const relName = file.path.slice(folder.length + 1);
+      const lastSlash = relName.lastIndexOf("/");
+      if (lastSlash !== -1) {
+        await this.ensureFolder(`${backupFolder}/${relName.slice(0, lastSlash)}`);
+      }
+      const content = await this.plugin.app.vault.read(file);
+      await this.plugin.app.vault.create(`${backupFolder}/${relName}`, content);
+      await this.plugin.app.vault.delete(file);
+    }
+
+    // 2. Copy clean default workflow prompts into workflowFolder
+    this.cache.clear();
+    this.plugin.settings.workflowHashes = {};
+
     for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
       const filePath = `${folder}/${filename}`;
-      const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
-
-      if (file) {
-        // Backup current file
-        const currentContent = await this.plugin.app.vault.read(file as TFile);
-        await this.plugin.app.vault.create(`${backupFolder}/${filename}`, currentContent);
-        // Overwrite with default
-        await this.plugin.app.vault.modify(file as TFile, builtinContent);
-      } else {
-        await this.plugin.app.vault.create(filePath, builtinContent);
-      }
-
+      await this.plugin.app.vault.create(filePath, builtinContent);
       this.cache.set(filename, builtinContent);
       this.plugin.settings.workflowHashes[filename] = simpleHash(builtinContent);
     }
 
     await this.plugin.saveSettings();
-    new Notice(`[NutEgg] Restored default workflow files. Previous files backed up to ${backupFolder}`);
+    new Notice(`[NutEgg] Reset workflow files to defaults. Previous files moved to ${backupFolder}`);
+  }
+
+  /** Alias for backward compatibility */
+  async syncToDefaults(): Promise<void> {
+    return this.resetToDefaults();
   }
 
   private async onFileChanged(file: TAbstractFile): Promise<void> {
