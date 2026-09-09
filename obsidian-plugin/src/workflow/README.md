@@ -12,73 +12,115 @@ Welcome to the **NutEgg Workflow Engine**. The files in this folder define the p
 
 ## Architecture Overview
 
-When you capture an article, video, or note in NutEgg, the AI processor selects a pipeline based on how many eggs match and whether the content is long (>30k characters):
+NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, token efficiency, and user control. Rather than running a monolithic prompt, NutEgg separates broad content understanding from deep, egg-specific knowledge comparison.
 
 ```
-                  ┌───────────────────────────────┐
-                  │      Captured Web Content     │
-                  │   (Article / YouTube / Tweet) │
-                  └──────────────┬────────────────┘
-                                 │
-                 Did the user manually pick eggs?
-                    ├── No ──► [egg-routing.md] ──► match eggs from _index.md
-                    └── Yes ─► use selected eggs
-                                 │
-                      Is content long (>30k chars)?
-                         ├── Yes ──► (see Long Content Pipeline below)
-                         └── No──┐
-                                 │
-                  ┌──────────────┴──────────────┐
-                  │                             │
-             1 egg matched              2+ eggs matched
-                  │                             │
-        ┌─────────┴──────────┐     ┌────────────┴──────────┐
-        │  [egg-combined.md] │     │ [content-analysis.md] │
-        │  (summary + extract│     │ (summary & chapter    │
-        │   in 1 AI call)    │     │  map, 1 AI call)      │
-        └────────┬───────────┘     └────────────┬──────────┘
-                 │                              │
-                 │                    ┌─────────┴──────────┐
-                 │                    │  [egg-analysis.md] │
-                 │                    │  (per-egg extract, │
-                 │                    │   N parallel calls)│
-                 │                    └─────────┬──────────┘
-                 │                              │
-                 └──────────┬───────────────────┘
+                    ┌───────────────────────────────┐
+                    │      Captured Web Content     │
+                    │   (Article / YouTube / Tweet) │
+                    └───────────────┬───────────────┘
+                                    │
+                                    ▼
+       ===========================================================
+       STAGE 1: Content Analysis & Summary-Based Egg Routing
+       ===========================================================
+                                    │
+                         Is content >30k chars?
+                            ├── No  ──► [content-analysis.md]
+                            └── Yes ──► Chunks + [aggregate-content.md]
+                                    │
+                                    ▼
+                   Produces: Title Verdict, 3-Bullet Summary,
+                   Chapter Map, & Custom Question Answers
+                                    │
+                                    ▼
+                           [egg-routing.md]
+           (Routes matched eggs from _index.md using the
+            concise Stage 1 summary instead of raw content)
+                                    │
+                                    ▼
+       ===========================================================
+       INTERACTIVE CHOICE / EXECUTION MODE (Chrome Extension)
+       ===========================================================
+                                    │
+                        Which mode is selected?
                             │
-                   [egg-compare.md]
-                   (diff candidate insights against
-                    existing knowledge tree, 1 AI call per egg)
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+       [Fast Mode]                 [Confirm Eggs Mode]
+       Automatically proceeds      User reviews matched eggs:
+       to Stage 2 with all         ├── "Collect Nut Only" (skip Stage 2)
+       matched eggs.               └── Add/remove eggs ──► Proceed
+            │                               │
+            └───────────────┬───────────────┘
+                            ▼
+       ===========================================================
+       STAGE 2: Per-Egg Knowledge Extraction & Novelty Comparison
+       ===========================================================
+                            │
+               For each confirmed egg (1 or N):
                             │
                             ▼
-                Results returned to Popup
+                    [egg-analysis.md]
+              (Extract candidate knowledge entries
+               & key questions scoped to this egg)
+                            │
+                            ▼
+                    [egg-compare.md]
+              (Diffs candidate entries against the
+               egg's existing # Knowledge tree to find
+               true novel insights & decide read verdict)
+                            │
+                            ▼
+                 Results returned to Popup
+                 (Ready to Save Nut & Eggs)
 ```
+
+> [!NOTE]
+> **Why Summary-Based Routing?**
+> Passing the Stage 1 summary to `egg-routing.md` instead of full raw articles or multi-hour video transcripts saves tens of thousands of tokens per capture and dramatically improves routing accuracy by focusing on distilled, high-signal semantic themes.
+
+---
+
+### Execution Modes
+
+| Mode | Behavior | Best Used For |
+|---|---|---|
+| **Fast Mode** | Runs Stage 1 content analysis, routes eggs automatically, and immediately executes Stage 2 knowledge comparison in one uninterrupted pass. | Everyday reading and quick captures when you trust automatic egg matching. |
+| **Confirm Eggs Mode** | Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click **Collect Nut Only** to save the note immediately without comparing against eggs. | Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees. |
+
+---
 
 ### Long Content (>30k Chars) Pipeline
 
-For long articles or video transcripts, content is split into timestamped or paragraph chunks (<= 30k chars). NutEgg processes each chunk through extraction and then synthesizes the whole:
+For long articles, papers, or video transcripts (>30k characters), content is automatically split into timestamped or paragraph chunks (<=30k chars each) and aggregated in both stages:
 
 ```
   Captured Long Content ──► Split into Chunks (Part 1, Part 2, ... Part N)
                                 │
        ┌────────────────────────┴────────────────────────┐
        ▼                                                 ▼
-  Phase 1: Content Summary                          Phase 2: Per-Egg Knowledge
-  Run [content-analysis.md]                         For each egg:
+  Stage 1: Content Summary                          Stage 2: Per-Egg Knowledge
+  Run [content-analysis.md]                         For each confirmed egg:
   for each chunk                                    Run [egg-analysis.md] + [egg-compare.md]
        │                                            for each chunk
        ▼                                                 │
   [aggregate-content.md]                                 ▼
   Merges chunk summaries into ONE                   [aggregate-egg.md]
   cohesive title verdict, 3-bullet                  Synthesizes cross-part findings
-  core summary, and answers to user                 into unified novel delta, answers
-  custom questions. (1 AI call)                     key questions, & read verdict. (1 AI call/egg)
+  core summary, and custom Q&A.                     into unified novel delta, answers
+       │                                            key questions, & read verdict.
+       ▼                                                 │
+  [egg-routing.md]                                       │
+  (Routes eggs via aggregated summary)                   │
        │                                                 │
        └────────────────────────┬────────────────────────┘
                                 │
                                 ▼
                     Results returned to Popup
 ```
+
+---
 
 ### Other Workflows (Independent of Capture)
 
@@ -123,6 +165,7 @@ graph TD
     end
 
     AG -.->|"{{action_guide}}"| CA
+    AG -.->|"{{action_guide}}"| EC
 
     GR -.->|"{{grounding_rule}}"| EC
     GR -.->|"{{grounding_rule}}"| CA
@@ -144,17 +187,17 @@ These are **not standalone prompts** — they are modular snippets injected as `
 | File | Injected As | Injected Into | Purpose |
 |---|---|---|---|
 | [`grounding-rule.md`](./grounding-rule.md) | `{{grounding_rule}}` | `egg-combined`, `content-analysis`, `egg-analysis`, `egg-compare`, `aggregate-content`, `aggregate-egg`, `follow-up` | Strict anti-hallucination directive: *"The content is the ONLY source of truth... never supplement with outside knowledge."* |
-| [`action-guide-default.md`](./action-guide-default.md) | `{{action_guide}}` | `content-analysis` | Baseline Action Guide (Verdict, 3 bullets, Chapter map) used when an egg note does not specify its own. |
+| [`action-guide-default.md`](./action-guide-default.md) | `{{action_guide}}` | `content-analysis`, `egg-combined` | Baseline Action Guide (Verdict, 3 bullets, Chapter map) used when an egg note does not specify its own. |
 
 ### 2. Content Capture Pipeline
 
 | File | Pipeline Stage | Purpose | Output Format |
 |---|---|---|---|
-| [`egg-routing.md`](./egg-routing.md) | Routing | Compares content against egg descriptions in `_index.md` to select matching eggs. | Plain text list of filenames (one per line) |
-| [`egg-combined.md`](./egg-combined.md) | Single-Egg Fast Path | Combined 1-call prompt: content summary + chapter map + candidate knowledge entries for a single egg. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestionAnswers`, `keyQuestionAnswers`, `extractedEntries`) |
-| [`content-analysis.md`](./content-analysis.md) | Multi-Egg Step 1 | Content-level summary: title verdict, core summary, chapter map, and user question answers (shared across all eggs). | JSON (`titleVerdict`, `coreSummary`, `isLongForm`, `chapterMap`, `customQuestionAnswers`) |
-| [`egg-analysis.md`](./egg-analysis.md) | Multi-Egg Step 2 | Per-egg extraction: candidate knowledge entries and key question answers scoped to one egg's instructions. | JSON (`keyQuestionAnswers`, `extractedEntries`) |
-| [`egg-compare.md`](./egg-compare.md) | Knowledge Diff (All Paths) | Diffs candidate entries against the egg's existing `# Knowledge` tree and `# Unprocessed` to find novel insights and decide read verdict. | JSON (`novelDelta`, `redundantEntries`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
+| [`content-analysis.md`](./content-analysis.md) | Stage 1: Content Analysis | Content-level summary: title verdict, 3-bullet summary, chapter map, and custom user question answers. | JSON (`titleVerdict`, `coreSummary`, `isLongForm`, `chapterMap`, `customQuestionAnswers`) |
+| [`egg-routing.md`](./egg-routing.md) | Stage 1: Summary-Based Routing | Matches the Stage 1 content summary against egg descriptions in `_index.md` to select matching eggs with minimal tokens. | Plain text list of filenames (one per line) |
+| [`egg-analysis.md`](./egg-analysis.md) | Stage 2: Egg Extraction | Per-egg extraction: candidate knowledge entries and key question answers scoped strictly to one egg's instructions. | JSON (`keyQuestionAnswers`, `extractedEntries`) |
+| [`egg-compare.md`](./egg-compare.md) | Stage 2: Knowledge Diff | Diffs candidate entries against the egg's existing `# Knowledge` tree and `# Unprocessed` to find novel insights and determine read verdict. | JSON (`novelDelta`, `redundantEntries`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
+| [`egg-combined.md`](./egg-combined.md) | Single-Egg Fast Path / Fallback | Combined 1-call prompt: content summary + chapter map + candidate knowledge entries for a single egg. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestionAnswers`, `keyQuestionAnswers`, `extractedEntries`) |
 
 ### 3. Long Content Aggregation
 
@@ -162,8 +205,8 @@ Used only when content exceeds ~30k characters (long articles, 1-2 hour videos).
 
 | File | Pipeline Stage | Purpose | Output Format |
 |---|---|---|---|
-| [`aggregate-content.md`](./aggregate-content.md) | Long Content Phase 1 | Merges per-chunk summaries into one cohesive title verdict, core summary, and user Q&A for the whole content. | JSON (`titleVerdict`, `coreSummary`, `customQuestionAnswers`) |
-| [`aggregate-egg.md`](./aggregate-egg.md) | Long Content Phase 2 | Synthesizes per-chunk findings into unified knowledge entries, key question answers, and read verdict for each egg. | JSON (`novelDelta`, `keyQuestionAnswers`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
+| [`aggregate-content.md`](./aggregate-content.md) | Stage 1 Aggregation | Merges per-chunk summaries into one cohesive title verdict, core summary, and user Q&A for the whole content. | JSON (`titleVerdict`, `coreSummary`, `customQuestionAnswers`) |
+| [`aggregate-egg.md`](./aggregate-egg.md) | Stage 2 Aggregation | Synthesizes per-chunk findings into unified knowledge entries, key question answers, and read verdict for each egg. | JSON (`novelDelta`, `keyQuestionAnswers`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
 
 ### 4. Independent Features
 
@@ -195,4 +238,5 @@ Used only when content exceeds ~30k characters (long articles, 1-2 hour videos).
 When NutEgg updates to a newer version:
 - **If you haven't edited a workflow file**: The plugin automatically updates it to the latest version.
 - **If you have customized a workflow file**: NutEgg will **never overwrite your custom version**. Instead, it writes `[filename].new.md` alongside your file so you can inspect what changed in the update.
-- **Restore Defaults**: You can reset all workflow files back to factory defaults at any time from `Obsidian Settings → NutEgg → Restore Default Workflow Files`.
+- **Obsolete prompt cleanup**: Any unedited prompt files that were removed in a newer release of NutEgg are automatically pruned so your `_workflow/` folder stays clean.
+- **Use Defaults (Clean Reset)**: You can reset all workflow files back to factory defaults at any time from `Obsidian Settings → NutEgg → Use Default Workflow Prompts` by clicking **Use Defaults**. This safely moves all your existing files to a timestamped backup folder (`_workflow/_backup/<timestamp>/`), clears obsolete files, and restores clean built-in defaults.
