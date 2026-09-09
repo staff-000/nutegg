@@ -87,6 +87,14 @@
         <span id="capture-credit-text">AI Credit</span>
       </div>
 
+      <!-- Analysis Mode Selector -->
+      <div class="mode-toggle-wrap">
+        <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
+          <button type="button" class="mode-pill-btn active" id="mode-fast-btn" title="Full analysis in 1 click (fastest)">⚡ Fast</button>
+          <button type="button" class="mode-pill-btn" id="mode-confirm-btn" title="Review matching eggs before comparing knowledge (saves tokens)">🎯 Confirm Eggs</button>
+        </div>
+      </div>
+
       <button id="analyze-btn" class="analyze-btn" disabled>
         <span id="analyze-btn-text">Analyze</span>
       </button>
@@ -113,7 +121,7 @@
         </div>
       </div>
 
-       <div class="result-section">
+      <div class="result-section" id="verdict-section">
         <div class="section-label">📖 Should you read it?</div>
         <div id="verdict-badge" class="verdict-badge">
           <span id="verdict-icon"></span>
@@ -162,6 +170,20 @@
           <input id="new-egg-name" type="text" placeholder="egg name (e.g. productivity)" />
           <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
           <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+        </div>
+      </div>
+
+      <!-- Stage 1 Confirmation Card (Confirm Eggs Mode) -->
+      <div id="stage1-confirm-box" class="stage1-confirm-box hidden">
+        <div class="stage1-confirm-header">
+          <span class="stage1-confirm-icon">🎯</span>
+          <div class="stage1-confirm-text">
+            <strong>Stage 1 Complete:</strong> Review matching eggs below to compare knowledge and decide if worth reading.
+          </div>
+        </div>
+        <div class="stage1-confirm-actions">
+          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn">🐣 Compare Knowledge</button>
+          <button id="stage1-skip-btn" class="collect-nut-btn">🥜 Collect Nut Only</button>
         </div>
       </div>
 

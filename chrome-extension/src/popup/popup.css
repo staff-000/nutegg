@@ -515,6 +515,90 @@ body {
   line-height: 1;
 }
 
+/* Analysis Mode Selector Pill (Fast vs Confirm Eggs) */
+.mode-toggle-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.mode-pill {
+  display: inline-flex;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.mode-pill-btn {
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mode-pill-btn:hover:not(.active) {
+  color: #1e293b;
+}
+
+.mode-pill-btn.active {
+  background: #ffffff;
+  color: var(--primary, #a8561e);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Stage 1 Confirmation Card */
+.stage1-confirm-box {
+  background: #fff8eb;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage1-confirm-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #7c2d12;
+}
+
+.stage1-confirm-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.stage1-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.stage1-proceed-btn {
+  background: var(--primary, #a8561e);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 12px;
+  height: 32px;
+}
+
+.stage1-proceed-btn:hover:not(:disabled) {
+  background: var(--primary-hover, #8c4414);
+}
+
 /* Analyze Button — pinned so it stays visible while scrolling */
 .analyze-btn {
   width: 100%;

@@ -785,6 +785,145 @@ var AIProcessor = class {
       newKnowledge
     };
   }
+  /**
+   * Phase 1 only — content summary + chapter map + custom question answers.
+   * Handles long-form chunked content with aggregation or single-chunk content.
+   */
+  async analyzeContentOnly(capture2, actionGuide = "", eggKeyQuestions = [], eggDescription = "") {
+    if (!this.plugin.settings.aiApiKey) {
+      return {
+        titleVerdict: capture2.title,
+        coreSummary: [capture2.title],
+        isLongForm: false,
+        chapterMap: [],
+        customQuestionAnswers: []
+      };
+    }
+    const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
+    if (chunks.length > 1) {
+      const guide2 = (actionGuide || this.getPrompt("actionGuideDefault")).trim();
+      const partResults = await Promise.all(
+        chunks.map(
+          (chunk) => this.analyzeContent(
+            {
+              ...capture2,
+              content: chunk.content,
+              chapters: chunk.chapters,
+              sections: chunk.sections,
+              questions: []
+            },
+            guide2,
+            eggKeyQuestions,
+            this.partNote(chunk),
+            eggDescription
+          )
+        )
+      );
+      const summary = await this.aggregateContent(
+        capture2,
+        partResults.map((r, i) => ({
+          part: i + 1,
+          startTime: chunks[i].startTime,
+          bullets: r.coreSummary
+        })),
+        eggDescription
+      );
+      const chapterMap = partResults.flatMap((r) => r.chapterMap);
+      return {
+        titleVerdict: summary.titleVerdict,
+        coreSummary: summary.coreSummary,
+        isLongForm: true,
+        chapterMap,
+        customQuestionAnswers: summary.customQuestionAnswers
+      };
+    }
+    const single = chunks[0];
+    const effective = {
+      ...capture2,
+      chapters: single?.chapters,
+      sections: single?.sections
+    };
+    const guide = (actionGuide || this.getPrompt("actionGuideDefault")).trim();
+    return this.analyzeContent(
+      effective,
+      guide,
+      eggKeyQuestions,
+      "",
+      eggDescription
+    );
+  }
+  /**
+   * Phase 2 only — per-egg extraction, comparison against egg knowledge tree,
+   * and final read verdict synthesis.
+   */
+  async analyzeEggsOnly(capture2, eggs, contentAnalysis) {
+    if (!this.plugin.settings.aiApiKey || eggs.length === 0) {
+      return {
+        ...contentAnalysis,
+        shouldRead: false,
+        shouldReadReason: eggs.length === 0 ? "No matching egg found in vault." : "No API key configured.",
+        matchedEggs: eggs.map((e) => e.fileName),
+        eggResults: [],
+        newKnowledge: []
+      };
+    }
+    const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
+    let eggResults = [];
+    if (chunks.length > 1) {
+      for (const egg2 of eggs) {
+        const partEggs = await Promise.all(
+          chunks.map(
+            (chunk) => this.analyzeAgainstEgg(
+              { ...capture2, content: chunk.content },
+              egg2,
+              this.partNote(chunk)
+            )
+          )
+        );
+        const aggregate = await this.aggregateEgg(
+          egg2,
+          chunks.map((chunk, i) => ({
+            part: i + 1,
+            startTime: chunk.startTime,
+            delta: partEggs[i]?.novelDelta || []
+          }))
+        );
+        const novelDelta = aggregate.novelDelta && aggregate.novelDelta.length > 0 ? aggregate.novelDelta : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
+        const redundantEntries = partEggs.flatMap((r) => r?.redundantEntries || []);
+        const existingKnowledge = partEggs.find((r) => r?.existingKnowledge)?.existingKnowledge || egg2.knowledge;
+        eggResults.push({
+          egg: egg2.fileName,
+          keyQuestionAnswers: aggregate.keyQuestionAnswers,
+          novelDelta,
+          redundantEntries,
+          existingKnowledge,
+          rejected: aggregate.rejected,
+          rejectReason: aggregate.rejectReason,
+          readVerdict: aggregate.readVerdict,
+          readVerdictReason: aggregate.readVerdictReason
+        });
+      }
+    } else {
+      eggResults = (await Promise.all(
+        eggs.map((egg2) => this.analyzeAgainstEgg(capture2, egg2))
+      )).filter((r) => r !== null);
+    }
+    const verdict = this.mergeVerdict(eggResults);
+    const newKnowledge = eggResults.flatMap(
+      (r) => r.novelDelta.map((d) => ({
+        egg: r.egg,
+        parent: d.parent,
+        content: d.content
+      }))
+    );
+    return {
+      ...contentAnalysis,
+      ...verdict,
+      matchedEggs: eggs.map((e) => e.fileName),
+      eggResults,
+      newKnowledge
+    };
+  }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
   async analyzeContent(capture2, actionGuide, eggKeyQuestions, partNote = "", eggDescription = "") {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {

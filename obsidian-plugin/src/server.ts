@@ -1,7 +1,7 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError } from "./ai-client";
-import type { AnalysisResult, MergeResult } from "./ai-processor";
+import type { AnalysisResult, ContentAnalysis, MergeResult } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
 
 interface AnalyzeRequest {
@@ -18,6 +18,10 @@ interface AnalyzeRequest {
   force?: boolean;
   /** Manual egg selection from the popup — skips AI routing when non-empty. */
   eggs?: string[];
+  /** Analysis stage: 1 (summary & routing only), 2 (egg knowledge compare only), or omitted/full */
+  stage?: number | string;
+  /** Content analysis from stage 1 when executing stage 2 */
+  contentAnalysis?: ContentAnalysis;
 }
 
 interface AskRequest {
@@ -142,6 +146,33 @@ export class NutEggServer {
         !f.path.startsWith(this.plugin.settings.rawFolder) &&
         !f.path.startsWith(workflowFolder) &&
         !f.path.endsWith("/_index.md")).length;
+  }
+
+  /** Insert a capture entry into the SQLite DB if available. */
+  private recordNut(capture: AnalyzeRequest, result: AnalysisResult): number | undefined {
+    return (
+      this.plugin.db?.insertNut({
+        url: this.normalizeUrl(capture.url),
+        title: capture.title,
+        sourceType: capture.sourceType,
+        content: capture.content || "",
+        savedAt: new Date().toISOString(),
+        publishedAt: capture.metadata?.published || "",
+        author:
+          capture.metadata?.author ||
+          capture.metadata?.channel ||
+          capture.metadata?.handle ||
+          "",
+        timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
+        processingResult: "analyzed",
+        summary: [result.titleVerdict, ...(result.coreSummary || [])]
+          .filter(Boolean)
+          .join("\n"),
+        matchedEggs: result.matchedEggs || [],
+        fileName: "",
+        analysisResult: result,
+      }) ?? undefined
+    );
   }
 
   /** Strip trailing slashes, fragment, and common tracking/session params. */
@@ -509,49 +540,113 @@ export class NutEggServer {
         }
       }
 
-      // Step 1: Read _index.md and match content to relevant egg files.
-      // A manual egg selection from the popup skips AI routing entirely.
-      const indexContent = await this.plugin.indexReader.getIndexContent();
-      const index = this.plugin.indexReader.parseIndexContent(indexContent);
-      const matchedEggs = hasEggOverride
-        ? capture.eggs!.map((fileName) => {
-            const entry = index.find(
-              (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-            );
-            return { fileName, description: entry?.description || "" };
-          })
-        : await this.plugin.indexReader.matchEggs(capture, index);
+      // Stage 2: user confirmed eggs from Stage 1
+      if (capture.stage === 2 || capture.stage === "2") {
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const targetEggs = (capture.eggs || []).map((fileName) => {
+          const entry = index.find(
+            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+          );
+          return { fileName, description: entry?.description || "" };
+        });
+        const eggs = await this.plugin.eggParser.readEggs(targetEggs);
+        const contentAnalysis = capture.contentAnalysis || {
+          titleVerdict: capture.title,
+          coreSummary: [],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: [],
+        };
+        const result = await this.plugin.aiProcessor.analyzeEggsOnly(
+          capture,
+          eggs,
+          contentAnalysis
+        );
+        const nutId = this.recordNut(capture, result);
+        console.log(
+          `[NutEgg] Analyzed (Stage 2): ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ...result, nutId }));
+        return;
+      }
 
-      // Step 2: Read and parse the matched egg files (scope, action guide, knowledge)
-      const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
-
-      // Step 3: Two-phase AI analysis — content summary + per-egg delta.
-      // Custom questions are deduplicated by the AI against the eggs' key questions.
-      const result = await this.plugin.aiProcessor.analyze(capture, eggs);
-
-      // Record EVERY processed result in SQLite — one NEW row per capture, so
-      // re-analysis creates a new version instead of overwriting history.
-      const nutId = this.plugin.db?.insertNut({
-        url: this.normalizeUrl(capture.url),
-        title: capture.title,
-        sourceType: capture.sourceType,
-        content: capture.content || "",
-        savedAt: new Date().toISOString(),
-        publishedAt: capture.metadata?.published || "",
-        author: capture.metadata?.author ||
-          capture.metadata?.channel ||
-          capture.metadata?.handle ||
-          "",
-        timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
-        processingResult: "analyzed",
-        summary: [result.titleVerdict, ...(result.coreSummary || [])]
+      // Stage 1 only (Two-stage confirm mode): summary + routing via summary
+      if (capture.stage === 1 || capture.stage === "1") {
+        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const summaryText = [
+          contentAnalysis.titleVerdict,
+          ...(contentAnalysis.coreSummary || []),
+        ]
           .filter(Boolean)
-          .join("\n"),
-        matchedEggs: result.matchedEggs || [],
-        fileName: "",
-        analysisResult: result,
-      }) ?? undefined;
+          .join("\n");
+        const matchedIndex = await this.plugin.indexReader.matchEggs(
+          { title: capture.title, url: capture.url, content: summaryText },
+          index
+        );
+        console.log(
+          `[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedIndex.length}`
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ...contentAnalysis,
+            matchedEggs: matchedIndex.map((e) => e.fileName),
+            allEggs: index.map((e) => e.fileName),
+            stage: "stage1",
+          })
+        );
+        return;
+      }
 
+      // Fast / Full mode (default):
+      let result: AnalysisResult;
+      if (hasEggOverride) {
+        // Manual override from popup
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const matchedEggs = capture.eggs!.map((fileName) => {
+          const entry = index.find(
+            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+          );
+          return { fileName, description: entry?.description || "" };
+        });
+        const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
+        result = await this.plugin.aiProcessor.analyze(capture, eggs);
+      } else {
+        // Auto-detect eggs using the concise summary to save ~95% routing tokens
+        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const summaryText = [
+          contentAnalysis.titleVerdict,
+          ...(contentAnalysis.coreSummary || []),
+        ]
+          .filter(Boolean)
+          .join("\n");
+        const matchedIndex = await this.plugin.indexReader.matchEggs(
+          { title: capture.title, url: capture.url, content: summaryText },
+          index
+        );
+        if (matchedIndex.length === 0) {
+          result = {
+            ...contentAnalysis,
+            matchedEggs: [],
+            eggResults: [],
+            newKnowledge: [],
+            shouldRead: false,
+            shouldReadReason: "No matching egg found in vault.",
+          };
+        } else {
+          const eggs = await this.plugin.eggParser.readEggs(matchedIndex);
+          result = await this.plugin.aiProcessor.analyzeEggsOnly(capture, eggs, contentAnalysis);
+        }
+      }
+
+      const nutId = this.recordNut(capture, result);
       console.log(
         `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );

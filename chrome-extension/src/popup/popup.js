@@ -84,6 +84,14 @@ const captureEggsChevron = document.getElementById("capture-eggs-chevron");
 const captureEggsArea = document.getElementById("capture-eggs-area");
 const captureEggsList = document.getElementById("capture-eggs-list");
 
+// Mode toggle & Stage 1 elements
+const modeFastBtn = document.getElementById("mode-fast-btn");
+const modeConfirmBtn = document.getElementById("mode-confirm-btn");
+const verdictSection = document.getElementById("verdict-section");
+const stage1ConfirmBox = document.getElementById("stage1-confirm-box");
+const stage1ProceedBtn = document.getElementById("stage1-proceed-btn");
+const stage1SkipBtn = document.getElementById("stage1-skip-btn");
+
 let extractedContent = null;
 let serverOnline = false;
 let analysisResult = null;
@@ -106,6 +114,11 @@ let selectedEggs = new Set();
 /** Pre-selected eggs on the capture screen (before analyze). Empty = auto-detect. */
 let preSelectedEggs = new Set();
 
+/** Analysis mode: "fast" (1-click full) | "confirm" (confirm eggs after stage 1). */
+let analysisMode = "fast";
+let stage1Payload = null;
+let stage1ContentAnalysis = null;
+
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -114,6 +127,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const version = chrome.runtime?.getManifest?.()?.version;
     if (version) versionTag.textContent = `NutEgg ${version}`;
   }
+
+  // Restore analysis mode preference
+  chrome.storage?.local?.get?.(["analysisMode"], (data) => {
+    if (data?.analysisMode === "confirm" || data?.analysisMode === "fast") {
+      setAnalysisMode(data.analysisMode);
+    }
+  });
+
+  modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
+  modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
+  stage1ProceedBtn?.addEventListener("click", handleProceedStage2);
+  stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
   analyzeBtn.addEventListener("click", () => handleAnalyze(false));
   confirmBtn.addEventListener("click", handleConfirm);
@@ -471,6 +496,7 @@ function renderEggsSection(matchedEggs) {
       if (ev.target.checked) selectedEggs.add(name);
       else selectedEggs.delete(name);
       reanalyzeEggsBtn.classList.remove("hidden");
+      updateStage1ProceedBtn();
     });
   });
   reanalyzeEggsBtn.classList.add("hidden");
@@ -482,6 +508,66 @@ function renderEggsSection(matchedEggs) {
   eggsNewDesc.value = "";
   eggsCreateBtn.disabled = false;
   eggsCreateBtn.textContent = "Create Egg";
+}
+
+function setAnalysisMode(mode) {
+  analysisMode = mode;
+  if (mode === "confirm") {
+    modeConfirmBtn?.classList.add("active");
+    modeFastBtn?.classList.remove("active");
+  } else {
+    modeFastBtn?.classList.add("active");
+    modeConfirmBtn?.classList.remove("active");
+  }
+  chrome.storage?.local?.set?.({ analysisMode: mode });
+}
+
+function updateStage1ProceedBtn() {
+  if (!stage1ProceedBtn) return;
+  const count = selectedEggs.size;
+  if (count === 0) {
+    stage1ProceedBtn.disabled = true;
+    stage1ProceedBtn.textContent = "🐣 Compare Knowledge (Select egg)";
+  } else {
+    stage1ProceedBtn.disabled = false;
+    stage1ProceedBtn.textContent = `🐣 Compare Knowledge (${count} Egg${count === 1 ? "" : "s"})`;
+  }
+}
+
+async function handleProceedStage2() {
+  if (selectedEggs.size === 0 || stage1ProceedBtn.disabled) return;
+  stage1ProceedBtn.disabled = true;
+  stage1ProceedBtn.textContent = "Comparing knowledge…";
+  hideMessages();
+
+  try {
+    const payload = {
+      ...stage1Payload,
+      stage: 2,
+      eggs: [...selectedEggs],
+      contentAnalysis: stage1ContentAnalysis || {
+        titleVerdict: analysisResult?.titleVerdict || "",
+        coreSummary: analysisResult?.coreSummary || [],
+        isLongForm: analysisResult?.isLongForm || false,
+        chapterMap: analysisResult?.chapterMap || [],
+        customQuestionAnswers: analysisResult?.customQuestionAnswers || [],
+      },
+    };
+
+    const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
+    if (response?.error) {
+      showError(response.error);
+      stage1ProceedBtn.disabled = false;
+      updateStage1ProceedBtn();
+      return;
+    }
+
+    showResultsState(response);
+  } catch (err) {
+    showError(err instanceof Error ? err.message : "Knowledge comparison failed");
+    stage1ProceedBtn.disabled = false;
+    updateStage1ProceedBtn();
+  }
 }
 
 // --- Metrics ---
@@ -862,6 +948,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       .filter(Boolean);
 
     const targetEggs = eggsOverride || (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+    const useStage1 = analysisMode === "confirm" && !targetEggs;
     const payload = {
       url: extractedContent.url || "",
       title: extractedContent.title || "",
@@ -872,6 +959,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       questions,
       force,
       ...(targetEggs ? { eggs: targetEggs } : {}),
+      ...(useStage1 ? { stage: 1 } : {}),
     };
 
     if (force) {
@@ -882,6 +970,14 @@ async function handleAnalyze(force = false, eggsOverride = null) {
     if (force) {
       reanalyzeBtn.disabled = false;
       reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+
+    if (response?.stage === "stage1") {
+      stage1Payload = payload;
+      stage1ContentAnalysis = response;
+    } else {
+      stage1Payload = null;
+      stage1ContentAnalysis = null;
     }
 
     // This URL has cached captures — show the latest with its timestamp,
@@ -931,10 +1027,22 @@ async function handleAnalyze(force = false, eggsOverride = null) {
 // --- Show results ---
 
 function showResultsState(result, provenance = null) {
+  analysisResult = result;
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
   processedNote.classList.add("hidden");
   renderResultProvenance(provenance);
+
+  const isStage1 = result.stage === "stage1";
+
+  if (isStage1) {
+    stage1ConfirmBox?.classList.remove("hidden");
+    verdictSection?.classList.add("hidden");
+    confirmBtn?.classList.add("hidden");
+  } else {
+    stage1ConfirmBox?.classList.add("hidden");
+    verdictSection?.classList.remove("hidden");
+  }
 
   // No egg matched — offer to create one
   const noEgg = (result.matchedEggs || []).length === 0;
@@ -948,7 +1056,14 @@ function showResultsState(result, provenance = null) {
 
   // Egg picker — sync the checklist with _index.md, then render it with
   // this result's matched eggs (user edits + re-analyze changes the match)
-  fetchEggs().then(() => renderEggsSection(result.matchedEggs || []));
+  fetchEggs().then(() => {
+    renderEggsSection(result.matchedEggs || []);
+    if (isStage1) {
+      eggsExpanded?.classList.remove("hidden");
+      if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+      updateStage1ProceedBtn();
+    }
+  });
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";
@@ -1099,16 +1214,21 @@ function showResultsState(result, provenance = null) {
   }
 
   // Verdict
-  if (result.shouldRead) {
-    verdictIcon.textContent = "✅";
-    verdictText.textContent = "Worth reading";
-    verdictBadge.className = "verdict-badge verdict-yes";
+  if (isStage1) {
+    verdictSection?.classList.add("hidden");
   } else {
-    verdictIcon.textContent = "⏭️";
-    verdictText.textContent = "Skip it";
-    verdictBadge.className = "verdict-badge verdict-no";
+    verdictSection?.classList.remove("hidden");
+    if (result.shouldRead) {
+      verdictIcon.textContent = "✅";
+      verdictText.textContent = "Worth reading";
+      verdictBadge.className = "verdict-badge verdict-yes";
+    } else {
+      verdictIcon.textContent = "⏭️";
+      verdictText.textContent = "Skip it";
+      verdictBadge.className = "verdict-badge verdict-no";
+    }
+    verdictReason.textContent = result.shouldReadReason || "";
   }
-  verdictReason.textContent = result.shouldReadReason || "";
 
   successBanner.classList.add("hidden");
   updateActionButtons();
@@ -1116,6 +1236,13 @@ function showResultsState(result, provenance = null) {
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
+  if (analysisResult?.stage === "stage1") {
+    confirmBtn.classList.add("hidden");
+    collectNutBtn.disabled = false;
+    collectNutBtn.textContent = "🥜 Collect Nut Only";
+    return;
+  }
+
   if (nutCollected) {
     collectNutBtn.disabled = true;
     collectNutBtn.textContent = "✅ Nut collected";

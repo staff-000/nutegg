@@ -265,31 +265,33 @@ describe("NutEggServer.countEggs", () => {
   });
 });
 
+function makeReq(body: string) {
+  const req: any = {
+    on(ev: string, cb: (...a: any[]) => void) {
+      if (ev === "data") cb(body);
+      if (ev === "end") cb();
+      return req;
+    },
+  };
+  return req;
+}
+
+function makeRes() {
+  return {
+    statusCode: 0,
+    headers: {} as any,
+    body: "",
+    writeHead(code: number, headers?: any) {
+      this.statusCode = code;
+      if (headers) this.headers = headers;
+    },
+    end(body: string) {
+      this.body = body;
+    },
+  };
+}
+
 describe("NutEggServer.handleConfirm", () => {
-  function makeReq(body: string) {
-    const req: any = {
-      on(ev: string, cb: (...a: any[]) => void) {
-        if (ev === "data") cb(body);
-        if (ev === "end") cb();
-        return req;
-      },
-    };
-    return req;
-  }
-
-  function makeRes() {
-    return {
-      statusCode: 0,
-      body: "",
-      writeHead(code: number) {
-        this.statusCode = code;
-      },
-      end(body: string) {
-        this.body = body;
-      },
-    };
-  }
-
   const baseConfirm = {
     url: "https://x.com/a",
     title: "Article Title",
@@ -432,5 +434,107 @@ describe("NutEggServer.handleCredit & handleConfigStatus", () => {
     const body = JSON.parse(res.body);
     assert.equal(body.status, "ok");
     assert.equal(body.credit?.balanceFormatted, "¥10.00");
+  });
+});
+
+describe("NutEggServer.handleAnalyze stages & summary routing", () => {
+  const baseCapture = {
+    url: "https://example.com/article",
+    title: "Article Title",
+    content: "Full content text here",
+    sourceType: "article",
+    force: true,
+  };
+
+  it("stage 1: generates content analysis and routes eggs using summary", async () => {
+    let routedWithContent = "";
+    const s = makeServer({
+      aiProcessor: {
+        analyzeContentOnly: async () => ({
+          titleVerdict: "Core verdict answer.",
+          coreSummary: ["Bullet 1", "Bullet 2"],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: [],
+        }),
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech topics\n- [[finance.md]]: Finance",
+        parseIndexContent: () => [
+          { fileName: "tech.md", description: "Tech topics", topic: "Tech" },
+          { fileName: "finance.md", description: "Finance", topic: "Finance" },
+        ],
+        matchEggs: async (contentObj: any) => {
+          routedWithContent = contentObj.content;
+          return [{ fileName: "tech.md", description: "Tech topics", topic: "Tech" }];
+        },
+      },
+    });
+
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1 }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.stage, "stage1");
+    assert.equal(body.titleVerdict, "Core verdict answer.");
+    assert.deepEqual(body.matchedEggs, ["tech.md"]);
+    // Verified: routing received the concise summary instead of 30k raw characters!
+    assert.ok(routedWithContent.includes("Core verdict answer."));
+    assert.ok(routedWithContent.includes("Bullet 1"));
+    assert.equal(routedWithContent.includes("Full content text here"), false);
+  });
+
+  it("stage 2: compares knowledge for confirmed eggs", async () => {
+    let analyzeEggsCalledWith: any = null;
+    const s = makeServer({
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+      },
+      eggParser: {
+        readEggs: async (matched: any[]) =>
+          matched.map((m) => ({ fileName: m.fileName, knowledge: "", unprocessed: "" })),
+      },
+      aiProcessor: {
+        analyzeEggsOnly: async (_cap: any, eggs: any[], contentAnalysis: any) => {
+          analyzeEggsCalledWith = { eggs, contentAnalysis };
+          return {
+            ...contentAnalysis,
+            matchedEggs: eggs.map((e: any) => e.fileName),
+            eggResults: [],
+            newKnowledge: [{ egg: "tech.md", content: "- novel insight" }],
+            shouldRead: true,
+            shouldReadReason: "Novel insights found",
+          };
+        },
+      },
+    });
+
+    const contentAnalysis = {
+      titleVerdict: "Core verdict answer.",
+      coreSummary: ["Bullet 1"],
+      isLongForm: false,
+      chapterMap: [],
+      customQuestionAnswers: [],
+    };
+    const req = makeReq(
+      JSON.stringify({
+        ...baseCapture,
+        stage: 2,
+        eggs: ["tech.md"],
+        contentAnalysis,
+      })
+    );
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.shouldRead, true);
+    assert.equal(body.newKnowledge.length, 1);
+    assert.equal(analyzeEggsCalledWith.eggs[0].fileName, "tech.md");
+    assert.equal(analyzeEggsCalledWith.contentAnalysis.titleVerdict, "Core verdict answer.");
   });
 });

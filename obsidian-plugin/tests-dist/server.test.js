@@ -98,6 +98,24 @@ var NutEggServer = class {
     const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
     return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.startsWith(workflowFolder) && !f.path.endsWith("/_index.md")).length;
   }
+  /** Insert a capture entry into the SQLite DB if available. */
+  recordNut(capture, result) {
+    return this.plugin.db?.insertNut({
+      url: this.normalizeUrl(capture.url),
+      title: capture.title,
+      sourceType: capture.sourceType,
+      content: capture.content || "",
+      savedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      publishedAt: capture.metadata?.published || "",
+      author: capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "",
+      timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
+      processingResult: "analyzed",
+      summary: [result.titleVerdict, ...result.coreSummary || []].filter(Boolean).join("\n"),
+      matchedEggs: result.matchedEggs || [],
+      fileName: "",
+      analysisResult: result
+    }) ?? void 0;
+  }
   /** Strip trailing slashes, fragment, and common tracking/session params. */
   normalizeUrl(url) {
     try {
@@ -404,31 +422,101 @@ var NutEggServer = class {
           return;
         }
       }
-      const indexContent = await this.plugin.indexReader.getIndexContent();
-      const index = this.plugin.indexReader.parseIndexContent(indexContent);
-      const matchedEggs = hasEggOverride ? capture.eggs.map((fileName) => {
-        const entry = index.find(
-          (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+      if (capture.stage === 2 || capture.stage === "2") {
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const targetEggs = (capture.eggs || []).map((fileName) => {
+          const entry = index.find(
+            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+          );
+          return { fileName, description: entry?.description || "" };
+        });
+        const eggs = await this.plugin.eggParser.readEggs(targetEggs);
+        const contentAnalysis = capture.contentAnalysis || {
+          titleVerdict: capture.title,
+          coreSummary: [],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: []
+        };
+        const result2 = await this.plugin.aiProcessor.analyzeEggsOnly(
+          capture,
+          eggs,
+          contentAnalysis
         );
-        return { fileName, description: entry?.description || "" };
-      }) : await this.plugin.indexReader.matchEggs(capture, index);
-      const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
-      const result = await this.plugin.aiProcessor.analyze(capture, eggs);
-      const nutId = this.plugin.db?.insertNut({
-        url: this.normalizeUrl(capture.url),
-        title: capture.title,
-        sourceType: capture.sourceType,
-        content: capture.content || "",
-        savedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        publishedAt: capture.metadata?.published || "",
-        author: capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "",
-        timeEstimateMinutes: this.estimateTime(capture.metadata, capture.content),
-        processingResult: "analyzed",
-        summary: [result.titleVerdict, ...result.coreSummary || []].filter(Boolean).join("\n"),
-        matchedEggs: result.matchedEggs || [],
-        fileName: "",
-        analysisResult: result
-      }) ?? void 0;
+        const nutId2 = this.recordNut(capture, result2);
+        console.log(
+          `[NutEgg] Analyzed (Stage 2): ${capture.title} \u2014 shouldRead=${result2.shouldRead}, newKnowledge=${result2.newKnowledge.length}`
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ...result2, nutId: nutId2 }));
+        return;
+      }
+      if (capture.stage === 1 || capture.stage === "1") {
+        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const summaryText = [
+          contentAnalysis.titleVerdict,
+          ...contentAnalysis.coreSummary || []
+        ].filter(Boolean).join("\n");
+        const matchedIndex = await this.plugin.indexReader.matchEggs(
+          { title: capture.title, url: capture.url, content: summaryText },
+          index
+        );
+        console.log(
+          `[NutEgg] Analyzed (Stage 1): ${capture.title} \u2014 matchedEggs=${matchedIndex.length}`
+        );
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            ...contentAnalysis,
+            matchedEggs: matchedIndex.map((e) => e.fileName),
+            allEggs: index.map((e) => e.fileName),
+            stage: "stage1"
+          })
+        );
+        return;
+      }
+      let result;
+      if (hasEggOverride) {
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const matchedEggs = capture.eggs.map((fileName) => {
+          const entry = index.find(
+            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+          );
+          return { fileName, description: entry?.description || "" };
+        });
+        const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
+        result = await this.plugin.aiProcessor.analyze(capture, eggs);
+      } else {
+        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const summaryText = [
+          contentAnalysis.titleVerdict,
+          ...contentAnalysis.coreSummary || []
+        ].filter(Boolean).join("\n");
+        const matchedIndex = await this.plugin.indexReader.matchEggs(
+          { title: capture.title, url: capture.url, content: summaryText },
+          index
+        );
+        if (matchedIndex.length === 0) {
+          result = {
+            ...contentAnalysis,
+            matchedEggs: [],
+            eggResults: [],
+            newKnowledge: [],
+            shouldRead: false,
+            shouldReadReason: "No matching egg found in vault."
+          };
+        } else {
+          const eggs = await this.plugin.eggParser.readEggs(matchedIndex);
+          result = await this.plugin.aiProcessor.analyzeEggsOnly(capture, eggs, contentAnalysis);
+        }
+      }
+      const nutId = this.recordNut(capture, result);
       console.log(
         `[NutEgg] Analyzed: ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
       );
@@ -828,7 +916,7 @@ function makeServer(overrides = {}) {
   });
 });
 (0, import_node_test.describe)("NutEggServer.handleCreateEgg", () => {
-  function makeReq(body) {
+  function makeReq2(body) {
     const req = {
       on(ev, cb) {
         if (ev === "data")
@@ -840,7 +928,7 @@ function makeServer(overrides = {}) {
     };
     return req;
   }
-  function makeRes() {
+  function makeRes2() {
     return {
       statusCode: 0,
       body: "",
@@ -862,10 +950,10 @@ function makeServer(overrides = {}) {
         }
       }
     });
-    const req = makeReq(
+    const req = makeReq2(
       JSON.stringify({ name: "Productivity 101", description: "systems" })
     );
-    const res = makeRes();
+    const res = makeRes2();
     await s.handleCreateEgg(req, res);
     import_strict.default.equal(res.statusCode, 200);
     import_strict.default.deepEqual(JSON.parse(res.body), {
@@ -885,10 +973,10 @@ function makeServer(overrides = {}) {
         }
       }
     });
-    const req = makeReq(
+    const req = makeReq2(
       JSON.stringify({ name: "\u65B9\u6CD5\u8BBA", description: "\u505A\u4E8B\u7684\u65B9\u6CD5" })
     );
-    const res = makeRes();
+    const res = makeRes2();
     await s.handleCreateEgg(req, res);
     import_strict.default.equal(res.statusCode, 200);
     import_strict.default.deepEqual(JSON.parse(res.body), {
@@ -904,14 +992,14 @@ function makeServer(overrides = {}) {
         createEgg: async () => ({ path: "x.md", alreadyExists: false })
       }
     });
-    const req = makeReq(JSON.stringify({ name: "   " }));
-    const res = makeRes();
+    const req = makeReq2(JSON.stringify({ name: "   " }));
+    const res = makeRes2();
     await s.handleCreateEgg(req, res);
     import_strict.default.equal(res.statusCode, 400);
   });
 });
 (0, import_node_test.describe)("NutEggServer.handleGetEggs", () => {
-  function makeRes() {
+  function makeRes2() {
     return {
       statusCode: 0,
       body: "",
@@ -937,7 +1025,7 @@ function makeServer(overrides = {}) {
       }
     });
     const req = {};
-    const res = makeRes();
+    const res = makeRes2();
     await s.handleGetEggs(req, res);
     import_strict.default.equal(res.statusCode, 200);
     import_strict.default.deepEqual(JSON.parse(res.body), {
@@ -952,7 +1040,7 @@ function makeServer(overrides = {}) {
       indexReader: { getIndexContent: async () => "(No _index.md found)" }
     });
     const req = {};
-    const res = makeRes();
+    const res = makeRes2();
     await s.handleGetEggs(req, res);
     import_strict.default.deepEqual(JSON.parse(res.body), { eggs: [] });
   });
@@ -970,31 +1058,34 @@ function makeServer(overrides = {}) {
     import_strict.default.equal(s.countEggs(), 2);
   });
 });
+function makeReq(body) {
+  const req = {
+    on(ev, cb) {
+      if (ev === "data")
+        cb(body);
+      if (ev === "end")
+        cb();
+      return req;
+    }
+  };
+  return req;
+}
+function makeRes() {
+  return {
+    statusCode: 0,
+    headers: {},
+    body: "",
+    writeHead(code, headers) {
+      this.statusCode = code;
+      if (headers)
+        this.headers = headers;
+    },
+    end(body) {
+      this.body = body;
+    }
+  };
+}
 (0, import_node_test.describe)("NutEggServer.handleConfirm", () => {
-  function makeReq(body) {
-    const req = {
-      on(ev, cb) {
-        if (ev === "data")
-          cb(body);
-        if (ev === "end")
-          cb();
-        return req;
-      }
-    };
-    return req;
-  }
-  function makeRes() {
-    return {
-      statusCode: 0,
-      body: "",
-      writeHead(code) {
-        this.statusCode = code;
-      },
-      end(body) {
-        this.body = body;
-      }
-    };
-  }
   const baseConfirm = {
     url: "https://x.com/a",
     title: "Article Title",
@@ -1131,5 +1222,98 @@ function makeServer(overrides = {}) {
     const body = JSON.parse(res.body);
     import_strict.default.equal(body.status, "ok");
     import_strict.default.equal(body.credit?.balanceFormatted, "\xA510.00");
+  });
+});
+(0, import_node_test.describe)("NutEggServer.handleAnalyze stages & summary routing", () => {
+  const baseCapture = {
+    url: "https://example.com/article",
+    title: "Article Title",
+    content: "Full content text here",
+    sourceType: "article",
+    force: true
+  };
+  (0, import_node_test.it)("stage 1: generates content analysis and routes eggs using summary", async () => {
+    let routedWithContent = "";
+    const s = makeServer({
+      aiProcessor: {
+        analyzeContentOnly: async () => ({
+          titleVerdict: "Core verdict answer.",
+          coreSummary: ["Bullet 1", "Bullet 2"],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: []
+        })
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech topics\n- [[finance.md]]: Finance",
+        parseIndexContent: () => [
+          { fileName: "tech.md", description: "Tech topics", topic: "Tech" },
+          { fileName: "finance.md", description: "Finance", topic: "Finance" }
+        ],
+        matchEggs: async (contentObj) => {
+          routedWithContent = contentObj.content;
+          return [{ fileName: "tech.md", description: "Tech topics", topic: "Tech" }];
+        }
+      }
+    });
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1 }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.stage, "stage1");
+    import_strict.default.equal(body.titleVerdict, "Core verdict answer.");
+    import_strict.default.deepEqual(body.matchedEggs, ["tech.md"]);
+    import_strict.default.ok(routedWithContent.includes("Core verdict answer."));
+    import_strict.default.ok(routedWithContent.includes("Bullet 1"));
+    import_strict.default.equal(routedWithContent.includes("Full content text here"), false);
+  });
+  (0, import_node_test.it)("stage 2: compares knowledge for confirmed eggs", async () => {
+    let analyzeEggsCalledWith = null;
+    const s = makeServer({
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }]
+      },
+      eggParser: {
+        readEggs: async (matched) => matched.map((m) => ({ fileName: m.fileName, knowledge: "", unprocessed: "" }))
+      },
+      aiProcessor: {
+        analyzeEggsOnly: async (_cap, eggs, contentAnalysis2) => {
+          analyzeEggsCalledWith = { eggs, contentAnalysis: contentAnalysis2 };
+          return {
+            ...contentAnalysis2,
+            matchedEggs: eggs.map((e) => e.fileName),
+            eggResults: [],
+            newKnowledge: [{ egg: "tech.md", content: "- novel insight" }],
+            shouldRead: true,
+            shouldReadReason: "Novel insights found"
+          };
+        }
+      }
+    });
+    const contentAnalysis = {
+      titleVerdict: "Core verdict answer.",
+      coreSummary: ["Bullet 1"],
+      isLongForm: false,
+      chapterMap: [],
+      customQuestionAnswers: []
+    };
+    const req = makeReq(
+      JSON.stringify({
+        ...baseCapture,
+        stage: 2,
+        eggs: ["tech.md"],
+        contentAnalysis
+      })
+    );
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.shouldRead, true);
+    import_strict.default.equal(body.newKnowledge.length, 1);
+    import_strict.default.equal(analyzeEggsCalledWith.eggs[0].fileName, "tech.md");
+    import_strict.default.equal(analyzeEggsCalledWith.contentAnalysis.titleVerdict, "Core verdict answer.");
   });
 });
