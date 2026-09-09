@@ -531,7 +531,7 @@ export class NutEggServer {
       // timestamp and offers "Re-analyze".
       const hasQuestions = capture.questions && capture.questions.length > 0;
       const hasEggOverride = !!capture.eggs && capture.eggs.length > 0;
-      if (!hasQuestions && !capture.force && !hasEggOverride) {
+      if (!capture.stage && !hasQuestions && !capture.force && !hasEggOverride) {
         const history = this.getCaptureHistory(capture.url);
         if (history.length > 0) {
           res.writeHead(200, { "Content-Type": "application/json" });

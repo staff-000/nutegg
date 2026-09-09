@@ -121,6 +121,40 @@
         </div>
       </div>
 
+      <!-- Stage 1 Confirmation Card (Confirm Eggs Mode) -->
+      <div id="stage1-confirm-box" class="stage1-confirm-box hidden">
+        <div class="stage1-confirm-header">
+          <span class="stage1-confirm-icon">🎯</span>
+          <div class="stage1-confirm-text" id="stage1-confirm-text">
+            <strong>Stage 1 Complete:</strong> Review matching eggs below to compare knowledge and decide if worth reading.
+          </div>
+        </div>
+        <div class="stage1-confirm-actions">
+          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn">🐣 Compare Knowledge</button>
+          <button id="stage1-skip-btn" class="collect-nut-btn">🥜 Collect Nut Only</button>
+        </div>
+      </div>
+
+      <div id="eggs-section" class="result-section hidden">
+        <button id="eggs-toggle" class="questions-toggle">
+          <span>🥚 Eggs <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
+          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
+        </button>
+        <div id="eggs-expanded" class="hidden">
+          <div id="eggs-list" class="eggs-list"></div>
+          <div id="eggs-create-inline" class="create-egg-inline">
+            <button id="eggs-create-toggle" class="eggs-create-toggle">➕ Create new egg</button>
+            <div id="eggs-create-form" class="create-egg-box hidden">
+              <input id="eggs-new-name" type="text" placeholder="egg name (e.g. productivity)" />
+              <input id="eggs-new-desc" type="text" placeholder="what this egg captures (one line)" />
+              <button id="eggs-create-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+            </div>
+          </div>
+          <button id="reanalyze-eggs-btn" class="reanalyze-btn reanalyze-eggs-btn hidden">🔄 Re-analyze with selected eggs</button>
+          <div id="eggs-error" class="eggs-error hidden"></div>
+        </div>
+      </div>
+
       <div class="result-section" id="verdict-section">
         <div class="section-label">📖 Should you read it?</div>
         <div id="verdict-badge" class="verdict-badge">
@@ -167,40 +201,6 @@
           <input id="new-egg-name" type="text" placeholder="egg name (e.g. productivity)" />
           <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
           <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
-        </div>
-      </div>
-
-      <!-- Stage 1 Confirmation Card (Confirm Eggs Mode) -->
-      <div id="stage1-confirm-box" class="stage1-confirm-box hidden">
-        <div class="stage1-confirm-header">
-          <span class="stage1-confirm-icon">🎯</span>
-          <div class="stage1-confirm-text" id="stage1-confirm-text">
-            <strong>Stage 1 Complete:</strong> Review matching eggs below to compare knowledge and decide if worth reading.
-          </div>
-        </div>
-        <div class="stage1-confirm-actions">
-          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn">🐣 Compare Knowledge</button>
-          <button id="stage1-skip-btn" class="collect-nut-btn">🥜 Collect Nut Only</button>
-        </div>
-      </div>
-
-      <div id="eggs-section" class="result-section hidden">
-        <button id="eggs-toggle" class="questions-toggle">
-          <span>🥚 Eggs <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
-          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
-        </button>
-        <div id="eggs-expanded" class="hidden">
-          <div id="eggs-list" class="eggs-list"></div>
-          <div id="eggs-create-inline" class="create-egg-inline">
-            <button id="eggs-create-toggle" class="eggs-create-toggle">➕ Create new egg</button>
-            <div id="eggs-create-form" class="create-egg-box hidden">
-              <input id="eggs-new-name" type="text" placeholder="egg name (e.g. productivity)" />
-              <input id="eggs-new-desc" type="text" placeholder="what this egg captures (one line)" />
-              <button id="eggs-create-btn" class="confirm-btn create-egg-btn">Create Egg</button>
-            </div>
-          </div>
-          <button id="reanalyze-eggs-btn" class="reanalyze-btn reanalyze-eggs-btn hidden">🔄 Re-analyze with selected eggs</button>
-          <div id="eggs-error" class="eggs-error hidden"></div>
         </div>
       </div>
 

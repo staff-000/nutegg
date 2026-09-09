@@ -414,7 +414,7 @@ var NutEggServer = class {
       }
       const hasQuestions = capture.questions && capture.questions.length > 0;
       const hasEggOverride = !!capture.eggs && capture.eggs.length > 0;
-      if (!hasQuestions && !capture.force && !hasEggOverride) {
+      if (!capture.stage && !hasQuestions && !capture.force && !hasEggOverride) {
         const history = this.getCaptureHistory(capture.url);
         if (history.length > 0) {
           res.writeHead(200, { "Content-Type": "application/json" });
@@ -1274,5 +1274,45 @@ function makeRes() {
     import_strict.default.equal(body.newKnowledge.length, 1);
     import_strict.default.equal(analyzeEggsCalledWith.eggs[0].fileName, "tech.md");
     import_strict.default.equal(analyzeEggsCalledWith.contentAnalysis.titleVerdict, "Core verdict answer.");
+  });
+  (0, import_node_test.it)("stage 1: executes even when cached history exists for the URL", async () => {
+    let analyzeContentCalled = false;
+    const s = makeServer({
+      aiProcessor: {
+        analyzeContentOnly: async () => {
+          analyzeContentCalled = true;
+          return {
+            titleVerdict: "Fresh stage 1 verdict.",
+            coreSummary: ["New summary"],
+            isLongForm: false,
+            chapterMap: [],
+            customQuestionAnswers: []
+          };
+        }
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+        matchEggs: async () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }]
+      }
+    });
+    s.getCaptureHistory = () => [
+      {
+        nutId: 99,
+        url: baseCapture.url,
+        capturedAt: "2026-01-01T00:00:00.000Z",
+        saved: "analyzed",
+        result: { titleVerdict: "Old cached verdict" }
+      }
+    ];
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1, force: false }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(analyzeContentCalled, true);
+    import_strict.default.equal(body.stage, "stage1");
+    import_strict.default.equal(body.titleVerdict, "Fresh stage 1 verdict.");
+    import_strict.default.equal(body.history, void 0);
   });
 });

@@ -130,18 +130,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Restore analysis mode preference
-  chrome.storage?.local?.get?.(["analysisMode"], (data) => {
-    if (data?.analysisMode === "confirm" || data?.analysisMode === "fast") {
-      setAnalysisMode(data.analysisMode);
+  try {
+    const stored = await new Promise((resolve) => {
+      chrome.storage?.local?.get?.(["analysisMode"], resolve);
+    });
+    if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
+      setAnalysisMode(stored.analysisMode);
+    }
+  } catch {}
+
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    if (areaName === "local" && changes.analysisMode) {
+      const newMode = changes.analysisMode.newValue;
+      if (newMode === "confirm" || newMode === "fast") {
+        setAnalysisMode(newMode);
+      }
     }
   });
 
   modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
   modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
-  stage1ProceedBtn?.addEventListener("click", handleProceedStage2);
+  stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2());
   stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
-  analyzeBtn.addEventListener("click", () => handleAnalyze(false));
+  analyzeBtn.addEventListener("click", () => handleAnalyze(true));
   confirmBtn.addEventListener("click", handleConfirm);
   collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
@@ -496,7 +508,11 @@ function renderEggsSection(matchedEggs) {
       const name = ev.target.dataset.egg;
       if (ev.target.checked) selectedEggs.add(name);
       else selectedEggs.delete(name);
-      reanalyzeEggsBtn.classList.remove("hidden");
+      if (analysisResult?.stage === "stage1") {
+        reanalyzeEggsBtn?.classList.add("hidden");
+      } else {
+        reanalyzeEggsBtn?.classList.remove("hidden");
+      }
       updateStage1ProceedBtn();
     });
   });
@@ -521,6 +537,21 @@ function setAnalysisMode(mode) {
     modeConfirmBtn?.classList.remove("active");
   }
   chrome.storage?.local?.set?.({ analysisMode: mode });
+
+  if (analysisResult?.stage === "stage1") {
+    if (mode === "confirm") {
+      stage1ConfirmBox?.classList.remove("hidden");
+      verdictSection?.classList.add("hidden");
+      eggKnowledgeSection?.classList.add("hidden");
+      eggsExpanded?.classList.remove("hidden");
+      if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+      updateStage1ProceedBtn();
+      window.scrollTo(0, 0);
+    } else {
+      stage1ConfirmBox?.classList.add("hidden");
+      verdictSection?.classList.remove("hidden");
+    }
+  }
 }
 
 function updateStage1ProceedBtn() {
@@ -991,30 +1022,16 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       metadata: extractedContent.metadata,
       chapters: extractedContent.chapters || undefined,
       questions,
-      force,
+      force: true,
       stage: 1,
       ...(targetEggs ? { eggs: targetEggs } : {}),
     };
 
-    if (force) {
-      reanalyzeBtn.disabled = true;
-      reanalyzeBtn.textContent = "Analyzing…";
-    }
+    reanalyzeBtn.disabled = true;
+    reanalyzeBtn.textContent = "Analyzing…";
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
-    if (force) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.textContent = "🔄 Re-analyze";
-    }
-
-    // This URL has cached captures — show the latest with its timestamp,
-    // plus history browsing and a way to force a fresh analysis.
-    if (response?.history) {
-      captureHistory = response.history;
-      showHistoryEntry(response.latest || response.history[0]);
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "🔄 Analyze Again";
-      return null;
-    }
+    reanalyzeBtn.disabled = false;
+    reanalyzeBtn.textContent = "🔄 Re-analyze";
 
     if (response?.error) {
       showError(response.error, response.errorCode);
@@ -1033,6 +1050,14 @@ async function handleAnalyze(force = false, eggsOverride = null) {
     eggHatched = false;
     activeEggTab = null;
     analysisResult = response;
+
+    if (analysisMode === "confirm") {
+      response.stage = "stage1";
+      delete response.eggResults;
+      delete response.shouldRead;
+      delete response.shouldReadReason;
+      delete response.newKnowledge;
+    }
 
     // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
     showResultsState(response, provenanceFromExtraction());
@@ -1107,6 +1132,7 @@ function showResultsState(result, provenance = null) {
       eggsExpanded?.classList.remove("hidden");
       if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
       updateStage1ProceedBtn();
+      window.scrollTo(0, 0);
     }
   });
 
@@ -1145,7 +1171,7 @@ function showResultsState(result, provenance = null) {
   renderCustomQuestions();
 
   // Egg Knowledge (Tabs + unified per-egg insights, Q&A, and tree)
-  renderEggKnowledge(result.eggResults || []);
+  renderEggKnowledge(isStage1 ? [] : (result.eggResults || []));
 
   // Verdict
   if (isStage1) {

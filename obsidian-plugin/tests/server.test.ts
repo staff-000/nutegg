@@ -537,4 +537,50 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     assert.equal(analyzeEggsCalledWith.eggs[0].fileName, "tech.md");
     assert.equal(analyzeEggsCalledWith.contentAnalysis.titleVerdict, "Core verdict answer.");
   });
+
+  it("stage 1: executes even when cached history exists for the URL", async () => {
+    let analyzeContentCalled = false;
+    const s = makeServer({
+      aiProcessor: {
+        analyzeContentOnly: async () => {
+          analyzeContentCalled = true;
+          return {
+            titleVerdict: "Fresh stage 1 verdict.",
+            coreSummary: ["New summary"],
+            isLongForm: false,
+            chapterMap: [],
+            customQuestionAnswers: [],
+          };
+        },
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+        matchEggs: async () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+      },
+    });
+
+    // Mock getCaptureHistory returning a cached entry
+    (s as any).getCaptureHistory = () => [
+      {
+        nutId: 99,
+        url: baseCapture.url,
+        capturedAt: "2026-01-01T00:00:00.000Z",
+        saved: "analyzed",
+        result: { titleVerdict: "Old cached verdict" },
+      },
+    ];
+
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1, force: false }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(analyzeContentCalled, true);
+    assert.equal(body.stage, "stage1");
+    assert.equal(body.titleVerdict, "Fresh stage 1 verdict.");
+    assert.equal(body.history, undefined);
+  });
 });
+
