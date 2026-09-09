@@ -471,7 +471,7 @@ body {
 .success-banner {
   padding: 8px 10px;
   border-radius: 6px;
-  margin-top: 12px;
+  margin-bottom: 10px;
   font-size: 12px;
   display: flex;
   align-items: center;
@@ -564,6 +564,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.stage1-confirm-box.stage1-saved {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.stage1-confirm-box.stage1-saved .stage1-confirm-header {
+  color: #166534;
 }
 
 .stage1-confirm-header {

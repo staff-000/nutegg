@@ -1428,8 +1428,35 @@ function renderEggKnowledge(eggResults = []) {
 function updateActionButtons() {
   if (analysisResult?.stage === "stage1") {
     confirmBtn.classList.add("hidden");
-    collectNutBtn.disabled = false;
-    collectNutBtn.textContent = "🥜 Collect Nut Only";
+    if (nutCollected) {
+      collectNutBtn.disabled = true;
+      collectNutBtn.textContent = "✅ Nut collected";
+      if (stage1SkipBtn) {
+        stage1SkipBtn.disabled = true;
+        stage1SkipBtn.textContent = "✅ Nut Collected";
+      }
+      const confirmTextEl = document.getElementById("stage1-confirm-text");
+      const confirmIconEl = document.querySelector(".stage1-confirm-icon");
+      if (confirmTextEl) {
+        confirmTextEl.innerHTML = "<strong>Nut collected to vault!</strong> Raw content saved. You can still compare knowledge below if you want.";
+      }
+      if (confirmIconEl) {
+        confirmIconEl.textContent = "✅";
+      }
+      if (stage1ConfirmBox) {
+        stage1ConfirmBox.classList.add("stage1-saved");
+      }
+    } else {
+      collectNutBtn.disabled = false;
+      collectNutBtn.textContent = "🥜 Collect Nut Only";
+      if (stage1SkipBtn) {
+        stage1SkipBtn.disabled = false;
+        stage1SkipBtn.textContent = "🥜 Collect Nut Only";
+      }
+      if (stage1ConfirmBox) {
+        stage1ConfirmBox.classList.remove("stage1-saved");
+      }
+    }
     return;
   }
 
@@ -1664,16 +1691,29 @@ async function handleConfirm() {
 async function handleSaveRaw() {
   if (nutCollected) return; // already collected — no duplicate work
   if (!extractedContent) {
-    collectNutBtn.disabled = true;
-    collectNutBtn.textContent = "Retrieving…";
+    if (collectNutBtn) {
+      collectNutBtn.disabled = true;
+      collectNutBtn.textContent = "Retrieving…";
+    }
+    if (stage1SkipBtn) {
+      stage1SkipBtn.disabled = true;
+      stage1SkipBtn.textContent = "Retrieving…";
+    }
     await extractPageContent();
   }
   if (!extractedContent) {
     showError("Could not extract page content to save.");
+    updateActionButtons();
     return;
   }
-  collectNutBtn.disabled = true;
-  collectNutBtn.textContent = "Collecting...";
+  if (collectNutBtn) {
+    collectNutBtn.disabled = true;
+    collectNutBtn.textContent = "Collecting...";
+  }
+  if (stage1SkipBtn) {
+    stage1SkipBtn.disabled = true;
+    stage1SkipBtn.textContent = "Collecting...";
+  }
   await doSave([]);
   updateActionButtons();
 }
@@ -1720,11 +1760,19 @@ async function doSave(newKnowledge) {
             .map((m) => `${m.entries} unprocessed entries merged into ${m.egg}`)
             .join(", ")}`
         : "";
-      successMessage.textContent = newKnowledge.length > 0
-        ? `Egg hatched — knowledge added and nut collected!${mergedNote}`
-        : "Nut collected!";
-      successBanner.classList.remove("hidden");
+      const isStage1BoxVisible = analysisResult?.stage === "stage1" && stage1ConfirmBox && !stage1ConfirmBox.classList.contains("hidden");
+      if (isStage1BoxVisible) {
+        // In Stage 1, stage1-confirm-box updates in-place to show the saved state.
+        // Hide successBanner so only one message is displayed.
+        successBanner.classList.add("hidden");
+      } else {
+        successMessage.textContent = newKnowledge.length > 0
+          ? `Egg hatched — knowledge added and nut collected!${mergedNote}`
+          : "Nut collected to Obsidian vault!";
+        successBanner.classList.remove("hidden");
+      }
       updateActionButtons();
+      fetchMetrics();
     } else {
       showError(response?.error || "Failed to save");
     }
