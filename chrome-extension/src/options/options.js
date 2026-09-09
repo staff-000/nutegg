@@ -4,17 +4,42 @@ const DEFAULT_PORT = 27123;
 
 const portInput = document.getElementById("port-input");
 const portDisplay = document.getElementById("port-display");
+const modeSelect = document.getElementById("mode-select");
+const fastDesc = document.getElementById("fast-desc");
+const confirmDesc = document.getElementById("confirm-desc");
 const saveBtn = document.getElementById("save-btn");
 const testBtn = document.getElementById("test-btn");
 const testResult = document.getElementById("test-result");
 const shortcutsLink = document.getElementById("shortcuts-link");
 
+function updateModeDesc(mode) {
+  if (mode === "confirm") {
+    confirmDesc?.classList.add("active-desc");
+    fastDesc?.classList.remove("active-desc");
+  } else {
+    fastDesc?.classList.add("active-desc");
+    confirmDesc?.classList.remove("active-desc");
+  }
+}
+
 // Load saved settings
 document.addEventListener("DOMContentLoaded", async () => {
-  const stored = await chrome.storage.local.get(["serverPort"]);
+  const stored = await chrome.storage.local.get(["serverPort", "analysisMode"]);
   const port = stored.serverPort || DEFAULT_PORT;
   portInput.value = port;
   portDisplay.textContent = port;
+
+  const mode = stored.analysisMode || "fast";
+  if (modeSelect) {
+    modeSelect.value = mode;
+    updateModeDesc(mode);
+    modeSelect.addEventListener("change", async () => {
+      updateModeDesc(modeSelect.value);
+      await chrome.storage.local.set({ analysisMode: modeSelect.value });
+      showResult("Workflow mode updated.", "ok");
+      setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
+    });
+  }
 
   portInput.addEventListener("input", () => {
     portDisplay.textContent = portInput.value || DEFAULT_PORT;
@@ -35,7 +60,8 @@ async function handleSave() {
     return;
   }
 
-  await chrome.storage.local.set({ serverPort: port });
+  const mode = modeSelect ? modeSelect.value : "fast";
+  await chrome.storage.local.set({ serverPort: port, analysisMode: mode });
   // Notify background
   await chrome.runtime.sendMessage({ action: "set-port", port });
   showResult("Saved.", "ok");

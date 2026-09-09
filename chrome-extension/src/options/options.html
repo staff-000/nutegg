@@ -28,6 +28,25 @@
     </section>
 
     <section class="option-group">
+      <h2>Analysis Workflow</h2>
+      <div class="option-row">
+        <label for="mode-select">Default Analysis Mode</label>
+        <select id="mode-select" class="mode-select">
+          <option value="fast">⚡ Fast Mode (Auto-proceed)</option>
+          <option value="confirm">🎯 Confirm Eggs Mode (Interactive)</option>
+        </select>
+        <div class="mode-descriptions">
+          <p class="hint mode-desc" id="fast-desc">
+            <strong>⚡ Fast Mode:</strong> NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.
+          </p>
+          <p class="hint mode-desc" id="confirm-desc">
+            <strong>🎯 Confirm Eggs Mode:</strong> NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="option-group">
       <h2>Keyboard Shortcut</h2>
       <p>Configure the quick-capture shortcut at <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a></p>
     </section>

@@ -572,55 +572,15 @@ export class NutEggServer {
         return;
       }
 
-      // Stage 1 only (Two-stage confirm mode): summary + routing via summary
-      if (capture.stage === 1 || capture.stage === "1") {
-        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
-        const summaryText = [
-          contentAnalysis.titleVerdict,
-          ...(contentAnalysis.coreSummary || []),
-        ]
-          .filter(Boolean)
-          .join("\n");
-        const matchedIndex = await this.plugin.indexReader.matchEggs(
-          { title: capture.title, url: capture.url, content: summaryText },
-          index
-        );
-        console.log(
-          `[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedIndex.length}`
-        );
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            ...contentAnalysis,
-            matchedEggs: matchedIndex.map((e) => e.fileName),
-            allEggs: index.map((e) => e.fileName),
-            stage: "stage1",
-          })
-        );
-        return;
-      }
+      // Stage 1 (default): content summary + egg routing via concise summary
+      const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+      const indexContent = await this.plugin.indexReader.getIndexContent();
+      const index = this.plugin.indexReader.parseIndexContent(indexContent);
 
-      // Fast / Full mode (default):
-      let result: AnalysisResult;
+      let matchedEggs: string[] = [];
       if (hasEggOverride) {
-        // Manual override from popup
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
-        const matchedEggs = capture.eggs!.map((fileName) => {
-          const entry = index.find(
-            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-          );
-          return { fileName, description: entry?.description || "" };
-        });
-        const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
-        result = await this.plugin.aiProcessor.analyze(capture, eggs);
+        matchedEggs = capture.eggs!;
       } else {
-        // Auto-detect eggs using the concise summary to save ~95% routing tokens
-        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
         const summaryText = [
           contentAnalysis.titleVerdict,
           ...(contentAnalysis.coreSummary || []),
@@ -631,28 +591,21 @@ export class NutEggServer {
           { title: capture.title, url: capture.url, content: summaryText },
           index
         );
-        if (matchedIndex.length === 0) {
-          result = {
-            ...contentAnalysis,
-            matchedEggs: [],
-            eggResults: [],
-            newKnowledge: [],
-            shouldRead: false,
-            shouldReadReason: "No matching egg found in vault.",
-          };
-        } else {
-          const eggs = await this.plugin.eggParser.readEggs(matchedIndex);
-          result = await this.plugin.aiProcessor.analyzeEggsOnly(capture, eggs, contentAnalysis);
-        }
+        matchedEggs = matchedIndex.map((e) => e.fileName);
       }
 
-      const nutId = this.recordNut(capture, result);
       console.log(
-        `[NutEgg] Analyzed: ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
+        `[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedEggs.length}`
       );
-
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId }));
+      res.end(
+        JSON.stringify({
+          ...contentAnalysis,
+          matchedEggs,
+          allEggs: index.map((e) => e.fileName),
+          stage: "stage1",
+        })
+      );
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
 

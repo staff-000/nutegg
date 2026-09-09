@@ -192,21 +192,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   reanalyzeEggsBtn.addEventListener("click", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
-    // The analysis runs in the background while the old results stay
-    // visible — reflect that on the button so the UI doesn't look dead.
     reanalyzeEggsBtn.disabled = true;
     const original = reanalyzeEggsBtn.textContent;
-    reanalyzeEggsBtn.textContent = "⏳ Re-analyzing…";
+    reanalyzeEggsBtn.textContent = "⏳ Comparing…";
     eggsErrorEl.classList.add("hidden");
-    const error = await handleAnalyze(true, [...selectedEggs]);
+    if (stage1ContentAnalysis) {
+      await handleProceedStage2([...selectedEggs]);
+    } else {
+      const error = await handleAnalyze(true, [...selectedEggs]);
+      if (error) {
+        eggsErrorEl.textContent = `❌ ${error}`;
+        eggsErrorEl.classList.remove("hidden");
+      }
+    }
     reanalyzeEggsBtn.disabled = false;
     reanalyzeEggsBtn.textContent = original;
-    if (error) {
-      // The capture-state error banner is hidden in the results view —
-      // surface the failure inline under the egg picker.
-      eggsErrorEl.textContent = `❌ ${error}`;
-      eggsErrorEl.classList.remove("hidden");
-    }
   });
   // Egg picker is collapsed by default — expand on demand
   eggsToggle.addEventListener("click", () => {
@@ -534,17 +534,22 @@ function updateStage1ProceedBtn() {
   }
 }
 
-async function handleProceedStage2() {
-  if (selectedEggs.size === 0 || stage1ProceedBtn.disabled) return;
-  stage1ProceedBtn.disabled = true;
-  stage1ProceedBtn.textContent = "Comparing knowledge…";
+async function handleProceedStage2(eggsToCompare = null) {
+  const isExplicitEggs = Array.isArray(eggsToCompare);
+  const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
+  if (!isExplicitEggs && targetEggs.length === 0) return;
+
+  if (stage1ProceedBtn) {
+    stage1ProceedBtn.disabled = true;
+    stage1ProceedBtn.textContent = "Comparing knowledge…";
+  }
   hideMessages();
 
   try {
     const payload = {
       ...stage1Payload,
       stage: 2,
-      eggs: [...selectedEggs],
+      eggs: targetEggs,
       contentAnalysis: stage1ContentAnalysis || {
         titleVerdict: analysisResult?.titleVerdict || "",
         coreSummary: analysisResult?.coreSummary || [],
@@ -556,17 +561,35 @@ async function handleProceedStage2() {
 
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
     if (response?.error) {
-      showError(response.error);
-      stage1ProceedBtn.disabled = false;
-      updateStage1ProceedBtn();
+      showError(response.error, response.errorCode);
+      if (stage1ProceedBtn) {
+        stage1ProceedBtn.disabled = false;
+        updateStage1ProceedBtn();
+      }
       return;
     }
 
-    showResultsState(response);
+    if (response.nutId) {
+      currentNutId = response.nutId;
+      cachedProcessedSaved = null;
+      captureHistory = [
+        {
+          nutId: response.nutId,
+          capturedAt: new Date().toISOString(),
+          saved: "analyzed",
+          result: response,
+        },
+        ...captureHistory,
+      ];
+    }
+
+    showResultsState(response, provenanceFromExtraction());
   } catch (err) {
     showError(err instanceof Error ? err.message : "Knowledge comparison failed");
-    stage1ProceedBtn.disabled = false;
-    updateStage1ProceedBtn();
+    if (stage1ProceedBtn) {
+      stage1ProceedBtn.disabled = false;
+      updateStage1ProceedBtn();
+    }
   }
 }
 
@@ -948,7 +971,6 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       .filter(Boolean);
 
     const targetEggs = eggsOverride || (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
-    const useStage1 = analysisMode === "confirm" && !targetEggs;
     const payload = {
       url: extractedContent.url || "",
       title: extractedContent.title || "",
@@ -958,8 +980,8 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       chapters: extractedContent.chapters || undefined,
       questions,
       force,
+      stage: 1,
       ...(targetEggs ? { eggs: targetEggs } : {}),
-      ...(useStage1 ? { stage: 1 } : {}),
     };
 
     if (force) {
@@ -972,19 +994,13 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       reanalyzeBtn.textContent = "🔄 Re-analyze";
     }
 
-    if (response?.stage === "stage1") {
-      stage1Payload = payload;
-      stage1ContentAnalysis = response;
-    } else {
-      stage1Payload = null;
-      stage1ContentAnalysis = null;
-    }
-
     // This URL has cached captures — show the latest with its timestamp,
     // plus history browsing and a way to force a fresh analysis.
     if (response?.history) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
+      analyzeBtn.disabled = false;
+      analyzeBtnText.textContent = "🔄 Analyze Again";
       return null;
     }
 
@@ -995,25 +1011,36 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       return response.error;
     }
 
-    // Fresh analysis — a NEW capture row was created in the DB.
-    // Keep it in captureHistory so Back shows "Analyze Again".
+    stage1Payload = payload;
+    stage1ContentAnalysis = response;
+
     cachedProcessedSaved = null;
-    captureHistory = [
-      {
-        nutId: response.nutId,
-        capturedAt: new Date().toISOString(),
-        saved: "analyzed",
-        result: response,
-      },
-      ...captureHistory,
-    ];
-    currentNutId = response.nutId ?? null;
     followUpQa = [];
     followupInput.value = "";
     nutCollected = false;
     eggHatched = false;
     analysisResult = response;
+
+    // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
     showResultsState(response, provenanceFromExtraction());
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = "🔄 Analyze Again";
+
+    if (analysisMode === "fast") {
+      // In Fast Mode, automatically trigger Stage 2 in sequence
+      if (verdictSection) verdictSection.classList.remove("hidden");
+      if (verdictBadge) verdictBadge.className = "verdict-badge";
+      if (verdictIcon) verdictIcon.textContent = "⏳";
+      if (verdictText) verdictText.textContent = "Comparing knowledge…";
+      if (verdictReason) {
+        verdictReason.textContent = (response.matchedEggs && response.matchedEggs.length > 0)
+          ? `Comparing against ${response.matchedEggs.length} matched egg(s)…`
+          : "Checking knowledge base…";
+      }
+      if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
+
+      await handleProceedStage2(response.matchedEggs || []);
+    }
     return null;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
@@ -1036,8 +1063,13 @@ function showResultsState(result, provenance = null) {
   const isStage1 = result.stage === "stage1";
 
   if (isStage1) {
-    stage1ConfirmBox?.classList.remove("hidden");
-    verdictSection?.classList.add("hidden");
+    if (analysisMode === "fast") {
+      stage1ConfirmBox?.classList.add("hidden");
+      verdictSection?.classList.remove("hidden");
+    } else {
+      stage1ConfirmBox?.classList.remove("hidden");
+      verdictSection?.classList.add("hidden");
+    }
     confirmBtn?.classList.add("hidden");
   } else {
     stage1ConfirmBox?.classList.add("hidden");
@@ -1058,7 +1090,7 @@ function showResultsState(result, provenance = null) {
   // this result's matched eggs (user edits + re-analyze changes the match)
   fetchEggs().then(() => {
     renderEggsSection(result.matchedEggs || []);
-    if (isStage1) {
+    if (isStage1 && analysisMode === "confirm") {
       eggsExpanded?.classList.remove("hidden");
       if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
       updateStage1ProceedBtn();
@@ -1215,7 +1247,11 @@ function showResultsState(result, provenance = null) {
 
   // Verdict
   if (isStage1) {
-    verdictSection?.classList.add("hidden");
+    if (analysisMode === "fast") {
+      verdictSection?.classList.remove("hidden");
+    } else {
+      verdictSection?.classList.add("hidden");
+    }
   } else {
     verdictSection?.classList.remove("hidden");
     if (result.shouldRead) {

@@ -423,77 +423,42 @@ var NutEggServer = class {
         }
       }
       if (capture.stage === 2 || capture.stage === "2") {
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+        const indexContent2 = await this.plugin.indexReader.getIndexContent();
+        const index2 = this.plugin.indexReader.parseIndexContent(indexContent2);
         const targetEggs = (capture.eggs || []).map((fileName) => {
-          const entry = index.find(
+          const entry = index2.find(
             (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
           );
           return { fileName, description: entry?.description || "" };
         });
         const eggs = await this.plugin.eggParser.readEggs(targetEggs);
-        const contentAnalysis = capture.contentAnalysis || {
+        const contentAnalysis2 = capture.contentAnalysis || {
           titleVerdict: capture.title,
           coreSummary: [],
           isLongForm: false,
           chapterMap: [],
           customQuestionAnswers: []
         };
-        const result2 = await this.plugin.aiProcessor.analyzeEggsOnly(
+        const result = await this.plugin.aiProcessor.analyzeEggsOnly(
           capture,
           eggs,
-          contentAnalysis
+          contentAnalysis2
         );
-        const nutId2 = this.recordNut(capture, result2);
+        const nutId = this.recordNut(capture, result);
         console.log(
-          `[NutEgg] Analyzed (Stage 2): ${capture.title} \u2014 shouldRead=${result2.shouldRead}, newKnowledge=${result2.newKnowledge.length}`
+          `[NutEgg] Analyzed (Stage 2): ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
         );
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ...result2, nutId: nutId2 }));
+        res.end(JSON.stringify({ ...result, nutId }));
         return;
       }
-      if (capture.stage === 1 || capture.stage === "1") {
-        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
-        const summaryText = [
-          contentAnalysis.titleVerdict,
-          ...contentAnalysis.coreSummary || []
-        ].filter(Boolean).join("\n");
-        const matchedIndex = await this.plugin.indexReader.matchEggs(
-          { title: capture.title, url: capture.url, content: summaryText },
-          index
-        );
-        console.log(
-          `[NutEgg] Analyzed (Stage 1): ${capture.title} \u2014 matchedEggs=${matchedIndex.length}`
-        );
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            ...contentAnalysis,
-            matchedEggs: matchedIndex.map((e) => e.fileName),
-            allEggs: index.map((e) => e.fileName),
-            stage: "stage1"
-          })
-        );
-        return;
-      }
-      let result;
+      const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+      const indexContent = await this.plugin.indexReader.getIndexContent();
+      const index = this.plugin.indexReader.parseIndexContent(indexContent);
+      let matchedEggs = [];
       if (hasEggOverride) {
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
-        const matchedEggs = capture.eggs.map((fileName) => {
-          const entry = index.find(
-            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-          );
-          return { fileName, description: entry?.description || "" };
-        });
-        const eggs = await this.plugin.eggParser.readEggs(matchedEggs);
-        result = await this.plugin.aiProcessor.analyze(capture, eggs);
+        matchedEggs = capture.eggs;
       } else {
-        const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
-        const indexContent = await this.plugin.indexReader.getIndexContent();
-        const index = this.plugin.indexReader.parseIndexContent(indexContent);
         const summaryText = [
           contentAnalysis.titleVerdict,
           ...contentAnalysis.coreSummary || []
@@ -502,26 +467,20 @@ var NutEggServer = class {
           { title: capture.title, url: capture.url, content: summaryText },
           index
         );
-        if (matchedIndex.length === 0) {
-          result = {
-            ...contentAnalysis,
-            matchedEggs: [],
-            eggResults: [],
-            newKnowledge: [],
-            shouldRead: false,
-            shouldReadReason: "No matching egg found in vault."
-          };
-        } else {
-          const eggs = await this.plugin.eggParser.readEggs(matchedIndex);
-          result = await this.plugin.aiProcessor.analyzeEggsOnly(capture, eggs, contentAnalysis);
-        }
+        matchedEggs = matchedIndex.map((e) => e.fileName);
       }
-      const nutId = this.recordNut(capture, result);
       console.log(
-        `[NutEgg] Analyzed: ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
+        `[NutEgg] Analyzed (Stage 1): ${capture.title} \u2014 matchedEggs=${matchedEggs.length}`
       );
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ...result, nutId }));
+      res.end(
+        JSON.stringify({
+          ...contentAnalysis,
+          matchedEggs,
+          allEggs: index.map((e) => e.fileName),
+          stage: "stage1"
+        })
+      );
     } catch (err) {
       console.error("[NutEgg] Analyze error:", err);
       if (err instanceof AIError) {
