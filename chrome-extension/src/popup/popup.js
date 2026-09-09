@@ -83,6 +83,7 @@ const captureEggsLabel = document.getElementById("capture-eggs-label");
 const captureEggsChevron = document.getElementById("capture-eggs-chevron");
 const captureEggsArea = document.getElementById("capture-eggs-area");
 const captureEggsList = document.getElementById("capture-eggs-list");
+const obsidianPluginLink = document.getElementById("obsidian-plugin-link");
 
 // Mode toggle & Stage 1 elements
 const modeFastBtn = document.getElementById("mode-fast-btn");
@@ -731,10 +732,12 @@ async function checkServerStatus() {
     serverStatus.className = "status-dot online";
     updateServerStatusTooltip(true);
     checkCreditStatus();
+    obsidianPluginLink?.classList.add("hidden");
   } else {
     serverStatus.className = "status-dot offline";
     updateServerStatusTooltip(false);
     aiCreditPill?.classList.add("hidden");
+    obsidianPluginLink?.classList.remove("hidden");
   }
 }
 

@@ -1395,6 +1395,10 @@ body {
   font-size: 11px;
 }
 
+.footer:has(#obsidian-plugin-link.hidden) {
+  justify-content: center;
+}
+
 .footer small {
   font-size: 10px;
   color: #9ca3af;
