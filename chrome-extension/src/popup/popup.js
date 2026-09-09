@@ -351,9 +351,9 @@ async function handleCreateEgg() {
       description: newEggDescription.value.trim(),
     });
     if (response?.success) {
-      // The new egg now matches — re-analyze so its key questions and novel
-      // delta show up (handleAnalyze re-renders everything on success)
-      await handleAnalyze(true);
+      // Target the newly created egg explicitly
+      const eggFile = response.path ? response.path.split("/").pop() : slugify(name) + ".md";
+      await handleAnalyze(true, [eggFile]);
       return;
     }
     showError(response?.error || "Failed to create egg");
@@ -525,12 +525,23 @@ function setAnalysisMode(mode) {
 function updateStage1ProceedBtn() {
   if (!stage1ProceedBtn) return;
   const count = selectedEggs.size;
+  const confirmTextEl = document.getElementById("stage1-confirm-text");
   if (count === 0) {
     stage1ProceedBtn.disabled = true;
     stage1ProceedBtn.textContent = "🐣 Compare Knowledge (Select egg)";
+    if (confirmTextEl) {
+      if (allEggs.length === 0) {
+        confirmTextEl.innerHTML = "<strong>No eggs in vault yet:</strong> Create an egg below to compare knowledge, or collect the nut only.";
+      } else {
+        confirmTextEl.innerHTML = "<strong>No egg selected:</strong> Pick an egg below, create a new one, or collect the nut only.";
+      }
+    }
   } else {
     stage1ProceedBtn.disabled = false;
     stage1ProceedBtn.textContent = `🐣 Compare Knowledge (${count} Egg${count === 1 ? "" : "s"})`;
+    if (confirmTextEl) {
+      confirmTextEl.innerHTML = `<strong>Stage 1 Complete:</strong> ${count} egg${count === 1 ? "" : "s"} selected. Click below to compare knowledge.`;
+    }
   }
 }
 
@@ -1035,7 +1046,7 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       if (verdictReason) {
         verdictReason.textContent = (response.matchedEggs && response.matchedEggs.length > 0)
           ? `Comparing against ${response.matchedEggs.length} matched egg(s)…`
-          : "Checking knowledge base…";
+          : "No matching egg found — finalizing summary…";
       }
       if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
 
