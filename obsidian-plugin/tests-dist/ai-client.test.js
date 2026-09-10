@@ -767,7 +767,9 @@ var DEFAULT_SETTINGS = {
   rawFolder: "nutegg/_raw",
   indexFile: "nutegg/_index.md",
   workflowFolder: "nutegg/_workflow",
-  workflowHashes: {}
+  workflowHashes: {},
+  chunkWindowChars: 3e4,
+  sectionGridSeconds: 300
 };
 
 // tests/ai-client.test.ts

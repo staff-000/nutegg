@@ -37,6 +37,10 @@ export interface NutEggSettings {
   workflowFolder: string;
   /** Hashes of default workflow files when last synced (for update conflict detection) */
   workflowHashes: Record<string, string>;
+  /** General chunk window size in characters for splitting long content (default: 30000) */
+  chunkWindowChars: number;
+  /** Section grid interval in seconds for videos without chapters (default: 300) */
+  sectionGridSeconds: number;
 }
 
 export const DEFAULT_SETTINGS: NutEggSettings = {
@@ -53,6 +57,8 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   indexFile: "nutegg/_index.md",
   workflowFolder: "nutegg/_workflow",
   workflowHashes: {},
+  chunkWindowChars: 30000,
+  sectionGridSeconds: 300,
 };
 
 export class NutEggSettingTab extends PluginSettingTab {
@@ -481,6 +487,47 @@ export class NutEggSettingTab extends PluginSettingTab {
     };
 
     updateCreditDisplay();
+
+    // ==========================================
+    // Processing & Chunking
+    // ==========================================
+    containerEl.createEl("h3", { text: "Processing & Chunking" });
+
+    new Setting(containerEl)
+      .setName("General chunk window size")
+      .setDesc(
+        "Maximum character length per chunk (~30,000 chars ≈ 8,000 tokens). Long content exceeding this threshold is split into parts and processed with multi-stage map-reduce aggregation."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("30000")
+          .setValue(String(settings.chunkWindowChars || 30000))
+          .onChange(async (value) => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num >= 1000) {
+              settings.chunkWindowChars = num;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Section grid interval")
+      .setDesc(
+        "Time interval in seconds (default: 300s / 5 minutes) used to generate section lattice points and chapter maps for videos lacking native chapter markers."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("300")
+          .setValue(String(settings.sectionGridSeconds || 300))
+          .onChange(async (value) => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num >= 10) {
+              settings.sectionGridSeconds = num;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
 
     // ==========================================
     // Server

@@ -6,17 +6,10 @@ import { sanitizeEggName } from "./index-sync";
 import type { WorkflowPromptKey } from "./workflow-manager";
 
 /**
- * Max characters of the nut's content sent in each AI call. ~30k chars ≈
- * 35 minutes of speech (~8k tokens) — long videos get real coverage instead
- * of a 7-minute slice. Tune here to trade cost against coverage.
+ * Default general chunk window size in characters for AI calls and long-content splitting (~30k chars ≈
+ * 35 minutes of speech / ~8k tokens). Configurable in settings.
  */
-const CONTENT_WINDOW_CHARS = 30000;
-
-/**
- * Content longer than this is split into parts and analyzed part by part
- * (one AI call per part + aggregate calls — see analyzeChunked).
- */
-const CHUNK_CHARS = CONTENT_WINDOW_CHARS;
+const DEFAULT_CHUNK_WINDOW_CHARS = 30000;
 
 /** One part of a long content, aligned to chapter starts when possible. */
 interface ContentChunk {
@@ -28,14 +21,14 @@ interface ContentChunk {
   /** Start timestamp of the chunk ("MM:SS" / "H:MM:SS"), "" for plain text. */
   startTime: string;
   /**
-   * 5-minute time grid for videos WITHOUT chapter markers — the AI fills one
+   * Time grid for videos WITHOUT chapter markers — the AI fills one
    * chapterMap entry per section, guaranteeing whole-video coverage.
    */
   sections: string[];
 }
 
-/** Grid step for section-based chapter maps (videos without chapters). */
-const SECTION_SECS = 300;
+/** Default grid step in seconds for section-based chapter maps (videos without chapters). Configurable in settings. */
+const DEFAULT_SECTION_SECS = 300;
 
 /**
  * One chapter in the Chapter Map. `time` is the video timestamp ("MM:SS" or
@@ -135,6 +128,16 @@ export class AIProcessor {
 
   constructor(plugin: NutEggPlugin) {
     this.plugin = plugin;
+  }
+
+  get chunkWindowChars(): number {
+    const val = this.plugin?.settings?.chunkWindowChars;
+    return typeof val === "number" && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
+  }
+
+  get sectionGridSeconds(): number {
+    const val = this.plugin?.settings?.sectionGridSeconds;
+    return typeof val === "number" && val > 0 ? val : DEFAULT_SECTION_SECS;
   }
 
   private getPrompt(key: WorkflowPromptKey): string {
@@ -440,7 +443,7 @@ export class AIProcessor {
         eggKeyQuestions,
         "Egg Key Questions (answered separately — skip equivalent user questions)"
       ),
-      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule"),
     });
 
@@ -488,7 +491,7 @@ export class AIProcessor {
       url: capture.url,
       source_type: capture.sourceType,
       part_note: partNote,
-      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule"),
     });
 
@@ -554,7 +557,7 @@ export class AIProcessor {
         capture.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule"),
     });
 
@@ -1017,7 +1020,7 @@ export class AIProcessor {
   // --- Chunking ---
 
   /**
-   * Split content into ≤CHUNK_CHARS parts. Timestamped transcripts
+   * Split content into ≤chunkWindowChars parts. Timestamped transcripts
    * (YouTube) are split at caption lines and chapters are attached to the
    * chunk covering their start time; plain text is split at paragraphs.
    */
@@ -1031,7 +1034,8 @@ export class AIProcessor {
       // Timestamped transcript — even a short one gets the section grid
       return this.timestampedChunks(lines, firstTsIdx, chapters);
     }
-    if (content.length <= CHUNK_CHARS) {
+    const chunkSize = this.chunkWindowChars;
+    if (content.length <= chunkSize) {
       return [
         { index: 0, total: 1, content, chapters, startTime: "", sections: [] },
       ];
@@ -1043,6 +1047,7 @@ export class AIProcessor {
     content: string,
     chapters: Array<{ time: string; title: string }>
   ): ContentChunk[] {
+    const chunkSize = this.chunkWindowChars;
     const paras = content.split(/\n\n+/);
     const chunks: ContentChunk[] = [];
     let buf: string[] = [];
@@ -1054,13 +1059,13 @@ export class AIProcessor {
       bufChars = 0;
     };
     for (const p of paras) {
-      if (p.length > CHUNK_CHARS) {
+      if (p.length > chunkSize) {
         flush();
         // One oversized paragraph — hard-split by chars
-        for (let i = 0; i < p.length; i += CHUNK_CHARS) {
+        for (let i = 0; i < p.length; i += chunkSize) {
           chunks.push({
             index: 0, total: 0,
-            content: p.slice(i, i + CHUNK_CHARS),
+            content: p.slice(i, i + chunkSize),
             chapters: [],
             startTime: "",
             sections: [],
@@ -1068,7 +1073,7 @@ export class AIProcessor {
         }
         continue;
       }
-      if (bufChars + p.length > CHUNK_CHARS) flush();
+      if (bufChars + p.length > chunkSize) flush();
       buf.push(p);
       bufChars += p.length + 2;
     }
@@ -1132,8 +1137,9 @@ export class AIProcessor {
       buf = [];
       bufChars = 0;
     };
+    const chunkSize = this.chunkWindowChars;
     for (const u of units) {
-      if (bufChars + u.line.length > CHUNK_CHARS) flush();
+      if (bufChars + u.line.length > chunkSize) flush();
       if (!buf.length) startSec = u.sec;
       buf.push(u.line);
       bufChars += u.line.length + 1;
@@ -1159,13 +1165,13 @@ export class AIProcessor {
       chunks[idx].chapters.push(ch);
     }
 
-    // Videos WITHOUT chapter markers: build ONE continuous 5-minute lattice
+    // Videos WITHOUT chapter markers: build ONE continuous lattice
     // over the whole video and hand each lattice point to the chunk covering
     // it. The AI fills one chapterMap entry per section — whole-video
     // coverage no longer depends on the model inventing section boundaries.
     if (chapters.length === 0) {
       const begins = chunks.map((c) => this.toSeconds(c.startTime));
-      for (let t = 0; t < lastCaptionSec + 1; t += SECTION_SECS) {
+      for (let t = 0; t < lastCaptionSec + 1; t += this.sectionGridSeconds) {
         let idx = 0;
         for (let i = begins.length - 1; i >= 0; i--) {
           if (t >= begins[i]) {
@@ -1326,7 +1332,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       egg_description: eggDescription,
       prior_qa: priorBlock,
-      content: this.truncate(capture.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       grounding_rule: this.getPrompt("groundingRule"),
     });

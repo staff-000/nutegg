@@ -369,6 +369,30 @@ describe("AIProcessor.chunkContent", () => {
     assert.equal(chunks.length, 1);
     assert.deepEqual(chunks[0].sections, ["00:00", "05:00"]);
   });
+
+  it("respects custom chunkWindowChars setting", () => {
+    const customPlugin = makeFakePlugin({
+      settings: { chunkWindowChars: 1500 },
+    });
+    const customP = new AIProcessor(customPlugin as any) as any;
+    const text = "a".repeat(1000) + "\n\n" + "b".repeat(1000);
+    const chunks = customP.chunkContent(text, []);
+    assert.equal(chunks.length, 2);
+  });
+
+  it("respects custom sectionGridSeconds setting", () => {
+    const customPlugin = makeFakePlugin({
+      settings: { sectionGridSeconds: 120 },
+    });
+    const customP = new AIProcessor(customPlugin as any) as any;
+    const lines = [];
+    for (let m = 0; m < 6; m++) {
+      lines.push(`[0${m}:00] caption text line`);
+    }
+    const chunks = customP.chunkContent(lines.join("\n"), []);
+    assert.equal(chunks.length, 1);
+    assert.deepEqual(chunks[0].sections, ["00:00", "02:00", "04:00"]);
+  });
 });
 
 describe("AIProcessor.completeChapterMap", () => {

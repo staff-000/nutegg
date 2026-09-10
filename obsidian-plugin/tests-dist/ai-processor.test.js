@@ -1107,14 +1107,21 @@ function renderPrompt(template, vars) {
 }
 
 // src/ai-processor.ts
-var CONTENT_WINDOW_CHARS = 3e4;
-var CHUNK_CHARS = CONTENT_WINDOW_CHARS;
-var SECTION_SECS = 300;
+var DEFAULT_CHUNK_WINDOW_CHARS = 3e4;
+var DEFAULT_SECTION_SECS = 300;
 var MERGE_THRESHOLD = 20;
 var AIProcessor = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
+  }
+  get chunkWindowChars() {
+    const val = this.plugin?.settings?.chunkWindowChars;
+    return typeof val === "number" && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
+  }
+  get sectionGridSeconds() {
+    const val = this.plugin?.settings?.sectionGridSeconds;
+    return typeof val === "number" && val > 0 ? val : DEFAULT_SECTION_SECS;
   }
   getPrompt(key) {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
@@ -1332,7 +1339,7 @@ var AIProcessor = class {
         eggKeyQuestions,
         "Egg Key Questions (answered separately \u2014 skip equivalent user questions)"
       ),
-      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture2.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 1200);
@@ -1366,7 +1373,7 @@ var AIProcessor = class {
       url: capture2.url,
       source_type: capture2.sourceType,
       part_note: partNote,
-      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture2.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule")
     });
     try {
@@ -1414,7 +1421,7 @@ var AIProcessor = class {
         capture2.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture2.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule")
     });
     const response = await this.callAI(prompt, 1500);
@@ -1749,7 +1756,7 @@ ${delta || "- (no novel delta)"}`;
   }
   // --- Chunking ---
   /**
-   * Split content into ≤CHUNK_CHARS parts. Timestamped transcripts
+   * Split content into ≤chunkWindowChars parts. Timestamped transcripts
    * (YouTube) are split at caption lines and chapters are attached to the
    * chunk covering their start time; plain text is split at paragraphs.
    */
@@ -1759,7 +1766,8 @@ ${delta || "- (no novel delta)"}`;
     if (firstTsIdx !== -1) {
       return this.timestampedChunks(lines, firstTsIdx, chapters);
     }
-    if (content.length <= CHUNK_CHARS) {
+    const chunkSize = this.chunkWindowChars;
+    if (content.length <= chunkSize) {
       return [
         { index: 0, total: 1, content, chapters, startTime: "", sections: [] }
       ];
@@ -1767,6 +1775,7 @@ ${delta || "- (no novel delta)"}`;
     return this.paragraphChunks(content, chapters);
   }
   paragraphChunks(content, chapters) {
+    const chunkSize = this.chunkWindowChars;
     const paras = content.split(/\n\n+/);
     const chunks = [];
     let buf = [];
@@ -1779,13 +1788,13 @@ ${delta || "- (no novel delta)"}`;
       bufChars = 0;
     };
     for (const p of paras) {
-      if (p.length > CHUNK_CHARS) {
+      if (p.length > chunkSize) {
         flush();
-        for (let i = 0; i < p.length; i += CHUNK_CHARS) {
+        for (let i = 0; i < p.length; i += chunkSize) {
           chunks.push({
             index: 0,
             total: 0,
-            content: p.slice(i, i + CHUNK_CHARS),
+            content: p.slice(i, i + chunkSize),
             chapters: [],
             startTime: "",
             sections: []
@@ -1793,7 +1802,7 @@ ${delta || "- (no novel delta)"}`;
         }
         continue;
       }
-      if (bufChars + p.length > CHUNK_CHARS)
+      if (bufChars + p.length > chunkSize)
         flush();
       buf.push(p);
       bufChars += p.length + 2;
@@ -1854,8 +1863,9 @@ ${delta || "- (no novel delta)"}`;
       buf = [];
       bufChars = 0;
     };
+    const chunkSize = this.chunkWindowChars;
     for (const u of units) {
-      if (bufChars + u.line.length > CHUNK_CHARS)
+      if (bufChars + u.line.length > chunkSize)
         flush();
       if (!buf.length)
         startSec = u.sec;
@@ -1880,7 +1890,7 @@ ${delta || "- (no novel delta)"}`;
     }
     if (chapters.length === 0) {
       const begins = chunks.map((c) => this.toSeconds(c.startTime));
-      for (let t = 0; t < lastCaptionSec + 1; t += SECTION_SECS) {
+      for (let t = 0; t < lastCaptionSec + 1; t += this.sectionGridSeconds) {
         let idx = 0;
         for (let i = begins.length - 1; i >= 0; i--) {
           if (t >= begins[i]) {
@@ -2011,7 +2021,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       source_type: capture2.sourceType,
       egg_description: eggDescription,
       prior_qa: priorBlock,
-      content: this.truncate(capture2.content, CONTENT_WINDOW_CHARS),
+      content: this.truncate(capture2.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       grounding_rule: this.getPrompt("groundingRule")
     });
@@ -2608,6 +2618,8 @@ function makeFakePlugin(overrides = {}) {
       rawFolder: "nutegg/_raw",
       indexFile: "nutegg/_index.md",
       serverPort: 27123,
+      chunkWindowChars: 3e4,
+      sectionGridSeconds: 300,
       ...overrides.settings || {}
     },
     app: { vault: overrides.vault ?? vault },
@@ -2972,6 +2984,28 @@ var capture = {
     const chunks = p.chunkContent(lines.join("\n"), []);
     import_strict.default.equal(chunks.length, 1);
     import_strict.default.deepEqual(chunks[0].sections, ["00:00", "05:00"]);
+  });
+  (0, import_node_test.it)("respects custom chunkWindowChars setting", () => {
+    const customPlugin = makeFakePlugin({
+      settings: { chunkWindowChars: 1500 }
+    });
+    const customP = new AIProcessor(customPlugin);
+    const text = "a".repeat(1e3) + "\n\n" + "b".repeat(1e3);
+    const chunks = customP.chunkContent(text, []);
+    import_strict.default.equal(chunks.length, 2);
+  });
+  (0, import_node_test.it)("respects custom sectionGridSeconds setting", () => {
+    const customPlugin = makeFakePlugin({
+      settings: { sectionGridSeconds: 120 }
+    });
+    const customP = new AIProcessor(customPlugin);
+    const lines = [];
+    for (let m = 0; m < 6; m++) {
+      lines.push(`[0${m}:00] caption text line`);
+    }
+    const chunks = customP.chunkContent(lines.join("\n"), []);
+    import_strict.default.equal(chunks.length, 1);
+    import_strict.default.deepEqual(chunks[0].sections, ["00:00", "02:00", "04:00"]);
   });
 });
 (0, import_node_test.describe)("AIProcessor.completeChapterMap", () => {
