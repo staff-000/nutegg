@@ -99,22 +99,51 @@ h1 {
   gap: 8px;
 }
 
-.primary-btn {
+.primary-btn,
+a.primary-btn {
   padding: 8px 18px;
   background: var(--primary, #a8561e);
-  color: #fff;
+  color: #ffffff !important;
   border: none;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none !important;
 }
 
-.primary-btn:hover { background: var(--primary-hover, #8c4414); }
+.primary-btn:hover,
+a.primary-btn:hover {
+  background: var(--primary-hover, #8c4414);
+  color: #ffffff !important;
+  text-decoration: none !important;
+}
 
 .companion-btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: var(--primary, #a8561e);
+  color: #ffffff !important;
   text-decoration: none !important;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(168, 86, 30, 0.2);
+  transition: background-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.companion-btn:hover {
+  background: var(--primary-hover, #8c4414);
+  color: #ffffff !important;
+  text-decoration: none !important;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px rgba(168, 86, 30, 0.28);
+}
+
+.companion-btn:active {
+  transform: translateY(0);
 }
 
 .secondary-btn {
@@ -136,11 +165,11 @@ h1 {
 .test-result.ok { color: #16a34a; }
 .test-result.error { color: #dc2626; }
 
-.option-group a {
+.option-group a:not(.primary-btn):not(.secondary-btn) {
   color: var(--primary, #a8561e);
   text-decoration: none;
 }
-.option-group a:hover { text-decoration: underline; }
+.option-group a:not(.primary-btn):not(.secondary-btn):hover { text-decoration: underline; }
 
 .mode-select {
   width: 100%;
