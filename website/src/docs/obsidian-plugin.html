@@ -93,17 +93,20 @@
       <ul>
         <li><strong>AI Provider</strong>: Select your preferred model provider:
           <ul>
+            <li><strong>Local LLM (Ollama, LM Studio, etc.)</strong> — 100% local, private, and free without needing an API key.</li>
             <li>Google Gemini (Flash, Pro)</li>
             <li>Anthropic Claude (Haiku, Sonnet, Opus)</li>
             <li>OpenAI (GPT-4o, GPT-4o-mini)</li>
             <li>DeepSeek (V3, R1)</li>
             <li>Kimi / Moonshot</li>
             <li>Qwen</li>
+            <li>Zhipu (GLM)</li>
             <li>OpenRouter (allows routing to dozens of community & proprietary models)</li>
           </ul>
         </li>
-        <li><strong>API Source</strong>: Choose between official provider API or OpenRouter.</li>
-        <li><strong>API Key</strong>: Enter your private API key. It is saved securely in your Obsidian local storage and never leaves your machine except to contact your chosen provider.</li>
+        <li><strong>Local Endpoint</strong>: When using Local LLM, select a preset like <strong>Ollama (11434)</strong>, <strong>LM Studio (1234)</strong>, or <strong>llama.cpp / vLLM (8080)</strong>, or provide any OpenAI-compatible local completions URL.</li>
+        <li><strong>API Source</strong>: For cloud providers, choose between official provider API or OpenRouter.</li>
+        <li><strong>API Key</strong>: Enter your private API key (optional when using a local LLM). It is saved securely in your Obsidian local storage and never leaves your machine except to contact your chosen provider.</li>
       </ul>
 
       <h2>Local Sync Server</h2>

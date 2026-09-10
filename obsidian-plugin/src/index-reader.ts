@@ -1,5 +1,6 @@
 import type NutEggPlugin from "./main";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
+import { isAIConfigured } from "./ai-client";
 
 /**
  * Parsed entry from _index.md.
@@ -48,8 +49,8 @@ export class IndexReader {
     if (index.length === 0) return [];
     if (index.length === 1) return index;
 
-    if (!this.plugin.settings.aiApiKey) {
-      // Without API, return first entry as fallback
+    if (!isAIConfigured(this.plugin.settings)) {
+      // Without AI configured, return first entry as fallback
       return [index[0]];
     }
 

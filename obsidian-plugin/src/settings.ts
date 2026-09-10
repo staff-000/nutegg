@@ -17,6 +17,8 @@ export interface NutEggSettings {
   aiApiKey: string;
   /** Model name (selected from provider's model list) */
   aiModel: string;
+  /** Local LLM OpenAI-compatible endpoint URL (used when aiProvider === "local") */
+  localEndpoint: string;
   /** Local HTTP server port */
   serverPort: number;
   /** Folder for saved raw content */
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   aiSource: "official",
   aiApiKey: "",
   aiModel: "claude-sonnet-5",
+  localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
   serverPort: 27123,
   rawFolder: "nutegg/_raw",
   indexFile: "nutegg/_index.md",
@@ -169,10 +172,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     containerEl.createEl("h3", { text: "AI Provider" });
 
+    const isLocal = settings.aiProvider === "local";
+
     // Provider dropdown
     new Setting(containerEl)
       .setName("Model family")
-      .setDesc("Which company's models to use")
+      .setDesc("Which provider or model family to use")
       .addDropdown((dropdown) => {
         for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
           dropdown.addOption(id, info.label);
@@ -188,38 +193,99 @@ export class NutEggSettingTab extends PluginSettingTab {
         return dropdown;
       });
 
-    // Source toggle
-    new Setting(containerEl)
-      .setName("API source")
-      .setDesc(
-        isOpenRouter
-          ? "Using OpenRouter as proxy — one API key for all providers"
-          : `Using ${provider.label} official API directly`
-      )
-      .addDropdown((dropdown) => {
-        dropdown.addOption("official", `${provider.label} Official API`);
-        dropdown.addOption("openrouter", "OpenRouter");
-        dropdown.setValue(settings.aiSource);
-        dropdown.onChange(async (value) => {
-          settings.aiSource = value as AISource;
+    // Local Server Endpoint & Presets (only shown when Local LLM is selected)
+    if (isLocal) {
+      new Setting(containerEl)
+        .setName("Local Server Endpoint")
+        .setDesc(
+          "OpenAI-compatible chat completions URL for your local runner (Ollama, LM Studio, llama.cpp, etc.)"
+        )
+        .addText((text) => {
+          text
+            .setPlaceholder("http://127.0.0.1:11434/v1/chat/completions")
+            .setValue(settings.localEndpoint || "http://127.0.0.1:11434/v1/chat/completions")
+            .onChange(async (value) => {
+              settings.localEndpoint = value.trim();
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
+
+      // Quick preset buttons for local endpoints
+      const presetContainer = containerEl.createDiv({
+        cls: "setting-item",
+        attr: { style: "padding-top: 0; margin-top: -10px; border-top: none;" },
+      });
+      const presetInfo = presetContainer.createDiv({
+        cls: "setting-item-description",
+        text: "Presets: ",
+      });
+      presetInfo.style.fontSize = "0.85em";
+      presetInfo.style.color = "var(--text-muted)";
+
+      const presets = [
+        { label: "Ollama (11434)", url: "http://127.0.0.1:11434/v1/chat/completions" },
+        { label: "LM Studio (1234)", url: "http://127.0.0.1:1234/v1/chat/completions" },
+        { label: "llama.cpp / vLLM (8080)", url: "http://127.0.0.1:8080/v1/chat/completions" },
+      ];
+
+      for (const preset of presets) {
+        const btn = presetInfo.createEl("button", {
+          text: preset.label,
+        });
+        btn.style.marginLeft = "6px";
+        btn.style.padding = "2px 8px";
+        btn.style.fontSize = "0.85em";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          settings.localEndpoint = preset.url;
           await this.plugin.saveSettings();
           this.display();
         });
-        return dropdown;
-      });
+      }
+    }
+
+    // Source toggle (only for cloud providers)
+    if (!isLocal) {
+      new Setting(containerEl)
+        .setName("API source")
+        .setDesc(
+          isOpenRouter
+            ? "Using OpenRouter as proxy — one API key for all providers"
+            : `Using ${provider.label} official API directly`
+        )
+        .addDropdown((dropdown) => {
+          dropdown.addOption("official", `${provider.label} Official API`);
+          dropdown.addOption("openrouter", "OpenRouter");
+          dropdown.setValue(settings.aiSource);
+          dropdown.onChange(async (value) => {
+            settings.aiSource = value as AISource;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+          return dropdown;
+        });
+    }
 
     // API Key
     new Setting(containerEl)
-      .setName("API Key")
+      .setName(isLocal ? "API Key (Optional)" : "API Key")
       .setDesc(
-        isOpenRouter
+        isLocal
+          ? "Optional for local LLMs. Leave empty if your local server does not require authentication."
+          : isOpenRouter
           ? "Your OpenRouter API key (openrouter.ai/keys)"
           : `Your ${provider.label} API key`
       )
       .addText((text) => {
         text
           .setPlaceholder(
-            isOpenRouter ? "sk-or-..." : provider.keyPlaceholder
+            isLocal
+              ? "Optional for local LLMs"
+              : isOpenRouter
+              ? "sk-or-..."
+              : provider.keyPlaceholder
           )
           .setValue(settings.aiApiKey)
           .onChange(async (value) => {
@@ -229,12 +295,14 @@ export class NutEggSettingTab extends PluginSettingTab {
         return text;
       });
 
-    // Model dropdown
+    // Model dropdown & custom model input
     const modelOptions = provider.models;
-    new Setting(containerEl)
+    const modelSetting = new Setting(containerEl)
       .setName("Model")
       .setDesc(
-        isOpenRouter
+        isLocal
+          ? "Model name (must match a model downloaded in your local server)"
+          : isOpenRouter
           ? `Sent as "${provider.openrouterPrefix}${settings.aiModel}" via OpenRouter`
           : "Model to use for analysis"
       )
@@ -249,14 +317,30 @@ export class NutEggSettingTab extends PluginSettingTab {
         dropdown.onChange(async (value) => {
           settings.aiModel = value;
           await this.plugin.saveSettings();
+          if (isLocal) this.display();
         });
         return dropdown;
       });
 
-    // Credit & Balance Monitor Setting
+    if (isLocal) {
+      modelSetting.addText((text) => {
+        text
+          .setPlaceholder("Custom model name (e.g. qwen2.5:7b)")
+          .setValue(settings.aiModel)
+          .onChange(async (value) => {
+            if (value.trim()) {
+              settings.aiModel = value.trim();
+              await this.plugin.saveSettings();
+            }
+          });
+        return text;
+      });
+    }
+
+    // Credit & Balance / Connection Monitor Setting
     const creditSetting = new Setting(containerEl)
-      .setName("AI credit & balance")
-      .setDesc("Checking credit balance with provider...")
+      .setName(isLocal ? "Local LLM connection status" : "AI credit & balance")
+      .setDesc(isLocal ? "Checking local server connection..." : "Checking credit balance with provider...")
       .addButton((btn) => {
         btn
           .setButtonText("Refresh")

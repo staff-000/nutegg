@@ -705,6 +705,8 @@ function renderCreditPill(credit) {
       ? "Gemini"
       : credit.provider === "openai"
       ? "OpenAI"
+      : credit.provider === "local"
+      ? (credit.model ? `Local (${credit.model})` : "Local LLM")
       : credit.providerLabel || credit.provider;
 
   if (credit.hasBalance && credit.balanceFormatted) {

@@ -34,14 +34,34 @@ var ai_client_exports = {};
 __export(ai_client_exports, {
   AIClient: () => AIClient,
   AIError: () => AIError,
-  PROVIDER_CATALOG: () => PROVIDER_CATALOG
+  PROVIDER_CATALOG: () => PROVIDER_CATALOG,
+  isAIConfigured: () => isAIConfigured
 });
+function isAIConfigured(settings) {
+  if (settings.aiProvider === "local") {
+    return Boolean(
+      (settings.localEndpoint || PROVIDER_CATALOG.local.officialEndpoint) && settings.aiModel
+    );
+  }
+  return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);
+}
 function resolveConfig(settings) {
-  const provider = PROVIDER_CATALOG[settings.aiProvider];
+  const provider = PROVIDER_CATALOG[settings.aiProvider] || PROVIDER_CATALOG.anthropic;
   const source = settings.aiSource;
+  if (settings.aiProvider === "local") {
+    return {
+      provider: "local",
+      endpoint: settings.localEndpoint || provider.officialEndpoint,
+      apiKey: settings.aiApiKey || "",
+      model: settings.aiModel || "llama3.2",
+      apiFormat: "openai-compatible",
+      extraHeaders: {}
+    };
+  }
   if (source === "openrouter") {
     const model = provider.openrouterPrefix + settings.aiModel;
     return {
+      provider: settings.aiProvider,
       endpoint: OPENROUTER_ENDPOINT,
       apiKey: settings.aiApiKey,
       model,
@@ -53,6 +73,7 @@ function resolveConfig(settings) {
     };
   }
   return {
+    provider: settings.aiProvider,
     endpoint: provider.officialEndpoint,
     apiKey: settings.aiApiKey,
     model: settings.aiModel,
@@ -162,6 +183,24 @@ var init_ai_client = __esm({
         models: ["qwen-max", "qwen-plus", "qwen-turbo"],
         keyPlaceholder: "sk-...",
         openrouterPrefix: "qwen/"
+      },
+      local: {
+        id: "local",
+        label: "Local LLM (Ollama, LM Studio, etc.)",
+        officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+        apiFormat: "openai-compatible",
+        models: [
+          "llama3.2",
+          "llama3.3",
+          "qwen2.5:7b",
+          "qwen2.5:14b",
+          "deepseek-r1:8b",
+          "deepseek-r1:14b",
+          "mistral",
+          "phi4"
+        ],
+        keyPlaceholder: "Optional for local LLMs",
+        openrouterPrefix: ""
       }
     };
     OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -196,6 +235,43 @@ var init_ai_client = __esm({
           hasBalance: false,
           statusText: "Checking..."
         };
+        if (settings.aiProvider === "local") {
+          const endpoint = settings.localEndpoint || provider.officialEndpoint;
+          const modelsEndpoint = endpoint.replace(/\/chat\/completions\/?$/, "/models");
+          try {
+            const headers = { Accept: "application/json" };
+            if (apiKey)
+              headers["Authorization"] = `Bearer ${apiKey}`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2500);
+            const resp = await fetch(modelsEndpoint, {
+              method: "GET",
+              headers,
+              signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (resp.ok) {
+              return {
+                ...baseInfo,
+                hasBalance: false,
+                statusText: `Connected (${model})`
+              };
+            } else {
+              return {
+                ...baseInfo,
+                hasBalance: false,
+                statusText: `Local LLM (${resp.status} ${resp.statusText})`
+              };
+            }
+          } catch {
+            return {
+              ...baseInfo,
+              hasBalance: false,
+              statusText: "Offline \u2014 ensure Ollama or LM Studio is running",
+              error: "Cannot connect to local LLM server"
+            };
+          }
+        }
         if (!apiKey) {
           return {
             ...baseInfo,
@@ -307,7 +383,7 @@ var init_ai_client = __esm({
         };
       }
       async chat(prompt, maxTokens) {
-        if (!this.config.apiKey) {
+        if (this.config.provider !== "local" && !this.config.apiKey) {
           throw new AIError(
             "no_api_key",
             "No AI API key configured. Open Obsidian Settings \u2192 NutEgg, enable Developer Mode, and add your API key."
@@ -351,24 +427,32 @@ var init_ai_client = __esm({
       // --- OpenAI-compatible format ---
       async chatOpenAICompatible(prompt, maxTokens) {
         let response;
+        const headers = {
+          "Content-Type": "application/json",
+          ...this.config.extraHeaders
+        };
+        if (this.config.apiKey && this.config.apiKey.trim().length > 0) {
+          headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+        }
+        const bodyPayload = {
+          model: this.config.model,
+          messages: [{ role: "user", content: prompt }]
+        };
+        if (this.config.provider === "openai") {
+          bodyPayload.max_completion_tokens = maxTokens;
+        } else {
+          bodyPayload.max_tokens = maxTokens;
+        }
         try {
           response = await fetch(this.config.endpoint, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${this.config.apiKey}`,
-              ...this.config.extraHeaders
-            },
-            body: JSON.stringify({
-              model: this.config.model,
-              max_completion_tokens: maxTokens,
-              messages: [{ role: "user", content: prompt }]
-            })
+            headers,
+            body: JSON.stringify(bodyPayload)
           });
         } catch {
           throw new AIError(
             "network_error",
-            "Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct."
+            "Cannot reach the AI API. Check your network or local LLM server status. If using a custom endpoint, verify the URL is correct."
           );
         }
         if (!response.ok) {
@@ -731,7 +815,7 @@ var AIProcessor = class {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
   async analyze(capture2, eggs) {
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       return this.fallbackAnalysis(capture2, eggs);
     }
     const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
@@ -790,7 +874,7 @@ var AIProcessor = class {
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
   async analyzeContentOnly(capture2, actionGuide = "", eggKeyQuestions = [], eggDescription = "") {
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture2.title,
         coreSummary: [capture2.title],
@@ -857,11 +941,11 @@ var AIProcessor = class {
    * and final read verdict synthesis.
    */
   async analyzeEggsOnly(capture2, eggs, contentAnalysis) {
-    if (!this.plugin.settings.aiApiKey || eggs.length === 0) {
+    if (!isAIConfigured(this.plugin.settings) || eggs.length === 0) {
       return {
         ...contentAnalysis,
         shouldRead: false,
-        shouldReadReason: eggs.length === 0 ? "No matching egg found in vault." : "No API key configured.",
+        shouldReadReason: eggs.length === 0 ? "No matching egg found in vault." : this.plugin.settings.aiProvider === "local" ? "Local LLM not configured." : "No API key configured.",
         matchedEggs: eggs.map((e) => e.fileName),
         eggResults: [],
         newKnowledge: []
@@ -1339,7 +1423,7 @@ ${delta || "- (no novel delta)"}`;
    * Returns null when unavailable (no API key, AI error).
    */
   async localizeEggTemplate(templateContent, description) {
-    if (!this.plugin.settings.aiApiKey)
+    if (!isAIConfigured(this.plugin.settings))
       return null;
     try {
       const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
@@ -1606,10 +1690,11 @@ ${c.content}`;
   async askFollowUp(capture2, questions, priorQa, eggDescription = "") {
     if (questions.length === 0)
       return [];
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
+      const msg = this.plugin.settings.aiProvider === "local" ? "Local LLM not configured \u2014 cannot answer." : "No API key configured \u2014 cannot answer.";
       return questions.map((q) => ({
         question: q,
-        answer: "No API key configured \u2014 cannot answer."
+        answer: msg
       }));
     }
     const priorBlock = priorQa.length > 0 ? `## Previous Questions & Answers (context \u2014 refer back instead of repeating)
@@ -1657,9 +1742,9 @@ A: ${qa.answer}`).join("\n")}` : "";
       console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
       return null;
     }
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       console.log(
-        `[NutEgg] ${fileName} has ${entries} unprocessed entries \u2014 skipped merge (no API key)`
+        `[NutEgg] ${fileName} has ${entries} unprocessed entries \u2014 skipped merge (AI not configured)`
       );
       return null;
     }

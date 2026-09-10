@@ -583,6 +583,111 @@ function renderPrompt(template, vars) {
   });
 }
 
+// src/ai-client.ts
+var PROVIDER_CATALOG = {
+  anthropic: {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    officialEndpoint: "https://api.anthropic.com/v1/messages",
+    apiFormat: "anthropic",
+    models: [
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001"
+    ],
+    keyPlaceholder: "sk-ant-...",
+    openrouterPrefix: "anthropic/"
+  },
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: ["deepseek-chat", "deepseek-reasoner"],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "deepseek/"
+  },
+  gemini: {
+    id: "gemini",
+    label: "Google Gemini",
+    officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash"
+    ],
+    keyPlaceholder: "AIza...",
+    openrouterPrefix: "google/"
+  },
+  openai: {
+    id: "openai",
+    label: "OpenAI",
+    officialEndpoint: "https://api.openai.com/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: ["gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "openai/"
+  },
+  kimi: {
+    id: "kimi",
+    label: "Kimi (Moonshot)",
+    officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [
+      "moonshot-v1-8k",
+      "moonshot-v1-32k",
+      "moonshot-v1-128k"
+    ],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "moonshot/"
+  },
+  zhipu: {
+    id: "zhipu",
+    label: "Zhipu (GLM)",
+    officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    apiFormat: "openai-compatible",
+    models: ["glm-4-plus", "glm-4-air", "glm-4-flash"],
+    keyPlaceholder: "...",
+    openrouterPrefix: "zhipu/"
+  },
+  qwen: {
+    id: "qwen",
+    label: "Qwen (Tongyi)",
+    officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: ["qwen-max", "qwen-plus", "qwen-turbo"],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "qwen/"
+  },
+  local: {
+    id: "local",
+    label: "Local LLM (Ollama, LM Studio, etc.)",
+    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [
+      "llama3.2",
+      "llama3.3",
+      "qwen2.5:7b",
+      "qwen2.5:14b",
+      "deepseek-r1:8b",
+      "deepseek-r1:14b",
+      "mistral",
+      "phi4"
+    ],
+    keyPlaceholder: "Optional for local LLMs",
+    openrouterPrefix: ""
+  }
+};
+function isAIConfigured(settings) {
+  if (settings.aiProvider === "local") {
+    return Boolean(
+      (settings.localEndpoint || PROVIDER_CATALOG.local.officialEndpoint) && settings.aiModel
+    );
+  }
+  return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);
+}
+
 // src/index-reader.ts
 var IndexReader = class {
   plugin;
@@ -613,7 +718,7 @@ var IndexReader = class {
       return [];
     if (index.length === 1)
       return index;
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       return [index[0]];
     }
     const indexText = index.map((e) => `- ${e.fileName}: ${e.description}`).join("\n");

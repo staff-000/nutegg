@@ -1,6 +1,6 @@
 import type NutEggPlugin from "./main";
 import type { EggContent } from "./egg-parser";
-import { AIError } from "./ai-client";
+import { AIError, isAIConfigured } from "./ai-client";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
 import { sanitizeEggName } from "./index-sync";
 import type { WorkflowPromptKey } from "./workflow-manager";
@@ -152,7 +152,7 @@ export class AIProcessor {
     },
     eggs: EggContent[]
   ): Promise<AnalysisResult> {
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       return this.fallbackAnalysis(capture, eggs);
     }
 
@@ -242,7 +242,7 @@ export class AIProcessor {
     eggKeyQuestions: string[] = [],
     eggDescription = ""
   ): Promise<ContentAnalysis> {
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture.title,
         coreSummary: [capture.title],
@@ -323,11 +323,16 @@ export class AIProcessor {
     eggs: EggContent[],
     contentAnalysis: ContentAnalysis
   ): Promise<AnalysisResult> {
-    if (!this.plugin.settings.aiApiKey || eggs.length === 0) {
+    if (!isAIConfigured(this.plugin.settings) || eggs.length === 0) {
       return {
         ...contentAnalysis,
         shouldRead: false,
-        shouldReadReason: eggs.length === 0 ? "No matching egg found in vault." : "No API key configured.",
+        shouldReadReason:
+          eggs.length === 0
+            ? "No matching egg found in vault."
+            : this.plugin.settings.aiProvider === "local"
+            ? "Local LLM not configured."
+            : "No API key configured.",
         matchedEggs: eggs.map((e) => e.fileName),
         eggResults: [],
         newKnowledge: [],
@@ -982,7 +987,7 @@ export class AIProcessor {
     templateContent: string,
     description: string
   ): Promise<string | null> {
-    if (!this.plugin.settings.aiApiKey) return null;
+    if (!isAIConfigured(this.plugin.settings)) return null;
     try {
       const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
         description: description,
@@ -1297,10 +1302,14 @@ export class AIProcessor {
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
+      const msg =
+        this.plugin.settings.aiProvider === "local"
+          ? "Local LLM not configured — cannot answer."
+          : "No API key configured — cannot answer.";
       return questions.map((q) => ({
         question: q,
-        answer: "No API key configured — cannot answer.",
+        answer: msg,
       }));
     }
 
@@ -1357,9 +1366,9 @@ export class AIProcessor {
       return null;
     }
 
-    if (!this.plugin.settings.aiApiKey) {
+    if (!isAIConfigured(this.plugin.settings)) {
       console.log(
-        `[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (no API key)`
+        `[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (AI not configured)`
       );
       return null;
     }

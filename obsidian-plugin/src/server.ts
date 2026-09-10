@@ -1,6 +1,6 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
-import { AIError } from "./ai-client";
+import { AIError, isAIConfigured } from "./ai-client";
 import type { AnalysisResult, ContentAnalysis, MergeResult } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
 
@@ -330,8 +330,12 @@ export class NutEggServer {
     const issues: string[] = [];
     let status: "ok" | "warning" | "error" = "ok";
 
-    if (!settings.aiApiKey) {
-      issues.push("No API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key.");
+    if (!isAIConfigured(settings)) {
+      issues.push(
+        settings.aiProvider === "local"
+          ? "Local LLM endpoint or model not configured. Open Obsidian Settings → NutEgg to configure it."
+          : "No API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key."
+      );
       status = "error";
     }
 
