@@ -39,14 +39,9 @@ export default class NutEggPlugin extends Plugin {
   async onload(): Promise<void> {
     await this.loadSettings();
 
-    // Initialize workflow manager and ensure vault structure exists
+    // Initialize workflow manager and subsystems
     this.workflowManager = new WorkflowManager(this);
-    await this.initializeVault();
-
-    // Initialize AI client (shared across subsystems)
     this.aiClient = new AIClient(this.settings);
-
-    // Initialize subsystems
     this.aiProcessor = new AIProcessor(this);
     this.knowledgeBase = new KnowledgeBase(this);
     this.indexReader = new IndexReader(this);
@@ -55,7 +50,11 @@ export default class NutEggPlugin extends Plugin {
 
     // SQLite database (dedup cache, replay, RAG foundation). Never throws.
     this.db = new NutEggDatabase(this);
-    await this.db.init();
+    try {
+      await this.db.init();
+    } catch (err) {
+      console.warn("[NutEgg] DB init warning:", err);
+    }
 
     // Start local HTTP server
     this.server = new NutEggServer(this, this.settings.serverPort);
@@ -70,13 +69,32 @@ export default class NutEggPlugin extends Plugin {
     // Add settings tab
     this.addSettingTab(new NutEggSettingTab(this.app, this));
 
-    // Keep _index.md and the egg files consistent: check on load, then
-    // regularly. Fixes missing index entries and missing egg files.
-    try {
-      await this.indexSync.checkAndFix();
-    } catch (err) {
-      console.error("[NutEgg] Index sync check failed:", err);
+    // Vault-dependent initializations (folder/file creation, index consistency)
+    // MUST wait until onLayoutReady. On cold Obsidian startup, vault indexing
+    // is not ready during onload, which caused getAbstractFileByPath / getMarkdownFiles
+    // to return null/empty and fail with "File already exists".
+    const runPostLayoutInit = async () => {
+      try {
+        await this.initializeVault();
+      } catch (err) {
+        console.error("[NutEgg] Vault initialization failed:", err);
+      }
+
+      try {
+        await this.indexSync.checkAndFix();
+      } catch (err) {
+        console.error("[NutEgg] Index sync check failed:", err);
+      }
+
+      this.updateCreditStatusBar();
+    };
+
+    if (this.app?.workspace?.onLayoutReady) {
+      this.app.workspace.onLayoutReady(runPostLayoutInit);
+    } else {
+      runPostLayoutInit();
     }
+
     this.registerInterval(
       window.setInterval(() => {
         this.indexSync.checkAndFix().catch((err) => {
@@ -258,24 +276,32 @@ export default class NutEggPlugin extends Plugin {
    * Create the nutegg/ directory structure and boilerplate _index.md on first run.
    */
   private async initializeVault(): Promise<void> {
-    await this.ensureFolder(this.vaultFolder);
-    await this.ensureFolder(this.settings.rawFolder);
-    await this.workflowManager.init();
+    try {
+      await this.ensureFolder(this.vaultFolder);
+      await this.ensureFolder(this.settings.rawFolder);
+      await this.workflowManager.init();
 
-    // Create boilerplate _index.md if it doesn't exist
-    const indexPath = this.settings.indexFile;
-    const existing = await this.app.vault.adapter.exists(indexPath);
-    if (!existing) {
-      await this.app.vault.create(indexPath, INDEX_TEMPLATE);
-      console.log(`[NutEgg] Created ${indexPath}`);
+      // Create boilerplate _index.md if it doesn't exist
+      const indexPath = this.settings.indexFile;
+      const existing = await this.app.vault.adapter.exists(indexPath);
+      if (!existing) {
+        await this.app.vault.create(indexPath, INDEX_TEMPLATE);
+        console.log(`[NutEgg] Created ${indexPath}`);
 
-      // Also create example egg files so the user can see the format
-      for (const { path, content } of EXAMPLE_EGGS) {
-        if (!(await this.app.vault.adapter.exists(path))) {
-          await this.app.vault.create(path, content);
-          console.log(`[NutEgg] Created ${path}`);
+        // Also create example egg files so the user can see the format
+        for (const { path, content } of EXAMPLE_EGGS) {
+          if (!(await this.app.vault.adapter.exists(path))) {
+            try {
+              await this.app.vault.create(path, content);
+              console.log(`[NutEgg] Created ${path}`);
+            } catch {
+              // Ignore if already created concurrently
+            }
+          }
         }
       }
+    } catch (err) {
+      console.error("[NutEgg] Vault initialization error:", err);
     }
   }
 
@@ -283,10 +309,15 @@ export default class NutEggPlugin extends Plugin {
     const parts = folder.split("/");
     let currentPath = "";
     for (const part of parts) {
+      if (!part) continue;
       currentPath += (currentPath ? "/" : "") + part;
-      const exists = await this.app.vault.adapter.exists(currentPath);
-      if (!exists) {
-        await this.app.vault.createFolder(currentPath);
+      try {
+        const exists = await this.app.vault.adapter.exists(currentPath);
+        if (!exists) {
+          await this.app.vault.createFolder(currentPath);
+        }
+      } catch {
+        // Ignore "Folder already exists" errors
       }
     }
   }

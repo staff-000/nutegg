@@ -96,13 +96,18 @@ export class IndexSync {
     for (const entry of entries) {
       const target = norm(entry.fileName);
       if (present.has(target)) continue;
+      if (await this.plugin.app.vault.adapter.exists(target)) continue;
       if (await this.plugin.app.vault.adapter.exists(entry.fileName)) continue;
-      await this.createEggFromTemplate(target, entry);
-      if (target !== entry.fileName) {
-        await this.rewriteIndexPath(indexFile, entry.fileName, target);
-        result.fixedIndexPaths.push(target);
+      try {
+        await this.createEggFromTemplate(target, entry);
+        if (target !== entry.fileName) {
+          await this.rewriteIndexPath(indexFile, entry.fileName, target);
+          result.fixedIndexPaths.push(target);
+        }
+        result.createdEggs.push(target);
+      } catch (err) {
+        console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
       }
-      result.createdEggs.push(target);
     }
 
     if (

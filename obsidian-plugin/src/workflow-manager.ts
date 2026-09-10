@@ -112,56 +112,79 @@ export class WorkflowManager {
     for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
       const filePath = `${folder}/${filename}`;
       const builtinHash = simpleHash(builtinContent);
-      const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+      let file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+      const existsOnDisk = await this.plugin.app.vault.adapter.exists(filePath);
 
-      if (!file) {
+      if (!file && !existsOnDisk) {
         // File does not exist yet — create it
-        await this.plugin.app.vault.create(filePath, builtinContent);
-        this.cache.set(filename, builtinContent);
-        this.plugin.settings.workflowHashes[filename] = builtinHash;
-        settingsChanged = true;
-        console.log(`[NutEgg] Seeded workflow file: ${filePath}`);
-      } else {
-        // File exists — read and check for updates
-        const vaultContent = await this.plugin.app.vault.read(file as TFile);
-        this.cache.set(filename, vaultContent);
-
-        const currentVaultHash = simpleHash(vaultContent);
-        const recordedHash = this.plugin.settings.workflowHashes[filename];
-
-        if (currentVaultHash === builtinHash) {
-          // Vault content already matches current built-in default
-          if (recordedHash !== builtinHash) {
-            this.plugin.settings.workflowHashes[filename] = builtinHash;
-            settingsChanged = true;
-          }
-        } else if (recordedHash && recordedHash === currentVaultHash) {
-          // User never customized the file; vault holds the older default.
-          // Safe to auto-update to latest built-in version!
-          await this.plugin.app.vault.modify(file as TFile, builtinContent);
+        try {
+          await this.plugin.app.vault.create(filePath, builtinContent);
           this.cache.set(filename, builtinContent);
           this.plugin.settings.workflowHashes[filename] = builtinHash;
           settingsChanged = true;
-          console.log(`[NutEgg] Auto-updated unmodified workflow file: ${filePath}`);
-        } else if (!recordedHash) {
-          // Legacy or initial pre-existing file — record its current hash
-          this.plugin.settings.workflowHashes[filename] = currentVaultHash;
-          settingsChanged = true;
-        } else {
-          // User HAS customized this file AND built-in version is different!
-          // Do NOT clobber the user's file. Write [name].new.md instead.
-          const baseName = filename.replace(/\.md$/, "");
-          const newPath = `${folder}/${baseName}.new.md`;
-          const existingNew = this.plugin.app.vault.getAbstractFileByPath(newPath);
-
-          if (!existingNew) {
-            await this.plugin.app.vault.create(newPath, builtinContent);
-            console.log(`[NutEgg] Saved updated workflow template to: ${newPath}`);
-            new Notice(
-              `[NutEgg] Workflow update available for ${filename}. Your custom file was preserved; see ${baseName}.new.md to compare.`,
-              8000
-            );
+          console.log(`[NutEgg] Seeded workflow file: ${filePath}`);
+        } catch (err) {
+          console.warn(`[NutEgg] Could not create ${filePath}:`, err);
+        }
+      } else {
+        // File exists on disk or in vault cache!
+        try {
+          let vaultContent: string;
+          if (file instanceof TFile) {
+            vaultContent = await this.plugin.app.vault.read(file);
+          } else {
+            vaultContent = await this.plugin.app.vault.adapter.read(filePath);
           }
+          this.cache.set(filename, vaultContent);
+
+          const currentVaultHash = simpleHash(vaultContent);
+          const recordedHash = this.plugin.settings.workflowHashes[filename];
+
+          if (currentVaultHash === builtinHash) {
+            // Vault content already matches current built-in default
+            if (recordedHash !== builtinHash) {
+              this.plugin.settings.workflowHashes[filename] = builtinHash;
+              settingsChanged = true;
+            }
+          } else if (recordedHash && recordedHash === currentVaultHash) {
+            // User never customized the file; vault holds the older default.
+            // Safe to auto-update to latest built-in version!
+            if (file instanceof TFile) {
+              await this.plugin.app.vault.modify(file, builtinContent);
+            } else {
+              await this.plugin.app.vault.adapter.write(filePath, builtinContent);
+            }
+            this.cache.set(filename, builtinContent);
+            this.plugin.settings.workflowHashes[filename] = builtinHash;
+            settingsChanged = true;
+            console.log(`[NutEgg] Auto-updated unmodified workflow file: ${filePath}`);
+          } else if (!recordedHash) {
+            // Legacy or initial pre-existing file — record its current hash
+            this.plugin.settings.workflowHashes[filename] = currentVaultHash;
+            settingsChanged = true;
+          } else {
+            // User HAS customized this file AND built-in version is different!
+            // Do NOT clobber the user's file. Write [name].new.md instead.
+            const baseName = filename.replace(/\.md$/, "");
+            const newPath = `${folder}/${baseName}.new.md`;
+            const existingNew = this.plugin.app.vault.getAbstractFileByPath(newPath);
+            const newExistsOnDisk = await this.plugin.app.vault.adapter.exists(newPath);
+
+            if (!existingNew && !newExistsOnDisk) {
+              try {
+                await this.plugin.app.vault.create(newPath, builtinContent);
+                console.log(`[NutEgg] Saved updated workflow template to: ${newPath}`);
+                new Notice(
+                  `[NutEgg] Workflow update available for ${filename}. Your custom file was preserved; see ${baseName}.new.md to compare.`,
+                  8000
+                );
+              } catch {
+                // Ignore if created concurrently
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[NutEgg] Error reading workflow file ${filePath}:`, err);
         }
       }
     }
@@ -296,9 +319,13 @@ export class WorkflowManager {
     for (const part of parts) {
       if (!part) continue;
       currentPath += (currentPath ? "/" : "") + part;
-      const exists = await this.plugin.app.vault.adapter.exists(currentPath);
-      if (!exists) {
-        await this.plugin.app.vault.createFolder(currentPath);
+      try {
+        const exists = await this.plugin.app.vault.adapter.exists(currentPath);
+        if (!exists) {
+          await this.plugin.app.vault.createFolder(currentPath);
+        }
+      } catch {
+        // Ignore "Folder already exists" errors
       }
     }
   }
