@@ -142,35 +142,47 @@ For long articles, papers, or video transcripts (>30k characters), content is au
 Some prompt files are **shared fragments** that are not executed independently, but are injected into other prompts via `{{placeholder}}` variables at runtime:
 
 ```mermaid
-graph TD
-    subgraph Shared Fragments
-        GR["grounding-rule.md<br/><i>(Strict anti-hallucination rule)</i>"]
+flowchart TD
+    subgraph Shared ["1. Shared Fragments (Injected via Placeholders)"]
+        direction TB
+        GR["grounding-rule.md<br/><i>(Strict anti-hallucination directive)</i>"]
         AG["action-guide-default.md<br/><i>(Default 3-step summary instructions)</i>"]
     end
 
-    subgraph Content Capture & Synthesis
-        EC["egg-combined.md"]
-        CA["content-analysis.md"]
-        EA["egg-analysis.md"]
-        CMP["egg-compare.md"]
-        AC["aggregate-content.md"]
-        AE["aggregate-egg.md"]
+    subgraph Capture ["2. Content Capture & Synthesis Pipeline"]
+        direction TB
+        CA["content-analysis.md<br/><i>(Stage 1: Content summary & Q&A)</i>"]
+        ROUT["egg-routing.md<br/><i>(Stage 1: Summary-based egg routing)</i>"]
+        EA["egg-analysis.md<br/><i>(Stage 2: Per-egg knowledge extraction)</i>"]
+        CMP["egg-compare.md<br/><i>(Stage 2: Knowledge tree diff)</i>"]
+        EC["egg-combined.md<br/><i>(Single-egg 1-call fast path)</i>"]
+        AC["aggregate-content.md<br/><i>(Stage 1 chunk aggregation)</i>"]
+        AE["aggregate-egg.md<br/><i>(Stage 2 chunk aggregation)</i>"]
+
+        CA --> ROUT
+        ROUT --> EA
+        EA --> CMP
     end
 
-    subgraph Independent Prompts
-        FU["follow-up.md"]
-        ROUT["egg-routing.md"]
-        MU["merge-unprocessed.md"]
-        LOC["localize-egg.md"]
+    subgraph Independent ["3. Independent Features"]
+        direction TB
+        FU["follow-up.md<br/><i>(Interactive popup Q&A)</i>"]
+        MU["merge-unprocessed.md<br/><i>(20+ entries knowledge merge)</i>"]
+        LOC["localize-egg.md<br/><i>(Translate new egg template)</i>"]
+        FU ~~~ MU ~~~ LOC
     end
 
+    Shared ~~~ Capture
+    Capture ~~~ Independent
+
+    %% Injection connections
     AG -.->|"{{action_guide}}"| CA
     AG -.->|"{{action_guide}}"| EC
 
-    GR -.->|"{{grounding_rule}}"| EC
     GR -.->|"{{grounding_rule}}"| CA
     GR -.->|"{{grounding_rule}}"| EA
     GR -.->|"{{grounding_rule}}"| CMP
+    GR -.->|"{{grounding_rule}}"| EC
     GR -.->|"{{grounding_rule}}"| AC
     GR -.->|"{{grounding_rule}}"| AE
     GR -.->|"{{grounding_rule}}"| FU
