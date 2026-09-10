@@ -33,7 +33,6 @@ var PROVIDER_CATALOG = {
     label: "Local LLM (Ollama, LM Studio, etc.)",
     officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: [],
     keyPlaceholder: "Optional for local LLMs",
     openrouterPrefix: ""
   },
@@ -43,14 +42,16 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "anthropic/claude-sonnet-5",
-      "anthropic/claude-3.7-sonnet",
+      "openai/gpt-6-astra",
       "openai/gpt-5.6-sol",
-      "openai/gpt-4o",
       "openai/o3-mini",
+      "anthropic/claude-fable-5-1",
+      "anthropic/claude-opus-5",
+      "anthropic/claude-sonnet-5",
       "deepseek/deepseek-r1",
       "deepseek/deepseek-chat",
       "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro",
       "meta-llama/llama-3.3-70b-instruct",
       "qwen/qwen-2.5-72b-instruct"
     ],
@@ -63,13 +64,12 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
     models: [
-      "claude-sonnet-5",
-      "claude-3-7-sonnet-20250219",
-      "claude-3-5-sonnet-20241022",
-      "claude-haiku-4-5-20251001",
-      "claude-3-5-haiku-20241022",
+      "claude-fable-5-1",
       "claude-opus-5",
-      "claude-3-opus-20240229"
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022"
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/"
@@ -80,9 +80,10 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
+      "gpt-6-astra",
       "gpt-5.6-sol",
-      "gpt-5.5",
-      "gpt-5.4-nano",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
       "o3-mini",
       "o1",
       "gpt-4o",
@@ -97,8 +98,8 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "gemini-2.5-flash",
       "gemini-2.5-pro",
+      "gemini-2.5-flash",
       "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
       "gemini-2.0-flash-lite"
@@ -111,7 +112,11 @@ var PROVIDER_CATALOG = {
     label: "DeepSeek",
     officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+    models: [
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-flash"
+    ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "deepseek/"
   },
@@ -166,28 +171,26 @@ var PROVIDER_CATALOG = {
   }
 };
 var MODEL_CATALOG = {
-  local: [],
   openrouter: [
+    {
+      id: "openai",
+      label: "OpenAI GPT & Reasoning",
+      defaultModel: "openai/gpt-6-astra",
+      models: [
+        "openai/gpt-6-astra",
+        "openai/gpt-5.6-sol",
+        "openai/o3-mini",
+        "openai/gpt-4o"
+      ]
+    },
     {
       id: "anthropic",
       label: "Anthropic Claude",
       defaultModel: "anthropic/claude-sonnet-5",
       models: [
-        "anthropic/claude-sonnet-5",
-        "anthropic/claude-3.7-sonnet",
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3.5-haiku"
-      ]
-    },
-    {
-      id: "openai",
-      label: "OpenAI GPT & Reasoning",
-      defaultModel: "openai/gpt-5.6-sol",
-      models: [
-        "openai/gpt-5.6-sol",
-        "openai/gpt-4o",
-        "openai/o3-mini",
-        "openai/o1"
+        "anthropic/claude-fable-5-1",
+        "anthropic/claude-opus-5",
+        "anthropic/claude-sonnet-5"
       ]
     },
     {
@@ -202,8 +205,7 @@ var MODEL_CATALOG = {
       defaultModel: "google/gemini-2.5-flash",
       models: [
         "google/gemini-2.5-flash",
-        "google/gemini-2.5-pro",
-        "google/gemini-2.0-flash-001"
+        "google/gemini-2.5-pro"
       ]
     },
     {
@@ -211,8 +213,7 @@ var MODEL_CATALOG = {
       label: "Meta Llama",
       defaultModel: "meta-llama/llama-3.3-70b-instruct",
       models: [
-        "meta-llama/llama-3.3-70b-instruct",
-        "meta-llama/llama-3.1-8b-instruct"
+        "meta-llama/llama-3.3-70b-instruct"
       ]
     },
     {
@@ -220,18 +221,29 @@ var MODEL_CATALOG = {
       label: "Qwen",
       defaultModel: "qwen/qwen-2.5-72b-instruct",
       models: [
-        "qwen/qwen-2.5-72b-instruct",
-        "qwen/qwen-2.5-coder-32b-instruct"
+        "qwen/qwen-2.5-72b-instruct"
       ]
     },
     {
       id: "custom",
       label: "Custom OpenRouter Model",
-      defaultModel: "anthropic/claude-sonnet-5",
+      defaultModel: "openai/gpt-6-astra",
       models: []
     }
   ],
   anthropic: [
+    {
+      id: "fable",
+      label: "Claude Fable (Flagship Reasoning)",
+      defaultModel: "claude-fable-5-1",
+      models: ["claude-fable-5-1"]
+    },
+    {
+      id: "opus",
+      label: "Claude Opus",
+      defaultModel: "claude-opus-5",
+      models: ["claude-opus-5"]
+    },
     {
       id: "sonnet",
       label: "Claude Sonnet",
@@ -246,27 +258,21 @@ var MODEL_CATALOG = {
       id: "haiku",
       label: "Claude Haiku",
       defaultModel: "claude-haiku-4-5-20251001",
-      models: [
-        "claude-haiku-4-5-20251001",
-        "claude-3-5-haiku-20241022"
-      ]
-    },
-    {
-      id: "opus",
-      label: "Claude Opus",
-      defaultModel: "claude-opus-5",
-      models: [
-        "claude-opus-5",
-        "claude-3-opus-20240229"
-      ]
+      models: ["claude-haiku-4-5-20251001"]
     }
   ],
   openai: [
     {
+      id: "gpt-6",
+      label: "GPT-6 Series (Frontier Flagship)",
+      defaultModel: "gpt-6-astra",
+      models: ["gpt-6-astra"]
+    },
+    {
       id: "gpt-5",
-      label: "GPT-5 Series (Flagship)",
+      label: "GPT-5.6 Series (Professional)",
       defaultModel: "gpt-5.6-sol",
-      models: ["gpt-5.6-sol", "gpt-5.5", "gpt-5.4-nano"]
+      models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
     },
     {
       id: "reasoning",
@@ -284,33 +290,33 @@ var MODEL_CATALOG = {
   gemini: [
     {
       id: "gemini-2.5",
-      label: "Gemini 2.5",
+      label: "Gemini 2.5 Series",
       defaultModel: "gemini-2.5-flash",
       models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
     },
     {
       id: "gemini-2.0",
-      label: "Gemini 2.0",
+      label: "Gemini 2.0 Series",
       defaultModel: "gemini-2.0-flash",
       models: ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
     }
   ],
   deepseek: [
     {
-      id: "deepseek-chat",
-      label: "DeepSeek V3 (Chat)",
+      id: "chat",
+      label: "DeepSeek Chat (V3)",
       defaultModel: "deepseek-chat",
       models: ["deepseek-chat"]
     },
     {
-      id: "deepseek-reasoner",
-      label: "DeepSeek R1 (Reasoner)",
+      id: "reasoner",
+      label: "DeepSeek Reasoner (R1)",
       defaultModel: "deepseek-reasoner",
       models: ["deepseek-reasoner"]
     },
     {
-      id: "deepseek-flash",
-      label: "DeepSeek V4.1 Flash",
+      id: "flash",
+      label: "DeepSeek Flash",
       defaultModel: "deepseek-flash",
       models: ["deepseek-flash"]
     }
@@ -329,8 +335,8 @@ var MODEL_CATALOG = {
       models: ["kimi-k2.7-code", "kimi-k2.7-code-highspeed"]
     },
     {
-      id: "moonshot-legacy",
-      label: "Moonshot V1 (Legacy)",
+      id: "moonshot",
+      label: "Moonshot V1",
       defaultModel: "moonshot-v1-8k",
       models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
     }
@@ -358,7 +364,7 @@ var MODEL_CATALOG = {
     },
     {
       id: "qwen-tiered",
-      label: "Qwen Tiered (Max / Plus / Turbo)",
+      label: "Qwen Tiered",
       defaultModel: "qwen-plus",
       models: ["qwen-max", "qwen-plus", "qwen-turbo"]
     }
@@ -492,12 +498,11 @@ var AIClient = class {
         });
         clearTimeout(timeoutId);
         if (resp.ok) {
-          const modelTag = model && model !== "default" ? ` (${model})` : "";
           const typeLabel = isOllama ? "Ollama Native" : "OpenAI-compatible";
           return {
             ...baseInfo,
             hasBalance: false,
-            statusText: `Connected${modelTag} [${typeLabel}]`
+            statusText: `Connected [${typeLabel}]`
           };
         } else {
           return {
@@ -853,13 +858,13 @@ var DEFAULT_SETTINGS = {
         localApiType: "ollama",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/api/chat",
-        aiModel: "qwen2.5:7b"
+        aiModel: ""
       };
       const client = new AIClient(settings);
       const res = await client.chat("Hello ollama", 400);
       import_strict.default.equal(res, "Response from Ollama native");
       import_strict.default.equal(capturedUrl, "http://127.0.0.1:11434/api/chat");
-      import_strict.default.equal(capturedBody.model, "qwen2.5:7b");
+      import_strict.default.equal(capturedBody.model, "default");
       import_strict.default.equal(capturedBody.stream, false);
       import_strict.default.equal(capturedBody.options?.num_predict, 400);
     } finally {
@@ -881,13 +886,13 @@ var DEFAULT_SETTINGS = {
         localApiType: "openai",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-        aiModel: "custom-tag"
+        aiModel: ""
       };
       const client = new AIClient(settings);
       const info = await client.checkCredit(settings);
       import_strict.default.equal(info.provider, "local");
       import_strict.default.equal(info.hasBalance, false);
-      import_strict.default.equal(info.statusText, "Connected (custom-tag) [OpenAI-compatible]");
+      import_strict.default.equal(info.statusText, "Connected [OpenAI-compatible]");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -920,7 +925,8 @@ var DEFAULT_SETTINGS = {
   (0, import_node_test.it)("defines families for all cloud providers in PROVIDER_CATALOG", () => {
     for (const providerId of Object.keys(PROVIDER_CATALOG)) {
       if (providerId === "local") {
-        import_strict.default.equal(MODEL_CATALOG.local.length, 0, "Local does not require static model families");
+        import_strict.default.equal(MODEL_CATALOG.local, void 0, "Local does not have static model families in MODEL_CATALOG");
+        import_strict.default.equal(PROVIDER_CATALOG.local.models, void 0, "Local does not require models array in PROVIDER_CATALOG");
         continue;
       }
       const families = MODEL_CATALOG[providerId];
@@ -933,14 +939,26 @@ var DEFAULT_SETTINGS = {
     }
   });
   (0, import_node_test.it)("findFamilyForModel resolves matching family or defaults to first family", () => {
+    const fableFam = findFamilyForModel("anthropic", "claude-fable-5-1");
+    import_strict.default.equal(fableFam?.id, "fable");
+    const opusFam = findFamilyForModel("anthropic", "claude-opus-5");
+    import_strict.default.equal(opusFam?.id, "opus");
     const sonnetFam = findFamilyForModel("anthropic", "claude-sonnet-5");
     import_strict.default.equal(sonnetFam?.id, "sonnet");
     const haikuFam = findFamilyForModel("anthropic", "claude-haiku-4-5-20251001");
     import_strict.default.equal(haikuFam?.id, "haiku");
+    const gpt6Fam = findFamilyForModel("openai", "gpt-6-astra");
+    import_strict.default.equal(gpt6Fam?.id, "gpt-6");
     const gpt5Fam = findFamilyForModel("openai", "gpt-5.6-sol");
     import_strict.default.equal(gpt5Fam?.id, "gpt-5");
     const reasoningFam = findFamilyForModel("openai", "o3-mini");
     import_strict.default.equal(reasoningFam?.id, "reasoning");
+    const gpt4oFam = findFamilyForModel("openai", "gpt-4o");
+    import_strict.default.equal(gpt4oFam?.id, "gpt-4o");
+    const geminiFam = findFamilyForModel("gemini", "gemini-2.5-flash");
+    import_strict.default.equal(geminiFam?.id, "gemini-2.5");
+    const deepseekFam = findFamilyForModel("deepseek", "deepseek-chat");
+    import_strict.default.equal(deepseekFam?.id, "chat");
     const kimiFam = findFamilyForModel("kimi", "kimi-k3");
     import_strict.default.equal(kimiFam?.id, "kimi-k3");
     const zhipuFam = findFamilyForModel("zhipu", "glm-5.3");

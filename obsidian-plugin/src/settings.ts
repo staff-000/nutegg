@@ -308,23 +308,6 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       }
 
-      // Model Name (Optional)
-      new Setting(containerEl)
-        .setName("Model Name (Optional)")
-        .setDesc(
-          "Leave blank if your local runner has a model loaded (LM Studio, llama.cpp). If using Ollama with multiple models, specify the model tag (e.g. qwen2.5:7b)."
-        )
-        .addText((text) => {
-          text
-            .setPlaceholder("Optional (defaults to loaded server model)")
-            .setValue(settings.aiModel === "default" ? "" : settings.aiModel)
-            .onChange(async (value) => {
-              settings.aiModel = value.trim();
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
-
       // API Key (Optional)
       new Setting(containerEl)
         .setName("API Key (Optional)")

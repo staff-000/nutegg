@@ -24,8 +24,8 @@ export interface ProviderInfo {
   officialEndpoint: string;
   /** API format: "anthropic" uses native Anthropic, everything else uses OpenAI-compatible */
   apiFormat: "anthropic" | "openai-compatible";
-  /** Available models for this provider */
-  models: string[];
+  /** Available models for this provider (optional for local LLMs) */
+  models?: string[];
   /** Key placeholder shown in settings */
   keyPlaceholder: string;
   /** OpenRouter model prefix (e.g. "anthropic/" becomes "anthropic/claude-sonnet-5") */
@@ -45,7 +45,6 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     label: "Local LLM (Ollama, LM Studio, etc.)",
     officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: [],
     keyPlaceholder: "Optional for local LLMs",
     openrouterPrefix: "",
   },
@@ -55,14 +54,16 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "anthropic/claude-sonnet-5",
-      "anthropic/claude-3.7-sonnet",
+      "openai/gpt-6-astra",
       "openai/gpt-5.6-sol",
-      "openai/gpt-4o",
       "openai/o3-mini",
+      "anthropic/claude-fable-5-1",
+      "anthropic/claude-opus-5",
+      "anthropic/claude-sonnet-5",
       "deepseek/deepseek-r1",
       "deepseek/deepseek-chat",
       "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro",
       "meta-llama/llama-3.3-70b-instruct",
       "qwen/qwen-2.5-72b-instruct",
     ],
@@ -75,13 +76,12 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
     models: [
+      "claude-fable-5-1",
+      "claude-opus-5",
       "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
       "claude-3-7-sonnet-20250219",
       "claude-3-5-sonnet-20241022",
-      "claude-haiku-4-5-20251001",
-      "claude-3-5-haiku-20241022",
-      "claude-opus-5",
-      "claude-3-opus-20240229",
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/",
@@ -92,9 +92,10 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
+      "gpt-6-astra",
       "gpt-5.6-sol",
-      "gpt-5.5",
-      "gpt-5.4-nano",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
       "o3-mini",
       "o1",
       "gpt-4o",
@@ -109,8 +110,8 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "gemini-2.5-flash",
       "gemini-2.5-pro",
+      "gemini-2.5-flash",
       "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
       "gemini-2.0-flash-lite",
@@ -123,7 +124,11 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     label: "DeepSeek",
     officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+    models: [
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-flash",
+    ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "deepseek/",
   },
@@ -178,29 +183,27 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
   },
 };
 
-export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
-  local: [],
+export const MODEL_CATALOG: Partial<Record<AIProviderId, ModelFamily[]>> = {
   openrouter: [
+    {
+      id: "openai",
+      label: "OpenAI GPT & Reasoning",
+      defaultModel: "openai/gpt-6-astra",
+      models: [
+        "openai/gpt-6-astra",
+        "openai/gpt-5.6-sol",
+        "openai/o3-mini",
+        "openai/gpt-4o",
+      ],
+    },
     {
       id: "anthropic",
       label: "Anthropic Claude",
       defaultModel: "anthropic/claude-sonnet-5",
       models: [
+        "anthropic/claude-fable-5-1",
+        "anthropic/claude-opus-5",
         "anthropic/claude-sonnet-5",
-        "anthropic/claude-3.7-sonnet",
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3.5-haiku",
-      ],
-    },
-    {
-      id: "openai",
-      label: "OpenAI GPT & Reasoning",
-      defaultModel: "openai/gpt-5.6-sol",
-      models: [
-        "openai/gpt-5.6-sol",
-        "openai/gpt-4o",
-        "openai/o3-mini",
-        "openai/o1",
       ],
     },
     {
@@ -216,7 +219,6 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
       models: [
         "google/gemini-2.5-flash",
         "google/gemini-2.5-pro",
-        "google/gemini-2.0-flash-001",
       ],
     },
     {
@@ -225,7 +227,6 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
       defaultModel: "meta-llama/llama-3.3-70b-instruct",
       models: [
         "meta-llama/llama-3.3-70b-instruct",
-        "meta-llama/llama-3.1-8b-instruct",
       ],
     },
     {
@@ -234,17 +235,28 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
       defaultModel: "qwen/qwen-2.5-72b-instruct",
       models: [
         "qwen/qwen-2.5-72b-instruct",
-        "qwen/qwen-2.5-coder-32b-instruct",
       ],
     },
     {
       id: "custom",
       label: "Custom OpenRouter Model",
-      defaultModel: "anthropic/claude-sonnet-5",
+      defaultModel: "openai/gpt-6-astra",
       models: [],
     },
   ],
   anthropic: [
+    {
+      id: "fable",
+      label: "Claude Fable (Flagship Reasoning)",
+      defaultModel: "claude-fable-5-1",
+      models: ["claude-fable-5-1"],
+    },
+    {
+      id: "opus",
+      label: "Claude Opus",
+      defaultModel: "claude-opus-5",
+      models: ["claude-opus-5"],
+    },
     {
       id: "sonnet",
       label: "Claude Sonnet",
@@ -259,27 +271,21 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
       id: "haiku",
       label: "Claude Haiku",
       defaultModel: "claude-haiku-4-5-20251001",
-      models: [
-        "claude-haiku-4-5-20251001",
-        "claude-3-5-haiku-20241022",
-      ],
-    },
-    {
-      id: "opus",
-      label: "Claude Opus",
-      defaultModel: "claude-opus-5",
-      models: [
-        "claude-opus-5",
-        "claude-3-opus-20240229",
-      ],
+      models: ["claude-haiku-4-5-20251001"],
     },
   ],
   openai: [
     {
+      id: "gpt-6",
+      label: "GPT-6 Series (Frontier Flagship)",
+      defaultModel: "gpt-6-astra",
+      models: ["gpt-6-astra"],
+    },
+    {
       id: "gpt-5",
-      label: "GPT-5 Series (Flagship)",
+      label: "GPT-5.6 Series (Professional)",
       defaultModel: "gpt-5.6-sol",
-      models: ["gpt-5.6-sol", "gpt-5.5", "gpt-5.4-nano"],
+      models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
     },
     {
       id: "reasoning",
@@ -297,33 +303,33 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
   gemini: [
     {
       id: "gemini-2.5",
-      label: "Gemini 2.5",
+      label: "Gemini 2.5 Series",
       defaultModel: "gemini-2.5-flash",
       models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
     },
     {
       id: "gemini-2.0",
-      label: "Gemini 2.0",
+      label: "Gemini 2.0 Series",
       defaultModel: "gemini-2.0-flash",
       models: ["gemini-2.0-flash", "gemini-2.0-flash-lite"],
     },
   ],
   deepseek: [
     {
-      id: "deepseek-chat",
-      label: "DeepSeek V3 (Chat)",
+      id: "chat",
+      label: "DeepSeek Chat (V3)",
       defaultModel: "deepseek-chat",
       models: ["deepseek-chat"],
     },
     {
-      id: "deepseek-reasoner",
-      label: "DeepSeek R1 (Reasoner)",
+      id: "reasoner",
+      label: "DeepSeek Reasoner (R1)",
       defaultModel: "deepseek-reasoner",
       models: ["deepseek-reasoner"],
     },
     {
-      id: "deepseek-flash",
-      label: "DeepSeek V4.1 Flash",
+      id: "flash",
+      label: "DeepSeek Flash",
       defaultModel: "deepseek-flash",
       models: ["deepseek-flash"],
     },
@@ -342,8 +348,8 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
       models: ["kimi-k2.7-code", "kimi-k2.7-code-highspeed"],
     },
     {
-      id: "moonshot-legacy",
-      label: "Moonshot V1 (Legacy)",
+      id: "moonshot",
+      label: "Moonshot V1",
       defaultModel: "moonshot-v1-8k",
       models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
     },
@@ -371,7 +377,7 @@ export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
     },
     {
       id: "qwen-tiered",
-      label: "Qwen Tiered (Max / Plus / Turbo)",
+      label: "Qwen Tiered",
       defaultModel: "qwen-plus",
       models: ["qwen-max", "qwen-plus", "qwen-turbo"],
     },
@@ -601,12 +607,11 @@ export class AIClient {
         clearTimeout(timeoutId);
 
         if (resp.ok) {
-          const modelTag = model && model !== "default" ? ` (${model})` : "";
           const typeLabel = isOllama ? "Ollama Native" : "OpenAI-compatible";
           return {
             ...baseInfo,
             hasBalance: false,
-            statusText: `Connected${modelTag} [${typeLabel}]`,
+            statusText: `Connected [${typeLabel}]`,
           };
         } else {
           return {

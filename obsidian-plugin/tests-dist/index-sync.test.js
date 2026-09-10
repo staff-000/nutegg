@@ -590,7 +590,6 @@ var PROVIDER_CATALOG = {
     label: "Local LLM (Ollama, LM Studio, etc.)",
     officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: [],
     keyPlaceholder: "Optional for local LLMs",
     openrouterPrefix: ""
   },
@@ -600,14 +599,16 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "anthropic/claude-sonnet-5",
-      "anthropic/claude-3.7-sonnet",
+      "openai/gpt-6-astra",
       "openai/gpt-5.6-sol",
-      "openai/gpt-4o",
       "openai/o3-mini",
+      "anthropic/claude-fable-5-1",
+      "anthropic/claude-opus-5",
+      "anthropic/claude-sonnet-5",
       "deepseek/deepseek-r1",
       "deepseek/deepseek-chat",
       "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro",
       "meta-llama/llama-3.3-70b-instruct",
       "qwen/qwen-2.5-72b-instruct"
     ],
@@ -620,13 +621,12 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
     models: [
-      "claude-sonnet-5",
-      "claude-3-7-sonnet-20250219",
-      "claude-3-5-sonnet-20241022",
-      "claude-haiku-4-5-20251001",
-      "claude-3-5-haiku-20241022",
+      "claude-fable-5-1",
       "claude-opus-5",
-      "claude-3-opus-20240229"
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022"
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/"
@@ -637,9 +637,10 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
+      "gpt-6-astra",
       "gpt-5.6-sol",
-      "gpt-5.5",
-      "gpt-5.4-nano",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
       "o3-mini",
       "o1",
       "gpt-4o",
@@ -654,8 +655,8 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "gemini-2.5-flash",
       "gemini-2.5-pro",
+      "gemini-2.5-flash",
       "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
       "gemini-2.0-flash-lite"
@@ -668,7 +669,11 @@ var PROVIDER_CATALOG = {
     label: "DeepSeek",
     officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+    models: [
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-flash"
+    ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "deepseek/"
   },

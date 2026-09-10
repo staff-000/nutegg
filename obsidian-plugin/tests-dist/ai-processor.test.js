@@ -127,7 +127,6 @@ var init_ai_client = __esm({
         label: "Local LLM (Ollama, LM Studio, etc.)",
         officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
         apiFormat: "openai-compatible",
-        models: [],
         keyPlaceholder: "Optional for local LLMs",
         openrouterPrefix: ""
       },
@@ -137,14 +136,16 @@ var init_ai_client = __esm({
         officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
         apiFormat: "openai-compatible",
         models: [
-          "anthropic/claude-sonnet-5",
-          "anthropic/claude-3.7-sonnet",
+          "openai/gpt-6-astra",
           "openai/gpt-5.6-sol",
-          "openai/gpt-4o",
           "openai/o3-mini",
+          "anthropic/claude-fable-5-1",
+          "anthropic/claude-opus-5",
+          "anthropic/claude-sonnet-5",
           "deepseek/deepseek-r1",
           "deepseek/deepseek-chat",
           "google/gemini-2.5-flash",
+          "google/gemini-2.5-pro",
           "meta-llama/llama-3.3-70b-instruct",
           "qwen/qwen-2.5-72b-instruct"
         ],
@@ -157,13 +158,12 @@ var init_ai_client = __esm({
         officialEndpoint: "https://api.anthropic.com/v1/messages",
         apiFormat: "anthropic",
         models: [
-          "claude-sonnet-5",
-          "claude-3-7-sonnet-20250219",
-          "claude-3-5-sonnet-20241022",
-          "claude-haiku-4-5-20251001",
-          "claude-3-5-haiku-20241022",
+          "claude-fable-5-1",
           "claude-opus-5",
-          "claude-3-opus-20240229"
+          "claude-sonnet-5",
+          "claude-haiku-4-5-20251001",
+          "claude-3-7-sonnet-20250219",
+          "claude-3-5-sonnet-20241022"
         ],
         keyPlaceholder: "sk-ant-...",
         openrouterPrefix: "anthropic/"
@@ -174,9 +174,10 @@ var init_ai_client = __esm({
         officialEndpoint: "https://api.openai.com/v1/chat/completions",
         apiFormat: "openai-compatible",
         models: [
+          "gpt-6-astra",
           "gpt-5.6-sol",
-          "gpt-5.5",
-          "gpt-5.4-nano",
+          "gpt-5.6-terra",
+          "gpt-5.6-luna",
           "o3-mini",
           "o1",
           "gpt-4o",
@@ -191,8 +192,8 @@ var init_ai_client = __esm({
         officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         apiFormat: "openai-compatible",
         models: [
-          "gemini-2.5-flash",
           "gemini-2.5-pro",
+          "gemini-2.5-flash",
           "gemini-2.5-flash-lite",
           "gemini-2.0-flash",
           "gemini-2.0-flash-lite"
@@ -205,7 +206,11 @@ var init_ai_client = __esm({
         label: "DeepSeek",
         officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
         apiFormat: "openai-compatible",
-        models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
+        models: [
+          "deepseek-chat",
+          "deepseek-reasoner",
+          "deepseek-flash"
+        ],
         keyPlaceholder: "sk-...",
         openrouterPrefix: "deepseek/"
       },
@@ -260,28 +265,26 @@ var init_ai_client = __esm({
       }
     };
     MODEL_CATALOG = {
-      local: [],
       openrouter: [
+        {
+          id: "openai",
+          label: "OpenAI GPT & Reasoning",
+          defaultModel: "openai/gpt-6-astra",
+          models: [
+            "openai/gpt-6-astra",
+            "openai/gpt-5.6-sol",
+            "openai/o3-mini",
+            "openai/gpt-4o"
+          ]
+        },
         {
           id: "anthropic",
           label: "Anthropic Claude",
           defaultModel: "anthropic/claude-sonnet-5",
           models: [
-            "anthropic/claude-sonnet-5",
-            "anthropic/claude-3.7-sonnet",
-            "anthropic/claude-3.5-sonnet",
-            "anthropic/claude-3.5-haiku"
-          ]
-        },
-        {
-          id: "openai",
-          label: "OpenAI GPT & Reasoning",
-          defaultModel: "openai/gpt-5.6-sol",
-          models: [
-            "openai/gpt-5.6-sol",
-            "openai/gpt-4o",
-            "openai/o3-mini",
-            "openai/o1"
+            "anthropic/claude-fable-5-1",
+            "anthropic/claude-opus-5",
+            "anthropic/claude-sonnet-5"
           ]
         },
         {
@@ -296,8 +299,7 @@ var init_ai_client = __esm({
           defaultModel: "google/gemini-2.5-flash",
           models: [
             "google/gemini-2.5-flash",
-            "google/gemini-2.5-pro",
-            "google/gemini-2.0-flash-001"
+            "google/gemini-2.5-pro"
           ]
         },
         {
@@ -305,8 +307,7 @@ var init_ai_client = __esm({
           label: "Meta Llama",
           defaultModel: "meta-llama/llama-3.3-70b-instruct",
           models: [
-            "meta-llama/llama-3.3-70b-instruct",
-            "meta-llama/llama-3.1-8b-instruct"
+            "meta-llama/llama-3.3-70b-instruct"
           ]
         },
         {
@@ -314,18 +315,29 @@ var init_ai_client = __esm({
           label: "Qwen",
           defaultModel: "qwen/qwen-2.5-72b-instruct",
           models: [
-            "qwen/qwen-2.5-72b-instruct",
-            "qwen/qwen-2.5-coder-32b-instruct"
+            "qwen/qwen-2.5-72b-instruct"
           ]
         },
         {
           id: "custom",
           label: "Custom OpenRouter Model",
-          defaultModel: "anthropic/claude-sonnet-5",
+          defaultModel: "openai/gpt-6-astra",
           models: []
         }
       ],
       anthropic: [
+        {
+          id: "fable",
+          label: "Claude Fable (Flagship Reasoning)",
+          defaultModel: "claude-fable-5-1",
+          models: ["claude-fable-5-1"]
+        },
+        {
+          id: "opus",
+          label: "Claude Opus",
+          defaultModel: "claude-opus-5",
+          models: ["claude-opus-5"]
+        },
         {
           id: "sonnet",
           label: "Claude Sonnet",
@@ -340,27 +352,21 @@ var init_ai_client = __esm({
           id: "haiku",
           label: "Claude Haiku",
           defaultModel: "claude-haiku-4-5-20251001",
-          models: [
-            "claude-haiku-4-5-20251001",
-            "claude-3-5-haiku-20241022"
-          ]
-        },
-        {
-          id: "opus",
-          label: "Claude Opus",
-          defaultModel: "claude-opus-5",
-          models: [
-            "claude-opus-5",
-            "claude-3-opus-20240229"
-          ]
+          models: ["claude-haiku-4-5-20251001"]
         }
       ],
       openai: [
         {
+          id: "gpt-6",
+          label: "GPT-6 Series (Frontier Flagship)",
+          defaultModel: "gpt-6-astra",
+          models: ["gpt-6-astra"]
+        },
+        {
           id: "gpt-5",
-          label: "GPT-5 Series (Flagship)",
+          label: "GPT-5.6 Series (Professional)",
           defaultModel: "gpt-5.6-sol",
-          models: ["gpt-5.6-sol", "gpt-5.5", "gpt-5.4-nano"]
+          models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
         },
         {
           id: "reasoning",
@@ -378,33 +384,33 @@ var init_ai_client = __esm({
       gemini: [
         {
           id: "gemini-2.5",
-          label: "Gemini 2.5",
+          label: "Gemini 2.5 Series",
           defaultModel: "gemini-2.5-flash",
           models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
         },
         {
           id: "gemini-2.0",
-          label: "Gemini 2.0",
+          label: "Gemini 2.0 Series",
           defaultModel: "gemini-2.0-flash",
           models: ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
         }
       ],
       deepseek: [
         {
-          id: "deepseek-chat",
-          label: "DeepSeek V3 (Chat)",
+          id: "chat",
+          label: "DeepSeek Chat (V3)",
           defaultModel: "deepseek-chat",
           models: ["deepseek-chat"]
         },
         {
-          id: "deepseek-reasoner",
-          label: "DeepSeek R1 (Reasoner)",
+          id: "reasoner",
+          label: "DeepSeek Reasoner (R1)",
           defaultModel: "deepseek-reasoner",
           models: ["deepseek-reasoner"]
         },
         {
-          id: "deepseek-flash",
-          label: "DeepSeek V4.1 Flash",
+          id: "flash",
+          label: "DeepSeek Flash",
           defaultModel: "deepseek-flash",
           models: ["deepseek-flash"]
         }
@@ -423,8 +429,8 @@ var init_ai_client = __esm({
           models: ["kimi-k2.7-code", "kimi-k2.7-code-highspeed"]
         },
         {
-          id: "moonshot-legacy",
-          label: "Moonshot V1 (Legacy)",
+          id: "moonshot",
+          label: "Moonshot V1",
           defaultModel: "moonshot-v1-8k",
           models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
         }
@@ -452,7 +458,7 @@ var init_ai_client = __esm({
         },
         {
           id: "qwen-tiered",
-          label: "Qwen Tiered (Max / Plus / Turbo)",
+          label: "Qwen Tiered",
           defaultModel: "qwen-plus",
           models: ["qwen-max", "qwen-plus", "qwen-turbo"]
         }
@@ -508,12 +514,11 @@ var init_ai_client = __esm({
             });
             clearTimeout(timeoutId);
             if (resp.ok) {
-              const modelTag = model && model !== "default" ? ` (${model})` : "";
               const typeLabel = isOllama ? "Ollama Native" : "OpenAI-compatible";
               return {
                 ...baseInfo,
                 hasBalance: false,
-                statusText: `Connected${modelTag} [${typeLabel}]`
+                statusText: `Connected [${typeLabel}]`
               };
             } else {
               return {

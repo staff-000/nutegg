@@ -107,7 +107,7 @@ describe("AIClient Local LLM execution", () => {
         localApiType: "ollama",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/api/chat",
-        aiModel: "qwen2.5:7b",
+        aiModel: "",
       };
 
       const client = new AIClient(settings);
@@ -115,7 +115,7 @@ describe("AIClient Local LLM execution", () => {
 
       assert.equal(res, "Response from Ollama native");
       assert.equal(capturedUrl, "http://127.0.0.1:11434/api/chat");
-      assert.equal(capturedBody.model, "qwen2.5:7b");
+      assert.equal(capturedBody.model, "default");
       assert.equal(capturedBody.stream, false);
       assert.equal(capturedBody.options?.num_predict, 400);
     } finally {
@@ -139,7 +139,7 @@ describe("AIClient Local LLM execution", () => {
         localApiType: "openai",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-        aiModel: "custom-tag",
+        aiModel: "",
       };
 
       const client = new AIClient(settings);
@@ -147,7 +147,7 @@ describe("AIClient Local LLM execution", () => {
 
       assert.equal(info.provider, "local");
       assert.equal(info.hasBalance, false);
-      assert.equal(info.statusText, "Connected (custom-tag) [OpenAI-compatible]");
+      assert.equal(info.statusText, "Connected [OpenAI-compatible]");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -185,7 +185,8 @@ describe("MODEL_CATALOG and 3-tier hierarchy", () => {
   it("defines families for all cloud providers in PROVIDER_CATALOG", () => {
     for (const providerId of Object.keys(PROVIDER_CATALOG) as AIProviderId[]) {
       if (providerId === "local") {
-        assert.equal(MODEL_CATALOG.local.length, 0, "Local does not require static model families");
+        assert.equal(MODEL_CATALOG.local, undefined, "Local does not have static model families in MODEL_CATALOG");
+        assert.equal(PROVIDER_CATALOG.local.models, undefined, "Local does not require models array in PROVIDER_CATALOG");
         continue;
       }
       const families = MODEL_CATALOG[providerId];
@@ -199,6 +200,14 @@ describe("MODEL_CATALOG and 3-tier hierarchy", () => {
   });
 
   it("findFamilyForModel resolves matching family or defaults to first family", () => {
+    // Anthropic: Fable family
+    const fableFam = findFamilyForModel("anthropic", "claude-fable-5-1");
+    assert.equal(fableFam?.id, "fable");
+
+    // Anthropic: Opus family
+    const opusFam = findFamilyForModel("anthropic", "claude-opus-5");
+    assert.equal(opusFam?.id, "opus");
+
     // Anthropic: Sonnet family
     const sonnetFam = findFamilyForModel("anthropic", "claude-sonnet-5");
     assert.equal(sonnetFam?.id, "sonnet");
@@ -207,7 +216,11 @@ describe("MODEL_CATALOG and 3-tier hierarchy", () => {
     const haikuFam = findFamilyForModel("anthropic", "claude-haiku-4-5-20251001");
     assert.equal(haikuFam?.id, "haiku");
 
-    // OpenAI: GPT-5 family
+    // OpenAI: GPT-6 family
+    const gpt6Fam = findFamilyForModel("openai", "gpt-6-astra");
+    assert.equal(gpt6Fam?.id, "gpt-6");
+
+    // OpenAI: GPT-5.6 family
     const gpt5Fam = findFamilyForModel("openai", "gpt-5.6-sol");
     assert.equal(gpt5Fam?.id, "gpt-5");
 
@@ -215,15 +228,27 @@ describe("MODEL_CATALOG and 3-tier hierarchy", () => {
     const reasoningFam = findFamilyForModel("openai", "o3-mini");
     assert.equal(reasoningFam?.id, "reasoning");
 
-    // Kimi: K3 flagship
+    // OpenAI: GPT-4o family
+    const gpt4oFam = findFamilyForModel("openai", "gpt-4o");
+    assert.equal(gpt4oFam?.id, "gpt-4o");
+
+    // Gemini: Gemini 2.5 family
+    const geminiFam = findFamilyForModel("gemini", "gemini-2.5-flash");
+    assert.equal(geminiFam?.id, "gemini-2.5");
+
+    // DeepSeek: Chat family
+    const deepseekFam = findFamilyForModel("deepseek", "deepseek-chat");
+    assert.equal(deepseekFam?.id, "chat");
+
+    // Kimi: K3 family
     const kimiFam = findFamilyForModel("kimi", "kimi-k3");
     assert.equal(kimiFam?.id, "kimi-k3");
 
-    // Zhipu: GLM-5 flagship
+    // Zhipu: GLM-5 family
     const zhipuFam = findFamilyForModel("zhipu", "glm-5.3");
     assert.equal(zhipuFam?.id, "glm-5");
 
-    // Qwen: Qwen3 flagship
+    // Qwen: Qwen3 family
     const qwenFam = findFamilyForModel("qwen", "qwen3-max");
     assert.equal(qwenFam?.id, "qwen3");
 
