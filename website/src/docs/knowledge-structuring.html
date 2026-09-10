@@ -81,33 +81,134 @@ nutegg/productivity.md: deep work, time blocking, habits, personal knowledge man
         </p>
       </div>
 
-      <h2>Egg File Anatomy</h2>
+      <h2>Egg File Anatomy & How Instructions Work</h2>
       <p>
-        Egg files use Obsidian callout blocks to instruct the AI on scope, formatting, and relevance:
+        An <strong>Egg file</strong> (stored under <code>nutegg/*.md</code>) serves two crucial roles: it is both your curated, evolving knowledge repository for a domain and an active prompt specification that steers NutEgg's AI pipeline whenever content touches that topic.
+      </p>
+
+      <h3>1. Structural Blueprint</h3>
+      <p>
+        Every egg file combines YAML metadata, an Obsidian callout block with instructions, a curated knowledge tree, and an unprocessed staging buffer:
       </p>
 
       <pre><code>---
-topic: "AI Architecture & Agent Systems"
+topic: "AI Architecture & Multi-Agent Systems"
 status: "active"
+last_updated: "2026-09-10"
 ---
 
 > [!abstract]- Instructions:
 > **Scope:** Multi-agent architectures, tool calling, memory layers, and LLM evaluation.
-> **Action Guide:** Focus on actionable design patterns and real failure modes.
-> **Key Questions:** How are agent loops bounded? What memory buffers are used?
-> **Rejection Criteria:** Discard generic beginner tutorials or high-level sales pitches.
+> **Action Guide:** Focus on actionable design patterns, scalability tradeoffs, and real failure modes.
+> **Key Questions:**
+> 1. How are agent memory loops bounded to prevent context window overflow?
+> 2. What coordination mechanism is used between subagents?
+> **Rejection Criteria:**
+> - Ignore basic beginner tutorials or high-level sales pitches without technical substance.
+> - Discard speculative claims lacking empirical benchmarks or code evidence.
+> **Formatting Rules:**
+> - Prefix each insight with a bracketed tag: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`.
+> - Use the structure: `- [tag] **Concept Name**` followed by an indented explanation and concrete examples (`- 🎯 Example:`).
 
 # Knowledge
 ## Agent Memory
-- Bounded replay buffers are required to prevent token window overflow.
-    - Ephemeral short-term memory expires after session goals terminate.
+- [architecture] **Bounded Replay Buffers**
+    - Ephemeral short-term memory expires after session goals terminate to conserve token budget.
+    - 🎯 Example: Tool calling trace logs stored in vector stores with sliding window eviction.
 
 # Unprocessed
-(Newly hatched entries accumulate here until auto-merged)</code></pre>
+(Newly hatched insights land here from captures until auto-merged)</code></pre>
+
+      <h3>2. How to Write Egg Instructions</h3>
+      <p>
+        The <code>&gt; [!abstract]- Instructions:</code> callout contains five specialized fields. Each one guides a specific stage of the AI pipeline:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Purpose & Best Practices</th>
+            <th>Workflow Usage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>**Scope:**</code></td>
+            <td>1–2 sentences defining the topical boundaries of this egg. Explicitly state what concepts, technologies, or questions are included or excluded.</td>
+            <td>Injected into <code>egg-analysis.md</code> (Stage 2) so the AI extracts knowledge strictly through this domain lens.</td>
+          </tr>
+          <tr>
+            <td><code>**Action Guide:**</code></td>
+            <td>1–5 step instructions for how the AI summarizes and evaluates content (e.g. asking for specific perspectives, depth, or tradeoffs). Falls back to default guide if omitted.</td>
+            <td>Injected into <code>content-analysis.md</code> (Stage 1) and <code>egg-combined.md</code> (single-egg fast path).</td>
+          </tr>
+          <tr>
+            <td><code>**Key Questions:**</code></td>
+            <td>Numbered list of recurring questions you want answered whenever content touches this domain (e.g. <em>"What is the token cost?"</em>, <em>"What are the failure modes?"</em>).</td>
+            <td>Injected into <code>egg-analysis.md</code> (Stage 2). Answered in the Chrome extension popup and saved in your raw capture notes.</td>
+          </tr>
+          <tr>
+            <td><code>**Rejection Criteria:**</code></td>
+            <td>Bulleted list of low-signal filters (e.g. <em>"Ignore beginner tutorials", "Reject speculative price talk"</em>).</td>
+            <td>Injected into <code>egg-compare.md</code> (Stage 2). If matched, flags <code>rejected: true</code>, sets <code>readVerdict: false</code>, and provides a clear rejection reason.</td>
+          </tr>
+          <tr>
+            <td><code>**Formatting Rules:**</code></td>
+            <td>Formatting standards: bracketed tags (<code>[concept]</code>, <code>[architecture]</code>, <code>[method]</code>, etc.) and hierarchical bullet indentation.</td>
+            <td>Injected into <code>egg-analysis.md</code> (Stage 2). Guarantees candidate entries match your notes' formatting conventions.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>3. Curated Knowledge Tree vs. Unprocessed Queue</h3>
+      <p>
+        NutEgg protects your knowledge base from AI pollution by separating curated knowledge from new captures:
+      </p>
+      <ul>
+        <li>
+          <strong><code># Knowledge</code> (Curated Tree):</strong>
+          Structured with markdown headings (<code>##</code>, <code>###</code>) and nested bullet points. During Stage 2, this entire tree is fed into <code>egg-compare.md</code>. The AI diffs freshly extracted candidates against your existing notes to isolate <strong>novel delta</strong> and automatically discard duplicate or already-known facts.
+        </li>
+        <li>
+          <strong><code># Unprocessed</code> (Staging Queue):</strong>
+          When you click <strong>🥚 Hatch Egg</strong> in the browser, confirmed novel entries are safely appended to <code># Unprocessed</code> rather than directly touching your curated hierarchy.
+        </li>
+      </ul>
+
+      <h3>4. How Each Part is Used in the Workflow</h3>
+      <p>
+        Here is how web content flows through your egg instructions from initial capture to final synthesis:
+      </p>
+
+      <pre><code>[Captured Web Content]
+          │
+Stage 1   ▼   _index.md (Topic routing guide)
+─────────────────────────────────────────────────────────────
+• Uses egg Action Guide (or action-guide-default.md)
+• Generates Title Verdict, 3-Bullet Summary, Chapter Map
+• egg-routing.md matches target eggs via Stage 1 summary
+          │
+          ▼
+User Review: Confirm or select target eggs in popup
+          │
+Stage 2   ▼   Target Egg File (nutegg/*.md)
+─────────────────────────────────────────────────────────────
+• Scope, Key Questions, Formatting Rules ──► egg-analysis.md
+  (Extracts candidate knowledge entries and answers questions)
+• Rejection Criteria, # Knowledge Tree ──► egg-compare.md
+  (Diffs candidates against existing tree, drops redundant entries)
+          │
+          ▼
+Hatch Egg: Confirmed novel entries appended to # Unprocessed
+          │
+Merge Cycle (20+ entries or manual button)
+─────────────────────────────────────────────────────────────
+• merge-unprocessed.md nests and integrates entries into # Knowledge</code></pre>
 
       <h2>Auto-Merging Knowledge</h2>
       <p>
-        When you click <strong>🥚 Hatch Egg</strong>, incoming insights are appended to the egg's <code># Unprocessed</code> section. Once 20 or more entries accumulate, NutEgg's AI runs an automated background synthesis that reorganizes and nests those entries into your main <code># Knowledge</code> branch tree, keeping your notes clean and scalable.
+        When 20 or more entries accumulate in <code># Unprocessed</code> (or when you click <strong>Merge</strong> in the Obsidian reading view widget), NutEgg's AI runs an automated background synthesis using <code>merge-unprocessed.md</code>. It categorizes, deduplicates, and nests pending entries under the appropriate parent concepts in <code># Knowledge</code>, keeping your knowledge graph perpetually organized.
       </p>
     </main>
   </div>

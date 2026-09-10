@@ -190,6 +190,94 @@ flowchart TD
 
 ---
 
+## Anatomy of an Egg File & How Instructions Work
+
+An **Egg file** (`nutegg/*.md`) is both a curated knowledge repository and an instruction manual that guides NutEgg's AI pipeline whenever content touches that domain.
+
+### 1. Structural Blueprint
+
+```markdown
+---
+topic: "AI Architecture & Multi-Agent Systems"
+status: "active"
+last_updated: "2026-09-10"
+---
+
+> [!abstract]- Instructions:
+> **Scope:** Multi-agent architectures, tool calling, memory layers, and LLM evaluation.
+> **Action Guide:** Focus on actionable design patterns, scalability tradeoffs, and real failure modes.
+> **Key Questions:**
+> 1. How are agent memory loops bounded to prevent context window overflow?
+> 2. What coordination mechanism is used between subagents?
+> **Rejection Criteria:**
+> - Ignore basic beginner tutorials or high-level sales pitches without technical substance.
+> - Discard speculative claims lacking empirical benchmarks or code evidence.
+> **Formatting Rules:**
+> - Prefix each insight with a bracketed tag: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`.
+> - Use the structure: `- [tag] **Concept Name**` followed by an indented explanation and concrete examples (`- 🎯 Example:`).
+
+# Knowledge
+## Agent Memory
+- [architecture] **Bounded Replay Buffers**
+    - Ephemeral short-term memory expires after session goals terminate to conserve token budget.
+    - 🎯 Example: Tool calling trace logs stored in vector stores with sliding window eviction.
+
+# Unprocessed
+(Newly hatched insights land here from captures until auto-merged)
+```
+
+### 2. How to Write Egg Instructions
+
+Each field in the `> [!abstract]- Instructions:` callout controls a specific behavior in the AI workflow:
+
+| Field | Purpose & Best Practices | Workflow Usage |
+|---|---|---|
+| **`**Scope:**`** | 1–2 sentences defining the topical boundaries of this egg. Specify what technologies, domains, or concepts are included and excluded. | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2) so the AI extracts knowledge through this domain lens. |
+| **`**Action Guide:**`** | Custom 1–5 step instructions guiding how the AI analyzes content for this egg (e.g. asking for specific perspectives, analytical depth, or counter-arguments). If omitted, NutEgg uses [`action-guide-default.md`](./action-guide-default.md). | Injected into [`content-analysis.md`](./content-analysis.md) (Stage 1) and [`egg-combined.md`](./egg-combined.md) (fast path). |
+| **`**Key Questions:**`** | Numbered list of recurring questions you want answered whenever content touches this domain (e.g. *"What are the hidden tradeoffs?", "What is the token cost?"*). | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2). Answered in the popup and raw capture notes. |
+| **`**Rejection Criteria:**`** | Bulleted list of low-signal filters (e.g. *"Ignore beginner tutorials", "Reject speculative price talk"*). | Injected into [`egg-compare.md`](./egg-compare.md) (Stage 2). If matched, flags `rejected: true`, sets `readVerdict: false`, and gives a skip reason. |
+| **`**Formatting Rules:**`** | Standards for phrasing, tags (`[concept]`, `[architecture]`, `[method]`, etc.), and hierarchical indentation. | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2). Guarantees candidate entries match your notes' formatting. |
+
+### 3. Knowledge Tree vs. Unprocessed Queue
+
+- **`# Knowledge` (Curated Knowledge Tree)**:
+  - Structured with markdown headings (`##`, `###`) and indented bullet points.
+  - Injected as `{{knowledge_tree}}` into [`egg-compare.md`](./egg-compare.md) (Stage 2). The AI compares extracted candidate insights against this tree to filter out redundant concepts and surface only true **Novel Delta**.
+- **`# Unprocessed` (Staging Queue)**:
+  - When you click **🥚 Hatch Egg** in the browser, fresh insights are safely appended to `# Unprocessed` first. This prevents AI runs from corrupting your curated knowledge tree.
+  - When 20+ entries accumulate (or when you click **Merge** in the Obsidian reading view widget), [`merge-unprocessed.md`](./merge-unprocessed.md) runs automatically to deduplicate and nest pending entries under appropriate parent concepts in `# Knowledge`.
+
+### 4. End-to-End Workflow Mapping
+
+```
+                                  [Captured Web Content]
+                                            │
+               Stage 1: Content Analysis    ▼    _index.md (Topic routing guide)
+               ─────────────────────────────────────────────────────────────
+               • Uses egg Action Guide (or action-guide-default.md)
+               • Generates Title Verdict, 3-Bullet Summary, Chapter Map
+               • egg-routing.md matches egg descriptions via Stage 1 summary
+                                            │
+                                            ▼
+               Interactive Review: User confirms or selects target eggs
+                                            │
+               Stage 2: Per-Egg Deep Dive   ▼    Target Egg File (nutegg/*.md)
+               ─────────────────────────────────────────────────────────────
+               • Scope, Key Questions, Formatting Rules ──► egg-analysis.md
+                 (Extracts candidate knowledge entries and answers questions)
+               • Rejection Criteria, # Knowledge Tree ──► egg-compare.md
+                 (Diffs candidates against existing tree, drops redundant entries)
+                                            │
+                                            ▼
+               Hatch Egg: Confirmed novel entries appended to # Unprocessed
+                                            │
+               Merge Cycle (20+ entries or button click)
+               ─────────────────────────────────────────────────────────────
+               • merge-unprocessed.md nests and integrates entries into # Knowledge
+```
+
+---
+
 ## Workflow File Directory
 
 ### 1. Shared Fragments
