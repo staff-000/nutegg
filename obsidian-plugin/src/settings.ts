@@ -4,8 +4,7 @@ import {
   type AIProviderId,
   type AISource,
   PROVIDER_CATALOG,
-  MODEL_CATALOG,
-  findFamilyForModel,
+  findOpenRouterFamily,
 } from "./ai-client";
 
 export type LocalApiType = "openai" | "ollama";
@@ -15,13 +14,13 @@ export interface NutEggSettings {
   developerMode: boolean;
   /** Which model family to use */
   aiProvider: AIProviderId;
-  /** Official API or OpenRouter */
-  aiSource: AISource;
+  /** Legacy API source (kept optional for backwards compatibility with saved data) */
+  aiSource?: AISource;
   /** API key */
   aiApiKey: string;
   /** Model name (selected from provider's model list, optional for local) */
   aiModel: string;
-  /** Model family (e.g. gpt-5, sonnet, gemini-2.5) */
+  /** Model family / vendor (used when aiProvider === "openrouter") */
   aiModelFamily?: string;
   /** Local LLM endpoint URL (used when aiProvider === "local") */
   localEndpoint: string;
@@ -46,10 +45,8 @@ export interface NutEggSettings {
 export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
   aiProvider: "anthropic",
-  aiSource: "official",
   aiApiKey: "",
   aiModel: "claude-sonnet-5",
-  aiModelFamily: "sonnet",
   localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
   localApiType: "openai",
   serverPort: 27123,
@@ -73,7 +70,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const settings = this.plugin.settings;
     const provider = PROVIDER_CATALOG[settings.aiProvider];
-    const isOpenRouter = settings.aiSource === "openrouter";
+    const isOpenRouter = settings.aiProvider === "openrouter";
 
     containerEl.empty();
     containerEl.createEl("h2", { text: "NutEgg Settings" });
@@ -201,19 +198,18 @@ export class NutEggSettingTab extends PluginSettingTab {
         dropdown.setValue(settings.aiProvider);
         dropdown.onChange(async (value) => {
           settings.aiProvider = value as AIProviderId;
-          if (settings.aiProvider === "openrouter") {
-            settings.aiSource = "openrouter";
-          } else {
-            settings.aiSource = "official";
-          }
           if (settings.aiProvider === "local") {
             settings.aiModel = "";
             settings.aiModelFamily = undefined;
+          } else if (settings.aiProvider === "openrouter") {
+            const families = PROVIDER_CATALOG.openrouter.families || [];
+            const firstFamily = families[0];
+            settings.aiModelFamily = firstFamily?.id || "openai";
+            settings.aiModel = firstFamily?.defaultModel || "openai/gpt-6-astra";
           } else {
-            const newFamilies = MODEL_CATALOG[settings.aiProvider] || [];
-            const firstFamily = newFamilies[0];
-            settings.aiModelFamily = firstFamily?.id || "";
-            settings.aiModel = firstFamily?.defaultModel || "";
+            const newProvider = PROVIDER_CATALOG[settings.aiProvider];
+            settings.aiModelFamily = undefined;
+            settings.aiModel = newProvider?.defaultModel || newProvider?.models?.[0] || "";
           }
           await this.plugin.saveSettings();
           this.display();
@@ -328,43 +324,23 @@ export class NutEggSettingTab extends PluginSettingTab {
             });
           return text;
         });
-    } else {
-      // Cloud / OpenRouter Providers
-      // Source toggle (only for cloud providers if not openrouter)
-      if (settings.aiProvider !== "openrouter") {
-        new Setting(containerEl)
-          .setName("API Source")
-          .setDesc(
-            isOpenRouter
-              ? "Using OpenRouter as proxy — one API key for all providers"
-              : `Using ${provider.label} official API directly`
-          )
-          .addDropdown((dropdown) => {
-            dropdown.addOption("official", `${provider.label} Official API`);
-            dropdown.addOption("openrouter", "OpenRouter");
-            dropdown.setValue(settings.aiSource);
-            dropdown.onChange(async (value) => {
-              settings.aiSource = value as AISource;
-              await this.plugin.saveSettings();
-              this.display();
-            });
-            return dropdown;
-          });
-      }
-
-      const families = MODEL_CATALOG[settings.aiProvider] || [];
+    } else if (isOpenRouter) {
+      // ==========================================
+      // OpenRouter (Multi-Provider)
+      // ==========================================
+      const families = PROVIDER_CATALOG.openrouter.families || [];
       let currentFamily = families.find((f) => f.id === settings.aiModelFamily);
       if (!currentFamily) {
-        currentFamily = findFamilyForModel(settings.aiProvider, settings.aiModel) || families[0];
+        currentFamily = findOpenRouterFamily(settings.aiModel) || families[0];
         if (currentFamily) {
           settings.aiModelFamily = currentFamily.id;
         }
       }
 
-      // 2. Model Family
+      // 2. Model Family (Vendor filter on OpenRouter)
       new Setting(containerEl)
         .setName("2. Model Family")
-        .setDesc("Choose the model architecture or series")
+        .setDesc("Choose model vendor or architecture group on OpenRouter")
         .addDropdown((dropdown) => {
           for (const fam of families) {
             dropdown.addOption(fam.id, fam.label);
@@ -387,11 +363,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       // 3. Model Version
       const versionSetting = new Setting(containerEl)
         .setName("3. Model Version")
-        .setDesc(
-          (isOpenRouter || settings.aiProvider === "openrouter")
-            ? `Sent to OpenRouter as "${settings.aiModel}"`
-            : "Model version to use for analysis"
-        );
+        .setDesc(`Sent to OpenRouter as "${settings.aiModel}"`);
 
       const familyModels = currentFamily?.models || [];
       if (familyModels.length > 0) {
@@ -412,10 +384,9 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       }
 
-      // Custom version input
       versionSetting.addText((text) => {
         text
-          .setPlaceholder(currentFamily?.defaultModel || "Custom model tag")
+          .setPlaceholder(currentFamily?.defaultModel || "Custom model tag (e.g. vendor/model-name)")
           .setValue(settings.aiModel)
           .onChange(async (value) => {
             const trimmed = value.trim();
@@ -430,18 +401,66 @@ export class NutEggSettingTab extends PluginSettingTab {
       // API Key
       new Setting(containerEl)
         .setName("API Key")
-        .setDesc(
-          (isOpenRouter || settings.aiProvider === "openrouter")
-            ? "Your OpenRouter API key (openrouter.ai/keys)"
-            : `Your ${provider.label} API key`
-        )
+        .setDesc("Your OpenRouter API key (openrouter.ai/keys)")
         .addText((text) => {
           text
-            .setPlaceholder(
-              (isOpenRouter || settings.aiProvider === "openrouter")
-                ? "sk-or-..."
-                : provider.keyPlaceholder
-            )
+            .setPlaceholder("sk-or-...")
+            .setValue(settings.aiApiKey)
+            .onChange(async (value) => {
+              settings.aiApiKey = value.trim();
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
+    } else {
+      // ==========================================
+      // Direct Cloud Providers (Anthropic, OpenAI, Gemini, DeepSeek, Kimi, Zhipu, Qwen)
+      // Direct Model selection without artificial family middleman
+      // ==========================================
+      const providerModels = provider.models || [];
+      const versionSetting = new Setting(containerEl)
+        .setName("2. Model")
+        .setDesc(`Model to use for analysis (${provider.label})`);
+
+      if (providerModels.length > 0) {
+        versionSetting.addDropdown((dropdown) => {
+          for (const model of providerModels) {
+            dropdown.addOption(model, model);
+          }
+          if (!providerModels.includes(settings.aiModel)) {
+            dropdown.addOption(settings.aiModel, `${settings.aiModel} (custom)`);
+          }
+          dropdown.setValue(settings.aiModel);
+          dropdown.onChange(async (value) => {
+            settings.aiModel = value;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+          return dropdown;
+        });
+      }
+
+      versionSetting.addText((text) => {
+        text
+          .setPlaceholder(provider.defaultModel || "Custom model tag")
+          .setValue(settings.aiModel)
+          .onChange(async (value) => {
+            const trimmed = value.trim();
+            if (trimmed) {
+              settings.aiModel = trimmed;
+              await this.plugin.saveSettings();
+            }
+          });
+        return text;
+      });
+
+      // API Key
+      new Setting(containerEl)
+        .setName("API Key")
+        .setDesc(`Your ${provider.label} API key`)
+        .addText((text) => {
+          text
+            .setPlaceholder(provider.keyPlaceholder)
             .setValue(settings.aiApiKey)
             .onChange(async (value) => {
               settings.aiApiKey = value.trim();

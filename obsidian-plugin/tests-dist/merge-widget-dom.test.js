@@ -115,7 +115,7 @@ function appendCreditPill(plugin, targetBadge) {
       creditPill.title = `NutEgg AI: ${credit.statusText}`;
       targetBadge.appendChild(creditPill);
     } else if (credit.providerLabel) {
-      const label = plugin.settings.aiSource === "openrouter" ? "OpenRouter" : credit.providerLabel;
+      const label = plugin.settings.aiProvider === "openrouter" ? "OpenRouter" : credit.providerLabel;
       creditPill.textContent = `\u2022 \u{1FA99} ${label}`;
       creditPill.title = `NutEgg AI: ${credit.statusText}`;
       targetBadge.appendChild(creditPill);

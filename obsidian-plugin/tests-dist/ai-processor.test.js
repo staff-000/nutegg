@@ -34,13 +34,12 @@ var ai_client_exports = {};
 __export(ai_client_exports, {
   AIClient: () => AIClient,
   AIError: () => AIError,
-  MODEL_CATALOG: () => MODEL_CATALOG,
   PROVIDER_CATALOG: () => PROVIDER_CATALOG,
-  findFamilyForModel: () => findFamilyForModel,
+  findOpenRouterFamily: () => findOpenRouterFamily,
   isAIConfigured: () => isAIConfigured
 });
-function findFamilyForModel(providerId, modelName) {
-  const families = MODEL_CATALOG[providerId] || [];
+function findOpenRouterFamily(modelName) {
+  const families = PROVIDER_CATALOG.openrouter.families || [];
   if (families.length === 0)
     return void 0;
   return families.find((f) => f.models.includes(modelName)) || families[0];
@@ -55,7 +54,7 @@ function isAIConfigured(settings) {
 }
 function resolveConfig(settings) {
   const isLocal = settings.aiProvider === "local";
-  const isOpenRouter = settings.aiProvider === "openrouter" || settings.aiSource === "openrouter";
+  const isOpenRouter = settings.aiProvider === "openrouter";
   if (isLocal) {
     const isOllama = settings.localApiType === "ollama";
     const defaultEndpoint = isOllama ? "http://127.0.0.1:11434/api/chat" : "http://127.0.0.1:11434/v1/chat/completions";
@@ -69,14 +68,11 @@ function resolveConfig(settings) {
     };
   }
   if (isOpenRouter) {
-    const provider2 = PROVIDER_CATALOG[settings.aiProvider] || PROVIDER_CATALOG.openrouter;
-    const prefix = provider2.openrouterPrefix || "";
-    const model = settings.aiModel.startsWith(prefix) ? settings.aiModel : prefix + settings.aiModel;
     return {
       provider: "openrouter",
       endpoint: OPENROUTER_ENDPOINT,
       apiKey: settings.aiApiKey,
-      model,
+      model: settings.aiModel || "openai/gpt-6-astra",
       apiFormat: "openai-compatible",
       extraHeaders: {
         "HTTP-Referer": "nutegg-obsidian-plugin",
@@ -89,7 +85,7 @@ function resolveConfig(settings) {
     provider: settings.aiProvider,
     endpoint: provider.officialEndpoint,
     apiKey: settings.aiApiKey,
-    model: settings.aiModel,
+    model: settings.aiModel || provider.defaultModel || "",
     apiFormat: provider.apiFormat,
     extraHeaders: provider.apiFormat === "anthropic" ? { "anthropic-version": "2023-06-01" } : {}
   };
@@ -117,7 +113,7 @@ function classifyError(statusCode, body) {
   const snippet = body.slice(0, 300);
   return new AIError("unknown", `API error (${statusCode}): ${snippet}`, statusCode);
 }
-var PROVIDER_CATALOG, MODEL_CATALOG, OPENROUTER_ENDPOINT, AIError, AIClient;
+var PROVIDER_CATALOG, OPENROUTER_ENDPOINT, AIError, AIClient;
 var init_ai_client = __esm({
   "src/ai-client.ts"() {
     "use strict";
@@ -135,10 +131,72 @@ var init_ai_client = __esm({
         label: "OpenRouter (Multi-Provider)",
         officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "openai/gpt-6-astra",
+        families: [
+          {
+            id: "openai",
+            label: "OpenAI GPT & Reasoning",
+            defaultModel: "openai/gpt-6-astra",
+            models: [
+              "openai/gpt-6-astra",
+              "openai/gpt-5.6-sol",
+              "openai/o3-mini",
+              "openai/gpt-4o"
+            ]
+          },
+          {
+            id: "anthropic",
+            label: "Anthropic Claude",
+            defaultModel: "anthropic/claude-sonnet-5",
+            models: [
+              "anthropic/claude-fable-5-1",
+              "anthropic/claude-opus-5",
+              "anthropic/claude-sonnet-5"
+            ]
+          },
+          {
+            id: "deepseek",
+            label: "DeepSeek",
+            defaultModel: "deepseek/deepseek-r1",
+            models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]
+          },
+          {
+            id: "google",
+            label: "Google Gemini",
+            defaultModel: "google/gemini-2.5-flash",
+            models: [
+              "google/gemini-2.5-flash",
+              "google/gemini-2.5-pro"
+            ]
+          },
+          {
+            id: "meta",
+            label: "Meta Llama",
+            defaultModel: "meta-llama/llama-3.3-70b-instruct",
+            models: [
+              "meta-llama/llama-3.3-70b-instruct"
+            ]
+          },
+          {
+            id: "qwen",
+            label: "Qwen",
+            defaultModel: "qwen/qwen-2.5-72b-instruct",
+            models: [
+              "qwen/qwen-2.5-72b-instruct"
+            ]
+          },
+          {
+            id: "custom",
+            label: "Custom OpenRouter Model",
+            defaultModel: "openai/gpt-6-astra",
+            models: []
+          }
+        ],
         models: [
           "openai/gpt-6-astra",
           "openai/gpt-5.6-sol",
           "openai/o3-mini",
+          "openai/gpt-4o",
           "anthropic/claude-fable-5-1",
           "anthropic/claude-opus-5",
           "anthropic/claude-sonnet-5",
@@ -157,6 +215,7 @@ var init_ai_client = __esm({
         label: "Anthropic (Claude)",
         officialEndpoint: "https://api.anthropic.com/v1/messages",
         apiFormat: "anthropic",
+        defaultModel: "claude-sonnet-5",
         models: [
           "claude-fable-5-1",
           "claude-opus-5",
@@ -173,6 +232,7 @@ var init_ai_client = __esm({
         label: "OpenAI",
         officialEndpoint: "https://api.openai.com/v1/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "gpt-6-astra",
         models: [
           "gpt-6-astra",
           "gpt-5.6-sol",
@@ -191,9 +251,10 @@ var init_ai_client = __esm({
         label: "Google Gemini",
         officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "gemini-2.5-flash",
         models: [
-          "gemini-2.5-pro",
           "gemini-2.5-flash",
+          "gemini-2.5-pro",
           "gemini-2.5-flash-lite",
           "gemini-2.0-flash",
           "gemini-2.0-flash-lite"
@@ -206,6 +267,7 @@ var init_ai_client = __esm({
         label: "DeepSeek",
         officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "deepseek-chat",
         models: [
           "deepseek-chat",
           "deepseek-reasoner",
@@ -219,6 +281,7 @@ var init_ai_client = __esm({
         label: "Kimi (Moonshot)",
         officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "kimi-k3",
         models: [
           "kimi-k3",
           "kimi-k2.7-code",
@@ -235,6 +298,7 @@ var init_ai_client = __esm({
         label: "Zhipu (GLM)",
         officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "glm-5.3",
         models: [
           "glm-5.3",
           "glm-5",
@@ -252,6 +316,7 @@ var init_ai_client = __esm({
         label: "Qwen (Tongyi)",
         officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
         apiFormat: "openai-compatible",
+        defaultModel: "qwen3-max",
         models: [
           "qwen3-max",
           "qwen3-plus",
@@ -263,206 +328,6 @@ var init_ai_client = __esm({
         keyPlaceholder: "sk-...",
         openrouterPrefix: "qwen/"
       }
-    };
-    MODEL_CATALOG = {
-      openrouter: [
-        {
-          id: "openai",
-          label: "OpenAI GPT & Reasoning",
-          defaultModel: "openai/gpt-6-astra",
-          models: [
-            "openai/gpt-6-astra",
-            "openai/gpt-5.6-sol",
-            "openai/o3-mini",
-            "openai/gpt-4o"
-          ]
-        },
-        {
-          id: "anthropic",
-          label: "Anthropic Claude",
-          defaultModel: "anthropic/claude-sonnet-5",
-          models: [
-            "anthropic/claude-fable-5-1",
-            "anthropic/claude-opus-5",
-            "anthropic/claude-sonnet-5"
-          ]
-        },
-        {
-          id: "deepseek",
-          label: "DeepSeek",
-          defaultModel: "deepseek/deepseek-r1",
-          models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]
-        },
-        {
-          id: "google",
-          label: "Google Gemini",
-          defaultModel: "google/gemini-2.5-flash",
-          models: [
-            "google/gemini-2.5-flash",
-            "google/gemini-2.5-pro"
-          ]
-        },
-        {
-          id: "meta",
-          label: "Meta Llama",
-          defaultModel: "meta-llama/llama-3.3-70b-instruct",
-          models: [
-            "meta-llama/llama-3.3-70b-instruct"
-          ]
-        },
-        {
-          id: "qwen",
-          label: "Qwen",
-          defaultModel: "qwen/qwen-2.5-72b-instruct",
-          models: [
-            "qwen/qwen-2.5-72b-instruct"
-          ]
-        },
-        {
-          id: "custom",
-          label: "Custom OpenRouter Model",
-          defaultModel: "openai/gpt-6-astra",
-          models: []
-        }
-      ],
-      anthropic: [
-        {
-          id: "fable",
-          label: "Claude Fable (Flagship Reasoning)",
-          defaultModel: "claude-fable-5-1",
-          models: ["claude-fable-5-1"]
-        },
-        {
-          id: "opus",
-          label: "Claude Opus",
-          defaultModel: "claude-opus-5",
-          models: ["claude-opus-5"]
-        },
-        {
-          id: "sonnet",
-          label: "Claude Sonnet",
-          defaultModel: "claude-sonnet-5",
-          models: [
-            "claude-sonnet-5",
-            "claude-3-7-sonnet-20250219",
-            "claude-3-5-sonnet-20241022"
-          ]
-        },
-        {
-          id: "haiku",
-          label: "Claude Haiku",
-          defaultModel: "claude-haiku-4-5-20251001",
-          models: ["claude-haiku-4-5-20251001"]
-        }
-      ],
-      openai: [
-        {
-          id: "gpt-6",
-          label: "GPT-6 Series (Frontier Flagship)",
-          defaultModel: "gpt-6-astra",
-          models: ["gpt-6-astra"]
-        },
-        {
-          id: "gpt-5",
-          label: "GPT-5.6 Series (Professional)",
-          defaultModel: "gpt-5.6-sol",
-          models: ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
-        },
-        {
-          id: "reasoning",
-          label: "o-Series (Reasoning)",
-          defaultModel: "o3-mini",
-          models: ["o3-mini", "o1"]
-        },
-        {
-          id: "gpt-4o",
-          label: "GPT-4o Series",
-          defaultModel: "gpt-4o",
-          models: ["gpt-4o", "gpt-4o-mini"]
-        }
-      ],
-      gemini: [
-        {
-          id: "gemini-2.5",
-          label: "Gemini 2.5 Series",
-          defaultModel: "gemini-2.5-flash",
-          models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"]
-        },
-        {
-          id: "gemini-2.0",
-          label: "Gemini 2.0 Series",
-          defaultModel: "gemini-2.0-flash",
-          models: ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
-        }
-      ],
-      deepseek: [
-        {
-          id: "chat",
-          label: "DeepSeek Chat (V3)",
-          defaultModel: "deepseek-chat",
-          models: ["deepseek-chat"]
-        },
-        {
-          id: "reasoner",
-          label: "DeepSeek Reasoner (R1)",
-          defaultModel: "deepseek-reasoner",
-          models: ["deepseek-reasoner"]
-        },
-        {
-          id: "flash",
-          label: "DeepSeek Flash",
-          defaultModel: "deepseek-flash",
-          models: ["deepseek-flash"]
-        }
-      ],
-      kimi: [
-        {
-          id: "kimi-k3",
-          label: "Kimi K3 (Flagship)",
-          defaultModel: "kimi-k3",
-          models: ["kimi-k3"]
-        },
-        {
-          id: "kimi-k2.7",
-          label: "Kimi K2.7 Code",
-          defaultModel: "kimi-k2.7-code",
-          models: ["kimi-k2.7-code", "kimi-k2.7-code-highspeed"]
-        },
-        {
-          id: "moonshot",
-          label: "Moonshot V1",
-          defaultModel: "moonshot-v1-8k",
-          models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"]
-        }
-      ],
-      zhipu: [
-        {
-          id: "glm-5",
-          label: "GLM-5 Series (Flagship)",
-          defaultModel: "glm-5.3",
-          models: ["glm-5.3", "glm-5", "glm-5-turbo"]
-        },
-        {
-          id: "glm-4",
-          label: "GLM-4 Series",
-          defaultModel: "glm-4-flash",
-          models: ["glm-4.7", "glm-4-plus", "glm-4-air", "glm-4-flash"]
-        }
-      ],
-      qwen: [
-        {
-          id: "qwen3",
-          label: "Qwen3 Series (Flagship)",
-          defaultModel: "qwen3-max",
-          models: ["qwen3-max", "qwen3-plus", "qwen3-flash"]
-        },
-        {
-          id: "qwen-tiered",
-          label: "Qwen Tiered",
-          defaultModel: "qwen-plus",
-          models: ["qwen-max", "qwen-plus", "qwen-turbo"]
-        }
-      ]
     };
     OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
     AIError = class extends Error {
@@ -485,7 +350,7 @@ var init_ai_client = __esm({
        */
       async checkCredit(settings) {
         const provider = PROVIDER_CATALOG[settings.aiProvider];
-        const source = settings.aiSource;
+        const source = settings.aiProvider === "openrouter" ? "openrouter" : "official";
         const apiKey = settings.aiApiKey;
         const model = settings.aiModel;
         const baseInfo = {
@@ -543,7 +408,7 @@ var init_ai_client = __esm({
             error: "No API key"
           };
         }
-        if (source === "openrouter" || settings.aiProvider === "openrouter") {
+        if (settings.aiProvider === "openrouter") {
           try {
             const resp = await fetch("https://openrouter.ai/api/v1/credits", {
               headers: {

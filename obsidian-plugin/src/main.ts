@@ -240,7 +240,7 @@ export default class NutEggPlugin extends Plugin {
         }
       } else {
         const label =
-          this.settings.aiSource === "openrouter"
+          this.settings.aiProvider === "openrouter"
             ? "OpenRouter"
             : credit.providerLabel;
         this.creditStatusBarItem.setText(`🪙 ${label}`);

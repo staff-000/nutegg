@@ -4,8 +4,7 @@ import {
   AIClient,
   isAIConfigured,
   PROVIDER_CATALOG,
-  MODEL_CATALOG,
-  findFamilyForModel,
+  findOpenRouterFamily,
   type AIProviderId,
 } from "../src/ai-client";
 import { DEFAULT_SETTINGS, type NutEggSettings } from "../src/settings";
@@ -181,80 +180,58 @@ describe("AIClient Local LLM execution", () => {
   });
 });
 
-describe("MODEL_CATALOG and 3-tier hierarchy", () => {
-  it("defines families for all cloud providers in PROVIDER_CATALOG", () => {
+describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
+  it("defines defaultModel and models for all cloud providers in PROVIDER_CATALOG", () => {
     for (const providerId of Object.keys(PROVIDER_CATALOG) as AIProviderId[]) {
       if (providerId === "local") {
-        assert.equal(MODEL_CATALOG.local, undefined, "Local does not have static model families in MODEL_CATALOG");
         assert.equal(PROVIDER_CATALOG.local.models, undefined, "Local does not require models array in PROVIDER_CATALOG");
         continue;
       }
-      const families = MODEL_CATALOG[providerId];
-      assert.ok(Array.isArray(families) && families.length > 0, `Provider ${providerId} must have at least one family`);
-      for (const fam of families) {
-        assert.ok(fam.id, `Family in ${providerId} must have an id`);
-        assert.ok(fam.label, `Family in ${providerId} must have a label`);
-        assert.ok(fam.defaultModel, `Family in ${providerId} must have a defaultModel`);
-      }
+      const p = PROVIDER_CATALOG[providerId];
+      assert.ok(p.defaultModel, `Provider ${providerId} must have a defaultModel`);
+      assert.ok(Array.isArray(p.models) && p.models.length > 0, `Provider ${providerId} must have models array`);
+      assert.ok(p.models.includes(p.defaultModel), `Provider ${providerId} defaultModel must be present in models array`);
     }
   });
 
-  it("findFamilyForModel resolves matching family or defaults to first family", () => {
-    // Anthropic: Fable family
-    const fableFam = findFamilyForModel("anthropic", "claude-fable-5-1");
-    assert.equal(fableFam?.id, "fable");
+  it("OpenRouter defines vendor families with default models", () => {
+    const families = PROVIDER_CATALOG.openrouter.families;
+    assert.ok(Array.isArray(families) && families.length > 0, "OpenRouter must have families");
+    for (const fam of families) {
+      assert.ok(fam.id, "OpenRouter family must have an id");
+      assert.ok(fam.label, "OpenRouter family must have a label");
+      assert.ok(fam.defaultModel, "OpenRouter family must have a defaultModel");
+    }
+  });
 
-    // Anthropic: Opus family
-    const opusFam = findFamilyForModel("anthropic", "claude-opus-5");
-    assert.equal(opusFam?.id, "opus");
+  it("findOpenRouterFamily resolves matching family or defaults to first family", () => {
+    // OpenAI family
+    const openaiFam = findOpenRouterFamily("openai/gpt-6-astra");
+    assert.equal(openaiFam?.id, "openai");
 
-    // Anthropic: Sonnet family
-    const sonnetFam = findFamilyForModel("anthropic", "claude-sonnet-5");
-    assert.equal(sonnetFam?.id, "sonnet");
+    // Anthropic family
+    const anthropicFam = findOpenRouterFamily("anthropic/claude-sonnet-5");
+    assert.equal(anthropicFam?.id, "anthropic");
 
-    // Anthropic: Haiku family
-    const haikuFam = findFamilyForModel("anthropic", "claude-haiku-4-5-20251001");
-    assert.equal(haikuFam?.id, "haiku");
+    // DeepSeek family
+    const deepseekFam = findOpenRouterFamily("deepseek/deepseek-r1");
+    assert.equal(deepseekFam?.id, "deepseek");
 
-    // OpenAI: GPT-6 family
-    const gpt6Fam = findFamilyForModel("openai", "gpt-6-astra");
-    assert.equal(gpt6Fam?.id, "gpt-6");
+    // Google family
+    const googleFam = findOpenRouterFamily("google/gemini-2.5-flash");
+    assert.equal(googleFam?.id, "google");
 
-    // OpenAI: GPT-5.6 family
-    const gpt5Fam = findFamilyForModel("openai", "gpt-5.6-sol");
-    assert.equal(gpt5Fam?.id, "gpt-5");
+    // Meta family
+    const metaFam = findOpenRouterFamily("meta-llama/llama-3.3-70b-instruct");
+    assert.equal(metaFam?.id, "meta");
 
-    // OpenAI: Reasoning family
-    const reasoningFam = findFamilyForModel("openai", "o3-mini");
-    assert.equal(reasoningFam?.id, "reasoning");
+    // Qwen family
+    const qwenFam = findOpenRouterFamily("qwen/qwen-2.5-72b-instruct");
+    assert.equal(qwenFam?.id, "qwen");
 
-    // OpenAI: GPT-4o family
-    const gpt4oFam = findFamilyForModel("openai", "gpt-4o");
-    assert.equal(gpt4oFam?.id, "gpt-4o");
-
-    // Gemini: Gemini 2.5 family
-    const geminiFam = findFamilyForModel("gemini", "gemini-2.5-flash");
-    assert.equal(geminiFam?.id, "gemini-2.5");
-
-    // DeepSeek: Chat family
-    const deepseekFam = findFamilyForModel("deepseek", "deepseek-chat");
-    assert.equal(deepseekFam?.id, "chat");
-
-    // Kimi: K3 family
-    const kimiFam = findFamilyForModel("kimi", "kimi-k3");
-    assert.equal(kimiFam?.id, "kimi-k3");
-
-    // Zhipu: GLM-5 family
-    const zhipuFam = findFamilyForModel("zhipu", "glm-5.3");
-    assert.equal(zhipuFam?.id, "glm-5");
-
-    // Qwen: Qwen3 family
-    const qwenFam = findFamilyForModel("qwen", "qwen3-max");
-    assert.equal(qwenFam?.id, "qwen3");
-
-    // Local returns undefined (no family list needed)
-    const localFam = findFamilyForModel("local", "any");
-    assert.equal(localFam, undefined);
+    // Unknown model defaults to first family (openai)
+    const fallbackFam = findOpenRouterFamily("unknown-model");
+    assert.equal(fallbackFam?.id, "openai");
   });
 });
 

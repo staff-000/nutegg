@@ -112,7 +112,7 @@ function appendCreditPill(plugin: NutEggPlugin, targetBadge: HTMLElement): void 
         targetBadge.appendChild(creditPill);
       } else if (credit.providerLabel) {
         const label =
-          plugin.settings.aiSource === "openrouter"
+          plugin.settings.aiProvider === "openrouter"
             ? "OpenRouter"
             : credit.providerLabel;
         creditPill.textContent = `• 🪙 ${label}`;

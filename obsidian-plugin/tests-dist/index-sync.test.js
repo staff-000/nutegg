@@ -604,10 +604,72 @@ var PROVIDER_CATALOG = {
     label: "OpenRouter (Multi-Provider)",
     officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "openai/gpt-6-astra",
+    families: [
+      {
+        id: "openai",
+        label: "OpenAI GPT & Reasoning",
+        defaultModel: "openai/gpt-6-astra",
+        models: [
+          "openai/gpt-6-astra",
+          "openai/gpt-5.6-sol",
+          "openai/o3-mini",
+          "openai/gpt-4o"
+        ]
+      },
+      {
+        id: "anthropic",
+        label: "Anthropic Claude",
+        defaultModel: "anthropic/claude-sonnet-5",
+        models: [
+          "anthropic/claude-fable-5-1",
+          "anthropic/claude-opus-5",
+          "anthropic/claude-sonnet-5"
+        ]
+      },
+      {
+        id: "deepseek",
+        label: "DeepSeek",
+        defaultModel: "deepseek/deepseek-r1",
+        models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]
+      },
+      {
+        id: "google",
+        label: "Google Gemini",
+        defaultModel: "google/gemini-2.5-flash",
+        models: [
+          "google/gemini-2.5-flash",
+          "google/gemini-2.5-pro"
+        ]
+      },
+      {
+        id: "meta",
+        label: "Meta Llama",
+        defaultModel: "meta-llama/llama-3.3-70b-instruct",
+        models: [
+          "meta-llama/llama-3.3-70b-instruct"
+        ]
+      },
+      {
+        id: "qwen",
+        label: "Qwen",
+        defaultModel: "qwen/qwen-2.5-72b-instruct",
+        models: [
+          "qwen/qwen-2.5-72b-instruct"
+        ]
+      },
+      {
+        id: "custom",
+        label: "Custom OpenRouter Model",
+        defaultModel: "openai/gpt-6-astra",
+        models: []
+      }
+    ],
     models: [
       "openai/gpt-6-astra",
       "openai/gpt-5.6-sol",
       "openai/o3-mini",
+      "openai/gpt-4o",
       "anthropic/claude-fable-5-1",
       "anthropic/claude-opus-5",
       "anthropic/claude-sonnet-5",
@@ -626,6 +688,7 @@ var PROVIDER_CATALOG = {
     label: "Anthropic (Claude)",
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
+    defaultModel: "claude-sonnet-5",
     models: [
       "claude-fable-5-1",
       "claude-opus-5",
@@ -642,6 +705,7 @@ var PROVIDER_CATALOG = {
     label: "OpenAI",
     officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "gpt-6-astra",
     models: [
       "gpt-6-astra",
       "gpt-5.6-sol",
@@ -660,9 +724,10 @@ var PROVIDER_CATALOG = {
     label: "Google Gemini",
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "gemini-2.5-flash",
     models: [
-      "gemini-2.5-pro",
       "gemini-2.5-flash",
+      "gemini-2.5-pro",
       "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
       "gemini-2.0-flash-lite"
@@ -675,6 +740,7 @@ var PROVIDER_CATALOG = {
     label: "DeepSeek",
     officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "deepseek-chat",
     models: [
       "deepseek-chat",
       "deepseek-reasoner",
@@ -688,6 +754,7 @@ var PROVIDER_CATALOG = {
     label: "Kimi (Moonshot)",
     officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "kimi-k3",
     models: [
       "kimi-k3",
       "kimi-k2.7-code",
@@ -704,6 +771,7 @@ var PROVIDER_CATALOG = {
     label: "Zhipu (GLM)",
     officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "glm-5.3",
     models: [
       "glm-5.3",
       "glm-5",
@@ -721,6 +789,7 @@ var PROVIDER_CATALOG = {
     label: "Qwen (Tongyi)",
     officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     apiFormat: "openai-compatible",
+    defaultModel: "qwen3-max",
     models: [
       "qwen3-max",
       "qwen3-plus",
