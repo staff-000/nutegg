@@ -1,6 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AIClient, isAIConfigured, PROVIDER_CATALOG } from "../src/ai-client";
+import {
+  AIClient,
+  isAIConfigured,
+  PROVIDER_CATALOG,
+  MODEL_CATALOG,
+  findFamilyForModel,
+  type AIProviderId,
+} from "../src/ai-client";
 import { DEFAULT_SETTINGS, type NutEggSettings } from "../src/settings";
 
 describe("isAIConfigured", () => {
@@ -22,18 +29,7 @@ describe("isAIConfigured", () => {
     assert.equal(isAIConfigured(settings), false);
   });
 
-  it("returns true for local provider without apiKey as long as endpoint and model exist", () => {
-    const settings: NutEggSettings = {
-      ...DEFAULT_SETTINGS,
-      aiProvider: "local",
-      aiApiKey: "",
-      localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-      aiModel: "llama3.2",
-    };
-    assert.equal(isAIConfigured(settings), true);
-  });
-
-  it("returns false for local provider if model is empty", () => {
+  it("returns true for local provider without apiKey and even without model as long as endpoint exists", () => {
     const settings: NutEggSettings = {
       ...DEFAULT_SETTINGS,
       aiProvider: "local",
@@ -41,12 +37,12 @@ describe("isAIConfigured", () => {
       localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
       aiModel: "",
     };
-    assert.equal(isAIConfigured(settings), false);
+    assert.equal(isAIConfigured(settings), true);
   });
 });
 
 describe("AIClient Local LLM execution", () => {
-  it("executes chat against local endpoint without requiring an API key", async () => {
+  it("executes chat against local OpenAI-compatible endpoint without requiring an API key or explicit model", async () => {
     let capturedUrl = "";
     let capturedHeaders: Record<string, string> = {};
     let capturedBody: any = null;
@@ -59,7 +55,7 @@ describe("AIClient Local LLM execution", () => {
         capturedBody = JSON.parse(init?.body || "{}");
         return new Response(
           JSON.stringify({
-            choices: [{ message: { content: "Response from local llama3.2" } }],
+            choices: [{ message: { content: "Response from local model" } }],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
@@ -68,20 +64,60 @@ describe("AIClient Local LLM execution", () => {
       const settings: NutEggSettings = {
         ...DEFAULT_SETTINGS,
         aiProvider: "local",
+        localApiType: "openai",
         aiApiKey: "",
-        localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-        aiModel: "llama3.2",
+        localEndpoint: "http://127.0.0.1:1234/v1/chat/completions",
+        aiModel: "",
       };
 
       const client = new AIClient(settings);
       const res = await client.chat("Hello local model", 500);
 
-      assert.equal(res, "Response from local llama3.2");
-      assert.equal(capturedUrl, "http://127.0.0.1:11434/v1/chat/completions");
-      assert.equal(capturedBody.model, "llama3.2");
+      assert.equal(res, "Response from local model");
+      assert.equal(capturedUrl, "http://127.0.0.1:1234/v1/chat/completions");
+      assert.equal(capturedBody.model, "default");
       assert.equal(capturedBody.max_tokens, 500);
       assert.equal(capturedBody.max_completion_tokens, undefined);
       assert.equal(capturedHeaders["Authorization"], undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("executes chat against Ollama native /api/chat endpoint", async () => {
+    let capturedUrl = "";
+    let capturedBody: any = null;
+
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: string, init?: any) => {
+        capturedUrl = url;
+        capturedBody = JSON.parse(init?.body || "{}");
+        return new Response(
+          JSON.stringify({
+            message: { content: "Response from Ollama native" },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }) as any;
+
+      const settings: NutEggSettings = {
+        ...DEFAULT_SETTINGS,
+        aiProvider: "local",
+        localApiType: "ollama",
+        aiApiKey: "",
+        localEndpoint: "http://127.0.0.1:11434/api/chat",
+        aiModel: "qwen2.5:7b",
+      };
+
+      const client = new AIClient(settings);
+      const res = await client.chat("Hello ollama", 400);
+
+      assert.equal(res, "Response from Ollama native");
+      assert.equal(capturedUrl, "http://127.0.0.1:11434/api/chat");
+      assert.equal(capturedBody.model, "qwen2.5:7b");
+      assert.equal(capturedBody.stream, false);
+      assert.equal(capturedBody.options?.num_predict, 400);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -92,7 +128,7 @@ describe("AIClient Local LLM execution", () => {
     try {
       globalThis.fetch = (async (url: string) => {
         if (url === "http://127.0.0.1:11434/v1/models") {
-          return new Response(JSON.stringify({ data: [{ id: "llama3.2" }] }), { status: 200 });
+          return new Response(JSON.stringify({ data: [{ id: "model-1" }] }), { status: 200 });
         }
         return new Response("Not found", { status: 404 });
       }) as any;
@@ -100,9 +136,10 @@ describe("AIClient Local LLM execution", () => {
       const settings: NutEggSettings = {
         ...DEFAULT_SETTINGS,
         aiProvider: "local",
+        localApiType: "openai",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-        aiModel: "llama3.2",
+        aiModel: "custom-tag",
       };
 
       const client = new AIClient(settings);
@@ -110,7 +147,7 @@ describe("AIClient Local LLM execution", () => {
 
       assert.equal(info.provider, "local");
       assert.equal(info.hasBalance, false);
-      assert.equal(info.statusText, "Connected (llama3.2)");
+      assert.equal(info.statusText, "Connected (custom-tag) [OpenAI-compatible]");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -128,7 +165,7 @@ describe("AIClient Local LLM execution", () => {
         aiProvider: "local",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-        aiModel: "llama3.2",
+        aiModel: "",
       };
 
       const client = new AIClient(settings);
@@ -143,4 +180,57 @@ describe("AIClient Local LLM execution", () => {
     }
   });
 });
+
+describe("MODEL_CATALOG and 3-tier hierarchy", () => {
+  it("defines families for all cloud providers in PROVIDER_CATALOG", () => {
+    for (const providerId of Object.keys(PROVIDER_CATALOG) as AIProviderId[]) {
+      if (providerId === "local") {
+        assert.equal(MODEL_CATALOG.local.length, 0, "Local does not require static model families");
+        continue;
+      }
+      const families = MODEL_CATALOG[providerId];
+      assert.ok(Array.isArray(families) && families.length > 0, `Provider ${providerId} must have at least one family`);
+      for (const fam of families) {
+        assert.ok(fam.id, `Family in ${providerId} must have an id`);
+        assert.ok(fam.label, `Family in ${providerId} must have a label`);
+        assert.ok(fam.defaultModel, `Family in ${providerId} must have a defaultModel`);
+      }
+    }
+  });
+
+  it("findFamilyForModel resolves matching family or defaults to first family", () => {
+    // Anthropic: Sonnet family
+    const sonnetFam = findFamilyForModel("anthropic", "claude-sonnet-5");
+    assert.equal(sonnetFam?.id, "sonnet");
+
+    // Anthropic: Haiku family
+    const haikuFam = findFamilyForModel("anthropic", "claude-haiku-4-5-20251001");
+    assert.equal(haikuFam?.id, "haiku");
+
+    // OpenAI: GPT-5 family
+    const gpt5Fam = findFamilyForModel("openai", "gpt-5.6-sol");
+    assert.equal(gpt5Fam?.id, "gpt-5");
+
+    // OpenAI: Reasoning family
+    const reasoningFam = findFamilyForModel("openai", "o3-mini");
+    assert.equal(reasoningFam?.id, "reasoning");
+
+    // Kimi: K3 flagship
+    const kimiFam = findFamilyForModel("kimi", "kimi-k3");
+    assert.equal(kimiFam?.id, "kimi-k3");
+
+    // Zhipu: GLM-5 flagship
+    const zhipuFam = findFamilyForModel("zhipu", "glm-5.3");
+    assert.equal(zhipuFam?.id, "glm-5");
+
+    // Qwen: Qwen3 flagship
+    const qwenFam = findFamilyForModel("qwen", "qwen3-max");
+    assert.equal(qwenFam?.id, "qwen3");
+
+    // Local returns undefined (no family list needed)
+    const localFam = findFamilyForModel("local", "any");
+    assert.equal(localFam, undefined);
+  });
+});
+
 

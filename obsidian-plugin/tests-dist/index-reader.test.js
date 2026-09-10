@@ -356,27 +356,68 @@ function renderPrompt(template, vars) {
 
 // src/ai-client.ts
 var PROVIDER_CATALOG = {
+  local: {
+    id: "local",
+    label: "Local LLM (Ollama, LM Studio, etc.)",
+    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [],
+    keyPlaceholder: "Optional for local LLMs",
+    openrouterPrefix: ""
+  },
+  openrouter: {
+    id: "openrouter",
+    label: "OpenRouter (Multi-Provider)",
+    officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [
+      "anthropic/claude-sonnet-5",
+      "anthropic/claude-3.7-sonnet",
+      "openai/gpt-5.6-sol",
+      "openai/gpt-4o",
+      "openai/o3-mini",
+      "deepseek/deepseek-r1",
+      "deepseek/deepseek-chat",
+      "google/gemini-2.5-flash",
+      "meta-llama/llama-3.3-70b-instruct",
+      "qwen/qwen-2.5-72b-instruct"
+    ],
+    keyPlaceholder: "sk-or-...",
+    openrouterPrefix: ""
+  },
   anthropic: {
     id: "anthropic",
     label: "Anthropic (Claude)",
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
     models: [
-      "claude-opus-5",
       "claude-sonnet-5",
-      "claude-haiku-4-5-20251001"
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022",
+      "claude-haiku-4-5-20251001",
+      "claude-3-5-haiku-20241022",
+      "claude-opus-5",
+      "claude-3-opus-20240229"
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/"
   },
-  deepseek: {
-    id: "deepseek",
-    label: "DeepSeek",
-    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
+  openai: {
+    id: "openai",
+    label: "OpenAI",
+    officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["deepseek-chat", "deepseek-reasoner"],
+    models: [
+      "gpt-5.6-sol",
+      "gpt-5.5",
+      "gpt-5.4-nano",
+      "o3-mini",
+      "o1",
+      "gpt-4o",
+      "gpt-4o-mini"
+    ],
     keyPlaceholder: "sk-...",
-    openrouterPrefix: "deepseek/"
+    openrouterPrefix: "openai/"
   },
   gemini: {
     id: "gemini",
@@ -384,21 +425,23 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "gemini-2.5-pro",
       "gemini-2.5-flash",
-      "gemini-2.0-flash"
+      "gemini-2.5-pro",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite"
     ],
     keyPlaceholder: "AIza...",
     openrouterPrefix: "google/"
   },
-  openai: {
-    id: "openai",
-    label: "OpenAI",
-    officialEndpoint: "https://api.openai.com/v1/chat/completions",
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
+    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
     keyPlaceholder: "sk-...",
-    openrouterPrefix: "openai/"
+    openrouterPrefix: "deepseek/"
   },
   kimi: {
     id: "kimi",
@@ -406,6 +449,9 @@ var PROVIDER_CATALOG = {
     officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
+      "kimi-k3",
+      "kimi-k2.7-code",
+      "kimi-k2.7-code-highspeed",
       "moonshot-v1-8k",
       "moonshot-v1-32k",
       "moonshot-v1-128k"
@@ -418,7 +464,15 @@ var PROVIDER_CATALOG = {
     label: "Zhipu (GLM)",
     officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["glm-4-plus", "glm-4-air", "glm-4-flash"],
+    models: [
+      "glm-5.3",
+      "glm-5",
+      "glm-5-turbo",
+      "glm-4.7",
+      "glm-4-plus",
+      "glm-4-air",
+      "glm-4-flash"
+    ],
     keyPlaceholder: "...",
     openrouterPrefix: "zhipu/"
   },
@@ -427,33 +481,22 @@ var PROVIDER_CATALOG = {
     label: "Qwen (Tongyi)",
     officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["qwen-max", "qwen-plus", "qwen-turbo"],
+    models: [
+      "qwen3-max",
+      "qwen3-plus",
+      "qwen3-flash",
+      "qwen-max",
+      "qwen-plus",
+      "qwen-turbo"
+    ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "qwen/"
-  },
-  local: {
-    id: "local",
-    label: "Local LLM (Ollama, LM Studio, etc.)",
-    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-    apiFormat: "openai-compatible",
-    models: [
-      "llama3.2",
-      "llama3.3",
-      "qwen2.5:7b",
-      "qwen2.5:14b",
-      "deepseek-r1:8b",
-      "deepseek-r1:14b",
-      "mistral",
-      "phi4"
-    ],
-    keyPlaceholder: "Optional for local LLMs",
-    openrouterPrefix: ""
   }
 };
 function isAIConfigured(settings) {
   if (settings.aiProvider === "local") {
     return Boolean(
-      (settings.localEndpoint || PROVIDER_CATALOG.local.officialEndpoint) && settings.aiModel
+      settings.localEndpoint && settings.localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
     );
   }
   return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);

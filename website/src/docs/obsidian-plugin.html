@@ -87,26 +87,27 @@
 
       <h2>AI Provider Configuration</h2>
       <p>
-        NutEgg puts you in complete control of your AI model and keys. In Obsidian, go to <strong>Settings → NutEgg</strong>:
+        NutEgg puts you in complete control of your AI model, local endpoints, and keys. In Obsidian, go to <strong>Settings → NutEgg</strong> and toggle <strong>Developer mode</strong>:
       </p>
 
       <ul>
-        <li><strong>AI Provider</strong>: Select your preferred model provider:
+        <li><strong>Local LLM (Ollama, LM Studio, llama.cpp, vLLM)</strong>:
           <ul>
-            <li><strong>Local LLM (Ollama, LM Studio, etc.)</strong> — 100% local, private, and free without needing an API key.</li>
-            <li>Google Gemini (Flash, Pro)</li>
-            <li>Anthropic Claude (Haiku, Sonnet, Opus)</li>
-            <li>OpenAI (GPT-4o, GPT-4o-mini)</li>
-            <li>DeepSeek (V3, R1)</li>
-            <li>Kimi / Moonshot</li>
-            <li>Qwen</li>
-            <li>Zhipu (GLM)</li>
-            <li>OpenRouter (allows routing to dozens of community & proprietary models)</li>
+            <li><strong>API Type</strong>: Select either <em>OpenAI-compatible</em> (used by LM Studio, llama.cpp, vLLM, and Ollama <code>/v1</code>) or <em>Ollama Native</em> (direct <code>/api/chat</code>).</li>
+            <li><strong>Endpoint &amp; Presets</strong>: 1-click presets for Ollama (11434), LM Studio (1234), and llama.cpp/vLLM (8080).</li>
+            <li><strong>Model Name (Optional)</strong>: No need to select a model—leave it blank to automatically use the active model loaded in your server (LM Studio, llama.cpp), or optionally specify a model tag (e.g. <code>qwen2.5:7b</code>).</li>
+            <li><strong>API Key (Optional)</strong>: Only needed if your local proxy or server requires an authorization bearer token.</li>
           </ul>
         </li>
-        <li><strong>Local Endpoint</strong>: When using Local LLM, select a preset like <strong>Ollama (11434)</strong>, <strong>LM Studio (1234)</strong>, or <strong>llama.cpp / vLLM (8080)</strong>, or provide any OpenAI-compatible local completions URL.</li>
-        <li><strong>API Source</strong>: For cloud providers, choose between official provider API or OpenRouter.</li>
-        <li><strong>API Key</strong>: Enter your private API key (optional when using a local LLM). It is saved securely in your Obsidian local storage and never leaves your machine except to contact your chosen provider.</li>
+        <li><strong>Cloud Providers &amp; OpenRouter (3-Tier Setup)</strong>:
+          <ul>
+            <li><strong>1. AI Provider</strong>: Anthropic, OpenAI, Google Gemini, DeepSeek, Kimi, Qwen, Zhipu, or OpenRouter.</li>
+            <li><strong>2. Model Family</strong>: Choose the architecture/series (e.g. <em>Claude Sonnet / Opus / Haiku</em>, <em>GPT-5 / o-Series / GPT-4o</em>, <em>Gemini 2.5 / 2.0</em>, <em>DeepSeek V3 / R1</em>, <em>Kimi K3</em>, <em>GLM-5</em>, <em>Qwen3</em>).</li>
+            <li><strong>3. Model Version</strong>: Select the latest model version or enter any custom model tag.</li>
+            <li><strong>API Key</strong>: Enter your provider API key. Securely stored locally in your Obsidian vault.</li>
+          </ul>
+        </li>
+        <li><strong>Connection &amp; Credit Monitor</strong>: Instantly test local runner connectivity or check remaining cloud credit balance with 1 click.</li>
       </ul>
 
       <h2>Local Sync Server</h2>

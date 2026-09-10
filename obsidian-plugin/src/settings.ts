@@ -4,7 +4,11 @@ import {
   type AIProviderId,
   type AISource,
   PROVIDER_CATALOG,
+  MODEL_CATALOG,
+  findFamilyForModel,
 } from "./ai-client";
+
+export type LocalApiType = "openai" | "ollama";
 
 export interface NutEggSettings {
   /** Show advanced AI/server configuration */
@@ -15,10 +19,14 @@ export interface NutEggSettings {
   aiSource: AISource;
   /** API key */
   aiApiKey: string;
-  /** Model name (selected from provider's model list) */
+  /** Model name (selected from provider's model list, optional for local) */
   aiModel: string;
-  /** Local LLM OpenAI-compatible endpoint URL (used when aiProvider === "local") */
+  /** Model family (e.g. gpt-5, sonnet, gemini-2.5) */
+  aiModelFamily?: string;
+  /** Local LLM endpoint URL (used when aiProvider === "local") */
   localEndpoint: string;
+  /** Local LLM API format: "openai" (LM Studio, llama.cpp, Ollama /v1) or "ollama" (native /api/chat) */
+  localApiType: LocalApiType;
   /** Local HTTP server port */
   serverPort: number;
   /** Folder for saved raw content */
@@ -37,7 +45,9 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   aiSource: "official",
   aiApiKey: "",
   aiModel: "claude-sonnet-5",
+  aiModelFamily: "sonnet",
   localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+  localApiType: "openai",
   serverPort: 27123,
   rawFolder: "nutegg/_raw",
   indexFile: "nutegg/_index.md",
@@ -167,17 +177,17 @@ export class NutEggSettingTab extends PluginSettingTab {
     provider: (typeof PROVIDER_CATALOG)[AIProviderId],
     isOpenRouter: boolean
   ): void {
-    // ==========================================
-    // AI Provider
-    // ==========================================
-    containerEl.createEl("h3", { text: "AI Provider" });
-
     const isLocal = settings.aiProvider === "local";
 
-    // Provider dropdown
+    // ==========================================
+    // AI Model Configuration
+    // ==========================================
+    containerEl.createEl("h3", { text: isLocal ? "Local LLM Configuration" : "AI Model Configuration" });
+
+    // 1. AI Provider
     new Setting(containerEl)
-      .setName("Model family")
-      .setDesc("Which provider or model family to use")
+      .setName("1. AI Provider")
+      .setDesc("Choose a local runner (Ollama, LM Studio), OpenRouter, or cloud AI provider")
       .addDropdown((dropdown) => {
         for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
           dropdown.addOption(id, info.label);
@@ -185,25 +195,73 @@ export class NutEggSettingTab extends PluginSettingTab {
         dropdown.setValue(settings.aiProvider);
         dropdown.onChange(async (value) => {
           settings.aiProvider = value as AIProviderId;
-          const newProvider = PROVIDER_CATALOG[value as AIProviderId];
-          settings.aiModel = newProvider.models[0];
+          if (settings.aiProvider === "openrouter") {
+            settings.aiSource = "openrouter";
+          } else {
+            settings.aiSource = "official";
+          }
+          if (settings.aiProvider === "local") {
+            settings.aiModel = "";
+            settings.aiModelFamily = undefined;
+          } else {
+            const newFamilies = MODEL_CATALOG[settings.aiProvider] || [];
+            const firstFamily = newFamilies[0];
+            settings.aiModelFamily = firstFamily?.id || "";
+            settings.aiModel = firstFamily?.defaultModel || "";
+          }
           await this.plugin.saveSettings();
           this.display();
         });
         return dropdown;
       });
 
-    // Local Server Endpoint & Presets (only shown when Local LLM is selected)
     if (isLocal) {
+      // Local LLM API Type
+      new Setting(containerEl)
+        .setName("API Type")
+        .setDesc("Protocol format used by your local runner")
+        .addDropdown((dropdown) => {
+          dropdown.addOption("openai", "OpenAI-compatible (LM Studio, llama.cpp, vLLM, Ollama /v1)");
+          dropdown.addOption("ollama", "Ollama Native (/api/chat)");
+          dropdown.setValue(settings.localApiType || "openai");
+          dropdown.onChange(async (value) => {
+            settings.localApiType = value as LocalApiType;
+            if (settings.localApiType === "ollama") {
+              if (!settings.localEndpoint || settings.localEndpoint.includes("/v1/chat/completions")) {
+                settings.localEndpoint = "http://127.0.0.1:11434/api/chat";
+              }
+            } else {
+              if (!settings.localEndpoint || settings.localEndpoint.includes("/api/chat")) {
+                settings.localEndpoint = "http://127.0.0.1:11434/v1/chat/completions";
+              }
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          });
+          return dropdown;
+        });
+
+      // Local Server Endpoint
       new Setting(containerEl)
         .setName("Local Server Endpoint")
         .setDesc(
-          "OpenAI-compatible chat completions URL for your local runner (Ollama, LM Studio, llama.cpp, etc.)"
+          settings.localApiType === "ollama"
+            ? "Ollama native chat URL (default: http://127.0.0.1:11434/api/chat)"
+            : "OpenAI-compatible chat completions URL for your local runner"
         )
         .addText((text) => {
           text
-            .setPlaceholder("http://127.0.0.1:11434/v1/chat/completions")
-            .setValue(settings.localEndpoint || "http://127.0.0.1:11434/v1/chat/completions")
+            .setPlaceholder(
+              settings.localApiType === "ollama"
+                ? "http://127.0.0.1:11434/api/chat"
+                : "http://127.0.0.1:11434/v1/chat/completions"
+            )
+            .setValue(
+              settings.localEndpoint ||
+                (settings.localApiType === "ollama"
+                  ? "http://127.0.0.1:11434/api/chat"
+                  : "http://127.0.0.1:11434/v1/chat/completions")
+            )
             .onChange(async (value) => {
               settings.localEndpoint = value.trim();
               await this.plugin.saveSettings();
@@ -223,11 +281,16 @@ export class NutEggSettingTab extends PluginSettingTab {
       presetInfo.style.fontSize = "0.85em";
       presetInfo.style.color = "var(--text-muted)";
 
-      const presets = [
-        { label: "Ollama (11434)", url: "http://127.0.0.1:11434/v1/chat/completions" },
-        { label: "LM Studio (1234)", url: "http://127.0.0.1:1234/v1/chat/completions" },
-        { label: "llama.cpp / vLLM (8080)", url: "http://127.0.0.1:8080/v1/chat/completions" },
-      ];
+      const presets =
+        settings.localApiType === "ollama"
+          ? [
+              { label: "Ollama Native (11434)", url: "http://127.0.0.1:11434/api/chat" },
+            ]
+          : [
+              { label: "Ollama /v1 (11434)", url: "http://127.0.0.1:11434/v1/chat/completions" },
+              { label: "LM Studio (1234)", url: "http://127.0.0.1:1234/v1/chat/completions" },
+              { label: "llama.cpp / vLLM (8080)", url: "http://127.0.0.1:8080/v1/chat/completions" },
+            ];
 
       for (const preset of presets) {
         const btn = presetInfo.createEl("button", {
@@ -244,97 +307,159 @@ export class NutEggSettingTab extends PluginSettingTab {
           this.display();
         });
       }
-    }
 
-    // Source toggle (only for cloud providers)
-    if (!isLocal) {
+      // Model Name (Optional)
       new Setting(containerEl)
-        .setName("API source")
+        .setName("Model Name (Optional)")
         .setDesc(
-          isOpenRouter
-            ? "Using OpenRouter as proxy — one API key for all providers"
-            : `Using ${provider.label} official API directly`
+          "Leave blank if your local runner has a model loaded (LM Studio, llama.cpp). If using Ollama with multiple models, specify the model tag (e.g. qwen2.5:7b)."
         )
+        .addText((text) => {
+          text
+            .setPlaceholder("Optional (defaults to loaded server model)")
+            .setValue(settings.aiModel === "default" ? "" : settings.aiModel)
+            .onChange(async (value) => {
+              settings.aiModel = value.trim();
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
+
+      // API Key (Optional)
+      new Setting(containerEl)
+        .setName("API Key (Optional)")
+        .setDesc("Optional for local LLMs. Leave empty if your local server does not require authentication.")
+        .addText((text) => {
+          text
+            .setPlaceholder("Optional for local LLMs")
+            .setValue(settings.aiApiKey)
+            .onChange(async (value) => {
+              settings.aiApiKey = value.trim();
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
+    } else {
+      // Cloud / OpenRouter Providers
+      // Source toggle (only for cloud providers if not openrouter)
+      if (settings.aiProvider !== "openrouter") {
+        new Setting(containerEl)
+          .setName("API Source")
+          .setDesc(
+            isOpenRouter
+              ? "Using OpenRouter as proxy — one API key for all providers"
+              : `Using ${provider.label} official API directly`
+          )
+          .addDropdown((dropdown) => {
+            dropdown.addOption("official", `${provider.label} Official API`);
+            dropdown.addOption("openrouter", "OpenRouter");
+            dropdown.setValue(settings.aiSource);
+            dropdown.onChange(async (value) => {
+              settings.aiSource = value as AISource;
+              await this.plugin.saveSettings();
+              this.display();
+            });
+            return dropdown;
+          });
+      }
+
+      const families = MODEL_CATALOG[settings.aiProvider] || [];
+      let currentFamily = families.find((f) => f.id === settings.aiModelFamily);
+      if (!currentFamily) {
+        currentFamily = findFamilyForModel(settings.aiProvider, settings.aiModel) || families[0];
+        if (currentFamily) {
+          settings.aiModelFamily = currentFamily.id;
+        }
+      }
+
+      // 2. Model Family
+      new Setting(containerEl)
+        .setName("2. Model Family")
+        .setDesc("Choose the model architecture or series")
         .addDropdown((dropdown) => {
-          dropdown.addOption("official", `${provider.label} Official API`);
-          dropdown.addOption("openrouter", "OpenRouter");
-          dropdown.setValue(settings.aiSource);
+          for (const fam of families) {
+            dropdown.addOption(fam.id, fam.label);
+          }
+          if (currentFamily) {
+            dropdown.setValue(currentFamily.id);
+          }
           dropdown.onChange(async (value) => {
-            settings.aiSource = value as AISource;
+            settings.aiModelFamily = value;
+            const selectedFam = families.find((f) => f.id === value);
+            if (selectedFam) {
+              settings.aiModel = selectedFam.defaultModel;
+            }
             await this.plugin.saveSettings();
             this.display();
           });
           return dropdown;
         });
-    }
 
-    // API Key
-    new Setting(containerEl)
-      .setName(isLocal ? "API Key (Optional)" : "API Key")
-      .setDesc(
-        isLocal
-          ? "Optional for local LLMs. Leave empty if your local server does not require authentication."
-          : isOpenRouter
-          ? "Your OpenRouter API key (openrouter.ai/keys)"
-          : `Your ${provider.label} API key`
-      )
-      .addText((text) => {
-        text
-          .setPlaceholder(
-            isLocal
-              ? "Optional for local LLMs"
-              : isOpenRouter
-              ? "sk-or-..."
-              : provider.keyPlaceholder
-          )
-          .setValue(settings.aiApiKey)
-          .onChange(async (value) => {
-            settings.aiApiKey = value.trim();
+      // 3. Model Version
+      const versionSetting = new Setting(containerEl)
+        .setName("3. Model Version")
+        .setDesc(
+          (isOpenRouter || settings.aiProvider === "openrouter")
+            ? `Sent to OpenRouter as "${settings.aiModel}"`
+            : "Model version to use for analysis"
+        );
+
+      const familyModels = currentFamily?.models || [];
+      if (familyModels.length > 0) {
+        versionSetting.addDropdown((dropdown) => {
+          for (const model of familyModels) {
+            dropdown.addOption(model, model);
+          }
+          if (!familyModels.includes(settings.aiModel)) {
+            dropdown.addOption(settings.aiModel, `${settings.aiModel} (custom)`);
+          }
+          dropdown.setValue(settings.aiModel);
+          dropdown.onChange(async (value) => {
+            settings.aiModel = value;
             await this.plugin.saveSettings();
+            this.display();
           });
-        return text;
-      });
-
-    // Model dropdown & custom model input
-    const modelOptions = provider.models;
-    const modelSetting = new Setting(containerEl)
-      .setName("Model")
-      .setDesc(
-        isLocal
-          ? "Model name (must match a model downloaded in your local server)"
-          : isOpenRouter
-          ? `Sent as "${provider.openrouterPrefix}${settings.aiModel}" via OpenRouter`
-          : "Model to use for analysis"
-      )
-      .addDropdown((dropdown) => {
-        for (const model of modelOptions) {
-          dropdown.addOption(model, model);
-        }
-        if (!modelOptions.includes(settings.aiModel)) {
-          dropdown.addOption(settings.aiModel, settings.aiModel + " (custom)");
-        }
-        dropdown.setValue(settings.aiModel);
-        dropdown.onChange(async (value) => {
-          settings.aiModel = value;
-          await this.plugin.saveSettings();
-          if (isLocal) this.display();
+          return dropdown;
         });
-        return dropdown;
-      });
+      }
 
-    if (isLocal) {
-      modelSetting.addText((text) => {
+      // Custom version input
+      versionSetting.addText((text) => {
         text
-          .setPlaceholder("Custom model name (e.g. qwen2.5:7b)")
+          .setPlaceholder(currentFamily?.defaultModel || "Custom model tag")
           .setValue(settings.aiModel)
           .onChange(async (value) => {
-            if (value.trim()) {
-              settings.aiModel = value.trim();
+            const trimmed = value.trim();
+            if (trimmed) {
+              settings.aiModel = trimmed;
               await this.plugin.saveSettings();
             }
           });
         return text;
       });
+
+      // API Key
+      new Setting(containerEl)
+        .setName("API Key")
+        .setDesc(
+          (isOpenRouter || settings.aiProvider === "openrouter")
+            ? "Your OpenRouter API key (openrouter.ai/keys)"
+            : `Your ${provider.label} API key`
+        )
+        .addText((text) => {
+          text
+            .setPlaceholder(
+              (isOpenRouter || settings.aiProvider === "openrouter")
+                ? "sk-or-..."
+                : provider.keyPlaceholder
+            )
+            .setValue(settings.aiApiKey)
+            .onChange(async (value) => {
+              settings.aiApiKey = value.trim();
+              await this.plugin.saveSettings();
+            });
+          return text;
+        });
     }
 
     // Credit & Balance / Connection Monitor Setting

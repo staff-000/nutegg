@@ -5,14 +5,15 @@ import type { NutEggSettings } from "./settings";
 // ============================================================
 
 export type AIProviderId =
+  | "local"
+  | "openrouter"
   | "anthropic"
   | "deepseek"
   | "gemini"
   | "openai"
   | "kimi"
   | "zhipu"
-  | "qwen"
-  | "local";
+  | "qwen";
 
 export type AISource = "official" | "openrouter";
 
@@ -31,28 +32,76 @@ export interface ProviderInfo {
   openrouterPrefix: string;
 }
 
+export interface ModelFamily {
+  id: string;
+  label: string;
+  defaultModel: string;
+  models: string[];
+}
+
 export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
+  local: {
+    id: "local",
+    label: "Local LLM (Ollama, LM Studio, etc.)",
+    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [],
+    keyPlaceholder: "Optional for local LLMs",
+    openrouterPrefix: "",
+  },
+  openrouter: {
+    id: "openrouter",
+    label: "OpenRouter (Multi-Provider)",
+    officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    models: [
+      "anthropic/claude-sonnet-5",
+      "anthropic/claude-3.7-sonnet",
+      "openai/gpt-5.6-sol",
+      "openai/gpt-4o",
+      "openai/o3-mini",
+      "deepseek/deepseek-r1",
+      "deepseek/deepseek-chat",
+      "google/gemini-2.5-flash",
+      "meta-llama/llama-3.3-70b-instruct",
+      "qwen/qwen-2.5-72b-instruct",
+    ],
+    keyPlaceholder: "sk-or-...",
+    openrouterPrefix: "",
+  },
   anthropic: {
     id: "anthropic",
     label: "Anthropic (Claude)",
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
     models: [
-      "claude-opus-5",
       "claude-sonnet-5",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022",
       "claude-haiku-4-5-20251001",
+      "claude-3-5-haiku-20241022",
+      "claude-opus-5",
+      "claude-3-opus-20240229",
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/",
   },
-  deepseek: {
-    id: "deepseek",
-    label: "DeepSeek",
-    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
+  openai: {
+    id: "openai",
+    label: "OpenAI",
+    officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["deepseek-chat", "deepseek-reasoner"],
+    models: [
+      "gpt-5.6-sol",
+      "gpt-5.5",
+      "gpt-5.4-nano",
+      "o3-mini",
+      "o1",
+      "gpt-4o",
+      "gpt-4o-mini",
+    ],
     keyPlaceholder: "sk-...",
-    openrouterPrefix: "deepseek/",
+    openrouterPrefix: "openai/",
   },
   gemini: {
     id: "gemini",
@@ -60,21 +109,23 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
     models: [
-      "gemini-2.5-pro",
       "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash-lite",
       "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
     ],
     keyPlaceholder: "AIza...",
     openrouterPrefix: "google/",
   },
-  openai: {
-    id: "openai",
-    label: "OpenAI",
-    officialEndpoint: "https://api.openai.com/v1/chat/completions",
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
+    models: ["deepseek-chat", "deepseek-reasoner", "deepseek-flash"],
     keyPlaceholder: "sk-...",
-    openrouterPrefix: "openai/",
+    openrouterPrefix: "deepseek/",
   },
   kimi: {
     id: "kimi",
@@ -82,6 +133,9 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
     apiFormat: "openai-compatible",
     models: [
+      "kimi-k3",
+      "kimi-k2.7-code",
+      "kimi-k2.7-code-highspeed",
       "moonshot-v1-8k",
       "moonshot-v1-32k",
       "moonshot-v1-128k",
@@ -94,7 +148,15 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     label: "Zhipu (GLM)",
     officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["glm-4-plus", "glm-4-air", "glm-4-flash"],
+    models: [
+      "glm-5.3",
+      "glm-5",
+      "glm-5-turbo",
+      "glm-4.7",
+      "glm-4-plus",
+      "glm-4-air",
+      "glm-4-flash",
+    ],
     keyPlaceholder: "...",
     openrouterPrefix: "zhipu/",
   },
@@ -103,40 +165,235 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     label: "Qwen (Tongyi)",
     officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     apiFormat: "openai-compatible",
-    models: ["qwen-max", "qwen-plus", "qwen-turbo"],
+    models: [
+      "qwen3-max",
+      "qwen3-plus",
+      "qwen3-flash",
+      "qwen-max",
+      "qwen-plus",
+      "qwen-turbo",
+    ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "qwen/",
   },
-  local: {
-    id: "local",
-    label: "Local LLM (Ollama, LM Studio, etc.)",
-    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-    apiFormat: "openai-compatible",
-    models: [
-      "llama3.2",
-      "llama3.3",
-      "qwen2.5:7b",
-      "qwen2.5:14b",
-      "deepseek-r1:8b",
-      "deepseek-r1:14b",
-      "mistral",
-      "phi4",
-    ],
-    keyPlaceholder: "Optional for local LLMs",
-    openrouterPrefix: "",
-  },
 };
+
+export const MODEL_CATALOG: Record<AIProviderId, ModelFamily[]> = {
+  local: [],
+  openrouter: [
+    {
+      id: "anthropic",
+      label: "Anthropic Claude",
+      defaultModel: "anthropic/claude-sonnet-5",
+      models: [
+        "anthropic/claude-sonnet-5",
+        "anthropic/claude-3.7-sonnet",
+        "anthropic/claude-3.5-sonnet",
+        "anthropic/claude-3.5-haiku",
+      ],
+    },
+    {
+      id: "openai",
+      label: "OpenAI GPT & Reasoning",
+      defaultModel: "openai/gpt-5.6-sol",
+      models: [
+        "openai/gpt-5.6-sol",
+        "openai/gpt-4o",
+        "openai/o3-mini",
+        "openai/o1",
+      ],
+    },
+    {
+      id: "deepseek",
+      label: "DeepSeek",
+      defaultModel: "deepseek/deepseek-r1",
+      models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"],
+    },
+    {
+      id: "google",
+      label: "Google Gemini",
+      defaultModel: "google/gemini-2.5-flash",
+      models: [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
+        "google/gemini-2.0-flash-001",
+      ],
+    },
+    {
+      id: "meta",
+      label: "Meta Llama",
+      defaultModel: "meta-llama/llama-3.3-70b-instruct",
+      models: [
+        "meta-llama/llama-3.3-70b-instruct",
+        "meta-llama/llama-3.1-8b-instruct",
+      ],
+    },
+    {
+      id: "qwen",
+      label: "Qwen",
+      defaultModel: "qwen/qwen-2.5-72b-instruct",
+      models: [
+        "qwen/qwen-2.5-72b-instruct",
+        "qwen/qwen-2.5-coder-32b-instruct",
+      ],
+    },
+    {
+      id: "custom",
+      label: "Custom OpenRouter Model",
+      defaultModel: "anthropic/claude-sonnet-5",
+      models: [],
+    },
+  ],
+  anthropic: [
+    {
+      id: "sonnet",
+      label: "Claude Sonnet",
+      defaultModel: "claude-sonnet-5",
+      models: [
+        "claude-sonnet-5",
+        "claude-3-7-sonnet-20250219",
+        "claude-3-5-sonnet-20241022",
+      ],
+    },
+    {
+      id: "haiku",
+      label: "Claude Haiku",
+      defaultModel: "claude-haiku-4-5-20251001",
+      models: [
+        "claude-haiku-4-5-20251001",
+        "claude-3-5-haiku-20241022",
+      ],
+    },
+    {
+      id: "opus",
+      label: "Claude Opus",
+      defaultModel: "claude-opus-5",
+      models: [
+        "claude-opus-5",
+        "claude-3-opus-20240229",
+      ],
+    },
+  ],
+  openai: [
+    {
+      id: "gpt-5",
+      label: "GPT-5 Series (Flagship)",
+      defaultModel: "gpt-5.6-sol",
+      models: ["gpt-5.6-sol", "gpt-5.5", "gpt-5.4-nano"],
+    },
+    {
+      id: "reasoning",
+      label: "o-Series (Reasoning)",
+      defaultModel: "o3-mini",
+      models: ["o3-mini", "o1"],
+    },
+    {
+      id: "gpt-4o",
+      label: "GPT-4o Series",
+      defaultModel: "gpt-4o",
+      models: ["gpt-4o", "gpt-4o-mini"],
+    },
+  ],
+  gemini: [
+    {
+      id: "gemini-2.5",
+      label: "Gemini 2.5",
+      defaultModel: "gemini-2.5-flash",
+      models: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.5-flash-lite"],
+    },
+    {
+      id: "gemini-2.0",
+      label: "Gemini 2.0",
+      defaultModel: "gemini-2.0-flash",
+      models: ["gemini-2.0-flash", "gemini-2.0-flash-lite"],
+    },
+  ],
+  deepseek: [
+    {
+      id: "deepseek-chat",
+      label: "DeepSeek V3 (Chat)",
+      defaultModel: "deepseek-chat",
+      models: ["deepseek-chat"],
+    },
+    {
+      id: "deepseek-reasoner",
+      label: "DeepSeek R1 (Reasoner)",
+      defaultModel: "deepseek-reasoner",
+      models: ["deepseek-reasoner"],
+    },
+    {
+      id: "deepseek-flash",
+      label: "DeepSeek V4.1 Flash",
+      defaultModel: "deepseek-flash",
+      models: ["deepseek-flash"],
+    },
+  ],
+  kimi: [
+    {
+      id: "kimi-k3",
+      label: "Kimi K3 (Flagship)",
+      defaultModel: "kimi-k3",
+      models: ["kimi-k3"],
+    },
+    {
+      id: "kimi-k2.7",
+      label: "Kimi K2.7 Code",
+      defaultModel: "kimi-k2.7-code",
+      models: ["kimi-k2.7-code", "kimi-k2.7-code-highspeed"],
+    },
+    {
+      id: "moonshot-legacy",
+      label: "Moonshot V1 (Legacy)",
+      defaultModel: "moonshot-v1-8k",
+      models: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+    },
+  ],
+  zhipu: [
+    {
+      id: "glm-5",
+      label: "GLM-5 Series (Flagship)",
+      defaultModel: "glm-5.3",
+      models: ["glm-5.3", "glm-5", "glm-5-turbo"],
+    },
+    {
+      id: "glm-4",
+      label: "GLM-4 Series",
+      defaultModel: "glm-4-flash",
+      models: ["glm-4.7", "glm-4-plus", "glm-4-air", "glm-4-flash"],
+    },
+  ],
+  qwen: [
+    {
+      id: "qwen3",
+      label: "Qwen3 Series (Flagship)",
+      defaultModel: "qwen3-max",
+      models: ["qwen3-max", "qwen3-plus", "qwen3-flash"],
+    },
+    {
+      id: "qwen-tiered",
+      label: "Qwen Tiered (Max / Plus / Turbo)",
+      defaultModel: "qwen-plus",
+      models: ["qwen-max", "qwen-plus", "qwen-turbo"],
+    },
+  ],
+};
+
+export function findFamilyForModel(providerId: AIProviderId, modelName: string): ModelFamily | undefined {
+  const families = MODEL_CATALOG[providerId] || [];
+  if (families.length === 0) return undefined;
+  return families.find((f) => f.models.includes(modelName)) || families[0];
+}
 
 /**
  * Check if the user has configured enough information to make AI calls.
  * For cloud providers, requires a non-empty API key.
- * For local LLMs, requires an endpoint and model name (API key is optional).
+ * For local LLMs, requires an endpoint (model is optional).
  */
 export function isAIConfigured(settings: NutEggSettings): boolean {
   if (settings.aiProvider === "local") {
     return Boolean(
-      (settings.localEndpoint || PROVIDER_CATALOG.local.officialEndpoint) &&
-        settings.aiModel
+      (settings.localEndpoint && settings.localEndpoint.trim().length > 0) ||
+        PROVIDER_CATALOG.local.officialEndpoint
     );
   }
   return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);
@@ -154,31 +411,36 @@ interface ResolvedConfig {
   endpoint: string;
   apiKey: string;
   model: string;
-  apiFormat: "anthropic" | "openai-compatible";
+  apiFormat: "anthropic" | "openai-compatible" | "ollama";
   /** Extra headers beyond Content-Type */
   extraHeaders: Record<string, string>;
 }
 
 function resolveConfig(settings: NutEggSettings): ResolvedConfig {
-  const provider = PROVIDER_CATALOG[settings.aiProvider] || PROVIDER_CATALOG.anthropic;
-  const source = settings.aiSource;
+  const isLocal = settings.aiProvider === "local";
+  const isOpenRouter = settings.aiProvider === "openrouter" || settings.aiSource === "openrouter";
 
-  if (settings.aiProvider === "local") {
+  if (isLocal) {
+    const isOllama = settings.localApiType === "ollama";
+    const defaultEndpoint = isOllama
+      ? "http://127.0.0.1:11434/api/chat"
+      : "http://127.0.0.1:11434/v1/chat/completions";
     return {
       provider: "local",
-      endpoint: settings.localEndpoint || provider.officialEndpoint,
+      endpoint: settings.localEndpoint || defaultEndpoint,
       apiKey: settings.aiApiKey || "",
-      model: settings.aiModel || "llama3.2",
-      apiFormat: "openai-compatible",
+      model: settings.aiModel?.trim() || "default",
+      apiFormat: isOllama ? "ollama" : "openai-compatible",
       extraHeaders: {},
     };
   }
 
-  if (source === "openrouter") {
-    // OpenRouter uses OpenAI-compatible format for all providers
-    const model = provider.openrouterPrefix + settings.aiModel;
+  if (isOpenRouter) {
+    const provider = PROVIDER_CATALOG[settings.aiProvider] || PROVIDER_CATALOG.openrouter;
+    const prefix = provider.openrouterPrefix || "";
+    const model = settings.aiModel.startsWith(prefix) ? settings.aiModel : prefix + settings.aiModel;
     return {
-      provider: settings.aiProvider,
+      provider: "openrouter",
       endpoint: OPENROUTER_ENDPOINT,
       apiKey: settings.aiApiKey,
       model,
@@ -190,7 +452,7 @@ function resolveConfig(settings: NutEggSettings): ResolvedConfig {
     };
   }
 
-  // Official provider API
+  const provider = PROVIDER_CATALOG[settings.aiProvider] || PROVIDER_CATALOG.anthropic;
   return {
     provider: settings.aiProvider,
     endpoint: provider.officialEndpoint,
@@ -315,17 +577,23 @@ export class AIClient {
       statusText: "Checking...",
     };
 
-    // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint without requiring apiKey
+    // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint without requiring apiKey or model
     if (settings.aiProvider === "local") {
-      const endpoint = settings.localEndpoint || provider.officialEndpoint;
-      const modelsEndpoint = endpoint.replace(/\/chat\/completions\/?$/, "/models");
+      const isOllama = settings.localApiType === "ollama";
+      const defaultEndpoint = isOllama
+        ? "http://127.0.0.1:11434/api/chat"
+        : "http://127.0.0.1:11434/v1/chat/completions";
+      const endpoint = settings.localEndpoint || defaultEndpoint;
+      const pingEndpoint = isOllama
+        ? endpoint.replace(/\/api\/chat\/?$/, "/api/tags")
+        : endpoint.replace(/\/chat\/completions\/?$/, "/models");
       try {
         const headers: Record<string, string> = { Accept: "application/json" };
         if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const resp = await fetch(modelsEndpoint, {
+        const resp = await fetch(pingEndpoint, {
           method: "GET",
           headers,
           signal: controller.signal,
@@ -333,10 +601,12 @@ export class AIClient {
         clearTimeout(timeoutId);
 
         if (resp.ok) {
+          const modelTag = model && model !== "default" ? ` (${model})` : "";
+          const typeLabel = isOllama ? "Ollama Native" : "OpenAI-compatible";
           return {
             ...baseInfo,
             hasBalance: false,
-            statusText: `Connected (${model})`,
+            statusText: `Connected${modelTag} [${typeLabel}]`,
           };
         } else {
           return {
@@ -349,7 +619,7 @@ export class AIClient {
         return {
           ...baseInfo,
           hasBalance: false,
-          statusText: "Offline — ensure Ollama or LM Studio is running",
+          statusText: "Offline — ensure local runner is running",
           error: "Cannot connect to local LLM server",
         };
       }
@@ -364,7 +634,7 @@ export class AIClient {
     }
 
     // 1. OpenRouter
-    if (source === "openrouter") {
+    if (source === "openrouter" || settings.aiProvider === "openrouter") {
       try {
         const resp = await fetch("https://openrouter.ai/api/v1/credits", {
           headers: {
@@ -483,7 +753,54 @@ export class AIClient {
     if (this.config.apiFormat === "anthropic") {
       return this.chatAnthropic(prompt, maxTokens);
     }
+    if (this.config.apiFormat === "ollama") {
+      return this.chatOllama(prompt, maxTokens);
+    }
     return this.chatOpenAICompatible(prompt, maxTokens);
+  }
+
+  // --- Ollama-native format (/api/chat) ---
+
+  private async chatOllama(prompt: string, maxTokens: number): Promise<string> {
+    let response: Response;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.config.extraHeaders,
+    };
+    if (this.config.apiKey && this.config.apiKey.trim().length > 0) {
+      headers["Authorization"] = `Bearer ${this.config.apiKey}`;
+    }
+
+    const bodyPayload: Record<string, any> = {
+      model: this.config.model || "default",
+      messages: [{ role: "user", content: prompt }],
+      stream: false,
+      options: {
+        num_predict: maxTokens,
+        temperature: 0.3,
+      },
+    };
+
+    try {
+      response = await fetch(this.config.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(bodyPayload),
+      });
+    } catch {
+      throw new AIError(
+        "network_error",
+        "Cannot reach Ollama server. Ensure Ollama is running and the endpoint is accessible."
+      );
+    }
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw classifyError(response.status, err);
+    }
+
+    const data = await response.json();
+    return data?.message?.content || "";
   }
 
   // --- Anthropic-native format ---
