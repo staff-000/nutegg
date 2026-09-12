@@ -166,74 +166,18 @@ export class AIProcessor {
       return this.fallbackAnalysis(capture, eggs);
     }
 
-    // Long content (long videos, books, ...) — process part by part
-    const chunks = this.chunkContent(capture.content, capture.chapters || []);
-    if (chunks.length > 1) {
-      return this.analyzeChunked(capture, eggs, chunks);
-    }
-
-    // Single chunk may still carry a section grid (short video without
-    // chapters) — use it for the chapter map
-    const single = chunks[0];
-    const effective = {
-      ...capture,
-      chapters: single.chapters,
-      sections: single.sections,
-    };
-
-    let contentAnalysis: ContentAnalysis;
-    let eggResults: EggAnalysis[] = [];
-
-    if (eggs.length === 1) {
-      // Common case — one combined call using the egg's full instructions
-      const combined = await this.analyzeSingleEgg(effective, eggs[0]);
-      contentAnalysis = {
-        titleVerdict: combined.titleVerdict,
-        coreSummary: combined.coreSummary,
-        isLongForm: combined.isLongForm,
-        chapterMap: combined.chapterMap,
-        customQuestionAnswers: combined.customQuestionAnswers,
-      };
-      eggResults = [combined];
-    } else {
-      // Phase 1: content analysis
-      contentAnalysis = await this.analyzeContent(
-        capture,
-        "",
-        eggs[0]?.indexDescription || ""
-      );
-
-      // Phase 2: one parallel call per egg
-      eggResults = (
-        await Promise.all(
-          eggs.map((egg) => this.analyzeAgainstEgg(capture, egg))
-        )
-      ).filter((r): r is EggAnalysis => r !== null);
-    }
-
-    const verdict = this.mergeVerdict(eggResults);
-    const newKnowledge: NewKnowledgeItem[] = eggResults.flatMap((r) =>
-      r.novelDelta.map((d) => ({
-        egg: r.egg,
-        parent: d.parent,
-        content: d.content,
-      }))
+    const contentAnalysis = await this.analyzeContent(
+      capture,
+      eggs[0]?.indexDescription || ""
     );
-
-    return {
-      ...contentAnalysis,
-      ...verdict,
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge,
-    };
+    return this.analyzeEggs(capture, eggs, contentAnalysis);
   }
 
   /**
-   * Phase 1 only — content summary + chapter map + custom question answers.
+   * Stage 1 — content summary + chapter map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContentOnly(
+  async analyzeContent(
     capture: {
       url: string;
       title: string;
@@ -251,7 +195,10 @@ export class AIProcessor {
         coreSummary: [capture.title],
         isLongForm: false,
         chapterMap: [],
-        customQuestionAnswers: [],
+        customQuestionAnswers: (capture.questions || []).map((q) => ({
+          question: q,
+          answer: "No API key configured — cannot answer.",
+        })),
       };
     }
 
@@ -259,7 +206,7 @@ export class AIProcessor {
     if (chunks.length > 1) {
       const partResults = await Promise.all(
         chunks.map((chunk) =>
-          this.analyzeContent(
+          this.callContentChunk(
             {
               ...capture,
               content: chunk.content,
@@ -297,7 +244,7 @@ export class AIProcessor {
       chapters: single?.chapters,
       sections: single?.sections,
     };
-    return this.analyzeContent(
+    return this.callContentChunk(
       effective,
       "",
       eggDescription
@@ -305,10 +252,10 @@ export class AIProcessor {
   }
 
   /**
-   * Phase 2 only — per-egg extraction, comparison against egg knowledge tree,
-   * and final read verdict synthesis.
+   * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
+   * and final read verdict synthesis. Works identically for 1 or N eggs.
    */
-  async analyzeEggsOnly(
+  async analyzeEggs(
     capture: {
       url: string;
       title: string;
@@ -323,7 +270,7 @@ export class AIProcessor {
     if (!isAIConfigured(this.plugin.settings) || eggs.length === 0) {
       return {
         ...contentAnalysis,
-        shouldRead: false,
+        shouldRead: eggs.length === 0 ? false : true,
         shouldReadReason:
           eggs.length === 0
             ? "No matching egg found in vault."
@@ -405,7 +352,7 @@ export class AIProcessor {
   }
 
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  private async analyzeContent(
+  private async callContentChunk(
     capture: {
       title: string;
       url: string;
@@ -510,86 +457,6 @@ export class AIProcessor {
     }
   }
 
-  /**
-   * Single egg:
-   *   Step 1: Extract candidate knowledge entries + content summary using ONLY the egg instructions.
-   *   Step 2: Compare candidate entries against the egg's Current Knowledge & Unprocessed entries.
-   */
-  private async analyzeSingleEgg(
-    capture: {
-      title: string;
-      url: string;
-      content: string;
-      sourceType: string;
-      chapters?: Array<{ time: string; title: string }>;
-      sections?: string[];
-      questions?: string[];
-    },
-    egg: EggContent,
-    partNote = ""
-  ): Promise<EggAnalysis & ContentAnalysis> {
-    // Step 1: Extract candidate entries and content analysis using ONLY egg instructions
-    const prompt = renderPrompt(this.getPrompt("eggCombined"), {
-      egg_file: egg.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg),
-      title: capture.title,
-      url: capture.url,
-      source_type: capture.sourceType,
-      part_note: partNote,
-      chapters: this.chaptersBlock(capture.chapters),
-      sections: this.sectionsBlock(capture.sections),
-      questions: this.questionsBlock(
-        capture.questions,
-        "User Questions (answer each directly and concisely)"
-      ),
-      content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(egg.indexDescription),
-    });
-
-    const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response, "egg-combined");
-
-    const contentAnalysis: ContentAnalysis = {
-      titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
-      coreSummary: Array.isArray(parsed.coreSummary)
-        ? parsed.coreSummary.map(String).slice(0, 3)
-        : [],
-      isLongForm: parsed.isLongForm === true,
-      chapterMap: this.completeChapterMap(
-        Array.isArray(parsed.chapterMap)
-          ? parsed.chapterMap
-              .filter((c: any) => c && (c.time || c.title))
-              .map((c: any) => ({
-                time: String(c.time || ""),
-                title: String(c.title || ""),
-                summary: String(c.summary || ""),
-              }))
-          : [],
-        capture.sections
-      ),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
-    };
-
-    const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
-    const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
-
-    // Step 2: Compare candidate entries against egg knowledge tree to find new insights and read verdict
-    const diff = await this.compareEggKnowledge(capture, egg, extractedEntries);
-
-    return {
-      ...contentAnalysis,
-      egg: egg.fileName,
-      keyQuestionAnswers,
-      extractedEntries,
-      novelDelta: diff.novelDelta,
-      redundantEntries: diff.redundantEntries,
-      existingKnowledge: diff.existingKnowledge,
-      rejected: diff.rejected,
-      rejectReason: diff.rejectReason,
-      readVerdict: diff.readVerdict,
-      readVerdictReason: diff.readVerdictReason,
-    };
-  }
 
   /**
    * Step 2 — Compare extracted candidate knowledge entries against the egg's
@@ -723,119 +590,6 @@ export class AIProcessor {
       .filter((e) => e.content.length > 0);
   }
 
-  /**
-   * Long content: one analysis call per part, then aggregate calls that
-   * combine the parts into a single result.
-   *   Phase 1 — per-part content analysis → aggregate (verdict, 3-bullet
-   *   summary, custom questions). Chapter maps are unioned directly.
-   *   Phase 2 — per egg: per-part delta calls → aggregate (key questions,
-   *   reject, read verdict). Novel deltas are the union of the parts.
-   */
-  private async analyzeChunked(
-    capture: {
-      url: string;
-      title: string;
-      content: string;
-      sourceType: string;
-      chapters?: Array<{ time: string; title: string }>;
-      questions?: string[];
-    },
-    eggs: EggContent[],
-    chunks: ContentChunk[]
-  ): Promise<AnalysisResult> {
-    // Phase 1 — per-part content analysis (custom questions are answered
-    // once, in the aggregate call, so parts run without them)
-    const partResults = await Promise.all(
-      chunks.map((chunk) =>
-        this.analyzeContent(
-          {
-            ...capture,
-            content: chunk.content,
-            chapters: chunk.chapters,
-            sections: chunk.sections,
-            questions: [],
-          },
-          this.partNote(chunk),
-          eggs[0]?.indexDescription || ""
-        )
-      )
-    );
-    const summary = await this.aggregateContent(
-      capture,
-      partResults.map((r, i) => ({
-        part: i + 1,
-        startTime: chunks[i].startTime,
-        bullets: r.coreSummary,
-      })),
-      eggs[0]?.indexDescription || ""
-    );
-    const chapterMap = partResults.flatMap((r) => r.chapterMap);
-
-    // Phase 2 — per egg: per-part delta calls, then one aggregate call
-    const eggResults: EggAnalysis[] = [];
-    for (const egg of eggs) {
-      const partEggs = await Promise.all(
-        chunks.map((chunk) =>
-          this.analyzeAgainstEgg(
-            { ...capture, content: chunk.content },
-            egg,
-            this.partNote(chunk)
-          )
-        )
-      );
-      const aggregate = await this.aggregateEgg(
-        egg,
-        chunks.map((chunk, i) => ({
-          part: i + 1,
-          startTime: chunk.startTime,
-          delta: partEggs[i]?.novelDelta || [],
-        }))
-      );
-      // Synthesize cross-part findings:
-      // If aggregate call synthesized novelDelta across parts, use it.
-      // Otherwise, merge per-part deltas, preferring fuller explanations when a concept appears across parts.
-      const novelDelta =
-        aggregate.novelDelta && aggregate.novelDelta.length > 0
-          ? aggregate.novelDelta
-          : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
-
-      const redundantEntries = partEggs.flatMap((r) => r?.redundantEntries || []);
-      const existingKnowledge = partEggs.find((r) => r?.existingKnowledge)?.existingKnowledge || egg.knowledge;
-
-      eggResults.push({
-        egg: egg.fileName,
-        keyQuestionAnswers: aggregate.keyQuestionAnswers,
-        novelDelta,
-        redundantEntries,
-        existingKnowledge,
-        rejected: aggregate.rejected,
-        rejectReason: aggregate.rejectReason,
-        readVerdict: aggregate.readVerdict,
-        readVerdictReason: aggregate.readVerdictReason,
-      });
-    }
-
-    const verdict = this.mergeVerdict(eggResults);
-    const newKnowledge: NewKnowledgeItem[] = eggResults.flatMap((r) =>
-      r.novelDelta.map((d) => ({
-        egg: r.egg,
-        parent: d.parent,
-        content: d.content,
-      }))
-    );
-
-    return {
-      titleVerdict: summary.titleVerdict,
-      coreSummary: summary.coreSummary,
-      isLongForm: true,
-      chapterMap,
-      customQuestionAnswers: summary.customQuestionAnswers,
-      ...verdict,
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge,
-    };
-  }
 
   /**
    * Deduplicate and merge per-part deltas. When multiple parts report on the same concept,

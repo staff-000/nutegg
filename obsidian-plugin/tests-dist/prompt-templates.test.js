@@ -104,55 +104,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/egg-combined.md
-var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below according to this egg's instructions.
-
-## Egg Instructions
-{{egg_instructions}}
-
-## Content to Analyze
-**Title:** {{title}}
-**Source:** {{url}}
-**Type:** {{source_type}}
-{{part_note}}{{chapters}}
-{{sections}}{{questions}}
-
-{{content}}
-
-## Task
-1. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content.
-2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
-   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
-   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
-   - Do NOT include author or source \u2014 they are appended automatically.
-
-## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
-  "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "extractedEntries": [
-    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
-  ]
-}
-
-## Output Rules
-- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
-{{shared_output_rules}}
-`;
-
 // src/workflow/follow-up.md
 var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions about this content.
 
@@ -320,8 +271,6 @@ var PROMPTS = {
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
-  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
-  eggCombined: egg_combined_default,
   /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
   eggCompare: egg_compare_default,
   /** Follow-up questions after the initial analysis. */

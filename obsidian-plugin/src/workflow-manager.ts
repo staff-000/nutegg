@@ -6,7 +6,6 @@ import workflowReadmeTpl from "./workflow/README.md";
 export type WorkflowPromptKey =
   | "contentAnalysis"
   | "eggAnalysis"
-  | "eggCombined"
   | "eggCompare"
   | "followUp"
   | "eggRouting"
@@ -20,7 +19,6 @@ export type WorkflowPromptKey =
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   contentAnalysis: "content-analysis.md",
   eggAnalysis: "egg-analysis.md",
-  eggCombined: "egg-combined.md",
   eggCompare: "egg-compare.md",
   followUp: "follow-up.md",
   eggRouting: "egg-routing.md",
@@ -37,7 +35,6 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "README.md": workflowReadmeTpl,
   "content-analysis.md": PROMPTS.contentAnalysis,
   "egg-analysis.md": PROMPTS.eggAnalysis,
-  "egg-combined.md": PROMPTS.eggCombined,
   "egg-compare.md": PROMPTS.eggCompare,
   "follow-up.md": PROMPTS.followUp,
   "egg-routing.md": PROMPTS.eggRouting,

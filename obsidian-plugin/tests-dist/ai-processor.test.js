@@ -721,55 +721,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/egg-combined.md
-var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_file}}". Analyze the content below according to this egg's instructions.
-
-## Egg Instructions
-{{egg_instructions}}
-
-## Content to Analyze
-**Title:** {{title}}
-**Source:** {{url}}
-**Type:** {{source_type}}
-{{part_note}}{{chapters}}
-{{sections}}{{questions}}
-
-{{content}}
-
-## Task
-1. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content.
-2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
-   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
-   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
-   - Do NOT include author or source \u2014 they are appended automatically.
-
-## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
-  "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
-  ],
-  "extractedEntries": [
-    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
-  ]
-}
-
-## Output Rules
-- coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
-- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
-{{shared_output_rules}}
-`;
-
 // src/workflow/follow-up.md
 var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions about this content.
 
@@ -937,8 +888,6 @@ var PROMPTS = {
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
-  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
-  eggCombined: egg_combined_default,
   /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
   eggCompare: egg_compare_default,
   /** Follow-up questions after the initial analysis. */
@@ -995,73 +944,34 @@ var AIProcessor = class {
     if (!isAIConfigured(this.plugin.settings)) {
       return this.fallbackAnalysis(capture2, eggs);
     }
-    const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
-    if (chunks.length > 1) {
-      return this.analyzeChunked(capture2, eggs, chunks);
-    }
-    const single = chunks[0];
-    const effective = {
-      ...capture2,
-      chapters: single.chapters,
-      sections: single.sections
-    };
-    let contentAnalysis;
-    let eggResults = [];
-    if (eggs.length === 1) {
-      const combined = await this.analyzeSingleEgg(effective, eggs[0]);
-      contentAnalysis = {
-        titleVerdict: combined.titleVerdict,
-        coreSummary: combined.coreSummary,
-        isLongForm: combined.isLongForm,
-        chapterMap: combined.chapterMap,
-        customQuestionAnswers: combined.customQuestionAnswers
-      };
-      eggResults = [combined];
-    } else {
-      contentAnalysis = await this.analyzeContent(
-        capture2,
-        "",
-        eggs[0]?.indexDescription || ""
-      );
-      eggResults = (await Promise.all(
-        eggs.map((egg2) => this.analyzeAgainstEgg(capture2, egg2))
-      )).filter((r) => r !== null);
-    }
-    const verdict = this.mergeVerdict(eggResults);
-    const newKnowledge = eggResults.flatMap(
-      (r) => r.novelDelta.map((d) => ({
-        egg: r.egg,
-        parent: d.parent,
-        content: d.content
-      }))
+    const contentAnalysis = await this.analyzeContent(
+      capture2,
+      eggs[0]?.indexDescription || ""
     );
-    return {
-      ...contentAnalysis,
-      ...verdict,
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge
-    };
+    return this.analyzeEggs(capture2, eggs, contentAnalysis);
   }
   /**
-   * Phase 1 only — content summary + chapter map + custom question answers.
+   * Stage 1 — content summary + chapter map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContentOnly(capture2, eggDescription = "") {
+  async analyzeContent(capture2, eggDescription = "") {
     if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture2.title,
         coreSummary: [capture2.title],
         isLongForm: false,
         chapterMap: [],
-        customQuestionAnswers: []
+        customQuestionAnswers: (capture2.questions || []).map((q) => ({
+          question: q,
+          answer: "No API key configured \u2014 cannot answer."
+        }))
       };
     }
     const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
     if (chunks.length > 1) {
       const partResults = await Promise.all(
         chunks.map(
-          (chunk) => this.analyzeContent(
+          (chunk) => this.callContentChunk(
             {
               ...capture2,
               content: chunk.content,
@@ -1098,21 +1008,25 @@ var AIProcessor = class {
       chapters: single?.chapters,
       sections: single?.sections
     };
-    return this.analyzeContent(
+    return this.callContentChunk(
       effective,
       "",
       eggDescription
     );
   }
+  /** Alias for backward compatibility */
+  async analyzeContentOnly(capture2, eggDescription = "") {
+    return this.analyzeContent(capture2, eggDescription);
+  }
   /**
-   * Phase 2 only — per-egg extraction, comparison against egg knowledge tree,
-   * and final read verdict synthesis.
+   * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
+   * and final read verdict synthesis. Works identically for 1 or N eggs.
    */
-  async analyzeEggsOnly(capture2, eggs, contentAnalysis) {
+  async analyzeEggs(capture2, eggs, contentAnalysis) {
     if (!isAIConfigured(this.plugin.settings) || eggs.length === 0) {
       return {
         ...contentAnalysis,
-        shouldRead: false,
+        shouldRead: eggs.length === 0 ? false : true,
         shouldReadReason: eggs.length === 0 ? "No matching egg found in vault." : this.plugin.settings.aiProvider === "local" ? "Local LLM not configured." : "No API key configured.",
         matchedEggs: eggs.map((e) => e.fileName),
         eggResults: [],
@@ -1176,8 +1090,12 @@ var AIProcessor = class {
       newKnowledge
     };
   }
+  /** Alias for backward compatibility */
+  async analyzeEggsOnly(capture2, eggs, contentAnalysis) {
+    return this.analyzeEggs(capture2, eggs, contentAnalysis);
+  }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  async analyzeContent(capture2, partNote = "", eggDescription = "") {
+  async callContentChunk(capture2, partNote = "", eggDescription = "") {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       content_task_default: this.getPrompt("contentTaskDefault"),
       title: capture2.title,
@@ -1250,61 +1168,6 @@ var AIProcessor = class {
       console.error(`[NutEgg] Egg analysis failed for ${egg2.fileName}:`, err);
       return null;
     }
-  }
-  /**
-   * Single egg:
-   *   Step 1: Extract candidate knowledge entries + content summary using ONLY the egg instructions.
-   *   Step 2: Compare candidate entries against the egg's Current Knowledge & Unprocessed entries.
-   */
-  async analyzeSingleEgg(capture2, egg2, partNote = "") {
-    const prompt = renderPrompt(this.getPrompt("eggCombined"), {
-      egg_file: egg2.fileName,
-      egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
-      title: capture2.title,
-      url: capture2.url,
-      source_type: capture2.sourceType,
-      part_note: partNote,
-      chapters: this.chaptersBlock(capture2.chapters),
-      sections: this.sectionsBlock(capture2.sections),
-      questions: this.questionsBlock(
-        capture2.questions,
-        "User Questions (answer each directly and concisely)"
-      ),
-      content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
-    });
-    const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response, "egg-combined");
-    const contentAnalysis = {
-      titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
-      coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
-      isLongForm: parsed.isLongForm === true,
-      chapterMap: this.completeChapterMap(
-        Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
-          time: String(c.time || ""),
-          title: String(c.title || ""),
-          summary: String(c.summary || "")
-        })) : [],
-        capture2.sections
-      ),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
-    };
-    const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
-    const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
-    const diff = await this.compareEggKnowledge(capture2, egg2, extractedEntries);
-    return {
-      ...contentAnalysis,
-      egg: egg2.fileName,
-      keyQuestionAnswers,
-      extractedEntries,
-      novelDelta: diff.novelDelta,
-      redundantEntries: diff.redundantEntries,
-      existingKnowledge: diff.existingKnowledge,
-      rejected: diff.rejected,
-      rejectReason: diff.rejectReason,
-      readVerdict: diff.readVerdict,
-      readVerdictReason: diff.readVerdictReason
-    };
   }
   /**
    * Step 2 — Compare extracted candidate knowledge entries against the egg's
@@ -1400,94 +1263,6 @@ ${e.content}`).join("\n\n"),
         content: String(e.content).trim()
       };
     }).filter((e) => e.content.length > 0);
-  }
-  /**
-   * Long content: one analysis call per part, then aggregate calls that
-   * combine the parts into a single result.
-   *   Phase 1 — per-part content analysis → aggregate (verdict, 3-bullet
-   *   summary, custom questions). Chapter maps are unioned directly.
-   *   Phase 2 — per egg: per-part delta calls → aggregate (key questions,
-   *   reject, read verdict). Novel deltas are the union of the parts.
-   */
-  async analyzeChunked(capture2, eggs, chunks) {
-    const partResults = await Promise.all(
-      chunks.map(
-        (chunk) => this.analyzeContent(
-          {
-            ...capture2,
-            content: chunk.content,
-            chapters: chunk.chapters,
-            sections: chunk.sections,
-            questions: []
-          },
-          this.partNote(chunk),
-          eggs[0]?.indexDescription || ""
-        )
-      )
-    );
-    const summary = await this.aggregateContent(
-      capture2,
-      partResults.map((r, i) => ({
-        part: i + 1,
-        startTime: chunks[i].startTime,
-        bullets: r.coreSummary
-      })),
-      eggs[0]?.indexDescription || ""
-    );
-    const chapterMap = partResults.flatMap((r) => r.chapterMap);
-    const eggResults = [];
-    for (const egg2 of eggs) {
-      const partEggs = await Promise.all(
-        chunks.map(
-          (chunk) => this.analyzeAgainstEgg(
-            { ...capture2, content: chunk.content },
-            egg2,
-            this.partNote(chunk)
-          )
-        )
-      );
-      const aggregate = await this.aggregateEgg(
-        egg2,
-        chunks.map((chunk, i) => ({
-          part: i + 1,
-          startTime: chunk.startTime,
-          delta: partEggs[i]?.novelDelta || []
-        }))
-      );
-      const novelDelta = aggregate.novelDelta && aggregate.novelDelta.length > 0 ? aggregate.novelDelta : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
-      const redundantEntries = partEggs.flatMap((r) => r?.redundantEntries || []);
-      const existingKnowledge = partEggs.find((r) => r?.existingKnowledge)?.existingKnowledge || egg2.knowledge;
-      eggResults.push({
-        egg: egg2.fileName,
-        keyQuestionAnswers: aggregate.keyQuestionAnswers,
-        novelDelta,
-        redundantEntries,
-        existingKnowledge,
-        rejected: aggregate.rejected,
-        rejectReason: aggregate.rejectReason,
-        readVerdict: aggregate.readVerdict,
-        readVerdictReason: aggregate.readVerdictReason
-      });
-    }
-    const verdict = this.mergeVerdict(eggResults);
-    const newKnowledge = eggResults.flatMap(
-      (r) => r.novelDelta.map((d) => ({
-        egg: r.egg,
-        parent: d.parent,
-        content: d.content
-      }))
-    );
-    return {
-      titleVerdict: summary.titleVerdict,
-      coreSummary: summary.coreSummary,
-      isLongForm: true,
-      chapterMap,
-      customQuestionAnswers: summary.customQuestionAnswers,
-      ...verdict,
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge
-    };
   }
   /**
    * Deduplicate and merge per-part deltas. When multiple parts report on the same concept,
@@ -2581,9 +2356,9 @@ var capture = {
   });
 });
 (0, import_node_test.describe)("AIProcessor.analyze", () => {
-  (0, import_node_test.it)("single egg: Step 1 extraction + Step 2 knowledge comparison", async () => {
+  (0, import_node_test.it)("single egg: Stage 1 content analysis + Stage 2 egg extraction and comparison", async () => {
     const responses = [
-      // Step 1: Extract candidate entries & content analysis using egg instructions
+      // Stage 1: Content analysis
       JSON.stringify({
         titleVerdict: "Verdict.",
         coreSummary: ["b1", "b2", "b3", "b4"],
@@ -2594,15 +2369,18 @@ var capture = {
           { time: "", title: "", summary: "" }
           // dropped by the filter
         ],
+        customQuestionAnswers: [{ question: "custom?", answer: "custom a" }]
+      }),
+      // Stage 2: Step 1 Extract candidate entries using egg instructions
+      JSON.stringify({
         keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
-        customQuestionAnswers: [{ question: "custom?", answer: "custom a" }],
         extractedEntries: [
           { kind: "insight", content: "- new stuff" },
           { kind: "insight", content: "" }
           // dropped
         ]
       }),
-      // Step 2: Compare candidate entries against egg knowledge tree
+      // Stage 2: Step 2 Compare candidate entries against egg knowledge tree
       JSON.stringify({
         novelDelta: [{ parent: "## X", content: "- new stuff" }],
         rejected: false,
@@ -2619,7 +2397,7 @@ var capture = {
       { ...capture, chapters: [{ time: "00:10", title: "Ch1" }], questions: ["custom?"] },
       [egg("one.md")]
     );
-    import_strict.default.equal(calls, 2);
+    import_strict.default.equal(calls, 3);
     import_strict.default.equal(result.titleVerdict, "Verdict.");
     import_strict.default.deepEqual(result.coreSummary, ["b1", "b2", "b3"]);
     import_strict.default.equal(result.chapterMap.length, 1);
@@ -2985,7 +2763,7 @@ var capture = {
       }
     });
     await new AIProcessor(plugin).analyze({ ...capture }, [egg("a.md")]);
-    import_strict.default.equal(calls, 1, "no chunking below the limit (single egg extract with 0 entries)");
+    import_strict.default.equal(calls, 2, "no chunking below the limit (1 content call + 1 egg extract call with 0 entries)");
   });
 });
 (0, import_node_test.describe)("AIProcessor.localizeEggTemplate", () => {

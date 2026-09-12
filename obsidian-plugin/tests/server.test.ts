@@ -450,7 +450,7 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     let routedWithContent = "";
     const s = makeServer({
       aiProcessor: {
-        analyzeContentOnly: async () => ({
+        analyzeContent: async () => ({
           titleVerdict: "Core verdict answer.",
           coreSummary: ["Bullet 1", "Bullet 2"],
           isLongForm: false,
@@ -498,7 +498,7 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
           matched.map((m) => ({ fileName: m.fileName, knowledge: "", unprocessed: "" })),
       },
       aiProcessor: {
-        analyzeEggsOnly: async (_cap: any, eggs: any[], contentAnalysis: any) => {
+        analyzeEggs: async (_cap: any, eggs: any[], contentAnalysis: any) => {
           analyzeEggsCalledWith = { eggs, contentAnalysis };
           return {
             ...contentAnalysis,
@@ -542,7 +542,7 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     let analyzeContentCalled = false;
     const s = makeServer({
       aiProcessor: {
-        analyzeContentOnly: async () => {
+        analyzeContent: async () => {
           analyzeContentCalled = true;
           return {
             titleVerdict: "Fresh stage 1 verdict.",

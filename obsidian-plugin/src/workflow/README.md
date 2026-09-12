@@ -155,7 +155,6 @@ flowchart TD
         ROUT["egg-routing.md<br/><i>(Stage 1: Summary-based egg routing)</i>"]
         EA["egg-analysis.md<br/><i>(Stage 2: Per-egg knowledge extraction)</i>"]
         CMP["egg-compare.md<br/><i>(Stage 2: Knowledge tree diff)</i>"]
-        EC["egg-combined.md<br/><i>(Single-egg 1-call fast path)</i>"]
         AC["aggregate-content.md<br/><i>(Stage 1 chunk aggregation)</i>"]
         AE["aggregate-egg.md<br/><i>(Stage 2 chunk aggregation)</i>"]
 
@@ -182,7 +181,6 @@ flowchart TD
     SOR -.->|"{{shared_output_rules}}"| CA
     SOR -.->|"{{shared_output_rules}}"| EA
     SOR -.->|"{{shared_output_rules}}"| CMP
-    SOR -.->|"{{shared_output_rules}}"| EC
     SOR -.->|"{{shared_output_rules}}"| AC
     SOR -.->|"{{shared_output_rules}}"| AE
     SOR -.->|"{{shared_output_rules}}"| FU
@@ -286,7 +284,7 @@ These are **not standalone prompts** — they are modular snippets injected as `
 
 | File | Injected As | Injected Into | Purpose |
 |---|---|---|---|
-| [`shared-output-rules.md`](./shared-output-rules.md) | `{{shared_output_rules}}` | `content-analysis`, `egg-analysis`, `egg-compare`, `egg-combined`, `aggregate-content`, `aggregate-egg`, `follow-up` | Combined grounding directive (content as sole truth) and multi-lingual output language reference rule. |
+| [`shared-output-rules.md`](./shared-output-rules.md) | `{{shared_output_rules}}` | `content-analysis`, `egg-analysis`, `egg-compare`, `aggregate-content`, `aggregate-egg`, `follow-up` | Combined grounding directive (content as sole truth) and multi-lingual output language reference rule. |
 | [`content-task-default.md`](./content-task-default.md) | `{{content_task_default}}` | `content-analysis`, `aggregate-content` | Default fixed tasks for content analysis: Title Verdict, 3-Bullet Core Summary, and Chapter Map. |
 
 ### 2. Content Capture Pipeline
@@ -297,7 +295,6 @@ These are **not standalone prompts** — they are modular snippets injected as `
 | [`egg-routing.md`](./egg-routing.md) | Stage 1: Summary-Based Routing | Matches the Stage 1 content summary against egg descriptions in `_index.md` to select matching eggs with minimal tokens. | Plain text list of filenames (one per line) |
 | [`egg-analysis.md`](./egg-analysis.md) | Stage 2: Egg Extraction | Per-egg extraction: candidate knowledge entries and key question answers scoped strictly to one egg's instructions. | JSON (`keyQuestionAnswers`, `extractedEntries`) |
 | [`egg-compare.md`](./egg-compare.md) | Stage 2: Knowledge Diff | Diffs candidate entries against the egg's existing `# Knowledge` tree and `# Unprocessed` to find novel insights and determine read verdict. | JSON (`novelDelta`, `redundantEntries`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
-| [`egg-combined.md`](./egg-combined.md) | Single-Egg Fast Path / Fallback | Combined 1-call prompt: content summary + chapter map + candidate knowledge entries for a single egg. | JSON (`titleVerdict`, `coreSummary`, `chapterMap`, `customQuestionAnswers`, `keyQuestionAnswers`, `extractedEntries`) |
 
 ### 3. Long Content Aggregation
 

@@ -661,7 +661,7 @@ var NutEggServer = class {
           chapterMap: [],
           customQuestionAnswers: []
         };
-        const result = await this.plugin.aiProcessor.analyzeEggsOnly(
+        const result = await this.plugin.aiProcessor.analyzeEggs(
           capture,
           eggs,
           contentAnalysis2
@@ -674,7 +674,7 @@ var NutEggServer = class {
         res.end(JSON.stringify({ ...result, nutId }));
         return;
       }
-      const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+      const contentAnalysis = await this.plugin.aiProcessor.analyzeContent(capture);
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
       let matchedEggs = [];
@@ -1424,7 +1424,7 @@ function makeRes() {
     let routedWithContent = "";
     const s = makeServer({
       aiProcessor: {
-        analyzeContentOnly: async () => ({
+        analyzeContent: async () => ({
           titleVerdict: "Core verdict answer.",
           coreSummary: ["Bullet 1", "Bullet 2"],
           isLongForm: false,
@@ -1467,7 +1467,7 @@ function makeRes() {
         readEggs: async (matched) => matched.map((m) => ({ fileName: m.fileName, knowledge: "", unprocessed: "" }))
       },
       aiProcessor: {
-        analyzeEggsOnly: async (_cap, eggs, contentAnalysis2) => {
+        analyzeEggs: async (_cap, eggs, contentAnalysis2) => {
           analyzeEggsCalledWith = { eggs, contentAnalysis: contentAnalysis2 };
           return {
             ...contentAnalysis2,
@@ -1508,7 +1508,7 @@ function makeRes() {
     let analyzeContentCalled = false;
     const s = makeServer({
       aiProcessor: {
-        analyzeContentOnly: async () => {
+        analyzeContent: async () => {
           analyzeContentCalled = true;
           return {
             titleVerdict: "Fresh stage 1 verdict.",

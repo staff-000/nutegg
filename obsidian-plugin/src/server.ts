@@ -562,7 +562,7 @@ export class NutEggServer {
           chapterMap: [],
           customQuestionAnswers: [],
         };
-        const result = await this.plugin.aiProcessor.analyzeEggsOnly(
+        const result = await this.plugin.aiProcessor.analyzeEggs(
           capture,
           eggs,
           contentAnalysis
@@ -577,7 +577,7 @@ export class NutEggServer {
       }
 
       // Stage 1 (default): content summary + egg routing via concise summary
-      const contentAnalysis = await this.plugin.aiProcessor.analyzeContentOnly(capture);
+      const contentAnalysis = await this.plugin.aiProcessor.analyzeContent(capture);
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
 

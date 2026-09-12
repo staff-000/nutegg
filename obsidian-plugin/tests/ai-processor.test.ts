@@ -107,9 +107,9 @@ describe("AIProcessor.mergeVerdict", () => {
 });
 
 describe("AIProcessor.analyze", () => {
-  it("single egg: Step 1 extraction + Step 2 knowledge comparison", async () => {
+  it("single egg: Stage 1 content analysis + Stage 2 egg extraction and comparison", async () => {
     const responses = [
-      // Step 1: Extract candidate entries & content analysis using egg instructions
+      // Stage 1: Content analysis
       JSON.stringify({
         titleVerdict: "Verdict.",
         coreSummary: ["b1", "b2", "b3", "b4"], // must be sliced to 3
@@ -118,14 +118,17 @@ describe("AIProcessor.analyze", () => {
           { time: "00:10", title: "Ch1", summary: "s1" },
           { time: "", title: "", summary: "" }, // dropped by the filter
         ],
-        keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         customQuestionAnswers: [{ question: "custom?", answer: "custom a" }],
+      }),
+      // Stage 2: Step 1 Extract candidate entries using egg instructions
+      JSON.stringify({
+        keyQuestionAnswers: [{ question: "Is this new?", answer: "Yes" }],
         extractedEntries: [
           { kind: "insight", content: "- new stuff" },
           { kind: "insight", content: "" }, // dropped
         ],
       }),
-      // Step 2: Compare candidate entries against egg knowledge tree
+      // Stage 2: Step 2 Compare candidate entries against egg knowledge tree
       JSON.stringify({
         novelDelta: [{ parent: "## X", content: "- new stuff" }],
         rejected: false,
@@ -142,7 +145,7 @@ describe("AIProcessor.analyze", () => {
       { ...capture, chapters: [{ time: "00:10", title: "Ch1" }], questions: ["custom?"] },
       [egg("one.md")]
     );
-    assert.equal(calls, 2);
+    assert.equal(calls, 3);
     assert.equal(result.titleVerdict, "Verdict.");
     assert.deepEqual(result.coreSummary, ["b1", "b2", "b3"]);
     assert.equal(result.chapterMap.length, 1);
@@ -530,7 +533,7 @@ describe("AIProcessor.analyze (chunked)", () => {
       },
     });
     await new AIProcessor(plugin as any).analyze({ ...capture }, [egg("a.md")]);
-    assert.equal(calls, 1, "no chunking below the limit (single egg extract with 0 entries)");
+    assert.equal(calls, 2, "no chunking below the limit (1 content call + 1 egg extract call with 0 entries)");
   });
 });
 

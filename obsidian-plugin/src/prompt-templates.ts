@@ -8,7 +8,6 @@
  */
 import contentAnalysisTpl from "./workflow/content-analysis.md";
 import eggAnalysisTpl from "./workflow/egg-analysis.md";
-import eggCombinedTpl from "./workflow/egg-combined.md";
 import followUpTpl from "./workflow/follow-up.md";
 import eggRoutingTpl from "./workflow/egg-routing.md";
 import contentTaskDefaultTpl from "./workflow/content-task-default.md";
@@ -24,8 +23,6 @@ export const PROMPTS = {
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: eggAnalysisTpl,
-  /** Step 1 single-egg extraction (content summary + key questions + candidate entries). */
-  eggCombined: eggCombinedTpl,
   /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
   eggCompare: eggCompareTpl,
   /** Follow-up questions after the initial analysis. */
