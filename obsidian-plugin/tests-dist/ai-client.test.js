@@ -633,7 +633,8 @@ var DEFAULT_SETTINGS = {
   workflowFolder: "nutegg/_workflow",
   workflowHashes: {},
   chunkWindowChars: 3e4,
-  sectionGridSeconds: 300
+  sectionGridSeconds: 300,
+  contentOutputLanguage: "same-as-content"
 };
 
 // tests/ai-client.test.ts

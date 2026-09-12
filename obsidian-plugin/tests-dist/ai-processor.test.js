@@ -880,7 +880,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // src/workflow/shared-output-rules.md
-var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this reference: "{{egg_description}}". Keep all JSON keys in English.';
+var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
 
 // src/prompt-templates.ts
 var PROMPTS = {
@@ -934,27 +934,45 @@ var AIProcessor = class {
   getPrompt(key) {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
-  getSharedOutputRules(eggDescription = "") {
+  /**
+   * Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage).
+   */
+  getContentOutputRules() {
+    const langSetting = this.plugin.settings?.contentOutputLanguage || "same-as-content";
+    const isSame = langSetting === "same-as-content";
+    const outputLanguage = isSame ? "the same language as the captured content" : langSetting;
+    const eggDescription = isSame ? "the captured content" : langSetting;
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
+      output_language: outputLanguage,
       egg_description: eggDescription
+    }).trim();
+  }
+  /**
+   * Output rules for Stage 2 egg analysis (follows the egg's description from _index.md).
+   */
+  getEggOutputRules(eggDescription = "") {
+    const desc = eggDescription.trim();
+    const outputLanguage = desc ? `the same language as this reference: "${desc}"` : "the same language as the captured content";
+    const eggDescValue = desc || "the captured content";
+    const tpl = this.getPrompt("sharedOutputRules");
+    return renderPrompt(tpl, {
+      output_language: outputLanguage,
+      egg_description: eggDescValue
     }).trim();
   }
   async analyze(capture2, eggs) {
     if (!isAIConfigured(this.plugin.settings)) {
       return this.fallbackAnalysis(capture2, eggs);
     }
-    const contentAnalysis = await this.analyzeContent(
-      capture2,
-      eggs[0]?.indexDescription || ""
-    );
+    const contentAnalysis = await this.analyzeContent(capture2);
     return this.analyzeEggs(capture2, eggs, contentAnalysis);
   }
   /**
    * Stage 1 — content summary + chapter map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContent(capture2, eggDescription = "") {
+  async analyzeContent(capture2) {
     if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture2.title,
@@ -979,8 +997,7 @@ var AIProcessor = class {
               sections: chunk.sections,
               questions: []
             },
-            this.partNote(chunk),
-            eggDescription
+            this.partNote(chunk)
           )
         )
       );
@@ -990,8 +1007,7 @@ var AIProcessor = class {
           part: i + 1,
           startTime: chunks[i].startTime,
           bullets: r.coreSummary
-        })),
-        eggDescription
+        }))
       );
       const chapterMap = partResults.flatMap((r) => r.chapterMap);
       return {
@@ -1008,15 +1024,11 @@ var AIProcessor = class {
       chapters: single?.chapters,
       sections: single?.sections
     };
-    return this.callContentChunk(
-      effective,
-      "",
-      eggDescription
-    );
+    return this.callContentChunk(effective, "");
   }
   /** Alias for backward compatibility */
-  async analyzeContentOnly(capture2, eggDescription = "") {
-    return this.analyzeContent(capture2, eggDescription);
+  async analyzeContentOnly(capture2) {
+    return this.analyzeContent(capture2);
   }
   /**
    * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
@@ -1090,12 +1102,8 @@ var AIProcessor = class {
       newKnowledge
     };
   }
-  /** Alias for backward compatibility */
-  async analyzeEggsOnly(capture2, eggs, contentAnalysis) {
-    return this.analyzeEggs(capture2, eggs, contentAnalysis);
-  }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  async callContentChunk(capture2, partNote = "", eggDescription = "") {
+  async callContentChunk(capture2, partNote = "") {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       content_task_default: this.getPrompt("contentTaskDefault"),
       title: capture2.title,
@@ -1109,7 +1117,7 @@ var AIProcessor = class {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(eggDescription)
+      shared_output_rules: this.getContentOutputRules()
     });
     const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response, "content-analysis");
@@ -1142,7 +1150,7 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNote,
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1195,7 +1203,7 @@ var AIProcessor = class {
       rejection_criteria: egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
       extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1295,7 +1303,7 @@ ${e.content}`).join("\n\n"),
     return result;
   }
   /** Aggregate the per-part content summaries into one result. */
-  async aggregateContent(capture2, chunkSummaries, eggDescription = "") {
+  async aggregateContent(capture2, chunkSummaries) {
     const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture2.title,
       url: capture2.url,
@@ -1310,7 +1318,7 @@ ${bullets || "- (no summary)"}`;
         "User Questions (answer each directly and concisely)"
       ),
       content_task_default: this.getPrompt("contentTaskDefault"),
-      shared_output_rules: this.getSharedOutputRules(eggDescription)
+      shared_output_rules: this.getContentOutputRules()
     });
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response, "aggregate-content");
@@ -1331,7 +1339,7 @@ ${bullets || "- (no summary)"}`;
         return `## Part ${f.part} of ${chunkFindings.length}${at}
 ${delta || "- (no novel delta)"}`;
       }).join("\n\n"),
-      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "aggregate-egg");
@@ -1621,7 +1629,7 @@ ${c.content}`;
    * call, grounded in the same content. Previous Q&A pairs are included as
    * context so the model can refer back instead of repeating answers.
    */
-  async askFollowUp(capture2, questions, priorQa, eggDescription = "") {
+  async askFollowUp(capture2, questions, priorQa = []) {
     if (questions.length === 0)
       return [];
     if (!isAIConfigured(this.plugin.settings)) {
@@ -1641,7 +1649,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       prior_qa: priorBlock,
       content: this.truncate(capture2.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getSharedOutputRules(eggDescription)
+      shared_output_rules: this.getContentOutputRules()
     });
     try {
       const response = await this.callAI(prompt, 2e3);
@@ -3051,5 +3059,43 @@ ${entries}
     import_strict.default.equal(res.redundantEntries[0].content, "- already covered insight");
     import_strict.default.equal(res.redundantEntries[0].existingParent, "## Core");
     import_strict.default.equal(res.redundantEntries[1].content, "- another existing fact");
+  });
+});
+(0, import_node_test.describe)("AIProcessor Output Language Rules", () => {
+  (0, import_node_test.it)("content analysis follows contentOutputLanguage setting", () => {
+    const pluginSame = makeFakePlugin({
+      settings: { contentOutputLanguage: "same-as-content" }
+    });
+    const pSame = new AIProcessor(pluginSame);
+    const ruleSame = pSame.getContentOutputRules();
+    import_strict.default.ok(
+      ruleSame.includes("the same language as the captured content"),
+      `expected rule to specify same language as captured content, got: ${ruleSame}`
+    );
+    const pluginZh = makeFakePlugin({
+      settings: { contentOutputLanguage: "Chinese" }
+    });
+    const pZh = new AIProcessor(pluginZh);
+    const ruleZh = pZh.getContentOutputRules();
+    import_strict.default.ok(
+      ruleZh.includes("Chinese"),
+      `expected rule to specify Chinese, got: ${ruleZh}`
+    );
+  });
+  (0, import_node_test.it)("egg analysis follows the egg description from index", () => {
+    const plugin = makeFakePlugin({
+      settings: { contentOutputLanguage: "English" }
+    });
+    const p = new AIProcessor(plugin);
+    const ruleWithDesc = p.getEggOutputRules("\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5");
+    import_strict.default.ok(
+      ruleWithDesc.includes('the same language as this reference: "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"'),
+      `expected egg rule to follow egg description, got: ${ruleWithDesc}`
+    );
+    const ruleEmptyDesc = p.getEggOutputRules("");
+    import_strict.default.ok(
+      ruleEmptyDesc.includes("the same language as the captured content"),
+      `expected fallback to captured content language when egg description is empty, got: ${ruleEmptyDesc}`
+    );
   });
 });

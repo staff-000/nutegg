@@ -1,2 +1,2 @@
 - Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts — never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".
-- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this reference: "{{egg_description}}". Keep all JSON keys in English.
+- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.

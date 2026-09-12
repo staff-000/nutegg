@@ -847,3 +847,47 @@ describe("AIProcessor.compareEggKnowledge (Step 2)", () => {
     assert.equal(res.redundantEntries[1].content, "- another existing fact");
   });
 });
+
+describe("AIProcessor Output Language Rules", () => {
+  it("content analysis follows contentOutputLanguage setting", () => {
+    const pluginSame = makeFakePlugin({
+      settings: { contentOutputLanguage: "same-as-content" },
+    });
+    const pSame = new AIProcessor(pluginSame as any) as any;
+    const ruleSame = pSame.getContentOutputRules();
+    assert.ok(
+      ruleSame.includes("the same language as the captured content"),
+      `expected rule to specify same language as captured content, got: ${ruleSame}`
+    );
+
+    const pluginZh = makeFakePlugin({
+      settings: { contentOutputLanguage: "Chinese" },
+    });
+    const pZh = new AIProcessor(pluginZh as any) as any;
+    const ruleZh = pZh.getContentOutputRules();
+    assert.ok(
+      ruleZh.includes("Chinese"),
+      `expected rule to specify Chinese, got: ${ruleZh}`
+    );
+  });
+
+  it("egg analysis follows the egg description from index", () => {
+    const plugin = makeFakePlugin({
+      settings: { contentOutputLanguage: "English" },
+    });
+    const p = new AIProcessor(plugin as any) as any;
+
+    const ruleWithDesc = p.getEggOutputRules("介绍做事的具体方法");
+    assert.ok(
+      ruleWithDesc.includes('the same language as this reference: "介绍做事的具体方法"'),
+      `expected egg rule to follow egg description, got: ${ruleWithDesc}`
+    );
+
+    const ruleEmptyDesc = p.getEggOutputRules("");
+    assert.ok(
+      ruleEmptyDesc.includes("the same language as the captured content"),
+      `expected fallback to captured content language when egg description is empty, got: ${ruleEmptyDesc}`
+    );
+  });
+});
+

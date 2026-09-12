@@ -144,10 +144,38 @@ export class AIProcessor {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key as keyof typeof PROMPTS] || "";
   }
 
-  private getSharedOutputRules(eggDescription = ""): string {
+  /**
+   * Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage).
+   */
+  private getContentOutputRules(): string {
+    const langSetting = this.plugin.settings?.contentOutputLanguage || "same-as-content";
+    const isSame = langSetting === "same-as-content";
+    const outputLanguage = isSame
+      ? "the same language as the captured content"
+      : langSetting;
+    const eggDescription = isSame ? "the captured content" : langSetting;
+
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
+      output_language: outputLanguage,
       egg_description: eggDescription,
+    }).trim();
+  }
+
+  /**
+   * Output rules for Stage 2 egg analysis (follows the egg's description from _index.md).
+   */
+  private getEggOutputRules(eggDescription = ""): string {
+    const desc = eggDescription.trim();
+    const outputLanguage = desc
+      ? `the same language as this reference: "${desc}"`
+      : "the same language as the captured content";
+    const eggDescValue = desc || "the captured content";
+
+    const tpl = this.getPrompt("sharedOutputRules");
+    return renderPrompt(tpl, {
+      output_language: outputLanguage,
+      egg_description: eggDescValue,
     }).trim();
   }
 
@@ -166,10 +194,7 @@ export class AIProcessor {
       return this.fallbackAnalysis(capture, eggs);
     }
 
-    const contentAnalysis = await this.analyzeContent(
-      capture,
-      eggs[0]?.indexDescription || ""
-    );
+    const contentAnalysis = await this.analyzeContent(capture);
     return this.analyzeEggs(capture, eggs, contentAnalysis);
   }
 
@@ -186,8 +211,7 @@ export class AIProcessor {
       chapters?: Array<{ time: string; title: string }>;
       sections?: string[];
       questions?: string[];
-    },
-    eggDescription = ""
+    }
   ): Promise<ContentAnalysis> {
     if (!isAIConfigured(this.plugin.settings)) {
       return {
@@ -214,8 +238,7 @@ export class AIProcessor {
               sections: chunk.sections,
               questions: [],
             },
-            this.partNote(chunk),
-            eggDescription
+            this.partNote(chunk)
           )
         )
       );
@@ -225,8 +248,7 @@ export class AIProcessor {
           part: i + 1,
           startTime: chunks[i].startTime,
           bullets: r.coreSummary,
-        })),
-        eggDescription
+        }))
       );
       const chapterMap = partResults.flatMap((r) => r.chapterMap);
       return {
@@ -244,11 +266,14 @@ export class AIProcessor {
       chapters: single?.chapters,
       sections: single?.sections,
     };
-    return this.callContentChunk(
-      effective,
-      "",
-      eggDescription
-    );
+    return this.callContentChunk(effective, "");
+  }
+
+  /** Alias for backward compatibility */
+  async analyzeContentOnly(
+    capture: Parameters<AIProcessor["analyzeContent"]>[0]
+  ): Promise<ContentAnalysis> {
+    return this.analyzeContent(capture);
   }
 
   /**
@@ -362,8 +387,7 @@ export class AIProcessor {
       sections?: string[];
       questions?: string[];
     },
-    partNote = "",
-    eggDescription = ""
+    partNote = ""
   ): Promise<ContentAnalysis> {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       content_task_default: this.getPrompt("contentTaskDefault"),
@@ -378,7 +402,7 @@ export class AIProcessor {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(eggDescription),
+      shared_output_rules: this.getContentOutputRules(),
     });
 
     // Room for a full chapter map (one summary per chapter) + questions
@@ -425,7 +449,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNote,
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getSharedOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
     });
 
     try {
@@ -500,7 +524,7 @@ export class AIProcessor {
       extracted_entries: extractedEntries
         .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
         .join("\n\n"),
-      shared_output_rules: this.getSharedOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
     });
 
     try {
@@ -632,8 +656,7 @@ export class AIProcessor {
   /** Aggregate the per-part content summaries into one result. */
   private async aggregateContent(
     capture: { title: string; url: string; questions?: string[] },
-    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>,
-    eggDescription = ""
+    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>
   ): Promise<{
     titleVerdict: string;
     coreSummary: string[];
@@ -654,7 +677,7 @@ export class AIProcessor {
         "User Questions (answer each directly and concisely)"
       ),
       content_task_default: this.getPrompt("contentTaskDefault"),
-      shared_output_rules: this.getSharedOutputRules(eggDescription),
+      shared_output_rules: this.getContentOutputRules(),
     });
 
     const response = await this.callAI(prompt, 800);
@@ -690,7 +713,7 @@ export class AIProcessor {
           return `## Part ${f.part} of ${chunkFindings.length}${at}\n${delta || "- (no novel delta)"}`;
         })
         .join("\n\n"),
-      shared_output_rules: this.getSharedOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
     });
 
     const response = await this.callAI(prompt, 1500);
@@ -1036,8 +1059,7 @@ export class AIProcessor {
       sourceType: string;
     },
     questions: string[],
-    priorQa: KeyAnswer[],
-    eggDescription = ""
+    priorQa: KeyAnswer[] = []
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
@@ -1066,7 +1088,7 @@ export class AIProcessor {
       prior_qa: priorBlock,
       content: this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getSharedOutputRules(eggDescription),
+      shared_output_rules: this.getContentOutputRules(),
     });
 
     try {
