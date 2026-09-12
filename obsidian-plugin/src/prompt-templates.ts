@@ -18,8 +18,11 @@ import aggregateEggTpl from "./workflow/aggregate-egg.md";
 import eggCompareTpl from "./workflow/egg-compare.md";
 import localizeEggTpl from "./workflow/localize-egg.md";
 import groundingRuleTpl from "./workflow/grounding-rule.md";
+import languageRuleTpl from "./workflow/language-rule.md";
 
 export const PROMPTS = {
+  /** Shared language rule injected into prompts. */
+  languageRule: languageRuleTpl.trim(),
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */

@@ -9,11 +9,11 @@ You are a knowledge curator. Analyze the content below following this Action Gui
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
 {{sections}}{{questions}}
-{{egg_key_questions}}
 
 {{content}}
 
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+## Output Format
+Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
@@ -26,9 +26,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
+## Rules
 - Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+- Language: {{language_rule}}
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.

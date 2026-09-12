@@ -15,7 +15,8 @@ export type WorkflowPromptKey =
   | "aggregateContent"
   | "aggregateEgg"
   | "localizeEgg"
-  | "groundingRule";
+  | "groundingRule"
+  | "languageRule";
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   contentAnalysis: "content-analysis.md",
@@ -30,6 +31,7 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   aggregateEgg: "aggregate-egg.md",
   localizeEgg: "localize-egg.md",
   groundingRule: "grounding-rule.md",
+  languageRule: "language-rule.md",
 };
 
 /** All built-in workflow files including README.md */
@@ -47,6 +49,7 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "aggregate-egg.md": PROMPTS.aggregateEgg,
   "localize-egg.md": PROMPTS.localizeEgg,
   "grounding-rule.md": PROMPTS.groundingRule,
+  "language-rule.md": PROMPTS.languageRule,
 };
 
 /** Fast deterministic DJB2 hash for string comparison */

@@ -655,11 +655,11 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
 {{sections}}{{questions}}
-{{egg_key_questions}}
 
 {{content}}
 
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+## Output Format
+Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
@@ -672,16 +672,12 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
+## Rules
 - Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
-- titleVerdict must be a single sentence.
-- coreSummary: at most 3 bullets, plain language.
-- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
-- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
+- Language: {{language_rule}}
+- isLongForm: true only for long articles/videos that benefit from a chapter map.
+- chapterMap: Empty array when isLongForm is false or no chapters/sections exist. When chapters are provided, preserve their exact timestamps and titles, adding only your 1-sentence summary. When Video Sections are listed, return exactly one entry per section with its start time as "time".
+- customQuestionAnswers: One entry per distinct user question (empty array when none).
 `;
 
 // src/workflow/egg-analysis.md
@@ -937,8 +933,13 @@ var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg De
 // src/workflow/grounding-rule.md
 var grounding_rule_default = 'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n';
 
+// src/workflow/language-rule.md
+var language_rule_default = 'Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this reference: "{{egg_description}}". Keep all JSON keys in English.\n';
+
 // src/prompt-templates.ts
 var PROMPTS = {
+  /** Shared language rule injected into prompts. */
+  languageRule: language_rule_default.trim(),
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
@@ -991,6 +992,12 @@ var AIProcessor = class {
   getPrompt(key) {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
+  getLanguageRule(eggDescription = "") {
+    const tpl = this.getPrompt("languageRule");
+    return renderPrompt(tpl, {
+      egg_description: eggDescription
+    }).trim();
+  }
   async analyze(capture2, eggs) {
     if (!isAIConfigured(this.plugin.settings)) {
       return this.fallbackAnalysis(capture2, eggs);
@@ -1022,7 +1029,6 @@ var AIProcessor = class {
       contentAnalysis = await this.analyzeContent(
         capture2,
         guide,
-        eggs.flatMap((e) => e.keyQuestions),
         "",
         eggs[0]?.indexDescription || ""
       );
@@ -1050,7 +1056,7 @@ var AIProcessor = class {
    * Phase 1 only — content summary + chapter map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContentOnly(capture2, actionGuide = "", eggKeyQuestions = [], eggDescription = "") {
+  async analyzeContentOnly(capture2, actionGuide = "", eggDescription = "") {
     if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture2.title,
@@ -1074,7 +1080,6 @@ var AIProcessor = class {
               questions: []
             },
             guide2,
-            eggKeyQuestions,
             this.partNote(chunk),
             eggDescription
           )
@@ -1108,7 +1113,6 @@ var AIProcessor = class {
     return this.analyzeContent(
       effective,
       guide,
-      eggKeyQuestions,
       "",
       eggDescription
     );
@@ -1186,7 +1190,7 @@ var AIProcessor = class {
     };
   }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  async analyzeContent(capture2, actionGuide, eggKeyQuestions, partNote = "", eggDescription = "") {
+  async analyzeContent(capture2, actionGuide, partNote = "", eggDescription = "") {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
       action_guide: actionGuide,
       egg_description: eggDescription,
@@ -1200,12 +1204,9 @@ var AIProcessor = class {
         capture2.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      egg_key_questions: this.questionsBlock(
-        eggKeyQuestions,
-        "Egg Key Questions (answered separately \u2014 skip equivalent user questions)"
-      ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      grounding_rule: this.getPrompt("groundingRule")
+      grounding_rule: this.getPrompt("groundingRule"),
+      language_rule: this.getLanguageRule(eggDescription)
     });
     const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response, "content-analysis");
@@ -1439,7 +1440,6 @@ ${e.content}`).join("\n\n"),
             questions: []
           },
           guide,
-          eggs.flatMap((e) => e.keyQuestions),
           this.partNote(chunk),
           eggs[0]?.indexDescription || ""
         )

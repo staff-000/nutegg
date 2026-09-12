@@ -190,13 +190,10 @@ export class AIProcessor {
       eggResults = [combined];
     } else {
       // Phase 1: content analysis (shared guide — eggs carry the same steps).
-      // The eggs' key questions are passed along so the AI can skip
-      // user questions that are equivalent to them.
       const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
       contentAnalysis = await this.analyzeContent(
         capture,
         guide,
-        eggs.flatMap((e) => e.keyQuestions),
         "",
         eggs[0]?.indexDescription || ""
       );
@@ -242,7 +239,6 @@ export class AIProcessor {
       questions?: string[];
     },
     actionGuide = "",
-    eggKeyQuestions: string[] = [],
     eggDescription = ""
   ): Promise<ContentAnalysis> {
     if (!isAIConfigured(this.plugin.settings)) {
@@ -269,7 +265,6 @@ export class AIProcessor {
               questions: [],
             },
             guide,
-            eggKeyQuestions,
             this.partNote(chunk),
             eggDescription
           )
@@ -304,7 +299,6 @@ export class AIProcessor {
     return this.analyzeContent(
       effective,
       guide,
-      eggKeyQuestions,
       "",
       eggDescription
     );
@@ -422,7 +416,6 @@ export class AIProcessor {
       questions?: string[];
     },
     actionGuide: string,
-    eggKeyQuestions: string[],
     partNote = "",
     eggDescription = ""
   ): Promise<ContentAnalysis> {
@@ -439,12 +432,9 @@ export class AIProcessor {
         capture.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      egg_key_questions: this.questionsBlock(
-        eggKeyQuestions,
-        "Egg Key Questions (answered separately — skip equivalent user questions)"
-      ),
       content: this.truncate(capture.content, this.chunkWindowChars),
       grounding_rule: this.getPrompt("groundingRule"),
+      language_rule: this.getLanguageRule(eggDescription),
     });
 
     // Room for a full chapter map (one summary per chapter) + questions
@@ -455,7 +445,6 @@ export class AIProcessor {
       coreSummary: Array.isArray(parsed.coreSummary)
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
-      isLongForm: parsed.isLongForm === true,
       chapterMap: this.completeChapterMap(
         Array.isArray(parsed.chapterMap)
           ? parsed.chapterMap
@@ -774,7 +763,6 @@ export class AIProcessor {
             questions: [],
           },
           guide,
-          eggs.flatMap((e) => e.keyQuestions),
           this.partNote(chunk),
           eggs[0]?.indexDescription || ""
         )
