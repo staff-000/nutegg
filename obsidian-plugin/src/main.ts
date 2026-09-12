@@ -9,7 +9,7 @@ import { NutEggServer } from "./server";
 import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
 import { IndexReader } from "./index-reader";
-import { EggParser } from "./egg-parser";
+import { EggParser, isEggPath } from "./egg-parser";
 import { IndexSync } from "./index-sync";
 import { NutEggDatabase } from "./db";
 import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
@@ -153,7 +153,7 @@ export default class NutEggPlugin extends Plugin {
           new Notice("NutEgg: No active file");
           return;
         }
-        if (!activeFile.path.endsWith(".md") || activeFile.path.endsWith("_index.md") || activeFile.path.includes("/_raw/")) {
+        if (!isEggPath(activeFile.path, this.vaultFolder)) {
           new Notice("NutEgg: Active file is not an egg note");
           return;
         }

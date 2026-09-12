@@ -252,12 +252,14 @@ describe("NutEggServer.handleGetEggs", () => {
 });
 
 describe("NutEggServer.countEggs", () => {
-  it("counts markdown under nutegg/ excluding _raw and _index", () => {
+  it("counts direct markdown under nutegg/ excluding system files, _workflow, and subdirectories", () => {
     const { vault } = makeFakeVault({
       "nutegg/_index.md": "# index",
       "nutegg/investment.md": "# Knowledge",
       "nutegg/ai.md": "# Knowledge",
       "nutegg/_raw/2026-08-16-x.md": "raw",
+      "nutegg/_workflow/content-analysis.md": "prompt",
+      "nutegg/sub/nested.md": "nested",
       "outside.md": "outside",
     });
     const s = makeServer({ vault });

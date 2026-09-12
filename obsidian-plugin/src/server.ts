@@ -3,6 +3,7 @@ import type NutEggPlugin from "./main";
 import { AIError, isAIConfigured } from "./ai-client";
 import type { AnalysisResult, ContentAnalysis, MergeResult } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
+import { isEggPath } from "./egg-parser";
 
 interface AnalyzeRequest {
   url: string;
@@ -136,16 +137,12 @@ export class NutEggServer {
     );
   }
 
-  /** Count egg files (markdown under vaultFolder/, excluding _raw, _workflow, and _index). */
+  /** Count egg files (direct markdown notes under vaultFolder/, excluding system files). */
   private countEggs(): number {
     const folder = this.plugin.vaultFolder || "nutegg";
-    const workflowFolder =
-      this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
-    return this.plugin.app.vault.getMarkdownFiles()
-      .filter((f) => f.path.startsWith(folder + "/") &&
-        !f.path.startsWith(this.plugin.settings.rawFolder) &&
-        !f.path.startsWith(workflowFolder) &&
-        !f.path.endsWith("/_index.md")).length;
+    return this.plugin.app.vault
+      .getMarkdownFiles()
+      .filter((f) => isEggPath(f.path, folder)).length;
   }
 
   /** Insert a capture entry into the SQLite DB if available. */

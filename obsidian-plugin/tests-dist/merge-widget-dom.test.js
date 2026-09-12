@@ -354,6 +354,28 @@ function makeFakePlugin(overrides = {}) {
 // src/egg-parser.ts
 var KNOWLEDGE_HEADING = "# Knowledge";
 var UNPROCESSED_HEADING = "# Unprocessed";
+function isEggPath(path, vaultFolder = "nutegg") {
+  if (!path || typeof path !== "string")
+    return false;
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const folder = (vaultFolder || "").replace(/^\/+|\/+$/g, "");
+  if (folder) {
+    if (!normalized.startsWith(folder + "/"))
+      return false;
+    const rel = normalized.slice(folder.length + 1);
+    if (rel.includes("/"))
+      return false;
+    if (rel.startsWith("_") || !rel.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  } else {
+    if (normalized.includes("/"))
+      return false;
+    if (normalized.startsWith("_") || !normalized.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  }
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
@@ -367,10 +389,8 @@ var EggParser = class {
     }
     if (!file) {
       const folder = this.plugin.vaultFolder || "nutegg";
-      const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
-      const rawFolder = this.plugin.settings?.rawFolder || `${folder}/_raw`;
       const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => !f.path.startsWith(workflowFolder) && !f.path.startsWith(rawFolder)
+        (f) => isEggPath(f.path, folder)
       );
       const base = fileName.split("/").pop().toLowerCase();
       const match = allFiles.find(

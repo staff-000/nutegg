@@ -1,25 +1,29 @@
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
 import { EGG_TEMPLATE } from "./defaults";
-import { extractEggLanguage } from "./egg-parser";
+import { extractEggLanguage, isEggPath } from "./egg-parser";
+
+export { isEggPath };
 
 /** What one consistency pass changed. */
 export interface IndexSyncResult {
-  /** Egg files that had no _index.md entry — one was appended. */
+  /** Unused / deprecated: background disk scan never auto-appends to _index.md. */
   addedIndexEntries: string[];
   /** Index entries whose path style was normalized to the full vault path. */
   fixedIndexPaths: string[];
   /** Index entries whose egg file was missing — created from the template. */
   createdEggs: string[];
+  /** Invalid index entries pruned from _index.md. */
+  prunedIndexEntries: string[];
 }
 
 /**
- * Keeps _index.md and the egg files under nutegg/ consistent:
- *   - egg file without an index entry → append `* path: description`
- *     (description taken from the egg's frontmatter topic)
- *   - index entry without an egg file → create the egg from the template,
- *     seeded with the entry's description (topic + scope)
- * Runs on plugin load and on an interval (see main.ts).
+ * Keeps _index.md and egg files consistent according to two simple rules:
+ * 1. Only egg files (except _index.md) directly under nutegg/ are allowed in _index.md.
+ * 2. Only two ways to add entries to _index.md:
+ *    - User edits _index.md directly (missing egg files are seeded from template)
+ *    - User explicitly triggers egg creation (Chrome extension or Obsidian modal)
+ * Background disk scans NEVER auto-append unindexed files to _index.md.
  */
 /**
  * Sanitize an egg name into a valid, safe markdown file stem.
@@ -46,57 +50,52 @@ export class IndexSync {
       addedIndexEntries: [],
       fixedIndexPaths: [],
       createdEggs: [],
+      prunedIndexEntries: [],
     };
 
     const folder = this.plugin.vaultFolder || "nutegg";
-    const workflowFolder =
-      this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
-
-    // Egg files present in the vault (raw nuts, workflow prompts, + the index itself excluded)
-    const eggFiles = this.plugin.app.vault
-      .getMarkdownFiles()
-      .filter(
-        (f) =>
-          f.path.startsWith(folder + "/") &&
-          !f.path.startsWith(this.plugin.settings.rawFolder) &&
-          !f.path.startsWith(workflowFolder) &&
-          !f.path.endsWith("/_index.md")
-      )
-      .map((f) => f.path);
 
     // Index entries present in _index.md
     const indexContent = await this.plugin.indexReader.getIndexContent();
     if (indexContent === "(No _index.md found)") {
       return result; // config-status already guides the user
     }
-    const entries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
 
     const norm = (p: string) =>
       p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
 
-    // Fix 1: egg files without an index entry (or with a relative-path one)
-    const byPath = new Map(entries.map((e) => [norm(e.fileName), e]));
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
     );
-    for (const eggPath of eggFiles) {
-      const entry = byPath.get(eggPath);
-      if (!entry) {
-        const description = await this.describeEgg(eggPath);
-        await this.appendIndexEntry(indexFile, eggPath, description);
-        result.addedIndexEntries.push(eggPath);
-      } else if (entry.fileName !== eggPath) {
-        // Relative entry ("invest.md") — upgrade to the full vault path
-        await this.rewriteIndexPath(indexFile, entry.fileName, eggPath);
-        result.fixedIndexPaths.push(eggPath);
+
+    // Rule 1: Only direct egg files under nutegg/ are allowed in _index.md.
+    // Prune any invalid entries (system folders like _workflow/, _raw/, subdirectories, etc.)
+    const entries: IndexEntry[] = [];
+    let updatedIndexContent = indexContent;
+    for (const entry of rawEntries) {
+      const target = norm(entry.fileName);
+      if (!isEggPath(target, folder)) {
+        const escaped = entry.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
+        updatedIndexContent = updatedIndexContent.replace(re, "");
+        result.prunedIndexEntries.push(entry.fileName);
+      } else {
+        entries.push(entry);
       }
     }
 
-    // Fix 2: index entries whose egg file is missing
-    const present = new Set(eggFiles);
+    if (result.prunedIndexEntries.length > 0 && indexFile) {
+      await this.plugin.app.vault.modify(indexFile as any, updatedIndexContent);
+      console.log(`[NutEgg] Pruned ${result.prunedIndexEntries.length} invalid entries from index`);
+    }
+
+    // Rule 2: Only 2 ways to add entries to _index.md:
+    // 1) User edits _index.md directly (if egg file is missing on disk, create from template)
+    // 2) User triggers createEgg (handled in createEgg())
+    // NOTE: We NEVER scan disk to auto-append unindexed files to _index.md.
     for (const entry of entries) {
       const target = norm(entry.fileName);
-      if (present.has(target)) continue;
       if (await this.plugin.app.vault.adapter.exists(target)) continue;
       if (await this.plugin.app.vault.adapter.exists(entry.fileName)) continue;
       try {
@@ -111,15 +110,26 @@ export class IndexSync {
       }
     }
 
+    // Normalize relative paths in _index.md for existing egg files too
+    for (const entry of entries) {
+      const target = norm(entry.fileName);
+      if (entry.fileName !== target && (await this.plugin.app.vault.adapter.exists(target))) {
+        await this.rewriteIndexPath(indexFile, entry.fileName, target);
+        if (!result.fixedIndexPaths.includes(target)) {
+          result.fixedIndexPaths.push(target);
+        }
+      }
+    }
+
     if (
-      result.addedIndexEntries.length ||
       result.fixedIndexPaths.length ||
-      result.createdEggs.length
+      result.createdEggs.length ||
+      result.prunedIndexEntries.length
     ) {
       console.log(
-        `[NutEgg] Index sync: +${result.addedIndexEntries.length} index entries, ` +
-          `~${result.fixedIndexPaths.length} paths fixed, ` +
-          `+${result.createdEggs.length} egg files created`
+        `[NutEgg] Index sync: ~${result.fixedIndexPaths.length} paths normalized, ` +
+          `+${result.createdEggs.length} egg files created, ` +
+          `-${result.prunedIndexEntries.length} non-egg entries pruned`
       );
     }
     return result;
@@ -161,16 +171,6 @@ export class IndexSync {
     );
     await this.appendIndexEntry(indexFile, fileName, description || name);
     return { path: fileName, alreadyExists: false, language };
-  }
-
-  /** Description for a new index entry — the egg's frontmatter topic, or "". */
-  private async describeEgg(eggPath: string): Promise<string> {
-    try {
-      const egg = await this.plugin.eggParser.readEgg(eggPath);
-      return egg?.topic && egg.topic !== "Unknown" ? egg.topic : "";
-    } catch {
-      return "";
-    }
   }
 
   private async appendIndexEntry(

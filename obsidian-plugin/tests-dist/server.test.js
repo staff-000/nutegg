@@ -261,6 +261,30 @@ var AIError = class extends Error {
   }
 };
 
+// src/egg-parser.ts
+function isEggPath(path, vaultFolder = "nutegg") {
+  if (!path || typeof path !== "string")
+    return false;
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const folder = (vaultFolder || "").replace(/^\/+|\/+$/g, "");
+  if (folder) {
+    if (!normalized.startsWith(folder + "/"))
+      return false;
+    const rel = normalized.slice(folder.length + 1);
+    if (rel.includes("/"))
+      return false;
+    if (rel.startsWith("_") || !rel.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  } else {
+    if (normalized.includes("/"))
+      return false;
+    if (normalized.startsWith("_") || !normalized.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  }
+}
+
 // src/index-sync.ts
 function sanitizeEggName(name) {
   return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
@@ -312,11 +336,10 @@ var NutEggServer = class {
   estimateTime(metadata, content) {
     return parseInt(metadata?.time_estimate_minutes || "0", 10) || Math.max(1, Math.ceil((content?.split(/\s+/)?.length || 0) / 200));
   }
-  /** Count egg files (markdown under vaultFolder/, excluding _raw, _workflow, and _index). */
+  /** Count egg files (direct markdown notes under vaultFolder/, excluding system files). */
   countEggs() {
     const folder = this.plugin.vaultFolder || "nutegg";
-    const workflowFolder = this.plugin.settings?.workflowFolder || `${folder}/_workflow`;
-    return this.plugin.app.vault.getMarkdownFiles().filter((f) => f.path.startsWith(folder + "/") && !f.path.startsWith(this.plugin.settings.rawFolder) && !f.path.startsWith(workflowFolder) && !f.path.endsWith("/_index.md")).length;
+    return this.plugin.app.vault.getMarkdownFiles().filter((f) => isEggPath(f.path, folder)).length;
   }
   /** Insert a capture entry into the SQLite DB if available. */
   recordNut(capture, result) {
@@ -1235,12 +1258,14 @@ function makeServer(overrides = {}) {
   });
 });
 (0, import_node_test.describe)("NutEggServer.countEggs", () => {
-  (0, import_node_test.it)("counts markdown under nutegg/ excluding _raw and _index", () => {
+  (0, import_node_test.it)("counts direct markdown under nutegg/ excluding system files, _workflow, and subdirectories", () => {
     const { vault } = makeFakeVault({
       "nutegg/_index.md": "# index",
       "nutegg/investment.md": "# Knowledge",
       "nutegg/ai.md": "# Knowledge",
       "nutegg/_raw/2026-08-16-x.md": "raw",
+      "nutegg/_workflow/content-analysis.md": "prompt",
+      "nutegg/sub/nested.md": "nested",
       "outside.md": "outside"
     });
     const s = makeServer({ vault });

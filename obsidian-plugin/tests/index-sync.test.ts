@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { IndexSync } from "../src/index-sync";
+import { IndexSync, isEggPath } from "../src/index-sync";
 import { IndexReader } from "../src/index-reader";
 import { EggParser } from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
@@ -40,19 +40,21 @@ function egg(topic: string): string {
 }
 
 describe("IndexSync.checkAndFix", () => {
-  it("appends an index entry for an egg file that isn't indexed", async () => {
+  it("does not auto-append unindexed egg files or workflow files to _index.md", async () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,
       "nutegg/investment.md": egg("Investment"),
+      "nutegg/ai_ml.md": egg("AI/ML"),
       "nutegg/psychology.md": egg("Psychology"),
+      "nutegg/_workflow/custom-prompt.md": "custom prompt",
     });
     const result = await sync.checkAndFix();
-    assert.deepEqual(result.addedIndexEntries, ["nutegg/psychology.md"]);
-    assert.ok(
-      files.get("nutegg/_index.md")!.includes(
-        "* nutegg/psychology.md: Psychology"
-      )
-    );
+    assert.deepEqual(result.addedIndexEntries, []);
+    assert.deepEqual(result.createdEggs, []);
+    assert.deepEqual(result.prunedIndexEntries, []);
+    // _index.md is not modified to include psychology or workflow prompt
+    assert.ok(!files.get("nutegg/_index.md")!.includes("psychology.md"));
+    assert.ok(!files.get("nutegg/_index.md")!.includes("custom-prompt.md"));
     // Existing entries untouched
     assert.ok(
       files.get("nutegg/_index.md")!.includes(
@@ -61,14 +63,40 @@ describe("IndexSync.checkAndFix", () => {
     );
   });
 
-  it("appends a bare entry (no description) for an egg without a topic", async () => {
+  it("prunes invalid entries (workflow, raw, subdirectories, system files) from _index.md", async () => {
+    const invalidIndex = [
+      "# NutEgg Egg Index",
+      "",
+      "* nutegg/investment.md: investment strategies",
+      "* nutegg/_workflow/custom.md: custom prompt",
+      "* nutegg/_raw/raw.md: raw nut capture",
+      "* nutegg/sub/deep.md: nested egg",
+      "* nutegg/_index.md: index itself",
+      "* nutegg/ai_ml.md: artificial intelligence",
+      "",
+    ].join("\n");
+
     const { sync, files } = makeSync({
-      "nutegg/_index.md": INDEX,
+      "nutegg/_index.md": invalidIndex,
       "nutegg/investment.md": egg("Investment"),
-      "nutegg/x.md": "# Knowledge\n",
+      "nutegg/ai_ml.md": egg("AI/ML"),
     });
-    await sync.checkAndFix();
-    assert.ok(files.get("nutegg/_index.md")!.includes("* nutegg/x.md\n"));
+
+    const result = await sync.checkAndFix();
+    assert.deepEqual(result.prunedIndexEntries, [
+      "nutegg/_workflow/custom.md",
+      "nutegg/_raw/raw.md",
+      "nutegg/sub/deep.md",
+      "nutegg/_index.md",
+    ]);
+
+    const updatedIndex = files.get("nutegg/_index.md")!;
+    assert.ok(updatedIndex.includes("* nutegg/investment.md: investment strategies"));
+    assert.ok(updatedIndex.includes("* nutegg/ai_ml.md: artificial intelligence"));
+    assert.ok(!updatedIndex.includes("_workflow"));
+    assert.ok(!updatedIndex.includes("_raw"));
+    assert.ok(!updatedIndex.includes("sub/deep"));
+    assert.ok(!updatedIndex.includes("* nutegg/_index.md"));
   });
 
   it("creates a missing egg file from the index description", async () => {
@@ -86,15 +114,6 @@ describe("IndexSync.checkAndFix", () => {
     assert.match(created, /last_updated: "\d{4}-\d{2}-\d{2}"/);
   });
 
-  it("creates nested egg files (missing parent folder)", async () => {
-    const { sync, files } = makeSync({
-      "nutegg/_index.md": "* nutegg/sub/deep.md: deep topics\n",
-    });
-    await sync.checkAndFix();
-    assert.ok(files.has("nutegg/sub/deep.md"));
-    assert.ok(files.get("nutegg/sub/deep.md")!.includes('topic: "deep topics"'));
-  });
-
   it("leaves a consistent vault untouched", async () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,
@@ -107,6 +126,7 @@ describe("IndexSync.checkAndFix", () => {
       addedIndexEntries: [],
       fixedIndexPaths: [],
       createdEggs: [],
+      prunedIndexEntries: [],
     });
     assert.deepEqual(Object.fromEntries(files), before);
   });
@@ -229,7 +249,35 @@ describe("IndexSync.checkAndFix", () => {
       addedIndexEntries: [],
       fixedIndexPaths: [],
       createdEggs: [],
+      prunedIndexEntries: [],
     });
     assert.deepEqual([...files.keys()], ["nutegg/eg.md"]);
+  });
+});
+
+describe("isEggPath", () => {
+  it("allows valid direct egg files under nutegg/", () => {
+    assert.equal(isEggPath("nutegg/investment.md"), true);
+    assert.equal(isEggPath("nutegg/ai_ml.md"), true);
+    assert.equal(isEggPath("nutegg/my-egg.md"), true);
+  });
+
+  it("rejects system files and directories", () => {
+    assert.equal(isEggPath("nutegg/_index.md"), false);
+    assert.equal(isEggPath("nutegg/_template.md"), false);
+    assert.equal(isEggPath("nutegg/_workflow/content-analysis.md"), false);
+    assert.equal(isEggPath("nutegg/_raw/article.md"), false);
+    assert.equal(isEggPath("nutegg/_backup/old.md"), false);
+  });
+
+  it("rejects subdirectories (only direct files under nutegg/ are eggs)", () => {
+    assert.equal(isEggPath("nutegg/tech/react.md"), false);
+    assert.equal(isEggPath("nutegg/sub/nested.md"), false);
+  });
+
+  it("rejects non-markdown files and files outside vault folder", () => {
+    assert.equal(isEggPath("nutegg/data.json"), false);
+    assert.equal(isEggPath("outside/investment.md"), false);
+    assert.equal(isEggPath("investment.md"), false);
   });
 });
