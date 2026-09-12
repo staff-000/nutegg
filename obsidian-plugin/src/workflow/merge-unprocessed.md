@@ -19,11 +19,12 @@ You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed sec
 7. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
 8. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "knowledge": "the COMPLETE updated Knowledge section content as markdown — the existing tree with the merged entries nested in. Only the section BODY: do NOT include the '# Knowledge' heading line itself.",
   "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged. Only the section BODY: do NOT include the '# Unprocessed' heading line itself."
 }
 
-IMPORTANT:
+## Output Rules:
 - Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.

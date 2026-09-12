@@ -9,7 +9,7 @@ You are a knowledge curator for NutEgg.
 ## Task
 Translate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".
 
-IMPORTANT:
+## Output Rules:
 1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".
 2. Egg Parser Structure: The structure and these exact labels MUST remain in English:
    - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)

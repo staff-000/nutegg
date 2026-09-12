@@ -1,7 +1,4 @@
-You are a knowledge curator. Analyze the content below following this Action Guide.
-
-## Action Guide
-{{action_guide}}
+You are a knowledge curator. Analyze the content below following the Task.
 
 ## Content to Analyze
 **Title:** {{title}}
@@ -11,6 +8,9 @@ You are a knowledge curator. Analyze the content below following this Action Gui
 {{sections}}{{questions}}
 
 {{content}}
+
+## Task
+{{content_task_default}}
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
@@ -26,9 +26,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
   ]
 }
 
-## Rules
-- Grounding: {{grounding_rule}}
-- Language: {{language_rule}}
+## Output Rules
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
@@ -36,3 +34,4 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" — give each a short title and a 1-sentence summary of what happens between that section and the next.
 - chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.
+{{shared_output_rules}}

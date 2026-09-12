@@ -11,18 +11,15 @@ import eggAnalysisTpl from "./workflow/egg-analysis.md";
 import eggCombinedTpl from "./workflow/egg-combined.md";
 import followUpTpl from "./workflow/follow-up.md";
 import eggRoutingTpl from "./workflow/egg-routing.md";
-import actionGuideDefaultTpl from "./workflow/action-guide-default.md";
+import contentTaskDefaultTpl from "./workflow/content-task-default.md";
 import mergeUnprocessedTpl from "./workflow/merge-unprocessed.md";
 import aggregateContentTpl from "./workflow/aggregate-content.md";
 import aggregateEggTpl from "./workflow/aggregate-egg.md";
 import eggCompareTpl from "./workflow/egg-compare.md";
 import localizeEggTpl from "./workflow/localize-egg.md";
-import groundingRuleTpl from "./workflow/grounding-rule.md";
-import languageRuleTpl from "./workflow/language-rule.md";
+import sharedOutputRulesTpl from "./workflow/shared-output-rules.md";
 
 export const PROMPTS = {
-  /** Shared language rule injected into prompts. */
-  languageRule: languageRuleTpl.trim(),
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */
@@ -35,8 +32,8 @@ export const PROMPTS = {
   followUp: followUpTpl,
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: eggRoutingTpl,
-  /** Default Action Guide when no egg provides one. */
-  actionGuideDefault: actionGuideDefaultTpl.trim(),
+  /** Default content analysis task (Title Verdict, Core Summary, Chapter Map). */
+  contentTaskDefault: contentTaskDefaultTpl.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: mergeUnprocessedTpl,
   /** Combine per-part results into one result for long content. */
@@ -45,8 +42,8 @@ export const PROMPTS = {
   aggregateEgg: aggregateEggTpl,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localizeEggTpl,
-  /** Shared grounding rule injected into every prompt. */
-  groundingRule: groundingRuleTpl.trim(),
+  /** Shared output rules (grounding + language reference) injected into prompts. */
+  sharedOutputRules: sharedOutputRulesTpl.trim(),
 };
 
 /** Substitute {{placeholder}} variables in a template. */

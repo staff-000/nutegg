@@ -145,8 +145,8 @@ Some prompt files are **shared fragments** that are not executed independently, 
 flowchart TD
     subgraph Shared ["1. Shared Fragments (Injected via Placeholders)"]
         direction TB
-        GR["grounding-rule.md<br/><i>(Strict anti-hallucination directive)</i>"]
-        AG["action-guide-default.md<br/><i>(Default 3-step summary instructions)</i>"]
+        SOR["shared-output-rules.md<br/><i>(Grounding directive & output language)</i>"]
+        CTD["content-task-default.md<br/><i>(Default content analysis tasks)</i>"]
     end
 
     subgraph Capture ["2. Content Capture & Synthesis Pipeline"]
@@ -176,16 +176,16 @@ flowchart TD
     Capture ~~~ Independent
 
     %% Injection connections
-    AG -.->|"{{action_guide}}"| CA
-    AG -.->|"{{action_guide}}"| EC
+    CTD -.->|"{{content_task_default}}"| CA
+    CTD -.->|"{{content_task_default}}"| AC
 
-    GR -.->|"{{grounding_rule}}"| CA
-    GR -.->|"{{grounding_rule}}"| EA
-    GR -.->|"{{grounding_rule}}"| CMP
-    GR -.->|"{{grounding_rule}}"| EC
-    GR -.->|"{{grounding_rule}}"| AC
-    GR -.->|"{{grounding_rule}}"| AE
-    GR -.->|"{{grounding_rule}}"| FU
+    SOR -.->|"{{shared_output_rules}}"| CA
+    SOR -.->|"{{shared_output_rules}}"| EA
+    SOR -.->|"{{shared_output_rules}}"| CMP
+    SOR -.->|"{{shared_output_rules}}"| EC
+    SOR -.->|"{{shared_output_rules}}"| AC
+    SOR -.->|"{{shared_output_rules}}"| AE
+    SOR -.->|"{{shared_output_rules}}"| FU
 ```
 
 ---
@@ -233,7 +233,7 @@ Each field in the `> [!abstract]- Instructions:` callout controls a specific beh
 | Field | Purpose & Best Practices | Workflow Usage |
 |---|---|---|
 | **`**Scope:**`** | 1–2 sentences defining the topical boundaries of this egg. Specify what technologies, domains, or concepts are included and excluded. | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2) so the AI extracts knowledge through this domain lens. |
-| **`**Action Guide:**`** | Custom 1–5 step instructions guiding how the AI analyzes content for this egg (e.g. asking for specific perspectives, analytical depth, or counter-arguments). If omitted, NutEgg uses [`action-guide-default.md`](./action-guide-default.md). | Injected into [`content-analysis.md`](./content-analysis.md) (Stage 1) and [`egg-combined.md`](./egg-combined.md) (fast path). |
+| **`**Action Guide:**`** | 2-step instructions for Stage 2 egg analysis: Step 1 (Novel Delta: extract only genuinely new insights) and Step 2 (Decide: whether user should spend time reading). | Injected into [`egg-analysis.md`](./egg-analysis.md) and [`egg-compare.md`](./egg-compare.md) (Stage 2). |
 | **`**Key Questions:**`** | Numbered list of recurring questions you want answered whenever content touches this domain (e.g. *"What are the hidden tradeoffs?", "What is the token cost?"*). | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2). Answered in the popup and raw capture notes. |
 | **`**Rejection Criteria:**`** | Bulleted list of low-signal filters (e.g. *"Ignore beginner tutorials", "Reject speculative price talk"*). | Injected into [`egg-compare.md`](./egg-compare.md) (Stage 2). If matched, flags `rejected: true`, sets `readVerdict: false`, and gives a skip reason. |
 | **`**Formatting Rules:**`** | Standards for phrasing, tags (`[concept]`, `[architecture]`, `[method]`, etc.), and hierarchical indentation. | Injected into [`egg-analysis.md`](./egg-analysis.md) (Stage 2). Guarantees candidate entries match your notes' formatting. |
@@ -254,7 +254,7 @@ Each field in the `> [!abstract]- Instructions:` callout controls a specific beh
                                             │
                Stage 1: Content Analysis    ▼    _index.md (Topic routing guide)
                ─────────────────────────────────────────────────────────────
-               • Uses egg Action Guide (or action-guide-default.md)
+               • Uses content-task-default.md (fixed content tasks)
                • Generates Title Verdict, 3-Bullet Summary, Chapter Map
                • egg-routing.md matches egg descriptions via Stage 1 summary
                                             │
@@ -286,8 +286,8 @@ These are **not standalone prompts** — they are modular snippets injected as `
 
 | File | Injected As | Injected Into | Purpose |
 |---|---|---|---|
-| [`grounding-rule.md`](./grounding-rule.md) | `{{grounding_rule}}` | `egg-combined`, `content-analysis`, `egg-analysis`, `egg-compare`, `aggregate-content`, `aggregate-egg`, `follow-up` | Strict anti-hallucination directive: *"The content is the ONLY source of truth... never supplement with outside knowledge."* |
-| [`action-guide-default.md`](./action-guide-default.md) | `{{action_guide}}` | `content-analysis`, `egg-combined` | Baseline Action Guide (Verdict, 3 bullets, Chapter map) used when an egg note does not specify its own. |
+| [`shared-output-rules.md`](./shared-output-rules.md) | `{{shared_output_rules}}` | `content-analysis`, `egg-analysis`, `egg-compare`, `egg-combined`, `aggregate-content`, `aggregate-egg`, `follow-up` | Combined grounding directive (content as sole truth) and multi-lingual output language reference rule. |
+| [`content-task-default.md`](./content-task-default.md) | `{{content_task_default}}` | `content-analysis`, `aggregate-content` | Default fixed tasks for content analysis: Title Verdict, 3-Bullet Core Summary, and Chapter Map. |
 
 ### 2. Content Capture Pipeline
 
@@ -324,7 +324,7 @@ Used only when content exceeds ~30k characters (long articles, 1-2 hour videos).
 - **Tone and Perspective**: You can instruct the AI to be more critical, more technical, or focus on specific themes.
 - **Summary Depth**: You can change how concise or detailed summaries should be.
 - **Language / Idiom Preferences**: You can tweak phrasing, formatting preferences, or custom analytical lenses.
-- **Grounding Rule**: Edit `grounding-rule.md` to adjust how strictly the AI stays grounded to the source content. The change automatically applies to all 7 prompts that use `{{grounding_rule}}`.
+- **Shared Output Rules**: Edit `shared-output-rules.md` to adjust how strictly the AI stays grounded to the source content or handles output languages across all prompts.
 
 ### ⚠️ What You Must Preserve (To Prevent Parser Errors)
 1. **`{{placeholders}}`**: The strings enclosed in double curly braces (e.g. `{{content}}`, `{{egg_description}}`, `{{knowledge_tree}}`) are replaced dynamically by the engine. Do not delete or rename them.

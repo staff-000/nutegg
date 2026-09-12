@@ -8,11 +8,8 @@ last_updated: "2026-08-12"
 > **Scope:** This file captures high-signal financial data, macro-economic shifts, asset allocation strategies, and deep fundamental analyses of target equities or protocols.
 >
 > **Action Guide:**
-> 1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.
-> 2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.
-> 3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.
-> 4. Novel Delta: Extract only genuinely new, substantive insights or ideas not already captured in the existing knowledge files. State "None" if the content is entirely redundant.
-> 5. Decide: should the user spend time reading this fully? Consider the egg's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
+> 1. Novel Delta: Extract only genuinely new, substantive insights or ideas not already captured in the existing knowledge files. State "None" if the content is entirely redundant.
+> 2. Decide: should the user spend time reading this fully? Consider the egg's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
 >
 > **Key Questions:**
 > 1. Does this detail a structural shift in macro-economic policy (e.g., interest rates, inflation metrics, geopolitical supply chain impacts)?

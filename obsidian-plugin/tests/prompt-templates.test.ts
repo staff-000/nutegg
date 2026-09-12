@@ -41,16 +41,18 @@ describe("PROMPTS", () => {
     const all = Object.values(PROMPTS).join("\n");
     const used = new Set([...all.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]));
     const known = [
-      "action_guide", "title", "url", "source_type", "chapters", "questions",
-      "content", "grounding_rule", "egg_file",
+      "title", "url", "source_type", "chapters", "questions",
+      "content", "egg_file",
       "egg_instructions", "prior_qa", "index",
+      // content task & shared rules
+      "content_task_default", "shared_output_rules",
       // merge-unprocessed.md & egg-compare.md
       "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
       "current_knowledge", "extracted_entries", "rejection_criteria",
       // chunked analysis (per-part labels + aggregates)
       "part_note", "chunk_summaries", "chunk_findings", "sections",
       // multi-lingual output language (from _index.md entry description)
-      "egg_description", "language_rule",
+      "egg_description",
       // localize-egg.md
       "description", "template",
     ];

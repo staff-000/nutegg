@@ -644,10 +644,7 @@ var import_strict = __toESM(require("node:assert/strict"));
 init_ai_client();
 
 // src/workflow/content-analysis.md
-var content_analysis_default = `You are a knowledge curator. Analyze the content below following this Action Guide.
-
-## Action Guide
-{{action_guide}}
+var content_analysis_default = `You are a knowledge curator. Analyze the content below following the Task.
 
 ## Content to Analyze
 **Title:** {{title}}
@@ -657,6 +654,9 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 {{sections}}{{questions}}
 
 {{content}}
+
+## Task
+{{content_task_default}}
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
@@ -672,12 +672,15 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
   ]
 }
 
-## Rules
-- Grounding: {{grounding_rule}}
-- Language: {{language_rule}}
-- isLongForm: true only for long articles/videos that benefit from a chapter map.
-- chapterMap: Empty array when isLongForm is false or no chapters/sections exist. When chapters are provided, preserve their exact timestamps and titles, adding only your 1-sentence summary. When Video Sections are listed, return exactly one entry per section with its start time as "time".
-- customQuestionAnswers: One entry per distinct user question (empty array when none).
+## Output Rules
+- titleVerdict must be a single sentence.
+- coreSummary: at most 3 bullets, plain language.
+- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
+- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
+- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
+- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
+{{shared_output_rules}}
 `;
 
 // src/workflow/egg-analysis.md
@@ -695,12 +698,14 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-1. Answer each Key Question (if any) directly and concisely based on the content. Grounding: {{grounding_rule}}
-2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
+1. Follow action guide in Egg Instructions
+2. Answer each Key Question (if any) directly and concisely based on the content.
+3. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
    - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
    - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
    - Do NOT include author or source \u2014 they are appended automatically.
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "keyQuestionAnswers": [
@@ -711,10 +716,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (answers, knowledge entries) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+## Output Rules:
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
+{{shared_output_rules}}
 `;
 
 // src/workflow/egg-combined.md
@@ -733,17 +737,13 @@ var egg_combined_default = `You are a knowledge curator for the egg file "{{egg_
 {{content}}
 
 ## Task
-1. Follow the Action Guide:
-   - titleVerdict: provide a single, direct sentence resolving the core question in the title or intro.
-   - coreSummary: summarize the main concepts in plain language using at most 3 bullet points.
-   - chapterMap: timestamped breakdown for long-form / video content. Empty array if not long-form.
-2. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content. Grounding: {{grounding_rule}}
-3. Answer User Questions: answer any custom user questions directly and concisely.
-4. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
+1. Answer Key Questions: answer each Key Question from the egg instructions directly and concisely based on the content.
+2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and actionable knowledge from the content that fall within the egg's Scope, formatted strictly per the egg's Formatting Rules:
    - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
    - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
    - Do NOT include author or source \u2014 they are appended automatically.
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "titleVerdict": "direct answer to the title's question",
@@ -763,12 +763,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+## Output Rules
 - coreSummary: at most 3 bullets. chapterMap: empty array when isLongForm is false; keep exact timestamps from the video chapters when provided. When Video Sections are listed above, return EXACTLY one chapterMap entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to the egg's Key Questions above or to another user question \u2014 answer it only once.
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
+{{shared_output_rules}}
 `;
 
 // src/workflow/follow-up.md
@@ -785,6 +784,7 @@ var follow_up_default = `You are a knowledge curator. Answer the user's follow-u
 ## New Questions (answer each directly and concisely)
 {{questions}}
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "answers": [
@@ -792,18 +792,17 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
+## Output Rules:
 - One entry per question, in the same order.
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (answers) in the same language as the questions, or as this sentence if provided: "{{egg_description}}". Keep JSON keys in English.
 - If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.
+{{shared_output_rules}}
 `;
 
 // src/workflow/egg-routing.md
 var egg_routing_default = 'Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".\n\n## Content\nTitle: {{title}}\nURL: {{url}}\n{{content}}\n\n## Egg Index\n{{index}}\n\nReturn matching file names (one per line):\n';
 
-// src/workflow/action-guide-default.md
-var action_guide_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
+// src/workflow/content-task-default.md
+var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
 
 // src/workflow/merge-unprocessed.md
 var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
@@ -827,13 +826,14 @@ var merge_unprocessed_default = `You are a knowledge curator for the egg file "{
 7. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
 8. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "knowledge": "the COMPLETE updated Knowledge section content as markdown \u2014 the existing tree with the merged entries nested in. Only the section BODY: do NOT include the '# Knowledge' heading line itself.",
   "unprocessed": "the entries that could not be merged (markdown), or an empty string when all were merged. Only the section BODY: do NOT include the '# Unprocessed' heading line itself."
 }
 
-IMPORTANT:
+## Output Rules:
 - Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
 `;
 
@@ -850,10 +850,9 @@ var aggregate_content_default = `You are a knowledge curator. The content below 
 {{questions}}
 
 ## Task
-1. Title Verdict: answer the question posed in the title (or intro) in a single direct sentence, drawing on ALL parts.
-2. Core Summary: at most 3 plain-language bullets covering the WHOLE content, not just one part.
-3. Answer each User Question directly and concisely. Grounding: {{grounding_rule}}
+{{content_task_default}}
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "titleVerdict": "direct answer to the title's question",
@@ -863,14 +862,13 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
+## Output Rules
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (verdicts, summaries, answers) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+{{shared_output_rules}}
 `;
 
 // src/workflow/aggregate-egg.md
-var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely. Grounding: {{grounding_rule}}\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\nIMPORTANT:\n- Output Language: write ALL output text (knowledge entries, answers, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.\n';
+var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely.\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\n## Output Format\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\n## Output Rules:\n{{shared_output_rules}}\n';
 
 // src/workflow/egg-compare.md
 var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
@@ -906,6 +904,7 @@ Your task is to compare newly extracted candidate knowledge entries from a sourc
    - If novel, valuable insights were found, set "readVerdict": true with a one-line "readVerdictReason".
    - If redundant, superficial, or noise, set "readVerdict": false with a one-line "readVerdictReason".
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "novelDelta": [
@@ -920,26 +919,20 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "readVerdictReason": "one-line explanation"
 }
 
-IMPORTANT:
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (knowledge entries, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+## Output Rules:
 - "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
 - "kind" is "insight" or "list".
+{{shared_output_rules}}
 `;
 
 // src/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\nIMPORTANT:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
-// src/workflow/grounding-rule.md
-var grounding_rule_default = 'The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n';
-
-// src/workflow/language-rule.md
-var language_rule_default = 'Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this reference: "{{egg_description}}". Keep all JSON keys in English.\n';
+// src/workflow/shared-output-rules.md
+var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in the same language as this reference: "{{egg_description}}". Keep all JSON keys in English.';
 
 // src/prompt-templates.ts
 var PROMPTS = {
-  /** Shared language rule injected into prompts. */
-  languageRule: language_rule_default.trim(),
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
@@ -952,8 +945,8 @@ var PROMPTS = {
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: egg_routing_default,
-  /** Default Action Guide when no egg provides one. */
-  actionGuideDefault: action_guide_default_default.trim(),
+  /** Default content analysis task (Title Verdict, Core Summary, Chapter Map). */
+  contentTaskDefault: content_task_default_default.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: merge_unprocessed_default,
   /** Combine per-part results into one result for long content. */
@@ -962,8 +955,8 @@ var PROMPTS = {
   aggregateEgg: aggregate_egg_default,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localize_egg_default,
-  /** Shared grounding rule injected into every prompt. */
-  groundingRule: grounding_rule_default.trim()
+  /** Shared output rules (grounding + language reference) injected into prompts. */
+  sharedOutputRules: shared_output_rules_default.trim()
 };
 function renderPrompt(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
@@ -992,8 +985,8 @@ var AIProcessor = class {
   getPrompt(key) {
     return this.plugin.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
-  getLanguageRule(eggDescription = "") {
-    const tpl = this.getPrompt("languageRule");
+  getSharedOutputRules(eggDescription = "") {
+    const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
       egg_description: eggDescription
     }).trim();
@@ -1025,10 +1018,8 @@ var AIProcessor = class {
       };
       eggResults = [combined];
     } else {
-      const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
       contentAnalysis = await this.analyzeContent(
         capture2,
-        guide,
         "",
         eggs[0]?.indexDescription || ""
       );
@@ -1056,7 +1047,7 @@ var AIProcessor = class {
    * Phase 1 only — content summary + chapter map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContentOnly(capture2, actionGuide = "", eggDescription = "") {
+  async analyzeContentOnly(capture2, eggDescription = "") {
     if (!isAIConfigured(this.plugin.settings)) {
       return {
         titleVerdict: capture2.title,
@@ -1068,7 +1059,6 @@ var AIProcessor = class {
     }
     const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
     if (chunks.length > 1) {
-      const guide2 = (actionGuide || this.getPrompt("actionGuideDefault")).trim();
       const partResults = await Promise.all(
         chunks.map(
           (chunk) => this.analyzeContent(
@@ -1079,7 +1069,6 @@ var AIProcessor = class {
               sections: chunk.sections,
               questions: []
             },
-            guide2,
             this.partNote(chunk),
             eggDescription
           )
@@ -1109,10 +1098,8 @@ var AIProcessor = class {
       chapters: single?.chapters,
       sections: single?.sections
     };
-    const guide = (actionGuide || this.getPrompt("actionGuideDefault")).trim();
     return this.analyzeContent(
       effective,
-      guide,
       "",
       eggDescription
     );
@@ -1190,10 +1177,9 @@ var AIProcessor = class {
     };
   }
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
-  async analyzeContent(capture2, actionGuide, partNote = "", eggDescription = "") {
+  async analyzeContent(capture2, partNote = "", eggDescription = "") {
     const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
-      action_guide: actionGuide,
-      egg_description: eggDescription,
+      content_task_default: this.getPrompt("contentTaskDefault"),
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
@@ -1205,8 +1191,7 @@ var AIProcessor = class {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      grounding_rule: this.getPrompt("groundingRule"),
-      language_rule: this.getLanguageRule(eggDescription)
+      shared_output_rules: this.getSharedOutputRules(eggDescription)
     });
     const response = await this.callAI(prompt, 1200);
     const parsed = this.parseJson(response, "content-analysis");
@@ -1234,13 +1219,12 @@ var AIProcessor = class {
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
-      egg_description: egg2.indexDescription,
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
       part_note: partNote,
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      grounding_rule: this.getPrompt("groundingRule")
+      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1276,7 +1260,6 @@ var AIProcessor = class {
     const prompt = renderPrompt(this.getPrompt("eggCombined"), {
       egg_file: egg2.fileName,
       egg_instructions: this.plugin.eggParser.formatEggInstructionsForPrompt(egg2),
-      egg_description: egg2.indexDescription,
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
@@ -1288,7 +1271,7 @@ var AIProcessor = class {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      grounding_rule: this.getPrompt("groundingRule")
+      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "egg-combined");
@@ -1342,7 +1325,6 @@ var AIProcessor = class {
     }
     const prompt = renderPrompt(this.getPrompt("eggCompare"), {
       egg_file: egg2.fileName,
-      egg_description: egg2.indexDescription,
       title: capture2.title,
       url: capture2.url,
       current_knowledge: existingKnowledge || "(empty)",
@@ -1350,7 +1332,7 @@ var AIProcessor = class {
       rejection_criteria: egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
       extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-      grounding_rule: this.getPrompt("groundingRule")
+      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1428,7 +1410,6 @@ ${e.content}`).join("\n\n"),
    *   reject, read verdict). Novel deltas are the union of the parts.
    */
   async analyzeChunked(capture2, eggs, chunks) {
-    const guide = (eggs[0]?.actionGuide || this.getPrompt("actionGuideDefault")).trim();
     const partResults = await Promise.all(
       chunks.map(
         (chunk) => this.analyzeContent(
@@ -1439,7 +1420,6 @@ ${e.content}`).join("\n\n"),
             sections: chunk.sections,
             questions: []
           },
-          guide,
           this.partNote(chunk),
           eggs[0]?.indexDescription || ""
         )
@@ -1544,7 +1524,6 @@ ${e.content}`).join("\n\n"),
     const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture2.title,
       url: capture2.url,
-      egg_description: eggDescription,
       chunk_summaries: chunkSummaries.map((c) => {
         const at = c.startTime ? ` (${c.startTime})` : "";
         const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
@@ -1555,7 +1534,8 @@ ${bullets || "- (no summary)"}`;
         capture2.questions,
         "User Questions (answer each directly and concisely)"
       ),
-      grounding_rule: this.getPrompt("groundingRule")
+      content_task_default: this.getPrompt("contentTaskDefault"),
+      shared_output_rules: this.getSharedOutputRules(eggDescription)
     });
     const response = await this.callAI(prompt, 800);
     const parsed = this.parseJson(response, "aggregate-content");
@@ -1569,7 +1549,6 @@ ${bullets || "- (no summary)"}`;
   async aggregateEgg(egg2, chunkFindings) {
     const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
       egg_file: egg2.fileName,
-      egg_description: egg2.indexDescription,
       egg_instructions: this.plugin.eggParser.formatEggForPrompt(egg2),
       chunk_findings: chunkFindings.map((f) => {
         const at = f.startTime ? ` (${f.startTime})` : "";
@@ -1577,7 +1556,7 @@ ${bullets || "- (no summary)"}`;
         return `## Part ${f.part} of ${chunkFindings.length}${at}
 ${delta || "- (no novel delta)"}`;
       }).join("\n\n"),
-      grounding_rule: this.getPrompt("groundingRule")
+      shared_output_rules: this.getSharedOutputRules(egg2.indexDescription)
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "aggregate-egg");
@@ -1884,11 +1863,10 @@ A: ${qa.answer}`).join("\n")}` : "";
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
-      egg_description: eggDescription,
       prior_qa: priorBlock,
       content: this.truncate(capture2.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      grounding_rule: this.getPrompt("groundingRule")
+      shared_output_rules: this.getSharedOutputRules(eggDescription)
     });
     try {
       const response = await this.callAI(prompt, 2e3);

@@ -31,6 +31,7 @@ Your task is to compare newly extracted candidate knowledge entries from a sourc
    - If novel, valuable insights were found, set "readVerdict": true with a one-line "readVerdictReason".
    - If redundant, superficial, or noise, set "readVerdict": false with a one-line "readVerdictReason".
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "novelDelta": [
@@ -45,8 +46,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "readVerdictReason": "one-line explanation"
 }
 
-IMPORTANT:
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (knowledge entries, reasons, verdicts) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+## Output Rules:
 - "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
 - "kind" is "insight" or "list".
+{{shared_output_rules}}

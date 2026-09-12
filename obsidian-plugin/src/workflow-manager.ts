@@ -10,13 +10,12 @@ export type WorkflowPromptKey =
   | "eggCompare"
   | "followUp"
   | "eggRouting"
-  | "actionGuideDefault"
+  | "contentTaskDefault"
   | "mergeUnprocessed"
   | "aggregateContent"
   | "aggregateEgg"
   | "localizeEgg"
-  | "groundingRule"
-  | "languageRule";
+  | "sharedOutputRules";
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   contentAnalysis: "content-analysis.md",
@@ -25,13 +24,12 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   eggCompare: "egg-compare.md",
   followUp: "follow-up.md",
   eggRouting: "egg-routing.md",
-  actionGuideDefault: "action-guide-default.md",
+  contentTaskDefault: "content-task-default.md",
   mergeUnprocessed: "merge-unprocessed.md",
   aggregateContent: "aggregate-content.md",
   aggregateEgg: "aggregate-egg.md",
   localizeEgg: "localize-egg.md",
-  groundingRule: "grounding-rule.md",
-  languageRule: "language-rule.md",
+  sharedOutputRules: "shared-output-rules.md",
 };
 
 /** All built-in workflow files including README.md */
@@ -43,13 +41,12 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "egg-compare.md": PROMPTS.eggCompare,
   "follow-up.md": PROMPTS.followUp,
   "egg-routing.md": PROMPTS.eggRouting,
-  "action-guide-default.md": PROMPTS.actionGuideDefault,
+  "content-task-default.md": PROMPTS.contentTaskDefault,
   "merge-unprocessed.md": PROMPTS.mergeUnprocessed,
   "aggregate-content.md": PROMPTS.aggregateContent,
   "aggregate-egg.md": PROMPTS.aggregateEgg,
   "localize-egg.md": PROMPTS.localizeEgg,
-  "grounding-rule.md": PROMPTS.groundingRule,
-  "language-rule.md": PROMPTS.languageRule,
+  "shared-output-rules.md": PROMPTS.sharedOutputRules,
 };
 
 /** Fast deterministic DJB2 hash for string comparison */

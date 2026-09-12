@@ -12,12 +12,14 @@ You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge e
 {{content}}
 
 ## Task
-1. Answer each Key Question (if any) directly and concisely based on the content. Grounding: {{grounding_rule}}
-2. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
+1. Follow action guide in Egg Instructions
+2. Answer each Key Question (if any) directly and concisely based on the content.
+3. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
    - Follow the concept → explanation → example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - 🎯 Example: ...") when present. Name each Concept clearly.
    - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
    - Do NOT include author or source — they are appended automatically.
 
+## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "keyQuestionAnswers": [
@@ -28,7 +30,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   ]
 }
 
-IMPORTANT:
-- Grounding: {{grounding_rule}}
-- Output Language: write ALL output text (answers, knowledge entries) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+## Output Rules:
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
+{{shared_output_rules}}
