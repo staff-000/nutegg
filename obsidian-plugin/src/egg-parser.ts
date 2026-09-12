@@ -88,6 +88,25 @@ export function isEggPath(path: string, vaultFolder = "nutegg"): boolean {
   }
 }
 
+/**
+ * Tests whether a note's content matches the structure of a NutEgg egg note.
+ * Checks for YAML frontmatter topic or canonical egg sections / callouts.
+ */
+export function matchesEggFormat(content: string): boolean {
+  if (!content || typeof content !== "string") return false;
+  if (/^---\r?\n[\s\S]*?\btopic:\s*["']?.+["']?[\s\S]*?\r?\n---/m.test(content)) {
+    return true;
+  }
+  if (
+    content.includes("# Knowledge") ||
+    content.includes("# Unprocessed") ||
+    content.includes("[!abstract]")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export class EggParser {
   private plugin: NutEggPlugin;
 

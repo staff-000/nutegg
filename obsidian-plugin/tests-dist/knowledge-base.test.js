@@ -36,7 +36,8 @@ __export(egg_parser_exports, {
   KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
   UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
   extractEggLanguage: () => extractEggLanguage,
-  isEggPath: () => isEggPath
+  isEggPath: () => isEggPath,
+  matchesEggFormat: () => matchesEggFormat
 });
 function extractEggLanguage(content) {
   if (!content)
@@ -74,6 +75,17 @@ function isEggPath(path, vaultFolder = "nutegg") {
       return false;
     return true;
   }
+}
+function matchesEggFormat(content) {
+  if (!content || typeof content !== "string")
+    return false;
+  if (/^---\r?\n[\s\S]*?\btopic:\s*["']?.+["']?[\s\S]*?\r?\n---/m.test(content)) {
+    return true;
+  }
+  if (content.includes("# Knowledge") || content.includes("# Unprocessed") || content.includes("[!abstract]")) {
+    return true;
+  }
+  return false;
 }
 var KNOWLEDGE_HEADING, UNPROCESSED_HEADING, EggParser;
 var init_egg_parser = __esm({

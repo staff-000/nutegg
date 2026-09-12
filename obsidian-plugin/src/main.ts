@@ -47,6 +47,7 @@ export default class NutEggPlugin extends Plugin {
     this.indexReader = new IndexReader(this);
     this.eggParser = new EggParser(this);
     this.indexSync = new IndexSync(this);
+    this.indexSync.init();
 
     // SQLite database (dedup cache, replay, RAG foundation). Never throws.
     this.db = new NutEggDatabase(this);
@@ -94,14 +95,6 @@ export default class NutEggPlugin extends Plugin {
     } else {
       runPostLayoutInit();
     }
-
-    this.registerInterval(
-      window.setInterval(() => {
-        this.indexSync.checkAndFix().catch((err) => {
-          console.error("[NutEgg] Index sync check failed:", err);
-        });
-      }, 5 * 60 * 1000)
-    );
 
     // Ribbon icon — opens the index file for editing
     this.addRibbonIcon("egg", "NutEgg: Open Index", async () => {

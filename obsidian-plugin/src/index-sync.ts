@@ -1,13 +1,14 @@
+import { Notice, TAbstractFile } from "obsidian";
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
 import { EGG_TEMPLATE } from "./defaults";
-import { extractEggLanguage, isEggPath } from "./egg-parser";
+import { extractEggLanguage, isEggPath, matchesEggFormat } from "./egg-parser";
 
-export { isEggPath };
+export { isEggPath, matchesEggFormat };
 
 /** What one consistency pass changed. */
 export interface IndexSyncResult {
-  /** Unused / deprecated: background disk scan never auto-appends to _index.md. */
+  /** Egg files on disk without an index entry that were added to _index.md. */
   addedIndexEntries: string[];
   /** Index entries whose path style was normalized to the full vault path. */
   fixedIndexPaths: string[];
@@ -17,13 +18,26 @@ export interface IndexSyncResult {
   prunedIndexEntries: string[];
 }
 
+/** Differences between _index.md entries and egg notes on disk. */
+export interface IndexDiffStatus {
+  /** Entries in _index.md whose egg note does not exist on disk. */
+  missingEggs: string[];
+  /** Valid egg notes on disk that are not listed in _index.md. */
+  unindexedEggs: string[];
+  /** Entries in _index.md that are not valid egg notes (e.g. system files, subdirectories). */
+  invalidEntries: string[];
+  /** Total number of discrepancies. */
+  totalDiffs: number;
+}
+
 /**
- * Keeps _index.md and egg files consistent according to two simple rules:
- * 1. Only egg files (except _index.md) directly under nutegg/ are allowed in _index.md.
- * 2. Only two ways to add entries to _index.md:
- *    - User edits _index.md directly (missing egg files are seeded from template)
- *    - User explicitly triggers egg creation (Chrome extension or Obsidian modal)
- * Background disk scans NEVER auto-append unindexed files to _index.md.
+ * Keeps _index.md and egg files consistent:
+ * 1. Only direct egg files under nutegg/ are allowed in _index.md.
+ * 2. Event-driven synchronization:
+ *    - When an egg file is removed from nutegg/, it is removed from _index.md.
+ *    - When an egg file is dropped into nutegg/ and matches egg format, it is added to _index.md.
+ *    - When _index.md is edited directly, missing egg notes are seeded from template.
+ *    - Manual sync button triggers full two-way diff resolution.
  */
 /**
  * Sanitize an egg name into a valid, safe markdown file stem.
@@ -40,12 +54,285 @@ export function sanitizeEggName(name: string): string {
 
 export class IndexSync {
   private plugin: NutEggPlugin;
+  private initialized = false;
+  private isUpdatingIndex = false;
+  private directEditTimer: any = null;
+  private diffListeners: Set<() => void> = new Set();
 
   constructor(plugin: NutEggPlugin) {
     this.plugin = plugin;
   }
 
-  async checkAndFix(): Promise<IndexSyncResult> {
+  /** Subscribe to index diff status changes. Returns unsubscribe function. */
+  onDiffChanged(listener: () => void): () => void {
+    this.diffListeners.add(listener);
+    return () => this.diffListeners.delete(listener);
+  }
+
+  notifyDiffChanged(): void {
+    for (const listener of this.diffListeners) {
+      try {
+        listener();
+      } catch {}
+    }
+  }
+
+  /** Register vault event listeners for egg additions, deletions, renames, and direct index edits. */
+  init(): void {
+    if (this.initialized) return;
+    this.initialized = true;
+
+    const vault = this.plugin.app?.vault;
+    if (!vault?.on) return;
+
+    const hook = (event: string, cb: any) => {
+      const ref = vault.on(event as any, cb);
+      if (typeof (this.plugin as any).registerEvent === "function") {
+        (this.plugin as any).registerEvent(ref);
+      }
+    };
+
+    hook("create", async (file: TAbstractFile) => {
+      if (this.isUpdatingIndex) return;
+      if (file && (file as any).path) {
+        await this.onEggFileCreated(file as any);
+      }
+    });
+
+    hook("delete", async (file: TAbstractFile) => {
+      if (this.isUpdatingIndex) return;
+      if (file && (file as any).path) {
+        await this.onEggFileDeleted((file as any).path);
+      }
+    });
+
+    hook("rename", async (file: TAbstractFile, oldPath: string) => {
+      if (this.isUpdatingIndex) return;
+      if (file && (file as any).path && oldPath) {
+        await this.onEggFileRenamed(oldPath, (file as any).path);
+      }
+    });
+
+    hook("modify", async (file: TAbstractFile) => {
+      if (this.isUpdatingIndex) return;
+      if (file && (file as any).path === this.plugin.settings?.indexFile) {
+        this.debounceDirectIndexEdit();
+      }
+    });
+  }
+
+  /** Handle an egg file being created or dropped into nutegg/ */
+  async onEggFileCreated(file: { path: string }): Promise<void> {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    if (!isEggPath(file.path, folder)) return;
+
+    const indexContent = await this.plugin.indexReader.getIndexContent();
+    if (indexContent === "(No _index.md found)") return;
+
+    const entries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const norm = (p: string) =>
+      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+    const byPath = new Set(entries.map((e) => norm(e.fileName)));
+    if (byPath.has(file.path)) return;
+
+    const content = await this.plugin.app.vault.read(file as any).catch(() => "");
+    if (!matchesEggFormat(content)) return;
+
+    let topic = "";
+    try {
+      const egg = await this.plugin.eggParser.readEgg(file.path);
+      if (egg?.topic && egg.topic !== "Unknown") {
+        topic = egg.topic;
+      }
+    } catch {}
+    if (!topic) {
+      topic = file.path.split("/").pop()!.replace(/\.md$/, "");
+    }
+
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
+      this.plugin.settings.indexFile
+    );
+    if (indexFile) {
+      this.isUpdatingIndex = true;
+      try {
+        await this.appendIndexEntry(indexFile, file.path, topic);
+        new Notice(`[NutEgg] Added ${file.path} to egg index`);
+        this.notifyDiffChanged();
+      } finally {
+        this.isUpdatingIndex = false;
+      }
+    }
+  }
+
+  /** Handle an egg file being deleted from nutegg/ */
+  async onEggFileDeleted(filePath: string): Promise<void> {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    if (!isEggPath(filePath, folder)) return;
+
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
+      this.plugin.settings.indexFile
+    );
+    if (!indexFile) return;
+
+    this.isUpdatingIndex = true;
+    try {
+      const fileName = filePath.split("/").pop() || "";
+      let modified = await this.removeIndexEntry(indexFile, filePath);
+      if (fileName && fileName !== filePath) {
+        const mod2 = await this.removeIndexEntry(indexFile, fileName);
+        modified = modified || mod2;
+      }
+      if (modified) {
+        new Notice(`[NutEgg] Removed ${filePath} from egg index`);
+      }
+      this.notifyDiffChanged();
+    } finally {
+      this.isUpdatingIndex = false;
+    }
+  }
+
+  /** Handle an egg file being renamed */
+  async onEggFileRenamed(oldPath: string, newPath: string): Promise<void> {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const wasEgg = isEggPath(oldPath, folder);
+    const isEgg = isEggPath(newPath, folder);
+    if (!wasEgg && !isEgg) return;
+
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
+      this.plugin.settings.indexFile
+    );
+    if (!indexFile) return;
+
+    this.isUpdatingIndex = true;
+    try {
+      if (wasEgg && isEgg) {
+        await this.rewriteIndexPath(indexFile, oldPath, newPath);
+        const oldBase = oldPath.split("/").pop() || "";
+        if (oldBase) {
+          await this.rewriteIndexPath(indexFile, oldBase, newPath);
+        }
+        new Notice(`[NutEgg] Renamed index path: ${oldPath} -> ${newPath}`);
+      } else if (wasEgg && !isEgg) {
+        await this.removeIndexEntry(indexFile, oldPath);
+      } else if (!wasEgg && isEgg) {
+        const file = this.plugin.app.vault.getAbstractFileByPath(newPath);
+        if (file) {
+          await this.onEggFileCreated(file as any);
+        }
+      }
+      this.notifyDiffChanged();
+    } finally {
+      this.isUpdatingIndex = false;
+    }
+  }
+
+  /** Debounce direct edits on _index.md before creating missing templates */
+  debounceDirectIndexEdit(): void {
+    if (this.directEditTimer) {
+      clearTimeout(this.directEditTimer);
+    }
+    this.directEditTimer = setTimeout(async () => {
+      this.directEditTimer = null;
+      await this.onDirectIndexEdit();
+    }, 800);
+  }
+
+  /** Handle direct user edits on _index.md: create template for newly added entries */
+  async onDirectIndexEdit(): Promise<void> {
+    if (this.isUpdatingIndex) return;
+    const indexContent = await this.plugin.indexReader.getIndexContent();
+    if (indexContent === "(No _index.md found)") return;
+
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const norm = (p: string) =>
+      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+
+    for (const entry of rawEntries) {
+      const target = norm(entry.fileName);
+      if (!isEggPath(target, folder)) continue;
+
+      const exists =
+        (await this.plugin.app.vault.adapter.exists(target)) ||
+        Boolean(this.plugin.app.vault.getAbstractFileByPath(target));
+      if (!exists) {
+        try {
+          await this.createEggFromTemplate(target, entry);
+          new Notice(`[NutEgg] Created egg template for ${target}`);
+        } catch (err) {
+          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
+        }
+      }
+    }
+    this.notifyDiffChanged();
+  }
+
+  /** Calculate discrepancies between _index.md and disk */
+  async getDiffStatus(): Promise<IndexDiffStatus> {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const norm = (p: string) =>
+      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+
+    const eggFilesOnDisk = (this.plugin.app.vault.getMarkdownFiles?.() || [])
+      .filter((f) => isEggPath(f.path, folder))
+      .map((f) => f.path);
+    const diskSet = new Set(eggFilesOnDisk);
+
+    const indexContent = await this.plugin.indexReader.getIndexContent();
+    if (indexContent === "(No _index.md found)") {
+      return { missingEggs: [], unindexedEggs: [], invalidEntries: [], totalDiffs: 0 };
+    }
+
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const missingEggs: string[] = [];
+    const invalidEntries: string[] = [];
+    const indexedEggPaths = new Set<string>();
+
+    for (const entry of rawEntries) {
+      const target = norm(entry.fileName);
+      if (!isEggPath(target, folder)) {
+        invalidEntries.push(entry.fileName);
+      } else {
+        indexedEggPaths.add(target);
+        if (!diskSet.has(target)) {
+          const exists =
+            (await this.plugin.app.vault.adapter.exists(target)) ||
+            Boolean(this.plugin.app.vault.getAbstractFileByPath(target));
+          if (!exists) {
+            missingEggs.push(target);
+          }
+        }
+      }
+    }
+
+    const unindexedEggs: string[] = [];
+    for (const eggPath of eggFilesOnDisk) {
+      if (!indexedEggPaths.has(eggPath)) {
+        unindexedEggs.push(eggPath);
+      }
+    }
+
+    return {
+      missingEggs,
+      unindexedEggs,
+      invalidEntries,
+      totalDiffs: missingEggs.length + unindexedEggs.length + invalidEntries.length,
+    };
+  }
+
+  /** Trigger full manual sync from the Sync button */
+  async sync(): Promise<IndexSyncResult> {
+    this.isUpdatingIndex = true;
+    try {
+      const result = await this.checkAndFix({ syncUnindexed: true });
+      this.notifyDiffChanged();
+      return result;
+    } finally {
+      this.isUpdatingIndex = false;
+    }
+  }
+
+  async checkAndFix(options?: { syncUnindexed?: boolean }): Promise<IndexSyncResult> {
     const result: IndexSyncResult = {
       addedIndexEntries: [],
       fixedIndexPaths: [],
@@ -58,7 +345,7 @@ export class IndexSync {
     // Index entries present in _index.md
     const indexContent = await this.plugin.indexReader.getIndexContent();
     if (indexContent === "(No _index.md found)") {
-      return result; // config-status already guides the user
+      return result;
     }
     const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
 
@@ -90,10 +377,35 @@ export class IndexSync {
       console.log(`[NutEgg] Pruned ${result.prunedIndexEntries.length} invalid entries from index`);
     }
 
-    // Rule 2: Only 2 ways to add entries to _index.md:
-    // 1) User edits _index.md directly (if egg file is missing on disk, create from template)
-    // 2) User triggers createEgg (handled in createEgg())
-    // NOTE: We NEVER scan disk to auto-append unindexed files to _index.md.
+    // If syncUnindexed is enabled (e.g. from user Sync button), add valid unindexed egg files
+    if (options?.syncUnindexed && indexFile) {
+      const diskEggFiles = (this.plugin.app.vault.getMarkdownFiles?.() || [])
+        .filter((f) => isEggPath(f.path, folder));
+      const indexedTargets = new Set(entries.map((e) => norm(e.fileName)));
+
+      for (const file of diskEggFiles) {
+        if (!indexedTargets.has(file.path)) {
+          const content = await this.plugin.app.vault.read(file as any).catch(() => "");
+          if (matchesEggFormat(content)) {
+            let topic = "";
+            try {
+              const egg = await this.plugin.eggParser.readEgg(file.path);
+              if (egg?.topic && egg.topic !== "Unknown") {
+                topic = egg.topic;
+              }
+            } catch {}
+            if (!topic) {
+              topic = file.path.split("/").pop()!.replace(/\.md$/, "");
+            }
+            await this.appendIndexEntry(indexFile, file.path, topic);
+            result.addedIndexEntries.push(file.path);
+            indexedTargets.add(file.path);
+          }
+        }
+      }
+    }
+
+    // Create missing egg notes for entries in _index.md
     for (const entry of entries) {
       const target = norm(entry.fileName);
       if (await this.plugin.app.vault.adapter.exists(target)) continue;
@@ -122,16 +434,19 @@ export class IndexSync {
     }
 
     if (
+      result.addedIndexEntries.length ||
       result.fixedIndexPaths.length ||
       result.createdEggs.length ||
       result.prunedIndexEntries.length
     ) {
       console.log(
-        `[NutEgg] Index sync: ~${result.fixedIndexPaths.length} paths normalized, ` +
+        `[NutEgg] Index sync: +${result.addedIndexEntries.length} entries added, ` +
+          `~${result.fixedIndexPaths.length} paths normalized, ` +
           `+${result.createdEggs.length} egg files created, ` +
           `-${result.prunedIndexEntries.length} non-egg entries pruned`
       );
     }
+    this.notifyDiffChanged();
     return result;
   }
 
@@ -169,8 +484,30 @@ export class IndexSync {
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
     );
-    await this.appendIndexEntry(indexFile, fileName, description || name);
+    this.isUpdatingIndex = true;
+    try {
+      await this.appendIndexEntry(indexFile, fileName, description || name);
+      this.notifyDiffChanged();
+    } finally {
+      this.isUpdatingIndex = false;
+    }
     return { path: fileName, alreadyExists: false, language };
+  }
+
+  async removeIndexEntry(
+    indexFile: any,
+    entryPath: string
+  ): Promise<boolean> {
+    if (!indexFile) return false;
+    const content = await this.plugin.app.vault.read(indexFile);
+    const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
+    if (!re.test(content)) return false;
+    const updated = content.replace(re, "");
+    if (updated === content) return false;
+    await this.plugin.app.vault.modify(indexFile, updated);
+    console.log(`[NutEgg] Removed index entry: ${entryPath}`);
+    return true;
   }
 
   private async appendIndexEntry(

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { IndexSync, isEggPath } from "../src/index-sync";
+import { IndexSync, isEggPath, matchesEggFormat } from "../src/index-sync";
 import { IndexReader } from "../src/index-reader";
 import { EggParser } from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
@@ -279,5 +279,131 @@ describe("isEggPath", () => {
     assert.equal(isEggPath("nutegg/data.json"), false);
     assert.equal(isEggPath("outside/investment.md"), false);
     assert.equal(isEggPath("investment.md"), false);
+  });
+});
+
+describe("matchesEggFormat", () => {
+  it("matches egg frontmatter with topic", () => {
+    assert.equal(
+      matchesEggFormat('---\ntopic: "AI Research"\nstatus: "active"\n---\n# Content'),
+      true
+    );
+  });
+
+  it("matches canonical egg headings and callouts", () => {
+    assert.equal(matchesEggFormat("# Knowledge\n- Some point"), true);
+    assert.equal(matchesEggFormat("# Unprocessed\n- Some entry"), true);
+    assert.equal(matchesEggFormat("> [!abstract]- Instructions:"), true);
+  });
+
+  it("rejects regular non-egg markdown notes", () => {
+    assert.equal(matchesEggFormat("# Shopping List\n- Milk\n- Bread"), false);
+    assert.equal(matchesEggFormat("Just a plain note without egg structure"), false);
+    assert.equal(matchesEggFormat(""), false);
+  });
+});
+
+describe("IndexSync diffs & event-driven operations", () => {
+  it("computes getDiffStatus accurately", async () => {
+    const { sync } = makeSync({
+      "nutegg/_index.md": [
+        "# Index",
+        "* nutegg/investment.md: investment",
+        "* nutegg/missing.md: missing egg file",
+        "* nutegg/_workflow/prompt.md: invalid entry",
+      ].join("\n"),
+      "nutegg/investment.md": egg("Investment"),
+      "nutegg/unindexed.md": egg("Unindexed"),
+    });
+
+    const status = await sync.getDiffStatus();
+    assert.equal(status.totalDiffs, 3);
+    assert.deepEqual(status.missingEggs, ["nutegg/missing.md"]);
+    assert.deepEqual(status.unindexedEggs, ["nutegg/unindexed.md"]);
+    assert.deepEqual(status.invalidEntries, ["nutegg/_workflow/prompt.md"]);
+  });
+
+  it("sync() resolves all diffs and reports 0 diffs afterwards", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": [
+        "# Index",
+        "* nutegg/investment.md: investment",
+        "* nutegg/missing.md: missing egg file",
+        "* nutegg/_workflow/prompt.md: invalid entry",
+      ].join("\n"),
+      "nutegg/investment.md": egg("Investment"),
+      "nutegg/unindexed.md": egg("Unindexed Topic"),
+    });
+
+    const res = await sync.sync();
+    assert.deepEqual(res.createdEggs, ["nutegg/missing.md"]);
+    assert.deepEqual(res.addedIndexEntries, ["nutegg/unindexed.md"]);
+    assert.deepEqual(res.prunedIndexEntries, ["nutegg/_workflow/prompt.md"]);
+
+    const indexText = files.get("nutegg/_index.md")!;
+    assert.ok(indexText.includes("* nutegg/investment.md"));
+    assert.ok(indexText.includes("* nutegg/missing.md"));
+    assert.ok(indexText.includes("* nutegg/unindexed.md"));
+    assert.ok(!indexText.includes("_workflow"));
+
+    const statusAfter = await sync.getDiffStatus();
+    assert.equal(statusAfter.totalDiffs, 0);
+  });
+
+  it("onEggFileDeleted removes the entry from _index.md", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": [
+        "# Index",
+        "* nutegg/investment.md: investment",
+        "* nutegg/ai_ml.md: artificial intelligence",
+      ].join("\n"),
+      "nutegg/investment.md": egg("Investment"),
+      "nutegg/ai_ml.md": egg("AI/ML"),
+    });
+
+    await sync.onEggFileDeleted("nutegg/ai_ml.md");
+    const indexText = files.get("nutegg/_index.md")!;
+    assert.ok(indexText.includes("investment.md"));
+    assert.ok(!indexText.includes("ai_ml.md"));
+  });
+
+  it("onEggFileCreated adds a dropped file that matches egg format", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "* nutegg/investment.md: investment\n",
+      "nutegg/investment.md": egg("Investment"),
+      "nutegg/crypto.md": egg("Cryptocurrency"),
+      "nutegg/groceries.md": "# Groceries\n- apples",
+    });
+
+    // File matching egg format
+    await sync.onEggFileCreated({ path: "nutegg/crypto.md" });
+    assert.ok(files.get("nutegg/_index.md")!.includes("* nutegg/crypto.md: Cryptocurrency"));
+
+    // File not matching egg format is ignored
+    await sync.onEggFileCreated({ path: "nutegg/groceries.md" });
+    assert.ok(!files.get("nutegg/_index.md")!.includes("groceries.md"));
+  });
+
+  it("onEggFileRenamed updates path in _index.md", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "* nutegg/old_name.md: my topic\n",
+      "nutegg/new_name.md": egg("my topic"),
+    });
+
+    await sync.onEggFileRenamed("nutegg/old_name.md", "nutegg/new_name.md");
+    const indexText = files.get("nutegg/_index.md")!;
+    assert.ok(indexText.includes("* nutegg/new_name.md: my topic"));
+    assert.ok(!indexText.includes("old_name.md"));
+  });
+
+  it("onDirectIndexEdit creates template for newly typed entry", async () => {
+    const { sync, files } = makeSync({
+      "nutegg/_index.md": "* nutegg/new_topic.md: brand new subject\n",
+    });
+
+    await sync.onDirectIndexEdit();
+    assert.ok(files.has("nutegg/new_topic.md"));
+    const created = files.get("nutegg/new_topic.md")!;
+    assert.ok(created.includes('topic: "brand new subject"'));
   });
 });

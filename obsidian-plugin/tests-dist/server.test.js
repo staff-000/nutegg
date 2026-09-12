@@ -261,6 +261,16 @@ var AIError = class extends Error {
   }
 };
 
+// tests/obsidian-stub.ts
+var TAbstractFile = class {
+  path = "";
+  name = "";
+};
+var TFile = class extends TAbstractFile {
+  basename = "";
+  extension = "";
+};
+
 // src/egg-parser.ts
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
@@ -909,16 +919,6 @@ var NutEggServer = class {
   isRunning() {
     return this.server !== null;
   }
-};
-
-// tests/obsidian-stub.ts
-var TAbstractFile = class {
-  path = "";
-  name = "";
-};
-var TFile = class extends TAbstractFile {
-  basename = "";
-  extension = "";
 };
 
 // tests/helpers.ts

@@ -180,6 +180,90 @@ export class CreateEggModal extends Modal {
 
 // --- Reading mode widget -----------------------------------------------
 
+export function renderSyncButton(
+  plugin: NutEggPlugin,
+  container: HTMLElement
+): HTMLElement {
+  const btn = container.createEl("button", {
+    cls: "nutegg-sync-btn",
+    text: "Checking...",
+  });
+  btn.style.cssText =
+    "display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; padding: 4px 10px; cursor: pointer;";
+
+  const update = async () => {
+    try {
+      const status = await plugin.indexSync.getDiffStatus();
+      if (status.totalDiffs === 0) {
+        btn.textContent = "✓ In Sync";
+        btn.className = "nutegg-sync-btn mod-muted";
+        btn.title = "Everything is in sync. Click to re-check.";
+      } else {
+        const details: string[] = [];
+        if (status.missingEggs.length) {
+          details.push(`${status.missingEggs.length} missing egg file(s)`);
+        }
+        if (status.unindexedEggs.length) {
+          details.push(`${status.unindexedEggs.length} unindexed egg note(s)`);
+        }
+        if (status.invalidEntries.length) {
+          details.push(`${status.invalidEntries.length} invalid entry(ies)`);
+        }
+        btn.textContent = `🔄 Sync (${status.totalDiffs} diff${status.totalDiffs > 1 ? "s" : ""})`;
+        btn.className = "nutegg-sync-btn mod-warning";
+        btn.title = `${details.join(", ")}. Click to sync.`;
+      }
+    } catch (err) {
+      console.warn("[NutEgg] Failed to get index diff status:", err);
+    }
+  };
+
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const originalText = btn.textContent;
+    btn.textContent = "Syncing...";
+    btn.disabled = true;
+    try {
+      const res = await plugin.indexSync.sync();
+      const parts: string[] = [];
+      if (res.createdEggs.length) {
+        parts.push(`+${res.createdEggs.length} egg(s) created`);
+      }
+      if (res.addedIndexEntries.length) {
+        parts.push(`+${res.addedIndexEntries.length} entry(ies) added`);
+      }
+      if (res.prunedIndexEntries.length) {
+        parts.push(`-${res.prunedIndexEntries.length} invalid pruned`);
+      }
+      if (res.fixedIndexPaths.length) {
+        parts.push(`${res.fixedIndexPaths.length} path(s) normalized`);
+      }
+
+      if (parts.length > 0) {
+        new Notice(`[NutEgg] Index synced: ${parts.join(", ")}`);
+      } else {
+        new Notice("[NutEgg] Everything is in sync.");
+      }
+      await update();
+    } catch (err) {
+      new Notice(`[NutEgg] Sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      btn.textContent = originalText;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  plugin.indexSync.onDiffChanged(() => {
+    update();
+  });
+
+  // Initial status check
+  update();
+
+  return btn;
+}
+
 export function registerIndexWidget(plugin: NutEggPlugin): void {
   plugin.registerMarkdownPostProcessor(
     async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -208,7 +292,7 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
 
       const btn = document.createElement("button");
       btn.className = "nutegg-new-egg-btn mod-cta";
-      btn.textContent = "🥚 + New Egg";
+      btn.textContent = "🐣 + New Egg";
       btn.title = "Create a new egg file and add to index";
       btn.addEventListener("click", (e) => {
         e.preventDefault();
@@ -217,6 +301,7 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
       });
 
       bar.appendChild(btn);
+      renderSyncButton(plugin, bar);
       targetElement.insertAdjacentElement("afterend", bar);
     }
   );
@@ -233,7 +318,7 @@ class IndexActionBarWidget extends WidgetType {
     const wrap = document.createElement("div");
     wrap.className = "nutegg-index-action-bar nutegg-index-editor-widget";
     wrap.style.cssText =
-      "margin: 10px 0 14px 0; display: block; width: 100%;";
+      "margin: 10px 0 14px 0; display: flex; align-items: center; gap: 8px; width: 100%;";
 
     const btn = document.createElement("button");
     btn.className = "nutegg-new-egg-btn mod-cta";
@@ -246,6 +331,7 @@ class IndexActionBarWidget extends WidgetType {
     });
 
     wrap.appendChild(btn);
+    renderSyncButton(this.plugin, wrap);
     return wrap;
   }
 }
