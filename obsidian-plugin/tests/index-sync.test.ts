@@ -137,6 +137,7 @@ describe("IndexSync.checkAndFix", () => {
     assert.deepEqual(result, {
       path: "nutegg/productivity.md",
       alreadyExists: false,
+      language: "English",
     });
     const created = files.get("nutegg/productivity.md")!;
     assert.ok(created.includes('topic: "productivity and systems"'));
@@ -166,6 +167,7 @@ describe("IndexSync.checkAndFix", () => {
     assert.deepEqual(result, {
       path: "nutegg/方法论.md",
       alreadyExists: false,
+      language: "English",
     });
     const created = files.get("nutegg/方法论.md")!;
     assert.ok(created.includes('topic: "介绍做事的具体方法"'));
@@ -195,7 +197,29 @@ describe("IndexSync.checkAndFix", () => {
     const created = files.get("nutegg/ai_egg.md")!;
     assert.ok(created.includes("Localized"));
     assert.ok(created.includes("# Knowledge"));
-    assert.ok(created.includes("# Unprocessed"));
+    assert.equal(result.language, "English");
+  });
+
+  it("createEgg captures language from localized egg output", async () => {
+    const { sync, files } = makeSync(
+      { "nutegg/_index.md": "" },
+      {
+        aiProcessor: {
+          localizeEggTemplate: async (tpl: string) => {
+            return {
+              content: tpl
+                .replace('language: "English"', 'language: "Chinese"')
+                .replace("> **Scope:**", "> **Scope:** Localized Scope"),
+              language: "Chinese",
+            };
+          },
+        } as any,
+      }
+    );
+    const result = await sync.createEgg("zh_egg", "介绍做事的具体方法");
+    assert.equal(result.language, "Chinese");
+    const created = files.get("nutegg/zh_egg.md")!;
+    assert.ok(created.includes('language: "Chinese"'));
   });
 
   it("does nothing when _index.md is missing", async () => {

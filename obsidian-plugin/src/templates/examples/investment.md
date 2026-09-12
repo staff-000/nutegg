@@ -2,6 +2,7 @@
 topic: "Investment Strategy & Market Analysis"
 status: "active"
 last_updated: "2026-08-12"
+language: "English"
 ---
 
 > [!abstract]- Instructions:

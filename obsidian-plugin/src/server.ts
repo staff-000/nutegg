@@ -812,6 +812,7 @@ export class NutEggServer {
           success: true,
           path: result.path,
           alreadyExists: result.alreadyExists,
+          language: result.language,
         })
       );
     } catch (err) {

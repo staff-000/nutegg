@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EggParser } from "../src/egg-parser";
+import { EggParser, extractEggLanguage } from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 
 const NEW_FORMAT_EGG = `---
@@ -42,9 +42,17 @@ _source: [Source Title](https://e.com/p)_
 describe("EggParser.parseEggFile (new format)", () => {
   const parser = new EggParser(makeFakePlugin() as any);
 
-  it("parses frontmatter topic", () => {
+  it("parses frontmatter topic and language", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     assert.equal(egg.topic, "Investment Strategy");
+    assert.equal(egg.language, "");
+
+    const withLang = parser.parseEggFile(
+      "zh.md",
+      `---\ntopic: "方法论"\nlanguage: "Chinese"\n---\n# Knowledge\n`
+    );
+    assert.equal(withLang.topic, "方法论");
+    assert.equal(withLang.language, "Chinese");
   });
 
   it("parses scope, action guide, and formatting rules", () => {
@@ -451,3 +459,26 @@ describe("EggParser.parseEggFile knowledge-tree structure (regression)", () => {
     assert.ok(egg.unprocessed.includes("- pending"));
   });
 });
+
+describe("extractEggLanguage", () => {
+  it("extracts language from YAML frontmatter", () => {
+    assert.equal(
+      extractEggLanguage('---\ntopic: "T"\nlanguage: "Chinese"\n---\n'),
+      "Chinese"
+    );
+    assert.equal(
+      extractEggLanguage("---\ntopic: 'T'\nlanguage: Japanese\n---\n"),
+      "Japanese"
+    );
+  });
+
+  it("extracts direct language directive when frontmatter delimiters missing", () => {
+    assert.equal(extractEggLanguage('language: "Korean"'), "Korean");
+  });
+
+  it("returns empty string when no language is specified", () => {
+    assert.equal(extractEggLanguage('---\ntopic: "T"\n---\n'), "");
+    assert.equal(extractEggLanguage(""), "");
+  });
+});
+

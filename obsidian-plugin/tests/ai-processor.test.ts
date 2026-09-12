@@ -538,28 +538,29 @@ describe("AIProcessor.analyze (chunked)", () => {
 });
 
 describe("AIProcessor.localizeEggTemplate", () => {
-  it("returns stripped localized template when AI produces valid egg content", async () => {
+  it("returns stripped localized template and detected language when AI produces valid egg content", async () => {
     let sentPrompt = "";
     const plugin = makeFakePlugin({
       aiClient: {
         chat: async (prompt: string) => {
           sentPrompt = prompt;
-          return "```markdown\n> [!abstract]- Instructions:\n> **Scope:** 介绍做事的具体方法\n>\n> **Action Guide:**\n> 1. Title Verdict: 核心结论\n\n# Knowledge\n\n# Unprocessed\n```";
+          return "```markdown\n---\ntopic: \"方法论\"\nstatus: \"active\"\nlast_updated: \"2026-09-12\"\nlanguage: \"Chinese\"\n---\n\n> [!abstract]- Instructions:\n> **Scope:** 介绍做事的具体方法\n>\n> **Action Guide:**\n> 1. Title Verdict: 核心结论\n\n# Knowledge\n\n# Unprocessed\n```";
         },
       },
     });
-    const templateInput = "> [!abstract]- Instructions:\n> **Scope:** T\n>\n> **Action Guide:**\n> 1. Title Verdict: T\n\n# Knowledge\n\n# Unprocessed";
+    const templateInput = "---\ntopic: \"Unknown\"\nstatus: \"active\"\nlast_updated: \"2026-08-14\"\nlanguage: \"English\"\n---\n\n> [!abstract]- Instructions:\n> **Scope:** T\n>\n> **Action Guide:**\n> 1. Title Verdict: T\n\n# Knowledge\n\n# Unprocessed";
     const out = await new AIProcessor(plugin as any).localizeEggTemplate(
       templateInput,
       "介绍做事的具体方法"
     );
     assert.ok(out);
-    assert.ok(out.startsWith("> [!abstract]- Instructions:"));
-    assert.ok(out.includes("**Scope:** 介绍做事的具体方法"));
-    assert.ok(out.includes("**Action Guide:**"));
-    assert.ok(out.includes("# Knowledge"));
-    assert.ok(out.includes("# Unprocessed"));
-    assert.ok(!out.includes("```"));
+    assert.equal(out.language, "Chinese");
+    assert.ok(out.content.includes("language: \"Chinese\""));
+    assert.ok(out.content.includes("**Scope:** 介绍做事的具体方法"));
+    assert.ok(out.content.includes("**Action Guide:**"));
+    assert.ok(out.content.includes("# Knowledge"));
+    assert.ok(out.content.includes("# Unprocessed"));
+    assert.ok(!out.content.includes("```"));
     assert.ok(sentPrompt.includes("介绍做事的具体方法"));
     assert.ok(sentPrompt.includes(templateInput));
   });

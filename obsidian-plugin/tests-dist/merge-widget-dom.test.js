@@ -401,6 +401,7 @@ var EggParser = class {
     const result = {
       fileName,
       topic: "Unknown",
+      language: "",
       scope: "",
       actionGuide: "",
       keyQuestions: [],
@@ -420,6 +421,8 @@ var EggParser = class {
         const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
         if (key === "topic")
           result.topic = value;
+        if (key === "language")
+          result.language = value;
       }
     }
     const callout = this.extractCallout(content);

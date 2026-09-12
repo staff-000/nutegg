@@ -1,5 +1,5 @@
 import type NutEggPlugin from "./main";
-import type { EggContent } from "./egg-parser";
+import { type EggContent, extractEggLanguage } from "./egg-parser";
 import { AIError, isAIConfigured } from "./ai-client";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
 import { sanitizeEggName } from "./index-sync";
@@ -745,7 +745,7 @@ export class AIProcessor {
   async localizeEggTemplate(
     templateContent: string,
     description: string
-  ): Promise<string | null> {
+  ): Promise<{ content: string; language: string } | null> {
     if (!isAIConfigured(this.plugin.settings)) return null;
     try {
       const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
@@ -764,7 +764,8 @@ export class AIProcessor {
         text.includes("# Knowledge") &&
         text.includes("# Unprocessed")
       ) {
-        return text;
+        const language = extractEggLanguage(text);
+        return { content: text, language };
       }
       return null;
     } catch (err) {

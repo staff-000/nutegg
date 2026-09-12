@@ -12,7 +12,7 @@ Translate and adapt the concrete instructions, questions, criteria, and rule des
 ## Output Rules:
 1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".
 2. Egg Parser Structure: The structure and these exact labels MUST remain in English:
-   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`)
+   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)
    - Callout: `> [!abstract]- Instructions:`
    - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`
    - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`

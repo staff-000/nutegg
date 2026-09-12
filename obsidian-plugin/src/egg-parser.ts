@@ -33,6 +33,8 @@ export interface EggContent {
   fileName: string;
   /** Frontmatter topic, or "Unknown". */
   topic: string;
+  /** Frontmatter language, e.g. "English", "Chinese". */
+  language?: string;
   /** What this egg captures. */
   scope: string;
   /** Steps 1-5 telling the AI what to produce for the popup. */
@@ -48,6 +50,24 @@ export interface EggContent {
   unprocessed: string;
   /** Description from _index.md — used to detect output language for AI prompts. */
   indexDescription: string;
+}
+
+/**
+ * Extract the language property from an egg file's YAML frontmatter.
+ */
+export function extractEggLanguage(content: string): string {
+  if (!content) return "";
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (fmMatch) {
+    for (const line of fmMatch[1].split("\n")) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (kv && kv[1].toLowerCase() === "language") {
+        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
+      }
+    }
+  }
+  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
+  return directMatch ? directMatch[1].trim() : "";
 }
 
 export class EggParser {
@@ -102,6 +122,7 @@ export class EggParser {
     const result: EggContent = {
       fileName,
       topic: "Unknown",
+      language: "",
       scope: "",
       actionGuide: "",
       keyQuestions: [],
@@ -121,6 +142,7 @@ export class EggParser {
         const key = kv[1].toLowerCase();
         const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
         if (key === "topic") result.topic = value;
+        if (key === "language") result.language = value;
       }
     }
 

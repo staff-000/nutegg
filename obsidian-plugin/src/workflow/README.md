@@ -199,6 +199,7 @@ An **Egg file** (`nutegg/*.md`) is both a curated knowledge repository and an in
 topic: "AI Architecture & Multi-Agent Systems"
 status: "active"
 last_updated: "2026-09-10"
+language: "English"
 ---
 
 > [!abstract]- Instructions:

@@ -854,7 +854,8 @@ var NutEggServer = class {
         JSON.stringify({
           success: true,
           path: result.path,
-          alreadyExists: result.alreadyExists
+          alreadyExists: result.alreadyExists,
+          language: result.language
         })
       );
     } catch (err) {

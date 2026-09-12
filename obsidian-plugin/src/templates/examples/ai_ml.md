@@ -2,6 +2,7 @@
 topic: "Artificial Intelligence & Machine Learning"
 status: "active"
 last_updated: "2026-08-14"
+language: "English"
 ---
 
 > [!abstract]- Instructions:

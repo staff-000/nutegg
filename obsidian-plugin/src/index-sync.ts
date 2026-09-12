@@ -1,6 +1,7 @@
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
 import { EGG_TEMPLATE } from "./defaults";
+import { extractEggLanguage } from "./egg-parser";
 
 /** What one consistency pass changed. */
 export interface IndexSyncResult {
@@ -133,7 +134,7 @@ export class IndexSync {
   async createEgg(
     rawName: string,
     rawDescription: string
-  ): Promise<{ path: string; alreadyExists: boolean }> {
+  ): Promise<{ path: string; alreadyExists: boolean; language?: string }> {
     const name = sanitizeEggName(rawName);
     const description = (rawDescription || "").trim();
     if (!name) {
@@ -142,14 +143,24 @@ export class IndexSync {
     const folder = this.plugin.vaultFolder || "nutegg";
     const fileName = `${folder}/${name}.md`;
     if (await this.plugin.app.vault.adapter.exists(fileName)) {
-      return { path: fileName, alreadyExists: true };
+      const existingContent = await this.plugin.app.vault.adapter
+        .read(fileName)
+        .catch(() => "");
+      return {
+        path: fileName,
+        alreadyExists: true,
+        language: extractEggLanguage(existingContent),
+      };
     }
-    await this.createEggFromTemplate(fileName, { fileName, description });
+    const { language } = await this.createEggFromTemplate(fileName, {
+      fileName,
+      description,
+    });
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
     );
     await this.appendIndexEntry(indexFile, fileName, description || name);
-    return { path: fileName, alreadyExists: false };
+    return { path: fileName, alreadyExists: false, language };
   }
 
   /** Description for a new index entry — the egg's frontmatter topic, or "". */
@@ -202,7 +213,7 @@ export class IndexSync {
   private async createEggFromTemplate(
     targetPath: string,
     entry: IndexEntry
-  ): Promise<void> {
+  ): Promise<{ path: string; language: string }> {
     await this.ensureParentFolders(targetPath);
     const folder = this.plugin.vaultFolder || "nutegg";
     const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
@@ -225,6 +236,8 @@ export class IndexSync {
       `last_updated: "${dateStr}"`
     );
 
+    let detectedLanguage = "";
+
     // If AI is available, adapt the template instructions to match the description's language
     if (entry.description && this.plugin.aiProcessor?.localizeEggTemplate) {
       try {
@@ -233,15 +246,27 @@ export class IndexSync {
           entry.description
         );
         if (localized) {
-          content = localized;
+          if (typeof localized === "string") {
+            content = localized;
+            detectedLanguage = extractEggLanguage(localized);
+          } else {
+            content = localized.content;
+            detectedLanguage =
+              localized.language || extractEggLanguage(localized.content);
+          }
         }
       } catch (err) {
         console.warn("[NutEgg] Failed to localize egg template with AI:", err);
       }
     }
 
+    if (!detectedLanguage) {
+      detectedLanguage = extractEggLanguage(content);
+    }
+
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);
+    return { path: targetPath, language: detectedLanguage };
   }
 
   private async ensureParentFolders(path: string): Promise<void> {

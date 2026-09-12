@@ -9,7 +9,6 @@ import {
 } from "@codemirror/view";
 import type NutEggPlugin from "./main";
 import { sanitizeEggName } from "./index-sync";
-import { detectLanguage } from "./language-detector";
 
 /**
  * Modal dialog for quickly creating a new egg file.
@@ -79,53 +78,6 @@ export class CreateEggModal extends Modal {
     });
     hint.style.cssText = "font-size: 0.85em; opacity: 0.75; margin: 4px 0 10px 0;";
 
-    // Dynamic alert when egg language differs from content analysis setting
-    const langAlert = contentEl.createEl("div", {
-      cls: "nutegg-modal-lang-alert",
-    });
-    langAlert.style.cssText =
-      "display: none; background: var(--background-secondary); border-left: 3px solid var(--interactive-accent); padding: 8px 12px; margin-bottom: 14px; border-radius: 4px; font-size: 0.85em;";
-
-    const updateLangAlert = () => {
-      const text = descInput.value.trim() || nameInput.value.trim();
-      const detected = detectLanguage(text);
-      const currentSetting =
-        this.plugin.settings.contentOutputLanguage || "same-as-content";
-
-      if (detected && detected.toLowerCase() !== currentSetting.toLowerCase()) {
-        langAlert.empty();
-        langAlert.style.display = "flex";
-        langAlert.style.alignItems = "center";
-        langAlert.style.justifyContent = "space-between";
-        langAlert.style.gap = "8px";
-
-        const textSpan = langAlert.createSpan();
-        const currentDisplay =
-          currentSetting === "same-as-content"
-            ? "Same as content"
-            : currentSetting;
-        textSpan.innerHTML = `🌐 Egg is in <b>${detected}</b> (Content Analysis is <i>${currentDisplay}</i>).`;
-
-        const changeBtn = langAlert.createEl("button", {
-          text: `Set Content Language to ${detected}`,
-        });
-        changeBtn.style.cssText = "font-size: 0.85em; padding: 3px 8px; white-space: nowrap;";
-        changeBtn.addEventListener("click", async (e) => {
-          e.preventDefault();
-          this.plugin.settings.contentOutputLanguage = detected;
-          await this.plugin.saveSettings();
-          new Notice(`NutEgg: Content analysis output language set to ${detected}`);
-          updateLangAlert();
-        });
-      } else {
-        langAlert.style.display = "none";
-      }
-    };
-
-    descInput.addEventListener("input", updateLangAlert);
-    nameInput.addEventListener("input", updateLangAlert);
-    updateLangAlert();
-
     // Button row
     const btnRow = contentEl.createEl("div", {
       cls: "nutegg-modal-buttons",
@@ -162,14 +114,16 @@ export class CreateEggModal extends Modal {
         );
         this.close();
 
-        const detected = detectLanguage(description || safeName);
+        const detected = result.language;
         const currentSetting =
           this.plugin.settings.contentOutputLanguage || "same-as-content";
 
-        if (
+        const isDifferent =
           detected &&
-          detected.toLowerCase() !== currentSetting.toLowerCase()
-        ) {
+          detected.toLowerCase() !== currentSetting.toLowerCase() &&
+          !(currentSetting === "same-as-content" && detected.toLowerCase() === "english");
+
+        if (isDifferent) {
           const notice = new Notice("", 8000);
           const frag = notice.noticeEl.createDiv();
           frag.createSpan({

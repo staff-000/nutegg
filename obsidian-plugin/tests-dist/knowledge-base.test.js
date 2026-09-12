@@ -34,8 +34,24 @@ var egg_parser_exports = {};
 __export(egg_parser_exports, {
   EggParser: () => EggParser,
   KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
-  UNPROCESSED_HEADING: () => UNPROCESSED_HEADING
+  UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
+  extractEggLanguage: () => extractEggLanguage
 });
+function extractEggLanguage(content) {
+  if (!content)
+    return "";
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (fmMatch) {
+    for (const line of fmMatch[1].split("\n")) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (kv && kv[1].toLowerCase() === "language") {
+        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
+      }
+    }
+  }
+  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
+  return directMatch ? directMatch[1].trim() : "";
+}
 var KNOWLEDGE_HEADING, UNPROCESSED_HEADING, EggParser;
 var init_egg_parser = __esm({
   "src/egg-parser.ts"() {
@@ -89,6 +105,7 @@ var init_egg_parser = __esm({
         const result = {
           fileName,
           topic: "Unknown",
+          language: "",
           scope: "",
           actionGuide: "",
           keyQuestions: [],
@@ -108,6 +125,8 @@ var init_egg_parser = __esm({
             const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
             if (key === "topic")
               result.topic = value;
+            if (key === "language")
+              result.language = value;
           }
         }
         const callout = this.extractCallout(content);

@@ -29,6 +29,21 @@ var import_strict = __toESM(require("node:assert/strict"));
 // src/egg-parser.ts
 var KNOWLEDGE_HEADING = "# Knowledge";
 var UNPROCESSED_HEADING = "# Unprocessed";
+function extractEggLanguage(content) {
+  if (!content)
+    return "";
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  if (fmMatch) {
+    for (const line of fmMatch[1].split("\n")) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (kv && kv[1].toLowerCase() === "language") {
+        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
+      }
+    }
+  }
+  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
+  return directMatch ? directMatch[1].trim() : "";
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
@@ -76,6 +91,7 @@ var EggParser = class {
     const result = {
       fileName,
       topic: "Unknown",
+      language: "",
       scope: "",
       actionGuide: "",
       keyQuestions: [],
@@ -95,6 +111,8 @@ var EggParser = class {
         const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
         if (key === "topic")
           result.topic = value;
+        if (key === "language")
+          result.language = value;
       }
     }
     const callout = this.extractCallout(content);
@@ -531,9 +549,21 @@ _source: [Source Title](https://e.com/p)_
 `;
 (0, import_node_test.describe)("EggParser.parseEggFile (new format)", () => {
   const parser = new EggParser(makeFakePlugin());
-  (0, import_node_test.it)("parses frontmatter topic", () => {
+  (0, import_node_test.it)("parses frontmatter topic and language", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     import_strict.default.equal(egg.topic, "Investment Strategy");
+    import_strict.default.equal(egg.language, "");
+    const withLang = parser.parseEggFile(
+      "zh.md",
+      `---
+topic: "\u65B9\u6CD5\u8BBA"
+language: "Chinese"
+---
+# Knowledge
+`
+    );
+    import_strict.default.equal(withLang.topic, "\u65B9\u6CD5\u8BBA");
+    import_strict.default.equal(withLang.language, "Chinese");
   });
   (0, import_node_test.it)("parses scope, action guide, and formatting rules", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
@@ -890,5 +920,24 @@ _source: [Source Title](https://e.com/p)_
     import_strict.default.ok(egg.knowledge.includes("- real tree"));
     import_strict.default.ok(!egg.knowledge.split("\n").includes("# Knowledge"));
     import_strict.default.ok(egg.unprocessed.includes("- pending"));
+  });
+});
+(0, import_node_test.describe)("extractEggLanguage", () => {
+  (0, import_node_test.it)("extracts language from YAML frontmatter", () => {
+    import_strict.default.equal(
+      extractEggLanguage('---\ntopic: "T"\nlanguage: "Chinese"\n---\n'),
+      "Chinese"
+    );
+    import_strict.default.equal(
+      extractEggLanguage("---\ntopic: 'T'\nlanguage: Japanese\n---\n"),
+      "Japanese"
+    );
+  });
+  (0, import_node_test.it)("extracts direct language directive when frontmatter delimiters missing", () => {
+    import_strict.default.equal(extractEggLanguage('language: "Korean"'), "Korean");
+  });
+  (0, import_node_test.it)("returns empty string when no language is specified", () => {
+    import_strict.default.equal(extractEggLanguage('---\ntopic: "T"\n---\n'), "");
+    import_strict.default.equal(extractEggLanguage(""), "");
   });
 });
