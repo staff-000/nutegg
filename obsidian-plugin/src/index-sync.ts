@@ -231,7 +231,7 @@ export class IndexSync {
     }
   }
 
-  /** Debounce direct edits on _index.md before creating missing templates */
+  /** Debounce direct edits on _index.md: notify diff changed without creating files automatically */
   debounceDirectIndexEdit(): void {
     if (this.directEditTimer) {
       clearTimeout(this.directEditTimer);
@@ -239,36 +239,16 @@ export class IndexSync {
     this.directEditTimer = setTimeout(async () => {
       this.directEditTimer = null;
       await this.onDirectIndexEdit();
-    }, 800);
+    }, 3000);
   }
 
-  /** Handle direct user edits on _index.md: create template for newly added entries */
+  /**
+   * Handle direct user edits on _index.md.
+   * Per user requirement, direct edits on _index.md NEVER create egg files automatically.
+   * The user clicks the Sync button in _index.md to trigger creation.
+   */
   async onDirectIndexEdit(): Promise<void> {
     if (this.isUpdatingIndex) return;
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)") return;
-
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const folder = this.plugin.vaultFolder || "nutegg";
-    const norm = (p: string) =>
-      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
-
-    for (const entry of rawEntries) {
-      const target = norm(entry.fileName);
-      if (!isEggPath(target, folder)) continue;
-
-      const exists =
-        (await this.plugin.app.vault.adapter.exists(target)) ||
-        Boolean(this.plugin.app.vault.getAbstractFileByPath(target));
-      if (!exists) {
-        try {
-          await this.createEggFromTemplate(target, entry);
-          new Notice(`[NutEgg] Created egg template for ${target}`);
-        } catch (err) {
-          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
-        }
-      }
-    }
     this.notifyDiffChanged();
   }
 
@@ -415,15 +395,15 @@ export class IndexSync {
       const target = norm(entry.fileName);
       if (await this.plugin.app.vault.adapter.exists(target)) continue;
       if (await this.plugin.app.vault.adapter.exists(entry.fileName)) continue;
-      try {
-        await this.createEggFromTemplate(target, entry);
-        if (target !== entry.fileName) {
-          await this.rewriteIndexPath(indexFile, entry.fileName, target);
-          result.fixedIndexPaths.push(target);
-        }
-        result.createdEggs.push(target);
-      } catch (err) {
-        console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
+        try {
+          await this.createEggFromTemplate(target, entry);
+          if (target !== entry.fileName) {
+            await this.rewriteIndexPath(indexFile, entry.fileName, target);
+            result.fixedIndexPaths.push(target);
+          }
+          result.createdEggs.push(target);
+        } catch (err) {
+          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
       }
     }
 
@@ -562,6 +542,7 @@ export class IndexSync {
     const topic = (entry.description || fallbackTopic).trim();
     const dateStr = new Date().toISOString().slice(0, 10);
 
+    // Start with canonical EGG_TEMPLATE
     let content = EGG_TEMPLATE;
     content = content.replace(
       /^topic: .*$/m,
@@ -590,11 +571,11 @@ export class IndexSync {
         if (localized) {
           if (typeof localized === "string") {
             content = localized;
-            detectedLanguage = extractEggLanguage(localized);
+            detectedLanguage = extractEggLanguage(localized) || detectedLanguage;
           } else {
             content = localized.content;
             detectedLanguage =
-              localized.language || extractEggLanguage(localized.content);
+              localized.language || extractEggLanguage(localized.content) || detectedLanguage;
           }
         }
       } catch (err) {
@@ -607,7 +588,7 @@ export class IndexSync {
       settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
 
     if (!detectedLanguage) {
-      detectedLanguage = pluginLang || extractEggLanguage(content) || "English";
+      detectedLanguage = extractEggLanguage(content) || pluginLang || "English";
     }
 
     if (detectedLanguage) {

@@ -192,6 +192,7 @@ describe("IndexSync.checkAndFix", () => {
     const created = files.get("nutegg/方法论.md")!;
     assert.ok(created.includes('topic: "介绍做事的具体方法"'));
     assert.ok(created.includes("> **Scope:** 介绍做事的具体方法"));
+    assert.ok(created.includes('language: "English"'));
     assert.ok(
       files.get("nutegg/_index.md")!.includes("* nutegg/方法论.md: 介绍做事的具体方法")
     );
@@ -396,14 +397,50 @@ describe("IndexSync diffs & event-driven operations", () => {
     assert.ok(!indexText.includes("old_name.md"));
   });
 
-  it("onDirectIndexEdit creates template for newly typed entry", async () => {
+  it("onDirectIndexEdit does not auto-create template until sync is triggered", async () => {
+    let diffNotified = false;
     const { sync, files } = makeSync({
       "nutegg/_index.md": "* nutegg/new_topic.md: brand new subject\n",
     });
+    sync.onDiffChanged(() => {
+      diffNotified = true;
+    });
 
     await sync.onDirectIndexEdit();
+    // Direct edit should NOT auto-create the egg file
+    assert.equal(files.has("nutegg/new_topic.md"), false);
+    assert.equal(diffNotified, true);
+
+    // Clicking sync triggers the creation
+    const syncRes = await sync.sync();
+    assert.ok(syncRes.createdEggs.includes("nutegg/new_topic.md"));
     assert.ok(files.has("nutegg/new_topic.md"));
     const created = files.get("nutegg/new_topic.md")!;
     assert.ok(created.includes('topic: "brand new subject"'));
+  });
+
+  it("sync creates localized egg file when index description is provided and AI is available", async () => {
+    const { sync, files } = makeSync(
+      {
+        "nutegg/_index.md": "* nutegg/china_history.md: 中国古代史与朝代演变\n",
+      },
+      {
+        aiProcessor: {
+          localizeEggTemplate: async (tpl: string) => {
+            return {
+              content: tpl
+                .replace('language: "English"', 'language: "Chinese"')
+                .replace("> **Scope:**", "> **Scope:** localized"),
+              language: "Chinese",
+            };
+          },
+        } as any,
+      }
+    );
+    await sync.sync();
+    assert.ok(files.has("nutegg/china_history.md"));
+    const created = files.get("nutegg/china_history.md")!;
+    assert.ok(created.includes('language: "Chinese"'));
+    assert.ok(created.includes("> **Scope:** localized"));
   });
 });

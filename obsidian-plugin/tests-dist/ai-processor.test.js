@@ -1334,7 +1334,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // src/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above, using the same language of egg description: "{{description}}".\n\n## Output Rules:\n1. Language: Write all explanations, questions, criteria, and rule guidance using the same language of egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // src/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
@@ -1833,7 +1833,7 @@ ${delta || "- (no novel delta)"}`;
     };
   }
   /**
-   * Localize an egg template (from templates/egg.md) into the same language as
+   * Localize an egg template (from templates/egg.md) using the same language of
    * the egg description. Keeps the structure and parser keywords in English.
    * Returns null when unavailable (no API key, AI error).
    */
@@ -1845,11 +1845,18 @@ ${delta || "- (no novel delta)"}`;
         description,
         template: templateContent
       });
-      const response = await this.callAI(prompt, 1800);
+      const maxTokens = Math.max(8192, this.plugin?.settings?.contentAnalysisMaxTokens || 8192);
+      const response = await this.callAI(prompt, maxTokens);
       let text = response.trim();
-      text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+      const fenceMatch = text.match(/```(?:markdown)?\s*\n([\s\S]*?)\n```/i);
+      if (fenceMatch) {
+        text = fenceMatch[1].trim();
+      } else {
+        text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+      }
+      text = text.replace(/^##?\s*(?:Knowledge|知识库?)\s*$/gim, "# Knowledge").replace(/^##?\s*(?:Unprocessed|未处理|待处理)\s*$/gim, "# Unprocessed").replace(/^>\s*\*\*(?:Scope|范围|适用范围)[：:]\*\*/gim, "> **Scope:**").replace(/^>\s*\*\*(?:Action Guide|行动指南|操作指南)[：:]\*\*/gim, "> **Action Guide:**");
       if (text.includes("[!abstract]") && text.includes("**Scope:**") && text.includes("**Action Guide:**") && text.includes("# Knowledge") && text.includes("# Unprocessed")) {
-        const language = extractEggLanguage(text);
+        const language = extractEggLanguage(text) || "English";
         return { content: text, language };
       }
       return null;

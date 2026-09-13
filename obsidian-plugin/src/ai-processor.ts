@@ -779,10 +779,11 @@ export class AIProcessor {
         description: description,
         template: templateContent,
       });
-      const response = await this.callAI(prompt, 1800);
+      const maxTokens = Math.max(8192, this.plugin?.settings?.contentAnalysisMaxTokens || 8192);
+      const response = await this.callAI(prompt, maxTokens);
       let text = response.trim();
       // Strip markdown code fences if AI wrapped it in ```markdown ... ```
-      text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+        text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
       // Verify basic parser markers exist to ensure validity
       if (
         text.includes("[!abstract]") &&

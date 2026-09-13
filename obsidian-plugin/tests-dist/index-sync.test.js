@@ -706,7 +706,7 @@ var IndexSync = class {
       this.isUpdatingIndex = false;
     }
   }
-  /** Debounce direct edits on _index.md before creating missing templates */
+  /** Debounce direct edits on _index.md: notify diff changed without creating files automatically */
   debounceDirectIndexEdit() {
     if (this.directEditTimer) {
       clearTimeout(this.directEditTimer);
@@ -714,32 +714,16 @@ var IndexSync = class {
     this.directEditTimer = setTimeout(async () => {
       this.directEditTimer = null;
       await this.onDirectIndexEdit();
-    }, 800);
+    }, 400);
   }
-  /** Handle direct user edits on _index.md: create template for newly added entries */
+  /**
+   * Handle direct user edits on _index.md.
+   * Per user requirement, direct edits on _index.md NEVER create egg files automatically.
+   * The user clicks the Sync button in _index.md to trigger creation.
+   */
   async onDirectIndexEdit() {
     if (this.isUpdatingIndex)
       return;
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)")
-      return;
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const folder = this.plugin.vaultFolder || "nutegg";
-    const norm = (p) => p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
-    for (const entry of rawEntries) {
-      const target = norm(entry.fileName);
-      if (!isEggPath(target, folder))
-        continue;
-      const exists = await this.plugin.app.vault.adapter.exists(target) || Boolean(this.plugin.app.vault.getAbstractFileByPath(target));
-      if (!exists) {
-        try {
-          await this.createEggFromTemplate(target, entry);
-          new Notice(`[NutEgg] Created egg template for ${target}`);
-        } catch (err) {
-          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
-        }
-      }
-    }
     this.notifyDiffChanged();
   }
   /** Calculate discrepancies between _index.md and disk */
@@ -855,19 +839,66 @@ var IndexSync = class {
     }
     for (const entry of entries) {
       const target = norm(entry.fileName);
-      if (await this.plugin.app.vault.adapter.exists(target))
-        continue;
-      if (await this.plugin.app.vault.adapter.exists(entry.fileName))
-        continue;
-      try {
-        await this.createEggFromTemplate(target, entry);
-        if (target !== entry.fileName) {
-          await this.rewriteIndexPath(indexFile, entry.fileName, target);
-          result.fixedIndexPaths.push(target);
+      const existsOnDisk = await this.plugin.app.vault.adapter.exists(target) || await this.plugin.app.vault.adapter.exists(entry.fileName);
+      if (!existsOnDisk) {
+        try {
+          await this.createEggFromTemplate(target, entry);
+          if (target !== entry.fileName) {
+            await this.rewriteIndexPath(indexFile, entry.fileName, target);
+            result.fixedIndexPaths.push(target);
+          }
+          result.createdEggs.push(target);
+        } catch (err) {
+          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
         }
-        result.createdEggs.push(target);
-      } catch (err) {
-        console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
+      } else {
+        try {
+          const file = this.plugin.app.vault.getAbstractFileByPath(target) || this.plugin.app.vault.getAbstractFileByPath(entry.fileName);
+          if (file) {
+            const rawContent = await this.plugin.app.vault.read(file);
+            const parsed = this.plugin.eggParser.parseEggFile(file.path, rawContent);
+            const isUntouched = parsed.knowledge.trim() === "" && parsed.unprocessed.trim() === "";
+            const isScopeEmptyOrDefault = !parsed.scope || parsed.scope.startsWith("Capture high-signal") || parsed.scope === target.replace(/^.*\//, "").replace(/\.md$/, "");
+            if (isUntouched && entry.description && isScopeEmptyOrDefault) {
+              let newContent = EGG_TEMPLATE;
+              const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+              newContent = newContent.replace(
+                /^topic: .*$/m,
+                `topic: "${this.escapeYaml(entry.description || parsed.topic)}"`
+              );
+              newContent = newContent.replace(
+                /^> \*\*Scope:\*\* .*$/m,
+                `> **Scope:** ${entry.description}`
+              );
+              newContent = newContent.replace(
+                /^last_updated: .*$/m,
+                `last_updated: "${dateStr}"`
+              );
+              if (this.plugin.aiProcessor?.localizeEggTemplate) {
+                try {
+                  const localized = await this.plugin.aiProcessor.localizeEggTemplate(
+                    newContent,
+                    entry.description
+                  );
+                  if (localized?.content) {
+                    newContent = localized.content;
+                  }
+                } catch (err) {
+                  console.warn("[NutEgg] Failed to localize untouched egg template with AI:", err);
+                }
+              }
+              await this.plugin.app.vault.modify(file, newContent);
+              console.log(
+                `[NutEgg] Updated untouched egg template with latest index description: ${file.path}`
+              );
+            }
+          }
+        } catch (err) {
+          console.warn(
+            `[NutEgg] Could not inspect/update existing egg ${target}:`,
+            err
+          );
+        }
       }
     }
     for (const entry of entries) {
@@ -1004,20 +1035,18 @@ ${line}
         if (localized) {
           if (typeof localized === "string") {
             content = localized;
-            detectedLanguage = extractEggLanguage(localized);
+            detectedLanguage = extractEggLanguage(localized) || detectedLanguage;
           } else {
             content = localized.content;
-            detectedLanguage = localized.language || extractEggLanguage(localized.content);
+            detectedLanguage = localized.language || extractEggLanguage(localized.content) || detectedLanguage;
           }
         }
       } catch (err) {
         console.warn("[NutEgg] Failed to localize egg template with AI:", err);
       }
     }
-    const settingLang = this.plugin.settings?.contentOutputLanguage;
-    const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
     if (!detectedLanguage) {
-      detectedLanguage = pluginLang || extractEggLanguage(content) || "English";
+      detectedLanguage = extractEggLanguage(content) || "English";
     }
     if (detectedLanguage) {
       content = insertEggLanguage(content, detectedLanguage, { overwrite: true });
@@ -1278,7 +1307,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // src/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above, using the same language of egg description: "{{description}}".\n\n## Output Rules:\n1. Language: Write all explanations, questions, criteria, and rule guidance using the same language of egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // src/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
@@ -1969,6 +1998,7 @@ function egg(topic) {
     const created = files.get("nutegg/\u65B9\u6CD5\u8BBA.md");
     import_strict.default.ok(created.includes('topic: "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"'));
     import_strict.default.ok(created.includes("> **Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
+    import_strict.default.ok(created.includes('language: "English"'));
     import_strict.default.ok(
       files.get("nutegg/_index.md").includes("* nutegg/\u65B9\u6CD5\u8BBA.md: \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5")
     );
@@ -2145,13 +2175,43 @@ function egg(topic) {
     import_strict.default.ok(indexText.includes("* nutegg/new_name.md: my topic"));
     import_strict.default.ok(!indexText.includes("old_name.md"));
   });
-  (0, import_node_test.it)("onDirectIndexEdit creates template for newly typed entry", async () => {
+  (0, import_node_test.it)("onDirectIndexEdit does not auto-create template until sync is triggered", async () => {
+    let diffNotified = false;
     const { sync, files } = makeSync({
       "nutegg/_index.md": "* nutegg/new_topic.md: brand new subject\n"
     });
+    sync.onDiffChanged(() => {
+      diffNotified = true;
+    });
     await sync.onDirectIndexEdit();
+    import_strict.default.equal(files.has("nutegg/new_topic.md"), false);
+    import_strict.default.equal(diffNotified, true);
+    const syncRes = await sync.sync();
+    import_strict.default.ok(syncRes.createdEggs.includes("nutegg/new_topic.md"));
     import_strict.default.ok(files.has("nutegg/new_topic.md"));
     const created = files.get("nutegg/new_topic.md");
     import_strict.default.ok(created.includes('topic: "brand new subject"'));
+  });
+  (0, import_node_test.it)("sync creates localized egg file when index description is provided and AI is available", async () => {
+    const { sync, files } = makeSync(
+      {
+        "nutegg/_index.md": "* nutegg/china_history.md: \u4E2D\u56FD\u53E4\u4EE3\u53F2\u4E0E\u671D\u4EE3\u6F14\u53D8\n"
+      },
+      {
+        aiProcessor: {
+          localizeEggTemplate: async (tpl) => {
+            return {
+              content: tpl.replace('language: "English"', 'language: "Chinese"').replace("> **Scope:**", "> **Scope:** localized"),
+              language: "Chinese"
+            };
+          }
+        }
+      }
+    );
+    await sync.sync();
+    import_strict.default.ok(files.has("nutegg/china_history.md"));
+    const created = files.get("nutegg/china_history.md");
+    import_strict.default.ok(created.includes('language: "Chinese"'));
+    import_strict.default.ok(created.includes("> **Scope:** localized"));
   });
 });
