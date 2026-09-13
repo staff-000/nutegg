@@ -1,5 +1,5 @@
 import type NutEggPlugin from "./main";
-import { type EggContent, extractEggLanguage } from "./egg-parser";
+import { type EggContent, extractEggLanguage, insertEggLanguage } from "./egg-parser";
 import { AIError, isAIConfigured } from "./ai-client";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
 import { sanitizeEggName } from "./index-sync";
@@ -79,6 +79,7 @@ export interface RedundantEntry {
 /** Result of analyzing content against one egg. */
 export interface EggAnalysis {
   egg: string;
+  language?: string;
   keyQuestionAnswers: KeyAnswer[];
   extractedEntries?: ExtractedKnowledgeEntry[];
   novelDelta: NovelDelta[];
@@ -159,13 +160,31 @@ export class AIProcessor {
   }
 
   /**
-   * Output rules for Stage 2 egg analysis (follows the egg's description from _index.md).
+   * Output rules for Stage 2 egg analysis (follows the egg's language property).
    */
-  private getEggOutputRules(eggDescription = ""): string {
-    const desc = eggDescription.trim();
-    const outputLanguage = desc
-      ? `the same language as this reference: "${desc}"`
-      : "the same language as the captured content";
+  private getEggOutputRules(
+    eggOrLanguage: EggContent | string = "",
+    fallbackDescription = ""
+  ): string {
+    let lang = "";
+    let desc = fallbackDescription;
+
+    if (typeof eggOrLanguage === "object" && eggOrLanguage !== null) {
+      lang = (eggOrLanguage.language || "").trim();
+      desc = desc || (eggOrLanguage.indexDescription || "").trim();
+    } else {
+      lang = (eggOrLanguage || "").trim();
+    }
+
+    const pluginSetting = this.plugin.settings?.contentOutputLanguage;
+    const pluginLang =
+      pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+
+    const outputLanguage = lang
+      ? (lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : lang)
+      : pluginLang
+      ? pluginLang
+      : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
 
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
@@ -436,7 +455,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNote,
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg),
     });
 
     try {
@@ -444,12 +463,31 @@ export class AIProcessor {
       const parsed = this.parseJson(response, "egg-analysis");
       const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
       const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+      const detectedLanguage = typeof parsed.language === "string" ? parsed.language.trim() : "";
+
+      // If the egg had no language property, persist the LLM-detected language
+      if (!egg.language && detectedLanguage) {
+        egg.language = detectedLanguage;
+        try {
+          const file = this.plugin.app.vault.getAbstractFileByPath(egg.fileName);
+          if (file) {
+            const content = await this.plugin.app.vault.read(file as any);
+            const updated = insertEggLanguage(content, detectedLanguage);
+            if (updated !== content) {
+              await this.plugin.app.vault.modify(file as any, updated);
+            }
+          }
+        } catch (err) {
+          console.warn(`[NutEgg] Failed to persist LLM-detected language to ${egg.fileName}:`, err);
+        }
+      }
 
       // Step 2: Compare candidate entries with knowledge entries in the egg file
       const diff = await this.compareEggKnowledge(capture, egg, extractedEntries);
 
       return {
         egg: egg.fileName,
+        language: detectedLanguage || egg.language || undefined,
         keyQuestionAnswers,
         extractedEntries,
         novelDelta: diff.novelDelta,
@@ -511,7 +549,7 @@ export class AIProcessor {
       extracted_entries: extractedEntries
         .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
         .join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg),
     });
 
     try {
@@ -700,7 +738,7 @@ export class AIProcessor {
           return `## Part ${f.part} of ${chunkFindings.length}${at}\n${delta || "- (no novel delta)"}`;
         })
         .join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg.indexDescription),
+      shared_output_rules: this.getEggOutputRules(egg),
     });
 
     const response = await this.callAI(prompt, 1500);
@@ -1121,16 +1159,34 @@ export class AIProcessor {
       return null;
     }
 
-    // Look up the egg's description from _index.md for output language
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    const indexEntries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const indexEntry = indexEntries.find(
-      (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-    );
+    // Determine output language from egg's language property (with index description fallback)
+    let fallbackDesc = "";
+    if (!egg.language) {
+      try {
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const indexEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+        const indexEntry = indexEntries.find(
+          (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+        );
+        fallbackDesc = indexEntry?.description || "";
+      } catch {
+        // Fall back gracefully
+      }
+    }
+
+    const pluginSetting = this.plugin.settings?.contentOutputLanguage;
+    const pluginLang =
+      pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+
+    const outputLanguage =
+      egg.language ||
+      pluginLang ||
+      "the same language as this egg's existing knowledge";
 
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
-      egg_description: indexEntry?.description || "",
+      output_language: outputLanguage,
+      egg_description: outputLanguage,
       formatting_rules: egg.formattingRules || "(none)",
       knowledge_tree: egg.knowledge || "(empty)",
       unprocessed: egg.unprocessed,

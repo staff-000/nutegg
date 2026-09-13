@@ -32,9 +32,9 @@ var UNPROCESSED_HEADING = "# Unprocessed";
 function extractEggLanguage(content) {
   if (!content)
     return "";
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
-    for (const line of fmMatch[1].split("\n")) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/);
       if (kv && kv[1].toLowerCase() === "language") {
         return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
@@ -43,6 +43,34 @@ function extractEggLanguage(content) {
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
   return directMatch ? directMatch[1].trim() : "";
+}
+function insertEggLanguage(content, language, options) {
+  if (!content || !language)
+    return content;
+  const existing = extractEggLanguage(content);
+  if (existing && !options?.overwrite)
+    return content;
+  if (existing && options?.overwrite) {
+    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
+  }
+  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
+    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
+  }
+  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
+  const match = content.match(fmRegex);
+  if (match) {
+    const opening = match[1];
+    const body = match[2];
+    const closing = match[3];
+    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const newBody = `${body}${separator}language: "${language}"`;
+    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
+  }
+  return `---
+language: "${language}"
+---
+
+${content}`;
 }
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
@@ -71,7 +99,7 @@ var EggParser = class {
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async readEgg(fileName) {
+  async readEgg(fileName, fallbackDescription) {
     let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
     if (!file && !fileName.includes("/")) {
       const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
@@ -94,12 +122,34 @@ var EggParser = class {
       return null;
     }
     const content = await this.plugin.app.vault.read(file);
-    return this.parseEggFile(file.path || fileName, content);
+    const parsed = this.parseEggFile(file.path || fileName, content);
+    if (fallbackDescription && !parsed.indexDescription) {
+      parsed.indexDescription = fallbackDescription;
+    }
+    if (!parsed.language) {
+      const settingLang = this.plugin.settings?.contentOutputLanguage;
+      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
+      if (pluginLang) {
+        parsed.language = pluginLang;
+        const updated = insertEggLanguage(content, pluginLang);
+        if (updated !== content) {
+          try {
+            await this.plugin.app.vault.modify(file, updated);
+          } catch (err) {
+            console.warn(
+              `[NutEgg] Could not persist filled language to ${file.path}:`,
+              err
+            );
+          }
+        }
+      }
+    }
+    return parsed;
   }
   async readEggs(entries) {
     const eggs = [];
     for (const entry of entries) {
-      const egg = await this.readEgg(entry.fileName);
+      const egg = await this.readEgg(entry.fileName, entry.description);
       if (egg) {
         egg.indexDescription = entry.description;
         eggs.push(egg);
@@ -959,5 +1009,150 @@ language: "Chinese"
   (0, import_node_test.it)("returns empty string when no language is specified", () => {
     import_strict.default.equal(extractEggLanguage('---\ntopic: "T"\n---\n'), "");
     import_strict.default.equal(extractEggLanguage(""), "");
+  });
+});
+(0, import_node_test.describe)("insertEggLanguage", () => {
+  (0, import_node_test.it)("inserts language into existing frontmatter", () => {
+    const input = `---
+topic: "Investment"
+status: "active"
+---
+
+# Knowledge
+`;
+    const result = insertEggLanguage(input, "English");
+    import_strict.default.equal(
+      result,
+      `---
+topic: "Investment"
+status: "active"
+language: "English"
+---
+
+# Knowledge
+`
+    );
+  });
+  (0, import_node_test.it)("replaces empty language field in frontmatter", () => {
+    const input = `---
+topic: "AI"
+language: ""
+---
+
+# Knowledge
+`;
+    const result = insertEggLanguage(input, "Chinese");
+    import_strict.default.equal(
+      result,
+      `---
+topic: "AI"
+language: "Chinese"
+---
+
+# Knowledge
+`
+    );
+  });
+  (0, import_node_test.it)("leaves existing non-empty language unchanged", () => {
+    const input = `---
+topic: "AI"
+language: "German"
+---
+
+# Knowledge
+`;
+    const result = insertEggLanguage(input, "Chinese");
+    import_strict.default.equal(result, input);
+  });
+  (0, import_node_test.it)("prepends frontmatter if missing", () => {
+    const input = `# Knowledge
+
+- Some point
+`;
+    const result = insertEggLanguage(input, "Spanish");
+    import_strict.default.equal(
+      result,
+      `---
+language: "Spanish"
+---
+
+# Knowledge
+
+- Some point
+`
+    );
+  });
+});
+(0, import_node_test.describe)("EggParser.readEgg language handling", () => {
+  (0, import_node_test.it)("uses plugin setting language if egg language is not set", async () => {
+    const { vault } = makeFakeVault({
+      "nutegg/notes.md": `---
+topic: "System Architecture"
+---
+# Knowledge
+- microservices
+`
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "Spanish" }
+    });
+    const parser = new EggParser(plugin);
+    const egg = await parser.readEgg("nutegg/notes.md");
+    import_strict.default.ok(egg);
+    import_strict.default.equal(egg.language, "Spanish");
+    const saved = await vault.adapter.read("nutegg/notes.md");
+    import_strict.default.ok(saved.includes('language: "Spanish"'));
+  });
+  (0, import_node_test.it)("does not modify file if language is already present", async () => {
+    const original = `---
+topic: "Trading"
+language: "English"
+---
+
+# Knowledge
+- risk
+`;
+    const { vault } = makeFakeVault({
+      "nutegg/trading.md": original
+    });
+    let modified = false;
+    vault.on("modify", () => {
+      modified = true;
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "Chinese" }
+    });
+    const parser = new EggParser(plugin);
+    const egg = await parser.readEgg("nutegg/trading.md");
+    import_strict.default.ok(egg);
+    import_strict.default.equal(egg.language, "English");
+    import_strict.default.equal(modified, false);
+    import_strict.default.equal(await vault.adapter.read("nutegg/trading.md"), original);
+  });
+  (0, import_node_test.it)("leaves language unset without modifying file if no plugin language is set", async () => {
+    const original = `---
+topic: "ML"
+status: "active"
+---
+
+# Knowledge
+- deep learning
+`;
+    const { vault } = makeFakeVault({
+      "nutegg/ml.md": original
+    });
+    let modified = false;
+    vault.on("modify", () => {
+      modified = true;
+    });
+    const plugin = makeFakePlugin({ vault });
+    const parser = new EggParser(plugin);
+    const egg = await parser.readEgg("nutegg/ml.md");
+    import_strict.default.ok(egg);
+    import_strict.default.equal(egg.language, "");
+    import_strict.default.equal(modified, false);
+    import_strict.default.equal(await vault.adapter.read("nutegg/ml.md"), original);
   });
 });

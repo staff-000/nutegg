@@ -91,6 +91,7 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
+  "language": "English",
   "keyQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
@@ -100,6 +101,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules:
+- language: the primary natural language of the egg note or extracted entries (e.g. "English", "Chinese", "Japanese", etc.).
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 {{shared_output_rules}}
 `;
@@ -168,7 +170,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules:
-- Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+- Output Language: write ALL output text (knowledge entries, explanations) in {{output_language}}. Keep JSON keys in English.
 `;
 
 // src/workflow/aggregate-content.md

@@ -3,7 +3,7 @@ import type NutEggPlugin from "./main";
 import { AIError, isAIConfigured } from "./ai-client";
 import type { AnalysisResult, ContentAnalysis, MergeResult } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
-import { isEggPath } from "./egg-parser";
+import { isEggPath, insertEggLanguage } from "./egg-parser";
 
 interface AnalyzeRequest {
   url: string;
@@ -718,6 +718,30 @@ export class NutEggServer {
           confirm.url,
           author
         );
+
+        // Ensure confirmed eggs have language frontmatter set if known from analysis
+        const perEggList = (confirm as any).analysis?.perEggAnalysis;
+        if (Array.isArray(perEggList)) {
+          for (const perEgg of perEggList) {
+            if (perEgg?.egg && perEgg?.language) {
+              try {
+                const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
+                if (egg && !egg.language) {
+                  const file = this.plugin.app.vault.getAbstractFileByPath(egg.fileName);
+                  if (file) {
+                    const content = await this.plugin.app.vault.read(file as any);
+                    const updated = insertEggLanguage(content, perEgg.language);
+                    if (updated !== content) {
+                      await this.plugin.app.vault.modify(file as any, updated);
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn(`[NutEgg] Failed to persist egg language on confirm:`, err);
+              }
+            }
+          }
+        }
       }
 
       // Update THIS capture's row in SQLite (identified by nutId from

@@ -2,7 +2,12 @@ import { Notice, TAbstractFile } from "obsidian";
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
 import { EGG_TEMPLATE } from "./defaults";
-import { extractEggLanguage, isEggPath, matchesEggFormat } from "./egg-parser";
+import {
+  extractEggLanguage,
+  insertEggLanguage,
+  isEggPath,
+  matchesEggFormat,
+} from "./egg-parser";
 
 export { isEggPath, matchesEggFormat };
 
@@ -597,8 +602,16 @@ export class IndexSync {
       }
     }
 
+    const settingLang = this.plugin.settings?.contentOutputLanguage;
+    const pluginLang =
+      settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
+
     if (!detectedLanguage) {
-      detectedLanguage = extractEggLanguage(content);
+      detectedLanguage = pluginLang || extractEggLanguage(content) || "English";
+    }
+
+    if (detectedLanguage) {
+      content = insertEggLanguage(content, detectedLanguage, { overwrite: true });
     }
 
     await this.plugin.app.vault.create(targetPath, content);

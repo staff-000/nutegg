@@ -576,7 +576,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Content analysis output language")
       .setDesc(
-        "Language used for Stage 1 summaries, verdicts, and chapter maps. (Stage 2 egg analysis always follows each egg's own description language.)"
+        "Language used for Stage 1 summaries, verdicts, and chapter maps. (Stage 2 egg analysis always follows each egg's own language property.)"
       )
       .addDropdown((dropdown) => {
         for (const [key, label] of Object.entries(PRESET_LANGUAGES)) {

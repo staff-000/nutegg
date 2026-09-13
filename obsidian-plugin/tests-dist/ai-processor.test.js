@@ -646,9 +646,9 @@ var UNPROCESSED_HEADING = "# Unprocessed";
 function extractEggLanguage(content) {
   if (!content)
     return "";
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
-    for (const line of fmMatch[1].split("\n")) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/);
       if (kv && kv[1].toLowerCase() === "language") {
         return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
@@ -657,6 +657,34 @@ function extractEggLanguage(content) {
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
   return directMatch ? directMatch[1].trim() : "";
+}
+function insertEggLanguage(content, language, options) {
+  if (!content || !language)
+    return content;
+  const existing = extractEggLanguage(content);
+  if (existing && !options?.overwrite)
+    return content;
+  if (existing && options?.overwrite) {
+    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
+  }
+  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
+    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
+  }
+  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
+  const match = content.match(fmRegex);
+  if (match) {
+    const opening = match[1];
+    const body = match[2];
+    const closing = match[3];
+    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const newBody = `${body}${separator}language: "${language}"`;
+    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
+  }
+  return `---
+language: "${language}"
+---
+
+${content}`;
 }
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
@@ -685,7 +713,7 @@ var EggParser = class {
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async readEgg(fileName) {
+  async readEgg(fileName, fallbackDescription) {
     let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
     if (!file && !fileName.includes("/")) {
       const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
@@ -708,12 +736,34 @@ var EggParser = class {
       return null;
     }
     const content = await this.plugin.app.vault.read(file);
-    return this.parseEggFile(file.path || fileName, content);
+    const parsed = this.parseEggFile(file.path || fileName, content);
+    if (fallbackDescription && !parsed.indexDescription) {
+      parsed.indexDescription = fallbackDescription;
+    }
+    if (!parsed.language) {
+      const settingLang = this.plugin.settings?.contentOutputLanguage;
+      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
+      if (pluginLang) {
+        parsed.language = pluginLang;
+        const updated = insertEggLanguage(content, pluginLang);
+        if (updated !== content) {
+          try {
+            await this.plugin.app.vault.modify(file, updated);
+          } catch (err) {
+            console.warn(
+              `[NutEgg] Could not persist filled language to ${file.path}:`,
+              err
+            );
+          }
+        }
+      }
+    }
+    return parsed;
   }
   async readEggs(entries) {
     const eggs = [];
     for (const entry of entries) {
-      const egg2 = await this.readEgg(entry.fileName);
+      const egg2 = await this.readEgg(entry.fileName, entry.description);
       if (egg2) {
         egg2.indexDescription = entry.description;
         eggs.push(egg2);
@@ -1096,6 +1146,7 @@ var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
+  "language": "English",
   "keyQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
@@ -1105,6 +1156,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules:
+- language: the primary natural language of the egg note or extracted entries (e.g. "English", "Chinese", "Japanese", etc.).
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 {{shared_output_rules}}
 `;
@@ -1173,7 +1225,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules:
-- Output Language: write ALL output text (knowledge entries, explanations) in the same language as this sentence: "{{egg_description}}". Keep JSON keys in English.
+- Output Language: write ALL output text (knowledge entries, explanations) in {{output_language}}. Keep JSON keys in English.
 `;
 
 // src/workflow/aggregate-content.md
@@ -1333,11 +1385,20 @@ var AIProcessor = class {
     return renderPrompt(tpl, { output_language: outputLanguage }).trim();
   }
   /**
-   * Output rules for Stage 2 egg analysis (follows the egg's description from _index.md).
+   * Output rules for Stage 2 egg analysis (follows the egg's language property).
    */
-  getEggOutputRules(eggDescription = "") {
-    const desc = eggDescription.trim();
-    const outputLanguage = desc ? `the same language as this reference: "${desc}"` : "the same language as the captured content";
+  getEggOutputRules(eggOrLanguage = "", fallbackDescription = "") {
+    let lang = "";
+    let desc = fallbackDescription;
+    if (typeof eggOrLanguage === "object" && eggOrLanguage !== null) {
+      lang = (eggOrLanguage.language || "").trim();
+      desc = desc || (eggOrLanguage.indexDescription || "").trim();
+    } else {
+      lang = (eggOrLanguage || "").trim();
+    }
+    const pluginSetting = this.plugin.settings?.contentOutputLanguage;
+    const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+    const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : lang : pluginLang ? pluginLang : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
       output_language: outputLanguage
@@ -1407,10 +1468,6 @@ var AIProcessor = class {
       sections: single?.sections
     };
     return this.callContentChunk(effective, "");
-  }
-  /** Alias for backward compatibility */
-  async analyzeContentOnly(capture2) {
-    return this.analyzeContent(capture2);
   }
   /**
    * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
@@ -1532,16 +1589,33 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNote,
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2)
     });
     try {
       const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "egg-analysis");
       const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
       const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
+      const detectedLanguage = typeof parsed.language === "string" ? parsed.language.trim() : "";
+      if (!egg2.language && detectedLanguage) {
+        egg2.language = detectedLanguage;
+        try {
+          const file = this.plugin.app.vault.getAbstractFileByPath(egg2.fileName);
+          if (file) {
+            const content = await this.plugin.app.vault.read(file);
+            const updated = insertEggLanguage(content, detectedLanguage);
+            if (updated !== content) {
+              await this.plugin.app.vault.modify(file, updated);
+            }
+          }
+        } catch (err) {
+          console.warn(`[NutEgg] Failed to persist LLM-detected language to ${egg2.fileName}:`, err);
+        }
+      }
       const diff = await this.compareEggKnowledge(capture2, egg2, extractedEntries);
       return {
         egg: egg2.fileName,
+        language: detectedLanguage || egg2.language || void 0,
         keyQuestionAnswers,
         extractedEntries,
         novelDelta: diff.novelDelta,
@@ -1585,7 +1659,7 @@ var AIProcessor = class {
       rejection_criteria: egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
       extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2)
     });
     try {
       const response = await this.callAI(prompt, 1500);
@@ -1721,7 +1795,7 @@ ${bullets || "- (no summary)"}`;
         return `## Part ${f.part} of ${chunkFindings.length}${at}
 ${delta || "- (no novel delta)"}`;
       }).join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg2.indexDescription)
+      shared_output_rules: this.getEggOutputRules(egg2)
     });
     const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "aggregate-egg");
@@ -2072,14 +2146,25 @@ A: ${qa.answer}`).join("\n")}` : "";
       );
       return null;
     }
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    const indexEntries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const indexEntry = indexEntries.find(
-      (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-    );
+    let fallbackDesc = "";
+    if (!egg2.language) {
+      try {
+        const indexContent = await this.plugin.indexReader.getIndexContent();
+        const indexEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+        const indexEntry = indexEntries.find(
+          (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
+        );
+        fallbackDesc = indexEntry?.description || "";
+      } catch {
+      }
+    }
+    const pluginSetting = this.plugin.settings?.contentOutputLanguage;
+    const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+    const outputLanguage = egg2.language || pluginLang || "the same language as this egg's existing knowledge";
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
-      egg_description: indexEntry?.description || "",
+      output_language: outputLanguage,
+      egg_description: outputLanguage,
       formatting_rules: egg2.formattingRules || "(none)",
       knowledge_tree: egg2.knowledge || "(empty)",
       unprocessed: egg2.unprocessed,
@@ -2861,7 +2946,11 @@ var capture = {
       { length: n },
       (_, i) => `- entry ${i + 1}`
     ).join("\n");
-    return `# Knowledge
+    return `---
+language: "English"
+---
+
+# Knowledge
 
 - existing
 
@@ -3116,20 +3205,100 @@ ${entries}
       `expected rule to specify Chinese, got: ${ruleZh}`
     );
   });
-  (0, import_node_test.it)("egg analysis follows the egg description from index", () => {
+  (0, import_node_test.it)("egg analysis follows the egg language property, falling back to plugin setting or egg knowledge", () => {
     const plugin = makeFakePlugin({
       settings: { contentOutputLanguage: "English" }
     });
     const p = new AIProcessor(plugin);
-    const ruleWithDesc = p.getEggOutputRules("\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5");
+    const eggWithLang = {
+      fileName: "ml.md",
+      language: "Chinese",
+      indexDescription: "machine learning notes"
+    };
+    const ruleWithLang = p.getEggOutputRules(eggWithLang);
     import_strict.default.ok(
-      ruleWithDesc.includes('the same language as this reference: "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"'),
-      `expected egg rule to follow egg description, got: ${ruleWithDesc}`
+      ruleWithLang.includes("Chinese"),
+      `expected egg rule to follow egg.language, got: ${ruleWithLang}`
     );
-    const ruleEmptyDesc = p.getEggOutputRules("");
+    const ruleWithStringLang = p.getEggOutputRules("Japanese");
     import_strict.default.ok(
-      ruleEmptyDesc.includes("the same language as the captured content"),
-      `expected fallback to captured content language when egg description is empty, got: ${ruleEmptyDesc}`
+      ruleWithStringLang.includes("Japanese"),
+      `expected rule to use language directly, got: ${ruleWithStringLang}`
     );
+    const eggWithoutLang = {
+      fileName: "test.md",
+      language: "",
+      indexDescription: "machine learning notes"
+    };
+    const ruleWithSetting = p.getEggOutputRules(eggWithoutLang);
+    import_strict.default.ok(
+      ruleWithSetting.includes("English"),
+      `expected fallback to plugin setting when language is empty, got: ${ruleWithSetting}`
+    );
+    const pluginNoSetting = makeFakePlugin({
+      settings: { contentOutputLanguage: "same-as-content" }
+    });
+    const pNoSetting = new AIProcessor(pluginNoSetting);
+    const ruleNoSetting = pNoSetting.getEggOutputRules(eggWithoutLang);
+    import_strict.default.ok(
+      ruleNoSetting.includes("the same language as this egg note's existing knowledge"),
+      `expected fallback to egg knowledge when setting is same-as-content, got: ${ruleNoSetting}`
+    );
+  });
+  (0, import_node_test.it)("analyzeAgainstEgg parses language side-output and persists to egg file if missing", async () => {
+    const { vault } = makeFakeVault({
+      "nutegg/ml.md": `---
+topic: "ML"
+---
+
+# Knowledge
+
+# Unprocessed
+`
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "same-as-content" }
+    });
+    const p = new AIProcessor(plugin);
+    p.callAI = async (prompt) => {
+      if (prompt.includes("You are a knowledge curator for the egg file")) {
+        return JSON.stringify({
+          language: "Chinese",
+          keyQuestionAnswers: [],
+          extractedEntries: [
+            { kind: "insight", content: "- **\u6DF1\u5EA6\u5B66\u4E60**: \u795E\u7ECF\u7F51\u7EDC\u65B9\u6CD5" }
+          ]
+        });
+      }
+      return JSON.stringify({
+        novelDelta: [{ parent: "", content: "- **\u6DF1\u5EA6\u5B66\u4E60**: \u795E\u7ECF\u7F51\u7EDC\u65B9\u6CD5" }],
+        redundantEntries: [],
+        rejected: false,
+        readVerdict: true
+      });
+    };
+    const egg2 = {
+      fileName: "nutegg/ml.md",
+      topic: "ML",
+      language: "",
+      scope: "",
+      actionGuide: "",
+      keyQuestions: [],
+      rejectionCriteria: [],
+      formattingRules: "",
+      knowledge: "",
+      unprocessed: "",
+      indexDescription: ""
+    };
+    const result = await p.analyzeAgainstEgg(
+      { title: "Test", url: "https://example.com", content: "Test content", sourceType: "article" },
+      egg2
+    );
+    import_strict.default.ok(result);
+    import_strict.default.equal(result.language, "Chinese");
+    import_strict.default.equal(egg2.language, "Chinese");
+    const fileContent = await vault.adapter.read("nutegg/ml.md");
+    import_strict.default.ok(fileContent.includes('language: "Chinese"'));
   });
 });

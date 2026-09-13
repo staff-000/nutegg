@@ -272,6 +272,49 @@ var TFile = class extends TAbstractFile {
 };
 
 // src/egg-parser.ts
+function extractEggLanguage(content) {
+  if (!content)
+    return "";
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (fmMatch) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (kv && kv[1].toLowerCase() === "language") {
+        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
+      }
+    }
+  }
+  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
+  return directMatch ? directMatch[1].trim() : "";
+}
+function insertEggLanguage(content, language, options) {
+  if (!content || !language)
+    return content;
+  const existing = extractEggLanguage(content);
+  if (existing && !options?.overwrite)
+    return content;
+  if (existing && options?.overwrite) {
+    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
+  }
+  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
+    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
+  }
+  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
+  const match = content.match(fmRegex);
+  if (match) {
+    const opening = match[1];
+    const body = match[2];
+    const closing = match[3];
+    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const newBody = `${body}${separator}language: "${language}"`;
+    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
+  }
+  return `---
+language: "${language}"
+---
+
+${content}`;
+}
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
     return false;
@@ -817,6 +860,28 @@ var NutEggServer = class {
           confirm.url,
           author
         );
+        const perEggList = confirm.analysis?.perEggAnalysis;
+        if (Array.isArray(perEggList)) {
+          for (const perEgg of perEggList) {
+            if (perEgg?.egg && perEgg?.language) {
+              try {
+                const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
+                if (egg && !egg.language) {
+                  const file = this.plugin.app.vault.getAbstractFileByPath(egg.fileName);
+                  if (file) {
+                    const content = await this.plugin.app.vault.read(file);
+                    const updated = insertEggLanguage(content, perEgg.language);
+                    if (updated !== content) {
+                      await this.plugin.app.vault.modify(file, updated);
+                    }
+                  }
+                }
+              } catch (err) {
+                console.warn(`[NutEgg] Failed to persist egg language on confirm:`, err);
+              }
+            }
+          }
+        }
       }
       const db = this.plugin.db;
       const normalizedUrl = this.normalizeUrl(confirm.url);

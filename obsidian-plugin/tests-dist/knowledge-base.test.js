@@ -36,15 +36,16 @@ __export(egg_parser_exports, {
   KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
   UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
   extractEggLanguage: () => extractEggLanguage,
+  insertEggLanguage: () => insertEggLanguage,
   isEggPath: () => isEggPath,
   matchesEggFormat: () => matchesEggFormat
 });
 function extractEggLanguage(content) {
   if (!content)
     return "";
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
-    for (const line of fmMatch[1].split("\n")) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/);
       if (kv && kv[1].toLowerCase() === "language") {
         return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
@@ -53,6 +54,34 @@ function extractEggLanguage(content) {
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
   return directMatch ? directMatch[1].trim() : "";
+}
+function insertEggLanguage(content, language, options) {
+  if (!content || !language)
+    return content;
+  const existing = extractEggLanguage(content);
+  if (existing && !options?.overwrite)
+    return content;
+  if (existing && options?.overwrite) {
+    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
+  }
+  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
+    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
+  }
+  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
+  const match = content.match(fmRegex);
+  if (match) {
+    const opening = match[1];
+    const body = match[2];
+    const closing = match[3];
+    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const newBody = `${body}${separator}language: "${language}"`;
+    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
+  }
+  return `---
+language: "${language}"
+---
+
+${content}`;
 }
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
@@ -98,7 +127,7 @@ var init_egg_parser = __esm({
       constructor(plugin) {
         this.plugin = plugin;
       }
-      async readEgg(fileName) {
+      async readEgg(fileName, fallbackDescription) {
         let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
         if (!file && !fileName.includes("/")) {
           const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
@@ -121,12 +150,34 @@ var init_egg_parser = __esm({
           return null;
         }
         const content = await this.plugin.app.vault.read(file);
-        return this.parseEggFile(file.path || fileName, content);
+        const parsed = this.parseEggFile(file.path || fileName, content);
+        if (fallbackDescription && !parsed.indexDescription) {
+          parsed.indexDescription = fallbackDescription;
+        }
+        if (!parsed.language) {
+          const settingLang = this.plugin.settings?.contentOutputLanguage;
+          const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
+          if (pluginLang) {
+            parsed.language = pluginLang;
+            const updated = insertEggLanguage(content, pluginLang);
+            if (updated !== content) {
+              try {
+                await this.plugin.app.vault.modify(file, updated);
+              } catch (err) {
+                console.warn(
+                  `[NutEgg] Could not persist filled language to ${file.path}:`,
+                  err
+                );
+              }
+            }
+          }
+        }
+        return parsed;
       }
       async readEggs(entries) {
         const eggs = [];
         for (const entry of entries) {
-          const egg = await this.readEgg(entry.fileName);
+          const egg = await this.readEgg(entry.fileName, entry.description);
           if (egg) {
             egg.indexDescription = entry.description;
             eggs.push(egg);

@@ -595,7 +595,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
       { length: n },
       (_, i) => `- entry ${i + 1}`
     ).join("\n");
-    return `# Knowledge\n\n- existing\n\n# Unprocessed\n\n${entries}\n`;
+    return `---\nlanguage: "English"\n---\n\n# Knowledge\n\n- existing\n\n# Unprocessed\n\n${entries}\n`;
   }
 
   function makeProcessor(
@@ -872,23 +872,103 @@ describe("AIProcessor Output Language Rules", () => {
     );
   });
 
-  it("egg analysis follows the egg description from index", () => {
+  it("egg analysis follows the egg language property, falling back to plugin setting or egg knowledge", () => {
     const plugin = makeFakePlugin({
       settings: { contentOutputLanguage: "English" },
     });
     const p = new AIProcessor(plugin as any) as any;
 
-    const ruleWithDesc = p.getEggOutputRules("介绍做事的具体方法");
+    const eggWithLang = {
+      fileName: "ml.md",
+      language: "Chinese",
+      indexDescription: "machine learning notes",
+    };
+    const ruleWithLang = p.getEggOutputRules(eggWithLang);
     assert.ok(
-      ruleWithDesc.includes('the same language as this reference: "介绍做事的具体方法"'),
-      `expected egg rule to follow egg description, got: ${ruleWithDesc}`
+      ruleWithLang.includes("Chinese"),
+      `expected egg rule to follow egg.language, got: ${ruleWithLang}`
     );
 
-    const ruleEmptyDesc = p.getEggOutputRules("");
+    const ruleWithStringLang = p.getEggOutputRules("Japanese");
     assert.ok(
-      ruleEmptyDesc.includes("the same language as the captured content"),
-      `expected fallback to captured content language when egg description is empty, got: ${ruleEmptyDesc}`
+      ruleWithStringLang.includes("Japanese"),
+      `expected rule to use language directly, got: ${ruleWithStringLang}`
     );
+
+    const eggWithoutLang = {
+      fileName: "test.md",
+      language: "",
+      indexDescription: "machine learning notes",
+    };
+    const ruleWithSetting = p.getEggOutputRules(eggWithoutLang);
+    assert.ok(
+      ruleWithSetting.includes("English"),
+      `expected fallback to plugin setting when language is empty, got: ${ruleWithSetting}`
+    );
+
+    const pluginNoSetting = makeFakePlugin({
+      settings: { contentOutputLanguage: "same-as-content" },
+    });
+    const pNoSetting = new AIProcessor(pluginNoSetting as any) as any;
+    const ruleNoSetting = pNoSetting.getEggOutputRules(eggWithoutLang);
+    assert.ok(
+      ruleNoSetting.includes("the same language as this egg note's existing knowledge"),
+      `expected fallback to egg knowledge when setting is same-as-content, got: ${ruleNoSetting}`
+    );
+  });
+
+  it("analyzeAgainstEgg parses language side-output and persists to egg file if missing", async () => {
+    const { vault } = makeFakeVault({
+      "nutegg/ml.md": `---\ntopic: "ML"\n---\n\n# Knowledge\n\n# Unprocessed\n`,
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "same-as-content" },
+    } as any);
+    const p = new AIProcessor(plugin as any) as any;
+    p.callAI = async (prompt: string) => {
+      if (prompt.includes("You are a knowledge curator for the egg file")) {
+        return JSON.stringify({
+          language: "Chinese",
+          keyQuestionAnswers: [],
+          extractedEntries: [
+            { kind: "insight", content: "- **深度学习**: 神经网络方法" },
+          ],
+        });
+      }
+      return JSON.stringify({
+        novelDelta: [{ parent: "", content: "- **深度学习**: 神经网络方法" }],
+        redundantEntries: [],
+        rejected: false,
+        readVerdict: true,
+      });
+    };
+
+    const egg = {
+      fileName: "nutegg/ml.md",
+      topic: "ML",
+      language: "",
+      scope: "",
+      actionGuide: "",
+      keyQuestions: [],
+      rejectionCriteria: [],
+      formattingRules: "",
+      knowledge: "",
+      unprocessed: "",
+      indexDescription: "",
+    };
+
+    const result = await p.analyzeAgainstEgg(
+      { title: "Test", url: "https://example.com", content: "Test content", sourceType: "article" },
+      egg
+    );
+
+    assert.ok(result);
+    assert.equal(result.language, "Chinese");
+    assert.equal(egg.language, "Chinese");
+
+    const fileContent = await vault.adapter.read("nutegg/ml.md");
+    assert.ok(fileContent.includes('language: "Chinese"'));
   });
 });
 

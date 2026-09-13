@@ -22,6 +22,7 @@ You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge e
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
+  "language": "English",
   "keyQuestionAnswers": [
     {"question": "exact question text", "answer": "direct answer"}
   ],
@@ -31,5 +32,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules:
+- language: the primary natural language of the egg note or extracted entries (e.g. "English", "Chinese", "Japanese", etc.).
 - extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
 {{shared_output_rules}}

@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { EggParser, extractEggLanguage } from "../src/egg-parser";
+import {
+  EggParser,
+  extractEggLanguage,
+  insertEggLanguage,
+} from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 
 const NEW_FORMAT_EGG = `---
@@ -481,4 +485,101 @@ describe("extractEggLanguage", () => {
     assert.equal(extractEggLanguage(""), "");
   });
 });
+
+describe("insertEggLanguage", () => {
+  it("inserts language into existing frontmatter", () => {
+    const input = `---\ntopic: "Investment"\nstatus: "active"\n---\n\n# Knowledge\n`;
+    const result = insertEggLanguage(input, "English");
+    assert.equal(
+      result,
+      `---\ntopic: "Investment"\nstatus: "active"\nlanguage: "English"\n---\n\n# Knowledge\n`
+    );
+  });
+
+  it("replaces empty language field in frontmatter", () => {
+    const input = `---\ntopic: "AI"\nlanguage: ""\n---\n\n# Knowledge\n`;
+    const result = insertEggLanguage(input, "Chinese");
+    assert.equal(
+      result,
+      `---\ntopic: "AI"\nlanguage: "Chinese"\n---\n\n# Knowledge\n`
+    );
+  });
+
+  it("leaves existing non-empty language unchanged", () => {
+    const input = `---\ntopic: "AI"\nlanguage: "German"\n---\n\n# Knowledge\n`;
+    const result = insertEggLanguage(input, "Chinese");
+    assert.equal(result, input);
+  });
+
+  it("prepends frontmatter if missing", () => {
+    const input = `# Knowledge\n\n- Some point\n`;
+    const result = insertEggLanguage(input, "Spanish");
+    assert.equal(
+      result,
+      `---\nlanguage: "Spanish"\n---\n\n# Knowledge\n\n- Some point\n`
+    );
+  });
+});
+
+describe("EggParser.readEgg language handling", () => {
+  it("uses plugin setting language if egg language is not set", async () => {
+    const { vault } = makeFakeVault({
+      "nutegg/notes.md": `---\ntopic: "System Architecture"\n---\n# Knowledge\n- microservices\n`,
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "Spanish" },
+    } as any);
+    const parser = new EggParser(plugin as any);
+
+    const egg = await parser.readEgg("nutegg/notes.md");
+    assert.ok(egg);
+    assert.equal(egg.language, "Spanish");
+
+    const saved = await vault.adapter.read("nutegg/notes.md");
+    assert.ok(saved.includes('language: "Spanish"'));
+  });
+
+  it("does not modify file if language is already present", async () => {
+    const original = `---\ntopic: "Trading"\nlanguage: "English"\n---\n\n# Knowledge\n- risk\n`;
+    const { vault } = makeFakeVault({
+      "nutegg/trading.md": original,
+    });
+    let modified = false;
+    vault.on("modify", () => {
+      modified = true;
+    });
+    const plugin = makeFakePlugin({
+      vault,
+      settings: { contentOutputLanguage: "Chinese" },
+    } as any);
+    const parser = new EggParser(plugin as any);
+
+    const egg = await parser.readEgg("nutegg/trading.md");
+    assert.ok(egg);
+    assert.equal(egg.language, "English");
+    assert.equal(modified, false);
+    assert.equal(await vault.adapter.read("nutegg/trading.md"), original);
+  });
+
+  it("leaves language unset without modifying file if no plugin language is set", async () => {
+    const original = `---\ntopic: "ML"\nstatus: "active"\n---\n\n# Knowledge\n- deep learning\n`;
+    const { vault } = makeFakeVault({
+      "nutegg/ml.md": original,
+    });
+    let modified = false;
+    vault.on("modify", () => {
+      modified = true;
+    });
+    const plugin = makeFakePlugin({ vault } as any);
+    const parser = new EggParser(plugin as any);
+
+    const egg = await parser.readEgg("nutegg/ml.md");
+    assert.ok(egg);
+    assert.equal(egg.language, "");
+    assert.equal(modified, false);
+    assert.equal(await vault.adapter.read("nutegg/ml.md"), original);
+  });
+});
+
 

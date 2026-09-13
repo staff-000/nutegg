@@ -49,7 +49,7 @@ export interface EggContent {
   knowledge: string;
   /** Entries in the Unprocessed section — merged into the tree when 20+ accumulate. */
   unprocessed: string;
-  /** Description from _index.md — used to detect output language for AI prompts. */
+  /** Description from _index.md — used for egg routing and fallback context. */
   indexDescription: string;
 }
 
@@ -58,9 +58,9 @@ export interface EggContent {
  */
 export function extractEggLanguage(content: string): string {
   if (!content) return "";
-  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
-    for (const line of fmMatch[1].split("\n")) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/);
       if (kv && kv[1].toLowerCase() === "language") {
         return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
@@ -69,6 +69,45 @@ export function extractEggLanguage(content: string): string {
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
   return directMatch ? directMatch[1].trim() : "";
+}
+
+
+/**
+ * Inserts or updates the frontmatter language property in an egg file's content.
+ * If the egg already has a non-empty language property, content is returned unchanged.
+ */
+export function insertEggLanguage(
+  content: string,
+  language: string,
+  options?: { overwrite?: boolean }
+): string {
+  if (!content || !language) return content;
+  const existing = extractEggLanguage(content);
+  if (existing && !options?.overwrite) return content;
+
+  if (existing && options?.overwrite) {
+    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
+  }
+
+  // If an empty language property already exists, update it in place
+  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
+    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
+  }
+
+  // If YAML frontmatter exists, insert before the closing delimiter
+  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
+  const match = content.match(fmRegex);
+  if (match) {
+    const opening = match[1];
+    const body = match[2];
+    const closing = match[3];
+    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const newBody = `${body}${separator}language: "${language}"`;
+    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
+  }
+
+  // If no frontmatter exists, prepend frontmatter with language
+  return `---\nlanguage: "${language}"\n---\n\n${content}`;
 }
 
 export function isEggPath(path: string, vaultFolder = "nutegg"): boolean {
@@ -115,7 +154,10 @@ export class EggParser {
     this.plugin = plugin;
   }
 
-  async readEgg(fileName: string): Promise<EggContent | null> {
+  async readEgg(
+    fileName: string,
+    fallbackDescription?: string
+  ): Promise<EggContent | null> {
     let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
     if (!file && !fileName.includes("/")) {
       const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
@@ -138,13 +180,40 @@ export class EggParser {
     }
 
     const content = await this.plugin.app.vault.read(file as any);
-    return this.parseEggFile(file.path || fileName, content);
+    const parsed = this.parseEggFile(file.path || fileName, content);
+    if (fallbackDescription && !parsed.indexDescription) {
+      parsed.indexDescription = fallbackDescription;
+    }
+
+    // If egg language is not set, use plugin setting if configured
+    if (!parsed.language) {
+      const settingLang = this.plugin.settings?.contentOutputLanguage;
+      const pluginLang =
+        settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
+
+      if (pluginLang) {
+        parsed.language = pluginLang;
+        const updated = insertEggLanguage(content, pluginLang);
+        if (updated !== content) {
+          try {
+            await this.plugin.app.vault.modify(file as any, updated);
+          } catch (err) {
+            console.warn(
+              `[NutEgg] Could not persist filled language to ${(file as any).path}:`,
+              err
+            );
+          }
+        }
+      }
+    }
+
+    return parsed;
   }
 
   async readEggs(entries: IndexEntry[]): Promise<EggContent[]> {
     const eggs: EggContent[] = [];
     for (const entry of entries) {
-      const egg = await this.readEgg(entry.fileName);
+      const egg = await this.readEgg(entry.fileName, entry.description);
       if (egg) {
         egg.indexDescription = entry.description;
         eggs.push(egg);
