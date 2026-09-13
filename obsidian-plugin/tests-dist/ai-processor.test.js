@@ -630,7 +630,24 @@ var init_ai_client = __esm({
           throw classifyError(response.status, err);
         }
         const data = await response.json();
-        return data?.choices?.[0]?.message?.content || "";
+        const choice = data?.choices?.[0];
+        const content = choice?.message?.content || "";
+        const reasoning = choice?.message?.reasoning_content || "";
+        const finishReason = choice?.finish_reason;
+        if (finishReason === "length") {
+          const reasoningTokens = data?.usage?.completion_tokens_details?.reasoning_tokens || 0;
+          const completionTokens = data?.usage?.completion_tokens || 0;
+          console.warn(
+            `[NutEgg] AI response was cut off by max_tokens limit (finish_reason: "length"). Reasoning tokens: ${reasoningTokens}, Completion tokens: ${completionTokens}, Content length: ${content.length}`
+          );
+          if (!content.trim() && reasoning) {
+            throw new AIError(
+              "rate_limited",
+              `The AI model (${this.config.model}) spent all its tokens on internal reasoning before writing the answer. Try increasing Max Tokens in settings.`
+            );
+          }
+        }
+        return content;
       }
     };
   }
@@ -1558,7 +1575,8 @@ var AIProcessor = class {
       content: this.truncate(capture2.content, this.chunkWindowChars),
       shared_output_rules: this.getContentOutputRules()
     });
-    const response = await this.callAI(prompt, 1200);
+    const configuredMax = this.plugin?.settings?.contentAnalysisMaxTokens || 16384;
+    const response = await this.callAI(prompt, configuredMax);
     const parsed = this.parseJson(response, "content-analysis");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
@@ -1592,7 +1610,8 @@ var AIProcessor = class {
       shared_output_rules: this.getEggOutputRules(egg2)
     });
     try {
-      const response = await this.callAI(prompt, 1500);
+      const tokenBudget = this.plugin?.settings?.contentAnalysisMaxTokens || 16384;
+      const response = await this.callAI(prompt, tokenBudget);
       const parsed = this.parseJson(response, "egg-analysis");
       const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
       const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
@@ -1662,7 +1681,8 @@ ${e.content}`).join("\n\n"),
       shared_output_rules: this.getEggOutputRules(egg2)
     });
     try {
-      const response = await this.callAI(prompt, 1500);
+      const tokenBudget = this.plugin?.settings?.contentAnalysisMaxTokens || 16384;
+      const response = await this.callAI(prompt, tokenBudget);
       const parsed = this.parseJson(response, "egg-compare");
       const novelDelta = Array.isArray(parsed.novelDelta) ? parsed.novelDelta.filter((d) => d && d.content).map((d) => ({
         parent: String(d.parent || ""),
@@ -2249,29 +2269,73 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   }
   /**
    * Parse an AI response that should be JSON, stripping markdown fences.
+   * Sanitizes unescaped control characters (\n, \r, \t) in strings and
+   * recovers partial/truncated JSON when responses are cut off mid-stream.
    * `context` names the prompt for diagnostics when parsing fails.
    */
   parseJson(response, context = "response") {
-    let jsonStr = response.trim();
-    if (jsonStr.startsWith("```")) {
+    let jsonStr = (response || "").trim();
+    if (!jsonStr) {
+      console.warn(`[NutEgg] Empty AI response received for (${context}).`);
+      return {};
+    }
+    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      jsonStr = codeBlockMatch[1].trim();
+    } else if (jsonStr.startsWith("```")) {
       jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
     }
     try {
       return JSON.parse(jsonStr);
     } catch {
-      const braceMatch = jsonStr.match(/\{[\s\S]*\}/);
-      if (braceMatch) {
+    }
+    const sanitized = sanitizeJsonString(jsonStr);
+    try {
+      return JSON.parse(sanitized);
+    } catch {
+    }
+    const braceMatch = sanitized.match(/\{[\s\S]*\}/);
+    if (braceMatch) {
+      try {
+        return JSON.parse(braceMatch[0]);
+      } catch {
+      }
+    }
+    try {
+      const target = braceMatch ? braceMatch[0].trim() : sanitized.trim();
+      if (target.startsWith("{") && target.endsWith("}")) {
+        const obj = Function("return (" + target + ")")();
+        if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+          return obj;
+        }
+      }
+    } catch {
+    }
+    const repaired = repairTruncatedJson(sanitized);
+    if (repaired) {
+      try {
+        const res = JSON.parse(repaired);
+        console.warn(`[NutEgg] Recovered truncated JSON response (${context})`);
+        return res;
+      } catch {
         try {
-          return JSON.parse(braceMatch[0]);
+          const repTrim = repaired.trim();
+          if (repTrim.startsWith("{") && repTrim.endsWith("}")) {
+            const obj = Function("return (" + repTrim + ")")();
+            if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+              console.warn(`[NutEgg] Recovered truncated JSON expression (${context})`);
+              return obj;
+            }
+          }
         } catch {
         }
       }
-      console.warn(
-        `[NutEgg] Failed to parse AI JSON response (${context}):`,
-        jsonStr.slice(0, 300)
-      );
-      return {};
     }
+    console.warn(
+      `[NutEgg] Failed to parse AI JSON response (${context}) [length=${jsonStr.length}]:`,
+      jsonStr.slice(0, 500)
+    );
+    return {};
   }
   truncate(text, maxChars) {
     if (text.length <= maxChars)
@@ -2279,6 +2343,119 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
     return text.substring(0, maxChars) + "\n\n[...truncated]";
   }
 };
+function repairTruncatedJson(jsonStr) {
+  const firstBrace = jsonStr.indexOf("{");
+  if (firstBrace === -1)
+    return null;
+  let text = jsonStr.slice(firstBrace).trim();
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (c === "\\") {
+        escaped = true;
+      } else if (c === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+    } else if (c === "{" || c === "[") {
+      stack.push(c);
+    } else if (c === "}") {
+      if (stack[stack.length - 1] === "{")
+        stack.pop();
+    } else if (c === "]") {
+      if (stack[stack.length - 1] === "[")
+        stack.pop();
+    }
+  }
+  if (stack.length === 0 && !inString) {
+    return text;
+  }
+  if (inString) {
+    text += '"';
+  }
+  if (stack[stack.length - 1] === "{") {
+    text = text.replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+    text = text.replace(/(?:\{|,)\s*"[^"]*"\s*$/, (m) => m.startsWith("{") ? "{" : "");
+  }
+  text = text.replace(/,\s*$/, "").trim();
+  const finalStack = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (esc)
+        esc = false;
+      else if (c === "\\")
+        esc = true;
+      else if (c === '"')
+        inStr = false;
+      continue;
+    }
+    if (c === '"')
+      inStr = true;
+    else if (c === "{" || c === "[")
+      finalStack.push(c);
+    else if (c === "}") {
+      if (finalStack[finalStack.length - 1] === "{")
+        finalStack.pop();
+    } else if (c === "]") {
+      if (finalStack[finalStack.length - 1] === "[")
+        finalStack.pop();
+    }
+  }
+  while (finalStack.length > 0) {
+    const open = finalStack.pop();
+    if (open === "{")
+      text += "}";
+    else if (open === "[")
+      text += "]";
+  }
+  return text;
+}
+function sanitizeJsonString(str) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        result += c;
+      } else if (c === "\\") {
+        escaped = true;
+        result += c;
+      } else if (c === '"') {
+        inString = false;
+        result += c;
+      } else if (c === "\n") {
+        result += "\\n";
+      } else if (c === "\r") {
+        result += "\\r";
+      } else if (c === "	") {
+        result += "\\t";
+      } else if (c.charCodeAt(0) < 32) {
+        result += "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0");
+      } else {
+        result += c;
+      }
+    } else {
+      if (c === '"')
+        inString = true;
+      result += c;
+    }
+  }
+  return result.replace(/,\s*([}\]])/g, "$1");
+}
 
 // tests/obsidian-stub.ts
 var TAbstractFile = class {
@@ -2788,6 +2965,64 @@ var capture = {
       { time: "00:00", title: "", summary: "" },
       { time: "05:00", title: "On-grid", summary: "y" }
     ]);
+  });
+});
+(0, import_node_test.describe)("repairTruncatedJson", () => {
+  (0, import_node_test.it)("returns balanced json unchanged", () => {
+    const input = '{"titleVerdict": "Hello", "coreSummary": ["A", "B"]}';
+    import_strict.default.equal(repairTruncatedJson(input), input);
+  });
+  (0, import_node_test.it)("repairs JSON truncated inside an array string", () => {
+    const input = '{"titleVerdict": "Done", "coreSummary": ["First", "Seco';
+    const repaired = repairTruncatedJson(input);
+    import_strict.default.ok(repaired);
+    const parsed = JSON.parse(repaired);
+    import_strict.default.equal(parsed.titleVerdict, "Done");
+    import_strict.default.deepEqual(parsed.coreSummary, ["First", "Seco"]);
+  });
+  (0, import_node_test.it)("repairs JSON truncated inside an object within an array", () => {
+    const input = '{"titleVerdict": "V", "chapterMap": [{"time": "00:00", "title": "Intro", "summary": "One"}, {"time": "05:00", "title": "Part 2"';
+    const repaired = repairTruncatedJson(input);
+    import_strict.default.ok(repaired);
+    const parsed = JSON.parse(repaired);
+    import_strict.default.equal(parsed.titleVerdict, "V");
+    import_strict.default.equal(parsed.chapterMap.length, 2);
+    import_strict.default.equal(parsed.chapterMap[0].title, "Intro");
+    import_strict.default.equal(parsed.chapterMap[1].title, "Part 2");
+  });
+  (0, import_node_test.it)("repairs JSON truncated after a trailing comma", () => {
+    const input = '{"titleVerdict": "V", "coreSummary": ["One"], ';
+    const repaired = repairTruncatedJson(input);
+    import_strict.default.ok(repaired);
+    const parsed = JSON.parse(repaired);
+    import_strict.default.equal(parsed.titleVerdict, "V");
+    import_strict.default.deepEqual(parsed.coreSummary, ["One"]);
+  });
+  (0, import_node_test.it)("repairs JSON truncated mid-key", () => {
+    const input = '{"titleVerdict": "V", "coreSummary": ["One"], "chapter';
+    const repaired = repairTruncatedJson(input);
+    import_strict.default.ok(repaired);
+    const parsed = JSON.parse(repaired);
+    import_strict.default.equal(parsed.titleVerdict, "V");
+    import_strict.default.deepEqual(parsed.coreSummary, ["One"]);
+  });
+});
+(0, import_node_test.describe)("sanitizeJsonString", () => {
+  (0, import_node_test.it)("escapes raw newlines and tabs inside string literals", () => {
+    const raw = '{"content": "- **Concept**: first line\n  - second line	with tab\r\n  - third line"}';
+    const sanitized = sanitizeJsonString(raw);
+    const parsed = JSON.parse(sanitized);
+    import_strict.default.equal(
+      parsed.content,
+      "- **Concept**: first line\n  - second line	with tab\r\n  - third line"
+    );
+  });
+  (0, import_node_test.it)("removes trailing commas before closing braces and brackets", () => {
+    const raw = '{"a": 1, "b": [2, 3, ], }';
+    const sanitized = sanitizeJsonString(raw);
+    const parsed = JSON.parse(sanitized);
+    import_strict.default.equal(parsed.a, 1);
+    import_strict.default.deepEqual(parsed.b, [2, 3]);
   });
 });
 (0, import_node_test.describe)("AIProcessor.analyze (chunked)", () => {

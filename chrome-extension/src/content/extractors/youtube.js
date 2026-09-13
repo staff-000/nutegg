@@ -394,44 +394,78 @@ function timedtextFormat(url) {
 }
 
 /**
- * Pick the best caption track and fetch it, each attempt timeout-bounded.
- *
- * `&fmt=json3` goes FIRST: it is the fastest-responding format and the
- * richest for parsing, while the bare default endpoint now stalls for many
- * signed URLs. The bare URL and srv3 stay as fallbacks.
+ * Pick caption tracks and fetch timedtext, trying all candidate tracks in order.
+ * On signed URLs (containing sparams/signature), baseUrl is fetched first to avoid
+ * breaking signature verification with query modifications.
  */
 async function fetchTimedtext(tracks) {
   if (!Array.isArray(tracks) || tracks.length === 0) return "";
-  const pick =
-    tracks.find((t) => t.languageCode === "en" && t.kind !== "asr") ||
-    tracks.find((t) => t.languageCode === "en") ||
-    tracks.find((t) => (t.languageCode || "").startsWith("en") && t.kind !== "asr") ||
-    tracks.find((t) => (t.languageCode || "").startsWith("en")) ||
-    tracks.find((t) => t.kind !== "asr") ||
-    tracks[0];
-  if (!pick) return "";
-  const rawUrl = pick.baseUrl || pick.url;
-  if (!rawUrl) return "";
 
-  const baseUrl = rawUrl.replace(/\\u0026/g, "&");
-  const urls = baseUrl.includes("fmt=")
-    ? [baseUrl]
-    : [`${baseUrl}&fmt=json3`, baseUrl, `${baseUrl}&fmt=srv3`];
+  // Prioritize candidate tracks:
+  // 1. English human track (non-ASR)
+  // 2. Original / non-ASR tracks in other languages
+  // 3. English ASR
+  // 4. Any other ASR tracks
+  // 5. Fallback tracks
+  const sortedTracks = [...tracks].sort((a, b) => {
+    const aIsEn = (a.languageCode || "").toLowerCase().startsWith("en");
+    const bIsEn = (b.languageCode || "").toLowerCase().startsWith("en");
+    const aIsAsr = a.kind === "asr";
+    const bIsAsr = b.kind === "asr";
 
-  for (const url of urls) {
-    try {
-      const resp = await fetchWithTimeout(url, {}, 5000);
-      if (!resp.ok) {
-        console.warn(`[NutEgg] Captions: ${timedtextFormat(url)} → HTTP ${resp.status}`);
-        continue;
+    if (aIsEn && !aIsAsr && (!bIsEn || bIsAsr)) return -1;
+    if (bIsEn && !bIsAsr && (!aIsEn || aIsAsr)) return 1;
+    if (!aIsAsr && bIsAsr) return -1;
+    if (aIsAsr && !bIsAsr) return 1;
+    if (aIsEn && !bIsEn) return -1;
+    if (!aIsEn && bIsEn) return 1;
+    return 0;
+  });
+
+  for (const track of sortedTracks) {
+    const rawUrl = track.baseUrl || track.url;
+    if (!rawUrl) continue;
+
+    const baseUrl = rawUrl.replace(/\\u0026/g, "&");
+    const isSigned =
+      baseUrl.includes("sparams=") ||
+      baseUrl.includes("signature=") ||
+      baseUrl.includes("sig=");
+
+    // On signed URLs, tampering with query parameters like &fmt=json3 invalidates the signature,
+    // causing YouTube to return an empty <transcript/> with HTTP 200.
+    // Try the signed baseUrl first!
+    const urls = isSigned
+      ? (baseUrl.includes("fmt=") ? [baseUrl] : [baseUrl, `${baseUrl}&fmt=json3`, `${baseUrl}&fmt=srv3`])
+      : (baseUrl.includes("fmt=") ? [baseUrl] : [`${baseUrl}&fmt=json3`, baseUrl, `${baseUrl}&fmt=srv3`]);
+
+    for (const url of urls) {
+      try {
+        const resp = await fetchWithTimeout(url, {}, 5000);
+        if (!resp.ok) {
+          console.warn(
+            `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → HTTP ${resp.status}`
+          );
+          continue;
+        }
+        const text = await resp.text();
+        const parsed = parseYouTubeCaptionResponse(text);
+        if (parsed) {
+          console.log(
+            `[NutEgg] Captions: extracted from ${track.languageCode || "track"} via ${timedtextFormat(url)}`
+          );
+          return parsed;
+        }
+        if (text && text.length > 50 && !text.includes("<transcript/>")) {
+          console.warn(
+            `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → unparseable response (${text.slice(0, 80)})`
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → ${err.name === "AbortError" ? "timed out" : err.message}`
+        );
       }
-      const parsed = parseYouTubeCaptionResponse(await resp.text());
-      if (parsed) return parsed;
-      console.warn(`[NutEgg] Captions: ${timedtextFormat(url)} → unparseable response`);
-    } catch (err) {
-      console.warn(
-        `[NutEgg] Captions: ${timedtextFormat(url)} → ${err.name === "AbortError" ? "timed out" : err.message}`
-      );
     }
   }
 
@@ -724,17 +758,26 @@ async function readTranscriptPanel() {
           "button, yt-button-shape, ytd-button-renderer, tp-yt-paper-button, tp-yt-paper-item, ytd-menu-service-item-renderer"
         ),
       ];
+      // Multilingual keywords for the "Show transcript" button
+      const keywords = [
+        "transcript",
+        "文字记录",
+        "文字記錄",
+        "文字起こし",
+        "transcrip",
+        "transkript",
+        "скрипт",
+        "расшифровк",
+      ];
       button = candidates.find((b) => {
         const text = (b.textContent || "").trim().toLowerCase();
         const aria = (b.getAttribute("aria-label") || "").toLowerCase();
         const title = (b.getAttribute("title") || "").toLowerCase();
-        return (
-          text === "show transcript" ||
-          aria === "show transcript" ||
-          text.includes("show transcript") ||
-          aria.includes("show transcript") ||
-          title.includes("show transcript") ||
-          (text.includes("transcript") && !text.includes("close") && !text.includes("toggle"))
+        return keywords.some(
+          (kw) =>
+            (text.includes(kw) || aria.includes(kw) || title.includes(kw)) &&
+            !text.includes("close") &&
+            !text.includes("toggle")
         );
       });
     }
@@ -752,9 +795,11 @@ async function readTranscriptPanel() {
             "ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer, tp-yt-paper-item"
           ),
         ];
-        button = menuItems.find((item) =>
-          (item.textContent || "").toLowerCase().includes("transcript")
-        );
+        const keywords = ["transcript", "文字记录", "文字記錄", "文字起こし", "transcrip", "transkript", "скрипт", "расшифровк"];
+        button = menuItems.find((item) => {
+          const t = (item.textContent || "").toLowerCase();
+          return keywords.some((kw) => t.includes(kw));
+        });
       }
     }
 
@@ -810,7 +855,7 @@ async function readTranscriptPanel() {
  */
 function parseYouTubeCaptionResponse(rawText) {
   if (!rawText || !rawText.trim()) return "";
-  const trimmed = rawText.trim();
+  const trimmed = rawText.replace(/^\uFEFF/, "").trim();
 
   // 1. JSON (json3 format: events array with segs)
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -841,27 +886,60 @@ function parseYouTubeCaptionResponse(rawText) {
   // 2. XML formats
   const raw = [];
 
+  // Helper to extract clean text from inside an XML tag, replacing tags with spaces
+  const cleanTagText = (str) =>
+    decodeHtmlEntities(
+      str
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+    );
+
+  // Helper to parse time in seconds from various attribute formats:
+  // e.g. t="12340" (ms), begin="00:01:23.456", begin="12.34s", start="12.34"
+  const parseTimeSec = (attrStr) => {
+    // 1. t="12340" (ms)
+    const tMatch = attrStr.match(/\bt\s*=\s*["']?(\d+)["']?/i);
+    if (tMatch) return parseInt(tMatch[1], 10) / 1000;
+
+    // 2. start="12.34" or start='12.34' or start=12.34
+    const startMatch = attrStr.match(/\bstart\s*=\s*["']?([\d.]+)["']?/i);
+    if (startMatch) return parseFloat(startMatch[1]);
+
+    // 3. begin="00:01:23.456" or begin="12.34s" or begin="12.34"
+    const beginMatch = attrStr.match(/\bbegin\s*=\s*["']?([^"'\s>]+)["']?/i);
+    if (beginMatch) {
+      const val = beginMatch[1].replace(/s$/i, "");
+      if (val.includes(":")) {
+        const parts = val.split(":").map(Number);
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+      }
+      const num = parseFloat(val);
+      if (!isNaN(num)) return num;
+    }
+    return NaN;
+  };
+
   // Format 2A: <text start="12.3">content</text>
   const textRegex = /<text\b([^>]*)>([\s\S]*?)<\/text>/gi;
   let match;
   while ((match = textRegex.exec(trimmed)) !== null) {
-    const startAttr = (match[1].match(/\bstart="([\d.]+)"/i) || [])[1];
-    const start = startAttr !== undefined ? parseFloat(startAttr) : NaN;
-    const text = decodeHtmlEntities(match[2].replace(/<[^>]+>/g, "")).trim();
+    const sec = parseTimeSec(match[1]);
+    const text = cleanTagText(match[2]);
     if (text) {
-      raw.push(Number.isFinite(start) ? `[${formatTime(start)}] ${text}` : text);
+      raw.push(Number.isFinite(sec) ? `[${formatTime(sec)}] ${text}` : text);
     }
   }
 
-  // Format 2B: <p t="12340" d="3000">content</p> (srv3 format where t is milliseconds)
+  // Format 2B: <p t="12340" d="3000">content</p> or <p begin="...">content</p> (srv3 / TTML)
   if (raw.length === 0) {
     const pRegex = /<p\b([^>]*)>([\s\S]*?)<\/p>/gi;
     while ((match = pRegex.exec(trimmed)) !== null) {
-      const tAttr = (match[1].match(/\bt="(\d+)"/i) || [])[1];
-      const startMs = tAttr !== undefined ? parseInt(tAttr, 10) : NaN;
-      const text = decodeHtmlEntities(match[2].replace(/<[^>]+>/g, "")).trim();
+      const sec = parseTimeSec(match[1]);
+      const text = cleanTagText(match[2]);
       if (text) {
-        raw.push(Number.isFinite(startMs) ? `[${formatTime(startMs / 1000)}] ${text}` : text);
+        raw.push(Number.isFinite(sec) ? `[${formatTime(sec)}] ${text}` : text);
       }
     }
   }
@@ -880,7 +958,7 @@ function parseYouTubeCaptionResponse(rawText) {
         !line.match(/^\d+$/) &&
         currentTime
       ) {
-        const text = decodeHtmlEntities(line.replace(/<[^>]+>/g, "")).trim();
+        const text = cleanTagText(line);
         if (text) {
           raw.push(`[${currentTime}] ${text}`);
         }

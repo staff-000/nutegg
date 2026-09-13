@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   AIProcessor,
   MERGE_THRESHOLD,
+  repairTruncatedJson,
+  sanitizeJsonString,
   type EggContent,
 } from "../src/ai-processor";
 import { EggParser } from "../src/egg-parser";
@@ -431,6 +433,71 @@ describe("AIProcessor.completeChapterMap", () => {
       { time: "00:00", title: "", summary: "" },
       { time: "05:00", title: "On-grid", summary: "y" },
     ]);
+  });
+});
+
+describe("repairTruncatedJson", () => {
+  it("returns balanced json unchanged", () => {
+    const input = '{"titleVerdict": "Hello", "coreSummary": ["A", "B"]}';
+    assert.equal(repairTruncatedJson(input), input);
+  });
+
+  it("repairs JSON truncated inside an array string", () => {
+    const input = '{"titleVerdict": "Done", "coreSummary": ["First", "Seco';
+    const repaired = repairTruncatedJson(input);
+    assert.ok(repaired);
+    const parsed = JSON.parse(repaired!);
+    assert.equal(parsed.titleVerdict, "Done");
+    assert.deepEqual(parsed.coreSummary, ["First", "Seco"]);
+  });
+
+  it("repairs JSON truncated inside an object within an array", () => {
+    const input = '{"titleVerdict": "V", "chapterMap": [{"time": "00:00", "title": "Intro", "summary": "One"}, {"time": "05:00", "title": "Part 2"';
+    const repaired = repairTruncatedJson(input);
+    assert.ok(repaired);
+    const parsed = JSON.parse(repaired!);
+    assert.equal(parsed.titleVerdict, "V");
+    assert.equal(parsed.chapterMap.length, 2);
+    assert.equal(parsed.chapterMap[0].title, "Intro");
+    assert.equal(parsed.chapterMap[1].title, "Part 2");
+  });
+
+  it("repairs JSON truncated after a trailing comma", () => {
+    const input = '{"titleVerdict": "V", "coreSummary": ["One"], ';
+    const repaired = repairTruncatedJson(input);
+    assert.ok(repaired);
+    const parsed = JSON.parse(repaired!);
+    assert.equal(parsed.titleVerdict, "V");
+    assert.deepEqual(parsed.coreSummary, ["One"]);
+  });
+
+  it("repairs JSON truncated mid-key", () => {
+    const input = '{"titleVerdict": "V", "coreSummary": ["One"], "chapter';
+    const repaired = repairTruncatedJson(input);
+    assert.ok(repaired);
+    const parsed = JSON.parse(repaired!);
+    assert.equal(parsed.titleVerdict, "V");
+    assert.deepEqual(parsed.coreSummary, ["One"]);
+  });
+});
+
+describe("sanitizeJsonString", () => {
+  it("escapes raw newlines and tabs inside string literals", () => {
+    const raw = '{"content": "- **Concept**: first line\n  - second line\twith tab\r\n  - third line"}';
+    const sanitized = sanitizeJsonString(raw);
+    const parsed = JSON.parse(sanitized);
+    assert.equal(
+      parsed.content,
+      "- **Concept**: first line\n  - second line\twith tab\r\n  - third line"
+    );
+  });
+
+  it("removes trailing commas before closing braces and brackets", () => {
+    const raw = '{"a": 1, "b": [2, 3, ], }';
+    const sanitized = sanitizeJsonString(raw);
+    const parsed = JSON.parse(sanitized);
+    assert.equal(parsed.a, 1);
+    assert.deepEqual(parsed.b, [2, 3]);
   });
 });
 

@@ -615,7 +615,24 @@ var AIClient = class {
       throw classifyError(response.status, err);
     }
     const data = await response.json();
-    return data?.choices?.[0]?.message?.content || "";
+    const choice = data?.choices?.[0];
+    const content = choice?.message?.content || "";
+    const reasoning = choice?.message?.reasoning_content || "";
+    const finishReason = choice?.finish_reason;
+    if (finishReason === "length") {
+      const reasoningTokens = data?.usage?.completion_tokens_details?.reasoning_tokens || 0;
+      const completionTokens = data?.usage?.completion_tokens || 0;
+      console.warn(
+        `[NutEgg] AI response was cut off by max_tokens limit (finish_reason: "length"). Reasoning tokens: ${reasoningTokens}, Completion tokens: ${completionTokens}, Content length: ${content.length}`
+      );
+      if (!content.trim() && reasoning) {
+        throw new AIError(
+          "rate_limited",
+          `The AI model (${this.config.model}) spent all its tokens on internal reasoning before writing the answer. Try increasing Max Tokens in settings.`
+        );
+      }
+    }
+    return content;
   }
 };
 
@@ -634,6 +651,7 @@ var DEFAULT_SETTINGS = {
   workflowHashes: {},
   chunkWindowChars: 3e4,
   sectionGridSeconds: 300,
+  contentAnalysisMaxTokens: 16384,
   contentOutputLanguage: "same-as-content"
 };
 

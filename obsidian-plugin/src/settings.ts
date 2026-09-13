@@ -40,6 +40,8 @@ export interface NutEggSettings {
   chunkWindowChars: number;
   /** Section grid interval in seconds for videos without chapters (default: 300) */
   sectionGridSeconds: number;
+  /** Max completion tokens for Stage 1 content analysis and chapter map (default: 2500) */
+  contentAnalysisMaxTokens: number;
   /** Output language for Stage 1 content analysis ("same-as-content" or specific language name) */
   contentOutputLanguage: string;
 }
@@ -58,6 +60,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   workflowHashes: {},
   chunkWindowChars: 30000,
   sectionGridSeconds: 300,
+  contentAnalysisMaxTokens: 16384,
   contentOutputLanguage: "same-as-content",
 };
 
@@ -547,6 +550,24 @@ export class NutEggSettingTab extends PluginSettingTab {
             const num = parseInt(value, 10);
             if (!isNaN(num) && num >= 10) {
               settings.sectionGridSeconds = num;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Max completion tokens")
+      .setDesc(
+        "Maximum completion tokens allocated for AI calls (default: 16384). Cloud models (DeepSeek, OpenAI, Anthropic) support large output windows. Local LLM users can adjust this to match their model's context window."
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("16384")
+          .setValue(String(settings.contentAnalysisMaxTokens || 16384))
+          .onChange(async (value) => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num >= 500) {
+              settings.contentAnalysisMaxTokens = num;
               await this.plugin.saveSettings();
             }
           })

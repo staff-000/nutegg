@@ -742,12 +742,13 @@ var NutEggServer = class {
           eggs,
           contentAnalysis2
         );
+        delete result.stage;
         const nutId = this.recordNut(capture, result);
         console.log(
           `[NutEgg] Analyzed (Stage 2): ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
         );
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ...result, nutId }));
+        res.end(JSON.stringify({ ...result, stage: "stage2", nutId }));
         return;
       }
       const contentAnalysis = await this.plugin.aiProcessor.analyzeContent(capture);

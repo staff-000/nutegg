@@ -585,11 +585,18 @@ function updateStage1ProceedBtn() {
 async function handleProceedStage2(eggsToCompare = null) {
   const isExplicitEggs = Array.isArray(eggsToCompare);
   const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
-  if (!isExplicitEggs && targetEggs.length === 0) return;
+  if (!isExplicitEggs && targetEggs.length === 0) {
+    if (eggsExpanded) eggsExpanded.classList.remove("hidden");
+    if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+    const eggSec = document.getElementById("eggs-section");
+    if (eggSec) eggSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    showWarning("Please select or create at least one egg to compare knowledge.");
+    return;
+  }
 
   if (stage1ProceedBtn) {
     stage1ProceedBtn.disabled = true;
-    stage1ProceedBtn.textContent = "Comparing knowledge…";
+    stage1ProceedBtn.textContent = "Hatching the eggs...";
   }
   hideMessages();
 
@@ -631,7 +638,16 @@ async function handleProceedStage2(eggsToCompare = null) {
       ];
     }
 
+    response.stage = "stage2";
     showResultsState(response, provenanceFromExtraction());
+    setTimeout(() => {
+      const target = eggKnowledgeSection && !eggKnowledgeSection.classList.contains("hidden")
+        ? eggKnowledgeSection
+        : verdictSection;
+      if (target && !target.classList.contains("hidden")) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
   } catch (err) {
     showError(err instanceof Error ? err.message : "Knowledge comparison failed");
     if (stage1ProceedBtn) {
