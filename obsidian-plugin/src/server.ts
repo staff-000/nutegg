@@ -74,6 +74,9 @@ interface CaptureEntry {
   title: string;
   author: string;
   publishedAt: string;
+  url?: string;
+  sourceType?: string;
+  content?: string;
 }
 
 export class NutEggServer {
@@ -123,6 +126,9 @@ export class NutEggServer {
       title: row.title,
       author: row.author,
       publishedAt: row.publishedAt,
+      url: row.url,
+      sourceType: row.sourceType,
+      content: row.content,
     }));
   }
 

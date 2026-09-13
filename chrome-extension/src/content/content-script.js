@@ -21,13 +21,14 @@
 // Extractor registry — add new extractors here
 // ============================================================
 
-const EXTRACTORS = [
+var EXTRACTORS = window.EXTRACTORS || [
   { name: "youtube", detect: detectYouTube, extract: extractYouTube },
   { name: "twitter", detect: detectTwitter, extract: extractTwitter },
   { name: "article", detect: detectArticle, extract: extractArticle },
   // Generic must be last — it always matches
   { name: "generic", detect: () => true, extract: extractGeneric },
 ];
+window.EXTRACTORS = EXTRACTORS;
 
 // ============================================================
 // Main entry point
@@ -49,53 +50,56 @@ function extractContent() {
   return extractGeneric();
 }
 
-// Listen for messages from popup/background
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.action === "page-identity") {
-    // Cheap page-state check (no transcript fetching) — the popup uses it to
-    // wait for the page to settle and to detect SPA navigation races.
-    sendResponse({
-      success: true,
-      url: window.location.href,
-      title: document.title,
-      readyState: document.readyState,
-      // YouTube: the watch page shell has rendered (not the loading skeleton)
-      youtubeReady: !window.location.href.includes("youtube.com/watch") ||
-        !!document.querySelector("ytd-watch-flexy"),
-    });
-    return false;
-  }
-
-  if (message.action === "nutegg-seek") {
-    // Seek the page's video to the given timestamp (seconds) — used by the
-    // clickable Chapter Map in the popup.
-    const video = document.querySelector("video");
-    if (video) {
-      video.currentTime = message.seconds;
-      video.play?.();
-      sendResponse({ success: true });
-    } else {
-      sendResponse({ success: false, error: "No video element found" });
+// Listen for messages from popup/background (attached once per window)
+if (!window.__nutegg_listener_attached) {
+  window.__nutegg_listener_attached = true;
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.action === "page-identity") {
+      // Cheap page-state check (no transcript fetching) — the popup uses it to
+      // wait for the page to settle and to detect SPA navigation races.
+      sendResponse({
+        success: true,
+        url: window.location.href,
+        title: document.title,
+        readyState: document.readyState,
+        // YouTube: the watch page shell has rendered (not the loading skeleton)
+        youtubeReady: !window.location.href.includes("youtube.com/watch") ||
+          !!document.querySelector("ytd-watch-flexy"),
+      });
+      return false;
     }
-    return false;
-  }
 
-  if (message.action === "extract-content") {
-    try {
-      const result = extractContent();
-      // If the result is a promise (e.g. YouTube with async caption fetch), await it
-      if (result instanceof Promise) {
-        result
-          .then((content) => sendResponse({ success: true, content }))
-          .catch((err) => sendResponse({ success: false, error: err.message }));
-        return true; // Keep channel open for async
+    if (message.action === "nutegg-seek") {
+      // Seek the page's video to the given timestamp (seconds) — used by the
+      // clickable Chapter Map in the popup.
+      const video = document.querySelector("video");
+      if (video) {
+        video.currentTime = message.seconds;
+        video.play?.();
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: "No video element found" });
       }
-      sendResponse({ success: true, content: result });
-    } catch (err) {
-      sendResponse({ success: false, error: err instanceof Error ? err.message : "Extraction failed" });
+      return false;
     }
-    return true;
-  }
-});
+
+    if (message.action === "extract-content") {
+      try {
+        const result = extractContent();
+        // If the result is a promise (e.g. YouTube with async caption fetch), await it
+        if (result instanceof Promise) {
+          result
+            .then((content) => sendResponse({ success: true, content }))
+            .catch((err) => sendResponse({ success: false, error: err.message }));
+          return true; // Keep channel open for async
+        }
+        sendResponse({ success: true, content: result });
+      } catch (err) {
+        sendResponse({ success: false, error: err instanceof Error ? err.message : "Extraction failed" });
+      }
+      return true;
+    }
+  });
+}
 
 console.log("[NutEgg] Content script loaded on:", window.location.href);

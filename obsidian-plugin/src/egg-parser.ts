@@ -68,7 +68,7 @@ export function extractEggLanguage(content: string): string {
     }
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
-  return directMatch ? directMatch[1].trim() : "English";
+  return directMatch ? directMatch[1].trim() : "";
 }
 
 

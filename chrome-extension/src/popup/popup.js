@@ -212,12 +212,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
     reanalyzeEggsBtn.disabled = true;
     const original = reanalyzeEggsBtn.textContent;
-    reanalyzeEggsBtn.textContent = "⏳ Hatching…";
+    reanalyzeEggsBtn.textContent = "⏳ Analyzing…";
     eggsErrorEl.classList.add("hidden");
     if (stage1ContentAnalysis) {
-      await handleProceedStage2([...selectedEggs], true);
+      await handleProceedStage2([...selectedEggs], false);
     } else {
-      const error = await handleAnalyze(true, [...selectedEggs]);
+      const error = await handleAnalyze(true, [...selectedEggs], true);
       if (error) {
         eggsErrorEl.textContent = `❌ ${error}`;
         eggsErrorEl.classList.remove("hidden");
@@ -231,7 +231,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const expanded = eggsExpanded.classList.toggle("hidden");
     eggsToggleChevron.textContent = expanded ? "▾" : "▸";
   });
-  reanalyzeBtn.addEventListener("click", () => handleAnalyze(true));
+  reanalyzeBtn.addEventListener("click", () => handleAnalyze(true, null, true));
   historySelect.addEventListener("change", () => {
     const idx = parseInt(historySelect.value, 10);
     if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
@@ -1012,36 +1012,70 @@ function applyTranscriptBlock() {
  * message on failure — callers in the results view surface it inline, since
  * the capture-state error banner is hidden there.
  */
-async function handleAnalyze(force = false, eggsOverride = null) {
+async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = false) {
   if (!serverOnline) {
     showError("Obsidian server is offline. Start Obsidian with NutEgg plugin.");
     return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
   }
-  if (!extractedContent) {
-    analyzeBtn.disabled = true;
-    analyzeBtnText.textContent = "Retrieving…";
-    await extractPageContent();
-  }
-  if (!extractedContent) {
-    showError("Could not extract page content. Try refreshing.");
-    return "Could not extract page content. Try refreshing.";
-  }
-  if (isTranscriptBlocked()) {
-    applyTranscriptBlock();
-    return "Video transcript unavailable — NutEgg will not process this video.";
-  }
 
-  analyzeBtn.disabled = true;
-  analyzeBtnText.textContent = "Analyzing...";
   hideMessages();
+  if (reanalyzeBtn) {
+    reanalyzeBtn.disabled = true;
+    reanalyzeBtn.textContent = "Retrieving…";
+  }
+  analyzeBtn.disabled = true;
+  analyzeBtnText.textContent = "Retrieving…";
 
   try {
+    if (force || !extractedContent) {
+      await extractPageContent();
+    }
+
+    // Fallback: if extraction couldn't get content from the tab, check if we have stored content
+    if (!extractedContent && captureHistory.length > 0) {
+      const entry = captureHistory[0];
+      if (entry?.content) {
+        extractedContent = {
+          url: entry.url || pageUrl.textContent || "",
+          title: entry.title || pageTitle.textContent || "",
+          content: entry.content,
+          sourceType: entry.sourceType || "webpage",
+          metadata: {
+            ...(entry.author ? { author: entry.author } : {}),
+            ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
+          },
+        };
+      }
+    }
+
+    if (!extractedContent) {
+      showError("Could not extract page content. Try refreshing.");
+      return "Could not extract page content. Try refreshing.";
+    }
+    if (isTranscriptBlocked()) {
+      applyTranscriptBlock();
+      return "Video transcript unavailable — NutEgg will not process this video.";
+    }
+
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = true;
+      reanalyzeBtn.textContent = "Analyzing…";
+    }
+    analyzeBtn.disabled = true;
+    analyzeBtnText.textContent = "Analyzing...";
+
     const questions = customQuestionsEl.value
       .split("\n")
       .map((q) => q.trim())
       .filter(Boolean);
 
-    const targetEggs = eggsOverride || (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+    // Check which eggs are selected on the page or pre-selected
+    const targetEggs = eggsOverride ||
+      (selectedEggs.size > 0 ? [...selectedEggs] : null) ||
+      (analysisResult?.matchedEggs?.length > 0 ? analysisResult.matchedEggs : null) ||
+      (captureHistory[0]?.result?.matchedEggs?.length > 0 ? captureHistory[0].result.matchedEggs : null) ||
+      (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+
     const payload = {
       url: extractedContent.url || "",
       title: extractedContent.title || "",
@@ -1052,19 +1086,13 @@ async function handleAnalyze(force = false, eggsOverride = null) {
       questions,
       force: true,
       stage: 1,
-      ...(targetEggs ? { eggs: targetEggs } : {}),
+      ...(targetEggs && targetEggs.length > 0 ? { eggs: targetEggs } : {}),
     };
 
-    reanalyzeBtn.disabled = true;
-    reanalyzeBtn.textContent = "Analyzing…";
     const response = await chrome.runtime.sendMessage({ action: "analyze", payload });
-    reanalyzeBtn.disabled = false;
-    reanalyzeBtn.textContent = "🔄 Re-analyze";
 
     if (response?.error) {
       showError(response.error, response.errorCode);
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
       return response.error;
     }
 
@@ -1079,41 +1107,59 @@ async function handleAnalyze(force = false, eggsOverride = null) {
     activeEggTab = null;
     analysisResult = response;
 
-    if (analysisMode === "confirm") {
-      response.stage = "stage1";
-      delete response.eggResults;
-      delete response.shouldRead;
-      delete response.shouldReadReason;
-      delete response.newKnowledge;
-    }
+    // For re-analyze (since eggs are already selected on the page) or fast mode, do both stage 1 and stage 2
+    const shouldRunStage2 = isReanalyze || analysisMode === "fast";
+    const eggsForStage2 = (targetEggs && targetEggs.length > 0)
+      ? targetEggs
+      : (response.matchedEggs && response.matchedEggs.length > 0 ? response.matchedEggs : []);
 
-    // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
-    showResultsState(response, provenanceFromExtraction());
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "🔄 Analyze Again";
+    if (shouldRunStage2) {
+      // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
+      showResultsState(response, provenanceFromExtraction());
 
-    if (analysisMode === "fast") {
-      // In Fast Mode, automatically trigger Stage 2 in sequence
-      if (verdictSection) verdictSection.classList.remove("hidden");
-      if (verdictBadge) verdictBadge.className = "verdict-badge";
-      if (verdictIcon) verdictIcon.textContent = "⏳";
-      if (verdictText) verdictText.textContent = "Comparing knowledge…";
-      if (verdictReason) {
-        verdictReason.textContent = (response.matchedEggs && response.matchedEggs.length > 0)
-          ? `Comparing against ${response.matchedEggs.length} matched egg(s)…`
-          : "No matching egg found — finalizing summary…";
+      if (eggsForStage2.length > 0) {
+        if (verdictSection) verdictSection.classList.remove("hidden");
+        if (verdictBadge) verdictBadge.className = "verdict-badge";
+        if (verdictIcon) verdictIcon.textContent = "⏳";
+        if (verdictText) verdictText.textContent = "Comparing knowledge…";
+        if (verdictReason) {
+          verdictReason.textContent = `Comparing against ${eggsForStage2.length} egg(s)…`;
+        }
+        if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
+        if (reanalyzeBtn) {
+          reanalyzeBtn.disabled = true;
+          reanalyzeBtn.textContent = "Comparing…";
+        }
+
+        await handleProceedStage2(eggsForStage2, false);
       }
-      if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
 
-      await handleProceedStage2(response.matchedEggs || []);
+      if (isReanalyze || captureHistory.length > 0) {
+        processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
+        processedNote.classList.remove("hidden");
+      }
+    } else {
+      if (analysisMode === "confirm") {
+        response.stage = "stage1";
+        delete response.eggResults;
+        delete response.shouldRead;
+        delete response.shouldReadReason;
+        delete response.newKnowledge;
+      }
+      showResultsState(response, provenanceFromExtraction());
     }
     return null;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
     showError(message);
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "Analyze";
     return message;
+  } finally {
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = analysisResult ? "🔄 Analyze Again" : "Analyze";
   }
 }
 
@@ -1548,6 +1594,20 @@ function showHistoryEntry(entry) {
   eggHatched = cachedProcessedSaved === "saved";
   currentNutId = entry.nutId ?? null;
   analysisResult = entry.result;
+
+  if (entry.content && !extractedContent) {
+    extractedContent = {
+      url: entry.url || pageUrl.textContent || "",
+      title: entry.title || "",
+      content: entry.content,
+      sourceType: entry.sourceType || "webpage",
+      metadata: {
+        ...(entry.author ? { author: entry.author } : {}),
+        ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
+      },
+    };
+  }
+
   // Stored provenance from the DB row, falling back to the live extraction
   const live = provenanceFromExtraction();
   showResultsState(entry.result, {

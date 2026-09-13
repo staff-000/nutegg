@@ -382,7 +382,10 @@ var NutEggServer = class {
       result: row.analysisResult,
       title: row.title,
       author: row.author,
-      publishedAt: row.publishedAt
+      publishedAt: row.publishedAt,
+      url: row.url,
+      sourceType: row.sourceType,
+      content: row.content
     }));
   }
   /** Reading/watch time estimate from metadata, or word-count fallback. */

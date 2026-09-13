@@ -34,6 +34,19 @@
       </div>
     </header>
 
+    <div id="warning-banner" class="warning-banner hidden">
+      <span class="warning-icon">⚠️</span>
+      <div id="warning-message"></div>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden">
+      <span class="error-icon">❌</span>
+      <div>
+        <div id="error-message"></div>
+        <div id="error-hint" class="error-hint hidden"></div>
+      </div>
+    </div>
+
     <!-- State 1: Capture -->
     <div id="capture-state" class="hidden">
       <div id="page-info" class="page-info">
@@ -62,19 +75,6 @@
       <div id="questions-area" class="questions-area hidden">
         <textarea id="custom-questions" rows="3"
           placeholder="One question per line — answered along with the egg's key questions."></textarea>
-      </div>
-
-      <div id="warning-banner" class="warning-banner hidden">
-        <span class="warning-icon">⚠️</span>
-        <div id="warning-message"></div>
-      </div>
-
-      <div id="error-banner" class="error-banner hidden">
-        <span class="error-icon">❌</span>
-        <div>
-          <div id="error-message"></div>
-          <div id="error-hint" class="error-hint hidden"></div>
-        </div>
       </div>
 
       <div id="duplicate-banner" class="duplicate-banner hidden">
