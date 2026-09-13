@@ -263,13 +263,6 @@ export class AIProcessor {
     return this.callContentChunk(effective, "");
   }
 
-  /** Alias for backward compatibility */
-  async analyzeContentOnly(
-    capture: Parameters<AIProcessor["analyzeContent"]>[0]
-  ): Promise<ContentAnalysis> {
-    return this.analyzeContent(capture);
-  }
-
   /**
    * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
    * and final read verdict synthesis. Works identically for 1 or N eggs.

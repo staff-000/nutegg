@@ -16,6 +16,7 @@ export const UNPROCESSED_HEADING = "# Unprocessed";
  *   ---
  *   topic: "..."
  *   status: "active"
+ *   language: "english"
  *   ---
  *   > [!abstract]- Instructions:
  *   > **Scope:** ...
