@@ -1329,12 +1329,8 @@ var AIProcessor = class {
     const langSetting = this.plugin.settings?.contentOutputLanguage || "same-as-content";
     const isSame = langSetting === "same-as-content";
     const outputLanguage = isSame ? "the same language as the captured content" : langSetting;
-    const eggDescription = isSame ? "the captured content" : langSetting;
     const tpl = this.getPrompt("sharedOutputRules");
-    return renderPrompt(tpl, {
-      output_language: outputLanguage,
-      egg_description: eggDescription
-    }).trim();
+    return renderPrompt(tpl, { output_language: outputLanguage }).trim();
   }
   /**
    * Output rules for Stage 2 egg analysis (follows the egg's description from _index.md).
@@ -1342,11 +1338,9 @@ var AIProcessor = class {
   getEggOutputRules(eggDescription = "") {
     const desc = eggDescription.trim();
     const outputLanguage = desc ? `the same language as this reference: "${desc}"` : "the same language as the captured content";
-    const eggDescValue = desc || "the captured content";
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
-      output_language: outputLanguage,
-      egg_description: eggDescValue
+      output_language: outputLanguage
     }).trim();
   }
   async analyze(capture2, eggs) {

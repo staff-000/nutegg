@@ -153,13 +153,9 @@ export class AIProcessor {
     const outputLanguage = isSame
       ? "the same language as the captured content"
       : langSetting;
-    const eggDescription = isSame ? "the captured content" : langSetting;
 
     const tpl = this.getPrompt("sharedOutputRules");
-    return renderPrompt(tpl, {
-      output_language: outputLanguage,
-      egg_description: eggDescription,
-    }).trim();
+    return renderPrompt(tpl, {output_language: outputLanguage}).trim();
   }
 
   /**
@@ -170,12 +166,10 @@ export class AIProcessor {
     const outputLanguage = desc
       ? `the same language as this reference: "${desc}"`
       : "the same language as the captured content";
-    const eggDescValue = desc || "the captured content";
 
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
       output_language: outputLanguage,
-      egg_description: eggDescValue,
     }).trim();
   }
 
