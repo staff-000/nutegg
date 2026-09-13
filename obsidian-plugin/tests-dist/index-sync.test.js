@@ -610,41 +610,7 @@ var IndexSync = class {
     const folder = this.plugin.vaultFolder || "nutegg";
     if (!isEggPath(file.path, folder))
       return;
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)")
-      return;
-    const entries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const norm = (p) => p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
-    const byPath = new Set(entries.map((e) => norm(e.fileName)));
-    if (byPath.has(file.path))
-      return;
-    const content = await this.plugin.app.vault.read(file).catch(() => "");
-    if (!matchesEggFormat(content))
-      return;
-    let topic = "";
-    try {
-      const egg2 = await this.plugin.eggParser.readEgg(file.path);
-      if (egg2?.topic && egg2.topic !== "Unknown") {
-        topic = egg2.topic;
-      }
-    } catch {
-    }
-    if (!topic) {
-      topic = file.path.split("/").pop().replace(/\.md$/, "");
-    }
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
-    );
-    if (indexFile) {
-      this.isUpdatingIndex = true;
-      try {
-        await this.appendIndexEntry(indexFile, file.path, topic);
-        new Notice(`[NutEgg] Added ${file.path} to egg index`);
-        this.notifyDiffChanged();
-      } finally {
-        this.isUpdatingIndex = false;
-      }
-    }
+    this.notifyDiffChanged();
   }
   /** Handle an egg file being deleted from nutegg/ */
   async onEggFileDeleted(filePath) {
@@ -695,13 +661,9 @@ var IndexSync = class {
         new Notice(`[NutEgg] Renamed index path: ${oldPath} -> ${newPath}`);
       } else if (wasEgg && !isEgg) {
         await this.removeIndexEntry(indexFile, oldPath);
-      } else if (!wasEgg && isEgg) {
-        const file = this.plugin.app.vault.getAbstractFileByPath(newPath);
-        if (file) {
-          await this.onEggFileCreated(file);
-        }
+      } else {
+        this.notifyDiffChanged();
       }
-      this.notifyDiffChanged();
     } finally {
       this.isUpdatingIndex = false;
     }
@@ -714,7 +676,7 @@ var IndexSync = class {
     this.directEditTimer = setTimeout(async () => {
       this.directEditTimer = null;
       await this.onDirectIndexEdit();
-    }, 3e3);
+    }, 300);
   }
   /**
    * Handle direct user edits on _index.md.
@@ -2108,17 +2070,20 @@ function egg(topic) {
     import_strict.default.ok(indexText.includes("investment.md"));
     import_strict.default.ok(!indexText.includes("ai_ml.md"));
   });
-  (0, import_node_test.it)("onEggFileCreated adds a dropped file that matches egg format", async () => {
+  (0, import_node_test.it)("onEggFileCreated does not auto-edit _index.md", async () => {
+    let notified = false;
     const { sync, files } = makeSync({
       "nutegg/_index.md": "* nutegg/investment.md: investment\n",
       "nutegg/investment.md": egg("Investment"),
       "nutegg/crypto.md": egg("Cryptocurrency"),
       "nutegg/groceries.md": "# Groceries\n- apples"
     });
+    sync.onDiffChanged(() => {
+      notified = true;
+    });
     await sync.onEggFileCreated({ path: "nutegg/crypto.md" });
-    import_strict.default.ok(files.get("nutegg/_index.md").includes("* nutegg/crypto.md: Cryptocurrency"));
-    await sync.onEggFileCreated({ path: "nutegg/groceries.md" });
-    import_strict.default.ok(!files.get("nutegg/_index.md").includes("groceries.md"));
+    import_strict.default.equal(files.get("nutegg/_index.md"), "* nutegg/investment.md: investment\n");
+    import_strict.default.equal(notified, true);
   });
   (0, import_node_test.it)("onEggFileRenamed updates path in _index.md", async () => {
     const { sync, files } = makeSync({

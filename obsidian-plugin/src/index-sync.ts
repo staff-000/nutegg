@@ -38,11 +38,10 @@ export interface IndexDiffStatus {
 /**
  * Keeps _index.md and egg files consistent:
  * 1. Only direct egg files under nutegg/ are allowed in _index.md.
- * 2. Event-driven synchronization:
- *    - When an egg file is removed from nutegg/, it is removed from _index.md.
- *    - When an egg file is dropped into nutegg/ and matches egg format, it is added to _index.md.
- *    - When _index.md is edited directly, missing egg notes are seeded from template.
- *    - Manual sync button triggers full two-way diff resolution.
+ * 2. _index.md is never auto-edited in the background when egg files are created or edited.
+ * 3. File additions/edits update the diff status, prompting the user to click the Sync button.
+ * 4. Manual Sync button triggers two-way diff resolution (creating missing eggs, pruning invalid entries, adding unindexed eggs).
+ * 5. Creating an egg explicitly (via Chrome extension or modal) writes the egg file and single index entry with duplicate protection.
  */
 /**
  * Sanitize an egg name into a valid, safe markdown file stem.
@@ -131,42 +130,9 @@ export class IndexSync {
     const folder = this.plugin.vaultFolder || "nutegg";
     if (!isEggPath(file.path, folder)) return;
 
-    const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)") return;
-
-    const entries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const norm = (p: string) =>
-      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
-    const byPath = new Set(entries.map((e) => norm(e.fileName)));
-    if (byPath.has(file.path)) return;
-
-    const content = await this.plugin.app.vault.read(file as any).catch(() => "");
-    if (!matchesEggFormat(content)) return;
-
-    let topic = "";
-    try {
-      const egg = await this.plugin.eggParser.readEgg(file.path);
-      if (egg?.topic && egg.topic !== "Unknown") {
-        topic = egg.topic;
-      }
-    } catch {}
-    if (!topic) {
-      topic = file.path.split("/").pop()!.replace(/\.md$/, "");
-    }
-
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
-    );
-    if (indexFile) {
-      this.isUpdatingIndex = true;
-      try {
-        await this.appendIndexEntry(indexFile, file.path, topic);
-        new Notice(`[NutEgg] Added ${file.path} to egg index`);
-        this.notifyDiffChanged();
-      } finally {
-        this.isUpdatingIndex = false;
-      }
-    }
+    // _index.md is never auto-edited when an egg file is created/dropped.
+    // Notify diff so the user can review and click sync if desired.
+    this.notifyDiffChanged();
   }
 
   /** Handle an egg file being deleted from nutegg/ */
@@ -219,13 +185,9 @@ export class IndexSync {
         new Notice(`[NutEgg] Renamed index path: ${oldPath} -> ${newPath}`);
       } else if (wasEgg && !isEgg) {
         await this.removeIndexEntry(indexFile, oldPath);
-      } else if (!wasEgg && isEgg) {
-        const file = this.plugin.app.vault.getAbstractFileByPath(newPath);
-        if (file) {
-          await this.onEggFileCreated(file as any);
-        }
+      } else {
+        this.notifyDiffChanged();
       }
-      this.notifyDiffChanged();
     } finally {
       this.isUpdatingIndex = false;
     }
@@ -239,7 +201,7 @@ export class IndexSync {
     this.directEditTimer = setTimeout(async () => {
       this.directEditTimer = null;
       await this.onDirectIndexEdit();
-    }, 3000);
+    }, 500);
   }
 
   /**

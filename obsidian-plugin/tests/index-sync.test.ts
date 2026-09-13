@@ -368,21 +368,22 @@ describe("IndexSync diffs & event-driven operations", () => {
     assert.ok(!indexText.includes("ai_ml.md"));
   });
 
-  it("onEggFileCreated adds a dropped file that matches egg format", async () => {
+  it("onEggFileCreated does not auto-edit _index.md", async () => {
+    let notified = false;
     const { sync, files } = makeSync({
       "nutegg/_index.md": "* nutegg/investment.md: investment\n",
       "nutegg/investment.md": egg("Investment"),
       "nutegg/crypto.md": egg("Cryptocurrency"),
       "nutegg/groceries.md": "# Groceries\n- apples",
     });
+    sync.onDiffChanged(() => {
+      notified = true;
+    });
 
-    // File matching egg format
+    // File matching egg format does not auto-edit _index.md
     await sync.onEggFileCreated({ path: "nutegg/crypto.md" });
-    assert.ok(files.get("nutegg/_index.md")!.includes("* nutegg/crypto.md: Cryptocurrency"));
-
-    // File not matching egg format is ignored
-    await sync.onEggFileCreated({ path: "nutegg/groceries.md" });
-    assert.ok(!files.get("nutegg/_index.md")!.includes("groceries.md"));
+    assert.equal(files.get("nutegg/_index.md"), "* nutegg/investment.md: investment\n");
+    assert.equal(notified, true);
   });
 
   it("onEggFileRenamed updates path in _index.md", async () => {
