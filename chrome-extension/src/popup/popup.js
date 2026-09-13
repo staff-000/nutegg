@@ -151,7 +151,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
   modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
-  stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2());
+  stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true));
   stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
   analyzeBtn.addEventListener("click", () => handleAnalyze(true));
@@ -212,10 +212,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
     reanalyzeEggsBtn.disabled = true;
     const original = reanalyzeEggsBtn.textContent;
-    reanalyzeEggsBtn.textContent = "⏳ Comparing…";
+    reanalyzeEggsBtn.textContent = "⏳ Hatching…";
     eggsErrorEl.classList.add("hidden");
     if (stage1ContentAnalysis) {
-      await handleProceedStage2([...selectedEggs]);
+      await handleProceedStage2([...selectedEggs], true);
     } else {
       const error = await handleAnalyze(true, [...selectedEggs]);
       if (error) {
@@ -565,24 +565,24 @@ function updateStage1ProceedBtn() {
   const confirmTextEl = document.getElementById("stage1-confirm-text");
   if (count === 0) {
     stage1ProceedBtn.disabled = true;
-    stage1ProceedBtn.textContent = "🐣 Compare Knowledge (Select egg)";
+    stage1ProceedBtn.textContent = "🐣 Hatch Egg (Select egg)";
     if (confirmTextEl) {
       if (allEggs.length === 0) {
-        confirmTextEl.innerHTML = "<strong>No eggs in vault yet:</strong> Create an egg below to compare knowledge, or collect the nut only.";
+        confirmTextEl.innerHTML = "<strong>No eggs in vault yet:</strong> Create an egg below to hatch into the vault, or collect the nut only.";
       } else {
         confirmTextEl.innerHTML = "<strong>No egg selected:</strong> Pick an egg below, create a new one, or collect the nut only.";
       }
     }
   } else {
     stage1ProceedBtn.disabled = false;
-    stage1ProceedBtn.textContent = `🐣 Compare Knowledge (${count} Egg${count === 1 ? "" : "s"})`;
+    stage1ProceedBtn.textContent = count === 1 ? "🐣 Hatch Egg" : `🐣 Hatch Egg (${count})`;
     if (confirmTextEl) {
-      confirmTextEl.innerHTML = `<strong>Stage 1 Complete:</strong> ${count} egg${count === 1 ? "" : "s"} selected. Click below to compare knowledge.`;
+      confirmTextEl.innerHTML = `<strong>Stage 1 Complete:</strong> ${count} egg${count === 1 ? "" : "s"} selected. Click below to hatch into the vault.`;
     }
   }
 }
 
-async function handleProceedStage2(eggsToCompare = null) {
+async function handleProceedStage2(eggsToCompare = null, autoSave = false) {
   const isExplicitEggs = Array.isArray(eggsToCompare);
   const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
   if (!isExplicitEggs && targetEggs.length === 0) {
@@ -590,13 +590,13 @@ async function handleProceedStage2(eggsToCompare = null) {
     if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
     const eggSec = document.getElementById("eggs-section");
     if (eggSec) eggSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    showWarning("Please select or create at least one egg to compare knowledge.");
+    showWarning("Please select or create at least one egg to hatch.");
     return;
   }
 
   if (stage1ProceedBtn) {
     stage1ProceedBtn.disabled = true;
-    stage1ProceedBtn.textContent = "Hatching the eggs...";
+    stage1ProceedBtn.textContent = autoSave ? "Hatching the egg…" : "Analyzing egg…";
   }
   hideMessages();
 
@@ -640,6 +640,9 @@ async function handleProceedStage2(eggsToCompare = null) {
 
     response.stage = "stage2";
     showResultsState(response, provenanceFromExtraction());
+    if (autoSave) {
+      await doSave(response.newKnowledge || [], true);
+    }
     setTimeout(() => {
       const target = eggKnowledgeSection && !eggKnowledgeSection.classList.contains("hidden")
         ? eggKnowledgeSection
@@ -649,7 +652,7 @@ async function handleProceedStage2(eggsToCompare = null) {
       }
     }, 100);
   } catch (err) {
-    showError(err instanceof Error ? err.message : "Knowledge comparison failed");
+    showError(err instanceof Error ? err.message : "Hatching failed");
     if (stage1ProceedBtn) {
       stage1ProceedBtn.disabled = false;
       updateStage1ProceedBtn();
@@ -1463,7 +1466,7 @@ function updateActionButtons() {
       const confirmTextEl = document.getElementById("stage1-confirm-text");
       const confirmIconEl = document.querySelector(".stage1-confirm-icon");
       if (confirmTextEl) {
-        confirmTextEl.innerHTML = "<strong>Nut collected to vault!</strong> Raw content saved. You can still compare knowledge below if you want.";
+        confirmTextEl.innerHTML = "<strong>Nut collected to vault!</strong> Raw content saved. You can still hatch the egg below if you want.";
       }
       if (confirmIconEl) {
         confirmIconEl.textContent = "✅";
@@ -1473,10 +1476,10 @@ function updateActionButtons() {
       }
     } else {
       collectNutBtn.disabled = false;
-      collectNutBtn.textContent = "🥜 Collect Nut Only";
+      collectNutBtn.textContent = "🌰 Collect Nut Only";
       if (stage1SkipBtn) {
         stage1SkipBtn.disabled = false;
-        stage1SkipBtn.textContent = "🥜 Collect Nut Only";
+        stage1SkipBtn.textContent = "🌰 Collect Nut Only";
       }
       if (stage1ConfirmBox) {
         stage1ConfirmBox.classList.remove("stage1-saved");
@@ -1490,7 +1493,7 @@ function updateActionButtons() {
     collectNutBtn.textContent = "✅ Nut collected";
   } else {
     collectNutBtn.disabled = false;
-    collectNutBtn.textContent = "🥜 Collect Nut";
+    collectNutBtn.textContent = "🌰 Collect Nut";
   }
 
   const hasDelta = (analysisResult?.newKnowledge?.length || 0) > 0;
@@ -1502,13 +1505,13 @@ function updateActionButtons() {
   } else if (hasDelta) {
     confirmBtn.classList.remove("hidden");
     confirmBtn.disabled = false;
-    confirmBtn.textContent = "🥚 Hatch Egg";
+    confirmBtn.textContent = "🐣 Hatch Egg";
     confirmBtn.title = "";
   } else {
     // No novel delta — show the button but keep it unclickable
     confirmBtn.classList.remove("hidden");
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "🥚 Hatch Egg";
+    confirmBtn.textContent = "🐣 Hatch Egg";
     confirmBtn.title = "No new knowledge found to add";
   }
 }
@@ -1707,7 +1710,7 @@ async function handleConfirm() {
   }
   confirmBtn.disabled = true;
   confirmBtn.textContent = "Hatching...";
-  await doSave(analysisResult.newKnowledge || []);
+  await doSave(analysisResult.newKnowledge || [], true);
   updateActionButtons();
 }
 
@@ -1739,11 +1742,11 @@ async function handleSaveRaw() {
     stage1SkipBtn.disabled = true;
     stage1SkipBtn.textContent = "Collecting...";
   }
-  await doSave([]);
+  await doSave([], false);
   updateActionButtons();
 }
 
-async function doSave(newKnowledge) {
+async function doSave(newKnowledge, isHatch = false) {
   try {
     if (!extractedContent) {
       await extractPageContent();
@@ -1762,14 +1765,14 @@ async function doSave(newKnowledge) {
       // Hatching collects the nut too — skip the raw save only when the
       // nut was already collected (this session or a previous one).
       // "analyzed" means processed but never saved, so the raw must be saved.
-      skipRaw: newKnowledge.length > 0 &&
+      skipRaw: (newKnowledge.length > 0 || isHatch) &&
         (nutCollected || (cachedProcessedSaved !== null && cachedProcessedSaved !== "analyzed")),
     };
 
     const response = await chrome.runtime.sendMessage({ action: "confirm", payload });
 
     if (response?.success) {
-      if (newKnowledge.length > 0) {
+      if (newKnowledge.length > 0 || isHatch) {
         // Hatching the egg collects the nut as well
         eggHatched = true;
         nutCollected = true;
@@ -1778,7 +1781,7 @@ async function doSave(newKnowledge) {
       }
       // Keep the capture history entry in sync with the new save state
       const entry = captureHistory.find((h) => h.nutId === currentNutId);
-      if (entry) entry.saved = newKnowledge.length > 0 ? "saved" : "skip";
+      if (entry) entry.saved = (newKnowledge.length > 0 || isHatch) ? "saved" : "skip";
       const merged = response?.merged || [];
       const mergedNote = merged.length > 0
         ? ` 🧹 ${merged
@@ -1791,9 +1794,13 @@ async function doSave(newKnowledge) {
         // Hide successBanner so only one message is displayed.
         successBanner.classList.add("hidden");
       } else {
-        successMessage.textContent = newKnowledge.length > 0
-          ? `Egg hatched — knowledge added and nut collected!${mergedNote}`
-          : "Nut collected to Obsidian vault!";
+        if (newKnowledge.length > 0) {
+          successMessage.textContent = `Egg hatched — knowledge added and nut collected!${mergedNote}`;
+        } else if (isHatch) {
+          successMessage.textContent = `Egg hatched — nut collected! (No new knowledge needed to add)`;
+        } else {
+          successMessage.textContent = "Nut collected to Obsidian vault!";
+        }
         successBanner.classList.remove("hidden");
       }
       updateActionButtons();
