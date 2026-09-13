@@ -676,7 +676,7 @@ var IndexSync = class {
     this.directEditTimer = setTimeout(async () => {
       this.directEditTimer = null;
       await this.onDirectIndexEdit();
-    }, 300);
+    }, 500);
   }
   /**
    * Handle direct user edits on _index.md.

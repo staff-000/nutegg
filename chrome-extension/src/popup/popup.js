@@ -97,6 +97,7 @@ let extractedContent = null;
 let serverOnline = false;
 let analysisResult = null;
 let activeTabId = null;
+let isReanalyzing = false;
 /** How the shown result was saved previously: "saved" | "skip" | "analyzed" | null (fresh analysis). */
 let cachedProcessedSaved = null;
 /** Follow-up questions asked after the result was shown (this session). */
@@ -285,6 +286,7 @@ async function refreshForCurrentTab(forceExtract = false) {
   followupInput.value = "";
   preSelectedEggs.clear();
   updateCaptureEggsLabel();
+  isReanalyzing = false;
   processedNote.classList.add("hidden");
   historySelect.classList.add("hidden");
   historySelect.innerHTML = "";
@@ -582,7 +584,7 @@ function updateStage1ProceedBtn() {
   }
 }
 
-async function handleProceedStage2(eggsToCompare = null, autoSave = false) {
+async function handleProceedStage2(eggsToCompare = null, autoSave = false, skipScroll = false) {
   const isExplicitEggs = Array.isArray(eggsToCompare);
   const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
   if (!isExplicitEggs && targetEggs.length === 0) {
@@ -643,14 +645,16 @@ async function handleProceedStage2(eggsToCompare = null, autoSave = false) {
     if (autoSave) {
       await doSave(response.newKnowledge || [], true);
     }
-    setTimeout(() => {
-      const target = eggKnowledgeSection && !eggKnowledgeSection.classList.contains("hidden")
-        ? eggKnowledgeSection
-        : verdictSection;
-      if (target && !target.classList.contains("hidden")) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }, 100);
+    if (!skipScroll) {
+      setTimeout(() => {
+        const target = eggKnowledgeSection && !eggKnowledgeSection.classList.contains("hidden")
+          ? eggKnowledgeSection
+          : verdictSection;
+        if (target && !target.classList.contains("hidden")) {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
   } catch (err) {
     showError(err instanceof Error ? err.message : "Hatching failed");
     if (stage1ProceedBtn) {
@@ -1018,7 +1022,12 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
   }
 
+  isReanalyzing = isReanalyze;
   hideMessages();
+  if (isReanalyze) {
+    processedNote.classList.remove("hidden");
+    processedMessage.textContent = "Retrieving page content…";
+  }
   if (reanalyzeBtn) {
     reanalyzeBtn.disabled = true;
     reanalyzeBtn.textContent = "Retrieving…";
@@ -1057,6 +1066,10 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       return "Video transcript unavailable — NutEgg will not process this video.";
     }
 
+    if (isReanalyze) {
+      processedNote.classList.remove("hidden");
+      processedMessage.textContent = "Analyzing content…";
+    }
     if (reanalyzeBtn) {
       reanalyzeBtn.disabled = true;
       reanalyzeBtn.textContent = "Analyzing…";
@@ -1117,21 +1130,30 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       // Immediately render Stage 1 (title verdict, summary, chapter map, matched eggs)
       showResultsState(response, provenanceFromExtraction());
 
-      if (eggsForStage2.length > 0) {
-        if (verdictSection) verdictSection.classList.remove("hidden");
-        if (verdictBadge) verdictBadge.className = "verdict-badge";
-        if (verdictIcon) verdictIcon.textContent = "⏳";
-        if (verdictText) verdictText.textContent = "Comparing knowledge…";
-        if (verdictReason) {
-          verdictReason.textContent = `Comparing against ${eggsForStage2.length} egg(s)…`;
-        }
-        if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
+      if (isReanalyze) {
+        processedNote.classList.remove("hidden");
+        processedMessage.textContent = "Comparing against selected eggs…";
         if (reanalyzeBtn) {
           reanalyzeBtn.disabled = true;
-          reanalyzeBtn.textContent = "Comparing…";
+          reanalyzeBtn.textContent = "Comparing knowledge…";
         }
+      }
 
-        await handleProceedStage2(eggsForStage2, false);
+      if (eggsForStage2.length > 0) {
+        if (!isReanalyze) {
+          if (verdictSection) verdictSection.classList.remove("hidden");
+          if (verdictBadge) verdictBadge.className = "verdict-badge";
+          if (verdictIcon) verdictIcon.textContent = "⏳";
+          if (verdictText) verdictText.textContent = "Comparing knowledge…";
+          if (verdictReason) {
+            verdictReason.textContent = `Comparing against ${eggsForStage2.length} egg(s)…`;
+          }
+        } else {
+          if (verdictSection) verdictSection.classList.add("hidden");
+        }
+        if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
+
+        await handleProceedStage2(eggsForStage2, false, isReanalyze);
       }
 
       if (isReanalyze || captureHistory.length > 0) {
@@ -1154,6 +1176,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     showError(message);
     return message;
   } finally {
+    isReanalyzing = false;
     if (reanalyzeBtn) {
       reanalyzeBtn.disabled = false;
       reanalyzeBtn.textContent = "🔄 Re-analyze";
@@ -1169,13 +1192,20 @@ function showResultsState(result, provenance = null) {
   analysisResult = result;
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
-  processedNote.classList.add("hidden");
+  if (!isReanalyzing) {
+    processedNote.classList.add("hidden");
+  } else {
+    processedNote.classList.remove("hidden");
+  }
   renderResultProvenance(provenance);
 
   const isStage1 = result.stage === "stage1";
 
   if (isStage1) {
-    if (analysisMode === "fast") {
+    if (isReanalyzing) {
+      stage1ConfirmBox?.classList.add("hidden");
+      verdictSection?.classList.add("hidden");
+    } else if (analysisMode === "fast") {
       stage1ConfirmBox?.classList.add("hidden");
       verdictSection?.classList.remove("hidden");
     } else {
