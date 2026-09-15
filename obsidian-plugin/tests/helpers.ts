@@ -80,6 +80,7 @@ export function makeFakeVault(initial: Record<string, string> = {}) {
 export function makeFakePlugin(overrides: any = {}) {
   const { vault } = makeFakeVault(overrides.vaultFiles || {});
   return {
+    manifest: overrides.manifest ?? { version: "0.1.0" },
     settings: {
       aiApiKey: "test-key",
       rawFolder: "nutegg/_raw",

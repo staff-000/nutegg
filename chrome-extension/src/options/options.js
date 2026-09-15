@@ -89,6 +89,12 @@ async function handleTest() {
     clearTimeout(timeout);
 
     if (response.ok) {
+      const health = await response.json().catch(() => ({}));
+      const extVersion = chrome.runtime?.getManifest?.()?.version;
+      let versionWarn = "";
+      if (health.version && extVersion && health.version !== extVersion) {
+        versionWarn = ` ⚠️ Version mismatch: Plugin is v${health.version}, Extension is v${extVersion}.`;
+      }
       let creditInfo = "";
       try {
         const creditResp = await fetch(`http://127.0.0.1:${port}/credit`);
@@ -102,7 +108,7 @@ async function handleTest() {
           }
         }
       } catch {}
-      showResult(`✅ Connected successfully.${creditInfo}`, "ok");
+      showResult(`✅ Connected successfully.${versionWarn}${creditInfo}`, versionWarn ? "warning" : "ok");
     } else {
       showResult("❌ Server responded with error.", "error");
     }

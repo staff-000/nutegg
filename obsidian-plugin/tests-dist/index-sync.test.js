@@ -1704,6 +1704,7 @@ function makeFakeVault(initial = {}) {
 function makeFakePlugin(overrides = {}) {
   const { vault } = makeFakeVault(overrides.vaultFiles || {});
   return {
+    manifest: overrides.manifest ?? { version: "0.1.0" },
     settings: {
       aiApiKey: "test-key",
       rawFolder: "nutegg/_raw",

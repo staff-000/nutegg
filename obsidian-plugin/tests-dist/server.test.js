@@ -475,7 +475,7 @@ var NutEggServer = class {
     this.server = http.createServer((req, res) => {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-NutEgg-Extension-Version");
       if (req.method === "OPTIONS") {
         res.writeHead(204);
         res.end();
@@ -483,7 +483,12 @@ var NutEggServer = class {
       }
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", port: this.port, timestamp: Date.now() }));
+        res.end(JSON.stringify({
+          status: "ok",
+          port: this.port,
+          version: this.plugin.manifest?.version || "",
+          timestamp: Date.now()
+        }));
         return;
       }
       if (req.method === "GET" && req.url === "/config-status") {
@@ -564,7 +569,13 @@ var NutEggServer = class {
     } catch {
     }
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status, issues, port: this.port, credit }));
+    res.end(JSON.stringify({
+      status,
+      issues,
+      port: this.port,
+      version: this.plugin.manifest?.version || "",
+      credit
+    }));
   }
   /**
    * GET /credit — Returns live balance and credit status for the current AI provider.
@@ -1057,6 +1068,7 @@ function makeFakeVault(initial = {}) {
 function makeFakePlugin(overrides = {}) {
   const { vault } = makeFakeVault(overrides.vaultFiles || {});
   return {
+    manifest: overrides.manifest ?? { version: "0.1.0" },
     settings: {
       aiApiKey: "test-key",
       rawFolder: "nutegg/_raw",
@@ -1504,6 +1516,7 @@ function makeRes() {
     import_strict.default.equal(res.statusCode, 200);
     const body = JSON.parse(res.body);
     import_strict.default.equal(body.status, "ok");
+    import_strict.default.equal(body.version, "0.1.0");
     import_strict.default.equal(body.credit?.balanceFormatted, "\xA510.00");
   });
 });

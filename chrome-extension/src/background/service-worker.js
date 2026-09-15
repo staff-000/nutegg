@@ -241,7 +241,7 @@ async function checkServer() {
       serverPort = data.port;
       chrome.storage.local.set({ serverPort: data.port });
     }
-    return { online: response.ok, port: data.port };
+    return { online: response.ok, port: data.port, version: data.version };
   } catch {
     clearTimeout(timeout);
     return { online: false };

@@ -681,11 +681,50 @@ async function fetchMetrics() {
 
 // --- Config & Credit status ---
 
+let obsidianPluginVersion = null;
+
+function updateVersionDisplay(pluginVersion) {
+  const versionTag = document.getElementById("version-tag");
+  const extVersion = chrome.runtime?.getManifest?.()?.version;
+  if (!versionTag || !extVersion) return;
+
+  if (pluginVersion && pluginVersion !== extVersion) {
+    versionTag.textContent = `NutEgg v${extVersion} (Obsidian v${pluginVersion})`;
+    versionTag.title = `Version mismatch: Chrome extension is v${extVersion}, but Obsidian plugin is v${pluginVersion}`;
+    versionTag.style.color = "#d97706";
+  } else {
+    versionTag.textContent = `NutEgg v${extVersion}`;
+    versionTag.title = pluginVersion
+      ? `NutEgg v${extVersion} (Obsidian plugin v${pluginVersion})`
+      : `NutEgg v${extVersion}`;
+    versionTag.style.color = "";
+  }
+}
+
+function getVersionMismatchIssue(pluginVersion) {
+  const extVersion = chrome.runtime?.getManifest?.()?.version;
+  if (pluginVersion && extVersion && pluginVersion !== extVersion) {
+    return `Version mismatch: Chrome extension is v${extVersion}, but Obsidian plugin is v${pluginVersion}. Please update both to the same version for full compatibility.`;
+  }
+  return null;
+}
+
 async function checkConfigStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "config-status" });
-    if (response?.issues && response.issues.length > 0) {
-      showWarning(response.issues.join(" "));
+    if (response?.version) {
+      obsidianPluginVersion = response.version;
+      updateVersionDisplay(obsidianPluginVersion);
+    }
+
+    const issues = Array.isArray(response?.issues) ? [...response.issues] : [];
+    const mismatch = getVersionMismatchIssue(response?.version || obsidianPluginVersion);
+    if (mismatch && !issues.some((i) => i.includes("Version mismatch"))) {
+      issues.unshift(mismatch);
+    }
+
+    if (issues.length > 0) {
+      showWarning(issues.join(" • "));
     } else {
       hideWarning();
     }
@@ -749,40 +788,80 @@ async function checkServerStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "check-server" });
     serverOnline = response?.online || false;
+    obsidianPluginVersion = response?.version || null;
   } catch {
     serverOnline = false;
+    obsidianPluginVersion = null;
   }
 
+  updateVersionDisplay(obsidianPluginVersion);
+
   if (serverOnline) {
-    serverStatus.className = "status-dot online";
-    updateServerStatusTooltip(true);
     checkCreditStatus();
     obsidianPluginLink?.classList.add("hidden");
+
+    const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
+    if (mismatch) {
+      showWarning(mismatch);
+    } else {
+      updateServerStatusIndicator();
+    }
   } else {
-    serverStatus.className = "status-dot offline";
-    updateServerStatusTooltip(false);
+    updateServerStatusIndicator();
     aiCreditPill?.classList.add("hidden");
     obsidianPluginLink?.classList.remove("hidden");
   }
 }
 
-function updateServerStatusTooltip(isOnline) {
+function updateServerStatusIndicator() {
+  if (!serverOnline) {
+    serverStatus.className = "status-dot offline";
+    updateServerStatusTooltip(false);
+    return;
+  }
+
+  const hasWarning = !warningBanner.classList.contains("hidden") && (warningMessage.textContent || "").trim().length > 0;
+  if (hasWarning) {
+    serverStatus.className = "status-dot warning";
+    updateServerStatusTooltip(true, obsidianPluginVersion, warningMessage.textContent.trim());
+  } else {
+    serverStatus.className = "status-dot online";
+    updateServerStatusTooltip(true, obsidianPluginVersion, null);
+  }
+}
+
+function updateServerStatusTooltip(isOnline, pluginVersion = null, warningText = null) {
   const tooltip = document.getElementById("server-status-tooltip");
   const title = document.getElementById("status-tooltip-title");
   const sub = document.getElementById("status-tooltip-sub");
   if (!tooltip || !title || !sub) return;
 
-  if (isOnline) {
-    tooltip.className = "status-tooltip online";
-    title.textContent = "Obsidian is online";
-    sub.textContent = "Ready to capture";
-    serverStatus.setAttribute("aria-label", "Obsidian is online");
-  } else {
+  if (!isOnline) {
     tooltip.className = "status-tooltip offline";
     title.textContent = "Obsidian is offline";
     sub.textContent = "Click dot to install NutEgg plugin";
     serverStatus.setAttribute("aria-label", "Obsidian is offline. Click dot to install NutEgg plugin");
+    return;
   }
+
+  if (warningText) {
+    tooltip.className = "status-tooltip warning";
+    title.textContent = "Obsidian online (Warning)";
+    sub.textContent = warningText;
+    serverStatus.setAttribute(
+      "aria-label",
+      `Obsidian is online with warning: ${warningText}`
+    );
+    return;
+  }
+
+  tooltip.className = "status-tooltip online";
+  title.textContent = "Obsidian is online";
+  sub.textContent = pluginVersion ? `Plugin v${pluginVersion}` : "Ready to capture";
+  serverStatus.setAttribute(
+    "aria-label",
+    `Obsidian is online${pluginVersion ? ` (v${pluginVersion})` : ""}`
+  );
 }
 
 // --- Content extraction ---
@@ -1942,8 +2021,13 @@ function hideMessages() {
 function showWarning(msg) {
   warningMessage.textContent = msg;
   warningBanner.classList.remove("hidden");
+  updateServerStatusIndicator();
 }
-function hideWarning() { warningBanner.classList.add("hidden"); }
+function hideWarning() {
+  warningBanner.classList.add("hidden");
+  warningMessage.textContent = "";
+  updateServerStatusIndicator();
+}
 
 function escapeHtml(str) {
   const div = document.createElement("div");

@@ -245,7 +245,7 @@ export class NutEggServer {
       // CORS headers for Chrome extension
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-NutEgg-Extension-Version");
 
       if (req.method === "OPTIONS") {
         res.writeHead(204);
@@ -255,7 +255,12 @@ export class NutEggServer {
 
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: "ok", port: this.port, timestamp: Date.now() }));
+        res.end(JSON.stringify({
+          status: "ok",
+          port: this.port,
+          version: this.plugin.manifest?.version || "",
+          timestamp: Date.now(),
+        }));
         return;
       }
 
@@ -355,7 +360,13 @@ export class NutEggServer {
     } catch {}
 
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status, issues, port: this.port, credit }));
+    res.end(JSON.stringify({
+      status,
+      issues,
+      port: this.port,
+      version: this.plugin.manifest?.version || "",
+      credit,
+    }));
   }
 
   /**

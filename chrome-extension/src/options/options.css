@@ -163,6 +163,7 @@ a.primary-btn:hover {
 }
 
 .test-result.ok { color: #16a34a; }
+.test-result.warning { color: #d97706; }
 .test-result.error { color: #dc2626; }
 
 .option-group a:not(.primary-btn):not(.secondary-btn) {

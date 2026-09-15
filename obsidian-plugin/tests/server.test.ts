@@ -435,6 +435,7 @@ describe("NutEggServer.handleCredit & handleConfigStatus", () => {
     assert.equal(res.statusCode, 200);
     const body = JSON.parse(res.body);
     assert.equal(body.status, "ok");
+    assert.equal(body.version, "0.1.0");
     assert.equal(body.credit?.balanceFormatted, "¥10.00");
   });
 });
