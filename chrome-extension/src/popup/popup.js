@@ -403,12 +403,26 @@ async function restoreFromTabCache(tabId, cached) {
 
   // If analysis is still in progress, show analyzing state; if done, show results; else capture state
   if (cached.status === "analyzing") {
-    showCaptureState();
-    if (extractedContent) {
-      contentPreview.textContent = extractedContent.content || "(No content extracted)";
+    if (cached.analysisResult) {
+      // Re-analysis in flight: keep showing results view with analyzing indicator
+      showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
+      if (reanalyzeBtn) {
+        reanalyzeBtn.disabled = true;
+        reanalyzeBtn.textContent = "Analyzing…";
+      }
+      if (historySelect) historySelect.disabled = true;
+      analyzeBtn.disabled = true;
+      analyzeBtnText.textContent = "Analyzing...";
+      processedNote.classList.remove("hidden");
+      processedMessage.textContent = "Analyzing content…";
+    } else {
+      showCaptureState();
+      if (extractedContent) {
+        contentPreview.textContent = extractedContent.content || "(No content extracted)";
+      }
+      analyzeBtn.disabled = true;
+      analyzeBtnText.textContent = "Analyzing...";
     }
-    analyzeBtn.disabled = true;
-    analyzeBtnText.textContent = "Analyzing...";
   } else if (cached.status === "hatching") {
     if (analysisResult) {
       showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
@@ -417,17 +431,36 @@ async function restoreFromTabCache(tabId, cached) {
       stage1ProceedBtn.disabled = true;
       stage1ProceedBtn.textContent = "Hatching the egg…";
     }
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = true;
+      reanalyzeBtn.textContent = "Comparing knowledge…";
+    }
+    if (historySelect) historySelect.disabled = true;
+    analyzeBtn.disabled = true;
+    analyzeBtnText.textContent = "Analyzing...";
   } else if (analysisResult) {
     if (cached.eggHatched) eggHatched = true;
     if (cached.nutCollected) nutCollected = true;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = "🔄 Analyze Again";
+    if (historySelect) historySelect.disabled = false;
     if (cached.eggHatched) updateActionButtons();
     if (captureHistory.length > 0) {
       const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
       const when = new Date(entry.capturedAt).toLocaleString();
       const stateLabel = entry.saved === "saved"
         ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
-      processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+      if (cached.justReanalyzed) {
+        processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
+        delete cached.justReanalyzed;
+      } else {
+        processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+      }
       processedNote.classList.remove("hidden");
       renderHistorySelect(currentNutId);
     }
@@ -438,6 +471,11 @@ async function restoreFromTabCache(tabId, cached) {
       analyzeBtn.disabled = false;
       analyzeBtnText.textContent = "Analyze";
     }
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+    if (historySelect) historySelect.disabled = false;
   }
 
   // Refresh server status and eggs without resetting content
@@ -830,6 +868,7 @@ async function handleProceedStage2(
         nutCollected: autoSave ? true : (existing.nutCollected || false),
         currentNutId: newNutId || existing.currentNutId,
         captureHistory: updatedHistory,
+        justReanalyzed: isReanalyzing || existing.isReanalyzing,
       });
     }
 
@@ -1481,12 +1520,17 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     };
 
     // Cache the analyzing state so if user switches back while in progress, it shows analyzing
+    const existingCache = tabResultCache.get(pinnedTabId) || {};
     tabResultCache.set(pinnedTabId, {
+      ...existingCache,
       status: "analyzing",
       url: contentToAnalyze.url,
       extractedContent: contentToAnalyze,
       stage1Payload: payload,
+      isReanalyzing: isReanalyze,
+      analysisResult: isReanalyze ? (analysisResult || existingCache.analysisResult) : null,
       captureHistory: [...captureHistory],
+      currentNutId: currentNutId || existingCache.currentNutId,
     });
 
     const response = await sendAnalyzeViaPort(payload);
@@ -1506,14 +1550,18 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       : (response.matchedEggs && response.matchedEggs.length > 0 ? response.matchedEggs : []);
 
     if (shouldRunStage2) {
+      const existingCache2 = tabResultCache.get(pinnedTabId) || {};
       tabResultCache.set(pinnedTabId, {
+        ...existingCache2,
         status: eggsForStage2.length > 0 ? "analyzing" : "done",
         url: contentToAnalyze.url,
         extractedContent: contentToAnalyze,
         analysisResult: response,
         stage1Payload: payload,
         stage1ContentAnalysis: response,
+        isReanalyzing: isReanalyze,
         captureHistory: [...captureHistory],
+        currentNutId: currentNutId || existingCache2.currentNutId,
       });
 
       if (activeTabId === pinnedTabId) {
@@ -1620,7 +1668,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   } finally {
     isReanalyzing = false;
     if (historySelect) historySelect.disabled = false;
-    if (activeTabId === pinnedTabId) {
+    const activeCache = tabResultCache.get(activeTabId);
+    if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
       if (reanalyzeBtn) {
         reanalyzeBtn.disabled = false;
         reanalyzeBtn.textContent = "🔄 Re-analyze";
@@ -1650,6 +1699,15 @@ function showResultsState(result, provenance = null) {
         processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
       }
     }
+  }
+  if (!isReanalyzing) {
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = "🔄 Analyze Again";
+    if (historySelect) historySelect.disabled = false;
   }
   renderHistorySelect(currentNutId);
   renderResultProvenance(provenance);
