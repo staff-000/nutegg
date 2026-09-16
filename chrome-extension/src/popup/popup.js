@@ -2051,8 +2051,25 @@ function showResultsState(result, provenance = null) {
     .map((b) => `<li>${escapeHtml(b)}</li>`)
     .join("");
 
-  // Chapter Map — clickable when timestamps exist (video)
-  if (result.chapterMap && result.chapterMap.length > 0) {
+  // Chapter Map — clickable when timestamps exist (video).
+  // For short content without an original chapter map, don't show it:
+  // - If isLongForm is false and no author chapters were provided, don't show it.
+  // - If chapterMap has fewer than 2 entries and no author chapters were provided, don't show it.
+  const hasAuthorChapters =
+    (Array.isArray(extractedContent?.chapters) && extractedContent.chapters.length > 0) ||
+    (Array.isArray(stage1Payload?.content?.chapters) && stage1Payload.content.chapters.length > 0) ||
+    (Array.isArray(result?.chapters) && result.chapters.length > 0);
+
+  const isShortWithoutChapters =
+    (result.isLongForm === false || !result.chapterMap || result.chapterMap.length <= 1) &&
+    !hasAuthorChapters;
+
+  const shouldShowChapterMap =
+    Array.isArray(result.chapterMap) &&
+    result.chapterMap.length > 0 &&
+    !isShortWithoutChapters;
+
+  if (shouldShowChapterMap) {
     chapterSection.classList.remove("hidden");
     chapterList.innerHTML = result.chapterMap
       .map((c) => {

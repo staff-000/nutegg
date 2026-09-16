@@ -420,18 +420,20 @@ export class AIProcessor {
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: this.completeChapterMap(
-        Array.isArray(parsed.chapterMap)
-          ? parsed.chapterMap
-              .filter((c: any) => c && (c.time || c.title))
-              .map((c: any) => ({
-                time: String(c.time || ""),
-                title: String(c.title || ""),
-                summary: String(c.summary || ""),
-              }))
-          : [],
-        capture.sections
-      ),
+      chapterMap: (parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0))
+        ? []
+        : this.completeChapterMap(
+            Array.isArray(parsed.chapterMap)
+              ? parsed.chapterMap
+                  .filter((c: any) => c && (c.time || c.title))
+                  .map((c: any) => ({
+                    time: String(c.time || ""),
+                    title: String(c.title || ""),
+                    summary: String(c.summary || ""),
+                  }))
+              : [],
+            capture.sections
+          ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
     };
   }
@@ -954,7 +956,7 @@ export class AIProcessor {
     // over the whole video and hand each lattice point to the chunk covering
     // it. The AI fills one chapterMap entry per section — whole-video
     // coverage no longer depends on the model inventing section boundaries.
-    if (chapters.length === 0) {
+    if (chapters.length === 0 && lastCaptionSec >= this.sectionGridSeconds) {
       const begins = chunks.map((c) => this.toSeconds(c.startTime));
       for (let t = 0; t < lastCaptionSec + 1; t += this.sectionGridSeconds) {
         let idx = 0;
@@ -1261,6 +1263,7 @@ export class AIProcessor {
     sections?: string[]
   ): ChapterEntry[] {
     if (!sections?.length) return parsed;
+    if (!parsed || parsed.length === 0) return [];
     const byTime = new Map(parsed.map((e) => [this.toSeconds(e.time), e]));
     return sections.map((s) => {
       const e = byTime.get(this.toSeconds(s));

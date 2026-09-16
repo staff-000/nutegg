@@ -1582,7 +1582,7 @@ var AIProcessor = class {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
       coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       isLongForm: parsed.isLongForm === true,
-      chapterMap: this.completeChapterMap(
+      chapterMap: parsed.isLongForm === false && (!capture2.chapters || capture2.chapters.length === 0) ? [] : this.completeChapterMap(
         Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
           time: String(c.time || ""),
           title: String(c.title || ""),
@@ -1993,7 +1993,7 @@ ${delta || "- (no novel delta)"}`;
       }
       chunks[idx].chapters.push(ch);
     }
-    if (chapters.length === 0) {
+    if (chapters.length === 0 && lastCaptionSec >= this.sectionGridSeconds) {
       const begins = chunks.map((c) => this.toSeconds(c.startTime));
       for (let t = 0; t < lastCaptionSec + 1; t += this.sectionGridSeconds) {
         let idx = 0;
@@ -2245,6 +2245,8 @@ ${sections.map((s) => `- [${s}]`).join("\n")}`;
   completeChapterMap(parsed, sections) {
     if (!sections?.length)
       return parsed;
+    if (!parsed || parsed.length === 0)
+      return [];
     const byTime = new Map(parsed.map((e) => [this.toSeconds(e.time), e]));
     return sections.map((s) => {
       const e = byTime.get(this.toSeconds(s));
