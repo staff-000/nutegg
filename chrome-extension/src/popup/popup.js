@@ -391,6 +391,7 @@ async function restoreFromTabCache(tabId, cached) {
   extractedContent = cached.extractedContent;
   analysisResult = cached.analysisResult;
   captureHistory = cached.captureHistory || [];
+  currentNutId = cached.currentNutId || (cached.captureHistory?.[0]?.nutId ?? null);
   stage1Payload = cached.stage1Payload || stage1Payload;
   stage1ContentAnalysis = cached.stage1ContentAnalysis || stage1ContentAnalysis;
 
@@ -421,6 +422,15 @@ async function restoreFromTabCache(tabId, cached) {
     if (cached.nutCollected) nutCollected = true;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     if (cached.eggHatched) updateActionButtons();
+    if (captureHistory.length > 0) {
+      const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
+      const when = new Date(entry.capturedAt).toLocaleString();
+      const stateLabel = entry.saved === "saved"
+        ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
+      processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+      processedNote.classList.remove("hidden");
+      renderHistorySelect(currentNutId);
+    }
   } else {
     showCaptureState();
     if (extractedContent) {
@@ -773,8 +783,41 @@ async function handleProceedStage2(
       );
     }
 
+    let freshHistory = null;
+    if (payload.url && serverOnline) {
+      try {
+        const histResp = await chrome.runtime.sendMessage({
+          action: "history",
+          url: payload.url,
+        });
+        if (histResp?.history?.length) {
+          freshHistory = histResp.history;
+        }
+      } catch {
+        // Fall back to constructed entry
+      }
+    }
+
+    const newHistoryEntry = newNutId
+      ? {
+          nutId: newNutId,
+          capturedAt: new Date().toISOString(),
+          saved: (autoSave || (response.newKnowledge && response.newKnowledge.length > 0)) ? "saved" : "analyzed",
+          result: response,
+          url: payload.url || content?.url || "",
+          title: payload.title || content?.title || "",
+          content: payload.content || content?.content || "",
+          sourceType: payload.sourceType || content?.sourceType || "webpage",
+          author: payload.metadata?.author || "",
+          publishedAt: payload.metadata?.published || "",
+        }
+      : null;
+
     if (targetPinnedId) {
       const existing = tabResultCache.get(targetPinnedId) || {};
+      const updatedHistory = freshHistory || (newHistoryEntry
+        ? [newHistoryEntry, ...(existing.captureHistory || [])]
+        : existing.captureHistory || []);
       tabResultCache.set(targetPinnedId, {
         ...existing,
         status: "done",
@@ -785,17 +828,8 @@ async function handleProceedStage2(
         stage1ContentAnalysis: analysis,
         eggHatched: autoSave ? true : (existing.eggHatched || false),
         nutCollected: autoSave ? true : (existing.nutCollected || false),
-        captureHistory: newNutId
-          ? [
-              {
-                nutId: newNutId,
-                capturedAt: new Date().toISOString(),
-                saved: (autoSave || (response.newKnowledge && response.newKnowledge.length > 0)) ? "saved" : "analyzed",
-                result: response,
-              },
-              ...(existing.captureHistory || []),
-            ]
-          : existing.captureHistory || [],
+        currentNutId: newNutId || existing.currentNutId,
+        captureHistory: updatedHistory,
       });
     }
 
@@ -807,15 +841,9 @@ async function handleProceedStage2(
     if (newNutId) {
       currentNutId = newNutId;
       cachedProcessedSaved = null;
-      captureHistory = [
-        {
-          nutId: newNutId,
-          capturedAt: new Date().toISOString(),
-          saved: (autoSave || (response.newKnowledge && response.newKnowledge.length > 0)) ? "saved" : "analyzed",
-          result: response,
-        },
-        ...captureHistory,
-      ];
+      captureHistory = freshHistory || (newHistoryEntry ? [newHistoryEntry, ...captureHistory] : captureHistory);
+    } else if (freshHistory) {
+      captureHistory = freshHistory;
     }
 
     showResultsState(response, provenanceFromExtraction(contentForProvenance));
@@ -824,6 +852,13 @@ async function handleProceedStage2(
       nutCollected = true;
       updateActionButtons();
       fetchMetrics();
+    }
+    if (captureHistory.length > 0) {
+      renderHistorySelect(currentNutId);
+      if (isReanalyzing) {
+        processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
+        processedNote.classList.remove("hidden");
+      }
     }
     if (!skipScroll) {
       setTimeout(() => {
@@ -1362,6 +1397,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       reanalyzeBtn.disabled = true;
       reanalyzeBtn.textContent = "Retrieving…";
     }
+    if (historySelect) historySelect.disabled = true;
     analyzeBtn.disabled = true;
     analyzeBtnText.textContent = "Retrieving…";
   }
@@ -1534,6 +1570,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         if (isReanalyze || captureHistory.length > 0) {
           processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
           processedNote.classList.remove("hidden");
+          renderHistorySelect(currentNutId);
         }
       }
     } else {
@@ -1564,6 +1601,11 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         activeEggTab = null;
         analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
+        if (isReanalyze || captureHistory.length > 0) {
+          processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
+          processedNote.classList.remove("hidden");
+          renderHistorySelect(currentNutId);
+        }
       }
     }
 
@@ -1577,6 +1619,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return message;
   } finally {
     isReanalyzing = false;
+    if (historySelect) historySelect.disabled = false;
     if (activeTabId === pinnedTabId) {
       if (reanalyzeBtn) {
         reanalyzeBtn.disabled = false;
@@ -1594,11 +1637,21 @@ function showResultsState(result, provenance = null) {
   analysisResult = result;
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
-  if (!isReanalyzing) {
+  if (!isReanalyzing && captureHistory.length <= 1) {
     processedNote.classList.add("hidden");
   } else {
     processedNote.classList.remove("hidden");
+    if (captureHistory.length > 1 && !processedMessage.textContent) {
+      const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
+      if (entry) {
+        const when = new Date(entry.capturedAt).toLocaleString();
+        const stateLabel = entry.saved === "saved"
+          ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
+        processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+      }
+    }
   }
+  renderHistorySelect(currentNutId);
   renderResultProvenance(provenance);
 
   const isStage1 = result.stage === "stage1";
@@ -2019,6 +2072,26 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
   return false;
 }
 
+/** Render or update the version history select dropdown. */
+function renderHistorySelect(selectedNutId = currentNutId) {
+  if (!historySelect) return;
+  if (captureHistory.length > 1) {
+    const hasMatch = selectedNutId != null && captureHistory.some((h) => String(h.nutId) === String(selectedNutId));
+    historySelect.classList.remove("hidden");
+    historySelect.innerHTML = captureHistory
+      .map((h, i) => {
+        const d = new Date(h.capturedAt).toLocaleString();
+        const s = h.saved === "saved" ? "saved" : h.saved === "skip" ? "collected" : "analyzed";
+        const selected = (hasMatch ? String(h.nutId) === String(selectedNutId) : i === 0) ? " selected" : "";
+        return `<option value="${i}"${selected}>${d} — ${s}</option>`;
+      })
+      .join("");
+  } else {
+    historySelect.classList.add("hidden");
+    historySelect.innerHTML = "";
+  }
+}
+
 /** Show one cached capture (from history) with its capture timestamp. */
 function showHistoryEntry(entry) {
   cachedProcessedSaved = entry.saved || "analyzed";
@@ -2026,6 +2099,19 @@ function showHistoryEntry(entry) {
   eggHatched = cachedProcessedSaved === "saved";
   currentNutId = entry.nutId ?? null;
   analysisResult = entry.result;
+
+  if (activeTabId) {
+    const existing = tabResultCache.get(activeTabId);
+    if (existing) {
+      tabResultCache.set(activeTabId, {
+        ...existing,
+        analysisResult: entry.result,
+        currentNutId: entry.nutId,
+        eggHatched,
+        nutCollected,
+      });
+    }
+  }
 
   if (entry.content && !extractedContent) {
     extractedContent = {
@@ -2056,19 +2142,7 @@ function showHistoryEntry(entry) {
   processedNote.classList.remove("hidden");
 
   // Version selector when multiple captures exist
-  if (captureHistory.length > 1) {
-    historySelect.classList.remove("hidden");
-    historySelect.innerHTML = captureHistory
-      .map((h, i) => {
-        const d = new Date(h.capturedAt).toLocaleString();
-        const s = h.saved === "saved" ? "saved" : h.saved === "skip" ? "collected" : "analyzed";
-        const selected = h.nutId === entry.nutId ? " selected" : "";
-        return `<option value="${i}"${selected}>${d} — ${s}</option>`;
-      })
-      .join("");
-  } else {
-    historySelect.classList.add("hidden");
-  }
+  renderHistorySelect(entry.nutId);
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
@@ -2280,6 +2354,10 @@ async function doSave(
         const existing = tabResultCache.get(targetPinnedId) || {};
         existing.eggHatched = (newKnowledge.length > 0 || isHatch);
         existing.nutCollected = true;
+        if (existing.captureHistory && nutId != null) {
+          const ce = existing.captureHistory.find((h) => String(h.nutId) === String(nutId));
+          if (ce) ce.saved = (newKnowledge.length > 0 || isHatch) ? "saved" : "skip";
+        }
         tabResultCache.set(targetPinnedId, existing);
       }
       if (isTargetActive) {
@@ -2291,8 +2369,11 @@ async function doSave(
           nutCollected = true;
         }
         // Keep the capture history entry in sync with the new save state
-        const entry = captureHistory.find((h) => h.nutId === nutId);
-        if (entry) entry.saved = (newKnowledge.length > 0 || isHatch) ? "saved" : "skip";
+        if (nutId != null) {
+          const entry = captureHistory.find((h) => String(h.nutId) === String(nutId));
+          if (entry) entry.saved = (newKnowledge.length > 0 || isHatch) ? "saved" : "skip";
+        }
+        renderHistorySelect(currentNutId);
         const merged = response?.merged || [];
         const mergedNote = merged.length > 0
           ? ` 🧹 ${merged
