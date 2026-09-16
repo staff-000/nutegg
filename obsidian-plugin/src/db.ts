@@ -208,18 +208,21 @@ export class NutEggDatabase {
     return row ? this.mapRow(row) : null;
   }
 
-  /** Update the save state of one capture row (called by /confirm). */
+  /** Update the save state or analysis result of one capture row. */
   updateNut(
     id: number,
     patch: {
       processingResult?: "saved" | "skip" | "analyzed";
       fileName?: string;
+      summary?: string;
+      matchedEggs?: string[];
+      analysisResult?: AnalysisResult | null;
     }
   ): void {
     if (!this.db) return;
     this.corpusCache = null;
     const sets: string[] = [];
-    const params: Array<string | number> = [];
+    const params: Array<any> = [];
     if (patch.processingResult) {
       sets.push("processing_result = ?");
       params.push(patch.processingResult);
@@ -227,6 +230,18 @@ export class NutEggDatabase {
     if (patch.fileName !== undefined) {
       sets.push("file_name = ?");
       params.push(patch.fileName);
+    }
+    if (patch.summary !== undefined) {
+      sets.push("summary = ?");
+      params.push(patch.summary);
+    }
+    if (patch.matchedEggs !== undefined) {
+      sets.push("matched_eggs = ?");
+      params.push(JSON.stringify(patch.matchedEggs));
+    }
+    if (patch.analysisResult !== undefined) {
+      sets.push("analysis_result = ?");
+      params.push(patch.analysisResult ? JSON.stringify(patch.analysisResult) : null);
     }
     if (sets.length === 0) return;
     params.push(id);

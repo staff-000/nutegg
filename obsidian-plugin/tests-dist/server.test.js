@@ -757,12 +757,21 @@ var NutEggServer = class {
           contentAnalysis2
         );
         delete result.stage;
-        const nutId = this.recordNut(capture, result);
+        let nutId2 = capture.nutId;
+        if (nutId2 && this.plugin.db?.getNutById(nutId2)) {
+          this.plugin.db.updateNut(nutId2, {
+            summary: [result.titleVerdict, ...result.coreSummary || []].filter(Boolean).join("\n"),
+            matchedEggs: result.matchedEggs || [],
+            analysisResult: result
+          });
+        } else {
+          nutId2 = this.recordNut(capture, result);
+        }
         console.log(
           `[NutEgg] Analyzed (Stage 2): ${capture.title} \u2014 shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
         );
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ...result, stage: "stage2", nutId }));
+        res.end(JSON.stringify({ ...result, stage: "stage2", nutId: nutId2 }));
         return;
       }
       const contentAnalysis = await this.plugin.aiProcessor.analyzeContent(capture);
@@ -782,16 +791,25 @@ var NutEggServer = class {
         );
         matchedEggs = matchedIndex.map((e) => e.fileName);
       }
+      const stage1Result = {
+        ...contentAnalysis,
+        matchedEggs,
+        allEggs: index.map((e) => e.fileName),
+        stage: "stage1",
+        shouldRead: false,
+        shouldReadReason: "",
+        eggResults: [],
+        newKnowledge: []
+      };
+      const nutId = this.recordNut(capture, stage1Result);
       console.log(
-        `[NutEgg] Analyzed (Stage 1): ${capture.title} \u2014 matchedEggs=${matchedEggs.length}`
+        `[NutEgg] Analyzed (Stage 1): ${capture.title} \u2014 matchedEggs=${matchedEggs.length}, nutId=${nutId}`
       );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          ...contentAnalysis,
-          matchedEggs,
-          allEggs: index.map((e) => e.fileName),
-          stage: "stage1"
+          ...stage1Result,
+          nutId
         })
       );
     } catch (err) {
@@ -1651,5 +1669,88 @@ function makeRes() {
     import_strict.default.equal(body.stage, "stage1");
     import_strict.default.equal(body.titleVerdict, "Fresh stage 1 verdict.");
     import_strict.default.equal(body.history, void 0);
+  });
+  (0, import_node_test.it)("stage 1: records nut in database and returns nutId", async () => {
+    let insertedRow = null;
+    const s = makeServer({
+      db: {
+        available: true,
+        insertNut: (row) => {
+          insertedRow = row;
+          return 42;
+        }
+      },
+      aiProcessor: {
+        analyzeContent: async () => ({
+          titleVerdict: "Stage 1 summary verdict",
+          coreSummary: ["Bullet A"],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: []
+        })
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+        matchEggs: async () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }]
+      }
+    });
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1 }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.stage, "stage1");
+    import_strict.default.equal(body.nutId, 42);
+    import_strict.default.equal(insertedRow?.analysisResult?.stage, "stage1");
+    import_strict.default.equal(insertedRow?.processingResult, "analyzed");
+    import_strict.default.equal(insertedRow?.matchedEggs[0], "tech.md");
+  });
+  (0, import_node_test.it)("stage 2: updates existing row when nutId from stage 1 is provided", async () => {
+    let updatedNutId = null;
+    let updatePatch = null;
+    const s = makeServer({
+      db: {
+        available: true,
+        getNutById: (id) => ({ id, url: baseCapture.url }),
+        updateNut: (id, patch) => {
+          updatedNutId = id;
+          updatePatch = patch;
+        }
+      },
+      aiProcessor: {
+        analyzeEggs: async () => ({
+          titleVerdict: "Verdict",
+          coreSummary: ["Summary"],
+          eggResults: [],
+          newKnowledge: [],
+          shouldRead: true,
+          shouldReadReason: "Good read"
+        })
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }]
+      },
+      eggParser: {
+        readEggs: async () => []
+      }
+    });
+    const req = makeReq(
+      JSON.stringify({
+        ...baseCapture,
+        stage: 2,
+        nutId: 42,
+        eggs: ["tech.md"]
+      })
+    );
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    import_strict.default.equal(body.stage, "stage2");
+    import_strict.default.equal(body.nutId, 42);
+    import_strict.default.equal(updatedNutId, 42);
+    import_strict.default.equal(updatePatch?.analysisResult?.shouldRead, true);
   });
 });

@@ -585,5 +585,94 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     assert.equal(body.titleVerdict, "Fresh stage 1 verdict.");
     assert.equal(body.history, undefined);
   });
+
+  it("stage 1: records nut in database and returns nutId", async () => {
+    let insertedRow: any = null;
+    const s = makeServer({
+      db: {
+        available: true,
+        insertNut: (row: any) => {
+          insertedRow = row;
+          return 42;
+        },
+      },
+      aiProcessor: {
+        analyzeContent: async () => ({
+          titleVerdict: "Stage 1 summary verdict",
+          coreSummary: ["Bullet A"],
+          isLongForm: false,
+          chapterMap: [],
+          customQuestionAnswers: [],
+        }),
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+        matchEggs: async () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+      },
+    });
+
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 1 }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.stage, "stage1");
+    assert.equal(body.nutId, 42);
+    assert.equal(insertedRow?.analysisResult?.stage, "stage1");
+    assert.equal(insertedRow?.processingResult, "analyzed");
+    assert.equal(insertedRow?.matchedEggs[0], "tech.md");
+  });
+
+  it("stage 2: updates existing row when nutId from stage 1 is provided", async () => {
+    let updatedNutId: number | null = null;
+    let updatePatch: any = null;
+    const s = makeServer({
+      db: {
+        available: true,
+        getNutById: (id: number) => ({ id, url: baseCapture.url }),
+        updateNut: (id: number, patch: any) => {
+          updatedNutId = id;
+          updatePatch = patch;
+        },
+      },
+      aiProcessor: {
+        analyzeEggs: async () => ({
+          titleVerdict: "Verdict",
+          coreSummary: ["Summary"],
+          eggResults: [],
+          newKnowledge: [],
+          shouldRead: true,
+          shouldReadReason: "Good read",
+        }),
+      },
+      indexReader: {
+        getIndexContent: async () => "- [[tech.md]]: Tech",
+        parseIndexContent: () => [{ fileName: "tech.md", description: "Tech", topic: "Tech" }],
+      },
+      eggParser: {
+        readEggs: async () => [],
+      },
+    });
+
+    const req = makeReq(
+      JSON.stringify({
+        ...baseCapture,
+        stage: 2,
+        nutId: 42,
+        eggs: ["tech.md"],
+      })
+    );
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+
+    assert.equal(res.statusCode, 200);
+    const body = JSON.parse(res.body);
+    assert.equal(body.stage, "stage2");
+    assert.equal(body.nutId, 42);
+    assert.equal(updatedNutId, 42);
+    assert.equal(updatePatch?.analysisResult?.shouldRead, true);
+  });
 });
 

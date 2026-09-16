@@ -164,7 +164,7 @@ var NutEggDatabase = class {
     const row = this.db.prepare("SELECT * FROM nuts WHERE id = ?").get(id);
     return row ? this.mapRow(row) : null;
   }
-  /** Update the save state of one capture row (called by /confirm). */
+  /** Update the save state or analysis result of one capture row. */
   updateNut(id, patch) {
     if (!this.db)
       return;
@@ -178,6 +178,18 @@ var NutEggDatabase = class {
     if (patch.fileName !== void 0) {
       sets.push("file_name = ?");
       params.push(patch.fileName);
+    }
+    if (patch.summary !== void 0) {
+      sets.push("summary = ?");
+      params.push(patch.summary);
+    }
+    if (patch.matchedEggs !== void 0) {
+      sets.push("matched_eggs = ?");
+      params.push(JSON.stringify(patch.matchedEggs));
+    }
+    if (patch.analysisResult !== void 0) {
+      sets.push("analysis_result = ?");
+      params.push(patch.analysisResult ? JSON.stringify(patch.analysisResult) : null);
     }
     if (sets.length === 0)
       return;

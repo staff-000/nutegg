@@ -23,6 +23,8 @@ interface AnalyzeRequest {
   stage?: number | string;
   /** Content analysis from stage 1 when executing stage 2 */
   contentAnalysis?: ContentAnalysis;
+  /** Row id of the capture (when completing stage 2 for an existing stage 1 capture). */
+  nutId?: number;
 }
 
 interface AskRequest {
@@ -582,7 +584,20 @@ export class NutEggServer {
           contentAnalysis
         );
         delete (result as any).stage;
-        const nutId = this.recordNut(capture, result);
+
+        let nutId = capture.nutId;
+        if (nutId && this.plugin.db?.getNutById(nutId)) {
+          this.plugin.db.updateNut(nutId, {
+            summary: [result.titleVerdict, ...(result.coreSummary || [])]
+              .filter(Boolean)
+              .join("\n"),
+            matchedEggs: result.matchedEggs || [],
+            analysisResult: result,
+          });
+        } else {
+          nutId = this.recordNut(capture, result);
+        }
+
         console.log(
           `[NutEgg] Analyzed (Stage 2): ${capture.title} — shouldRead=${result.shouldRead}, newKnowledge=${result.newKnowledge.length}`
         );
@@ -613,16 +628,27 @@ export class NutEggServer {
         matchedEggs = matchedIndex.map((e) => e.fileName);
       }
 
+      const stage1Result = {
+        ...contentAnalysis,
+        matchedEggs,
+        allEggs: index.map((e) => e.fileName),
+        stage: "stage1" as const,
+        shouldRead: false,
+        shouldReadReason: "",
+        eggResults: [],
+        newKnowledge: [],
+      };
+
+      const nutId = this.recordNut(capture, stage1Result as any);
+
       console.log(
-        `[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedEggs.length}`
+        `[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedEggs.length}, nutId=${nutId}`
       );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          ...contentAnalysis,
-          matchedEggs,
-          allEggs: index.map((e) => e.fileName),
-          stage: "stage1",
+          ...stage1Result,
+          nutId,
         })
       );
     } catch (err) {

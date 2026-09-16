@@ -785,6 +785,7 @@ async function handleProceedStage2(
       questions,
       stage: 2,
       eggs: targetEggs,
+      nutId: base?.nutId || currentNutId || undefined,
       contentAnalysis: analysis || {
         titleVerdict: title,
         coreSummary: [],
@@ -1629,18 +1630,54 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         delete response.shouldReadReason;
         delete response.newKnowledge;
       }
+      const stage1NutId = response.nutId || null;
+      if (stage1NutId) {
+        currentNutId = stage1NutId;
+      }
+      let freshHistory = null;
+      if (contentToAnalyze.url && serverOnline) {
+        try {
+          const histResp = await chrome.runtime.sendMessage({
+            action: "history",
+            url: contentToAnalyze.url,
+          });
+          if (histResp?.history?.length) {
+            freshHistory = histResp.history;
+          }
+        } catch {}
+      }
+      const stage1Entry = stage1NutId
+        ? {
+            nutId: stage1NutId,
+            capturedAt: new Date().toISOString(),
+            saved: "analyzed",
+            result: response,
+            url: contentToAnalyze.url,
+            title: contentToAnalyze.title,
+            content: contentToAnalyze.content,
+            sourceType: contentToAnalyze.sourceType,
+            author: contentToAnalyze.metadata?.author || "",
+            publishedAt: contentToAnalyze.metadata?.published || "",
+          }
+        : null;
+      const updatedHistory = freshHistory || (stage1Entry ? [stage1Entry, ...captureHistory] : captureHistory);
+
       tabResultCache.set(pinnedTabId, {
         status: "done",
         url: contentToAnalyze.url,
         extractedContent: contentToAnalyze,
         analysisResult: response,
-        stage1Payload: payload,
+        stage1Payload: { ...payload, nutId: stage1NutId },
         stage1ContentAnalysis: response,
-        captureHistory: [...captureHistory],
+        currentNutId: stage1NutId || currentNutId,
+        captureHistory: updatedHistory,
+        justReanalyzed: isReanalyze,
       });
       if (activeTabId === pinnedTabId) {
-        stage1Payload = payload;
+        stage1Payload = { ...payload, nutId: stage1NutId };
         stage1ContentAnalysis = response;
+        currentNutId = stage1NutId || currentNutId;
+        captureHistory = updatedHistory;
         cachedProcessedSaved = null;
         followUpQa = [];
         followupInput.value = "";
@@ -1650,7 +1687,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
         if (isReanalyze || captureHistory.length > 0) {
-          processedMessage.textContent = "Re-analyzed just now — showing fresh result.";
+          processedMessage.textContent = isReanalyze ? "Re-analyzed just now — showing fresh result." : "Analyzed (Stage 1) — choose eggs to hatch.";
           processedNote.classList.remove("hidden");
           renderHistorySelect(currentNutId);
         }
@@ -2158,6 +2195,18 @@ function showHistoryEntry(entry) {
   currentNutId = entry.nutId ?? null;
   analysisResult = entry.result;
 
+  if (entry.result?.stage === "stage1") {
+    stage1ContentAnalysis = entry.result;
+    stage1Payload = {
+      url: entry.url || extractedContent?.url || pageUrl.textContent || "",
+      title: entry.title || extractedContent?.title || pageTitle.textContent || "",
+      content: entry.content || extractedContent?.content || "",
+      sourceType: entry.sourceType || extractedContent?.sourceType || "generic",
+      metadata: extractedContent?.metadata,
+      nutId: entry.nutId,
+    };
+  }
+
   if (activeTabId) {
     const existing = tabResultCache.get(activeTabId);
     if (existing) {
@@ -2167,6 +2216,8 @@ function showHistoryEntry(entry) {
         currentNutId: entry.nutId,
         eggHatched,
         nutCollected,
+        stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : existing.stage1Payload),
+        stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : existing.stage1ContentAnalysis),
       });
     }
   }
