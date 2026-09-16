@@ -163,10 +163,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   confirmBtn.addEventListener("click", handleConfirm);
   collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
-  backBtn.addEventListener("click", () => {
+  backBtn.addEventListener("click", async () => {
     showCaptureState();
-    if (!extractedContent) {
-      extractPageContent();
+    let currentTabUrl = "";
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      currentTabUrl = tab?.url || "";
+    } catch {}
+
+    const urlMatches = extractedContent?.url && currentTabUrl &&
+      extractedContent.url.split("#")[0] === currentTabUrl.split("#")[0];
+
+    if (urlMatches && extractedContent?.content) {
+      contentPreview.textContent = extractedContent.content;
+      pageTitle.textContent = extractedContent.title || pageTitle.textContent;
+      pageUrl.textContent = extractedContent.url || pageUrl.textContent;
+      pageType.textContent = extractedContent.sourceType || pageType.textContent;
+      showProvenance(extractedContent.metadata || {});
+    } else {
+      extractedContent = null;
+      contentPreview.textContent = "Retrieving content…";
+      await extractPageContent();
     }
   });
   settingsBtn.addEventListener("click", () => {
@@ -245,6 +262,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    if (activeTabId && activeTabId !== tabId && extractedContent) {
+      const prevCache = tabResultCache.get(activeTabId) || {};
+      tabResultCache.set(activeTabId, {
+        ...prevCache,
+        extractedContent,
+        analysisResult,
+        captureHistory: [...captureHistory],
+        currentNutId,
+        stage1Payload,
+        stage1ContentAnalysis,
+        eggHatched,
+        nutCollected,
+      });
+    }
     activeTabId = tabId;
     // Check if we have cached results for this tab
     const cached = tabResultCache.get(tabId);
@@ -264,6 +295,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id != null && tab.id !== activeTabId) {
+        if (activeTabId && extractedContent) {
+          const prevCache = tabResultCache.get(activeTabId) || {};
+          tabResultCache.set(activeTabId, {
+            ...prevCache,
+            extractedContent,
+            analysisResult,
+            captureHistory: [...captureHistory],
+            currentNutId,
+            stage1Payload,
+            stage1ContentAnalysis,
+            eggHatched,
+            nutCollected,
+          });
+        }
         activeTabId = tab.id;
         const cached = tabResultCache.get(tab.id);
         if (cached) {
@@ -325,6 +370,9 @@ async function refreshForCurrentTab(forceExtract = false) {
   // (restricted page, PDF, ...), a stale url must not re-render old results
   // via loadHistoryIfAny or re-apply the old transcript warning.
   extractedContent = null;
+  contentPreview.textContent = "Loading content…";
+  pageAuthorEl.textContent = "";
+  pagePublishedEl.textContent = "";
   analyzeBtn.disabled = true;
   analyzeBtnText.textContent = "Analyze";
 
@@ -387,6 +435,7 @@ async function refreshForCurrentTab(forceExtract = false) {
  * Called when the user switches back to a tab that was previously analyzed.
  */
 async function restoreFromTabCache(tabId, cached) {
+  const seq = ++refreshSeq;
   activeTabId = tabId;
   extractedContent = cached.extractedContent;
   analysisResult = cached.analysisResult;
@@ -395,10 +444,11 @@ async function restoreFromTabCache(tabId, cached) {
   stage1Payload = cached.stage1Payload || stage1Payload;
   stage1ContentAnalysis = cached.stage1ContentAnalysis || stage1ContentAnalysis;
 
-  // Update header
+  // Update header and capture preview so capture state is ready if user switches back
   pageTitle.textContent = extractedContent?.title || "Untitled";
   pageUrl.textContent = extractedContent?.url || "";
   pageType.textContent = extractedContent?.sourceType || "";
+  contentPreview.textContent = extractedContent?.content || "(No content extracted)";
   showProvenance(extractedContent?.metadata || {});
 
   // If analysis is still in progress, show analyzing state; if done, show results; else capture state
@@ -1234,7 +1284,8 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
     }
   }
   if (seq !== refreshSeq && !pinnedTabId) return null;
-  if (isTargetActive) {
+  const isStillTargetActive = !pinnedTabId ? activeTabId === tabId : activeTabId === pinnedTabId;
+  if (isStillTargetActive) {
     if (extractionFailed && !extractedContent) {
       contentPreview.textContent = "(Could not extract content)";
       showWarning(
@@ -2207,11 +2258,26 @@ function showHistoryEntry(entry) {
     };
   }
 
+  if (entry.content) {
+    extractedContent = {
+      url: entry.url || pageUrl.textContent || "",
+      title: entry.title || pageTitle.textContent || "",
+      content: entry.content,
+      sourceType: entry.sourceType || "webpage",
+      metadata: {
+        ...(entry.author ? { author: entry.author } : {}),
+        ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
+      },
+    };
+    contentPreview.textContent = entry.content;
+  }
+
   if (activeTabId) {
     const existing = tabResultCache.get(activeTabId);
     if (existing) {
       tabResultCache.set(activeTabId, {
         ...existing,
+        extractedContent: existing.extractedContent || extractedContent,
         analysisResult: entry.result,
         currentNutId: entry.nutId,
         eggHatched,
@@ -2220,19 +2286,6 @@ function showHistoryEntry(entry) {
         stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : existing.stage1ContentAnalysis),
       });
     }
-  }
-
-  if (entry.content && !extractedContent) {
-    extractedContent = {
-      url: entry.url || pageUrl.textContent || "",
-      title: entry.title || "",
-      content: entry.content,
-      sourceType: entry.sourceType || "webpage",
-      metadata: {
-        ...(entry.author ? { author: entry.author } : {}),
-        ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
-      },
-    };
   }
 
   // Stored provenance from the DB row, falling back to the live extraction
@@ -2363,6 +2416,13 @@ function showCaptureState() {
   analyzeBtn.disabled = false;
   // Label reflects that this URL was processed before
   analyzeBtnText.textContent = captureHistory.length > 0 ? "🔄 Analyze Again" : "Analyze";
+  if (extractedContent) {
+    contentPreview.textContent = extractedContent.content || "(No content extracted)";
+    if (extractedContent.title) pageTitle.textContent = extractedContent.title;
+    if (extractedContent.url) pageUrl.textContent = extractedContent.url;
+    if (extractedContent.sourceType) pageType.textContent = extractedContent.sourceType;
+    showProvenance(extractedContent.metadata || {});
+  }
   analysisResult = null;
   cachedProcessedSaved = null;
   followUpQa = [];
