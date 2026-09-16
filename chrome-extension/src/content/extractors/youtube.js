@@ -263,7 +263,55 @@ async function fetchYouTubeCaptions() {
     }
   }
 
-  // Layer 2: live player tracks directly from page context (picks up generated ASR tracks)
+  // Layer 2: watch-page HTML fetch — pure network, works in background
+  // tabs. No longer gated by `if (!pr)`: even when the player response was
+  // parsed from <script> tags, it may lack caption tracks (ASR-only, stale SPA
+  // data, etc.), so the fresh HTML fetch is always worth trying.
+  try {
+    const resp = await fetchWithTimeout(
+      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`,
+      {},
+      10000
+    );
+    const html = await resp.text();
+    const idx = html.indexOf('"captionTracks"');
+    if (idx !== -1) {
+      const raw = extractBalanced(html, idx);
+      if (raw) {
+        tracks = JSON.parse(raw);
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          const transcript = await fetchTimedtext(tracks);
+          if (transcript) {
+            console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
+            return transcript;
+          }
+        }
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
+  // Layer 3: Innertube player API — pure network, works in background
+  // tabs. Always worth one timeout-bounded call.
+  try {
+    const playerResp = await fetchInnertubePlayer(videoId);
+    const innertubeTracks =
+      playerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (Array.isArray(innertubeTracks) && innertubeTracks.length > 0) {
+      const transcript = await fetchTimedtext(innertubeTracks);
+      if (transcript) {
+        console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
+        return transcript;
+      }
+    }
+  } catch {
+    // Fall through
+  }
+
+  // Layer 4: live player tracks from page context — DOM-dependent,
+  // fails in background tabs (player suspended, CC click ignored, timer
+  // throttling), so attempted after the network-only layers above.
   try {
     let playerTracks = await queryPlayerCaptionTracks();
     if (!playerTracks?.length) {
@@ -284,53 +332,8 @@ async function fetchYouTubeCaptions() {
     }
   } catch {}
 
-  // Layer 3: watch-page HTML — the raw string scan can find captionTracks
-  // that readYtVar missed (failed parse, renamed var, ...)
-  if (!pr) {
-    try {
-      const resp = await fetchWithTimeout(
-        `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`,
-        {},
-        10000
-      );
-      const html = await resp.text();
-      const idx = html.indexOf('"captionTracks"');
-      if (idx !== -1) {
-        const raw = extractBalanced(html, idx);
-        if (raw) {
-          tracks = JSON.parse(raw);
-          if (Array.isArray(tracks) && tracks.length > 0) {
-            const transcript = await fetchTimedtext(tracks);
-            if (transcript) {
-              console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
-              return transcript;
-            }
-          }
-        }
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  // Layer 4: Innertube player API — always worth one (timeout-bounded) call:
-  // it can succeed even when the page's own tracks are missing or stale.
-  try {
-    const playerResp = await fetchInnertubePlayer(videoId);
-    const innertubeTracks =
-      playerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (Array.isArray(innertubeTracks) && innertubeTracks.length > 0) {
-      const transcript = await fetchTimedtext(innertubeTracks);
-      if (transcript) {
-        console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
-        return transcript;
-      }
-    }
-  } catch {
-    // Fall through to transcript panel
-  }
-
-  // Layer 5: the on-page transcript panel ("Show transcript")
+  // Layer 5: the on-page transcript panel ("Show transcript") — DOM-heavy
+  // last resort, fails in background tabs.
   const panel = await readTranscriptPanel();
   console.log(
     panel

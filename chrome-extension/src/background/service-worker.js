@@ -95,6 +95,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
+// --- Long-lived port for analyze ---
+// The popup/side-panel opens a port for the analyze action. An open port keeps
+// the service worker alive during long LLM calls (Chrome kills idle workers
+// after ~30s). The port receives { action, payload } and posts back the result.
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "nutegg-analyze") return;
+
+  port.onMessage.addListener(async (message) => {
+    if (message.action === "analyze") {
+      try {
+        const result = await handleAnalyze(message.payload);
+        port.postMessage(result);
+      } catch (err) {
+        port.postMessage({ error: err.message });
+      }
+    }
+  });
+});
 // --- Server communication ---
 
 async function handleAnalyze(payload) {
