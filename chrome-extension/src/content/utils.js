@@ -101,8 +101,12 @@ function waitFor(getter, timeoutMs) {
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
-      const value = getter();
-      if (value) return resolve(value);
+      try {
+        const value = getter();
+        if (value) return resolve(value);
+      } catch {
+        // Ignore temporary DOM lookup errors during page loading
+      }
       if (Date.now() > deadline) return resolve(null);
       setTimeout(tick, 200);
     };

@@ -464,7 +464,20 @@ async function restoreFromTabCache(tabId, cached) {
 
   // If analysis is still in progress, show analyzing state; if done, show results; else capture state
   if (cached.status === "retrieving") {
-    if (cached.isReanalyzing && cached.analysisResult) {
+    // If it has been stuck in retrieving for over 15 seconds, don't leave the UI frozen!
+    const isStuck = cached.retrievingStartedAt && (Date.now() - cached.retrievingStartedAt > 15000);
+    if (isStuck) {
+      tabResultCache.delete(tabId);
+      showCaptureState();
+      showWarning("Content retrieval timed out in the background. Click 🔄 to retry.");
+      analyzeBtn.disabled = false;
+      analyzeBtnText.textContent = "Analyze";
+      if (reanalyzeBtn) {
+        reanalyzeBtn.disabled = false;
+        reanalyzeBtn.textContent = "🔄 Re-analyze";
+      }
+      if (historySelect) historySelect.disabled = false;
+    } else if (cached.isReanalyzing && cached.analysisResult) {
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
       if (reanalyzeBtn) {
         reanalyzeBtn.disabled = true;
@@ -1308,6 +1321,11 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
       const response = await tryExtract(tabId);
       if (seq !== refreshSeq && !pinnedTabId) return null;
       if (!response?.success) {
+        if (attempt === 0) {
+          // Give the page a moment to complete rendering before the second attempt
+          await new Promise((r) => setTimeout(r, 600));
+          continue;
+        }
         if (isTargetActive) extractionFailed = true;
         break;
       }
@@ -1328,6 +1346,13 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
         pageType.textContent = response.content.sourceType || pageType.textContent;
         contentPreview.textContent = response.content.content || "(No content extracted)";
         showProvenance(response.content.metadata || {});
+      }
+      if (pinnedTabId) {
+        const cached = tabResultCache.get(pinnedTabId) || {};
+        tabResultCache.set(pinnedTabId, {
+          ...cached,
+          extractedContent: response.content,
+        });
       }
       return response.content;
     }
@@ -1354,11 +1379,19 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
   return null;
 }
 
+/** Safe promise timeout wrapper. */
+function withTimeout(promise, ms, fallback = null) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 /**
  * Wait for a tab to finish loading (status === "complete").
  * Works for both active and background tabs via chrome.tabs.onUpdated.
  */
-async function waitForTabComplete(tabId, timeoutMs = 15000) {
+async function waitForTabComplete(tabId, timeoutMs = 8000) {
   try {
     const tab = await chrome.tabs.get(tabId);
     if (tab.status === "complete") return true;
@@ -1389,28 +1422,40 @@ async function waitForTabComplete(tabId, timeoutMs = 15000) {
  */
 async function tryExtract(tabId) {
   try {
-    const response = await chrome.tabs.sendMessage(tabId, { action: "extract-content" });
+    const response = await withTimeout(
+      chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
+      8000,
+      null
+    );
     if (response?.success) return response;
   } catch {
     // Content script not injected yet (page mid-load, or never injected)
   }
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [
-        "src/content/utils.js",
-        "src/content/extractors/youtube.js",
-        "src/content/extractors/twitter.js",
-        "src/content/extractors/article.js",
-        "src/content/extractors/generic.js",
-        "src/content/content-script.js",
-      ],
-    });
+    await withTimeout(
+      chrome.scripting.executeScript({
+        target: { tabId },
+        files: [
+          "src/content/utils.js",
+          "src/content/extractors/youtube.js",
+          "src/content/extractors/twitter.js",
+          "src/content/extractors/article.js",
+          "src/content/extractors/generic.js",
+          "src/content/content-script.js",
+        ],
+      }),
+      4000,
+      null
+    );
   } catch {
     return null; // Restricted page (chrome://, Web Store, PDF viewer)
   }
   try {
-    return await chrome.tabs.sendMessage(tabId, { action: "extract-content" });
+    return await withTimeout(
+      chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
+      8000,
+      null
+    );
   } catch {
     return null;
   }
@@ -1419,22 +1464,34 @@ async function tryExtract(tabId) {
 /** Cheap page-state check (no transcript fetching). Null when unreachable. */
 async function requestPageIdentity(tabId) {
   try {
-    const resp = await chrome.tabs.sendMessage(tabId, { action: "page-identity" });
+    const resp = await withTimeout(
+      chrome.tabs.sendMessage(tabId, { action: "page-identity" }),
+      2500,
+      null
+    );
     if (resp?.success) return resp;
   } catch {}
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: [
-        "src/content/utils.js",
-        "src/content/extractors/youtube.js",
-        "src/content/extractors/twitter.js",
-        "src/content/extractors/article.js",
-        "src/content/extractors/generic.js",
-        "src/content/content-script.js",
-      ],
-    });
-    const resp = await chrome.tabs.sendMessage(tabId, { action: "page-identity" });
+    await withTimeout(
+      chrome.scripting.executeScript({
+        target: { tabId },
+        files: [
+          "src/content/utils.js",
+          "src/content/extractors/youtube.js",
+          "src/content/extractors/twitter.js",
+          "src/content/extractors/article.js",
+          "src/content/extractors/generic.js",
+          "src/content/content-script.js",
+        ],
+      }),
+      3000,
+      null
+    );
+    const resp = await withTimeout(
+      chrome.tabs.sendMessage(tabId, { action: "page-identity" }),
+      2500,
+      null
+    );
     return resp?.success ? resp : null;
   } catch {
     return null;
@@ -1443,12 +1500,11 @@ async function requestPageIdentity(tabId) {
 
 /**
  * Poll page-identity until the page settles (document complete, and for
- * YouTube the watch shell rendered), bounded to ~10s. Returns null when the
- * content script is unreachable — extraction proceeds and reports failure
- * itself.
+ * YouTube the watch shell rendered), bounded to ~8s. Returns null when the
+ * content script is unreachable — extraction proceeds and reports failure itself.
  */
 async function waitForPageSettle(tabId, seq, pinnedTabId = null) {
-  const deadline = Date.now() + 10000;
+  const deadline = Date.now() + 8000;
   while (Date.now() < deadline) {
     if (seq !== refreshSeq && !pinnedTabId) return null;
     const identity = await requestPageIdentity(tabId);
@@ -1582,6 +1638,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     tabResultCache.set(pinnedTabId, {
       ...existingCache,
       status: "retrieving",
+      retrievingStartedAt: Date.now(),
       isReanalyzing: isReanalyze,
       analysisResult: isReanalyze ? (analysisResult || existingCache.analysisResult) : null,
       captureHistory: [...captureHistory],
@@ -1608,7 +1665,11 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   try {
     let contentToAnalyze = (activeTabId === pinnedTabId ? extractedContent : null);
     if (force || !contentToAnalyze) {
-      const fresh = await extractPageContent(refreshSeq, pinnedTabId);
+      // Bound extraction with a 25-second overall timeout so it never hangs in background
+      const fresh = await Promise.race([
+        extractPageContent(refreshSeq, pinnedTabId),
+        new Promise((resolve) => setTimeout(() => resolve(null), 25000)),
+      ]);
       if (fresh) contentToAnalyze = fresh;
     }
 
@@ -1630,28 +1691,31 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     }
 
     if (!contentToAnalyze) {
+      const errMsg = "Could not extract page content. The page may still be loading or restricted. Try refreshing.";
+      tabResultCache.set(pinnedTabId, {
+        status: "error",
+        error: errMsg,
+      });
       if (activeTabId === pinnedTabId) {
-        tabResultCache.delete(pinnedTabId);
-        showError("Could not extract page content. Try refreshing.");
+        showError(errMsg);
         analyzeBtn.disabled = false;
         analyzeBtnText.textContent = "Analyze";
         if (reanalyzeBtn) {
           reanalyzeBtn.disabled = false;
           reanalyzeBtn.textContent = "🔄 Re-analyze";
         }
-      } else {
-        tabResultCache.set(pinnedTabId, {
-          status: "error",
-          error: "Could not extract page content. Try refreshing.",
-        });
       }
-      return "Could not extract page content. Try refreshing.";
+      return errMsg;
     }
     if (
       contentToAnalyze.sourceType === "youtube" &&
       contentToAnalyze.transcriptAvailable === false
     ) {
-      tabResultCache.delete(pinnedTabId);
+      tabResultCache.set(pinnedTabId, {
+        status: "error",
+        error: "Video transcript unavailable — NutEgg will not process this video.",
+        isTranscriptBlocked: true,
+      });
       if (activeTabId === pinnedTabId) {
         applyTranscriptBlock();
         analyzeBtn.disabled = false;
