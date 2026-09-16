@@ -265,8 +265,9 @@ body {
   white-space: nowrap;
 }
 
-.reanalyze-btn:hover:not(:disabled) { background: var(--primary-hover, #8c4414); }
-.reanalyze-btn:disabled { background: #d1d5db; cursor: not-allowed; }
+.reanalyze-btn:hover:not(:disabled):not(.inactive) { background: var(--primary-hover, #8c4414); }
+.reanalyze-btn.inactive,
+.reanalyze-btn:disabled { background: #d1d5db; color: #9ca3af; cursor: not-allowed; }
 
 .history-select {
   flex: 1;
@@ -642,10 +643,11 @@ body {
   box-shadow: 0 -4px 12px rgba(26, 26, 46, 0.08);
 }
 
-.analyze-btn:hover:not(:disabled) {
+.analyze-btn:hover:not(:disabled):not(.inactive) {
   background: var(--primary-hover, #8c4414);
 }
 
+.analyze-btn.inactive,
 .analyze-btn:disabled {
   background: #d1d5db;
   color: #9ca3af;

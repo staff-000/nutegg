@@ -121,6 +121,7 @@ let analysisMode = "fast";
 let stage1Payload = null;
 let stage1ContentAnalysis = null;
 let activeEggTab = null;
+let currentTabLoading = false;
 
 /** Per-tab cache of extraction/analysis results. When the user switches away
  *  and back, the cached result is restored instead of re-extracting. */
@@ -159,7 +160,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true, false, activeTabId));
   stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
-  analyzeBtn.addEventListener("click", () => handleAnalyze(true));
+  analyzeBtn.addEventListener("click", () => {
+    const notReady = getAnalyzeNotReadyReason();
+    if (notReady) {
+      showWarning(notReady);
+      return;
+    }
+    handleAnalyze(true);
+  });
   confirmBtn.addEventListener("click", handleConfirm);
   collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
@@ -180,6 +188,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       pageUrl.textContent = extractedContent.url || pageUrl.textContent;
       pageType.textContent = extractedContent.sourceType || pageType.textContent;
       showProvenance(extractedContent.metadata || {});
+      updateAnalyzeButtonsState();
     } else {
       extractedContent = null;
       contentPreview.textContent = "Retrieving content…";
@@ -243,6 +252,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   reanalyzeEggsBtn.addEventListener("click", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
+    const notReady = getAnalyzeNotReadyReason();
+    if (notReady) {
+      showWarning(notReady);
+      return;
+    }
     reanalyzeEggsBtn.disabled = true;
     const original = reanalyzeEggsBtn.textContent;
     reanalyzeEggsBtn.textContent = "⏳ Analyzing…";
@@ -264,7 +278,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     const expanded = eggsExpanded.classList.toggle("hidden");
     eggsToggleChevron.textContent = expanded ? "▾" : "▸";
   });
-  reanalyzeBtn.addEventListener("click", () => handleAnalyze(true, null, true));
+  reanalyzeBtn.addEventListener("click", () => {
+    const notReady = getAnalyzeNotReadyReason();
+    if (notReady) {
+      showWarning(notReady);
+      return;
+    }
+    handleAnalyze(true, null, true);
+  });
   historySelect.addEventListener("change", () => {
     const idx = parseInt(historySelect.value, 10);
     if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
@@ -290,7 +311,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeTabId = tabId;
     // Check if we have cached results for this tab
     const cached = tabResultCache.get(tabId);
-    if (cached) {
+    if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
       restoreFromTabCache(tabId, cached);
     } else {
       refreshForCurrentTab();
@@ -322,7 +343,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         activeTabId = tab.id;
         const cached = tabResultCache.get(tab.id);
-        if (cached) {
+        if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
           restoreFromTabCache(tab.id, cached);
         } else {
           refreshForCurrentTab();
@@ -333,21 +354,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
-    // Page finished loading: retry extraction when it ran mid-load or failed
-    // (e.g. YouTube captions not ready yet).
-    if (changeInfo.status === "complete") {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id === tabId && (lastLoadWasLoading || extractionFailed)) {
-        refreshForCurrentTab();
+    let isActiveTab = false;
+    try {
+      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      isActiveTab = activeTab?.id === tabId;
+    } catch {}
+
+    if (changeInfo.status === "loading") {
+      if (isActiveTab) {
+        currentTabLoading = true;
+        updateAnalyzeButtonsState();
       }
       return;
     }
-    if (!changeInfo.url) return;
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id === tabId) {
-      // URL changed on the active tab — invalidate its cache
+
+    // Page finished loading:
+    if (changeInfo.status === "complete") {
+      if (isActiveTab) {
+        currentTabLoading = false;
+        if (!extractedContent || lastLoadWasLoading || extractionFailed) {
+          refreshForCurrentTab();
+        } else {
+          updateAnalyzeButtonsState();
+        }
+      } else {
+        // Background tab finished loading — extract in background if not already cached
+        const cached = tabResultCache.get(tabId);
+        if (!cached?.extractedContent && !cached?.analysisResult && !cached?.status) {
+          extractPageContent(refreshSeq, tabId);
+        }
+      }
+      return;
+    }
+
+    if (changeInfo.url) {
+      // URL changed — invalidate its cache
       tabResultCache.delete(tabId);
-      refreshForCurrentTab();
+      if (isActiveTab) {
+        refreshForCurrentTab();
+      }
     }
   });
 
@@ -377,20 +422,18 @@ async function refreshForCurrentTab(forceExtract = false) {
   historySelect.classList.add("hidden");
   historySelect.innerHTML = "";
   captureHistory = []; // fresh URL — old history doesn't apply
-  // Drop the previous tab's content too — if the new tab can't be extracted
-  // (restricted page, PDF, ...), a stale url must not re-render old results
-  // via loadHistoryIfAny or re-apply the old transcript warning.
   extractedContent = null;
   contentPreview.textContent = "Loading content…";
   pageAuthorEl.textContent = "";
   pagePublishedEl.textContent = "";
-  analyzeBtn.disabled = true;
-  analyzeBtnText.textContent = "Analyze";
+  currentTabLoading = false;
+  updateAnalyzeButtonsState();
 
   let tabUrl = "";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id != null) activeTabId = tab.id;
+    if (tab?.status === "loading") currentTabLoading = true;
     if (tab?.url) {
       tabUrl = tab.url;
       pageTitle.textContent = tab.title || "Loading...";
@@ -398,6 +441,8 @@ async function refreshForCurrentTab(forceExtract = false) {
       pageType.textContent = detectPageTypeFromUrl(tab.url);
     }
   } catch {}
+
+  updateAnalyzeButtonsState();
 
   if (seq !== refreshSeq) return;
 
@@ -414,6 +459,7 @@ async function refreshForCurrentTab(forceExtract = false) {
       await fetchMetrics();
       if (seq !== refreshSeq) return;
       await fetchEggs();
+      updateAnalyzeButtonsState();
       return;
     }
   }
@@ -430,10 +476,7 @@ async function refreshForCurrentTab(forceExtract = false) {
     if (seq !== refreshSeq) return;
     await fetchEggs();
     if (seq !== refreshSeq) return;
-    if (extractedContent && !isTranscriptBlocked()) {
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
-    }
+    updateAnalyzeButtonsState();
     // Fallback: check if the canonical/cleaned extracted URL has history
     if (extractedContent?.url && extractedContent.url !== tabUrl) {
       await loadHistoryIfAny(seq, extractedContent.url);
@@ -443,7 +486,7 @@ async function refreshForCurrentTab(forceExtract = false) {
 
 /**
  * Restore the UI from a cached tab result (extraction + analysis).
- * Called when the user switches back to a tab that was previously analyzed.
+ * Called when the user switches back to a tab that was previously analyzed or in-flight.
  */
 async function restoreFromTabCache(tabId, cached) {
   const seq = ++refreshSeq;
@@ -454,6 +497,7 @@ async function restoreFromTabCache(tabId, cached) {
   currentNutId = cached.currentNutId || (cached.captureHistory?.[0]?.nutId ?? null);
   stage1Payload = cached.stage1Payload || stage1Payload;
   stage1ContentAnalysis = cached.stage1ContentAnalysis || stage1ContentAnalysis;
+  currentTabLoading = false;
 
   // Update header and capture preview so capture state is ready if user switches back
   pageTitle.textContent = extractedContent?.title || "Untitled";
@@ -462,52 +506,7 @@ async function restoreFromTabCache(tabId, cached) {
   contentPreview.textContent = extractedContent?.content || "(No content extracted)";
   showProvenance(extractedContent?.metadata || {});
 
-  // If analysis is still in progress, show analyzing state; if done, show results; else capture state
-  if (cached.status === "retrieving") {
-    // If it has been stuck in retrieving for over 15 seconds, don't leave the UI frozen!
-    const isStuck = cached.retrievingStartedAt && (Date.now() - cached.retrievingStartedAt > 15000);
-    if (isStuck) {
-      tabResultCache.delete(tabId);
-      showCaptureState();
-      showWarning("Content retrieval timed out in the background. Click 🔄 to retry.");
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
-      if (reanalyzeBtn) {
-        reanalyzeBtn.disabled = false;
-        reanalyzeBtn.textContent = "🔄 Re-analyze";
-      }
-      if (historySelect) historySelect.disabled = false;
-    } else if (cached.isReanalyzing && cached.analysisResult) {
-      showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
-      if (reanalyzeBtn) {
-        reanalyzeBtn.disabled = true;
-        reanalyzeBtn.textContent = "Retrieving…";
-      }
-      if (historySelect) historySelect.disabled = true;
-      processedNote.classList.remove("hidden");
-      processedMessage.textContent = "Retrieving page content…";
-    } else {
-      showCaptureState();
-      if (extractedContent) {
-        contentPreview.textContent = extractedContent.content || "(No content extracted)";
-      } else {
-        contentPreview.textContent = "Retrieving content…";
-      }
-      analyzeBtn.disabled = true;
-      analyzeBtnText.textContent = "Retrieving…";
-    }
-  } else if (cached.status === "error") {
-    showCaptureState();
-    showError(cached.error || "Extraction failed.");
-    tabResultCache.delete(tabId);
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "Analyze";
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.textContent = "🔄 Re-analyze";
-    }
-    if (historySelect) historySelect.disabled = false;
-  } else if (cached.status === "analyzing") {
+  if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
@@ -547,12 +546,7 @@ async function restoreFromTabCache(tabId, cached) {
     if (cached.eggHatched) eggHatched = true;
     if (cached.nutCollected) nutCollected = true;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.textContent = "🔄 Re-analyze";
-    }
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "🔄 Analyze Again";
+    updateAnalyzeButtonsState();
     if (historySelect) historySelect.disabled = false;
     if (cached.eggHatched) updateActionButtons();
     if (captureHistory.length > 0) {
@@ -571,16 +565,7 @@ async function restoreFromTabCache(tabId, cached) {
     }
   } else {
     showCaptureState();
-    if (extractedContent) {
-      contentPreview.textContent = extractedContent.content || "(No content extracted)";
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = "Analyze";
-    }
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.textContent = "🔄 Re-analyze";
-    }
-    if (historySelect) historySelect.disabled = false;
+    updateAnalyzeButtonsState();
   }
 
   // Refresh server status and eggs without resetting content
@@ -1226,6 +1211,92 @@ function updateServerStatusTooltip(isOnline, pluginVersion = null, warningText =
   );
 }
 
+// --- Button Readiness & State ---
+
+/**
+ * YouTube without a transcript: analysis would rely on the description only,
+ * which produces misleading answers — warn and refuse to process.
+ */
+function isTranscriptBlocked() {
+  return !!extractedContent &&
+    extractedContent.sourceType === "youtube" &&
+    extractedContent.transcriptAvailable === false;
+}
+
+function applyTranscriptBlock() {
+  if (!isTranscriptBlocked()) return;
+  updateAnalyzeButtonsState();
+  showWarning(
+    "Couldn't fetch the video transcript — analysis would be based on the description only and could mislead you. NutEgg will not process this video."
+  );
+}
+
+/** Returns a non-null string prompt if the page or content is not ready for analysis. */
+function getAnalyzeNotReadyReason() {
+  if (currentTabLoading) {
+    return "The page is still loading. Please wait until it finishes loading before analyzing.";
+  }
+  if (extractionPending) {
+    return "Retrieving page content… please wait a moment.";
+  }
+  if (!extractedContent || !extractedContent.content) {
+    return "The page is still loading or content is not ready yet. Please wait until it finishes loading.";
+  }
+  if (isTranscriptBlocked()) {
+    return "Video transcript is unavailable — NutEgg cannot analyze videos without transcripts.";
+  }
+  if (!serverOnline) {
+    return "Obsidian server is offline. Please start Obsidian with the NutEgg plugin.";
+  }
+  return null;
+}
+
+/** Updates analyze and re-analyze buttons' active / inactive visual state and labels. */
+function updateAnalyzeButtonsState() {
+  const currentTabStatus = tabResultCache.get(activeTabId)?.status;
+  const isAnalyzing = currentTabStatus === "analyzing" || currentTabStatus === "hatching";
+
+  if (isAnalyzing) {
+    analyzeBtn.disabled = true;
+    analyzeBtn.classList.remove("inactive");
+    analyzeBtnText.textContent = "Analyzing...";
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = true;
+      reanalyzeBtn.classList.remove("inactive");
+      reanalyzeBtn.textContent = "Analyzing…";
+    }
+    return;
+  }
+
+  analyzeBtn.disabled = false;
+  if (reanalyzeBtn) reanalyzeBtn.disabled = false;
+
+  const notReady = getAnalyzeNotReadyReason();
+  if (notReady) {
+    analyzeBtn.classList.add("inactive");
+    if (reanalyzeBtn) reanalyzeBtn.classList.add("inactive");
+
+    if (isTranscriptBlocked()) {
+      analyzeBtnText.textContent = "Transcript unavailable";
+    } else if (currentTabLoading || extractionPending) {
+      analyzeBtnText.textContent = "Loading content…";
+    } else {
+      analyzeBtnText.textContent = "Analyze";
+    }
+    analyzeBtn.title = notReady;
+    if (reanalyzeBtn) reanalyzeBtn.title = notReady;
+  } else {
+    analyzeBtn.classList.remove("inactive");
+    if (reanalyzeBtn) reanalyzeBtn.classList.remove("inactive");
+    analyzeBtnText.textContent = analysisResult ? "🔄 Analyze Again" : "Analyze";
+    analyzeBtn.title = "";
+    if (reanalyzeBtn) {
+      reanalyzeBtn.title = "";
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+  }
+}
+
 // --- Content extraction ---
 
 /** True when extraction ran against a still-loading page (retry on complete). */
@@ -1236,23 +1307,13 @@ let extractionFailed = false;
 let extractionPending = false;
 
 /**
- * Extract content from the active tab (or a pinned tab). `seq` guards the
- * UI: a superseded attempt (newer tab refresh started meanwhile) must not
- * write stale content — or worse, its failure message — over the current
- * attempt's "retrieving" state.
- *
- * When `pinnedTabId` is provided (e.g. from handleAnalyze), the extraction
- * targets that specific tab instead of re-querying `chrome.tabs.query`.
- * This prevents tab switches from redirecting the extraction mid-flight.
- *
- * Two defenses against "early" snapshots:
- *   1. wait for the page to settle (document complete + YouTube shell
- *      rendered) before extracting,
- *   2. after extracting, verify the page's URL didn't change mid-flight
- *      (SPA navigation race) — retry once when it did.
+ * Extract content from the active tab (or background tab when loaded).
+ * `seq` guards the UI: a superseded attempt cancels cleanly on tab switch.
  */
-async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
-  const isTargetActive = !pinnedTabId || (activeTabId === pinnedTabId);
+async function extractPageContent(seq = refreshSeq, targetTabId = null) {
+  const isBackground = targetTabId != null && targetTabId !== activeTabId;
+  const isTargetActive = !isBackground;
+
   if (isTargetActive) {
     extractionFailed = false;
     lastLoadWasLoading = false;
@@ -1261,19 +1322,20 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
     contentPreview.textContent = "Retrieving content…";
     pageAuthorEl.textContent = "";
     pagePublishedEl.textContent = "";
+    updateAnalyzeButtonsState();
   }
+
   try {
     let tabId, tabTitle, tabUrl, tabStatus;
-    if (pinnedTabId) {
-      // Use the pinned tab — don't re-query the active tab
+    if (targetTabId) {
       try {
-        const tab = await chrome.tabs.get(pinnedTabId);
+        const tab = await chrome.tabs.get(targetTabId);
         tabId = tab.id;
         tabTitle = tab.title;
         tabUrl = tab.url;
         tabStatus = tab.status;
       } catch {
-        return null;
+        return null; // Tab closed
       }
     } else {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -1284,90 +1346,102 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
         tabStatus = tab.status;
       }
     }
-    if (seq !== refreshSeq && !pinnedTabId) return null;
+
     if (!tabId) {
       if (isTargetActive) pageTitle.textContent = "Unknown Page";
       return null;
     }
+
+    // For background tabs: ONLY extract if content is already loaded!
+    if (isBackground && tabStatus !== "complete") {
+      return null;
+    }
+
     if (isTargetActive) {
+      if (seq !== refreshSeq) return null;
       lastLoadWasLoading = tabStatus === "loading";
+      currentTabLoading = tabStatus === "loading";
       pageTitle.textContent = tabTitle || "Retrieving…";
       pageUrl.textContent = tabUrl || "";
       pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
-    }
+      updateAnalyzeButtonsState();
 
-    // If the tab is still loading, wait for it to complete loading before extracting
-    if (tabStatus === "loading") {
-      await waitForTabComplete(tabId, 15000);
-      if (seq !== refreshSeq && !pinnedTabId) return null;
-      try {
-        const refreshedTab = await chrome.tabs.get(tabId);
-        tabTitle = refreshedTab.title || tabTitle;
-        tabUrl = refreshedTab.url || tabUrl;
-        if (isTargetActive) {
+      // If active tab is still loading, wait for it to complete or settle
+      if (tabStatus === "loading") {
+        await waitForTabComplete(tabId, 6000);
+        if (seq !== refreshSeq) return null;
+        try {
+          const refreshedTab = await chrome.tabs.get(tabId);
+          tabTitle = refreshedTab.title || tabTitle;
+          tabUrl = refreshedTab.url || tabUrl;
           pageTitle.textContent = tabTitle || pageTitle.textContent;
           pageUrl.textContent = tabUrl || pageUrl.textContent;
-        }
-      } catch {}
+        } catch {}
+      }
+
+      await waitForPageSettle(tabId, seq);
+      if (seq !== refreshSeq) return null;
     }
 
-    // 1. Let the page settle — an early snapshot of a half-rendered or
-    // mid-navigation page is not the content the user wants.
-    await waitForPageSettle(tabId, seq, pinnedTabId);
-    if (seq !== refreshSeq && !pinnedTabId) return null;
-
-    // 2. Extract, then verify the page didn't navigate during the fetch
+    // Extract content
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await tryExtract(tabId);
-      if (seq !== refreshSeq && !pinnedTabId) return null;
+      if (isTargetActive && seq !== refreshSeq) return null;
       if (!response?.success) {
-        if (attempt === 0) {
-          // Give the page a moment to complete rendering before the second attempt
+        if (attempt === 0 && isTargetActive) {
           await new Promise((r) => setTimeout(r, 600));
           continue;
         }
         if (isTargetActive) extractionFailed = true;
         break;
       }
+
       const after = await requestPageIdentity(tabId);
-      if (seq !== refreshSeq && !pinnedTabId) return null;
+      if (isTargetActive && seq !== refreshSeq) return null;
       if (
         after?.url &&
         response.content?.url &&
         after.url !== response.content.url
       ) {
-        // The page navigated while extraction ran — take a fresh snapshot
-        console.warn("[NutEgg] Page navigated during extraction — retrying");
+        if (isTargetActive) console.warn("[NutEgg] Page navigated during extraction — retrying");
         continue;
       }
+
+      // Cache extracted content for the tab
+      const cached = tabResultCache.get(tabId) || {};
+      tabResultCache.set(tabId, {
+        ...cached,
+        extractedContent: response.content,
+      });
+
+      // Update UI only if this tab is currently the active tab
       if (activeTabId === tabId) {
         extractedContent = response.content;
+        currentTabLoading = false;
         pageTitle.textContent = response.content.title || tabTitle || "Untitled";
         pageType.textContent = response.content.sourceType || pageType.textContent;
         contentPreview.textContent = response.content.content || "(No content extracted)";
         showProvenance(response.content.metadata || {});
+        applyTranscriptBlock();
+        updateAnalyzeButtonsState();
       }
-      if (pinnedTabId) {
-        const cached = tabResultCache.get(pinnedTabId) || {};
-        tabResultCache.set(pinnedTabId, {
-          ...cached,
-          extractedContent: response.content,
-        });
-      }
+
       return response.content;
     }
-  } catch {
-    // Unexpected (e.g. extension context invalidated by a reload)
-    if (isTargetActive) extractionFailed = true;
+  } catch (err) {
+    if (isTargetActive) {
+      console.error("[NutEgg] Extraction error:", err);
+      extractionFailed = true;
+    }
   } finally {
-    if (isTargetActive || seq === refreshSeq) {
+    if (isTargetActive && seq === refreshSeq) {
       extractionPending = false;
       refreshBtn.disabled = false;
+      updateAnalyzeButtonsState();
     }
   }
-  if (seq !== refreshSeq && !pinnedTabId) return null;
-  const isStillTargetActive = !pinnedTabId ? activeTabId === tabId : activeTabId === pinnedTabId;
-  if (isStillTargetActive) {
+
+  if (isTargetActive && seq === refreshSeq) {
     if (extractionFailed && !extractedContent) {
       contentPreview.textContent = "(Could not extract content)";
       showWarning(
@@ -1375,6 +1449,7 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
       );
     }
     applyTranscriptBlock();
+    updateAnalyzeButtonsState();
   }
   return null;
 }
@@ -1503,12 +1578,13 @@ async function requestPageIdentity(tabId) {
  * YouTube the watch shell rendered), bounded to ~8s. Returns null when the
  * content script is unreachable — extraction proceeds and reports failure itself.
  */
-async function waitForPageSettle(tabId, seq, pinnedTabId = null) {
-  const deadline = Date.now() + 8000;
+async function waitForPageSettle(tabId, seq) {
+  const deadline = Date.now() + 6000;
   while (Date.now() < deadline) {
-    if (seq !== refreshSeq && !pinnedTabId) return null;
+    if (seq !== refreshSeq) return null;
     const identity = await requestPageIdentity(tabId);
     if (identity && identity.readyState === "complete" && identity.youtubeReady !== false) {
+      currentTabLoading = false;
       return identity;
     }
     await new Promise((r) => setTimeout(r, 400));
@@ -1565,25 +1641,6 @@ function renderResultProvenance(prov) {
     : "";
 }
 
-/**
- * YouTube without a transcript: analysis would rely on the description only,
- * which produces misleading answers — warn and refuse to process.
- */
-function isTranscriptBlocked() {
-  return !!extractedContent &&
-    extractedContent.sourceType === "youtube" &&
-    extractedContent.transcriptAvailable === false;
-}
-
-function applyTranscriptBlock() {
-  if (!isTranscriptBlocked()) return;
-  analyzeBtn.disabled = true;
-  analyzeBtnText.textContent = "Transcript unavailable";
-  showWarning(
-    "Couldn't fetch the video transcript — analysis would be based on the description only and could mislead you. NutEgg will not process this video."
-  );
-}
-
 // --- Analyze ---
 
 /**
@@ -1629,21 +1686,24 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
   }
 
-  // Pin the tab ID at the start — this tab is what the user wanted to analyze,
-  // even if they switch tabs during the (potentially long) pipeline.
-  const pinnedTabId = activeTabId;
+  const notReady = getAnalyzeNotReadyReason();
+  if (notReady) {
+    showWarning(notReady);
+    return notReady;
+  }
 
-  if (pinnedTabId) {
-    const existingCache = tabResultCache.get(pinnedTabId) || {};
-    tabResultCache.set(pinnedTabId, {
-      ...existingCache,
-      status: "retrieving",
-      retrievingStartedAt: Date.now(),
-      isReanalyzing: isReanalyze,
-      analysisResult: isReanalyze ? (analysisResult || existingCache.analysisResult) : null,
-      captureHistory: [...captureHistory],
-      currentNutId: currentNutId || existingCache.currentNutId,
-    });
+  const pinnedTabId = activeTabId;
+  const contentToAnalyze = extractedContent;
+
+  if (!contentToAnalyze || !contentToAnalyze.content) {
+    const msg = "The page is still loading or content is not ready yet. Please wait until it finishes loading.";
+    showWarning(msg);
+    return msg;
+  }
+
+  if (isTranscriptBlocked()) {
+    applyTranscriptBlock();
+    return "Video transcript unavailable — NutEgg will not process this video.";
   }
 
   isReanalyzing = isReanalyze;
@@ -1651,96 +1711,18 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     hideMessages();
     if (isReanalyze) {
       processedNote.classList.remove("hidden");
-      processedMessage.textContent = "Retrieving page content…";
-    }
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = true;
-      reanalyzeBtn.textContent = "Retrieving…";
-    }
-    if (historySelect) historySelect.disabled = true;
-    analyzeBtn.disabled = true;
-    analyzeBtnText.textContent = "Retrieving…";
-  }
-
-  try {
-    let contentToAnalyze = (activeTabId === pinnedTabId ? extractedContent : null);
-    if (force || !contentToAnalyze) {
-      // Bound extraction with a 25-second overall timeout so it never hangs in background
-      const fresh = await Promise.race([
-        extractPageContent(refreshSeq, pinnedTabId),
-        new Promise((resolve) => setTimeout(() => resolve(null), 25000)),
-      ]);
-      if (fresh) contentToAnalyze = fresh;
-    }
-
-    // Fallback: if extraction couldn't get content from the tab, check if we have stored content
-    if (!contentToAnalyze && captureHistory.length > 0) {
-      const entry = captureHistory[0];
-      if (entry?.content) {
-        contentToAnalyze = {
-          url: entry.url || pageUrl.textContent || "",
-          title: entry.title || pageTitle.textContent || "",
-          content: entry.content,
-          sourceType: entry.sourceType || "webpage",
-          metadata: {
-            ...(entry.author ? { author: entry.author } : {}),
-            ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
-          },
-        };
-      }
-    }
-
-    if (!contentToAnalyze) {
-      const errMsg = "Could not extract page content. The page may still be loading or restricted. Try refreshing.";
-      tabResultCache.set(pinnedTabId, {
-        status: "error",
-        error: errMsg,
-      });
-      if (activeTabId === pinnedTabId) {
-        showError(errMsg);
-        analyzeBtn.disabled = false;
-        analyzeBtnText.textContent = "Analyze";
-        if (reanalyzeBtn) {
-          reanalyzeBtn.disabled = false;
-          reanalyzeBtn.textContent = "🔄 Re-analyze";
-        }
-      }
-      return errMsg;
-    }
-    if (
-      contentToAnalyze.sourceType === "youtube" &&
-      contentToAnalyze.transcriptAvailable === false
-    ) {
-      tabResultCache.set(pinnedTabId, {
-        status: "error",
-        error: "Video transcript unavailable — NutEgg will not process this video.",
-        isTranscriptBlocked: true,
-      });
-      if (activeTabId === pinnedTabId) {
-        applyTranscriptBlock();
-        analyzeBtn.disabled = false;
-        analyzeBtnText.textContent = "Analyze";
-        if (reanalyzeBtn) {
-          reanalyzeBtn.disabled = false;
-          reanalyzeBtn.textContent = "🔄 Re-analyze";
-        }
-      }
-      return "Video transcript unavailable — NutEgg will not process this video.";
-    }
-
-    if (activeTabId === pinnedTabId) {
-      if (isReanalyze) {
-        processedNote.classList.remove("hidden");
-        processedMessage.textContent = "Analyzing content…";
-      }
+      processedMessage.textContent = "Analyzing content…";
       if (reanalyzeBtn) {
         reanalyzeBtn.disabled = true;
         reanalyzeBtn.textContent = "Analyzing…";
       }
-      analyzeBtn.disabled = true;
-      analyzeBtnText.textContent = "Analyzing...";
     }
+    if (historySelect) historySelect.disabled = true;
+    analyzeBtn.disabled = true;
+    analyzeBtnText.textContent = "Analyzing...";
+  }
 
+  try {
     const questions = customQuestionsEl.value
       .split("\n")
       .map((q) => q.trim())
@@ -1953,12 +1935,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     if (historySelect) historySelect.disabled = false;
     const activeCache = tabResultCache.get(activeTabId);
     if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
-      if (reanalyzeBtn) {
-        reanalyzeBtn.disabled = false;
-        reanalyzeBtn.textContent = "🔄 Re-analyze";
-      }
-      analyzeBtn.disabled = false;
-      analyzeBtnText.textContent = analysisResult ? "🔄 Analyze Again" : "Analyze";
+      updateAnalyzeButtonsState();
     }
   }
 }
@@ -1984,12 +1961,7 @@ function showResultsState(result, provenance = null) {
     }
   }
   if (!isReanalyzing) {
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.textContent = "🔄 Re-analyze";
-    }
-    analyzeBtn.disabled = false;
-    analyzeBtnText.textContent = "🔄 Analyze Again";
+    updateAnalyzeButtonsState();
     if (historySelect) historySelect.disabled = false;
   }
   renderHistorySelect(currentNutId);
@@ -2608,9 +2580,6 @@ function showCaptureState() {
   resultsState.classList.add("hidden");
   resultPageInfo.classList.add("hidden");
   captureState.classList.remove("hidden");
-  analyzeBtn.disabled = false;
-  // Label reflects that this URL was processed before
-  analyzeBtnText.textContent = captureHistory.length > 0 ? "🔄 Analyze Again" : "Analyze";
   if (extractedContent) {
     contentPreview.textContent = extractedContent.content || "(No content extracted)";
     if (extractedContent.title) pageTitle.textContent = extractedContent.title;
@@ -2627,6 +2596,7 @@ function showCaptureState() {
   currentNutId = null;
   activeEggTab = null;
   hideMessages();
+  updateAnalyzeButtonsState();
 }
 
 // --- Confirm (add to knowledge base) ---
