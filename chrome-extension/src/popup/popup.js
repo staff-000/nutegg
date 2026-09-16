@@ -127,6 +127,13 @@ let currentTabLoading = false;
  *  and back, the cached result is restored instead of re-extracting. */
 const tabResultCache = new Map();
 
+/** Per-tab extraction sequence numbers. Allows background tab extractions to complete
+ *  and cache cleanly without being aborted when the active tab switches. */
+const tabExtractSeq = new Map();
+
+/** Set of tab IDs currently executing an extraction. */
+const tabsExtracting = new Set();
+
 // --- Init ---
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -313,6 +320,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const cached = tabResultCache.get(tabId);
     if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
       restoreFromTabCache(tabId, cached);
+    } else if (tabsExtracting.has(tabId)) {
+      // Tab is currently retrieving in the background — show retrieving state and let it finish
+      contentPreview.textContent = "Retrieving content…";
+      pageAuthorEl.textContent = "";
+      pagePublishedEl.textContent = "";
+      updateAnalyzeButtonsState();
     } else {
       refreshForCurrentTab();
     }
@@ -345,6 +358,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         const cached = tabResultCache.get(tab.id);
         if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
           restoreFromTabCache(tab.id, cached);
+        } else if (tabsExtracting.has(tab.id)) {
+          contentPreview.textContent = "Retrieving content…";
+          pageAuthorEl.textContent = "";
+          pagePublishedEl.textContent = "";
+          updateAnalyzeButtonsState();
         } else {
           refreshForCurrentTab();
         }
@@ -380,7 +398,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       } else {
         // Background tab finished loading — extract in background if not already cached
         const cached = tabResultCache.get(tabId);
-        if (!cached?.extractedContent && !cached?.analysisResult && !cached?.status) {
+        if (!cached?.extractedContent && !cached?.analysisResult && !cached?.status && !tabsExtracting.has(tabId)) {
           extractPageContent(refreshSeq, tabId);
         }
       }
@@ -390,6 +408,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (changeInfo.url) {
       // URL changed — invalidate its cache
       tabResultCache.delete(tabId);
+      tabExtractSeq.delete(tabId);
+      tabsExtracting.delete(tabId);
       if (isActiveTab) {
         refreshForCurrentTab();
       }
@@ -399,6 +419,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Clean up cache when tabs are closed
   chrome.tabs.onRemoved.addListener((tabId) => {
     tabResultCache.delete(tabId);
+    tabExtractSeq.delete(tabId);
+    tabsExtracting.delete(tabId);
   });
 
   await refreshForCurrentTab();
@@ -432,7 +454,12 @@ async function refreshForCurrentTab(forceExtract = false) {
   let tabUrl = "";
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id != null) activeTabId = tab.id;
+    if (tab?.id != null) {
+      activeTabId = tab.id;
+      if (forceExtract) {
+        tabResultCache.delete(tab.id);
+      }
+    }
     if (tab?.status === "loading") currentTabLoading = true;
     if (tab?.url) {
       tabUrl = tab.url;
@@ -575,9 +602,8 @@ async function restoreFromTabCache(tabId, cached) {
   }
 }
 
-/** 🔄 Refresh button — no-op while a retrieval is already in flight. */
+/** 🔄 Refresh button — cancels any in-flight retrieval on current tab and starts fresh. */
 async function handleRefresh() {
-  if (extractionPending) return; // still retrieving — do nothing
   await refreshForCurrentTab(true);
 }
 
@@ -1308,36 +1334,23 @@ let extractionPending = false;
 
 /**
  * Extract content from the active tab (or background tab when loaded).
- * `seq` guards the UI: a superseded attempt cancels cleanly on tab switch.
+ * Uses per-tab sequence numbers so background extractions finish and cache
+ * cleanly without clobbering or being aborted by tab switches.
  */
 async function extractPageContent(seq = refreshSeq, targetTabId = null) {
-  const isBackground = targetTabId != null && targetTabId !== activeTabId;
-  const isTargetActive = !isBackground;
-
-  if (isTargetActive) {
-    extractionFailed = false;
-    lastLoadWasLoading = false;
-    extractionPending = true;
-    refreshBtn.disabled = true;
-    contentPreview.textContent = "Retrieving content…";
-    pageAuthorEl.textContent = "";
-    pagePublishedEl.textContent = "";
-    updateAnalyzeButtonsState();
-  }
-
-  try {
-    let tabId, tabTitle, tabUrl, tabStatus;
-    if (targetTabId) {
-      try {
-        const tab = await chrome.tabs.get(targetTabId);
-        tabId = tab.id;
-        tabTitle = tab.title;
-        tabUrl = tab.url;
-        tabStatus = tab.status;
-      } catch {
-        return null; // Tab closed
-      }
-    } else {
+  let tabId, tabTitle, tabUrl, tabStatus;
+  if (targetTabId) {
+    try {
+      const tab = await chrome.tabs.get(targetTabId);
+      tabId = tab.id;
+      tabTitle = tab.title;
+      tabUrl = tab.url;
+      tabStatus = tab.status;
+    } catch {
+      return null; // Tab closed
+    }
+  } else {
+    try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) {
         tabId = tab.id;
@@ -1345,65 +1358,86 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
         tabUrl = tab.url;
         tabStatus = tab.status;
       }
-    }
-
-    if (!tabId) {
-      if (isTargetActive) pageTitle.textContent = "Unknown Page";
+    } catch {
       return null;
     }
+  }
 
-    // For background tabs: ONLY extract if content is already loaded!
-    if (isBackground && tabStatus !== "complete") {
-      return null;
-    }
+  if (!tabId) {
+    if (!targetTabId || targetTabId === activeTabId) pageTitle.textContent = "Unknown Page";
+    return null;
+  }
 
-    if (isTargetActive) {
-      if (seq !== refreshSeq) return null;
-      lastLoadWasLoading = tabStatus === "loading";
-      currentTabLoading = tabStatus === "loading";
-      pageTitle.textContent = tabTitle || "Retrieving…";
-      pageUrl.textContent = tabUrl || "";
-      pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
+  const isBackground = tabId !== activeTabId;
+  const isTargetActive = !isBackground;
+
+  // For background tabs: ONLY extract if content is already loaded!
+  if (isBackground && tabStatus !== "complete") {
+    return null;
+  }
+
+  const tabSeq = (tabExtractSeq.get(tabId) || 0) + 1;
+  tabExtractSeq.set(tabId, tabSeq);
+  tabsExtracting.add(tabId);
+
+  if (isTargetActive) {
+    extractionFailed = false;
+    lastLoadWasLoading = false;
+    extractionPending = true;
+    refreshBtn.disabled = false; // Always clickable to cancel and retry!
+    contentPreview.textContent = "Retrieving content…";
+    pageAuthorEl.textContent = "";
+    pagePublishedEl.textContent = "";
+    pageTitle.textContent = tabTitle || "Retrieving…";
+    pageUrl.textContent = tabUrl || "";
+    pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
+    updateAnalyzeButtonsState();
+  }
+
+  try {
+    // If active tab is still loading, wait for it to complete or settle
+    if (tabStatus === "loading" && isTargetActive) {
+      lastLoadWasLoading = true;
+      currentTabLoading = true;
       updateAnalyzeButtonsState();
-
-      // If active tab is still loading, wait for it to complete or settle
-      if (tabStatus === "loading") {
-        await waitForTabComplete(tabId, 6000);
-        if (seq !== refreshSeq) return null;
-        try {
-          const refreshedTab = await chrome.tabs.get(tabId);
-          tabTitle = refreshedTab.title || tabTitle;
-          tabUrl = refreshedTab.url || tabUrl;
+      await waitForTabComplete(tabId, 6000);
+      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
+      try {
+        const refreshedTab = await chrome.tabs.get(tabId);
+        tabTitle = refreshedTab.title || tabTitle;
+        tabUrl = refreshedTab.url || tabUrl;
+        if (activeTabId === tabId) {
           pageTitle.textContent = tabTitle || pageTitle.textContent;
           pageUrl.textContent = tabUrl || pageUrl.textContent;
-        } catch {}
-      }
-
-      await waitForPageSettle(tabId, seq);
-      if (seq !== refreshSeq) return null;
+        }
+      } catch {}
+      await waitForPageSettle(tabId, tabSeq);
+      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
     }
 
-    // Extract content
+    // Extract content (loaded pages jump straight here for instant retrieval)
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await tryExtract(tabId);
-      if (isTargetActive && seq !== refreshSeq) return null;
+      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
+
       if (!response?.success) {
-        if (attempt === 0 && isTargetActive) {
-          await new Promise((r) => setTimeout(r, 600));
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 400));
+          if (tabExtractSeq.get(tabId) !== tabSeq) return null;
           continue;
         }
-        if (isTargetActive) extractionFailed = true;
+        if (activeTabId === tabId) extractionFailed = true;
         break;
       }
 
       const after = await requestPageIdentity(tabId);
-      if (isTargetActive && seq !== refreshSeq) return null;
+      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
       if (
         after?.url &&
         response.content?.url &&
         after.url !== response.content.url
       ) {
-        if (isTargetActive) console.warn("[NutEgg] Page navigated during extraction — retrying");
+        console.warn("[NutEgg] Page navigated during extraction — retrying");
         continue;
       }
 
@@ -1429,23 +1463,24 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       return response.content;
     }
   } catch (err) {
-    if (isTargetActive) {
+    if (activeTabId === tabId) {
       console.error("[NutEgg] Extraction error:", err);
       extractionFailed = true;
     }
   } finally {
-    if (isTargetActive && seq === refreshSeq) {
+    tabsExtracting.delete(tabId);
+    if (activeTabId === tabId && tabExtractSeq.get(tabId) === tabSeq) {
       extractionPending = false;
       refreshBtn.disabled = false;
       updateAnalyzeButtonsState();
     }
   }
 
-  if (isTargetActive && seq === refreshSeq) {
+  if (activeTabId === tabId && tabExtractSeq.get(tabId) === tabSeq) {
     if (extractionFailed && !extractedContent) {
       contentPreview.textContent = "(Could not extract content)";
       showWarning(
-        "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. Click 🔄 to try again, or the panel retries once the page finishes loading."
+        "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. Click 🔄 to try again."
       );
     }
     applyTranscriptBlock();
@@ -1579,15 +1614,15 @@ async function requestPageIdentity(tabId) {
  * content script is unreachable — extraction proceeds and reports failure itself.
  */
 async function waitForPageSettle(tabId, seq) {
-  const deadline = Date.now() + 6000;
+  const deadline = Date.now() + 4000;
   while (Date.now() < deadline) {
-    if (seq !== refreshSeq) return null;
+    if (tabExtractSeq.get(tabId) !== seq) return null;
     const identity = await requestPageIdentity(tabId);
     if (identity && identity.readyState === "complete" && identity.youtubeReady !== false) {
       currentTabLoading = false;
       return identity;
     }
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 300));
   }
   return null; // timed out — extract anyway (the failure path will report)
 }

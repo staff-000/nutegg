@@ -271,7 +271,7 @@ async function fetchYouTubeCaptions() {
     const resp = await fetchWithTimeout(
       `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`,
       {},
-      10000
+      4000
     );
     const html = await resp.text();
     const idx = html.indexOf('"captionTracks"');
@@ -383,7 +383,7 @@ async function fetchInnertubePlayer(videoId) {
         },
       }),
     },
-    8000
+    4000
   );
   if (!resp.ok) return null;
   return resp.json();
@@ -425,7 +425,10 @@ async function fetchTimedtext(tracks) {
     return 0;
   });
 
-  for (const track of sortedTracks) {
+  // Limit candidate tracks to top 3 (avoids iterating through dozens of auto-translations)
+  const candidateTracks = sortedTracks.slice(0, 3);
+
+  for (const track of candidateTracks) {
     const rawUrl = track.baseUrl || track.url;
     if (!rawUrl) continue;
 
@@ -435,20 +438,16 @@ async function fetchTimedtext(tracks) {
       baseUrl.includes("signature=") ||
       baseUrl.includes("sig=");
 
-    // On signed URLs, tampering with query parameters like &fmt=json3 invalidates the signature,
-    // causing YouTube to return an empty <transcript/> with HTTP 200.
-    // Try the signed baseUrl first!
+    // On signed URLs, tampering with query parameters like &fmt=json3 invalidates the signature.
+    // Try baseUrl first!
     const urls = isSigned
-      ? (baseUrl.includes("fmt=") ? [baseUrl] : [baseUrl, `${baseUrl}&fmt=json3`, `${baseUrl}&fmt=srv3`])
-      : (baseUrl.includes("fmt=") ? [baseUrl] : [`${baseUrl}&fmt=json3`, baseUrl, `${baseUrl}&fmt=srv3`]);
+      ? [baseUrl]
+      : (baseUrl.includes("fmt=") ? [baseUrl] : [baseUrl, `${baseUrl}&fmt=json3`]);
 
     for (const url of urls) {
       try {
-        const resp = await fetchWithTimeout(url, {}, 5000);
+        const resp = await fetchWithTimeout(url, {}, 2500);
         if (!resp.ok) {
-          console.warn(
-            `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → HTTP ${resp.status}`
-          );
           continue;
         }
         const text = await resp.text();
@@ -662,12 +661,14 @@ async function readChapterPanel() {
       const label = (b.getAttribute("aria-label") || "").toLowerCase();
       return label === "chapters" || label.includes("chapters");
     });
-    if (button) button.click();
+    if (!button) return [];
+
+    button.click();
 
     const items = await waitFor(() => {
       const els = document.querySelectorAll("ytd-macro-markers-list-item-renderer");
       return els.length > 0 ? els : null;
-    }, 3000);
+    }, 800);
     if (!items) return [];
 
     const chapters = readChapterListDom();
@@ -821,13 +822,17 @@ async function readTranscriptPanel() {
       }
     }
 
+    if (!button && !panelEl) {
+      return "";
+    }
+
     // 3. Wait for transcript segment renderers to appear in the DOM
     const segments = await waitFor(() => {
       const els = document.querySelectorAll(
         "ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer, ytd-transcript-search-panel-renderer ytd-transcript-segment-renderer, ytd-transcript-segment-list-renderer [role='button'], [target-id='engagement-panel-searchable-transcript'] ytd-transcript-segment-renderer"
       );
       return els.length > 0 ? els : null;
-    }, 5000);
+    }, 2000);
     if (!segments || segments.length === 0) return "";
 
     const lines = [...segments]
