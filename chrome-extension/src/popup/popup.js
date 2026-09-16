@@ -189,6 +189,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   settingsBtn.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
+  const reportBugLink = document.getElementById("report-bug-link");
+  reportBugLink?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openGitHubBugReport();
+  });
+  const errorReportBug = document.getElementById("error-report-bug");
+  errorReportBug?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const errMsg = errorMessage?.textContent || "";
+    openGitHubBugReport(errMsg);
+  });
   if (aiCreditPill) {
     aiCreditPill.addEventListener("click", () => {
       if (aiCreditText) aiCreditText.textContent = "Checking...";
@@ -452,7 +463,38 @@ async function restoreFromTabCache(tabId, cached) {
   showProvenance(extractedContent?.metadata || {});
 
   // If analysis is still in progress, show analyzing state; if done, show results; else capture state
-  if (cached.status === "analyzing") {
+  if (cached.status === "retrieving") {
+    if (cached.isReanalyzing && cached.analysisResult) {
+      showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
+      if (reanalyzeBtn) {
+        reanalyzeBtn.disabled = true;
+        reanalyzeBtn.textContent = "Retrieving…";
+      }
+      if (historySelect) historySelect.disabled = true;
+      processedNote.classList.remove("hidden");
+      processedMessage.textContent = "Retrieving page content…";
+    } else {
+      showCaptureState();
+      if (extractedContent) {
+        contentPreview.textContent = extractedContent.content || "(No content extracted)";
+      } else {
+        contentPreview.textContent = "Retrieving content…";
+      }
+      analyzeBtn.disabled = true;
+      analyzeBtnText.textContent = "Retrieving…";
+    }
+  } else if (cached.status === "error") {
+    showCaptureState();
+    showError(cached.error || "Extraction failed.");
+    tabResultCache.delete(tabId);
+    analyzeBtn.disabled = false;
+    analyzeBtnText.textContent = "Analyze";
+    if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.textContent = "🔄 Re-analyze";
+    }
+    if (historySelect) historySelect.disabled = false;
+  } else if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
@@ -1241,9 +1283,24 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
       pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
     }
 
+    // If the tab is still loading, wait for it to complete loading before extracting
+    if (tabStatus === "loading") {
+      await waitForTabComplete(tabId, 15000);
+      if (seq !== refreshSeq && !pinnedTabId) return null;
+      try {
+        const refreshedTab = await chrome.tabs.get(tabId);
+        tabTitle = refreshedTab.title || tabTitle;
+        tabUrl = refreshedTab.url || tabUrl;
+        if (isTargetActive) {
+          pageTitle.textContent = tabTitle || pageTitle.textContent;
+          pageUrl.textContent = tabUrl || pageUrl.textContent;
+        }
+      } catch {}
+    }
+
     // 1. Let the page settle — an early snapshot of a half-rendered or
     // mid-navigation page is not the content the user wants.
-    await waitForPageSettle(tabId, seq);
+    await waitForPageSettle(tabId, seq, pinnedTabId);
     if (seq !== refreshSeq && !pinnedTabId) return null;
 
     // 2. Extract, then verify the page didn't navigate during the fetch
@@ -1298,6 +1355,35 @@ async function extractPageContent(seq = refreshSeq, pinnedTabId = null) {
 }
 
 /**
+ * Wait for a tab to finish loading (status === "complete").
+ * Works for both active and background tabs via chrome.tabs.onUpdated.
+ */
+async function waitForTabComplete(tabId, timeoutMs = 15000) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.status === "complete") return true;
+  } catch {
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    let timer;
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === "complete") {
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve(true);
+      }
+    };
+    timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve(false);
+    }, timeoutMs);
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+/**
  * Extract via the content script, injecting it first when needed.
  * Returns the message response or null (restricted page / unreachable).
  */
@@ -1334,6 +1420,21 @@ async function tryExtract(tabId) {
 async function requestPageIdentity(tabId) {
   try {
     const resp = await chrome.tabs.sendMessage(tabId, { action: "page-identity" });
+    if (resp?.success) return resp;
+  } catch {}
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: [
+        "src/content/utils.js",
+        "src/content/extractors/youtube.js",
+        "src/content/extractors/twitter.js",
+        "src/content/extractors/article.js",
+        "src/content/extractors/generic.js",
+        "src/content/content-script.js",
+      ],
+    });
+    const resp = await chrome.tabs.sendMessage(tabId, { action: "page-identity" });
     return resp?.success ? resp : null;
   } catch {
     return null;
@@ -1342,17 +1443,16 @@ async function requestPageIdentity(tabId) {
 
 /**
  * Poll page-identity until the page settles (document complete, and for
- * YouTube the watch shell rendered), bounded to ~8s. Returns null when the
+ * YouTube the watch shell rendered), bounded to ~10s. Returns null when the
  * content script is unreachable — extraction proceeds and reports failure
  * itself.
  */
-async function waitForPageSettle(tabId, seq) {
-  const deadline = Date.now() + 8000;
+async function waitForPageSettle(tabId, seq, pinnedTabId = null) {
+  const deadline = Date.now() + 10000;
   while (Date.now() < deadline) {
-    if (seq !== refreshSeq) return null;
+    if (seq !== refreshSeq && !pinnedTabId) return null;
     const identity = await requestPageIdentity(tabId);
-    if (!identity) return null;
-    if (identity.readyState === "complete" && identity.youtubeReady !== false) {
+    if (identity && identity.readyState === "complete" && identity.youtubeReady !== false) {
       return identity;
     }
     await new Promise((r) => setTimeout(r, 400));
@@ -1477,6 +1577,18 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   // even if they switch tabs during the (potentially long) pipeline.
   const pinnedTabId = activeTabId;
 
+  if (pinnedTabId) {
+    const existingCache = tabResultCache.get(pinnedTabId) || {};
+    tabResultCache.set(pinnedTabId, {
+      ...existingCache,
+      status: "retrieving",
+      isReanalyzing: isReanalyze,
+      analysisResult: isReanalyze ? (analysisResult || existingCache.analysisResult) : null,
+      captureHistory: [...captureHistory],
+      currentNutId: currentNutId || existingCache.currentNutId,
+    });
+  }
+
   isReanalyzing = isReanalyze;
   if (activeTabId === pinnedTabId) {
     hideMessages();
@@ -1519,7 +1631,19 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
     if (!contentToAnalyze) {
       if (activeTabId === pinnedTabId) {
+        tabResultCache.delete(pinnedTabId);
         showError("Could not extract page content. Try refreshing.");
+        analyzeBtn.disabled = false;
+        analyzeBtnText.textContent = "Analyze";
+        if (reanalyzeBtn) {
+          reanalyzeBtn.disabled = false;
+          reanalyzeBtn.textContent = "🔄 Re-analyze";
+        }
+      } else {
+        tabResultCache.set(pinnedTabId, {
+          status: "error",
+          error: "Could not extract page content. Try refreshing.",
+        });
       }
       return "Could not extract page content. Try refreshing.";
     }
@@ -1527,8 +1651,15 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       contentToAnalyze.sourceType === "youtube" &&
       contentToAnalyze.transcriptAvailable === false
     ) {
+      tabResultCache.delete(pinnedTabId);
       if (activeTabId === pinnedTabId) {
         applyTranscriptBlock();
+        analyzeBtn.disabled = false;
+        analyzeBtnText.textContent = "Analyze";
+        if (reanalyzeBtn) {
+          reanalyzeBtn.disabled = false;
+          reanalyzeBtn.textContent = "🔄 Re-analyze";
+        }
       }
       return "Video transcript unavailable — NutEgg will not process this video.";
     }
@@ -2630,4 +2761,41 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
+}
+
+/** Redirect to GitHub issues prefilled with bug report template. */
+function openGitHubBugReport(errorContext = "") {
+  let contentUrl = "";
+  if (extractedContent?.url) {
+    contentUrl = extractedContent.url;
+  } else if (pageUrl?.textContent && pageUrl.textContent !== "Loading...") {
+    contentUrl = pageUrl.textContent;
+  }
+
+  const manifest = chrome.runtime?.getManifest?.() || {};
+  const version = manifest.version || "0.0.0";
+  const observed = errorContext
+    ? `Encountered error: ${errorContext}`
+    : "<!-- Describe what actually happened (e.g. error message, unexpected output, stuck on retrieving/analyzing) -->";
+
+  const body = [
+    "### URL of the content",
+    contentUrl || "[Enter the URL of the article, video, or webpage here]",
+    "",
+    "### Expected behavior",
+    "<!-- A clear description of what you expected to happen -->",
+    "",
+    "",
+    "### Observed behavior",
+    observed,
+    "",
+    "",
+    "### Environment",
+    `- NutEgg Extension Version: v${version}`,
+    `- Browser: ${navigator.userAgent || "Chrome"}`,
+  ].join("\n");
+
+  const title = errorContext ? `[Bug]: ${errorContext.slice(0, 60)}` : "[Bug]: ";
+  const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  window.open(issueUrl, "_blank");
 }

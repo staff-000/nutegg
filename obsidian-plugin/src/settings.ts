@@ -98,6 +98,18 @@ export class NutEggSettingTab extends PluginSettingTab {
           })
       );
 
+    // Bug Report & Feedback Card
+    new Setting(containerEl)
+      .setName("Report a Bug")
+      .setDesc("Found an issue, unexpected behavior, or need help? Report it on GitHub issues.")
+      .addButton((btn) =>
+        btn
+          .setButtonText("🐛 Report Bug on GitHub ↗")
+          .onClick(() => {
+            this.plugin.openBugReport();
+          })
+      );
+
     // ==========================================
     // Vault Paths (always visible)
     // ==========================================

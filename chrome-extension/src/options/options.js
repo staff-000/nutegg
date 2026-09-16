@@ -51,6 +51,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
   });
+
+  const reportBugBtn = document.getElementById("report-bug-btn");
+  if (reportBugBtn) {
+    reportBugBtn.addEventListener("click", () => {
+      const manifest = chrome.runtime?.getManifest?.() || {};
+      const version = manifest.version || "0.0.0";
+      const body = [
+        "### URL of the content",
+        "[Enter the URL of the article, video, or webpage here]",
+        "",
+        "### Expected behavior",
+        "<!-- A clear description of what you expected to happen -->",
+        "",
+        "",
+        "### Observed behavior",
+        "<!-- Describe what actually happened (e.g. error message, unexpected output, stuck on retrieving/analyzing) -->",
+        "",
+        "",
+        "### Environment",
+        `- NutEgg Extension Version: v${version}`,
+        `- Browser: ${navigator.userAgent || "Chrome"}`,
+      ].join("\n");
+
+      const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent("[Bug]: ")}&body=${encodeURIComponent(body)}`;
+      window.open(issueUrl, "_blank");
+    });
+  }
 });
 
 async function handleSave() {

@@ -183,6 +183,15 @@ export default class NutEggPlugin extends Plugin {
       },
     });
 
+    // Command: Report a bug on GitHub
+    this.addCommand({
+      id: "nutegg-report-bug",
+      name: "Report a bug on GitHub",
+      callback: () => {
+        this.openBugReport();
+      },
+    });
+
     // Status Bar Item for AI Credit / Balance
     this.creditStatusBarItem = this.addStatusBarItem();
     this.creditStatusBarItem.addClass("nutegg-statusbar-credit");
@@ -247,6 +256,45 @@ export default class NutEggPlugin extends Plugin {
     } catch {
       this.creditStatusBarItem.setText("🪙 AI");
     }
+  }
+
+  /**
+   * Redirect to GitHub issues prefilled with bug report template.
+   */
+  openBugReport(contentUrl: string = "", errorContext: string = ""): void {
+    const version = this.manifest.version || "0.0.0";
+    const osInfo =
+      typeof process !== "undefined"
+        ? `${process.platform} ${process.arch}`
+        : navigator.userAgent || "Desktop";
+    const observed = errorContext
+      ? `Encountered error: ${errorContext}`
+      : "<!-- Describe what actually happened (e.g. error message, unexpected output, failed merge, sync issue) -->";
+
+    const body = [
+      "### URL of the content",
+      contentUrl || "[Enter the URL of the article, video, or webpage here if applicable]",
+      "",
+      "### Expected behavior",
+      "<!-- A clear description of what you expected to happen -->",
+      "",
+      "",
+      "### Observed behavior",
+      observed,
+      "",
+      "",
+      "### Environment",
+      `- NutEgg Obsidian Plugin Version: v${version}`,
+      `- OS / Platform: ${osInfo}`,
+      `- AI Provider: ${this.settings.aiProvider}`,
+      `- AI Model: ${this.settings.aiModel}`,
+    ].join("\n");
+
+    const title = errorContext ? `[Bug]: ${errorContext.slice(0, 60)}` : "[Bug]: ";
+    const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent(
+      title
+    )}&body=${encodeURIComponent(body)}`;
+    window.open(issueUrl, "_blank");
   }
 
   async onunload(): Promise<void> {
