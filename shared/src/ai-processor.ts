@@ -105,12 +105,12 @@ export class AIProcessor {
   private getContentOutputRules(): string {
     const langSetting =
       this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeContentLanguage ||
+      this.host?.settings?.chromeAiOutputLanguage ||
       "same-as-content";
-    const isSame = langSetting === "same-as-content";
+    const isSame = !langSetting || langSetting === "same-as-content";
     const outputLanguage = isSame
       ? "the same language as the captured content"
-      : langSetting;
+      : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
 
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, { output_language: outputLanguage }).trim();
@@ -133,16 +133,16 @@ export class AIProcessor {
 
     const pluginSetting =
       this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeContentLanguage;
+      this.host?.settings?.chromeAiOutputLanguage;
     const pluginLang =
       pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
 
     const outputLanguage = lang
       ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang)
         ? `the same language as this reference: "${lang}"`
-        : lang
+        : `${lang} (translate into ${lang} even if the source content is in a different language)`
       : pluginLang
-      ? pluginLang
+      ? `${pluginLang} (translate into ${pluginLang} even if the source content is in a different language)`
       : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
 
     const tpl = this.getPrompt("sharedOutputRules");
@@ -946,13 +946,13 @@ export class AIProcessor {
 
     const pluginSetting =
       this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeContentLanguage;
+      this.host?.settings?.chromeAiOutputLanguage;
     const pluginLang =
       pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
 
     const outputLanguage =
       egg.language ||
-      pluginLang ||
+      (pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source is in a different language)` : "") ||
       "the same language as this egg's existing knowledge";
 
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {

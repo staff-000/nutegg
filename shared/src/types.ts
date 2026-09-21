@@ -63,7 +63,7 @@ export interface NutEggAISettings {
   chromeAiApiKey?: string;
   chromeAiModel?: string;
   chromeAiEndpoint?: string;
-  chromeContentLanguage?: string;
+  chromeAiOutputLanguage?: string;
   [key: string]: any;
 }
 

@@ -204,8 +204,18 @@ function initAiSettings(stored) {
     aiLocalEndpoint.value = stored.chromeAiLocalEndpoint;
   }
 
-  if (stored.chromeAiOutputLanguage && aiLangSelect) {
-    aiLangSelect.value = stored.chromeAiOutputLanguage;
+  const savedLang = stored.chromeAiOutputLanguage || stored.contentOutputLanguage;
+  if (savedLang && aiLangSelect) {
+    aiLangSelect.value = savedLang;
+  }
+
+  if (aiLangSelect) {
+    aiLangSelect.addEventListener("change", async () => {
+      await chrome.storage.local.set({
+        chromeAiOutputLanguage: aiLangSelect.value,
+        contentOutputLanguage: aiLangSelect.value,
+      });
+    });
   }
 
   aiProviderSelect.addEventListener("change", () => {
@@ -318,6 +328,7 @@ async function handleAiSave() {
     chromeAiApiKey: apiKey,
     chromeAiLocalEndpoint: localEndpoint,
     chromeAiOutputLanguage: outputLanguage,
+    contentOutputLanguage: outputLanguage,
   });
 
   showAiResult("AI Settings saved successfully.", "ok");

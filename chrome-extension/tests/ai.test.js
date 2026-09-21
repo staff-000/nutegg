@@ -87,3 +87,14 @@ test("AI Processor - AIProcessor class available in Chrome bundle", () => {
   assert.equal(typeof processor.analyzeEggs, "function");
   assert.equal(typeof processor.analyze, "function");
 });
+
+test("AI Processor - follows chromeAiOutputLanguage setting", () => {
+  const processorDefault = new AIProcessor({ settings: {} });
+  const rulesDefault = processorDefault.getContentOutputRules();
+  assert.ok(rulesDefault.includes("the same language as the captured content"));
+
+  const processorZh = new AIProcessor({ settings: { chromeAiOutputLanguage: "Chinese" } });
+  const rulesZh = processorZh.getContentOutputRules();
+  assert.ok(rulesZh.includes("Chinese"));
+  assert.ok(rulesZh.includes("translate into Chinese"));
+});

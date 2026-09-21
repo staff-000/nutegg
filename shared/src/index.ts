@@ -30,8 +30,16 @@ export async function analyzeContentStandalone(
   settings: NutEggAISettings
 ): Promise<ContentAnalysis> {
   const config = resolveConfig(settings);
+  const language =
+    settings.contentOutputLanguage ||
+    settings.chromeAiOutputLanguage ||
+    "same-as-content";
   const host: AIProcessorHost = {
-    settings,
+    settings: {
+      ...settings,
+      contentOutputLanguage: language,
+      chromeAiOutputLanguage: language,
+    },
     aiClient: {
       chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 16384, config),
     },
@@ -50,8 +58,16 @@ export async function askFollowUpStandalone(
   settings: NutEggAISettings
 ): Promise<string> {
   const config = resolveConfig(settings);
+  const language =
+    settings.contentOutputLanguage ||
+    settings.chromeAiOutputLanguage ||
+    "same-as-content";
   const host: AIProcessorHost = {
-    settings,
+    settings: {
+      ...settings,
+      contentOutputLanguage: language,
+      chromeAiOutputLanguage: language,
+    },
     aiClient: {
       chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 2000, config),
     },

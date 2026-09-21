@@ -40,8 +40,12 @@ async function loadChromeAiSettings() {
     "chromeAiLocalEndpoint",
     "chromeAiLocalType",
     "chromeAiOutputLanguage",
+    "contentOutputLanguage",
     "chromeAiMaxTokens",
   ]);
+  const lang = stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
+  stored.contentOutputLanguage = lang;
+  stored.chromeAiOutputLanguage = lang;
   return stored;
 }
 

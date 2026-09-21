@@ -1478,9 +1478,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     }
     /** Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage). */
     getContentOutputRules() {
-      const langSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeContentLanguage || "same-as-content";
-      const isSame = langSetting === "same-as-content";
-      const outputLanguage = isSame ? "the same language as the captured content" : langSetting;
+      const langSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage || "same-as-content";
+      const isSame = !langSetting || langSetting === "same-as-content";
+      const outputLanguage = isSame ? "the same language as the captured content" : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
       const tpl = this.getPrompt("sharedOutputRules");
       return renderPrompt(tpl, { output_language: outputLanguage }).trim();
     }
@@ -1494,9 +1494,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       } else {
         lang = (eggOrLanguage || "").trim();
       }
-      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeContentLanguage;
+      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
       const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-      const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : lang : pluginLang ? pluginLang : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
+      const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : `${lang} (translate into ${lang} even if the source content is in a different language)` : pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source content is in a different language)` : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
       const tpl = this.getPrompt("sharedOutputRules");
       return renderPrompt(tpl, {
         output_language: outputLanguage
@@ -2085,9 +2085,9 @@ A: ${qa.answer}`).join("\n")}` : "";
         } catch {
         }
       }
-      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeContentLanguage;
+      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
       const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-      const outputLanguage = egg.language || pluginLang || "the same language as this egg's existing knowledge";
+      const outputLanguage = egg.language || (pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
       const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
         egg_file: fileName,
         output_language: outputLanguage,
@@ -2204,8 +2204,13 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   // ../shared/src/index.ts
   async function analyzeContentStandalone(payload, settings) {
     const config = resolveConfig(settings);
+    const language = settings.contentOutputLanguage || settings.chromeAiOutputLanguage || "same-as-content";
     const host = {
-      settings,
+      settings: {
+        ...settings,
+        contentOutputLanguage: language,
+        chromeAiOutputLanguage: language
+      },
       aiClient: {
         chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 16384, config)
       }
@@ -2215,8 +2220,13 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   }
   async function askFollowUpStandalone(payload, question, priorQa = [], settings) {
     const config = resolveConfig(settings);
+    const language = settings.contentOutputLanguage || settings.chromeAiOutputLanguage || "same-as-content";
     const host = {
-      settings,
+      settings: {
+        ...settings,
+        contentOutputLanguage: language,
+        chromeAiOutputLanguage: language
+      },
       aiClient: {
         chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 2e3, config)
       }
