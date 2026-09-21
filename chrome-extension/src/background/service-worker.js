@@ -32,6 +32,7 @@ function getServerUrl() {
 
 async function loadChromeAiSettings() {
   const stored = await chrome.storage.local.get([
+    "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
     "chromeAiModel",
@@ -98,11 +99,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "check-chrome-ai") {
     loadChromeAiSettings().then((settings) => {
+      const enabled = Boolean(settings.chromeAiEnabled);
       const provider = settings.chromeAiProvider || "gemini";
       const isLocal = provider === "local";
       const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
       sendResponse({
-        configured: hasKey,
+        enabled,
+        configured: enabled && hasKey,
         provider,
         model: settings.chromeAiModel || (typeof PROVIDER_CATALOG !== "undefined" ? PROVIDER_CATALOG[provider]?.defaultModel : "") || "",
       });
@@ -195,6 +198,14 @@ async function handleAnalyze(payload) {
 
   // Obsidian is offline -> Fall back to Chrome Standalone AI
   const aiSettings = await loadChromeAiSettings();
+  if (!aiSettings.chromeAiEnabled) {
+    return {
+      error: "Obsidian is offline and Chrome-only AI is disabled. Please start Obsidian or enable Chrome-only AI in Settings.",
+      errorCode: "chrome_ai_disabled",
+      mode: "offline",
+    };
+  }
+
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
 
@@ -312,6 +323,14 @@ async function handleAsk(payload) {
 
   // Obsidian is offline -> Chrome AI
   const aiSettings = await loadChromeAiSettings();
+  if (!aiSettings.chromeAiEnabled) {
+    return {
+      error: "Obsidian is offline and Chrome-only AI is disabled.",
+      errorCode: "chrome_ai_disabled",
+      answers: [],
+    };
+  }
+
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
 

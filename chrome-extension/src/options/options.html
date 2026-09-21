@@ -30,7 +30,20 @@
       </div>
     </section>
 
-    <section class="option-group" id="ai-config-section">
+    <section class="option-group" id="standalone-toggle-group">
+      <h2>Standalone Mode (Optional)</h2>
+      <div class="option-row standalone-toggle-row">
+        <label class="toggle-checkbox-label" for="ai-enable-standalone">
+          <input type="checkbox" id="ai-enable-standalone">
+          <span>Use Chrome-only AI (when Obsidian is offline)</span>
+        </label>
+        <p class="hint">
+          Allows Chrome to run Stage 1 content analysis and summaries directly in the browser when Obsidian is closed.
+        </p>
+      </div>
+    </section>
+
+    <section class="option-group hidden" id="ai-config-section">
       <h2>AI Configuration (Standalone Mode)</h2>
       
       <div id="ai-status-banner" class="ai-status-banner obsidian-offline">

@@ -102,6 +102,7 @@ const chromeActionsCard = document.getElementById("chrome-actions-card");
 
 let extractedContent = null;
 let serverOnline = false;
+let chromeAiEnabled = false;
 let chromeAiConfigured = false;
 let chromeAiProvider = "";
 let chromeAiModel = "";
@@ -250,6 +251,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (openSettingsKeyBtn) {
     openSettingsKeyBtn.addEventListener("click", () => {
       chrome.runtime.openOptionsPage();
+    });
+  }
+  if (aiKeyMissingBanner) {
+    aiKeyMissingBanner.addEventListener("click", (e) => {
+      if (e.target && (e.target.id === "open-settings-enable-ai-btn" || e.target.closest("#open-settings-enable-ai-btn"))) {
+        chrome.tabs.create({ url: chrome.runtime.getURL("src/options/options.html?enableAi=1") });
+        return;
+      }
+      if (e.target && (e.target.id === "open-settings-key-btn" || e.target.closest(".key-banner-link-btn"))) {
+        chrome.runtime.openOptionsPage();
+      }
     });
   }
   questionsToggle.addEventListener("click", () => {
@@ -1211,10 +1223,12 @@ async function checkServerStatus() {
     // Check Chrome AI config status
     try {
       const chromeAi = await chrome.runtime.sendMessage({ action: "check-chrome-ai" });
+      chromeAiEnabled = chromeAi?.enabled || false;
       chromeAiConfigured = chromeAi?.configured || false;
       chromeAiProvider = chromeAi?.provider || "";
       chromeAiModel = chromeAi?.model || "";
     } catch {
+      chromeAiEnabled = false;
       chromeAiConfigured = false;
     }
 
@@ -1257,12 +1271,37 @@ function updateCaptureBanners() {
   }
 
   // Obsidian is offline
-  if (!chromeAiConfigured) {
-    aiKeyMissingBanner?.classList.remove("hidden");
-    chromeModeTipBanner?.classList.add("hidden");
-  } else {
+  if (chromeAiConfigured) {
     aiKeyMissingBanner?.classList.add("hidden");
     chromeModeTipBanner?.classList.remove("hidden");
+  } else {
+    chromeModeTipBanner?.classList.add("hidden");
+    if (aiKeyMissingBanner) {
+      aiKeyMissingBanner.classList.remove("hidden");
+      if (chromeAiEnabled) {
+        aiKeyMissingBanner.innerHTML = `
+          <span class="key-banner-icon">⚠️</span>
+          <div class="key-banner-content">
+            <strong>AI Key Required:</strong> Standalone Chrome AI is enabled, but no API key is configured.
+            <div class="key-banner-actions">
+              <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">⚙️ Open Settings to Add Key</button>
+              <span>or <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">start Obsidian</a></span>
+            </div>
+          </div>
+        `;
+      } else {
+        aiKeyMissingBanner.innerHTML = `
+          <span class="key-banner-icon">⚪</span>
+          <div class="key-banner-content">
+            <strong>Obsidian is offline:</strong> Start Obsidian to capture, or enable standalone Chrome AI in Settings.
+            <div class="key-banner-actions">
+              <button id="open-settings-enable-ai-btn" type="button" class="key-banner-link-btn">⚡ Enable Chrome AI</button>
+              <span>or <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">start Obsidian</a></span>
+            </div>
+          </div>
+        `;
+      }
+    }
   }
 }
 
@@ -1286,6 +1325,9 @@ function updateServerStatusIndicator() {
   if (chromeAiConfigured) {
     serverStatus.className = "status-dot chrome-ai";
     updateServerStatusTooltip("chrome-ai", null, chromeAiProvider);
+  } else if (chromeAiEnabled) {
+    serverStatus.className = "status-dot warning";
+    updateServerStatusTooltip("chrome-no-key", null, chromeAiProvider);
   } else {
     serverStatus.className = "status-dot offline";
     updateServerStatusTooltip("offline");
@@ -1318,11 +1360,16 @@ function updateServerStatusTooltip(state, version = null, extra = null) {
     title.textContent = "Using Chrome AI";
     sub.textContent = `${extra || "Standalone"} · Stage 1 content analysis`;
     serverStatus.setAttribute("aria-label", `Using Chrome AI (${extra || "Standalone"})`);
+  } else if (state === "chrome-no-key") {
+    tooltip.className = "status-tooltip warning";
+    title.textContent = "Chrome AI (No Key)";
+    sub.textContent = "Add API key in Chrome Settings";
+    serverStatus.setAttribute("aria-label", "Chrome AI is enabled but no API key is configured");
   } else {
     tooltip.className = "status-tooltip offline";
-    title.textContent = "NutEgg is offline";
-    sub.textContent = "Start Obsidian or add AI key in Chrome Settings";
-    serverStatus.setAttribute("aria-label", "NutEgg is offline. Start Obsidian or configure Chrome AI key");
+    title.textContent = "Obsidian is offline";
+    sub.textContent = "Start Obsidian or enable Chrome AI in Settings";
+    serverStatus.setAttribute("aria-label", "Obsidian is offline. Start Obsidian or enable Chrome AI");
   }
 }
 
@@ -1360,8 +1407,13 @@ function getAnalyzeNotReadyReason() {
   if (isTranscriptBlocked()) {
     return "Video transcript is unavailable — NutEgg cannot analyze videos without transcripts.";
   }
-  if (!serverOnline && !chromeAiConfigured) {
-    return "Obsidian is offline and no AI key is configured in Chrome settings. Please configure an API key in Settings or start Obsidian.";
+  if (!serverOnline) {
+    if (!chromeAiEnabled) {
+      return "Obsidian is offline. Please start Obsidian or enable Chrome-only AI in Settings.";
+    }
+    if (!chromeAiConfigured) {
+      return "Chrome-only AI is enabled, but no API key is configured. Please configure an API key in Settings or start Obsidian.";
+    }
   }
   return null;
 }

@@ -19,7 +19,9 @@ const testResult = document.getElementById("test-result");
 const shortcutsLink = document.getElementById("shortcuts-link");
 
 // AI configuration elements
+const aiConfigSection = document.getElementById("ai-config-section");
 const aiStatusBanner = document.getElementById("ai-status-banner");
+const aiEnableStandalone = document.getElementById("ai-enable-standalone");
 const aiProviderSelect = document.getElementById("ai-provider-select");
 const aiModelSelect = document.getElementById("ai-model-select");
 const aiModelCustom = document.getElementById("ai-model-custom");
@@ -48,6 +50,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const stored = await chrome.storage.local.get([
     "serverPort",
     "analysisMode",
+    "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
     "chromeAiModel",
@@ -124,22 +127,60 @@ async function checkObsidianForAiBanner(port) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2000);
 
+  const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
+
   try {
     const resp = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     if (resp.ok) {
       aiStatusBanner.className = "ai-status-banner obsidian-online";
-      aiStatusBanner.innerHTML = "🟢 <strong>Obsidian is currently connected.</strong> NutEgg uses Obsidian's AI configuration and vault knowledge tree by default. The settings below will act as your fallback when Obsidian is closed.";
+      aiStatusBanner.innerHTML = "🟢 <strong>Obsidian is currently connected.</strong> NutEgg uses Obsidian's AI configuration and vault knowledge tree by default." + (isEnabled ? " The settings below will act as your fallback when Obsidian is closed." : "");
       return;
     }
   } catch {}
 
   aiStatusBanner.className = "ai-status-banner obsidian-offline";
-  aiStatusBanner.innerHTML = "🟠 <strong>Obsidian is currently offline.</strong> NutEgg will run in standalone mode using the AI configuration below for fast content verdicts and summaries.";
+  if (isEnabled) {
+    aiStatusBanner.innerHTML = "🟠 <strong>Obsidian is currently offline.</strong> NutEgg will run in standalone mode using the AI configuration below for fast content verdicts and summaries.";
+  } else {
+    aiStatusBanner.innerHTML = "⚪ <strong>Obsidian is currently offline.</strong> Standalone Chrome AI is turned off. Start Obsidian to capture, or enable the option below.";
+  }
 }
 
 function initAiSettings(stored) {
   if (!aiProviderSelect || typeof PROVIDER_CATALOG === "undefined") return;
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceEnableAi = urlParams.get("enableAi") === "1" || urlParams.get("enableAi") === "true";
+
+  // Standalone mode toggle
+  const isEnabled = forceEnableAi || Boolean(stored.chromeAiEnabled);
+  if (aiEnableStandalone) {
+    aiEnableStandalone.checked = isEnabled;
+    if (isEnabled) {
+      aiConfigSection?.classList.remove("hidden");
+      if (forceEnableAi) {
+        chrome.storage.local.set({ chromeAiEnabled: true });
+        setTimeout(() => {
+          aiConfigSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    } else {
+      aiConfigSection?.classList.add("hidden");
+    }
+
+    aiEnableStandalone.addEventListener("change", async () => {
+      const checked = aiEnableStandalone.checked;
+      if (checked) {
+        aiConfigSection?.classList.remove("hidden");
+        aiConfigSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        aiConfigSection?.classList.add("hidden");
+      }
+      await chrome.storage.local.set({ chromeAiEnabled: checked });
+      checkObsidianForAiBanner(stored.serverPort || DEFAULT_PORT);
+    });
+  }
 
   // Populate providers
   aiProviderSelect.innerHTML = "";
@@ -269,7 +310,9 @@ async function handleAiSave() {
   const localEndpoint = aiLocalEndpoint ? aiLocalEndpoint.value.trim() : "";
   const outputLanguage = aiLangSelect ? aiLangSelect.value : "same-as-content";
 
+  const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
   await chrome.storage.local.set({
+    chromeAiEnabled: isEnabled,
     chromeAiProvider: providerId,
     chromeAiModel: model,
     chromeAiApiKey: apiKey,
