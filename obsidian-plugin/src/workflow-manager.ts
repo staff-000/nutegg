@@ -1,7 +1,7 @@
 import { Notice, TAbstractFile, TFile } from "obsidian";
 import type NutEggPlugin from "./main";
 import { PROMPTS } from "./prompt-templates";
-import workflowReadmeTpl from "./workflow/README.md";
+import workflowReadmeTpl from "../../shared/workflow/README.md";
 
 export type WorkflowPromptKey =
   | "contentAnalysis"

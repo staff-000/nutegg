@@ -161,10 +161,10 @@ if [[ "$REMOTE_MODE" == true ]]; then
       else
         echo "   ⚠️  Warning: manifest.json not found inside $ZIP_FILE"
       fi
-      if unzip -l "$ZIP_FILE" 2>/dev/null | grep -F "src/ai/prompts.js" >/dev/null 2>&1; then
-        echo "   ✅ Chrome AI prompts verified (src/ai/prompts.js included)"
+      if unzip -l "$ZIP_FILE" 2>/dev/null | grep -F "src/ai/ai-core.js" >/dev/null 2>&1; then
+        echo "   ✅ Chrome AI core verified (src/ai/ai-core.js included)"
       else
-        echo "   ⚠️  Warning: src/ai/prompts.js not found inside $ZIP_FILE"
+        echo "   ⚠️  Warning: src/ai/ai-core.js not found inside $ZIP_FILE"
       fi
     fi
   else
@@ -188,9 +188,9 @@ else
   echo "   ✅ Build complete ($(du -h "$PLUGIN_DIR/main.js" | cut -f1))"
   echo ""
 
-  echo "🌐 Building Chrome extension prompts..."
+  echo "🌐 Building Chrome extension AI engine..."
   (cd "$EXTENSION_DIR" && npm run build 2>&1 | sed 's/^/   /')
-  echo "   ✅ Prompts compiled to $EXTENSION_DIR/src/ai/prompts.js"
+  echo "   ✅ AI engine compiled to $EXTENSION_DIR/src/ai/ai-core.js"
   echo ""
 
   echo "📋 Copying plugin files to Obsidian vault..."

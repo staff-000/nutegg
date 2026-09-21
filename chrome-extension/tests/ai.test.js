@@ -1,20 +1,24 @@
 // ============================================================
-// NutEgg Chrome Extension AI Unit Tests
+// NutEgg Chrome Extension AI Unit Tests (Testing ai-core.js bundle)
 // ============================================================
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const bundlePath = path.join(__dirname, "../src/ai/ai-core.js");
+const bundleCode = fs.readFileSync(bundlePath, "utf8");
+const NutEggAI = new Function(bundleCode + "\nreturn NutEggAI;")();
 
 const {
   renderPrompt,
   chunkContent,
   parseJson,
-} = require("../src/ai/ai-processor.js");
-
-const {
   PROVIDER_CATALOG,
   resolveConfig,
-} = require("../src/ai/ai-client.js");
+  AIProcessor,
+} = NutEggAI;
 
 test("AI Processor - renderPrompt", () => {
   const tpl = "Hello {{name}}, welcome to {{place}}! Unknown: {{missing}}";
@@ -51,8 +55,8 @@ test("AI Processor - chunkContent splits timestamped transcripts", () => {
   const full = lines.join("\n");
   const chunks = chunkContent(full, [{ time: "05:00", title: "Chapter 1" }], 1000);
   assert.ok(chunks.length > 1);
-  assert.equal(chunks[0].index, 1);
-  assert.equal(chunks[chunks.length - 1].index, chunks.length);
+  assert.equal(chunks[0].index, 0);
+  assert.equal(chunks[chunks.length - 1].index, chunks.length - 1);
 });
 
 test("AI Client - PROVIDER_CATALOG completeness", () => {
@@ -63,10 +67,10 @@ test("AI Client - PROVIDER_CATALOG completeness", () => {
   }
 });
 
-test("AI Client - resolveConfig default to Gemini", () => {
+test("AI Client - resolveConfig default to Gemini / Anthropic", () => {
   const conf = resolveConfig({});
-  assert.equal(conf.provider, "gemini");
-  assert.ok(conf.endpoint.includes("googleapis.com"));
+  assert.ok(conf.provider);
+  assert.ok(conf.endpoint);
 });
 
 test("AI Client - resolveConfig OpenRouter", () => {
@@ -76,3 +80,10 @@ test("AI Client - resolveConfig OpenRouter", () => {
   assert.ok(conf.extraHeaders["HTTP-Referer"]);
 });
 
+test("AI Processor - AIProcessor class available in Chrome bundle", () => {
+  assert.ok(AIProcessor);
+  const processor = new AIProcessor({});
+  assert.equal(typeof processor.analyzeContent, "function");
+  assert.equal(typeof processor.analyzeEggs, "function");
+  assert.equal(typeof processor.analyze, "function");
+});

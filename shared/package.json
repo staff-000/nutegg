@@ -1,0 +1,9 @@
+{
+  "name": "@nutegg/shared",
+  "version": "1.0.0",
+  "description": "Shared AI engine for NutEgg (Obsidian plugin & Chrome extension)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true
+}
+

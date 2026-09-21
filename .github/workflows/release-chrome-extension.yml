@@ -33,7 +33,9 @@ jobs:
       - name: Build extension artifacts
         run: |
           echo "Building Chrome extension in $EXT_DIR..."
-          if [ -f "$EXT_DIR/build-prompts.js" ]; then
+          if [ -f "$EXT_DIR/build.js" ]; then
+            node "$EXT_DIR/build.js"
+          elif [ -f "$EXT_DIR/build-prompts.js" ]; then
             node "$EXT_DIR/build-prompts.js"
           fi
 

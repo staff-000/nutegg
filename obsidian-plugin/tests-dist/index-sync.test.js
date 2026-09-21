@@ -988,7 +988,7 @@ ${line}
   }
 };
 
-// src/workflow/content-analysis.md
+// ../shared/workflow/content-analysis.md
 var content_analysis_default = `You are a knowledge curator. Analyze the content below following the Task.
 
 ## Content to Analyze
@@ -1028,7 +1028,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 {{shared_output_rules}}
 `;
 
-// src/workflow/egg-analysis.md
+// ../shared/workflow/egg-analysis.md
 var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge entries from the content below according to this egg's instructions.
 
 ## Egg Instructions
@@ -1068,7 +1068,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/follow-up.md
+// ../shared/workflow/follow-up.md
 var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions about this content.
 
 ## Content to Analyze
@@ -1096,13 +1096,13 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/egg-routing.md
+// ../shared/workflow/egg-routing.md
 var egg_routing_default = 'Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".\n\n## Content\nTitle: {{title}}\nURL: {{url}}\n{{content}}\n\n## Egg Index\n{{index}}\n\nReturn matching file names (one per line):\n';
 
-// src/workflow/content-task-default.md
+// ../shared/workflow/content-task-default.md
 var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
 
-// src/workflow/merge-unprocessed.md
+// ../shared/workflow/merge-unprocessed.md
 var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
 
 ## Formatting Rules
@@ -1135,7 +1135,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 - Output Language: write ALL output text (knowledge entries, explanations) in {{output_language}}. Keep JSON keys in English.
 `;
 
-// src/workflow/aggregate-content.md
+// ../shared/workflow/aggregate-content.md
 var aggregate_content_default = `You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.
 
 ## Content
@@ -1165,10 +1165,10 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/aggregate-egg.md
+// ../shared/workflow/aggregate-egg.md
 var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely.\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\n## Output Format\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {"question": "exact question text", "answer": "direct answer"}\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\n## Output Rules:\n{{shared_output_rules}}\n';
 
-// src/workflow/egg-compare.md
+// ../shared/workflow/egg-compare.md
 var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
 Your task is to compare newly extracted candidate knowledge entries from a source against this egg's existing Knowledge tree and Unprocessed entries to identify genuinely NEW insights and decide if the source is worth reading.
 
@@ -1223,13 +1223,13 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {{shared_output_rules}}
 `;
 
-// src/workflow/localize-egg.md
+// ../shared/workflow/localize-egg.md
 var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
-// src/workflow/shared-output-rules.md
+// ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
 
-// src/prompt-templates.ts
+// ../shared/src/prompt-templates.ts
 var PROMPTS = {
   /** Phase 1 — content summary + chapter map + custom question answers. */
   contentAnalysis: content_analysis_default,
@@ -1254,14 +1254,17 @@ var PROMPTS = {
   /** Shared output rules (grounding + language reference) injected into prompts. */
   sharedOutputRules: shared_output_rules_default.trim()
 };
-function renderPrompt(template, vars) {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+function renderPrompt(template, vars = {}) {
+  if (!template)
+    return "";
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key) => {
     const value = vars[key];
-    return value === void 0 ? "" : String(value);
+    return value === void 0 || value === null ? "" : String(value);
   });
 }
 
-// src/ai-client.ts
+// ../shared/src/catalog.ts
+var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 var PROVIDER_CATALOG = {
   local: {
     id: "local",
@@ -1274,7 +1277,7 @@ var PROVIDER_CATALOG = {
   openrouter: {
     id: "openrouter",
     label: "OpenRouter (Multi-Provider)",
-    officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+    officialEndpoint: OPENROUTER_ENDPOINT,
     apiFormat: "openai-compatible",
     defaultModel: "openai/gpt-6-astra",
     families: [
@@ -1475,12 +1478,17 @@ var PROVIDER_CATALOG = {
   }
 };
 function isAIConfigured(settings) {
-  if (settings.aiProvider === "local") {
+  if (!settings)
+    return false;
+  const provider = settings.chromeAiProvider || settings.aiProvider || "gemini";
+  const apiKey = (settings.chromeAiApiKey !== void 0 ? settings.chromeAiApiKey : settings.aiApiKey) || "";
+  if (provider === "local") {
+    const localEndpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint;
     return Boolean(
-      settings.localEndpoint && settings.localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
+      localEndpoint && localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
     );
   }
-  return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);
+  return Boolean(apiKey && apiKey.trim().length > 0);
 }
 
 // src/index-reader.ts

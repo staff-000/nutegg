@@ -2,6 +2,7 @@
   "name": "nutegg",
   "private": true,
   "workspaces": [
+    "shared",
     "chrome-extension",
     "obsidian-plugin",
     "website"

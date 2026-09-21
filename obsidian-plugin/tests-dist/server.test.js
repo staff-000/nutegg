@@ -29,7 +29,8 @@ var import_strict = __toESM(require("node:assert/strict"));
 // src/server.ts
 var http = __toESM(require("http"));
 
-// src/ai-client.ts
+// ../shared/src/catalog.ts
+var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 var PROVIDER_CATALOG = {
   local: {
     id: "local",
@@ -42,7 +43,7 @@ var PROVIDER_CATALOG = {
   openrouter: {
     id: "openrouter",
     label: "OpenRouter (Multi-Provider)",
-    officialEndpoint: "https://openrouter.ai/api/v1/chat/completions",
+    officialEndpoint: OPENROUTER_ENDPOINT,
     apiFormat: "openai-compatible",
     defaultModel: "openai/gpt-6-astra",
     families: [
@@ -243,13 +244,20 @@ var PROVIDER_CATALOG = {
   }
 };
 function isAIConfigured(settings) {
-  if (settings.aiProvider === "local") {
+  if (!settings)
+    return false;
+  const provider = settings.chromeAiProvider || settings.aiProvider || "gemini";
+  const apiKey = (settings.chromeAiApiKey !== void 0 ? settings.chromeAiApiKey : settings.aiApiKey) || "";
+  if (provider === "local") {
+    const localEndpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint;
     return Boolean(
-      settings.localEndpoint && settings.localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
+      localEndpoint && localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
     );
   }
-  return Boolean(settings.aiApiKey && settings.aiApiKey.trim().length > 0);
+  return Boolean(apiKey && apiKey.trim().length > 0);
 }
+
+// ../shared/src/client.ts
 var AIError = class extends Error {
   code;
   statusCode;

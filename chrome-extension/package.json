@@ -4,7 +4,7 @@
   "description": "NutEgg Chrome Extension — capture web content to Obsidian",
   "private": true,
   "scripts": {
-    "build": "node build-prompts.js",
+    "build": "node build.js",
     "test": "node --test \"tests/*.test.js\""
   }
 }

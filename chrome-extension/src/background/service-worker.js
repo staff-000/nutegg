@@ -1,6 +1,13 @@
 // NutEgg Background Service Worker
 
-importScripts("../ai/prompts.js", "../ai/ai-client.js", "../ai/ai-processor.js");
+importScripts("../ai/ai-core.js");
+
+const {
+  PROVIDER_CATALOG,
+  checkCreditAI,
+  analyzeContentStandalone,
+  askFollowUpStandalone,
+} = NutEggAI;
 
 const DEFAULT_PORT = 27123;
 let serverPort = DEFAULT_PORT;
@@ -200,7 +207,7 @@ async function handleAnalyze(payload) {
   }
 
   try {
-    const result = await analyzeContentChrome(payload, aiSettings);
+    const result = await analyzeContentStandalone(payload, aiSettings);
     return {
       ...result,
       stage: "stage1",
@@ -318,7 +325,7 @@ async function handleAsk(payload) {
 
   try {
     const question = (payload.questions && payload.questions[0]) || "";
-    const answer = await askFollowUpChrome(payload, question, payload.priorQa || [], aiSettings);
+    const answer = await askFollowUpStandalone(payload, question, payload.priorQa || [], aiSettings);
     return {
       answers: [{ question, answer }],
     };

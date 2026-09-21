@@ -1,5 +1,10 @@
 // NutEgg Options Page
 
+const {
+  PROVIDER_CATALOG = {},
+  checkCreditAI,
+} = window.NutEggAI || {};
+
 const DEFAULT_PORT = 27123;
 
 // Server connection elements
