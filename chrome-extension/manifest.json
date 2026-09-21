@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NutEgg",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read less, hatch more. Capture web content, curate knowledge.",
   "permissions": [
     "activeTab",
@@ -12,7 +12,15 @@
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://openrouter.ai/*",
+    "https://api.deepseek.com/*",
+    "https://api.moonshot.cn/*",
+    "https://open.bigmodel.cn/*",
+    "https://dashscope.aliyuncs.com/*"
   ],
   "action": {
     "default_title": "NutEgg — Read Less, Hatch More",
