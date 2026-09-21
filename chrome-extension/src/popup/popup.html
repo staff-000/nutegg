@@ -96,6 +96,24 @@
         </div>
       </div>
 
+      <div id="ai-key-missing-banner" class="ai-key-missing-banner hidden">
+        <span class="key-banner-icon">⚠️</span>
+        <div class="key-banner-content">
+          <strong>AI Key Required:</strong> Obsidian is offline and no AI API key is configured in Chrome.
+          <div class="key-banner-actions">
+            <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">⚙️ Open Settings to Add Key</button>
+            <span>or <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">start Obsidian</a></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="chrome-mode-tip-banner" class="chrome-mode-tip-banner hidden">
+        <span class="tip-banner-icon">💡</span>
+        <div class="tip-banner-content">
+          <strong>Standalone Mode:</strong> Analyzing directly in Chrome. <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="tip-banner-link">Use Obsidian</a> to unlock knowledge tree curation!
+        </div>
+      </div>
+
       <button id="analyze-btn" class="analyze-btn inactive">
         <span id="analyze-btn-text">Analyze</span>
       </button>
@@ -103,6 +121,11 @@
 
     <!-- State 2: Results -->
     <div id="results-state" class="hidden">
+      <div id="chrome-result-banner" class="chrome-result-banner hidden">
+        <span>📱 <strong>Standalone Analysis</strong> — Stage 1 content summary.</span>
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="chrome-result-link">Start Obsidian to save & match eggs ↗</a>
+      </div>
+
       <div id="result-page-info" class="page-info hidden">
         <div class="page-title" id="result-page-title"></div>
         <div class="page-provenance">
@@ -208,6 +231,10 @@
           <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
           <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
         </div>
+      </div>
+
+      <div id="chrome-actions-card" class="chrome-actions-card hidden">
+        <p>✨ <strong>Want to curate this into your knowledge base?</strong> Start Obsidian with the NutEgg plugin to compare against your knowledge eggs and record insights into your vault.</p>
       </div>
 
       <div class="action-buttons">

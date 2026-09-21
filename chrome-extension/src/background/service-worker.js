@@ -1,5 +1,7 @@
 // NutEgg Background Service Worker
 
+importScripts("../ai/prompts.js", "../ai/ai-client.js", "../ai/ai-processor.js");
+
 const DEFAULT_PORT = 27123;
 let serverPort = DEFAULT_PORT;
 
@@ -19,6 +21,20 @@ init();
 
 function getServerUrl() {
   return `http://127.0.0.1:${serverPort}`;
+}
+
+async function loadChromeAiSettings() {
+  const stored = await chrome.storage.local.get([
+    "chromeAiProvider",
+    "chromeAiApiKey",
+    "chromeAiModel",
+    "chromeAiModelFamily",
+    "chromeAiLocalEndpoint",
+    "chromeAiLocalType",
+    "chromeAiOutputLanguage",
+    "chromeAiMaxTokens",
+  ]);
+  return stored;
 }
 
 // --- Messages ---
@@ -73,6 +89,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "check-chrome-ai") {
+    loadChromeAiSettings().then((settings) => {
+      const provider = settings.chromeAiProvider || "gemini";
+      const isLocal = provider === "local";
+      const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
+      sendResponse({
+        configured: hasKey,
+        provider,
+        model: settings.chromeAiModel || (typeof PROVIDER_CATALOG !== "undefined" ? PROVIDER_CATALOG[provider]?.defaultModel : "") || "",
+      });
+    });
+    return true;
+  }
+
+  if (message.action === "check-chrome-credit") {
+    loadChromeAiSettings().then((settings) => {
+      checkCreditAI(settings)
+        .then((credit) => sendResponse(credit))
+        .catch((err) => sendResponse({ error: String(err), hasBalance: false, statusText: "Credit check failed" }));
+    });
+    return true;
+  }
+
   if (message.action === "config-status") {
     checkConfigStatus()
       .then((r) => sendResponse(r))
@@ -116,23 +155,67 @@ chrome.runtime.onConnect.addListener((port) => {
 // --- Server communication ---
 
 async function handleAnalyze(payload) {
-  const response = await fetch(`${getServerUrl()}/analyze`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const server = await checkServer();
 
-  const data = await response.json();
+  if (server.online) {
+    try {
+      const response = await fetch(`${getServerUrl()}/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-  if (!response.ok) {
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          error: data.error || `Server error (${response.status})`,
+          errorCode: data.errorCode || "unknown",
+          statusCode: data.statusCode || response.status,
+          mode: "obsidian",
+        };
+      }
+
+      return { ...data, mode: "obsidian" };
+    } catch (err) {
+      return {
+        error: `Failed to connect to Obsidian: ${err.message}`,
+        errorCode: "network_error",
+        mode: "obsidian",
+      };
+    }
+  }
+
+  // Obsidian is offline -> Fall back to Chrome Standalone AI
+  const aiSettings = await loadChromeAiSettings();
+  const provider = aiSettings.chromeAiProvider || "gemini";
+  const isLocal = provider === "local";
+
+  if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: data.error || `Server error (${response.status})`,
-      errorCode: data.errorCode || "unknown",
-      statusCode: data.statusCode || response.status,
+      error: "Obsidian is offline and no AI key is configured in Chrome settings.",
+      errorCode: "no_api_key",
+      mode: "chrome",
     };
   }
 
-  return data;
+  try {
+    const result = await analyzeContentChrome(payload, aiSettings);
+    return {
+      ...result,
+      stage: "stage1",
+      mode: "chrome",
+      matchedEggs: [],
+      allEggs: [],
+    };
+  } catch (err) {
+    return {
+      error: err.message || "Chrome AI analysis failed",
+      errorCode: err.code || "unknown",
+      statusCode: err.statusCode || 500,
+      mode: "chrome",
+    };
+  }
 }
 
 async function handleConfirm(payload) {
@@ -199,22 +282,53 @@ async function fetchEggs() {
 }
 
 async function handleAsk(payload) {
-  const response = await fetch(`${getServerUrl()}/ask`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const server = await checkServer();
 
-  const data = await response.json();
+  if (server.online) {
+    const response = await fetch(`${getServerUrl()}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        error: data.error || `Server error (${response.status})`,
+        errorCode: data.errorCode || "unknown",
+      };
+    }
+
+    return data;
+  }
+
+  // Obsidian is offline -> Chrome AI
+  const aiSettings = await loadChromeAiSettings();
+  const provider = aiSettings.chromeAiProvider || "gemini";
+  const isLocal = provider === "local";
+
+  if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: data.error || `Server error (${response.status})`,
-      errorCode: data.errorCode || "unknown",
+      error: "Obsidian is offline and no AI key is configured in Chrome settings.",
+      errorCode: "no_api_key",
+      answers: [],
     };
   }
 
-  return data;
+  try {
+    const question = (payload.questions && payload.questions[0]) || "";
+    const answer = await askFollowUpChrome(payload, question, payload.priorQa || [], aiSettings);
+    return {
+      answers: [{ question, answer }],
+    };
+  } catch (err) {
+    return {
+      error: err.message || "Failed to answer question",
+      errorCode: err.code || "unknown",
+      answers: [],
+    };
+  }
 }
 
 async function checkConfigStatus() {

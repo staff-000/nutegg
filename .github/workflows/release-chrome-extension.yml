@@ -30,6 +30,13 @@ jobs:
           fi
           echo "EXT_DIR=$EXT_DIR" >> $GITHUB_ENV
 
+      - name: Build extension artifacts
+        run: |
+          echo "Building Chrome extension in $EXT_DIR..."
+          if [ -f "$EXT_DIR/build-prompts.js" ]; then
+            node "$EXT_DIR/build-prompts.js"
+          fi
+
       - name: Verify extension files
         run: |
           echo "Verifying extension files in $EXT_DIR..."

@@ -30,6 +30,73 @@
       </div>
     </section>
 
+    <section class="option-group" id="ai-config-section">
+      <h2>AI Configuration (Standalone Mode)</h2>
+      
+      <div id="ai-status-banner" class="ai-status-banner obsidian-offline">
+        Checking Obsidian status...
+      </div>
+
+      <div class="option-row">
+        <label for="ai-provider-select">1. AI Provider</label>
+        <div class="ai-input-group">
+          <select id="ai-provider-select"></select>
+        </div>
+        <p class="hint">Choose your preferred provider for direct in-browser analysis when Obsidian is closed.</p>
+      </div>
+
+      <div class="option-row" id="ai-model-row">
+        <label for="ai-model-select">2. Model</label>
+        <div class="ai-input-group">
+          <select id="ai-model-select"></select>
+          <input id="ai-model-custom" type="text" placeholder="Custom model tag" style="display: none;">
+        </div>
+      </div>
+
+      <div class="option-row" id="ai-local-endpoint-row" style="display: none;">
+        <label for="ai-local-endpoint">Local Server Endpoint</label>
+        <div class="ai-input-group">
+          <input id="ai-local-endpoint" type="text" placeholder="http://127.0.0.1:11434/v1/chat/completions">
+        </div>
+      </div>
+
+      <div class="option-row" id="ai-key-row">
+        <label for="ai-key-input">3. API Key</label>
+        <div class="ai-input-group">
+          <input id="ai-key-input" type="password" placeholder="sk-...">
+          <button id="ai-key-toggle" type="button" class="toggle-key-btn">Show</button>
+        </div>
+        <p class="hint" id="ai-key-hint">API keys are stored securely in Chrome local storage and sent only to the provider endpoint.</p>
+      </div>
+
+      <div class="option-row">
+        <label for="ai-lang-select">4. Output Language</label>
+        <div class="ai-input-group">
+          <select id="ai-lang-select">
+            <option value="same-as-content">Same as content (follow captured text)</option>
+            <option value="English">English</option>
+            <option value="Chinese">Chinese (中文)</option>
+            <option value="Japanese">Japanese (日本語)</option>
+            <option value="Korean">Korean (한국어)</option>
+            <option value="Spanish">Spanish (Español)</option>
+            <option value="French">French (Français)</option>
+            <option value="German">German (Deutsch)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="option-actions">
+        <button id="ai-save-btn" class="primary-btn">Save AI Settings</button>
+        <button id="ai-test-btn" class="secondary-btn">Test AI Connection</button>
+        <span id="ai-test-result" class="test-result hidden"></span>
+      </div>
+
+      <div class="obsidian-pitch-box">
+        <strong>💡 Want full knowledge curation?</strong><br>
+        Chrome standalone mode provides fast reading verdicts and summaries. Connecting NutEgg with the <strong>Obsidian companion plugin</strong> unlocks automated knowledge tree matching, delta tracking across reading sessions, and direct vault note saving.
+      </div>
+    </section>
+
     <section class="option-group">
       <h2>Obsidian Plugin Companion</h2>
       <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
@@ -79,6 +146,7 @@
     </section>
   </div>
 
+  <script src="../ai/ai-client.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

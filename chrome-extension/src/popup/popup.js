@@ -93,8 +93,19 @@ const stage1ConfirmBox = document.getElementById("stage1-confirm-box");
 const stage1ProceedBtn = document.getElementById("stage1-proceed-btn");
 const stage1SkipBtn = document.getElementById("stage1-skip-btn");
 
+// Standalone mode and guidance elements
+const aiKeyMissingBanner = document.getElementById("ai-key-missing-banner");
+const openSettingsKeyBtn = document.getElementById("open-settings-key-btn");
+const chromeModeTipBanner = document.getElementById("chrome-mode-tip-banner");
+const chromeResultBanner = document.getElementById("chrome-result-banner");
+const chromeActionsCard = document.getElementById("chrome-actions-card");
+
 let extractedContent = null;
 let serverOnline = false;
+let chromeAiConfigured = false;
+let chromeAiProvider = "";
+let chromeAiModel = "";
+let obsidianAiConfigured = false;
 let analysisResult = null;
 let activeTabId = null;
 let isReanalyzing = false;
@@ -234,6 +245,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (title) title.textContent = "Checking...";
       if (sub) sub.textContent = "Connecting to Obsidian...";
       checkServerStatus();
+    });
+  }
+  if (openSettingsKeyBtn) {
+    openSettingsKeyBtn.addEventListener("click", () => {
+      chrome.runtime.openOptionsPage();
     });
   }
   questionsToggle.addEventListener("click", () => {
@@ -1170,6 +1186,18 @@ async function checkServerStatus() {
   updateVersionDisplay(obsidianPluginVersion);
 
   if (serverOnline) {
+    // Check Obsidian AI config status
+    try {
+      const config = await chrome.runtime.sendMessage({ action: "config-status" });
+      const issues = config?.issues || [];
+      obsidianAiConfigured = !issues.some((i) =>
+        i.toLowerCase().includes("no api key") ||
+        i.toLowerCase().includes("not configured")
+      );
+    } catch {
+      obsidianAiConfigured = true;
+    }
+
     checkCreditStatus();
     obsidianPluginLink?.classList.add("hidden");
 
@@ -1180,61 +1208,122 @@ async function checkServerStatus() {
       updateServerStatusIndicator();
     }
   } else {
-    updateServerStatusIndicator();
-    aiCreditPill?.classList.add("hidden");
+    // Check Chrome AI config status
+    try {
+      const chromeAi = await chrome.runtime.sendMessage({ action: "check-chrome-ai" });
+      chromeAiConfigured = chromeAi?.configured || false;
+      chromeAiProvider = chromeAi?.provider || "";
+      chromeAiModel = chromeAi?.model || "";
+    } catch {
+      chromeAiConfigured = false;
+    }
+
+    if (chromeAiConfigured) {
+      checkChromeCreditStatus();
+    } else {
+      aiCreditPill?.classList.add("hidden");
+    }
+
     obsidianPluginLink?.classList.remove("hidden");
+    updateServerStatusIndicator();
+  }
+
+  updateCaptureBanners();
+  updateAnalyzeButtonsState();
+}
+
+async function checkChromeCreditStatus() {
+  try {
+    const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
+    if (credit && !serverOnline) {
+      aiCreditPill?.classList.remove("hidden");
+      const providerLabel = credit.providerLabel || chromeAiProvider || "Chrome AI";
+      if (credit.hasBalance && credit.balanceFormatted) {
+        aiCreditText.textContent = credit.balanceFormatted;
+        aiCreditPill.title = `Chrome AI (${providerLabel}): ${credit.balanceFormatted} remaining (Click to test)`;
+      } else {
+        aiCreditText.textContent = providerLabel;
+        aiCreditPill.title = `Chrome AI (${providerLabel}): ${credit.statusText || "Ready"} (Click to test)`;
+      }
+    }
+  } catch {}
+}
+
+function updateCaptureBanners() {
+  if (serverOnline) {
+    aiKeyMissingBanner?.classList.add("hidden");
+    chromeModeTipBanner?.classList.add("hidden");
+    return;
+  }
+
+  // Obsidian is offline
+  if (!chromeAiConfigured) {
+    aiKeyMissingBanner?.classList.remove("hidden");
+    chromeModeTipBanner?.classList.add("hidden");
+  } else {
+    aiKeyMissingBanner?.classList.add("hidden");
+    chromeModeTipBanner?.classList.remove("hidden");
   }
 }
 
 function updateServerStatusIndicator() {
-  if (!serverOnline) {
-    serverStatus.className = "status-dot offline";
-    updateServerStatusTooltip(false);
+  if (serverOnline) {
+    const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
+    if (mismatch) {
+      serverStatus.className = "status-dot warning";
+      updateServerStatusTooltip("obsidian-mismatch", obsidianPluginVersion, mismatch);
+    } else if (!obsidianAiConfigured) {
+      serverStatus.className = "status-dot warning";
+      updateServerStatusTooltip("obsidian-no-key", obsidianPluginVersion);
+    } else {
+      serverStatus.className = "status-dot online";
+      updateServerStatusTooltip("obsidian-online", obsidianPluginVersion);
+    }
     return;
   }
 
-  const hasWarning = !warningBanner.classList.contains("hidden") && (warningMessage.textContent || "").trim().length > 0;
-  if (hasWarning) {
-    serverStatus.className = "status-dot warning";
-    updateServerStatusTooltip(true, obsidianPluginVersion, warningMessage.textContent.trim());
+  // Obsidian offline
+  if (chromeAiConfigured) {
+    serverStatus.className = "status-dot chrome-ai";
+    updateServerStatusTooltip("chrome-ai", null, chromeAiProvider);
   } else {
-    serverStatus.className = "status-dot online";
-    updateServerStatusTooltip(true, obsidianPluginVersion, null);
+    serverStatus.className = "status-dot offline";
+    updateServerStatusTooltip("offline");
   }
 }
 
-function updateServerStatusTooltip(isOnline, pluginVersion = null, warningText = null) {
+function updateServerStatusTooltip(state, version = null, extra = null) {
   const tooltip = document.getElementById("server-status-tooltip");
   const title = document.getElementById("status-tooltip-title");
   const sub = document.getElementById("status-tooltip-sub");
   if (!tooltip || !title || !sub) return;
 
-  if (!isOnline) {
-    tooltip.className = "status-tooltip offline";
-    title.textContent = "Obsidian is offline";
-    sub.textContent = "Click dot to install NutEgg plugin";
-    serverStatus.setAttribute("aria-label", "Obsidian is offline. Click dot to install NutEgg plugin");
-    return;
-  }
-
-  if (warningText) {
+  if (state === "obsidian-online") {
+    tooltip.className = "status-tooltip online";
+    title.textContent = "Obsidian is online";
+    sub.textContent = version ? `Plugin v${version} · Full Analysis` : "Ready to capture";
+    serverStatus.setAttribute("aria-label", `Obsidian is online${version ? ` (v${version})` : ""}`);
+  } else if (state === "obsidian-no-key") {
     tooltip.className = "status-tooltip warning";
-    title.textContent = "Obsidian online (Warning)";
-    sub.textContent = warningText;
-    serverStatus.setAttribute(
-      "aria-label",
-      `Obsidian is online with warning: ${warningText}`
-    );
-    return;
+    title.textContent = "Obsidian Online (No AI Key)";
+    sub.textContent = "Add API key in Obsidian Settings → NutEgg";
+    serverStatus.setAttribute("aria-label", "Obsidian is online but no AI API key is configured");
+  } else if (state === "obsidian-mismatch") {
+    tooltip.className = "status-tooltip warning";
+    title.textContent = "Version Mismatch";
+    sub.textContent = extra || "Update NutEgg plugin or extension";
+    serverStatus.setAttribute("aria-label", extra || "Version mismatch");
+  } else if (state === "chrome-ai") {
+    tooltip.className = "status-tooltip chrome-ai";
+    title.textContent = "Using Chrome AI";
+    sub.textContent = `${extra || "Standalone"} · Stage 1 content analysis`;
+    serverStatus.setAttribute("aria-label", `Using Chrome AI (${extra || "Standalone"})`);
+  } else {
+    tooltip.className = "status-tooltip offline";
+    title.textContent = "NutEgg is offline";
+    sub.textContent = "Start Obsidian or add AI key in Chrome Settings";
+    serverStatus.setAttribute("aria-label", "NutEgg is offline. Start Obsidian or configure Chrome AI key");
   }
-
-  tooltip.className = "status-tooltip online";
-  title.textContent = "Obsidian is online";
-  sub.textContent = pluginVersion ? `Plugin v${pluginVersion}` : "Ready to capture";
-  serverStatus.setAttribute(
-    "aria-label",
-    `Obsidian is online${pluginVersion ? ` (v${pluginVersion})` : ""}`
-  );
 }
 
 // --- Button Readiness & State ---
@@ -1271,8 +1360,8 @@ function getAnalyzeNotReadyReason() {
   if (isTranscriptBlocked()) {
     return "Video transcript is unavailable — NutEgg cannot analyze videos without transcripts.";
   }
-  if (!serverOnline) {
-    return "Obsidian server is offline. Please start Obsidian with the NutEgg plugin.";
+  if (!serverOnline && !chromeAiConfigured) {
+    return "Obsidian is offline and no AI key is configured in Chrome settings. Please configure an API key in Settings or start Obsidian.";
   }
   return null;
 }
@@ -1716,11 +1805,6 @@ function sendAnalyzeViaPort(payload) {
  * the capture-state error banner is hidden there.
  */
 async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = false) {
-  if (!serverOnline) {
-    showError("Obsidian server is offline. Start Obsidian with NutEgg plugin.");
-    return "Obsidian server is offline. Start Obsidian with NutEgg plugin.";
-  }
-
   const notReady = getAnalyzeNotReadyReason();
   if (notReady) {
     showWarning(notReady);
@@ -1807,8 +1891,9 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       return response.error;
     }
 
-    // For re-analyze (since eggs are already selected on the page) or fast mode, do both stage 1 and stage 2
-    const shouldRunStage2 = isReanalyze || analysisMode === "fast";
+    // In Chrome standalone mode, skip stage 2 egg comparison
+    const isChromeMode = response?.mode === "chrome" || (!serverOnline && !response?.matchedEggs?.length);
+    const shouldRunStage2 = !isChromeMode && (isReanalyze || analysisMode === "fast");
     const eggsForStage2 = (targetEggs && targetEggs.length > 0)
       ? targetEggs
       : (response.matchedEggs && response.matchedEggs.length > 0 ? response.matchedEggs : []);
@@ -2002,46 +2087,62 @@ function showResultsState(result, provenance = null) {
   renderHistorySelect(currentNutId);
   renderResultProvenance(provenance);
 
-  const isStage1 = result.stage === "stage1";
+  const isChromeMode = result.mode === "chrome" || (!serverOnline && !result.matchedEggs?.length);
+  const isStage1 = result.stage === "stage1" || isChromeMode;
 
-  if (isStage1) {
-    if (isReanalyzing) {
-      stage1ConfirmBox?.classList.add("hidden");
-      verdictSection?.classList.add("hidden");
-    } else if (analysisMode === "fast") {
+  if (isChromeMode) {
+    chromeResultBanner?.classList.remove("hidden");
+    chromeActionsCard?.classList.remove("hidden");
+    stage1ConfirmBox?.classList.add("hidden");
+    verdictSection?.classList.add("hidden");
+    noEggSection?.classList.add("hidden");
+    eggKnowledgeSection?.classList.add("hidden");
+    confirmBtn?.classList.add("hidden");
+    collectNutBtn?.classList.add("hidden");
+  } else {
+    chromeResultBanner?.classList.add("hidden");
+    chromeActionsCard?.classList.add("hidden");
+    collectNutBtn?.classList.remove("hidden");
+
+    if (isStage1) {
+      if (isReanalyzing) {
+        stage1ConfirmBox?.classList.add("hidden");
+        verdictSection?.classList.add("hidden");
+      } else if (analysisMode === "fast") {
+        stage1ConfirmBox?.classList.add("hidden");
+        verdictSection?.classList.remove("hidden");
+      } else {
+        stage1ConfirmBox?.classList.remove("hidden");
+        verdictSection?.classList.add("hidden");
+      }
+      confirmBtn?.classList.add("hidden");
+    } else {
       stage1ConfirmBox?.classList.add("hidden");
       verdictSection?.classList.remove("hidden");
+    }
+
+    // No egg matched — offer to create one
+    const noEgg = (result.matchedEggs || []).length === 0;
+    if (noEgg) {
+      noEggSection.classList.remove("hidden");
+      newEggName.value = "";
+      newEggDescription.value = "";
     } else {
-      stage1ConfirmBox?.classList.remove("hidden");
-      verdictSection?.classList.add("hidden");
+      noEggSection.classList.add("hidden");
     }
-    confirmBtn?.classList.add("hidden");
-  } else {
-    stage1ConfirmBox?.classList.add("hidden");
-    verdictSection?.classList.remove("hidden");
-  }
 
-  // No egg matched — offer to create one
-  const noEgg = (result.matchedEggs || []).length === 0;
-  if (noEgg) {
-    noEggSection.classList.remove("hidden");
-    newEggName.value = "";
-    newEggDescription.value = "";
-  } else {
-    noEggSection.classList.add("hidden");
+    // Egg picker — sync the checklist with _index.md, then render it with
+    // this result's matched eggs (user edits + re-analyze changes the match)
+    fetchEggs().then(() => {
+      renderEggsSection(result.matchedEggs || []);
+      if (isStage1 && analysisMode === "confirm") {
+        eggsExpanded?.classList.remove("hidden");
+        if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+        updateStage1ProceedBtn();
+        window.scrollTo(0, 0);
+      }
+    });
   }
-
-  // Egg picker — sync the checklist with _index.md, then render it with
-  // this result's matched eggs (user edits + re-analyze changes the match)
-  fetchEggs().then(() => {
-    renderEggsSection(result.matchedEggs || []);
-    if (isStage1 && analysisMode === "confirm") {
-      eggsExpanded?.classList.remove("hidden");
-      if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
-      updateStage1ProceedBtn();
-      window.scrollTo(0, 0);
-    }
-  });
 
   // Title Verdict
   verdictAnswer.textContent = result.titleVerdict || "";
@@ -2350,6 +2451,13 @@ function renderEggKnowledge(eggResults = []) {
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
+  if (analysisResult?.mode === "chrome") {
+    confirmBtn.classList.add("hidden");
+    collectNutBtn.classList.add("hidden");
+    chromeActionsCard?.classList.remove("hidden");
+    return;
+  }
+
   if (analysisResult?.stage === "stage1") {
     confirmBtn.classList.add("hidden");
     if (nutCollected) {
@@ -2649,6 +2757,7 @@ function showCaptureState() {
   activeEggTab = null;
   hideMessages();
   updateAnalyzeButtonsState();
+  updateCaptureBanners();
 }
 
 // --- Confirm (add to knowledge base) ---

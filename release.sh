@@ -79,10 +79,12 @@ fi
 echo "   ✅ Authenticated as $REPO_OWNER"
 echo ""
 
-# --- 2. Pre-flight tests ---
+# --- 2. Pre-flight build and tests ---
+echo "🏗️  Building all workspaces..."
+(cd "$SCRIPT_DIR" && npm run build)
 echo "🧪 Running pre-flight tests across workspaces..."
 (cd "$SCRIPT_DIR" && npm test)
-echo "   ✅ All tests passed"
+echo "   ✅ Build and tests passed"
 echo ""
 
 # --- 3. Update version numbers in manifests and packages ---
