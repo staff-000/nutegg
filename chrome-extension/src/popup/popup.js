@@ -2752,8 +2752,22 @@ function renderCustomQuestions() {
     ...(analysisResult?.customQuestionAnswers || []),
     ...followUpQa,
   ];
+
+  // Always keep questions section visible in results view so user can ask questions anytime
+  customQuestionsSection.classList.remove("hidden");
+
+  const labelEl = customQuestionsSection.querySelector(".section-label");
+  if (labelEl) {
+    labelEl.textContent = all.length > 0 ? "💭 Questions & Answers" : "💭 Ask a Question";
+  }
+
+  if (followupInput) {
+    followupInput.placeholder = all.length > 0
+      ? "Ask a follow-up question about this content…"
+      : "Ask a question about this content…";
+  }
+
   if (all.length > 0) {
-    customQuestionsSection.classList.remove("hidden");
     customQuestionsList.innerHTML = all
       .map((qa) => `
         <div class="egg-group">
@@ -2765,7 +2779,6 @@ function renderCustomQuestions() {
         </div>`)
       .join("");
   } else {
-    customQuestionsSection.classList.add("hidden");
     customQuestionsList.innerHTML = "";
   }
 }
@@ -2788,7 +2801,7 @@ async function handleFollowUp() {
       url: extractedContent?.url || analysisResult?.url || "",
       title: extractedContent?.title || analysisResult?.title || "",
       content: extractedContent?.content || "",
-      sourceType: extractedContent.sourceType || "generic",
+      sourceType: extractedContent?.sourceType || analysisResult?.sourceType || "generic",
       questions: [q],
       priorQa: buildPriorQa(),
     };
