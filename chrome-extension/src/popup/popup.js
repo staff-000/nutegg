@@ -335,6 +335,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   reanalyzeEggsBtn.addEventListener("click", async () => {
     if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
+
+    const hasContent = !!(extractedContent && extractedContent.content);
+    if (!hasContent) {
+      reanalyzeEggsBtn.disabled = true;
+      const original = reanalyzeEggsBtn.textContent;
+      reanalyzeEggsBtn.textContent = "Loading content…";
+      hideMessages();
+      hideWarning();
+
+      try {
+        await extractPageContent();
+      } catch (err) {
+        console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
+      }
+
+      reanalyzeEggsBtn.disabled = false;
+      reanalyzeEggsBtn.textContent = original;
+
+      const nowHasContent = !!(extractedContent && extractedContent.content);
+      if (!nowHasContent) {
+        showError(
+          "Could not retrieve content for this page. Please make sure the page is loaded and try again."
+        );
+        errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    }
+
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
       showWarning(notReady);
@@ -361,7 +389,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     const expanded = eggsExpanded.classList.toggle("hidden");
     eggsToggleChevron.textContent = expanded ? "▾" : "▸";
   });
-  reanalyzeBtn.addEventListener("click", () => {
+  reanalyzeBtn.addEventListener("click", async () => {
+    if (reanalyzeBtn.disabled) return;
+
+    const hasContent = !!(extractedContent && extractedContent.content);
+    if (!hasContent) {
+      reanalyzeBtn.disabled = true;
+      reanalyzeBtn.textContent = "Loading content…";
+      hideMessages();
+      hideWarning();
+
+      try {
+        await extractPageContent();
+      } catch (err) {
+        console.error("[NutEgg] Error extracting content on re-analyze:", err);
+      }
+
+      const nowHasContent = !!(extractedContent && extractedContent.content);
+      if (!nowHasContent) {
+        updateAnalyzeButtonsState();
+        showError(
+          "Could not retrieve content for this page. Please make sure the page is loaded and try again."
+        );
+        errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        return;
+      }
+    }
+
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
       showWarning(notReady);
@@ -1548,9 +1602,10 @@ function updateAnalyzeButtonsState() {
   if (reanalyzeBtn) reanalyzeBtn.disabled = false;
 
   const notReady = getAnalyzeNotReadyReason();
+  const hasContent = !!(extractedContent && extractedContent.content);
+
   if (notReady) {
     analyzeBtn.classList.add("inactive");
-    if (reanalyzeBtn) reanalyzeBtn.classList.add("inactive");
 
     if (isTranscriptBlocked()) {
       analyzeBtnText.textContent = "Transcript unavailable";
@@ -1560,13 +1615,34 @@ function updateAnalyzeButtonsState() {
       analyzeBtnText.textContent = "Analyze";
     }
     analyzeBtn.title = notReady;
-    if (reanalyzeBtn) reanalyzeBtn.title = notReady;
+
+    if (reanalyzeBtn) {
+      if (!hasContent) {
+        if (extractionPending) {
+          reanalyzeBtn.disabled = true;
+          reanalyzeBtn.classList.remove("inactive");
+          reanalyzeBtn.textContent = "Loading content…";
+          reanalyzeBtn.title = "Retrieving page content…";
+        } else {
+          reanalyzeBtn.disabled = false;
+          reanalyzeBtn.classList.remove("inactive");
+          reanalyzeBtn.textContent = "🔄 Load & Re-analyze";
+          reanalyzeBtn.title = "Page content is not loaded yet. Click to load content and re-analyze.";
+        }
+      } else {
+        reanalyzeBtn.disabled = false;
+        reanalyzeBtn.classList.add("inactive");
+        reanalyzeBtn.textContent = "🔄 Re-analyze";
+        reanalyzeBtn.title = notReady;
+      }
+    }
   } else {
     analyzeBtn.classList.remove("inactive");
-    if (reanalyzeBtn) reanalyzeBtn.classList.remove("inactive");
     analyzeBtnText.textContent = analysisResult ? "🔄 Analyze Again" : "Analyze";
     analyzeBtn.title = "";
     if (reanalyzeBtn) {
+      reanalyzeBtn.disabled = false;
+      reanalyzeBtn.classList.remove("inactive");
       reanalyzeBtn.title = "";
       reanalyzeBtn.textContent = "🔄 Re-analyze";
     }
