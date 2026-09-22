@@ -736,7 +736,8 @@ function lineSeconds(line) {
   return null;
 }
 function toSeconds(time) {
-  const parts = (time || "").split(":").map(Number);
+  const clean = (time || "").replace(/[\[\]]/g, "").trim();
+  const parts = clean.split(":").map(Number);
   if (parts.some((n) => Number.isNaN(n)))
     return 0;
   if (parts.length === 3)
@@ -1156,16 +1157,6 @@ function parseJson(response, context = "response") {
     } catch {
     }
   }
-  try {
-    const target = braceMatch ? braceMatch[0].trim() : sanitized.trim();
-    if (target.startsWith("{") && target.endsWith("}")) {
-      const obj = Function("return (" + target + ")")();
-      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-        return obj;
-      }
-    }
-  } catch {
-  }
   const repaired = repairTruncatedJson(sanitized);
   if (repaired) {
     try {
@@ -1173,17 +1164,6 @@ function parseJson(response, context = "response") {
       console.warn(`[NutEgg] Recovered truncated JSON response (${context})`);
       return res;
     } catch {
-      try {
-        const repTrim = repaired.trim();
-        if (repTrim.startsWith("{") && repTrim.endsWith("}")) {
-          const obj = Function("return (" + repTrim + ")")();
-          if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-            console.warn(`[NutEgg] Recovered truncated JSON expression (${context})`);
-            return obj;
-          }
-        }
-      } catch {
-      }
     }
   }
   console.warn(
@@ -1671,7 +1651,7 @@ function applyPrunedSections(tpl, sections, _isAggregate = false) {
     return tpl;
   let out = tpl;
   out = out.replace(
-    /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+)/,
+    /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+|$)/,
     (match, header, taskBody, footer) => {
       if (taskBody.includes("{{content_task_default}}")) {
         return match;

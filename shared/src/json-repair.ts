@@ -176,36 +176,14 @@ export function parseJson(
     } catch {}
   }
 
-  // Attempt 4: evaluate as JavaScript object expression
-  try {
-    const target = braceMatch ? braceMatch[0].trim() : sanitized.trim();
-    if (target.startsWith("{") && target.endsWith("}")) {
-      const obj = Function("return (" + target + ")")();
-      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-        return obj;
-      }
-    }
-  } catch {}
-
-  // Attempt 5: repair truncated JSON stream
+  // Attempt 4: repair truncated JSON stream
   const repaired = repairTruncatedJson(sanitized);
   if (repaired) {
     try {
       const res = JSON.parse(repaired);
       console.warn(`[NutEgg] Recovered truncated JSON response (${context})`);
       return res;
-    } catch {
-      try {
-        const repTrim = repaired.trim();
-        if (repTrim.startsWith("{") && repTrim.endsWith("}")) {
-          const obj = Function("return (" + repTrim + ")")();
-          if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-            console.warn(`[NutEgg] Recovered truncated JSON expression (${context})`);
-            return obj;
-          }
-        }
-      } catch {}
-    }
+    } catch {}
   }
 
   console.warn(

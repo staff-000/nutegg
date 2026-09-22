@@ -483,10 +483,21 @@ var NutEggServer = class {
       return;
     }
     this.server = http.createServer((req, res) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      const origin = req.headers.origin;
+      const isAllowedOrigin = !origin || origin.startsWith("chrome-extension://") || origin.startsWith("http://127.0.0.1:") || origin.startsWith("http://localhost:") || origin.startsWith("app://obsidian.md");
+      if (origin && isAllowedOrigin) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
+      } else if (!origin) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+      }
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-NutEgg-Extension-Version");
       if (req.method === "OPTIONS") {
+        if (origin && !isAllowedOrigin) {
+          res.writeHead(403);
+          res.end("Forbidden origin");
+          return;
+        }
         res.writeHead(204);
         res.end();
         return;
@@ -1005,10 +1016,18 @@ var NutEggServer = class {
       res.end(JSON.stringify({ error: "Failed to create egg" }));
     }
   }
-  readBody(req) {
+  readBody(req, maxBytes = 25 * 1024 * 1024) {
     return new Promise((resolve, reject) => {
       let data = "";
-      req.on("data", (chunk) => data += chunk);
+      let bytes = 0;
+      req.on("data", (chunk) => {
+        bytes += chunk.length;
+        if (bytes > maxBytes) {
+          req.destroy(new Error("Request body too large (exceeds 25MB)"));
+          return;
+        }
+        data += chunk;
+      });
       req.on("end", () => resolve(data));
       req.on("error", reject);
     });

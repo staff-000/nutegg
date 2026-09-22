@@ -77,7 +77,9 @@ function estimateTime(text, sourceType) {
   if (sourceType === "youtube") {
     // Try to get actual video duration
     const video = document.querySelector("video");
-    if (video && video.duration) return Math.ceil(video.duration / 60);
+    if (video && typeof video.duration === "number" && !isNaN(video.duration) && video.duration > 0) {
+      return Math.ceil(video.duration / 60);
+    }
     // Fallback: estimate from description + transcript word count
     const words = text.split(/\s+/).length;
     return Math.max(2, Math.ceil(words / 150)); // ~150 wpm for video content

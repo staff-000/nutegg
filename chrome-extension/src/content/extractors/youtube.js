@@ -1011,7 +1011,7 @@ function decodeHtmlEntities(str) {
  */
 function dedupTranscriptLines(lines) {
   const out = [];
-  const seen = new Set();
+  const recentSeen = new Map();
   let lastStart = -1;
   let dropped = 0;
 
@@ -1031,14 +1031,32 @@ function dedupTranscriptLines(lines) {
     // text-dedup silently stopped working for non-English tracks.)
     const key = text.toLowerCase().replace(/\s+/g, " ").trim();
 
-    const isRepeat =
-      (key && seen.has(key)) ||
-      (start >= 0 && start < lastStart); // backwards jump = looped copy
-    if (isRepeat) {
+    // Loop detection: timeline jumped backwards
+    if (start >= 0 && start < lastStart) {
       dropped++;
       continue;
     }
-    if (key) seen.add(key);
+
+    // Overlapping / duplicate cue detection within a 3-second window
+    const lastSeenTime = key ? recentSeen.get(key) : undefined;
+    const isOverlappingRepeat =
+      key &&
+      lastSeenTime !== undefined &&
+      (start < 0 || Math.abs(start - lastSeenTime) <= 3);
+
+    if (isOverlappingRepeat) {
+      dropped++;
+      continue;
+    }
+
+    if (key) {
+      recentSeen.set(key, start);
+      if (start >= 0 && recentSeen.size > 200) {
+        for (const [k, t] of recentSeen) {
+          if (start - t > 30) recentSeen.delete(k);
+        }
+      }
+    }
     if (start >= 0) lastStart = start;
     out.push(line);
   }

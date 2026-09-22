@@ -19,7 +19,8 @@ export function lineSeconds(line: string): number | null {
 
 /** "MM:SS" / "H:MM:SS" -> seconds (0 when unparseable). */
 export function toSeconds(time: string): number {
-  const parts = (time || "").split(":").map(Number);
+  const clean = (time || "").replace(/[\[\]]/g, "").trim();
+  const parts = clean.split(":").map(Number);
   if (parts.some((n) => Number.isNaN(n))) return 0;
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];

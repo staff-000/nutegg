@@ -238,7 +238,7 @@ export function applyPrunedSections(
 
   // 1. Prune hardcoded task items inside ## Task if not using {{content_task_default}}
   out = out.replace(
-    /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+)/,
+    /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+|$)/,
     (match, header, taskBody, footer) => {
       if (taskBody.includes("{{content_task_default}}")) {
         return match;

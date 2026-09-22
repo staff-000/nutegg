@@ -12,8 +12,7 @@ const {
 const DEFAULT_PORT = 27123;
 let serverPort = DEFAULT_PORT;
 
-// --- Init ---
-
+let initPromise = null;
 async function init() {
   const stored = await chrome.storage.local.get(["serverPort"]);
   if (stored.serverPort) serverPort = stored.serverPort;
@@ -24,9 +23,15 @@ async function init() {
     .catch(() => {}); // OK if sidePanel API not available
   console.log("[NutEgg] Port:", serverPort);
 }
-init();
 
-function getServerUrl() {
+function ensureInit() {
+  if (!initPromise) initPromise = init();
+  return initPromise;
+}
+ensureInit();
+
+async function getServerUrl() {
+  await ensureInit();
   return `http://127.0.0.1:${serverPort}`;
 }
 
@@ -159,13 +164,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "nutegg-analyze") return;
 
+  let isConnected = true;
+  port.onDisconnect.addListener(() => {
+    isConnected = false;
+  });
+
   port.onMessage.addListener(async (message) => {
     if (message.action === "analyze") {
       try {
         const result = await handleAnalyze(message.payload);
-        port.postMessage(result);
+        if (isConnected) {
+          port.postMessage(result);
+        }
       } catch (err) {
-        port.postMessage({ error: err.message });
+        if (isConnected) {
+          try {
+            port.postMessage({ error: err.message });
+          } catch {}
+        }
       }
     }
   });
@@ -177,7 +193,8 @@ async function handleAnalyze(payload) {
 
   if (server.online) {
     try {
-      const response = await fetch(`${getServerUrl()}/analyze`, {
+      const serverUrl = await getServerUrl();
+      const response = await fetch(`${serverUrl}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -245,7 +262,8 @@ async function handleAnalyze(payload) {
 }
 
 async function handleConfirm(payload) {
-  const response = await fetch(`${getServerUrl()}/confirm`, {
+  const serverUrl = await getServerUrl();
+  const response = await fetch(`${serverUrl}/confirm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -264,8 +282,9 @@ async function fetchHistory(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
+    const serverUrl = await getServerUrl();
     const response = await fetch(
-      `${getServerUrl()}/history?url=${encodeURIComponent(url)}`,
+      `${serverUrl}/history?url=${encodeURIComponent(url)}`,
       { signal: controller.signal }
     );
     clearTimeout(timeout);
@@ -277,7 +296,8 @@ async function fetchHistory(url) {
 }
 
 async function handleCreateEgg({ name, description }) {
-  const response = await fetch(`${getServerUrl()}/create-egg`, {
+  const serverUrl = await getServerUrl();
+  const response = await fetch(`${serverUrl}/create-egg`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, description }),
@@ -296,7 +316,8 @@ async function fetchEggs() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${getServerUrl()}/eggs`, {
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/eggs`, {
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -311,7 +332,8 @@ async function handleAsk(payload) {
   const server = await checkServer();
 
   if (server.online) {
-    const response = await fetch(`${getServerUrl()}/ask`, {
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -369,7 +391,8 @@ async function checkConfigStatus() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${getServerUrl()}/config-status`, { signal: controller.signal });
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/config-status`, { signal: controller.signal });
     clearTimeout(timeout);
     const data = await response.json();
     if (data.port && data.port !== serverPort) {
@@ -387,7 +410,8 @@ async function fetchMetrics() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${getServerUrl()}/metrics`, { signal: controller.signal });
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/metrics`, { signal: controller.signal });
     clearTimeout(timeout);
     return await response.json();
   } catch {
@@ -400,7 +424,8 @@ async function checkServer() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(`${getServerUrl()}/health`, { signal: controller.signal });
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/health`, { signal: controller.signal });
     clearTimeout(timeout);
     const data = await response.json();
     if (data.port && data.port !== serverPort) {

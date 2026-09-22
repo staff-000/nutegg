@@ -343,4 +343,50 @@ test("Analysis Sections - preserves user-customized task wording from template",
   );
 });
 
+test("Chunker - toSeconds handles bracketed and standard timestamps", () => {
+  const { toSeconds } = NutEggAI;
+
+  assert.equal(toSeconds("05:00"), 300);
+  assert.equal(toSeconds("[05:00]"), 300);
+  assert.equal(toSeconds("[01:23:45]"), 5025);
+  assert.equal(toSeconds("01:23:45"), 5025);
+  assert.equal(toSeconds("[ 02:30 ]"), 150);
+  assert.equal(toSeconds("invalid"), 0);
+  assert.equal(toSeconds(""), 0);
+});
+
+test("JSON Repair - parseJson does not execute arbitrary code", () => {
+  const malicious = '{"status": process.exit ? "test" : "fail"}';
+  const parsed = parseJson(malicious);
+  assert.deepEqual(parsed, {});
+});
+
+test("Analysis Sections - applyPrunedSections prunes task even when ## Task is the last section", () => {
+  const { applyPrunedSections } = NutEggAI;
+
+  const tplTrailingTask = `## Instructions
+Some preamble.
+
+## Output Format
+{
+  "titleVerdict": "string",
+  "mindMap": []
+}
+
+## Task
+1. Title Verdict: Say yes or no.
+2. Mind Map: Draw outline.`;
+
+  const pruned = applyPrunedSections(tplTrailingTask, {
+    titleVerdict: true,
+    coreSummary: false,
+    mindMap: false,
+    chapterMap: false,
+  });
+
+  assert.ok(pruned.includes("1. Title Verdict: Say yes or no."));
+  assert.ok(!pruned.includes("2. Mind Map"));
+  assert.ok(!pruned.includes('"mindMap"'));
+});
+
 
