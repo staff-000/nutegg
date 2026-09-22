@@ -19,6 +19,7 @@
         <span>NutEgg</span>
       </a>
       <nav class="nav-links">
+        <a href="#showcase">Product Tour</a>
         <a href="#metaphor">The Metaphor</a>
         <a href="#how-it-works">How It Works</a>
         <a href="#features">Features</a>
@@ -46,68 +47,176 @@
 
         <div class="cta-group">
           <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary">
-            <span>🌐 Chrome Web Store</span>
+            <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
+            <span>Chrome Web Store</span>
           </a>
           <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary">
-            <span>💎 Obsidian Plugin</span>
+            <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
+            <span>Obsidian Plugin</span>
           </a>
           <a href="docs/index.html" class="btn-secondary">
             <span>📖 Read Docs</span>
           </a>
         </div>
 
-        <!-- Visual Preview Simulation -->
-        <div class="preview-container">
-          <div class="preview-header">
+        <!-- Hero Visual Banner -->
+        <div class="hero-banner-frame">
+          <div class="banner-glass-header">
             <div class="dots">
               <span class="dot red"></span>
               <span class="dot yellow"></span>
               <span class="dot green"></span>
             </div>
-            <div class="preview-title">nutegg-sidepanel // active-tab: youtube.com/watch?v=...</div>
+            <div class="banner-title-text">youtube.com/watch?v=... — NutEgg Side Panel</div>
           </div>
-          <div class="preview-body">
-            <!-- Left: Captured Raw Nut -->
-            <div class="preview-left">
-              <span class="tag-label tag-nut">🌰 Captured Nut (Raw Web Content)</span>
-              <div class="card-snippet">
-                <h4>"Why Most AI Agents Fail" — YouTube (24:12)</h4>
-                <p>Full 24-minute transcript extracted with 6 clickable chapter timestamps. Stripped of ads, sponsors, and filler intros.</p>
-                <div class="pill-verdict">
-                  <span>🎯 Anti-Clickbait Verdict:</span>
-                  <span>Missing evaluation loops cause context drift.</span>
-                </div>
-                <div style="font-size: 0.78rem; color: var(--text-dim); margin-top: 10px;">
-                  Archived to: <code>nutegg/_raw/2026-09-06-ai-agents.md</code>
-                </div>
-              </div>
-            </div>
-
-            <!-- Right: Knowledge Egg Diff -->
-            <div class="preview-right">
-              <span class="tag-label tag-egg">🥚 Obsidian Egg (Knowledge Tree)</span>
-              <div class="card-snippet">
-                <h4>Matching Tree: <code>nutegg/ai_architecture.md</code></h4>
-                <div class="insight-box">
-                  <div class="insight-title">✨ Novel Insight (Delta)</div>
-                  <div>"Multi-agent setups need bounded replay buffers rather than unbounded chat history."</div>
-                </div>
-                <div style="margin-top: 12px; font-size: 0.8rem; color: var(--success);">
-                  ✅ Filtered: "What is an LLM" (Already in your knowledge tree)
-                </div>
-                <div style="margin-top: 16px; display: flex; gap: 8px;">
-                  <button style="background: var(--egg-gradient); border: none; color: #fff; padding: 6px 12px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
-                    🥚 Hatch into Obsidian
-                  </button>
-                  <button style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); color: var(--text-main); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem;">
-                    🌰 Collect Nut Only
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <img src="images/banner-verdict.jpg" alt="NutEgg Summary & Title Verdict - Beat clickbait in one sentence" class="hero-banner-image">
         </div>
 
+      </div>
+    </section>
+
+    <!-- Product Showcase Section -->
+    <section id="showcase" class="section showcase-section">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge" style="margin-bottom: 12px;"><span>✨ Interactive Product Tour</span></div>
+          <h2>Designed for Information Clarity</h2>
+          <p>Explore how NutEgg turns bloated web content into structured, actionable knowledge.</p>
+        </div>
+
+        <div class="showcase-tabs">
+          <button type="button" class="showcase-tab active" data-index="0">
+            <span class="tab-emoji">🎯</span>
+            <span class="tab-label">Anti-Clickbait</span>
+          </button>
+          <button type="button" class="showcase-tab" data-index="1">
+            <span class="tab-emoji">⏱️</span>
+            <span class="tab-label">Q&A & Timestamps</span>
+          </button>
+          <button type="button" class="showcase-tab" data-index="2">
+            <span class="tab-emoji">🧠</span>
+            <span class="tab-label">Mind Map</span>
+          </button>
+          <button type="button" class="showcase-tab" data-index="3">
+            <span class="tab-emoji">⚡</span>
+            <span class="tab-label">Skip Redundant</span>
+          </button>
+          <button type="button" class="showcase-tab" data-index="4">
+            <span class="tab-emoji">🌳</span>
+            <span class="tab-label">Grow Knowledge</span>
+          </button>
+          <button type="button" class="showcase-tab" data-index="5">
+            <span class="tab-emoji">🌐</span>
+            <span class="tab-label">Multi-Source</span>
+          </button>
+        </div>
+
+        <div class="showcase-carousel" id="showcase-carousel">
+          <button type="button" class="showcase-nav showcase-prev" id="showcase-prev" aria-label="Previous screenshot">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+
+          <div class="showcase-track-container" id="showcase-track-container">
+            <div class="showcase-track" id="showcase-track">
+              <!-- Slide 1: Anti-Clickbait -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-verdict.jpg" alt="NutEgg Summary & Title Verdict" class="showcase-img" loading="eager">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">🎯 Anti-Clickbait Verdict</span>
+                    <h3>Instant Summary & Title Verdict</h3>
+                    <p>NutEgg cuts straight to the point: it answers the headline's core question in one punchy sentence and tells you honestly whether the video or article is worth your time.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 2: Q&A & Timestamps -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner3.jpg" alt="Ask Any Question, Jump to Timestamp" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">⏱️ Instant Video Navigation</span>
+                    <h3>Ask Any Question & Jump to Timestamp</h3>
+                    <p>Ask free-form questions about video content and get cited answers with clickable timestamp pills that jump directly to the exact moment in the video playback.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 3: Mind Map -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-mindmap.jpg" alt="Interactive Mind Map" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">🧠 Hierarchical Breakdown</span>
+                    <h3>Interactive Thought Trees</h3>
+                    <p>Turn hour-long videos and complex articles into collapsible, multi-tier mind maps. Expand key takeaways and visualize idea relationships in seconds.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 4: Skip Redundant -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-skip.jpg" alt="Skip What You Already Know" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">⚡ Novelty-First Evaluation</span>
+                    <h3>Skip What You Already Know</h3>
+                    <p>NutEgg checks incoming content against your Obsidian vault knowledge base and alerts you when ideas are already covered—saving you 15 to 30 minutes per video.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 5: Grow Knowledge -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-grow.jpg" alt="Grow Your Knowledge Base" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">🌳 Evergreen Knowledge Trees</span>
+                    <h3>Automatically Grow Your Obsidian Vault</h3>
+                    <p>Isolates the novel deltas from your browsing and weaves them directly under the right branches of your existing Obsidian egg files without manual note formatting.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 6: Multi-Source -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-languages.jpg" alt="Multi-Source Support in 50+ Languages" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag">🌐 Universal Compatibility</span>
+                    <h3>Any Platform, In Your Native Language</h3>
+                    <p>Extract with full fidelity from YouTube transcripts, Substack newsletters, Medium blogs, and X (Twitter) threads. Summarize and translate into 50+ languages on the fly.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="showcase-nav showcase-next" id="showcase-next" aria-label="Next screenshot">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+
+        <div class="showcase-dots" id="showcase-dots">
+          <span class="showcase-dot active" data-index="0"></span>
+          <span class="showcase-dot" data-index="1"></span>
+          <span class="showcase-dot" data-index="2"></span>
+          <span class="showcase-dot" data-index="3"></span>
+          <span class="showcase-dot" data-index="4"></span>
+          <span class="showcase-dot" data-index="5"></span>
+        </div>
       </div>
     </section>
 
@@ -259,10 +368,12 @@
         <p>Take back your reading time and build an Obsidian knowledge base that actually grows with you.</p>
         <div class="cta-group" style="margin-bottom: 0;">
           <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary">
-            <span>🌐 Chrome Web Store</span>
+            <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
+            <span>Chrome Web Store</span>
           </a>
           <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary">
-            <span>💎 Obsidian Plugin</span>
+            <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
+            <span>Obsidian Plugin</span>
           </a>
           <a href="docs/index.html" class="btn-secondary">
             <span>🚀 Get Started</span>
@@ -292,6 +403,94 @@
     </div>
   </footer>
 
+  <script>
+    (function() {
+      const track = document.getElementById('showcase-track');
+      const tabs = document.querySelectorAll('.showcase-tab');
+      const dots = document.querySelectorAll('.showcase-dot');
+      const prevBtn = document.getElementById('showcase-prev');
+      const nextBtn = document.getElementById('showcase-next');
+      const container = document.getElementById('showcase-track-container');
+      const totalSlides = 6;
+      let currentIndex = 0;
+
+      function goToSlide(index) {
+        currentIndex = (index + totalSlides) % totalSlides;
+        if (track) {
+          track.style.transform = `translateX(-${currentIndex * 100}%)`;
+        }
+        tabs.forEach((t, i) => {
+          t.classList.toggle('active', i === currentIndex);
+          if (i === currentIndex) {
+            t.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+          }
+        });
+        dots.forEach((d, i) => d.classList.toggle('active', i === currentIndex));
+      }
+
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const idx = parseInt(tab.dataset.index, 10);
+          if (!isNaN(idx)) goToSlide(idx);
+        });
+      });
+
+      dots.forEach((dot) => {
+        dot.addEventListener('click', () => {
+          const idx = parseInt(dot.dataset.index, 10);
+          if (!isNaN(idx)) goToSlide(idx);
+        });
+      });
+
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => goToSlide(currentIndex - 1));
+      }
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => goToSlide(currentIndex + 1));
+      }
+
+      // Touch swipe gestures
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchEndX = 0;
+      let touchEndY = 0;
+
+      if (container) {
+        container.addEventListener('touchstart', (e) => {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        container.addEventListener('touchend', (e) => {
+          touchEndX = e.changedTouches[0].screenX;
+          touchEndY = e.changedTouches[0].screenY;
+          handleSwipe();
+        }, { passive: true });
+      }
+
+      function handleSwipe() {
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        // Check that horizontal swipe is dominant and exceeds 45px
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 45) {
+          if (deltaX < 0) {
+            goToSlide(currentIndex + 1); // Swipe left -> next
+          } else {
+            goToSlide(currentIndex - 1); // Swipe right -> prev
+          }
+        }
+      }
+
+      // Keyboard navigation when user is near showcase
+      window.addEventListener('keydown', (e) => {
+        const rect = container?.getBoundingClientRect();
+        if (rect && rect.top < window.innerHeight && rect.bottom > 0) {
+          if (e.key === 'ArrowLeft') goToSlide(currentIndex - 1);
+          if (e.key === 'ArrowRight') goToSlide(currentIndex + 1);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
 
