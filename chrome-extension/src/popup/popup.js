@@ -155,15 +155,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (version) versionTag.textContent = `NutEgg ${version}`;
   }
 
-  // Restore analysis mode preference
+  // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
     const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode"], resolve);
+      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics"], resolve);
     });
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
     }
+    if (stored?.cachedMetrics) {
+      applyMetrics(stored.cachedMetrics);
+    }
   } catch {}
+
+  // Fetch fresh metrics immediately in parallel without waiting for content extraction
+  fetchMetrics();
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName === "local" && changes.analysisMode) {
@@ -510,16 +516,21 @@ async function refreshForCurrentTab(forceExtract = false) {
   await checkServerStatus();
   if (seq !== refreshSeq) return;
 
+  // Kick off server tasks in parallel immediately without waiting for content extraction
+  const serverTasks = serverOnline
+    ? Promise.all([
+        checkConfigStatus(),
+        fetchMetrics(),
+        fetchEggs(),
+      ])
+    : null;
+
   // Check if this URL has been captured before — skip content retrieval if so!
   if (!forceExtract && serverOnline && tabUrl) {
     const captured = await loadHistoryIfAny(seq, tabUrl);
     if (seq !== refreshSeq) return;
     if (captured) {
-      await checkConfigStatus();
-      if (seq !== refreshSeq) return;
-      await fetchMetrics();
-      if (seq !== refreshSeq) return;
-      await fetchEggs();
+      if (serverTasks) await serverTasks;
       updateAnalyzeButtonsState();
       return;
     }
@@ -531,11 +542,7 @@ async function refreshForCurrentTab(forceExtract = false) {
   if (seq !== refreshSeq) return;
 
   if (serverOnline) {
-    await checkConfigStatus();
-    if (seq !== refreshSeq) return;
-    await fetchMetrics();
-    if (seq !== refreshSeq) return;
-    await fetchEggs();
+    if (serverTasks) await serverTasks;
     if (seq !== refreshSeq) return;
     updateAnalyzeButtonsState();
     // Fallback: check if the canonical/cleaned extracted URL has history
@@ -1073,13 +1080,19 @@ async function handleProceedStage2(
 
 // --- Metrics ---
 
+function applyMetrics(data) {
+  if (!data) return;
+  if (metricNuts && data.nuts != null) metricNuts.textContent = data.nuts;
+  if (metricEggs && data.eggs != null) metricEggs.textContent = data.eggs;
+  if (metricTime && data.timeSaved != null) metricTime.textContent = data.timeSaved;
+}
+
 async function fetchMetrics() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "metrics" });
-    if (response) {
-      metricNuts.textContent = response.nuts || 0;
-      metricEggs.textContent = response.eggs || 0;
-      metricTime.textContent = response.timeSaved || "0m";
+    if (response && (response.nuts != null || response.eggs != null)) {
+      applyMetrics(response);
+      chrome.storage?.local?.set?.({ cachedMetrics: response });
     }
   } catch {
     // server may not support /metrics yet
