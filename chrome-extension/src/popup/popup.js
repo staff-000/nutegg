@@ -292,6 +292,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (eggKnowledgeContent) {
     eggKnowledgeContent.addEventListener("click", handleSourcePillClick);
   }
+  if (resultsState) {
+    resultsState.addEventListener("click", handleSourcePillClick);
+  }
   refreshBtn.addEventListener("click", handleRefresh);
   createEggBtn.addEventListener("click", handleCreateEgg);
   eggsCreateToggle.addEventListener("click", () => {
@@ -2513,7 +2516,7 @@ function renderEggKnowledge(eggResults = []) {
                 (qa) => `
                 <div class="qa-item">
                   <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-                  <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+                  <div class="qa-answer">${linkifyTimestamps(escapeHtml(qa.answer))}</div>
                   ${renderQaSources(qa.sources)}
                 </div>`
               )
@@ -2778,6 +2781,28 @@ function showHistoryEntry(entry) {
   renderHistorySelect(entry.nutId);
 }
 
+/** Extract timestamp string like "12:34" or "1:05:30" from a reference string, or null if none. */
+function extractTimestamp(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  // Check for patterns like [12:34], 12:34, 1:23:45, [1:23:45], 12:34 - 13:00, ⏱ 12:34
+  const match = s.match(/(?:^|[^\d:])(\d{1,2}(?::\d{2}){1,2})(?:[^\d:]|$)/);
+  return match ? match[1] : null;
+}
+
+/** Replace timestamps in text like "[12:34]" or "12:34" with clickable timestamp buttons. */
+function linkifyTimestamps(escapedText) {
+  if (!escapedText) return "";
+  return escapedText.replace(
+    /(\[|\()(\d{1,2}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,2}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
+    (match, open, time1, close, space, time2) => {
+      const time = time1 || time2;
+      const leading = space || "";
+      return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="Jump to ${time} in video"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
+    }
+  );
+}
+
 /** Render clickable source pills and supporting quotes for a Q&A answer. */
 function renderQaSources(sources) {
   if (!Array.isArray(sources) || sources.length === 0) return "";
@@ -2788,27 +2813,30 @@ function renderQaSources(sources) {
   const items = validSources
     .map((s) => {
       const ref = String(s.ref).trim();
-      const isTime = /^\d{1,2}(:\d{2}){1,2}$/.test(ref);
+      const timestamp = extractTimestamp(ref);
+      const isTime = timestamp !== null;
       const pillClass = isTime ? "source-pill source-timestamp" : "source-pill source-section";
       const icon = isTime ? "⏱️" : "§";
       const dataAttr = isTime
-        ? `data-time="${escapeHtml(ref)}"`
+        ? `data-time="${escapeHtml(timestamp)}"`
         : `data-heading="${escapeHtml(ref)}"`;
       const quoteText = s.quote ? String(s.quote).trim() : "";
       const quoteAttr = quoteText ? ` data-quote="${escapeHtml(quoteText)}"` : "";
       const quoteTitle = quoteText
         ? ` title="${escapeHtml(quoteText)}"`
-        : (isTime ? ` title="Jump to ${escapeHtml(ref)} in video"` : ` title="Scroll to section: ${escapeHtml(ref)}"`);
+        : (isTime ? ` title="Jump to ${escapeHtml(timestamp)} in video"` : ` title="Scroll to section: ${escapeHtml(ref)}"`);
 
       const quoteHtml = quoteText
         ? `<span class="source-quote" title="${escapeHtml(quoteText)}">“${escapeHtml(quoteText)}”</span>`
         : "";
 
+      const displayRef = isTime && /^\[\d{1,2}(?::\d{2}){1,2}\]$/.test(ref) ? timestamp : ref;
+
       return `
         <div class="qa-source-item">
           <button type="button" class="${pillClass}" ${dataAttr}${quoteAttr}${quoteTitle}>
             <span class="source-icon">${icon}</span>
-            <span class="source-ref">${escapeHtml(ref)}</span>
+            <span class="source-ref">${escapeHtml(displayRef)}</span>
           </button>
           ${quoteHtml}
         </div>`;
@@ -2919,7 +2947,7 @@ function renderCustomQuestions() {
         <div class="egg-group">
           <div class="qa-item">
             <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-            <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+            <div class="qa-answer">${linkifyTimestamps(escapeHtml(qa.answer))}</div>
             ${renderQaSources(qa.sources)}
           </div>
         </div>`)
@@ -2984,14 +3012,22 @@ function buildPriorQa() {
 
 /** Seek the active tab's video to a chapter timestamp. */
 async function seekToChapter(seconds) {
-  if (activeTabId == null) return;
+  let tabId = activeTabId;
+  if (!tabId) {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = tab?.id;
+    } catch { /* ignore */ }
+  }
+  if (tabId == null) return;
+  const secs = typeof seconds === "number" ? seconds : timeToSeconds(seconds);
   try {
-    await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
+    await chrome.tabs.sendMessage(tabId, { action: "nutegg-seek", seconds: secs });
   } catch {
     // Content script not injected — inject and retry
     try {
       await chrome.scripting.executeScript({
-        target: { tabId: activeTabId },
+        target: { tabId },
         files: [
           "src/content/utils.js",
           "src/content/extractors/youtube.js",
@@ -3001,21 +3037,28 @@ async function seekToChapter(seconds) {
           "src/content/content-script.js",
         ],
       });
-      await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
+      await chrome.tabs.sendMessage(tabId, { action: "nutegg-seek", seconds: secs });
     } catch { /* page doesn't allow injection */ }
   }
 }
 
 /** Scroll the active tab to a section heading or quote text. */
 async function scrollToSection(heading, quote) {
-  if (activeTabId == null) return;
+  let tabId = activeTabId;
+  if (!tabId) {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      tabId = tab?.id;
+    } catch { /* ignore */ }
+  }
+  if (tabId == null) return;
   try {
-    await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-scroll-to", heading, quote });
+    await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
   } catch {
     // Content script not injected — inject and retry
     try {
       await chrome.scripting.executeScript({
-        target: { tabId: activeTabId },
+        target: { tabId },
         files: [
           "src/content/utils.js",
           "src/content/extractors/youtube.js",
@@ -3025,7 +3068,7 @@ async function scrollToSection(heading, quote) {
           "src/content/content-script.js",
         ],
       });
-      await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-scroll-to", heading, quote });
+      await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
     } catch { /* page doesn't allow injection */ }
   }
 }
@@ -3037,8 +3080,9 @@ function handleSourcePillClick(e) {
   e.preventDefault();
   e.stopPropagation();
 
-  if (pill.dataset.time) {
-    seekToChapter(timeToSeconds(pill.dataset.time));
+  const timeVal = pill.dataset.time || extractTimestamp(pill.dataset.heading);
+  if (timeVal) {
+    seekToChapter(timeToSeconds(timeVal));
   } else if (pill.dataset.heading) {
     scrollToSection(pill.dataset.heading, pill.dataset.quote || "");
   }
@@ -3046,8 +3090,14 @@ function handleSourcePillClick(e) {
 
 /** "MM:SS" or "HH:MM:SS" → seconds. */
 function timeToSeconds(time) {
-  const parts = time.split(":").map((p) => parseInt(p, 10));
-  if (parts.some(isNaN)) return 0;
+  if (typeof time === "number" && !isNaN(time)) return Math.floor(time);
+  if (!time) return 0;
+  const ts = extractTimestamp(time) || String(time).trim();
+  const parts = ts.split(":").map((p) => parseInt(p, 10));
+  if (parts.length === 0 || parts.some(isNaN)) {
+    const directNum = parseInt(time, 10);
+    return isNaN(directNum) ? 0 : directNum;
+  }
   return parts.reduce((acc, p) => acc * 60 + p, 0);
 }
 
@@ -3309,4 +3359,13 @@ function openGitHubBugReport(errorContext = "") {
   const title = errorContext ? `[Bug]: ${errorContext.slice(0, 60)}` : "[Bug]: ";
   const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
   window.open(issueUrl, "_blank");
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    extractTimestamp,
+    linkifyTimestamps,
+    renderQaSources,
+    timeToSeconds,
+  };
 }

@@ -71,11 +71,17 @@ if (!window.__nutegg_listener_attached) {
 
     if (message.action === "nutegg-seek") {
       // Seek the page's video to the given timestamp (seconds) — used by the
-      // clickable Chapter Map in the popup.
-      const video = document.querySelector("video");
+      // clickable Chapter Map and Q&A timestamp pills in the popup.
+      const video =
+        document.querySelector(".html5-main-video") ||
+        document.querySelector("video.video-stream") ||
+        document.querySelector("video");
       if (video) {
-        video.currentTime = message.seconds;
-        video.play?.();
+        const secs = Number(message.seconds);
+        if (!isNaN(secs)) {
+          video.currentTime = secs;
+          video.play?.().catch(() => {});
+        }
         sendResponse({ success: true });
       } else {
         sendResponse({ success: false, error: "No video element found" });

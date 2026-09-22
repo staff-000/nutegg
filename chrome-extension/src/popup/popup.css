@@ -1280,6 +1280,13 @@ body {
   color: #1e40af;
 }
 
+.source-pill.inline-timestamp {
+  vertical-align: middle;
+  margin: 0 2px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
 .source-pill.source-section {
   background-color: #f0fdf4;
   border-color: #bbf7d0;
