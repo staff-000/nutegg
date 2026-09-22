@@ -22,10 +22,14 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Skip  →  Obsidian Knowledge Vault
 ```
 
-1. **Open NutEgg** — Click the extension icon on any webpage or video.
+1. **Open NutEgg** — Click the extension icon on any webpage or video to open the side panel.
 2. **Retrieve Content** — Wait for page content to load in NutEgg. (If it ever gets stuck, click 🔄 to retry).
 3. **Click Analyze** — AI evaluates the content against your egg index and existing knowledge trees in Obsidian.
-4. **Review Results** — Check the 3-sentence summary, the "Should You Read It?" verdict, and highlighted new insights vs. already-known concepts.
+4. **Review Results & Navigate**:
+   - **🎯 Anti-Clickbait Verdict**: Instant 1-sentence verdict answering what the video actually delivers.
+   - **⏱️ Video Q&A & Timestamps**: Ask questions about video content and click timestamp citations to jump directly to that exact moment in YouTube playback.
+   - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures.
+   - **⚡ Novelty-First Evaluation**: Highlights new insights vs. concepts already documented in your vault.
 5. **Take Action**:
    - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file (the raw 🌰 nut is also archived automatically).
    - **🌰 Collect Nut**: Saves a raw markdown copy with metadata into your vault archive (`nutegg/_raw/`).

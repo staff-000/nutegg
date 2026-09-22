@@ -109,16 +109,25 @@
         <li><strong>Connection &amp; Credit Monitor</strong>: Instantly test local runner connectivity or check remaining cloud credit balance with 1 click.</li>
       </ul>
 
-      <h2>Local Sync Server</h2>
+      <h2>Local Sync Server &amp; Security</h2>
       <p>
         When the plugin is enabled, it automatically boots a background HTTP listener on <code>127.0.0.1:27123</code>.
       </p>
       <div class="callout">
-        <div class="callout-title">🔒 Privacy Assurance</div>
+        <div class="callout-title">🔒 Privacy &amp; Security Assurance</div>
         <p>
-          The local server binds strictly to the localhost loopback address (<code>127.0.0.1</code>). It is completely inaccessible to other devices on your local network or the internet.
+          The local server binds strictly to the localhost loopback address (<code>127.0.0.1</code>). It enforces strict CORS origin validation to prevent arbitrary web pages from accessing your vault, and includes a 25MB payload ceiling to protect system memory.
         </p>
       </div>
+
+      <h2>Workflow &amp; Prompt Customization</h2>
+      <p>
+        NutEgg powers its AI analysis through modular, editable Markdown prompts stored directly in your vault under <code>nutegg/_workflow/</code>:
+      </p>
+      <ul>
+        <li><strong>Editable Templates</strong>: Customize prompts for content analysis, egg comparison, routing, and follow-ups.</li>
+        <li><strong>Non-Destructive Updates</strong>: When NutEgg releases updated prompt templates, your customized workflows are automatically preserved without being overwritten.</li>
+      </ul>
     </main>
   </div>
 
