@@ -557,8 +557,8 @@ export class NutEggServer {
       // capture history — the popup shows the latest result with its
       // timestamp and offers "Re-analyze".
       const hasQuestions = capture.questions && capture.questions.length > 0;
-      const hasEggOverride = !!capture.eggs && capture.eggs.length > 0;
-      if (!capture.stage && !hasQuestions && !capture.force && !hasEggOverride) {
+      const hasEggOverride = Array.isArray(capture.eggs);
+      if (!capture.stage && !hasQuestions && !capture.force && !(hasEggOverride && capture.eggs!.length > 0)) {
         const history = this.getCaptureHistory(capture.url);
         if (history.length > 0) {
           res.writeHead(200, { "Content-Type": "application/json" });

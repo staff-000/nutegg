@@ -2085,11 +2085,19 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       .filter(Boolean);
 
     // Check which eggs are selected on the page or pre-selected
-    const targetEggs = eggsOverride ||
-      (selectedEggs.size > 0 ? [...selectedEggs] : null) ||
-      (analysisResult?.matchedEggs?.length > 0 ? analysisResult.matchedEggs : null) ||
-      (captureHistory[0]?.result?.matchedEggs?.length > 0 ? captureHistory[0].result.matchedEggs : null) ||
-      (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+    let targetEggs;
+    if (isReanalyze) {
+      // In re-analyze mode, do not auto-select eggs: strictly preserve the user's explicit selection
+      targetEggs = eggsOverride !== null && eggsOverride !== undefined
+        ? eggsOverride
+        : [...selectedEggs];
+    } else {
+      targetEggs = eggsOverride ||
+        (selectedEggs.size > 0 ? [...selectedEggs] : null) ||
+        (analysisResult?.matchedEggs?.length > 0 ? analysisResult.matchedEggs : null) ||
+        (captureHistory[0]?.result?.matchedEggs?.length > 0 ? captureHistory[0].result.matchedEggs : null) ||
+        (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+    }
 
     const payload = {
       url: contentToAnalyze.url || "",
@@ -2102,7 +2110,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       force: true,
       stage: 1,
       enabledSections: { ...enabledSections },
-      ...(targetEggs && targetEggs.length > 0 ? { eggs: targetEggs } : {}),
+      ...(Array.isArray(targetEggs) ? { eggs: targetEggs } : {}),
     };
 
     // Cache the analyzing state so if user switches back while in progress, it shows analyzing
@@ -2129,12 +2137,18 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       return response.error;
     }
 
+    if (isReanalyze && Array.isArray(targetEggs)) {
+      response.matchedEggs = [...targetEggs];
+    }
+
     // In Chrome standalone mode, skip stage 2 egg comparison
     const isChromeMode = response?.mode === "chrome" || (!serverOnline && !response?.matchedEggs?.length);
     const shouldRunStage2 = !isChromeMode && (isReanalyze || analysisMode === "fast");
-    const eggsForStage2 = (targetEggs && targetEggs.length > 0)
-      ? targetEggs
-      : (response.matchedEggs && response.matchedEggs.length > 0 ? response.matchedEggs : []);
+    const eggsForStage2 = isReanalyze
+      ? (Array.isArray(targetEggs) ? targetEggs : [])
+      : ((targetEggs && targetEggs.length > 0)
+          ? targetEggs
+          : (response.matchedEggs && response.matchedEggs.length > 0 ? response.matchedEggs : []));
 
     if (shouldRunStage2) {
       const existingCache2 = tabResultCache.get(pinnedTabId) || {};
