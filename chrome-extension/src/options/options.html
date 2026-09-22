@@ -10,6 +10,40 @@
   <div class="options-container">
     <h1><img src="../../icons/icon32.png" alt="NutEgg" class="logo-icon"> NutEgg Settings</h1>
 
+    <!-- 1. Analysis Workflow -->
+    <section class="option-group">
+      <h2>Analysis Workflow</h2>
+      <div class="option-row">
+        <label for="mode-select">Default Analysis Mode</label>
+        <select id="mode-select" class="mode-select">
+          <option value="fast">⚡ Fast Mode (Auto-proceed)</option>
+          <option value="confirm">🎯 Confirm Eggs Mode (Interactive)</option>
+        </select>
+        <div class="mode-descriptions">
+          <p class="hint mode-desc" id="fast-desc">
+            <strong>⚡ Fast Mode:</strong> NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.
+          </p>
+          <p class="hint mode-desc" id="confirm-desc">
+            <strong>🎯 Confirm Eggs Mode:</strong> NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Obsidian Plugin Companion -->
+    <section class="option-group">
+      <h2>Obsidian Plugin Companion</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+        NutEgg is a two-part system: this Chrome Extension captures content from your browser, while the Obsidian plugin handles AI analysis and knowledge tree curation in your vault.
+      </p>
+      <div class="option-row">
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="primary-btn companion-btn">
+          📥 Get NutEgg on Obsidian Community Plugins ↗
+        </a>
+      </div>
+    </section>
+
+    <!-- 3. Server Connection -->
     <section class="option-group">
       <h2>Server Connection</h2>
       <div class="option-row">
@@ -30,6 +64,7 @@
       </div>
     </section>
 
+    <!-- 4. Standalone Mode (Optional) -->
     <section class="option-group" id="standalone-toggle-group">
       <h2>Standalone Mode (Optional)</h2>
       <div class="option-row standalone-toggle-row">
@@ -96,6 +131,8 @@
             <option value="German">German (Deutsch)</option>
           </select>
         </div>
+      </div>
+
       <div class="option-row" id="ai-prompt-row">
         <div class="prompt-header-container">
           <label for="ai-prompt-select">5. Custom Prompts</label>
@@ -126,42 +163,13 @@
       </div>
     </section>
 
-    <section class="option-group">
-      <h2>Obsidian Plugin Companion</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
-        NutEgg is a two-part system: this Chrome Extension captures content from your browser, while the Obsidian plugin handles AI analysis and knowledge tree curation in your vault.
-      </p>
-      <div class="option-row">
-        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="primary-btn companion-btn">
-          📥 Get NutEgg on Obsidian Community Plugins ↗
-        </a>
-      </div>
-    </section>
-
-    <section class="option-group">
-      <h2>Analysis Workflow</h2>
-      <div class="option-row">
-        <label for="mode-select">Default Analysis Mode</label>
-        <select id="mode-select" class="mode-select">
-          <option value="fast">⚡ Fast Mode (Auto-proceed)</option>
-          <option value="confirm">🎯 Confirm Eggs Mode (Interactive)</option>
-        </select>
-        <div class="mode-descriptions">
-          <p class="hint mode-desc" id="fast-desc">
-            <strong>⚡ Fast Mode:</strong> NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.
-          </p>
-          <p class="hint mode-desc" id="confirm-desc">
-            <strong>🎯 Confirm Eggs Mode:</strong> NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.
-          </p>
-        </div>
-      </div>
-    </section>
-
+    <!-- 5. Keyboard Shortcut -->
     <section class="option-group">
       <h2>Keyboard Shortcut</h2>
       <p>Configure the quick-capture shortcut at <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a></p>
     </section>
 
+    <!-- 6. Help & Feedback -->
     <section class="option-group">
       <h2>Help &amp; Feedback</h2>
       <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
