@@ -3,6 +3,7 @@ You are a knowledge curator. The content below was too long for one pass and was
 ## Content
 **Title:** {{title}}
 **Source:** {{url}}
+{{chapters}}
 
 ## Per-Part Summaries
 {{chunk_summaries}}
@@ -19,7 +20,17 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "coreSummary": ["bullet 1", "bullet 2"],
   "mindMap": [
     {
-      "name": "Main Topic",
+      "name": "First Main Topic",
+      "detail": "Core idea",
+      "children": [
+        {
+          "name": "Subtopic",
+          "detail": "Key reasoning"
+        }
+      ]
+    },
+    {
+      "name": "Second Main Topic",
       "detail": "Core idea",
       "children": [
         {
@@ -39,6 +50,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules
-- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts.
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}

@@ -2846,11 +2846,31 @@ function renderQaSources(sources) {
   return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 Sources:</div>${items}</div>` : "";
 }
 
+/**
+ * Unwrap single root node(s) with children so that the mind map directly
+ * displays the core branches at the root level instead of an unnecessary single root.
+ */
+function unwrapMindMapRoots(nodes) {
+  let current = nodes;
+  while (
+    Array.isArray(current) &&
+    current.length === 1 &&
+    Array.isArray(current[0].children) &&
+    current[0].children.length > 0
+  ) {
+    current = current[0].children;
+  }
+  return current;
+}
+
 /** Render the Mind Map hierarchical concept tree. */
 function renderMindMap(nodes) {
   if (!mindmapTree) return;
   mindmapTree.innerHTML = "";
   if (!Array.isArray(nodes) || nodes.length === 0) return;
+
+  const displayNodes = unwrapMindMapRoots(nodes);
+  if (!Array.isArray(displayNodes) || displayNodes.length === 0) return;
 
   function buildNode(node) {
     const nodeEl = document.createElement("div");
@@ -2915,7 +2935,7 @@ function renderMindMap(nodes) {
     return nodeEl;
   }
 
-  for (const node of nodes) {
+  for (const node of displayNodes) {
     mindmapTree.appendChild(buildNode(node));
   }
 }
@@ -3367,5 +3387,6 @@ if (typeof module !== "undefined" && module.exports) {
     linkifyTimestamps,
     renderQaSources,
     timeToSeconds,
+    unwrapMindMapRoots,
   };
 }

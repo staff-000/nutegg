@@ -234,6 +234,7 @@ export class AIProcessor {
           part: i + 1,
           startTime: chunks[i].startTime,
           bullets: r.coreSummary,
+          mindMap: r.mindMap,
         }))
       );
       const chapterMap = partResults.flatMap((r) => r.chapterMap);
@@ -661,8 +662,18 @@ export class AIProcessor {
 
   /** Aggregate the per-part content summaries into one result. */
   private async aggregateContent(
-    capture: { title: string; url: string; questions?: string[] },
-    chunkSummaries: Array<{ part: number; startTime: string; bullets: string[] }>
+    capture: {
+      title: string;
+      url: string;
+      chapters?: Array<{ time: string; title: string }>;
+      questions?: string[];
+    },
+    chunkSummaries: Array<{
+      part: number;
+      startTime: string;
+      bullets: string[];
+      mindMap?: MindMapNode[];
+    }>
   ): Promise<{
     titleVerdict: string;
     coreSummary: string[];
@@ -672,11 +683,23 @@ export class AIProcessor {
     const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture.title,
       url: capture.url,
+      chapters: this.chaptersBlock(capture.chapters),
       chunk_summaries: chunkSummaries
         .map((c) => {
           const at = c.startTime ? ` (${c.startTime})` : "";
           const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
-          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || "- (no summary)"}`;
+          let mmStr = "";
+          if (Array.isArray(c.mindMap) && c.mindMap.length > 0) {
+            mmStr =
+              "\n### Key Concepts/Branches from this part:\n" +
+              c.mindMap
+                .map(
+                  (n) =>
+                    `- **${n.name}**${n.detail ? `: ${n.detail}` : ""}`
+                )
+                .join("\n");
+          }
+          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || "- (no summary)"}${mmStr}`;
         })
         .join("\n\n"),
       questions: this.questionsBlock(
@@ -687,7 +710,8 @@ export class AIProcessor {
       shared_output_rules: this.getContentOutputRules(),
     });
 
-    const response = await this.callAI(prompt, 1500);
+    const budget = Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 4096);
+    const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, "aggregate-content");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),

@@ -48,7 +48,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
   "mindMap": [
     {
-      "name": "Main Topic / Branch",
+      "name": "First Main Topic / Theme",
       "detail": "Core idea or thesis of this branch",
       "children": [
         {
@@ -60,6 +60,16 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
               "detail": "Concrete takeaway or example"
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Second Main Topic / Theme",
+      "detail": "Core idea or thesis of this branch",
+      "children": [
+        {
+          "name": "Subtopic / Concept",
+          "detail": "Key reasoning, mechanism, or explanation"
         }
       ]
     }
@@ -80,7 +90,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 ## Output Rules
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
-- mindMap: up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
+- mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
 - chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
@@ -210,6 +220,7 @@ var aggregate_content_default = `You are a knowledge curator. The content below 
 ## Content
 **Title:** {{title}}
 **Source:** {{url}}
+{{chapters}}
 
 ## Per-Part Summaries
 {{chunk_summaries}}
@@ -226,7 +237,17 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "coreSummary": ["bullet 1", "bullet 2"],
   "mindMap": [
     {
-      "name": "Main Topic",
+      "name": "First Main Topic",
+      "detail": "Core idea",
+      "children": [
+        {
+          "name": "Subtopic",
+          "detail": "Key reasoning"
+        }
+      ]
+    },
+    {
+      "name": "Second Main Topic",
       "detail": "Core idea",
       "children": [
         {
@@ -246,7 +267,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules
-- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts.
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}
 `;

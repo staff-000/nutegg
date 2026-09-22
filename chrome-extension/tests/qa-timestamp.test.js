@@ -62,6 +62,7 @@ const {
   timeToSeconds,
   renderQaSources,
   linkifyTimestamps,
+  unwrapMindMapRoots,
 } = require("../src/popup/popup.js");
 
 test("extractTimestamp - extracts standard MM:SS and HH:MM:SS", () => {
@@ -145,5 +146,66 @@ test("linkifyTimestamps - preserves text without timestamps", () => {
   const text = "This is a plain answer with no timestamps mentioned.";
   const linkified = linkifyTimestamps(text);
   assert.equal(linkified, text);
+});
+
+test("unwrapMindMapRoots - unwraps single root node with children", () => {
+  const treeWithSingleRoot = [
+    {
+      name: "Article Title (Single Root)",
+      detail: "Overall summary",
+      children: [
+        { name: "Branch 1", detail: "Detail 1" },
+        { name: "Branch 2", detail: "Detail 2" },
+        { name: "Branch 3", detail: "Detail 3" },
+      ],
+    },
+  ];
+
+  const unwrapped = unwrapMindMapRoots(treeWithSingleRoot);
+  assert.equal(unwrapped.length, 3);
+  assert.equal(unwrapped[0].name, "Branch 1");
+  assert.equal(unwrapped[1].name, "Branch 2");
+  assert.equal(unwrapped[2].name, "Branch 3");
+});
+
+test("unwrapMindMapRoots - preserves multi-branch roots", () => {
+  const multiRoots = [
+    { name: "Branch 1", detail: "Detail 1" },
+    { name: "Branch 2", detail: "Detail 2" },
+  ];
+
+  const result = unwrapMindMapRoots(multiRoots);
+  assert.equal(result.length, 2);
+  assert.equal(result[0].name, "Branch 1");
+  assert.equal(result[1].name, "Branch 2");
+});
+
+test("unwrapMindMapRoots - handles single node without children", () => {
+  const singleLeaf = [{ name: "Only Node", detail: "No children" }];
+  const result = unwrapMindMapRoots(singleLeaf);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, "Only Node");
+});
+
+test("unwrapMindMapRoots - unwraps nested single roots", () => {
+  const nested = [
+    {
+      name: "Root 1",
+      children: [
+        {
+          name: "Subroot 1.1",
+          children: [
+            { name: "Actual Topic A" },
+            { name: "Actual Topic B" },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const result = unwrapMindMapRoots(nested);
+  assert.equal(result.length, 2);
+  assert.equal(result[0].name, "Actual Topic A");
+  assert.equal(result[1].name, "Actual Topic B");
 });
 
