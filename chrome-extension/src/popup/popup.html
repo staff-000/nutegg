@@ -185,56 +185,96 @@
       </div>
 
       <div class="result-section" id="verdict-section">
-        <div class="section-label">📖 Should you read it?</div>
-        <div id="verdict-badge" class="verdict-badge">
-          <span id="verdict-icon"></span>
-          <span id="verdict-text"></span>
+        <div class="section-header">
+          <div class="section-label">📖 Should you read it?</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
-        <div id="verdict-reason" class="verdict-reason"></div>
+        <div class="section-content">
+          <div id="verdict-badge" class="verdict-badge">
+            <span id="verdict-icon"></span>
+            <span id="verdict-text"></span>
+          </div>
+          <div id="verdict-reason" class="verdict-reason"></div>
+        </div>
       </div>
 
-      <div class="result-section">
-        <div class="section-label">🎯 Title Verdict</div>
-        <div id="verdict-answer" class="summary-text"></div>
+      <div class="result-section" id="title-verdict-section">
+        <div class="section-header">
+          <div class="section-label">🎯 Title Verdict</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="verdict-answer" class="summary-text"></div>
+        </div>
       </div>
 
-      <div class="result-section">
-        <div class="section-label">📋 Core Summary</div>
-        <ul id="core-summary" class="core-summary"></ul>
+      <div class="result-section" id="core-summary-section">
+        <div class="section-header">
+          <div class="section-label">📋 Core Summary</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <ul id="core-summary" class="core-summary"></ul>
+        </div>
       </div>
 
       <div id="mindmap-section" class="result-section hidden">
-        <div class="section-label">🧠 Mind Map</div>
-        <div id="mindmap-tree" class="mindmap-tree"></div>
+        <div class="section-header">
+          <div class="section-label">🧠 Mind Map</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="mindmap-tree" class="mindmap-tree"></div>
+        </div>
       </div>
 
       <div id="chapter-section" class="result-section hidden">
-        <div class="section-label">🗺️ Chapter Map <span class="section-hint">(click to jump)</span></div>
-        <div id="chapter-list" class="chapter-list"></div>
+        <div class="section-header">
+          <div class="section-label">🗺️ Chapter Map <span class="section-hint">(click to jump)</span></div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="chapter-list" class="chapter-list"></div>
+        </div>
       </div>
 
       <div id="custom-questions-section" class="result-section hidden">
-        <div class="section-label">💭 Your Questions</div>
-        <div id="custom-questions-list" class="keyquestions-list"></div>
-        <div class="followup-area">
-          <input id="followup-input" type="text" placeholder="Ask a follow-up question about this content…" />
-          <button id="followup-btn" class="followup-btn">Ask</button>
+        <div class="section-header">
+          <div class="section-label">💭 Your Questions</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="custom-questions-list" class="keyquestions-list"></div>
+          <div class="followup-area">
+            <input id="followup-input" type="text" placeholder="Ask a follow-up question about this content…" />
+            <button id="followup-btn" class="followup-btn">Ask</button>
+          </div>
         </div>
       </div>
 
       <!-- Unified Egg Knowledge Section with Tabs -->
       <div id="egg-knowledge-section" class="result-section hidden">
-        <div class="section-label">🥚 Egg Knowledge <span class="section-hint" id="egg-knowledge-hint">(by egg)</span></div>
-        <div id="egg-tabs-bar" class="egg-tabs-bar hidden"></div>
-        <div id="egg-knowledge-content" class="egg-knowledge-content"></div>
+        <div class="section-header">
+          <div class="section-label">🥚 Egg Knowledge <span class="section-hint" id="egg-knowledge-hint">(by egg)</span></div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="egg-tabs-bar" class="egg-tabs-bar hidden"></div>
+          <div id="egg-knowledge-content" class="egg-knowledge-content"></div>
+        </div>
       </div>
 
       <div id="no-egg-section" class="result-section hidden">
-        <div class="section-label">🐣 No egg matched — create one?</div>
-        <div class="create-egg-box">
-          <input id="new-egg-name" type="text" placeholder="egg name (e.g. productivity)" />
-          <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
-          <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+        <div class="section-header">
+          <div class="section-label">🐣 No egg matched — create one?</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div class="create-egg-box">
+            <input id="new-egg-name" type="text" placeholder="egg name (e.g. productivity)" />
+            <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
+            <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+          </div>
         </div>
       </div>
 

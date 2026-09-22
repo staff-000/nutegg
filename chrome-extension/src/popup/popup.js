@@ -198,6 +198,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   confirmBtn.addEventListener("click", handleConfirm);
   collectNutBtn.addEventListener("click", handleSaveRaw);
   discardBtn.addEventListener("click", handleDiscard);
+  initCollapsibleSections();
   backBtn.addEventListener("click", async () => {
     showCaptureState();
     let currentTabUrl = "";
@@ -2133,12 +2134,73 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   }
 }
 
+// --- Collapsible Results Sections ---
+
+/** Initialize collapsible behavior for all result sections. */
+function initCollapsibleSections() {
+  document.querySelectorAll("#results-state .result-section").forEach((section) => {
+    const header = section.querySelector(".section-header");
+    const content = section.querySelector(".section-content");
+    const chevron = section.querySelector(".section-chevron");
+    if (!header || !content || !chevron) return;
+
+    if (header.dataset.collapsibleInit) return;
+    header.dataset.collapsibleInit = "true";
+
+    header.setAttribute("role", "button");
+    header.setAttribute("tabindex", "0");
+    header.setAttribute("aria-expanded", "true");
+    header.setAttribute("title", "Click to collapse / expand section");
+
+    const toggle = (e) => {
+      if (e.target.closest("button, a, input, select, textarea")) return;
+      const isCollapsed = content.classList.toggle("collapsed");
+      chevron.classList.toggle("collapsed", isCollapsed);
+      const svg = chevron.querySelector("svg");
+      if (!svg) {
+        chevron.textContent = isCollapsed ? "▸" : "▾";
+      }
+      header.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+    };
+
+    header.addEventListener("click", toggle);
+    header.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle(e);
+      }
+    });
+  });
+}
+
+/** Reset all result sections to expanded state. */
+function resetCollapsibleSections() {
+  document.querySelectorAll("#results-state .result-section").forEach((section) => {
+    const header = section.querySelector(".section-header");
+    const content = section.querySelector(".section-content");
+    const chevron = section.querySelector(".section-chevron");
+    if (content && chevron && header) {
+      content.classList.remove("collapsed");
+      chevron.classList.remove("collapsed");
+      const svg = chevron.querySelector("svg");
+      if (!svg) {
+        chevron.textContent = "▾";
+      }
+      header.setAttribute("aria-expanded", "true");
+    }
+  });
+}
+
 // --- Show results ---
 
 function showResultsState(result, provenance = null) {
   analysisResult = result;
   captureState.classList.add("hidden");
   resultsState.classList.remove("hidden");
+  initCollapsibleSections();
+  if (!isReanalyzing) {
+    resetCollapsibleSections();
+  }
   if (!isReanalyzing && captureHistory.length <= 1) {
     processedNote.classList.add("hidden");
   } else {
@@ -2993,6 +3055,7 @@ function showCaptureState() {
   resultsState.classList.add("hidden");
   resultPageInfo.classList.add("hidden");
   captureState.classList.remove("hidden");
+  resetCollapsibleSections();
   if (extractedContent) {
     contentPreview.textContent = extractedContent.content || "(No content extracted)";
     if (extractedContent.title) pageTitle.textContent = extractedContent.title;
