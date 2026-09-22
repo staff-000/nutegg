@@ -114,6 +114,21 @@ export interface MindMapNode {
   children?: MindMapNode[];
 }
 
+/** Configuration for which Content Analysis sections should be generated. */
+export interface AnalysisSectionsConfig {
+  titleVerdict: boolean;
+  coreSummary: boolean;
+  mindMap: boolean;
+  chapterMap: boolean;
+}
+
+export const DEFAULT_ANALYSIS_SECTIONS: AnalysisSectionsConfig = {
+  titleVerdict: true,
+  coreSummary: true,
+  mindMap: true,
+  chapterMap: true,
+};
+
 /** Content-level analysis, independent of any egg. */
 export interface ContentAnalysis {
   /** Direct answer to the question posed in the title / intro. */
@@ -135,6 +150,7 @@ export interface CapturePayload {
   sourceType: string;
   chapters?: Array<{ time: string; title: string }>;
   questions?: string[];
+  enabledSections?: Partial<AnalysisSectionsConfig>;
 }
 
 /** In-memory representation of a parsed Egg note file. */

@@ -36,12 +36,22 @@ const processedNote = document.getElementById("processed-note");
 const processedMessage = document.getElementById("processed-message");
 const reanalyzeBtn = document.getElementById("reanalyze-btn");
 const historySelect = document.getElementById("history-select");
+const titleVerdictSection = document.getElementById("title-verdict-section");
 const verdictAnswer = document.getElementById("verdict-answer");
+const coreSummarySection = document.getElementById("core-summary-section");
 const coreSummaryEl = document.getElementById("core-summary");
 const mindmapSection = document.getElementById("mindmap-section");
 const mindmapTree = document.getElementById("mindmap-tree");
 const chapterSection = document.getElementById("chapter-section");
 const chapterList = document.getElementById("chapter-list");
+
+// Content Analysis section chips
+const sectionsQuickToggle = document.getElementById("sections-quick-toggle");
+const openSectionSettingsBtn = document.getElementById("open-section-settings-btn");
+const chipVerdict = document.getElementById("chip-verdict");
+const chipSummary = document.getElementById("chip-summary");
+const chipMindmap = document.getElementById("chip-mindmap");
+const chipChapters = document.getElementById("chip-chapters");
 const customQuestionsSection = document.getElementById("custom-questions-section");
 const customQuestionsList = document.getElementById("custom-questions-list");
 const followupInput = document.getElementById("followup-input");
@@ -130,6 +140,14 @@ let selectedEggs = new Set();
 /** Pre-selected eggs on the capture screen (before analyze). Empty = auto-detect. */
 let preSelectedEggs = new Set();
 
+const DEFAULT_ANALYSIS_SECTIONS = {
+  titleVerdict: true,
+  coreSummary: true,
+  mindMap: true,
+  chapterMap: true,
+};
+let enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
+
 /** Analysis mode: "fast" (1-click full) | "confirm" (confirm eggs after stage 1). */
 let analysisMode = "fast";
 let stage1Payload = null;
@@ -160,7 +178,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
     const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics"], resolve);
+      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections"], resolve);
     });
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
@@ -168,16 +186,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (stored?.cachedMetrics) {
       applyMetrics(stored.cachedMetrics);
     }
+    if (stored?.enabledSections) {
+      enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...stored.enabledSections };
+    }
   } catch {}
+
+  // Initialize Content Analysis section chips
+  initSectionChips();
 
   // Fetch fresh metrics immediately in parallel without waiting for content extraction
   fetchMetrics();
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
-    if (areaName === "local" && changes.analysisMode) {
-      const newMode = changes.analysisMode.newValue;
-      if (newMode === "confirm" || newMode === "fast") {
-        setAnalysisMode(newMode);
+    if (areaName === "local") {
+      if (changes.analysisMode) {
+        const newMode = changes.analysisMode.newValue;
+        if (newMode === "confirm" || newMode === "fast") {
+          setAnalysisMode(newMode);
+        }
+      }
+      if (changes.enabledSections && changes.enabledSections.newValue) {
+        enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...changes.enabledSections.newValue };
+        updateSectionChipsUI();
       }
     }
   });
@@ -471,6 +501,60 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   await refreshForCurrentTab();
 });
+
+/** Initialize quick-toggle chips on capture screen */
+function initSectionChips() {
+  updateSectionChipsUI();
+
+  const chips = [
+    { el: chipVerdict, key: "titleVerdict" },
+    { el: chipSummary, key: "coreSummary" },
+    { el: chipMindmap, key: "mindMap" },
+    { el: chipChapters, key: "chapterMap" },
+  ];
+
+  chips.forEach(({ el, key }) => {
+    if (!el) return;
+    el.addEventListener("click", async () => {
+      const currentVal = enabledSections[key] !== false;
+      const activeCount = Object.values(enabledSections).filter(Boolean).length;
+      if (currentVal && activeCount <= 1) {
+        showWarning("At least one analysis section must remain enabled.");
+        return;
+      }
+      enabledSections[key] = !currentVal;
+      updateSectionChipsUI();
+      try {
+        await chrome.storage?.local?.set?.({ enabledSections: { ...enabledSections } });
+      } catch {}
+    });
+  });
+
+  openSectionSettingsBtn?.addEventListener("click", () => {
+    chrome.runtime?.openOptionsPage?.();
+  });
+}
+
+/** Update chip visual states (active vs inactive) */
+function updateSectionChipsUI() {
+  const map = [
+    { el: chipVerdict, key: "titleVerdict" },
+    { el: chipSummary, key: "coreSummary" },
+    { el: chipMindmap, key: "mindMap" },
+    { el: chipChapters, key: "chapterMap" },
+  ];
+  map.forEach(({ el, key }) => {
+    if (!el) return;
+    const active = enabledSections[key] !== false;
+    if (active) {
+      el.classList.add("active");
+      el.classList.remove("inactive");
+    } else {
+      el.classList.remove("active");
+      el.classList.add("inactive");
+    }
+  });
+}
 
 let refreshSeq = 0;
 
@@ -1941,6 +2025,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       questions,
       force: true,
       stage: 1,
+      enabledSections: { ...enabledSections },
       ...(targetEggs && targetEggs.length > 0 ? { eggs: targetEggs } : {}),
     };
 
@@ -2283,15 +2368,36 @@ function showResultsState(result, provenance = null) {
   }
 
   // Title Verdict
-  verdictAnswer.textContent = result.titleVerdict || "";
+  const showVerdict = result.titleVerdict && enabledSections.titleVerdict !== false;
+  if (showVerdict) {
+    titleVerdictSection?.classList.remove("hidden");
+    verdictAnswer.textContent = result.titleVerdict || "";
+  } else {
+    titleVerdictSection?.classList.add("hidden");
+    verdictAnswer.textContent = "";
+  }
 
   // Core Summary
-  coreSummaryEl.innerHTML = (result.coreSummary || [])
-    .map((b) => `<li>${escapeHtml(b)}</li>`)
-    .join("");
+  const showSummary =
+    Array.isArray(result.coreSummary) &&
+    result.coreSummary.length > 0 &&
+    enabledSections.coreSummary !== false;
+  if (showSummary) {
+    coreSummarySection?.classList.remove("hidden");
+    coreSummaryEl.innerHTML = (result.coreSummary || [])
+      .map((b) => `<li>${escapeHtml(b)}</li>`)
+      .join("");
+  } else {
+    coreSummarySection?.classList.add("hidden");
+    coreSummaryEl.innerHTML = "";
+  }
 
   // Mind Map — text-heavy concept tree for side panel
-  if (Array.isArray(result.mindMap) && result.mindMap.length > 0) {
+  const showMindmap =
+    Array.isArray(result.mindMap) &&
+    result.mindMap.length > 0 &&
+    enabledSections.mindMap !== false;
+  if (showMindmap) {
     mindmapSection?.classList.remove("hidden");
     renderMindMap(result.mindMap);
   } else {
@@ -2312,6 +2418,7 @@ function showResultsState(result, provenance = null) {
     !hasAuthorChapters;
 
   const shouldShowChapterMap =
+    enabledSections.chapterMap !== false &&
     Array.isArray(result.chapterMap) &&
     result.chapterMap.length > 0 &&
     !isShortWithoutChapters;

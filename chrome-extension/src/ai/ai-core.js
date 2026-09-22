@@ -23,6 +23,7 @@ var NutEggAI = (() => {
     AIClient: () => AIClient,
     AIError: () => AIError,
     AIProcessor: () => AIProcessor,
+    DEFAULT_ANALYSIS_SECTIONS: () => DEFAULT_ANALYSIS_SECTIONS,
     DEFAULT_CHUNK_WINDOW_CHARS: () => DEFAULT_CHUNK_WINDOW_CHARS,
     DEFAULT_SECTION_SECS: () => DEFAULT_SECTION_SECS,
     KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
@@ -32,6 +33,7 @@ var NutEggAI = (() => {
     PROVIDER_CATALOG: () => PROVIDER_CATALOG,
     UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
     analyzeContentStandalone: () => analyzeContentStandalone,
+    applyPrunedSections: () => applyPrunedSections,
     askFollowUpStandalone: () => askFollowUpStandalone,
     chatAI: () => chatAI,
     checkCreditAI: () => checkCreditAI,
@@ -57,6 +59,9 @@ var NutEggAI = (() => {
     parseJson: () => parseJson,
     parseListItems: () => parseListItems,
     partNote: () => partNote,
+    pruneRulesFromTemplate: () => pruneRulesFromTemplate,
+    pruneSchemaFromTemplate: () => pruneSchemaFromTemplate,
+    pruneTaskContent: () => pruneTaskContent,
     renderPrompt: () => renderPrompt,
     repairTruncatedJson: () => repairTruncatedJson,
     resolveConfig: () => resolveConfig,
@@ -68,6 +73,14 @@ var NutEggAI = (() => {
     timestampedChunks: () => timestampedChunks,
     toSeconds: () => toSeconds
   });
+
+  // ../shared/src/types.ts
+  var DEFAULT_ANALYSIS_SECTIONS = {
+    titleVerdict: true,
+    coreSummary: true,
+    mindMap: true,
+    chapterMap: true
+  };
 
   // ../shared/src/catalog.ts
   var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -1421,7 +1434,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 ## Output Rules
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
-- mindMap: 2-5 main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
+- mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
 - chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
@@ -1598,7 +1611,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules
-- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have 2-5 main branches directly at the root level (do NOT wrap in a single overall root node).
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}
 `;
@@ -1702,6 +1715,164 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   }
 
   // ../shared/src/ai-processor.ts
+  function pruneTaskContent(taskText, sections) {
+    if (!taskText)
+      return "";
+    const lines = taskText.split("\n");
+    const filtered = lines.filter((line) => {
+      const trimmed = line.trim();
+      if (!trimmed)
+        return false;
+      if (!sections.titleVerdict && /title\s*verdict/i.test(line))
+        return false;
+      if (!sections.coreSummary && /core\s*summary/i.test(line))
+        return false;
+      if (!sections.chapterMap && /chapter\s*map/i.test(line))
+        return false;
+      if (!sections.mindMap && /mind\s*map/i.test(line))
+        return false;
+      return true;
+    });
+    return filtered.map((line, idx) => line.replace(/^\s*\d+[\.\)]\s*/, `${idx + 1}. `)).join("\n");
+  }
+  function pruneRulesFromTemplate(rulesBlock, sections) {
+    if (!rulesBlock)
+      return "";
+    const lines = rulesBlock.split("\n");
+    const result = [];
+    let skippingCurrentBullet = false;
+    for (const line of lines) {
+      const isBulletStart = /^\s*[-*]\s+/.test(line);
+      if (isBulletStart) {
+        skippingCurrentBullet = false;
+        if (!sections.titleVerdict && /^\s*[-*]\s*titleVerdict\b/i.test(line)) {
+          skippingCurrentBullet = true;
+          continue;
+        }
+        if (!sections.coreSummary && /^\s*[-*]\s*coreSummary\b/i.test(line)) {
+          skippingCurrentBullet = true;
+          continue;
+        }
+        if (!sections.mindMap && /^\s*[-*]\s*mindMap\b/i.test(line)) {
+          skippingCurrentBullet = true;
+          continue;
+        }
+        if (!sections.chapterMap && /^\s*[-*]\s*(chapterMap|isLongForm)\b/i.test(line)) {
+          skippingCurrentBullet = true;
+          continue;
+        }
+      }
+      if (!skippingCurrentBullet) {
+        result.push(line);
+      }
+    }
+    return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  function pruneSchemaFromTemplate(schemaText, sections) {
+    const startIdx = schemaText.indexOf("{");
+    const endIdx = schemaText.lastIndexOf("}");
+    if (startIdx === -1 || endIdx === -1)
+      return schemaText;
+    const inner = schemaText.slice(startIdx + 1, endIdx);
+    const properties = [];
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let currentProp = "";
+    for (let i = 0; i < inner.length; i++) {
+      const c = inner[i];
+      if (inString) {
+        currentProp += c;
+        if (escaped) {
+          escaped = false;
+        } else if (c === "\\") {
+          escaped = true;
+        } else if (c === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (c === '"') {
+        inString = true;
+        currentProp += c;
+        continue;
+      }
+      if (c === "{" || c === "[") {
+        depth++;
+        currentProp += c;
+        continue;
+      }
+      if (c === "}" || c === "]") {
+        depth--;
+        currentProp += c;
+        continue;
+      }
+      if (c === "," && depth === 0) {
+        properties.push(currentProp);
+        currentProp = "";
+        continue;
+      }
+      currentProp += c;
+    }
+    if (currentProp.trim()) {
+      properties.push(currentProp);
+    }
+    const filtered = properties.filter((prop) => {
+      const keyMatch = prop.match(/"([^"]+)"\s*:/);
+      if (!keyMatch)
+        return true;
+      const key = keyMatch[1];
+      if (!sections.titleVerdict && key === "titleVerdict")
+        return false;
+      if (!sections.coreSummary && key === "coreSummary")
+        return false;
+      if (!sections.mindMap && key === "mindMap")
+        return false;
+      if (!sections.chapterMap && (key === "chapterMap" || key === "isLongForm"))
+        return false;
+      return true;
+    });
+    return "{\n  " + filtered.map((p) => p.trim()).join(",\n  ") + "\n}";
+  }
+  function applyPrunedSections(tpl, sections, _isAggregate = false) {
+    const isDefault = sections.titleVerdict && sections.coreSummary && sections.mindMap && sections.chapterMap;
+    if (isDefault)
+      return tpl;
+    let out = tpl;
+    out = out.replace(
+      /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+)/,
+      (match, header, taskBody, footer) => {
+        if (taskBody.includes("{{content_task_default}}")) {
+          return match;
+        }
+        const pruned = pruneTaskContent(taskBody, sections);
+        return `${header}${pruned}${footer}`;
+      }
+    );
+    const formatIdx = out.indexOf("## Output Format");
+    if (formatIdx !== -1) {
+      const afterFormat = formatIdx + "## Output Format".length;
+      const nextHeaderMatch = out.slice(afterFormat).search(/\n##\s+/);
+      const endOfFormatIdx = nextHeaderMatch !== -1 ? afterFormat + nextHeaderMatch : out.length;
+      const formatSection = out.slice(formatIdx, endOfFormatIdx);
+      const startBrace = formatSection.indexOf("{");
+      const endBrace = formatSection.lastIndexOf("}");
+      if (startBrace !== -1 && endBrace !== -1 && endBrace > startBrace) {
+        const schemaBody = formatSection.slice(startBrace, endBrace + 1);
+        const pruned = pruneSchemaFromTemplate(schemaBody, sections);
+        out = out.slice(0, formatIdx + startBrace) + pruned + out.slice(formatIdx + endBrace + 1);
+      }
+    }
+    out = out.replace(
+      /(## Output Rules[^\n]*\n)([\s\S]*?)(\{\{shared_output_rules\}\}|\n##\s+|$)/,
+      (match, header, rulesBody, footer) => {
+        const pruned = pruneRulesFromTemplate(rulesBody, sections);
+        return `${header}${pruned}
+${footer}`;
+      }
+    );
+    return out;
+  }
   var MERGE_THRESHOLD = 20;
   var AIProcessor = class {
     host;
@@ -1764,10 +1935,14 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
      * Handles long-form chunked content with aggregation or single-chunk content.
      */
     async analyzeContent(capture) {
+      const effectiveSections = {
+        ...DEFAULT_ANALYSIS_SECTIONS,
+        ...capture.enabledSections || {}
+      };
       if (!isAIConfigured(this.host?.settings)) {
         return {
-          titleVerdict: capture.title,
-          coreSummary: [capture.title],
+          titleVerdict: effectiveSections.titleVerdict ? capture.title : "",
+          coreSummary: effectiveSections.coreSummary ? [capture.title] : [],
           isLongForm: false,
           chapterMap: [],
           customQuestionAnswers: (capture.questions || []).map((q) => ({
@@ -1787,22 +1962,26 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
                 content: chunk.content,
                 chapters: chunk.chapters,
                 sections: chunk.sections,
-                questions: []
+                questions: [],
+                enabledSections: effectiveSections
               },
               partNote(chunk)
             )
           )
         );
         const summary = await this.aggregateContent(
-          capture,
+          {
+            ...capture,
+            enabledSections: effectiveSections
+          },
           partResults.map((r, i) => ({
             part: i + 1,
             startTime: chunks[i].startTime,
             bullets: r.coreSummary,
-            mindMap: r.mindMap
+            mindMap: effectiveSections.mindMap ? r.mindMap : void 0
           }))
         );
-        const chapterMap = partResults.flatMap((r) => r.chapterMap);
+        const chapterMap = effectiveSections.chapterMap ? partResults.flatMap((r) => r.chapterMap) : [];
         return {
           titleVerdict: summary.titleVerdict,
           coreSummary: summary.coreSummary,
@@ -1816,7 +1995,8 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       const effective = {
         ...capture,
         chapters: single?.chapters,
-        sections: single?.sections
+        sections: single?.sections,
+        enabledSections: effectiveSections
       };
       return this.callContentChunk(effective, "");
     }
@@ -1895,14 +2075,22 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     }
     /** Phase 1 — content-level summary + chapter map + custom question answers. */
     async callContentChunk(capture, partNoteStr = "") {
-      const prompt = renderPrompt(this.getPrompt("contentAnalysis"), {
-        content_task_default: this.getPrompt("contentTaskDefault"),
+      const sections = {
+        ...DEFAULT_ANALYSIS_SECTIONS,
+        ...capture.enabledSections || {}
+      };
+      const rawTpl = this.getPrompt("contentAnalysis");
+      const prunedTpl = applyPrunedSections(rawTpl, sections, false);
+      const rawTask = this.getPrompt("contentTaskDefault");
+      const prunedTask = pruneTaskContent(rawTask, sections);
+      const prompt = renderPrompt(prunedTpl, {
+        content_task_default: prunedTask,
         title: capture.title,
         url: capture.url,
         source_type: capture.sourceType,
         part_note: partNoteStr,
-        chapters: this.chaptersBlock(capture.chapters),
-        sections: this.sectionsBlock(capture.sections),
+        chapters: sections.chapterMap ? this.chaptersBlock(capture.chapters) : "",
+        sections: sections.chapterMap ? this.sectionsBlock(capture.sections) : "",
         questions: this.questionsBlock(
           capture.questions,
           "User Questions (answer each directly and concisely)"
@@ -1914,11 +2102,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       const response = await this.callAI(prompt, configuredMax);
       const parsed = this.parseJson(response, "content-analysis");
       return {
-        titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
-        coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
-        mindMap: this.parseMindMap(parsed.mindMap),
-        isLongForm: parsed.isLongForm === true,
-        chapterMap: parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0) ? [] : this.completeChapterMap(
+        titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
+        coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
+        mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
+        isLongForm: sections.chapterMap ? parsed.isLongForm === true : false,
+        chapterMap: !sections.chapterMap ? [] : parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0) ? [] : this.completeChapterMap(
           Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
             time: String(c.time || ""),
             title: String(c.title || ""),
@@ -2118,15 +2306,23 @@ ${e.content}`).join("\n\n"),
     }
     /** Aggregate the per-part content summaries into one result. */
     async aggregateContent(capture, chunkSummaries) {
-      const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
+      const sections = {
+        ...DEFAULT_ANALYSIS_SECTIONS,
+        ...capture.enabledSections || {}
+      };
+      const rawTpl = this.getPrompt("aggregateContent");
+      const prunedTpl = applyPrunedSections(rawTpl, sections, true);
+      const rawTask = this.getPrompt("contentTaskDefault");
+      const prunedTask = pruneTaskContent(rawTask, sections);
+      const prompt = renderPrompt(prunedTpl, {
         title: capture.title,
         url: capture.url,
-        chapters: this.chaptersBlock(capture.chapters),
+        chapters: sections.chapterMap ? this.chaptersBlock(capture.chapters) : "",
         chunk_summaries: chunkSummaries.map((c) => {
           const at = c.startTime ? ` (${c.startTime})` : "";
           const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
           let mmStr = "";
-          if (Array.isArray(c.mindMap) && c.mindMap.length > 0) {
+          if (sections.mindMap && Array.isArray(c.mindMap) && c.mindMap.length > 0) {
             mmStr = "\n### Key Concepts/Branches from this part:\n" + c.mindMap.map(
               (n) => `- **${n.name}**${n.detail ? `: ${n.detail}` : ""}`
             ).join("\n");
@@ -2138,17 +2334,18 @@ ${bullets || "- (no summary)"}${mmStr}`;
           capture.questions,
           "User Questions (answer each directly and concisely)"
         ),
-        content_task_default: this.getPrompt("contentTaskDefault"),
+        content_task_default: prunedTask,
         shared_output_rules: this.getContentOutputRules()
       });
-      const budget = Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 4096);
+      const defaultMax = sections.mindMap ? 4096 : 1500;
+      const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
       const response = await this.callAI(prompt, budget);
       const parsed = this.parseJson(response, "aggregate-content");
       return {
-        titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
-        coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
+        titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
+        coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
         customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
-        mindMap: this.parseMindMap(parsed.mindMap)
+        mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : []
       };
     }
     /** Aggregate per-part delta findings into the egg's key answers + verdict. */

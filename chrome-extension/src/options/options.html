@@ -30,6 +30,42 @@
       </div>
     </section>
 
+    <!-- Content Analysis Sections -->
+    <section class="option-group" id="sections-config-group">
+      <h2>Content Analysis Sections</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+        Configure which sections are generated during Content Analysis. Disabling unused sections completely removes them from the AI prompt and output schema, saving tokens and cutting latency.
+      </p>
+      <div class="option-row">
+        <label class="toggle-checkbox-label" for="section-verdict">
+          <input type="checkbox" id="section-verdict" checked>
+          <span><strong>🎯 Title Verdict</strong> — Direct 1-sentence answer to the title's question</span>
+        </label>
+      </div>
+      <div class="option-row">
+        <label class="toggle-checkbox-label" for="section-summary">
+          <input type="checkbox" id="section-summary" checked>
+          <span><strong>📌 Key Takeaways / Core Summary</strong> — Top 3 bullet points of core insights</span>
+        </label>
+      </div>
+      <div class="option-row">
+        <label class="toggle-checkbox-label" for="section-mindmap">
+          <input type="checkbox" id="section-mindmap" checked>
+          <span><strong>🧠 Mind Map</strong> — Concept tree & outline (<span style="color:#059669; font-weight:500;">saves ~1,000–2,500 tokens &amp; 5–15s</span> when disabled)</span>
+        </label>
+      </div>
+      <div class="option-row">
+        <label class="toggle-checkbox-label" for="section-chapters">
+          <input type="checkbox" id="section-chapters" checked>
+          <span><strong>⏱️ Chapter Map</strong> — Timestamped breakdown for videos and long articles</span>
+        </label>
+      </div>
+      <div class="option-actions">
+        <button id="sections-save-btn" class="primary-btn">Save Section Preferences</button>
+        <span id="sections-status" class="test-result hidden"></span>
+      </div>
+    </section>
+
     <!-- 2. Obsidian Plugin Companion -->
     <section class="option-group">
       <h2>Obsidian Plugin Companion</h2>

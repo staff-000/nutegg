@@ -1,7 +1,12 @@
 import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError, isAIConfigured } from "./ai-client";
-import type { AnalysisResult, ContentAnalysis, MergeResult } from "./ai-processor";
+import type {
+  AnalysisResult,
+  AnalysisSectionsConfig,
+  ContentAnalysis,
+  MergeResult,
+} from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
 
@@ -25,6 +30,8 @@ interface AnalyzeRequest {
   contentAnalysis?: ContentAnalysis;
   /** Row id of the capture (when completing stage 2 for an existing stage 1 capture). */
   nutId?: number;
+  /** Content analysis sections to include (sent from Chrome as single source of truth). */
+  enabledSections?: Partial<AnalysisSectionsConfig>;
 }
 
 interface AskRequest {

@@ -38,6 +38,21 @@ const aiPromptSelect = document.getElementById("ai-prompt-select");
 const aiPromptTextarea = document.getElementById("ai-prompt-textarea");
 const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
 
+// Content Analysis sections elements
+const sectionVerdict = document.getElementById("section-verdict");
+const sectionSummary = document.getElementById("section-summary");
+const sectionMindmap = document.getElementById("section-mindmap");
+const sectionChapters = document.getElementById("section-chapters");
+const sectionsSaveBtn = document.getElementById("sections-save-btn");
+const sectionsStatus = document.getElementById("sections-status");
+
+const DEFAULT_SECTIONS = {
+  titleVerdict: true,
+  coreSummary: true,
+  mindMap: true,
+  chapterMap: true,
+};
+
 let savedPromptOverrides = {};
 let activePromptKey = "contentAnalysis";
 
@@ -56,6 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const stored = await chrome.storage.local.get([
     "serverPort",
     "analysisMode",
+    "enabledSections",
     "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
@@ -94,10 +110,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
   });
 
-  // 2. AI Settings initialization
+  // 2. Content Analysis Sections initialization
+  initSectionsSettings(stored.enabledSections);
+
+  // 3. AI Settings initialization
   initAiSettings(stored);
 
-  // 3. Check Obsidian connection status for the AI banner
+  // 4. Check Obsidian connection status for the AI banner
   checkObsidianForAiBanner(port);
 
   // 4. Report bug button
@@ -508,4 +527,60 @@ function showResult(msg, type) {
   testResult.textContent = msg;
   testResult.className = `test-result ${type}`;
   testResult.classList.remove("hidden");
+}
+
+function initSectionsSettings(savedSections) {
+  const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
+  if (sectionVerdict) sectionVerdict.checked = sections.titleVerdict !== false;
+  if (sectionSummary) sectionSummary.checked = sections.coreSummary !== false;
+  if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
+  if (sectionChapters) sectionChapters.checked = sections.chapterMap !== false;
+
+  const checkboxes = [
+    sectionVerdict,
+    sectionSummary,
+    sectionMindmap,
+    sectionChapters,
+  ].filter(Boolean);
+
+  function getActiveCount() {
+    return checkboxes.filter((cb) => cb.checked).length;
+  }
+
+  checkboxes.forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (getActiveCount() === 0) {
+        cb.checked = true;
+        showSectionStatus("At least one section must remain enabled.", "error");
+        setTimeout(() => {
+          sectionsStatus?.classList.add("hidden");
+        }, 2500);
+      }
+    });
+  });
+
+  sectionsSaveBtn?.addEventListener("click", async () => {
+    if (getActiveCount() === 0) {
+      showSectionStatus("At least one section must remain enabled.", "error");
+      return;
+    }
+    const newConfig = {
+      titleVerdict: sectionVerdict ? sectionVerdict.checked : true,
+      coreSummary: sectionSummary ? sectionSummary.checked : true,
+      mindMap: sectionMindmap ? sectionMindmap.checked : true,
+      chapterMap: sectionChapters ? sectionChapters.checked : true,
+    };
+    await chrome.storage.local.set({ enabledSections: newConfig });
+    showSectionStatus("Section preferences saved.", "ok");
+    setTimeout(() => {
+      sectionsStatus?.classList.add("hidden");
+    }, 2500);
+  });
+}
+
+function showSectionStatus(msg, type) {
+  if (!sectionsStatus) return;
+  sectionsStatus.textContent = msg;
+  sectionsStatus.className = `test-result ${type}`;
+  sectionsStatus.classList.remove("hidden");
 }

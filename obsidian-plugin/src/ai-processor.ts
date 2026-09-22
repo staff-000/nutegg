@@ -5,6 +5,7 @@
 export {
   AIProcessor,
   MERGE_THRESHOLD,
+  DEFAULT_ANALYSIS_SECTIONS,
   repairTruncatedJson,
   sanitizeJsonString,
   parseJson,
@@ -12,6 +13,7 @@ export {
 } from "../../shared/src/ai-processor";
 
 export type {
+  AnalysisSectionsConfig,
   ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
