@@ -14,6 +14,10 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 | **Google Chrome Extension** | [Install from Chrome Web Store ↗](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol) |
 | **Obsidian Community Plugin** | [Install from Obsidian Community Catalog ↗](https://community.obsidian.md/plugins/nutegg) |
 
+### ⚡ Flexible Modes: Standalone in Chrome or Paired with Obsidian
+- **📱 Chrome Standalone Mode (No Obsidian required)**: Run NutEgg completely inside Chrome. Enter your AI key in extension Options to get instant anti-clickbait verdicts, executive summaries, interactive YouTube chapter maps, collapsible mind maps, and timestamped video Q&A.
+- **💎 Obsidian Connected Mode**: Run the companion Obsidian plugin to automatically evaluate incoming content against your vault's existing knowledge trees, highlight novel insights, and archive notes into `nutegg/`.
+
 > 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 
 ## How It Works

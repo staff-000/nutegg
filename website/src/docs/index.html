@@ -71,23 +71,48 @@
         </p>
       </div>
 
+      <h2>Flexible Operating Modes</h2>
+      <p>
+        NutEgg can be used in two flexible modes depending on your setup:
+      </p>
+      <ul>
+        <li>
+          <strong>📱 Standalone Mode (Chrome-Only)</strong>: 
+          No Obsidian installation required. By entering your AI API key in Chrome Extension Options, NutEgg functions as a fast, standalone reading and navigation assistant directly inside your browser side panel:
+          <ul>
+            <li>🎯 Instant Anti-Clickbait Title Verdict</li>
+            <li>📝 Executive 3-sentence summary &amp; core takeaways</li>
+            <li>⏱️ Interactive YouTube Chapter Maps with jump-to-time buttons</li>
+            <li>💬 Natural-language Video Q&amp;A with cited timestamp pills</li>
+            <li>🧠 Collapsible hierarchical Mind Maps</li>
+            <li>🌐 Multi-source extraction and translation in 50+ languages</li>
+          </ul>
+        </li>
+        <li>
+          <strong>💎 Connected Mode (Chrome + Obsidian)</strong>: 
+          Pairs your browser with the local Obsidian companion plugin (<code>127.0.0.1:27123</code>). Unlocks full 2-stage novelty evaluation against your vault's <code>_index.md</code> knowledge trees, delta synthesis, and automatic note archiving into <code>nutegg/_raw/</code> and egg files.
+        </li>
+      </ul>
+
       <h2>System Architecture</h2>
       <p>
         NutEgg consists of two decoupled components that communicate locally:
       </p>
       <ol>
-        <li><strong>Chrome Extension</strong>: Lives in Chrome's side panel. Interacts with the active tab, extracts text and video transcripts, and displays AI summaries and chapter maps.</li>
+        <li><strong>Chrome Extension</strong>: Lives in Chrome's side panel. Interacts with the active tab, extracts text and video transcripts, runs standalone AI or forwards to Obsidian, and displays interactive summaries, mind maps, and Q&amp;A.</li>
         <li><strong>Obsidian Plugin</strong>: Runs a lightweight HTTP server on <code>127.0.0.1:27123</code>. Connects to your chosen AI provider using your own API key, reads your vault's <code>_index.md</code>, and saves files directly to disk.</li>
       </ol>
 
       <pre><code>Chrome Extension (Side Panel)
          │
-         │  HTTP /analyze + /confirm (127.0.0.1:27123)
-         ▼
-Obsidian Plugin (Local Server)
-         ├── Evaluates against vault/nutegg/_index.md
-         ├── Queries AI Provider (Gemini / Claude / OpenAI / etc.)
-         └── Writes to vault/nutegg/_raw/ and vault/nutegg/&lt;egg&gt;.md</code></pre>
+         ├── [Standalone Mode] Local Chrome AI Processing (Fast Summaries, Q&A, Mind Maps)
+         │
+         └── [Connected Mode] HTTP /analyze + /confirm (127.0.0.1:27123)
+                 ▼
+         Obsidian Plugin (Local Server)
+                 ├── Evaluates against vault/nutegg/_index.md
+                 ├── Queries AI Provider (Gemini / Claude / OpenAI / Local LLMs)
+                 └── Writes to vault/nutegg/_raw/ and vault/nutegg/&lt;egg&gt;.md</code></pre>
 
       <h2>Quick Start Roadmap</h2>
       <ol>
