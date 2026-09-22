@@ -334,7 +334,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   reanalyzeEggsBtn.addEventListener("click", async () => {
-    if (selectedEggs.size === 0 || reanalyzeEggsBtn.disabled) return;
+    const pinnedTabId = activeTabId;
+    const pinnedEggs = [...selectedEggs];
+    if (pinnedEggs.length === 0 || reanalyzeEggsBtn.disabled) return;
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
@@ -345,10 +347,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideWarning();
 
       try {
-        await extractPageContent();
+        await extractPageContent(refreshSeq, pinnedTabId);
       } catch (err) {
         console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
       }
+
+      if (activeTabId !== pinnedTabId) return;
 
       reanalyzeEggsBtn.disabled = false;
       reanalyzeEggsBtn.textContent = original;
@@ -363,6 +367,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
+    if (activeTabId !== pinnedTabId) return;
+
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
       showWarning(notReady);
@@ -373,16 +379,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     reanalyzeEggsBtn.textContent = "⏳ Analyzing…";
     eggsErrorEl.classList.add("hidden");
     if (stage1ContentAnalysis) {
-      await handleProceedStage2([...selectedEggs], false, false, activeTabId);
+      await handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
     } else {
-      const error = await handleAnalyze(true, [...selectedEggs], true);
-      if (error) {
+      const error = await handleAnalyze(true, pinnedEggs, true);
+      if (error && activeTabId === pinnedTabId) {
         eggsErrorEl.textContent = `❌ ${error}`;
         eggsErrorEl.classList.remove("hidden");
       }
     }
-    reanalyzeEggsBtn.disabled = false;
-    reanalyzeEggsBtn.textContent = original;
+    if (activeTabId === pinnedTabId) {
+      reanalyzeEggsBtn.disabled = false;
+      reanalyzeEggsBtn.textContent = original;
+    }
   });
   // Egg picker is collapsed by default — expand on demand
   eggsToggle.addEventListener("click", () => {
@@ -391,6 +399,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   reanalyzeBtn.addEventListener("click", async () => {
     if (reanalyzeBtn.disabled) return;
+    const pinnedTabId = activeTabId;
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
@@ -400,10 +409,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideWarning();
 
       try {
-        await extractPageContent();
+        await extractPageContent(refreshSeq, pinnedTabId);
       } catch (err) {
         console.error("[NutEgg] Error extracting content on re-analyze:", err);
       }
+
+      if (activeTabId !== pinnedTabId) return;
 
       const nowHasContent = !!(extractedContent && extractedContent.content);
       if (!nowHasContent) {
@@ -415,6 +426,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
     }
+
+    if (activeTabId !== pinnedTabId) return;
 
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
@@ -443,6 +456,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         stage1ContentAnalysis,
         eggHatched,
         nutCollected,
+        followUpQa: [...followUpQa],
       });
     }
     activeTabId = tabId;
@@ -482,6 +496,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             stage1ContentAnalysis,
             eggHatched,
             nutCollected,
+            followUpQa: [...followUpQa],
           });
         }
         activeTabId = tab.id;
@@ -709,6 +724,8 @@ async function restoreFromTabCache(tabId, cached) {
   currentNutId = cached.currentNutId || (cached.captureHistory?.[0]?.nutId ?? null);
   stage1Payload = cached.stage1Payload || stage1Payload;
   stage1ContentAnalysis = cached.stage1ContentAnalysis || stage1ContentAnalysis;
+  followUpQa = cached.followUpQa ? [...cached.followUpQa] : [];
+  if (followupInput) followupInput.value = "";
   currentTabLoading = false;
 
   // Update header and capture preview so capture state is ready if user switches back
@@ -794,6 +811,7 @@ async function handleRefresh() {
 
 /** 🐣 Create an egg from the no-match form, then re-analyze against it. */
 async function handleCreateEgg() {
+  const pinnedTabId = activeTabId;
   const name = newEggName.value.trim();
   if (!name || createEggBtn.disabled) return;
   createEggBtn.disabled = true;
@@ -805,21 +823,29 @@ async function handleCreateEgg() {
       description: newEggDescription.value.trim(),
     });
     if (response?.success) {
+      if (activeTabId !== pinnedTabId) return;
       // Target the newly created egg explicitly
       const eggFile = response.path ? response.path.split("/").pop() : slugify(name) + ".md";
       await handleAnalyze(true, [eggFile]);
       return;
     }
-    showError(response?.error || "Failed to create egg");
+    if (activeTabId === pinnedTabId) {
+      showError(response?.error || "Failed to create egg");
+    }
   } catch (err) {
-    showError(err instanceof Error ? err.message : "Failed to create egg");
+    if (activeTabId === pinnedTabId) {
+      showError(err instanceof Error ? err.message : "Failed to create egg");
+    }
   }
-  createEggBtn.disabled = false;
-  createEggBtn.textContent = "Create Egg";
+  if (activeTabId === pinnedTabId) {
+    createEggBtn.disabled = false;
+    createEggBtn.textContent = "Create Egg";
+  }
 }
 
 /** 🐣 Create an egg from the inline form inside the egg picker. */
 async function handleCreateEggInline() {
+  const pinnedTabId = activeTabId;
   const name = eggsNewName.value.trim();
   if (!name || eggsCreateBtn.disabled) return;
   eggsCreateBtn.disabled = true;
@@ -831,18 +857,25 @@ async function handleCreateEggInline() {
       description: eggsNewDesc.value.trim(),
     });
     if (response?.success) {
+      if (activeTabId !== pinnedTabId) return;
       // Re-analyze with the new egg included
       await handleAnalyze(true);
       return;
     }
-    eggsErrorEl.textContent = `❌ ${response?.error || "Failed to create egg"}`;
-    eggsErrorEl.classList.remove("hidden");
+    if (activeTabId === pinnedTabId) {
+      eggsErrorEl.textContent = `❌ ${response?.error || "Failed to create egg"}`;
+      eggsErrorEl.classList.remove("hidden");
+    }
   } catch (err) {
-    eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : "Failed to create egg"}`;
-    eggsErrorEl.classList.remove("hidden");
+    if (activeTabId === pinnedTabId) {
+      eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : "Failed to create egg"}`;
+      eggsErrorEl.classList.remove("hidden");
+    }
   }
-  eggsCreateBtn.disabled = false;
-  eggsCreateBtn.textContent = "Create Egg";
+  if (activeTabId === pinnedTabId) {
+    eggsCreateBtn.disabled = false;
+    eggsCreateBtn.textContent = "Create Egg";
+  }
 }
 
 /** Title → snake_case egg name fallback (supports Unicode). */
@@ -2304,10 +2337,12 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return message;
   } finally {
     isReanalyzing = false;
-    if (historySelect) historySelect.disabled = false;
-    const activeCache = tabResultCache.get(activeTabId);
-    if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
-      updateAnalyzeButtonsState();
+    if (activeTabId === pinnedTabId) {
+      if (historySelect) historySelect.disabled = false;
+      const activeCache = tabResultCache.get(activeTabId);
+      if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
+        updateAnalyzeButtonsState();
+      }
     }
   }
 }
@@ -3176,55 +3211,102 @@ function renderCustomQuestions() {
 
 /** Ask a follow-up question against the already-analyzed content. */
 async function handleFollowUp() {
+  const pinnedTabId = activeTabId;
   const q = followupInput.value.trim();
   if (!q || followupBtn.disabled) return;
   followupInput.value = "";
   followupBtn.disabled = true;
   followupBtn.textContent = "…";
+
+  const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
+  let content = extractedContent || cached?.extractedContent;
+  const result = analysisResult || cached?.analysisResult;
+
   followUpQa.push({ question: q, answer: "…" });
+  if (pinnedTabId) {
+    const existingCache = tabResultCache.get(pinnedTabId) || {};
+    tabResultCache.set(pinnedTabId, {
+      ...existingCache,
+      followUpQa: [...followUpQa],
+    });
+  }
   renderCustomQuestions();
 
   try {
-    if (!extractedContent) {
-      await extractPageContent();
+    if (!content) {
+      content = await extractPageContent(refreshSeq, pinnedTabId);
     }
     const payload = {
-      url: extractedContent?.url || analysisResult?.url || "",
-      title: extractedContent?.title || analysisResult?.title || "",
-      content: extractedContent?.content || "",
-      sourceType: extractedContent?.sourceType || analysisResult?.sourceType || "generic",
+      url: content?.url || result?.url || "",
+      title: content?.title || result?.title || "",
+      content: content?.content || "",
+      sourceType: content?.sourceType || result?.sourceType || "generic",
       questions: [q],
-      priorQa: buildPriorQa(),
+      priorQa: buildPriorQa(result, followUpQa),
     };
     const response = await chrome.runtime.sendMessage({ action: "ask", payload });
 
     const answers = response?.answers || [];
     const ansObj = answers[0];
     const answer = ansObj?.answer || response?.error || "No answer returned.";
-    followUpQa[followUpQa.length - 1] = {
+    const answeredEntry = {
       question: q,
       answer,
       sources: ansObj?.sources,
     };
+
+    if (pinnedTabId) {
+      const c = tabResultCache.get(pinnedTabId) || {};
+      const currentQa = c.followUpQa ? [...c.followUpQa] : [...followUpQa];
+      const lastIdx = currentQa.length - 1;
+      if (lastIdx >= 0 && currentQa[lastIdx].question === q && currentQa[lastIdx].answer === "…") {
+        currentQa[lastIdx] = answeredEntry;
+      } else {
+        currentQa.push(answeredEntry);
+      }
+      c.followUpQa = currentQa;
+      tabResultCache.set(pinnedTabId, c);
+    }
+
+    if (activeTabId === pinnedTabId) {
+      followUpQa[followUpQa.length - 1] = answeredEntry;
+    }
   } catch (err) {
-    followUpQa[followUpQa.length - 1] = {
+    const errorEntry = {
       question: q,
       answer: `Failed to get answer: ${err instanceof Error ? err.message : "unknown error"}`,
     };
+    if (pinnedTabId) {
+      const c = tabResultCache.get(pinnedTabId) || {};
+      const currentQa = c.followUpQa ? [...c.followUpQa] : [...followUpQa];
+      const lastIdx = currentQa.length - 1;
+      if (lastIdx >= 0 && currentQa[lastIdx].question === q && currentQa[lastIdx].answer === "…") {
+        currentQa[lastIdx] = errorEntry;
+      } else {
+        currentQa.push(errorEntry);
+      }
+      c.followUpQa = currentQa;
+      tabResultCache.set(pinnedTabId, c);
+    }
+    if (activeTabId === pinnedTabId) {
+      followUpQa[followUpQa.length - 1] = errorEntry;
+    }
   }
 
-  followupBtn.disabled = false;
-  followupBtn.textContent = "Ask";
-  renderCustomQuestions();
+  if (activeTabId === pinnedTabId) {
+    followupBtn.disabled = false;
+    followupBtn.textContent = "Ask";
+    renderCustomQuestions();
+  }
 }
 
 /** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
-function buildPriorQa() {
-  const eggQa = (analysisResult?.eggResults || []).flatMap(
+function buildPriorQa(res = analysisResult, qaList = followUpQa) {
+  const eggQa = (res?.eggResults || []).flatMap(
     (r) => r.keyQuestionAnswers || []
   );
-  const customQa = analysisResult?.customQuestionAnswers || [];
-  return [...eggQa, ...customQa, ...followUpQa.filter((qa) => qa.answer !== "…")];
+  const customQa = res?.customQuestionAnswers || [];
+  return [...eggQa, ...customQa, ...(qaList || []).filter((qa) => qa.answer !== "…")];
 }
 
 /** Seek the active tab's video to a chapter timestamp. */
@@ -3346,48 +3428,74 @@ function showCaptureState() {
 // --- Confirm (add to knowledge base) ---
 
 async function handleConfirm() {
-  if (!analysisResult || eggHatched || !(analysisResult.newKnowledge?.length)) return;
-  if (!extractedContent) {
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = "Retrieving…";
-    await extractPageContent();
+  const pinnedTabId = activeTabId;
+  const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
+  const targetResult = analysisResult || cached?.analysisResult;
+  let targetContent = extractedContent || cached?.extractedContent;
+  const targetNutId = currentNutId || cached?.currentNutId;
+
+  if (!targetResult || eggHatched || !(targetResult.newKnowledge?.length)) return;
+  if (!targetContent) {
+    if (activeTabId === pinnedTabId) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Retrieving…";
+    }
+    targetContent = await extractPageContent(refreshSeq, pinnedTabId);
   }
-  confirmBtn.disabled = true;
-  confirmBtn.textContent = "Hatching...";
-  await doSave(analysisResult.newKnowledge || [], true);
-  updateActionButtons();
+  if (activeTabId === pinnedTabId) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Hatching...";
+  }
+  await doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
+  if (activeTabId === pinnedTabId) {
+    updateActionButtons();
+  }
 }
 
 // --- Collect Nut (save content only, no knowledge additions) ---
 
 async function handleSaveRaw() {
+  const pinnedTabId = activeTabId;
+  const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
+  const targetResult = analysisResult || cached?.analysisResult;
+  let targetContent = extractedContent || cached?.extractedContent;
+  const targetNutId = currentNutId || cached?.currentNutId;
+
   if (nutCollected) return; // already collected — no duplicate work
-  if (!extractedContent) {
+  if (!targetContent) {
+    if (activeTabId === pinnedTabId) {
+      if (collectNutBtn) {
+        collectNutBtn.disabled = true;
+        collectNutBtn.textContent = "Retrieving…";
+      }
+      if (stage1SkipBtn) {
+        stage1SkipBtn.disabled = true;
+        stage1SkipBtn.textContent = "Retrieving…";
+      }
+    }
+    targetContent = await extractPageContent(refreshSeq, pinnedTabId);
+  }
+  if (!targetContent) {
+    if (activeTabId === pinnedTabId) {
+      showError("Could not extract page content to save.");
+      updateActionButtons();
+    }
+    return;
+  }
+  if (activeTabId === pinnedTabId) {
     if (collectNutBtn) {
       collectNutBtn.disabled = true;
-      collectNutBtn.textContent = "Retrieving…";
+      collectNutBtn.textContent = "Collecting...";
     }
     if (stage1SkipBtn) {
       stage1SkipBtn.disabled = true;
-      stage1SkipBtn.textContent = "Retrieving…";
+      stage1SkipBtn.textContent = "Collecting...";
     }
-    await extractPageContent();
   }
-  if (!extractedContent) {
-    showError("Could not extract page content to save.");
+  await doSave([], false, targetContent, targetResult, targetNutId, pinnedTabId);
+  if (activeTabId === pinnedTabId) {
     updateActionButtons();
-    return;
   }
-  if (collectNutBtn) {
-    collectNutBtn.disabled = true;
-    collectNutBtn.textContent = "Collecting...";
-  }
-  if (stage1SkipBtn) {
-    stage1SkipBtn.disabled = true;
-    stage1SkipBtn.textContent = "Collecting...";
-  }
-  await doSave([], false);
-  updateActionButtons();
 }
 
 async function doSave(
@@ -3399,13 +3507,13 @@ async function doSave(
   targetPinnedId = null
 ) {
   const isTargetActive = !targetPinnedId || (activeTabId === targetPinnedId);
-  const content = overrideContent || (isTargetActive ? extractedContent : null);
+  let content = overrideContent || (isTargetActive ? extractedContent : null);
   const result = overrideResult || (isTargetActive ? analysisResult : null);
   const nutId = overrideNutId ?? (isTargetActive ? currentNutId : null);
 
   try {
     if (!content && isTargetActive) {
-      await extractPageContent();
+      content = await extractPageContent(refreshSeq, targetPinnedId || activeTabId);
     }
     const payload = {
       url: content?.url || result?.url || "",
