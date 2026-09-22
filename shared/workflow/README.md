@@ -30,8 +30,8 @@ NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, t
                             └── Yes ──► Chunks + [aggregate-content.md]
                                     │
                                     ▼
-                   Produces: Title Verdict, 3-Bullet Summary,
-                   Chapter Map, & Custom Question Answers
+                    Produces: Title Verdict, 3-Bullet Summary,
+                    Mind Map, Chapter Map, & Timestamped Q&A
                                     │
                                     ▼
                            [egg-routing.md]
@@ -44,36 +44,36 @@ NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, t
        ===========================================================
                                     │
                         Which mode is selected?
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-       [Fast Mode]                 [Confirm Eggs Mode]
-       Automatically proceeds      User reviews matched eggs:
-       to Stage 2 with all         ├── "Collect Nut Only" (skip Stage 2)
-       matched eggs.               └── Add/remove eggs ──► Proceed
-            │                               │
-            └───────────────┬───────────────┘
-                            ▼
-       ===========================================================
-       STAGE 2: Per-Egg Knowledge Extraction & Novelty Comparison
-       ===========================================================
-                            │
-               For each confirmed egg (1 or N):
-                            │
-                            ▼
-                    [egg-analysis.md]
-              (Extract candidate knowledge entries
-               & key questions scoped to this egg)
-                            │
-                            ▼
-                    [egg-compare.md]
-              (Diffs candidate entries against the
-               egg's existing # Knowledge tree to find
-               true novel insights & decide read verdict)
-                            │
-                            ▼
-                 Results returned to Popup
-                 (Ready to Save Nut & Eggs)
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            ▼                       ▼                       ▼
+     [Standalone Mode]         [Fast Mode]         [Confirm Eggs Mode]
+     Obsidian is offline.      Auto-proceeds to    User reviews matched eggs:
+     Runs Stage 1 in Chrome    Stage 2 with all    ├── "Collect Nut Only"
+     with user's API key.      matched eggs.       └── Add/remove eggs ──► Proceed
+     (Fast reading & Q&A)           │                       │
+            │                       └───────────┬───────────┘
+            ▼                                   ▼
+    Results in Side Panel      ===========================================================
+    (No Stage 2 comparison)    STAGE 2: Per-Egg Knowledge Extraction & Novelty Comparison
+                               ===========================================================
+                                                │
+                                   For each confirmed egg (1 or N):
+                                                │
+                                                ▼
+                                        [egg-analysis.md]
+                                  (Extract candidate knowledge entries
+                                   & key questions scoped to this egg)
+                                                │
+                                                ▼
+                                        [egg-compare.md]
+                                  (Diffs candidate entries against the
+                                   egg's existing # Knowledge tree to find
+                                   true novel insights & decide read verdict)
+                                                │
+                                                ▼
+                                     Results returned to Popup
+                                     (Ready to Save Nut & Eggs)
 ```
 
 > [!NOTE]
@@ -86,8 +86,9 @@ NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, t
 
 | Mode | Behavior | Best Used For |
 |---|---|---|
-| **Fast Mode** | Runs Stage 1 content analysis, routes eggs automatically, and immediately executes Stage 2 knowledge comparison in one uninterrupted pass. | Everyday reading and quick captures when you trust automatic egg matching. |
-| **Confirm Eggs Mode** | Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click **Collect Nut Only** to save the note immediately without comparing against eggs. | Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees. |
+| **📱 Standalone Mode** | Runs Stage 1 content analysis directly in Chrome via the extension service worker and user's API key (when Obsidian is offline or closed). Produces verdicts, 3-sentence summaries, chapter maps, mind maps, and interactive video Q&A with clickable timestamp jumping. Skips Stage 2 vault comparison. | Fast web and video reading, quick comprehension, or users without Obsidian running. |
+| **⚡ Fast Mode** | Runs Stage 1 content analysis, routes eggs automatically via `_index.md`, and immediately executes Stage 2 knowledge comparison in one uninterrupted pass. | Everyday reading and quick captures when you trust automatic egg matching. |
+| **🥚 Confirm Eggs Mode** | Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click **Collect Nut Only** to save the note immediately without comparing against eggs. | Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees. |
 
 ---
 
@@ -292,7 +293,7 @@ These are **not standalone prompts** — they are modular snippets injected as `
 
 | File | Pipeline Stage | Purpose | Output Format |
 |---|---|---|---|
-| [`content-analysis.md`](./content-analysis.md) | Stage 1: Content Analysis | Content-level summary: title verdict, 3-bullet summary, chapter map, and custom user question answers. | JSON (`titleVerdict`, `coreSummary`, `isLongForm`, `chapterMap`, `customQuestionAnswers`) |
+| [`content-analysis.md`](./content-analysis.md) | Stage 1: Content Analysis (Used in both Standalone & Connected modes) | Content-level analysis: title verdict, 3-bullet summary, interactive mind map, chapter map, and custom user question answers with timestamp sources. | JSON (`titleVerdict`, `coreSummary`, `mindMap`, `isLongForm`, `chapterMap`, `customQuestionAnswers` [with `sources: [{"ref", "quote"}]`]) |
 | [`egg-routing.md`](./egg-routing.md) | Stage 1: Summary-Based Routing | Matches the Stage 1 content summary against egg descriptions in `_index.md` to select matching eggs with minimal tokens. | Plain text list of filenames (one per line) |
 | [`egg-analysis.md`](./egg-analysis.md) | Stage 2: Egg Extraction | Per-egg extraction: candidate knowledge entries and key question answers scoped strictly to one egg's instructions. | JSON (`keyQuestionAnswers`, `extractedEntries`) |
 | [`egg-compare.md`](./egg-compare.md) | Stage 2: Knowledge Diff | Diffs candidate entries against the egg's existing `# Knowledge` tree and `# Unprocessed` to find novel insights and determine read verdict. | JSON (`novelDelta`, `redundantEntries`, `rejected`, `rejectReason`, `readVerdict`, `readVerdictReason`) |
@@ -310,7 +311,7 @@ Used only when content exceeds ~30k characters (long articles, 1-2 hour videos).
 
 | File | Trigger | Purpose | Output Format |
 |---|---|---|---|
-| [`follow-up.md`](./follow-up.md) | User asks questions in Chrome popup | Answers follow-up questions about the captured content with conversation history context. | JSON (`answers`: `[{"question", "answer"}]`) |
+| [`follow-up.md`](./follow-up.md) | User asks questions in Chrome popup (Standalone or Connected) | Answers follow-up questions about the captured content with conversation history context and timestamp citations for direct video player jumping. | JSON (`answers`: `[{"question", "answer", "sources": [{"ref", "quote"}]}]`) |
 | [`merge-unprocessed.md`](./merge-unprocessed.md) | Manual button or 20+ entries threshold | Deduplicates and nests accumulated `# Unprocessed` entries into the structured `# Knowledge` tree. | JSON (`knowledge`, `unprocessed`) |
 | [`localize-egg.md`](./localize-egg.md) | New egg with non-English description | Translates the egg template into the language of the egg's description while keeping parser-critical headings in English. | Full egg note (Markdown) |
 
