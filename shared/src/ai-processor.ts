@@ -36,6 +36,7 @@ import type {
   EggContent,
   ExtractedKnowledgeEntry,
   KeyAnswer,
+  MindMapNode,
   SourceRef,
   MergeResult,
   NewKnowledgeItem,
@@ -55,6 +56,7 @@ export type {
   ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
+  MindMapNode,
   SourceRef,
   NovelDelta,
   ExtractedKnowledgeEntry,
@@ -206,6 +208,7 @@ export class AIProcessor {
           question: q,
           answer: "No API key configured — cannot answer.",
         })),
+        mindMap: [],
       };
     }
 
@@ -240,6 +243,7 @@ export class AIProcessor {
         isLongForm: true,
         chapterMap,
         customQuestionAnswers: summary.customQuestionAnswers,
+        mindMap: summary.mindMap,
       };
     }
 
@@ -390,6 +394,7 @@ export class AIProcessor {
       coreSummary: Array.isArray(parsed.coreSummary)
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
+      mindMap: this.parseMindMap(parsed.mindMap),
       isLongForm: parsed.isLongForm === true,
       chapterMap:
         parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0)
@@ -662,6 +667,7 @@ export class AIProcessor {
     titleVerdict: string;
     coreSummary: string[];
     customQuestionAnswers: KeyAnswer[];
+    mindMap?: MindMapNode[];
   }> {
     const prompt = renderPrompt(this.getPrompt("aggregateContent"), {
       title: capture.title,
@@ -681,7 +687,7 @@ export class AIProcessor {
       shared_output_rules: this.getContentOutputRules(),
     });
 
-    const response = await this.callAI(prompt, 800);
+    const response = await this.callAI(prompt, 1500);
     const parsed = this.parseJson(response, "aggregate-content");
     return {
       titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
@@ -689,6 +695,7 @@ export class AIProcessor {
         ? parsed.coreSummary.map(String).slice(0, 3)
         : [],
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+      mindMap: this.parseMindMap(parsed.mindMap),
     };
   }
 
@@ -847,6 +854,7 @@ export class AIProcessor {
         question: q,
         answer: "No API key configured — cannot answer.",
       })),
+      mindMap: [],
       shouldRead: true,
       shouldReadReason: "No API key configured — cannot analyze.",
       matchedEggs: eggs.map((e) => e.fileName),
@@ -1105,6 +1113,29 @@ export class AIProcessor {
             return entry;
           })
       : [];
+  }
+
+  /** Normalize a hierarchical mind map array from the AI response. */
+  private parseMindMap(raw: any, depth = 0): MindMapNode[] {
+    if (!Array.isArray(raw) || depth > 5) return [];
+    return raw
+      .filter((item: any) => item && (item.name || item.title || item.topic))
+      .map((item: any) => {
+        const node: MindMapNode = {
+          name: String(item.name || item.title || item.topic).trim(),
+        };
+        const detail = item.detail || item.description || item.summary;
+        if (detail && typeof detail === "string" && detail.trim().length > 0) {
+          node.detail = detail.trim();
+        }
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          const children = this.parseMindMap(item.children, depth + 1);
+          if (children.length > 0) {
+            node.children = children;
+          }
+        }
+        return node;
+      });
   }
 
   /**

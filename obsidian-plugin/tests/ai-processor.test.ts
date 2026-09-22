@@ -106,6 +106,126 @@ describe("AIProcessor.parseKeyAnswers", () => {
   });
 });
 
+describe("AIProcessor.parseMindMap", () => {
+  const p = new AIProcessor(makeFakePlugin() as any) as any;
+
+  it("handles non-arrays or empty inputs", () => {
+    assert.deepEqual(p.parseMindMap(undefined), []);
+    assert.deepEqual(p.parseMindMap(null), []);
+    assert.deepEqual(p.parseMindMap({}), []);
+    assert.deepEqual(p.parseMindMap("invalid"), []);
+    assert.deepEqual(p.parseMindMap([]), []);
+  });
+
+  it("parses flat and hierarchical mind map nodes", () => {
+    const raw = [
+      {
+        name: " Core Problem ",
+        detail: " Batch latency is too high. ",
+      },
+      {
+        title: " Architecture Design ",
+        description: " Event-driven microservices. ",
+        children: [
+          {
+            topic: " Ingestion Layer ",
+            summary: " Kafka cluster for stream buffering. ",
+          },
+          {
+            name: " Processing Nodes ",
+            children: [
+              {
+                name: " Flink Workers ",
+                detail: " Real-time stateful computation. ",
+              },
+            ],
+          },
+        ],
+      },
+      null,
+      {},
+      { invalid: "no name or title" },
+    ];
+
+    const out = p.parseMindMap(raw);
+    assert.deepEqual(out, [
+      {
+        name: "Core Problem",
+        detail: "Batch latency is too high.",
+      },
+      {
+        name: "Architecture Design",
+        detail: "Event-driven microservices.",
+        children: [
+          {
+            name: "Ingestion Layer",
+            detail: "Kafka cluster for stream buffering.",
+          },
+          {
+            name: "Processing Nodes",
+            children: [
+              {
+                name: "Flink Workers",
+                detail: "Real-time stateful computation.",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("parses flexible branch counts up to 3 levels deep per updated prompt", () => {
+    const raw = [
+      {
+        name: "Branch 1",
+        detail: "First main branch",
+        children: [
+          {
+            name: "Branch 1.1",
+            detail: "Second level detail",
+            children: [
+              {
+                name: "Branch 1.1.1",
+                detail: "Third level leaf node",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Branch 2",
+        detail: "Second main branch without sub-branches",
+      },
+    ];
+    const out = p.parseMindMap(raw);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].name, "Branch 1");
+    assert.equal(out[0].children?.length, 1);
+    assert.equal(out[0].children?.[0].children?.length, 1);
+    assert.equal(out[0].children?.[0].children?.[0].name, "Branch 1.1.1");
+    assert.equal(out[1].name, "Branch 2");
+    assert.equal(out[1].children, undefined);
+  });
+
+  it("prevents runaway recursion depth", () => {
+    let deepNode: any = { name: "level 6" };
+    for (let i = 5; i >= 0; i--) {
+      deepNode = { name: `level ${i}`, children: [deepNode] };
+    }
+    const out = p.parseMindMap([deepNode]);
+    assert.equal(out.length, 1);
+    // depth > 5 is cut off
+    let current = out[0];
+    let depth = 0;
+    while (current.children && current.children.length > 0) {
+      depth++;
+      current = current.children[0];
+    }
+    assert.ok(depth <= 5);
+  });
+});
+
 describe("AIProcessor.mergeVerdict", () => {
   const p = new AIProcessor(makeFakePlugin() as any) as any;
 
@@ -150,6 +270,18 @@ describe("AIProcessor.analyze", () => {
       JSON.stringify({
         titleVerdict: "Verdict.",
         coreSummary: ["b1", "b2", "b3", "b4"], // must be sliced to 3
+        mindMap: [
+          {
+            name: "Topic 1",
+            detail: "High-level concept",
+            children: [
+              {
+                name: "Subtopic 1.1",
+                detail: "Supporting rationale",
+              },
+            ],
+          },
+        ],
         isLongForm: true,
         chapterMap: [
           { time: "00:10", title: "Ch1", summary: "s1" },
@@ -185,6 +317,18 @@ describe("AIProcessor.analyze", () => {
     assert.equal(calls, 3);
     assert.equal(result.titleVerdict, "Verdict.");
     assert.deepEqual(result.coreSummary, ["b1", "b2", "b3"]);
+    assert.deepEqual(result.mindMap, [
+      {
+        name: "Topic 1",
+        detail: "High-level concept",
+        children: [
+          {
+            name: "Subtopic 1.1",
+            detail: "Supporting rationale",
+          },
+        ],
+      },
+    ]);
     assert.equal(result.chapterMap.length, 1);
     assert.equal(result.chapterMap[0].time, "00:10");
     assert.equal(result.customQuestionAnswers[0].answer, "custom a");
@@ -567,6 +711,13 @@ describe("AIProcessor.analyze (chunked)", () => {
       JSON.stringify({
         titleVerdict: "Overall verdict.",
         coreSummary: ["all-1", "all-2"],
+        mindMap: [
+          {
+            name: "Overall Theme",
+            detail: "Synthesized mental model across chunks",
+            children: [{ name: "Combined Concept", detail: "Cross-chunk evidence" }],
+          },
+        ],
         customQuestionAnswers: [{ question: "Q?", answer: "A" }],
       }),
       // Egg A per-part: 3 extracts run concurrently, then 3 compares
@@ -606,6 +757,13 @@ describe("AIProcessor.analyze (chunked)", () => {
     assert.equal(calls, 18);
     assert.equal(result.titleVerdict, "Overall verdict.");
     assert.deepEqual(result.coreSummary, ["all-1", "all-2"]);
+    assert.deepEqual(result.mindMap, [
+      {
+        name: "Overall Theme",
+        detail: "Synthesized mental model across chunks",
+        children: [{ name: "Combined Concept", detail: "Cross-chunk evidence" }],
+      },
+    ]);
     assert.equal(result.chapterMap.length, 3, "chapter maps unioned");
     assert.equal(result.customQuestionAnswers[0].answer, "A");
     assert.equal(result.eggResults.length, 2);

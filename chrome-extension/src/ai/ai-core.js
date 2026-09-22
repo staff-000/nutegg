@@ -1377,6 +1377,24 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
+  "mindMap": [
+    {
+      "name": "Main Topic / Branch",
+      "detail": "Core idea or thesis of this branch",
+      "children": [
+        {
+          "name": "Subtopic / Concept",
+          "detail": "Key reasoning, mechanism, or explanation",
+          "children": [
+            {
+              "name": "Detail / Evidence",
+              "detail": "Concrete takeaway or example"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "isLongForm": true,
   "chapterMap": [
     {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
@@ -1393,6 +1411,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 ## Output Rules
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
+- mindMap: up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
 - isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
 - chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
 - chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
@@ -1481,7 +1500,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   var egg_routing_default = 'Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".\n\n## Content\nTitle: {{title}}\nURL: {{url}}\n{{content}}\n\n## Egg Index\n{{index}}\n\nReturn matching file names (one per line):\n';
 
   // ../shared/workflow/content-task-default.md
-  var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n";
+  var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n4. Mind Map: Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`.\n";
 
   // ../shared/workflow/merge-unprocessed.md
   var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
@@ -1536,6 +1555,18 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2"],
+  "mindMap": [
+    {
+      "name": "Main Topic",
+      "detail": "Core idea",
+      "children": [
+        {
+          "name": "Subtopic",
+          "detail": "Key reasoning"
+        }
+      ]
+    }
+  ],
   "customQuestionAnswers": [
     {
       "question": "exact question text",
@@ -1546,6 +1577,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}
 `;
@@ -1720,7 +1752,8 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
           customQuestionAnswers: (capture.questions || []).map((q) => ({
             question: q,
             answer: "No API key configured \u2014 cannot answer."
-          }))
+          })),
+          mindMap: []
         };
       }
       const chunks = this.chunkContent(capture.content, capture.chapters || []);
@@ -1753,7 +1786,8 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
           coreSummary: summary.coreSummary,
           isLongForm: true,
           chapterMap,
-          customQuestionAnswers: summary.customQuestionAnswers
+          customQuestionAnswers: summary.customQuestionAnswers,
+          mindMap: summary.mindMap
         };
       }
       const single = chunks[0];
@@ -1860,6 +1894,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       return {
         titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
         coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
+        mindMap: this.parseMindMap(parsed.mindMap),
         isLongForm: parsed.isLongForm === true,
         chapterMap: parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0) ? [] : this.completeChapterMap(
           Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
@@ -2077,12 +2112,13 @@ ${bullets || "- (no summary)"}`;
         content_task_default: this.getPrompt("contentTaskDefault"),
         shared_output_rules: this.getContentOutputRules()
       });
-      const response = await this.callAI(prompt, 800);
+      const response = await this.callAI(prompt, 1500);
       const parsed = this.parseJson(response, "aggregate-content");
       return {
         titleVerdict: String(parsed.titleVerdict || "Could not generate a verdict."),
         coreSummary: Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
-        customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
+        customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+        mindMap: this.parseMindMap(parsed.mindMap)
       };
     }
     /** Aggregate per-part delta findings into the egg's key answers + verdict. */
@@ -2191,6 +2227,7 @@ ${delta || "- (no novel delta)"}`;
           question: q,
           answer: "No API key configured \u2014 cannot answer."
         })),
+        mindMap: [],
         shouldRead: true,
         shouldReadReason: "No API key configured \u2014 cannot analyze.",
         matchedEggs: eggs.map((e) => e.fileName),
@@ -2397,6 +2434,27 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
         }
         return entry;
       }) : [];
+    }
+    /** Normalize a hierarchical mind map array from the AI response. */
+    parseMindMap(raw, depth = 0) {
+      if (!Array.isArray(raw) || depth > 5)
+        return [];
+      return raw.filter((item) => item && (item.name || item.title || item.topic)).map((item) => {
+        const node = {
+          name: String(item.name || item.title || item.topic).trim()
+        };
+        const detail = item.detail || item.description || item.summary;
+        if (detail && typeof detail === "string" && detail.trim().length > 0) {
+          node.detail = detail.trim();
+        }
+        if (Array.isArray(item.children) && item.children.length > 0) {
+          const children = this.parseMindMap(item.children, depth + 1);
+          if (children.length > 0) {
+            node.children = children;
+          }
+        }
+        return node;
+      });
     }
     /**
      * Parse an AI response that should be JSON, stripping markdown fences.

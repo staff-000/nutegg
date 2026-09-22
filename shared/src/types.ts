@@ -107,6 +107,13 @@ export interface KeyAnswer {
   sources?: SourceRef[];
 }
 
+/** A node in the concept mind map / outline tree. */
+export interface MindMapNode {
+  name: string;
+  detail?: string;
+  children?: MindMapNode[];
+}
+
 /** Content-level analysis, independent of any egg. */
 export interface ContentAnalysis {
   /** Direct answer to the question posed in the title / intro. */
@@ -117,6 +124,8 @@ export interface ContentAnalysis {
   chapterMap: ChapterEntry[];
   /** Answers to custom user questions (egg key questions live in EggAnalysis). */
   customQuestionAnswers: KeyAnswer[];
+  /** Hierarchical concept mind-map / outline tree. */
+  mindMap?: MindMapNode[];
 }
 
 export interface CapturePayload {

@@ -110,3 +110,36 @@ test("AI Processor - respects promptOverrides in standalone settings", () => {
   });
   assert.equal(processor.getPrompt("contentAnalysis"), customTpl);
 });
+
+test("AI Processor - updated mind map prompt instructions", () => {
+  const { PROMPTS } = NutEggAI;
+  assert.ok(PROMPTS.contentTaskDefault.includes("Mind Map"));
+  assert.ok(PROMPTS.contentTaskDefault.includes("up to 3 levels deep"));
+  assert.ok(PROMPTS.contentAnalysis.includes('"mindMap"'));
+  assert.ok(PROMPTS.contentAnalysis.includes("up to 3 levels deep total"));
+  assert.ok(PROMPTS.aggregateContent.includes('"mindMap"'));
+  assert.ok(PROMPTS.aggregateContent.includes("synthesized concept tree for the entire work, up to 3 levels deep"));
+});
+
+test("AI Processor - parseMindMap in Chrome bundle handles up to 3 levels deep", () => {
+  const processor = new AIProcessor({});
+  const raw = [
+    {
+      name: "Root",
+      detail: "Root concept",
+      children: [
+        {
+          name: "Sub",
+          detail: "Sub concept",
+          children: [{ name: "Leaf", detail: "Leaf detail" }],
+        },
+      ],
+    },
+  ];
+  const out = processor.parseMindMap(raw);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].name, "Root");
+  assert.equal(out[0].children[0].name, "Sub");
+  assert.equal(out[0].children[0].children[0].name, "Leaf");
+});
+

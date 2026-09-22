@@ -15,6 +15,7 @@ export type {
   ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
+  MindMapNode,
   NovelDelta,
   ExtractedKnowledgeEntry,
   RedundantEntry,

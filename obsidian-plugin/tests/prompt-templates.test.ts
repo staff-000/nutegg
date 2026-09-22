@@ -60,4 +60,13 @@ describe("PROMPTS", () => {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);
     }
   });
+
+  it("content analysis templates instruct mind map generation up to 3 levels deep", () => {
+    assert.ok(PROMPTS.contentTaskDefault.includes("Mind Map"));
+    assert.ok(PROMPTS.contentTaskDefault.includes("up to 3 levels deep"));
+    assert.ok(PROMPTS.contentAnalysis.includes('"mindMap"'));
+    assert.ok(PROMPTS.contentAnalysis.includes("up to 3 levels deep total"));
+    assert.ok(PROMPTS.aggregateContent.includes('"mindMap"'));
+    assert.ok(PROMPTS.aggregateContent.includes("synthesized concept tree for the entire work, up to 3 levels deep"));
+  });
 });

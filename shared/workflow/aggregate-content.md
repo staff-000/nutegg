@@ -17,6 +17,18 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2"],
+  "mindMap": [
+    {
+      "name": "Main Topic",
+      "detail": "Core idea",
+      "children": [
+        {
+          "name": "Subtopic",
+          "detail": "Key reasoning"
+        }
+      ]
+    }
+  ],
   "customQuestionAnswers": [
     {
       "question": "exact question text",
@@ -27,5 +39,6 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 }
 
 ## Output Rules
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}

@@ -38,6 +38,8 @@ const reanalyzeBtn = document.getElementById("reanalyze-btn");
 const historySelect = document.getElementById("history-select");
 const verdictAnswer = document.getElementById("verdict-answer");
 const coreSummaryEl = document.getElementById("core-summary");
+const mindmapSection = document.getElementById("mindmap-section");
+const mindmapTree = document.getElementById("mindmap-tree");
 const chapterSection = document.getElementById("chapter-section");
 const chapterList = document.getElementById("chapter-list");
 const customQuestionsSection = document.getElementById("custom-questions-section");
@@ -2223,6 +2225,14 @@ function showResultsState(result, provenance = null) {
     .map((b) => `<li>${escapeHtml(b)}</li>`)
     .join("");
 
+  // Mind Map — text-heavy concept tree for side panel
+  if (Array.isArray(result.mindMap) && result.mindMap.length > 0) {
+    mindmapSection?.classList.remove("hidden");
+    renderMindMap(result.mindMap);
+  } else {
+    mindmapSection?.classList.add("hidden");
+  }
+
   // Chapter Map — clickable when timestamps exist (video).
   // For short content without an original chapter map, don't show it:
   // - If isLongForm is false and no author chapters were provided, don't show it.
@@ -2744,6 +2754,80 @@ function renderQaSources(sources) {
     .join("");
 
   return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 Sources:</div>${items}</div>` : "";
+}
+
+/** Render the Mind Map hierarchical concept tree. */
+function renderMindMap(nodes) {
+  if (!mindmapTree) return;
+  mindmapTree.innerHTML = "";
+  if (!Array.isArray(nodes) || nodes.length === 0) return;
+
+  function buildNode(node) {
+    const nodeEl = document.createElement("div");
+    nodeEl.className = "mindmap-node";
+
+    const headerEl = document.createElement("div");
+    headerEl.className = "mindmap-node-header";
+
+    const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+
+    let toggleBtn = null;
+    if (hasChildren) {
+      toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "mindmap-toggle-btn";
+      toggleBtn.setAttribute("aria-label", "Toggle branch");
+      toggleBtn.innerHTML = `<span class="mindmap-toggle-icon">▾</span>`;
+      headerEl.appendChild(toggleBtn);
+    } else {
+      const bullet = document.createElement("span");
+      bullet.className = "mindmap-bullet";
+      headerEl.appendChild(bullet);
+    }
+
+    const contentWrap = document.createElement("div");
+    contentWrap.className = "mindmap-node-content";
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "mindmap-node-name";
+    nameEl.textContent = node.name || "";
+    contentWrap.appendChild(nameEl);
+
+    if (node.detail) {
+      const detailEl = document.createElement("div");
+      detailEl.className = "mindmap-node-detail";
+      detailEl.textContent = node.detail;
+      contentWrap.appendChild(detailEl);
+    }
+
+    headerEl.appendChild(contentWrap);
+    nodeEl.appendChild(headerEl);
+
+    if (hasChildren) {
+      const childrenContainer = document.createElement("div");
+      childrenContainer.className = "mindmap-children";
+      for (const child of node.children) {
+        childrenContainer.appendChild(buildNode(child));
+      }
+      nodeEl.appendChild(childrenContainer);
+
+      const toggleBranch = (e) => {
+        e.stopPropagation();
+        const isCollapsed = childrenContainer.classList.toggle("collapsed");
+        const icon = toggleBtn.querySelector(".mindmap-toggle-icon");
+        if (icon) icon.textContent = isCollapsed ? "▸" : "▾";
+      };
+
+      toggleBtn.addEventListener("click", toggleBranch);
+      nameEl.addEventListener("click", toggleBranch);
+    }
+
+    return nodeEl;
+  }
+
+  for (const node of nodes) {
+    mindmapTree.appendChild(buildNode(node));
+  }
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */

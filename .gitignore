@@ -5,3 +5,4 @@ obsidian-plugin/main.js
 .claude/
 .githooks/
 website/dist/
+.agents/
