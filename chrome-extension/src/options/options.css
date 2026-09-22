@@ -314,4 +314,54 @@ a.primary-btn:hover {
   cursor: pointer;
 }
 
+.prompt-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.prompt-header-container label {
+  margin-bottom: 0 !important;
+}
+
+.reset-prompt-btn {
+  padding: 4px 8px;
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #4b5563;
+  transition: all 0.15s ease;
+}
+
+.reset-prompt-btn:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.prompt-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  resize: vertical;
+  min-height: 160px;
+}
+
+.prompt-textarea:focus {
+  outline: none;
+  border-color: var(--primary, #a8561e);
+  box-shadow: 0 0 0 2px rgba(168, 86, 30, 0.15);
+}
+
+
 

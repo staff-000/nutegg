@@ -64,6 +64,8 @@ export interface NutEggAISettings {
   chromeAiModel?: string;
   chromeAiEndpoint?: string;
   chromeAiOutputLanguage?: string;
+  promptOverrides?: Partial<Record<string, string>>;
+  chromeAiPromptOverrides?: Partial<Record<string, string>>;
   [key: string]: any;
 }
 

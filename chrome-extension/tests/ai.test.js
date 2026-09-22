@@ -98,3 +98,15 @@ test("AI Processor - follows chromeAiOutputLanguage setting", () => {
   assert.ok(rulesZh.includes("Chinese"));
   assert.ok(rulesZh.includes("translate into Chinese"));
 });
+
+test("AI Processor - respects promptOverrides in standalone settings", () => {
+  const customTpl = "CUSTOM CONTENT ANALYSIS TEMPLATE {{title}}";
+  const processor = new AIProcessor({
+    settings: {
+      chromeAiPromptOverrides: {
+        contentAnalysis: customTpl,
+      },
+    },
+  });
+  assert.equal(processor.getPrompt("contentAnalysis"), customTpl);
+});

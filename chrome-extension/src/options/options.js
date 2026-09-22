@@ -34,6 +34,12 @@ const aiLangSelect = document.getElementById("ai-lang-select");
 const aiSaveBtn = document.getElementById("ai-save-btn");
 const aiTestBtn = document.getElementById("ai-test-btn");
 const aiTestResult = document.getElementById("ai-test-result");
+const aiPromptSelect = document.getElementById("ai-prompt-select");
+const aiPromptTextarea = document.getElementById("ai-prompt-textarea");
+const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
+
+let savedPromptOverrides = {};
+let activePromptKey = "contentAnalysis";
 
 function updateModeDesc(mode) {
   if (mode === "confirm") {
@@ -56,7 +62,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiModel",
     "chromeAiLocalEndpoint",
     "chromeAiOutputLanguage",
+    "chromeAiPromptOverrides",
   ]);
+  savedPromptOverrides = stored.chromeAiPromptOverrides || {};
 
   // 1. Server settings
   const port = stored.serverPort || DEFAULT_PORT;
@@ -246,7 +254,55 @@ function initAiSettings(stored) {
   aiSaveBtn.addEventListener("click", handleAiSave);
   aiTestBtn.addEventListener("click", handleAiTest);
 
+  if (aiPromptSelect && aiPromptTextarea) {
+    loadPromptIntoTextarea(activePromptKey);
+
+    aiPromptSelect.addEventListener("change", () => {
+      saveActivePromptToState();
+      activePromptKey = aiPromptSelect.value;
+      loadPromptIntoTextarea(activePromptKey);
+    });
+
+    aiPromptTextarea.addEventListener("input", () => {
+      saveActivePromptToState();
+    });
+
+    if (aiPromptResetBtn) {
+      aiPromptResetBtn.addEventListener("click", () => {
+        delete savedPromptOverrides[activePromptKey];
+        loadPromptIntoTextarea(activePromptKey);
+        chrome.storage.local.set({ chromeAiPromptOverrides: savedPromptOverrides });
+        showAiResult(`Reset ${activePromptKey} prompt to default.`, "ok");
+        setTimeout(() => {
+          aiTestResult.classList.add("hidden");
+        }, 2000);
+      });
+    }
+  }
+
   updateProviderHints(selectedProvider);
+}
+
+function loadPromptIntoTextarea(key) {
+  if (!aiPromptTextarea) return;
+  const custom = savedPromptOverrides[key];
+  if (typeof custom === "string" && custom.trim().length > 0) {
+    aiPromptTextarea.value = custom;
+  } else {
+    const defaultTpl = window.NutEggAI?.PROMPTS?.[key] || "";
+    aiPromptTextarea.value = defaultTpl;
+  }
+}
+
+function saveActivePromptToState() {
+  if (!aiPromptTextarea) return;
+  const currentVal = aiPromptTextarea.value;
+  const defaultVal = window.NutEggAI?.PROMPTS?.[activePromptKey] || "";
+  if (currentVal.trim() === defaultVal.trim() || currentVal.trim().length === 0) {
+    delete savedPromptOverrides[activePromptKey];
+  } else {
+    savedPromptOverrides[activePromptKey] = currentVal;
+  }
 }
 
 function updateModelOptions(providerId, savedModel) {
@@ -320,6 +376,7 @@ async function handleAiSave() {
   const localEndpoint = aiLocalEndpoint ? aiLocalEndpoint.value.trim() : "";
   const outputLanguage = aiLangSelect ? aiLangSelect.value : "same-as-content";
 
+  saveActivePromptToState();
   const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
   await chrome.storage.local.set({
     chromeAiEnabled: isEnabled,
@@ -329,6 +386,7 @@ async function handleAiSave() {
     chromeAiLocalEndpoint: localEndpoint,
     chromeAiOutputLanguage: outputLanguage,
     contentOutputLanguage: outputLanguage,
+    chromeAiPromptOverrides: savedPromptOverrides,
   });
 
   showAiResult("AI Settings saved successfully.", "ok");

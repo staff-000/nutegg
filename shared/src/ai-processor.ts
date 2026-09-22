@@ -96,6 +96,12 @@ export class AIProcessor {
   }
 
   private getPrompt(key: WorkflowPromptKey): string {
+    const overrides =
+      this.host?.settings?.promptOverrides ||
+      this.host?.settings?.chromeAiPromptOverrides;
+    if (overrides && typeof overrides[key] === "string" && overrides[key].trim().length > 0) {
+      return overrides[key];
+    }
     return (
       this.host?.workflowManager?.getPrompt(key) ||
       PROMPTS[key as keyof typeof PROMPTS] ||

@@ -1664,6 +1664,10 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
       return typeof val === "number" && val > 0 ? val : DEFAULT_SECTION_SECS;
     }
     getPrompt(key) {
+      const overrides = this.host?.settings?.promptOverrides || this.host?.settings?.chromeAiPromptOverrides;
+      if (overrides && typeof overrides[key] === "string" && overrides[key].trim().length > 0) {
+        return overrides[key];
+      }
       return this.host?.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
     }
     /** Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage). */

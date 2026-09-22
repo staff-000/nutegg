@@ -96,6 +96,22 @@
             <option value="German">German (Deutsch)</option>
           </select>
         </div>
+      <div class="option-row" id="ai-prompt-row">
+        <div class="prompt-header-container">
+          <label for="ai-prompt-select">5. Custom Prompts</label>
+          <button id="ai-prompt-reset-btn" type="button" class="reset-prompt-btn">Reset to Default</button>
+        </div>
+        <div class="ai-input-group">
+          <select id="ai-prompt-select">
+            <option value="contentAnalysis">Content Analysis (Stage 1 Summary & Chapter Map)</option>
+            <option value="contentTaskDefault">Default Content Task Instructions</option>
+            <option value="followUp">Follow-up Q&A</option>
+          </select>
+        </div>
+        <textarea id="ai-prompt-textarea" rows="12" spellcheck="false" class="prompt-textarea"></textarea>
+        <p class="hint">
+          Customize the template used by Chrome standalone AI. Variables like <code>{{title}}</code>, <code>{{url}}</code>, <code>{{content}}</code> are dynamically replaced during analysis.
+        </p>
       </div>
 
       <div class="option-actions">

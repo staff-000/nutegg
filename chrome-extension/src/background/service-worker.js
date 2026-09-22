@@ -42,10 +42,14 @@ async function loadChromeAiSettings() {
     "chromeAiOutputLanguage",
     "contentOutputLanguage",
     "chromeAiMaxTokens",
+    "chromeAiPromptOverrides",
   ]);
   const lang = stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
   stored.contentOutputLanguage = lang;
   stored.chromeAiOutputLanguage = lang;
+  if (stored.chromeAiPromptOverrides) {
+    stored.promptOverrides = stored.chromeAiPromptOverrides;
+  }
   return stored;
 }
 
