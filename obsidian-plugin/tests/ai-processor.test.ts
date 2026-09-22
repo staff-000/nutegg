@@ -69,6 +69,41 @@ describe("AIProcessor.parseKeyAnswers", () => {
     assert.deepEqual(p.parseKeyAnswers(undefined), []);
     assert.deepEqual(p.parseKeyAnswers({}), []);
   });
+
+  it("extracts and normalizes sources citations", () => {
+    const out = p.parseKeyAnswers([
+      {
+        question: "How does it work?",
+        answer: "By using attention.",
+        sources: [
+          { ref: " 12:34 ", quote: " attention is all you need " },
+          { section: " Methodology ", quote: " we trained a transformer " },
+          { ref: "" },
+          null,
+        ],
+      },
+      {
+        question: "Not covered?",
+        answer: "Not covered in this content",
+        sources: [],
+      },
+    ]);
+
+    assert.deepEqual(out, [
+      {
+        question: "How does it work?",
+        answer: "By using attention.",
+        sources: [
+          { ref: "12:34", quote: "attention is all you need" },
+          { ref: "Methodology", quote: "we trained a transformer" },
+        ],
+      },
+      {
+        question: "Not covered?",
+        answer: "Not covered in this content",
+      },
+    ]);
+  });
 });
 
 describe("AIProcessor.mergeVerdict", () => {

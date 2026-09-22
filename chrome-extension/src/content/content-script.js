@@ -83,6 +83,51 @@ if (!window.__nutegg_listener_attached) {
       return false;
     }
 
+    if (message.action === "nutegg-scroll-to") {
+      const heading = (message.heading || "").trim().toLowerCase();
+      const quote = (message.quote || "").trim().toLowerCase();
+      let matchedEl = null;
+
+      if (heading) {
+        const headings = document.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']");
+        for (const h of headings) {
+          const text = (h.textContent || "").trim().toLowerCase();
+          if (text === heading || text.includes(heading) || heading.includes(text)) {
+            matchedEl = h;
+            break;
+          }
+        }
+      }
+
+      if (!matchedEl && quote && quote.length >= 8) {
+        const sample = quote.slice(0, 40);
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+          if (node.textContent && node.textContent.toLowerCase().includes(sample)) {
+            matchedEl = node.parentElement;
+            break;
+          }
+        }
+      }
+
+      if (matchedEl) {
+        matchedEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        const origTransition = matchedEl.style.transition;
+        const origBg = matchedEl.style.backgroundColor;
+        matchedEl.style.transition = "background-color 0.3s ease";
+        matchedEl.style.backgroundColor = "rgba(255, 230, 0, 0.4)";
+        setTimeout(() => {
+          matchedEl.style.backgroundColor = origBg;
+          setTimeout(() => { matchedEl.style.transition = origTransition; }, 300);
+        }, 2000);
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: "Section not found on page" });
+      }
+      return false;
+    }
+
     if (message.action === "extract-content") {
       try {
         const result = extractContent();

@@ -18,10 +18,14 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2"],
   "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
+    {
+      "question": "exact question text",
+      "answer": "direct answer",
+      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]
+    }
   ]
 }
 
 ## Output Rules
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none).
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 {{shared_output_rules}}

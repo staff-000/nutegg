@@ -22,7 +22,11 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
     {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
   ],
   "customQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
+    {
+      "question": "exact question text",
+      "answer": "direct answer",
+      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]
+    }
   ]
 }
 

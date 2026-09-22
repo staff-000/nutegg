@@ -90,9 +90,19 @@ export interface ChapterEntry {
   summary: string;
 }
 
+/** Positional reference and supporting quote for an answer. */
+export interface SourceRef {
+  /** Timestamp string (e.g. "12:34") for video or section heading for articles. */
+  ref: string;
+  /** Brief verbatim quote from the content. */
+  quote?: string;
+}
+
 export interface KeyAnswer {
   question: string;
   answer: string;
+  /** Citations pointing to where in the content this answer comes from. */
+  sources?: SourceRef[];
 }
 
 /** Content-level analysis, independent of any egg. */

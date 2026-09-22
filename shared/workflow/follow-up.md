@@ -15,7 +15,11 @@ You are a knowledge curator. Answer the user's follow-up questions about this co
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 {
   "answers": [
-    {"question": "exact question text", "answer": "direct answer"}
+    {
+      "question": "exact question text",
+      "answer": "direct answer",
+      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]
+    }
   ]
 }
 

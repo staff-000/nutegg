@@ -24,7 +24,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 {
   "language": "English",
   "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
+    {
+      "question": "exact question text",
+      "answer": "direct answer",
+      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]
+    }
   ],
   "extractedEntries": [
     {"kind": "insight", "content": "- [tag] **Concept**: short phrases\n  - explanation\n  - 🎯 Example: ..."}

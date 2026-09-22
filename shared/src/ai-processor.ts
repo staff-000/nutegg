@@ -36,6 +36,7 @@ import type {
   EggContent,
   ExtractedKnowledgeEntry,
   KeyAnswer,
+  SourceRef,
   MergeResult,
   NewKnowledgeItem,
   NovelDelta,
@@ -54,6 +55,7 @@ export type {
   ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
+  SourceRef,
   NovelDelta,
   ExtractedKnowledgeEntry,
   RedundantEntry,
@@ -898,10 +900,17 @@ export class AIProcessor {
       const parsed = this.parseJson(response, "follow-up");
       const answers = this.parseKeyAnswers(parsed.answers);
       const byQuestion = new Map(answers.map((a) => [a.question, a]));
-      return questions.map((q) => ({
-        question: q,
-        answer: byQuestion.get(q)?.answer || "No answer returned — please try again.",
-      }));
+      return questions.map((q) => {
+        const found = byQuestion.get(q);
+        const item: KeyAnswer = {
+          question: q,
+          answer: found?.answer || "No answer returned — please try again.",
+        };
+        if (found?.sources && found.sources.length > 0) {
+          item.sources = found.sources;
+        }
+        return item;
+      });
     } catch (err) {
       if (err instanceof AIError) throw err;
       console.error("[NutEgg] Follow-up question failed:", err);
@@ -1060,15 +1069,35 @@ export class AIProcessor {
     return await this.host.aiClient.chat(prompt, maxTokens);
   }
 
-  /** Normalize a `[{question, answer}]` array from the AI response. */
+  /** Normalize a `[{question, answer, sources}]` array from the AI response. */
   private parseKeyAnswers(raw: any): KeyAnswer[] {
     return Array.isArray(raw)
       ? raw
           .filter((qa: any) => qa && qa.question && qa.answer)
-          .map((qa: any) => ({
-            question: String(qa.question),
-            answer: String(qa.answer),
-          }))
+          .map((qa: any) => {
+            const entry: KeyAnswer = {
+              question: String(qa.question),
+              answer: String(qa.answer),
+            };
+            if (Array.isArray(qa.sources)) {
+              const sources = qa.sources
+                .filter((s: any) => s && (s.ref || s.timestamp || s.section))
+                .map((s: any) => {
+                  const item: SourceRef = {
+                    ref: String(s.ref || s.timestamp || s.section).trim(),
+                  };
+                  if (s.quote) {
+                    item.quote = String(s.quote).trim();
+                  }
+                  return item;
+                })
+                .filter((s: SourceRef) => s.ref.length > 0);
+              if (sources.length > 0) {
+                entry.sources = sources;
+              }
+            }
+            return entry;
+          })
       : [];
   }
 

@@ -23,7 +23,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\n  - sub bullets"}
   ],
   "keyQuestionAnswers": [
-    {"question": "exact question text", "answer": "direct answer"}
+    {
+      "question": "exact question text",
+      "answer": "direct answer",
+      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]
+    }
   ],
   "rejected": false,
   "rejectReason": "",

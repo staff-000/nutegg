@@ -277,6 +277,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   followupInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleFollowUp();
   });
+  if (customQuestionsList) {
+    customQuestionsList.addEventListener("click", handleSourcePillClick);
+  }
+  if (eggKnowledgeContent) {
+    eggKnowledgeContent.addEventListener("click", handleSourcePillClick);
+  }
   refreshBtn.addEventListener("click", handleRefresh);
   createEggBtn.addEventListener("click", handleCreateEgg);
   eggsCreateToggle.addEventListener("click", () => {
@@ -2423,6 +2429,7 @@ function renderEggKnowledge(eggResults = []) {
                 <div class="qa-item">
                   <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
                   <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+                  ${renderQaSources(qa.sources)}
                 </div>`
               )
               .join("")}
@@ -2686,6 +2693,46 @@ function showHistoryEntry(entry) {
   renderHistorySelect(entry.nutId);
 }
 
+/** Render clickable source pills and supporting quotes for a Q&A answer. */
+function renderQaSources(sources) {
+  if (!Array.isArray(sources) || sources.length === 0) return "";
+
+  const validSources = sources.filter((s) => s && s.ref && String(s.ref).trim().length > 0);
+  if (validSources.length === 0) return "";
+
+  const items = validSources
+    .map((s) => {
+      const ref = String(s.ref).trim();
+      const isTime = /^\d{1,2}(:\d{2}){1,2}$/.test(ref);
+      const pillClass = isTime ? "source-pill source-timestamp" : "source-pill source-section";
+      const icon = isTime ? "⏱️" : "§";
+      const dataAttr = isTime
+        ? `data-time="${escapeHtml(ref)}"`
+        : `data-heading="${escapeHtml(ref)}"`;
+      const quoteText = s.quote ? String(s.quote).trim() : "";
+      const quoteAttr = quoteText ? ` data-quote="${escapeHtml(quoteText)}"` : "";
+      const quoteTitle = quoteText
+        ? ` title="${escapeHtml(quoteText)}"`
+        : (isTime ? ` title="Jump to ${escapeHtml(ref)} in video"` : ` title="Scroll to section: ${escapeHtml(ref)}"`);
+
+      const quoteHtml = quoteText
+        ? `<span class="source-quote" title="${escapeHtml(quoteText)}">“${escapeHtml(quoteText)}”</span>`
+        : "";
+
+      return `
+        <div class="qa-source-item">
+          <button type="button" class="${pillClass}" ${dataAttr}${quoteAttr}${quoteTitle}>
+            <span class="source-icon">${icon}</span>
+            <span class="source-ref">${escapeHtml(ref)}</span>
+          </button>
+          ${quoteHtml}
+        </div>`;
+    })
+    .join("");
+
+  return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 Sources:</div>${items}</div>` : "";
+}
+
 /** Render the "Your Questions" section: initial answers + follow-ups. */
 function renderCustomQuestions() {
   const all = [
@@ -2700,6 +2747,7 @@ function renderCustomQuestions() {
           <div class="qa-item">
             <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
             <div class="qa-answer">${escapeHtml(qa.answer)}</div>
+            ${renderQaSources(qa.sources)}
           </div>
         </div>`)
       .join("");
@@ -2734,8 +2782,13 @@ async function handleFollowUp() {
     const response = await chrome.runtime.sendMessage({ action: "ask", payload });
 
     const answers = response?.answers || [];
-    const answer = answers[0]?.answer || response?.error || "No answer returned.";
-    followUpQa[followUpQa.length - 1] = { question: q, answer };
+    const ansObj = answers[0];
+    const answer = ansObj?.answer || response?.error || "No answer returned.";
+    followUpQa[followUpQa.length - 1] = {
+      question: q,
+      answer,
+      sources: ansObj?.sources,
+    };
   } catch (err) {
     followUpQa[followUpQa.length - 1] = {
       question: q,
@@ -2778,6 +2831,44 @@ async function seekToChapter(seconds) {
       });
       await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-seek", seconds });
     } catch { /* page doesn't allow injection */ }
+  }
+}
+
+/** Scroll the active tab to a section heading or quote text. */
+async function scrollToSection(heading, quote) {
+  if (activeTabId == null) return;
+  try {
+    await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-scroll-to", heading, quote });
+  } catch {
+    // Content script not injected — inject and retry
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: activeTabId },
+        files: [
+          "src/content/utils.js",
+          "src/content/extractors/youtube.js",
+          "src/content/extractors/twitter.js",
+          "src/content/extractors/article.js",
+          "src/content/extractors/generic.js",
+          "src/content/content-script.js",
+        ],
+      });
+      await chrome.tabs.sendMessage(activeTabId, { action: "nutegg-scroll-to", heading, quote });
+    } catch { /* page doesn't allow injection */ }
+  }
+}
+
+/** Handle click on source pills (timestamp seek or section scroll). */
+function handleSourcePillClick(e) {
+  const pill = e.target.closest(".source-pill");
+  if (!pill) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (pill.dataset.time) {
+    seekToChapter(timeToSeconds(pill.dataset.time));
+  } else if (pill.dataset.heading) {
+    scrollToSection(pill.dataset.heading, pill.dataset.quote || "");
   }
 }
 
