@@ -8,6 +8,7 @@ export * from "./client";
 export * from "./chunker";
 export * from "./json-repair";
 export * from "./egg-format";
+export * from "./egg-parser";
 export * from "./prompt-templates";
 export * from "./ai-processor";
 

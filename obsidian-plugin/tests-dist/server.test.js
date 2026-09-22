@@ -279,7 +279,7 @@ var TFile = class extends TAbstractFile {
   extension = "";
 };
 
-// src/egg-parser.ts
+// ../shared/src/egg-format.ts
 function extractEggLanguage(content) {
   if (!content)
     return "";
@@ -323,6 +323,8 @@ language: "${language}"
 
 ${content}`;
 }
+
+// ../shared/src/egg-parser.ts
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
     return false;

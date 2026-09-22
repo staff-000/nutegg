@@ -133,6 +133,13 @@ describe("EggParser.formatEggForPrompt", () => {
     const egg = parser.parseEggFile("x.md", "# Knowledge\n");
     assert.ok(parser.formatEggForPrompt(egg).includes("(empty)"));
   });
+
+  it("works when formatEggForPrompt is invoked as a detached function reference", () => {
+    const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
+    const detached = parser.formatEggForPrompt;
+    const out = detached(egg);
+    assert.ok(out.includes("**Scope:** High-signal financial data."));
+  });
 });
 
 describe("EggParser.appendUnprocessed", () => {

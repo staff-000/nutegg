@@ -25,10 +25,12 @@ var NutEggAI = (() => {
     AIProcessor: () => AIProcessor,
     DEFAULT_CHUNK_WINDOW_CHARS: () => DEFAULT_CHUNK_WINDOW_CHARS,
     DEFAULT_SECTION_SECS: () => DEFAULT_SECTION_SECS,
+    KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
     MERGE_THRESHOLD: () => MERGE_THRESHOLD,
     OPENROUTER_ENDPOINT: () => OPENROUTER_ENDPOINT,
     PROMPTS: () => PROMPTS,
     PROVIDER_CATALOG: () => PROVIDER_CATALOG,
+    UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
     analyzeContentStandalone: () => analyzeContentStandalone,
     askFollowUpStandalone: () => askFollowUpStandalone,
     chatAI: () => chatAI,
@@ -36,23 +38,33 @@ var NutEggAI = (() => {
     chunkContent: () => chunkContent,
     classifyError: () => classifyError,
     countUnprocessed: () => countUnprocessed,
+    extractCallout: () => extractCallout,
     extractEggLanguage: () => extractEggLanguage,
     findOpenRouterFamily: () => findOpenRouterFamily,
+    findSection: () => findSection,
     formatEggForPrompt: () => formatEggForPrompt,
     formatEggInstructionsForPrompt: () => formatEggInstructionsForPrompt,
     formatEggKnowledgeForPrompt: () => formatEggKnowledgeForPrompt,
     formatSeconds: () => formatSeconds,
+    headingName: () => headingName,
     insertEggLanguage: () => insertEggLanguage,
     isAIConfigured: () => isAIConfigured,
+    isEggPath: () => isEggPath,
     lineSeconds: () => lineSeconds,
+    matchesEggFormat: () => matchesEggFormat,
     paragraphChunks: () => paragraphChunks,
+    parseEggFile: () => parseEggFile,
     parseJson: () => parseJson,
+    parseListItems: () => parseListItems,
     partNote: () => partNote,
     renderPrompt: () => renderPrompt,
     repairTruncatedJson: () => repairTruncatedJson,
     resolveConfig: () => resolveConfig,
     sanitizeEggName: () => sanitizeEggName,
     sanitizeJsonString: () => sanitizeJsonString,
+    sectionBody: () => sectionBody,
+    splitLabeledSections: () => splitLabeledSections,
+    stripSectionHeading: () => stripSectionHeading,
     timestampedChunks: () => timestampedChunks,
     toSeconds: () => toSeconds
   });
@@ -1183,6 +1195,168 @@ ${egg.unprocessed}`);
     return bullets.filter((l) => indentOf(l) === base).length;
   }
 
+  // ../shared/src/egg-parser.ts
+  var KNOWLEDGE_HEADING = "# Knowledge";
+  var UNPROCESSED_HEADING = "# Unprocessed";
+  function isEggPath(path, vaultFolder = "nutegg") {
+    if (!path || typeof path !== "string")
+      return false;
+    const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+    const folder = (vaultFolder || "").replace(/^\/+|\/+$/g, "");
+    if (folder) {
+      if (!normalized.startsWith(folder + "/"))
+        return false;
+      const rel = normalized.slice(folder.length + 1);
+      if (rel.includes("/"))
+        return false;
+      if (rel.startsWith("_") || !rel.toLowerCase().endsWith(".md"))
+        return false;
+      return true;
+    } else {
+      if (normalized.includes("/"))
+        return false;
+      if (normalized.startsWith("_") || !normalized.toLowerCase().endsWith(".md"))
+        return false;
+      return true;
+    }
+  }
+  function matchesEggFormat(content) {
+    if (!content || typeof content !== "string")
+      return false;
+    if (/^---\r?\n[\s\S]*?\btopic:\s*["']?.+["']?[\s\S]*?\r?\n---/m.test(content)) {
+      return true;
+    }
+    if (content.includes("# Knowledge") || content.includes("# Unprocessed") || content.includes("[!abstract]")) {
+      return true;
+    }
+    return false;
+  }
+  function parseEggFile(fileName, content) {
+    const result = {
+      fileName,
+      topic: "Unknown",
+      language: "",
+      scope: "",
+      actionGuide: "",
+      keyQuestions: [],
+      rejectionCriteria: [],
+      formattingRules: "",
+      knowledge: "",
+      unprocessed: "",
+      indexDescription: ""
+    };
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    if (fmMatch) {
+      for (const line of fmMatch[1].split(/\r?\n/)) {
+        const kv = line.match(/^(\w+):\s*(.*)$/);
+        if (!kv)
+          continue;
+        const key = kv[1].toLowerCase();
+        const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
+        if (key === "topic")
+          result.topic = value;
+        if (key === "language")
+          result.language = value;
+      }
+    }
+    const callout = extractCallout(content);
+    const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+    result.scope = (sections.get("scope") || "").trim();
+    result.actionGuide = (sections.get("action guide") || "").trim();
+    result.keyQuestions = parseListItems(sections.get("key questions") || "");
+    result.rejectionCriteria = parseListItems(sections.get("rejection criteria") || "");
+    result.formattingRules = (sections.get("formatting rules") || "").trim();
+    const lines = content.split(/\r?\n/);
+    const knowledgeSection = findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      result.knowledge = sectionBody(lines, knowledgeSection, "knowledge");
+    }
+    const unprocessedSection = findSection(lines, "unprocessed");
+    if (unprocessedSection) {
+      result.unprocessed = sectionBody(lines, unprocessedSection, "unprocessed");
+    }
+    return result;
+  }
+  function findSection(lines, name) {
+    const wanted = name.toLowerCase();
+    const start = lines.findIndex((l) => headingName(l) === wanted);
+    if (start === -1)
+      return null;
+    let end = -1;
+    if (wanted === "knowledge") {
+      end = lines.findIndex(
+        (l, i) => i > start && headingName(l) === "unprocessed"
+      );
+    }
+    if (end === -1) {
+      end = lines.findIndex((l, i) => {
+        if (i <= start)
+          return false;
+        const head = headingName(l);
+        return head !== null && head !== wanted;
+      });
+    }
+    return { start, end: end === -1 ? lines.length : end };
+  }
+  function headingName(line) {
+    const m = line.trim().match(/^#\s+(.+?)\s*#*\s*$/);
+    if (!m)
+      return null;
+    return m[1].trim().toLowerCase();
+  }
+  function sectionBody(lines, section, name) {
+    const body = lines.slice(section.start + 1, section.end);
+    while (body.length > 0 && (body[0].trim() === "" || headingName(body[0]) === name.toLowerCase())) {
+      body.shift();
+    }
+    return body.join("\n").replace(/\n+$/g, "");
+  }
+  function stripSectionHeading(body, name) {
+    const lines = body.split("\n");
+    const wanted = name.toLowerCase();
+    while (lines.length > 0 && (lines[0].trim() === "" || headingName(lines[0]) === wanted)) {
+      lines.shift();
+    }
+    return lines.join("\n").replace(/\s+$/g, "");
+  }
+  function extractCallout(content) {
+    const calloutLines = [];
+    for (const line of content.split("\n")) {
+      if (line.startsWith(">")) {
+        calloutLines.push(line.replace(/^>\s?/, ""));
+      } else if (calloutLines.length > 0) {
+        break;
+      }
+    }
+    if (calloutLines.length === 0)
+      return null;
+    const marker = calloutLines.findIndex((l) => l.includes("[!abstract]"));
+    const body = marker >= 0 ? calloutLines.slice(marker + 1) : calloutLines.slice(1);
+    return body.join("\n");
+  }
+  function splitLabeledSections(text) {
+    const map = /* @__PURE__ */ new Map();
+    let current = null;
+    let buffer = [];
+    for (const line of text.split("\n")) {
+      const labelMatch = line.match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
+      if (labelMatch) {
+        if (current)
+          map.set(current, buffer.join("\n"));
+        current = labelMatch[1].toLowerCase();
+        buffer = labelMatch[2] ? [labelMatch[2]] : [];
+      } else {
+        buffer.push(line);
+      }
+    }
+    if (current)
+      map.set(current, buffer.join("\n"));
+    return map;
+  }
+  function parseListItems(text) {
+    return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l)).map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
+  }
+
   // ../shared/workflow/content-analysis.md
   var content_analysis_default = `You are a knowledge curator. Analyze the content below following the Task.
 
@@ -1684,7 +1858,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
      *   Step 2: Compare candidate entries against egg's Knowledge tree & Unprocessed entries to find novel delta and read verdict.
      */
     async analyzeAgainstEgg(capture, egg, partNoteStr = "") {
-      const formatInstructions = this.host?.eggParser?.formatEggInstructionsForPrompt || formatEggInstructionsForPrompt;
+      const formatInstructions = (e) => this.host?.eggParser?.formatEggInstructionsForPrompt ? this.host.eggParser.formatEggInstructionsForPrompt(e) : formatEggInstructionsForPrompt(e);
       const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
         egg_file: egg.fileName,
         egg_instructions: formatInstructions(egg),
@@ -1893,7 +2067,7 @@ ${bullets || "- (no summary)"}`;
     }
     /** Aggregate per-part delta findings into the egg's key answers + verdict. */
     async aggregateEgg(egg, chunkFindings) {
-      const formatEgg = this.host?.eggParser?.formatEggForPrompt || formatEggForPrompt;
+      const formatEgg = (e) => this.host?.eggParser?.formatEggForPrompt ? this.host.eggParser.formatEggForPrompt(e) : formatEggForPrompt(e);
       const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
         egg_file: egg.fileName,
         egg_instructions: formatEgg(egg),
@@ -2059,7 +2233,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       const egg = await this.host?.eggParser?.readEgg?.(fileName);
       if (!egg)
         return null;
-      const countFn = this.host?.eggParser?.countUnprocessed || countUnprocessed;
+      const countFn = (e) => this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
       const entries = countFn(egg);
       if (entries === 0) {
         console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
@@ -2123,7 +2297,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       const egg = await this.host?.eggParser?.readEgg?.(fileName);
       if (!egg)
         return null;
-      const countFn = this.host?.eggParser?.countUnprocessed || countUnprocessed;
+      const countFn = (e) => this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
       const entries = countFn(egg);
       if (entries < MERGE_THRESHOLD)
         return null;

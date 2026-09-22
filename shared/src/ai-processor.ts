@@ -412,9 +412,10 @@ export class AIProcessor {
     egg: EggContent,
     partNoteStr = ""
   ): Promise<EggAnalysis | null> {
-    const formatInstructions =
-      this.host?.eggParser?.formatEggInstructionsForPrompt ||
-      formatEggInstructionsForPrompt;
+    const formatInstructions = (e: EggContent) =>
+      this.host?.eggParser?.formatEggInstructionsForPrompt
+        ? this.host.eggParser.formatEggInstructionsForPrompt(e)
+        : formatEggInstructionsForPrompt(e);
 
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
       egg_file: egg.fileName,
@@ -695,7 +696,10 @@ export class AIProcessor {
     readVerdict: boolean;
     readVerdictReason: string;
   }> {
-    const formatEgg = this.host?.eggParser?.formatEggForPrompt || formatEggForPrompt;
+    const formatEgg = (e: EggContent) =>
+      this.host?.eggParser?.formatEggForPrompt
+        ? this.host.eggParser.formatEggForPrompt(e)
+        : formatEggForPrompt(e);
     const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
       egg_file: egg.fileName,
       egg_instructions: formatEgg(egg),
@@ -916,7 +920,10 @@ export class AIProcessor {
     const egg = await this.host?.eggParser?.readEgg?.(fileName);
     if (!egg) return null;
 
-    const countFn = this.host?.eggParser?.countUnprocessed || countUnprocessed;
+    const countFn = (e: EggContent) =>
+      this.host?.eggParser?.countUnprocessed
+        ? this.host.eggParser.countUnprocessed(e)
+        : countUnprocessed(e);
     const entries = countFn(egg);
     if (entries === 0) {
       console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
@@ -994,7 +1001,10 @@ export class AIProcessor {
     const egg = await this.host?.eggParser?.readEgg?.(fileName);
     if (!egg) return null;
 
-    const countFn = this.host?.eggParser?.countUnprocessed || countUnprocessed;
+    const countFn = (e: EggContent) =>
+      this.host?.eggParser?.countUnprocessed
+        ? this.host.eggParser.countUnprocessed(e)
+        : countUnprocessed(e);
     const entries = countFn(egg);
     if (entries < MERGE_THRESHOLD) return null;
 

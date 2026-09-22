@@ -1,151 +1,24 @@
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
+import {
+  KNOWLEDGE_HEADING,
+  UNPROCESSED_HEADING,
+  isEggPath,
+  matchesEggFormat,
+  parseEggFile,
+  findSection,
+  stripSectionHeading,
+  headingName,
+  insertEggLanguage,
+  formatEggInstructionsForPrompt,
+  formatEggKnowledgeForPrompt,
+  formatEggForPrompt,
+  countUnprocessed,
+  type EggContent,
+} from "@shared/egg-parser";
 
-/**
- * Canonical headings of the two editable sections. They are h1 (`#`) — the
- * egg's top-level structure — with the knowledge tree's branches nested at
- * `##` below them.
- */
-export const KNOWLEDGE_HEADING = "# Knowledge";
-export const UNPROCESSED_HEADING = "# Unprocessed";
-
-/**
- * Parsed egg file content.
- *
- * New format (see src/templates/egg.md):
- *   ---
- *   topic: "..."
- *   status: "active"
- *   language: "english"
- *   ---
- *   > [!abstract]- Instructions:
- *   > **Scope:** ...
- *   > **Action Guide:** ...
- *   > **Key Questions:** ...
- *   > **Rejection Criteria:** ...
- *   > **Formatting Rules:** ...
- *   # Knowledge
- *   (knowledge tree)
- *   # Unprocessed
- *   (entries pending merge into the knowledge tree)
- *
- */
-export interface EggContent {
-  fileName: string;
-  /** Frontmatter topic, or "Unknown". */
-  topic: string;
-  /** Frontmatter language, e.g. "English", "Chinese". */
-  language?: string;
-  /** What this egg captures. */
-  scope: string;
-  /** Steps 1-5 telling the AI what to produce for the popup. */
-  actionGuide: string;
-  /** Specific questions the user wants answered for this content type. */
-  keyQuestions: string[];
-  rejectionCriteria: string[];
-  /** Rules for how new knowledge must be formatted when appended. */
-  formattingRules: string;
-  /** Current content of the Knowledge section (the knowledge tree). */
-  knowledge: string;
-  /** Entries in the Unprocessed section — merged into the tree when 20+ accumulate. */
-  unprocessed: string;
-  /** Description from _index.md — used for egg routing and fallback context. */
-  indexDescription: string;
-}
-
-/**
- * Extract the language property from an egg file's YAML frontmatter.
- */
-export function extractEggLanguage(content: string): string {
-  if (!content) return "";
-  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (fmMatch) {
-    for (const line of fmMatch[1].split(/\r?\n/)) {
-      const kv = line.match(/^(\w+):\s*(.*)$/);
-      if (kv && kv[1].toLowerCase() === "language") {
-        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
-      }
-    }
-  }
-  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
-  return directMatch ? directMatch[1].trim() : "";
-}
-
-
-/**
- * Inserts or updates the frontmatter language property in an egg file's content.
- * If the egg already has a non-empty language property, content is returned unchanged.
- */
-export function insertEggLanguage(
-  content: string,
-  language: string,
-  options?: { overwrite?: boolean }
-): string {
-  if (!content || !language) return content;
-  const existing = extractEggLanguage(content);
-  if (existing && !options?.overwrite) return content;
-
-  if (existing && options?.overwrite) {
-    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
-  }
-
-  // If an empty language property already exists, update it in place
-  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
-    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
-  }
-
-  // If YAML frontmatter exists, insert before the closing delimiter
-  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
-  const match = content.match(fmRegex);
-  if (match) {
-    const opening = match[1];
-    const body = match[2];
-    const closing = match[3];
-    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
-    const newBody = `${body}${separator}language: "${language}"`;
-    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
-  }
-
-  // If no frontmatter exists, prepend frontmatter with language
-  return `---\nlanguage: "${language}"\n---\n\n${content}`;
-}
-
-export function isEggPath(path: string, vaultFolder = "nutegg"): boolean {
-  if (!path || typeof path !== "string") return false;
-  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
-  const folder = (vaultFolder || "").replace(/^\/+|\/+$/g, "");
-
-  if (folder) {
-    if (!normalized.startsWith(folder + "/")) return false;
-    const rel = normalized.slice(folder.length + 1);
-    if (rel.includes("/")) return false;
-    if (rel.startsWith("_") || !rel.toLowerCase().endsWith(".md")) return false;
-    return true;
-  } else {
-    if (normalized.includes("/")) return false;
-    if (normalized.startsWith("_") || !normalized.toLowerCase().endsWith(".md")) return false;
-    return true;
-  }
-}
-
-/**
- * Tests whether a note's content matches the structure of a NutEgg egg note.
- * Checks for YAML frontmatter topic or canonical egg sections / callouts.
- */
-export function matchesEggFormat(content: string): boolean {
-  if (!content || typeof content !== "string") return false;
-  if (/^---\r?\n[\s\S]*?\btopic:\s*["']?.+["']?[\s\S]*?\r?\n---/m.test(content)) {
-    return true;
-  }
-  if (
-    content.includes("# Knowledge") ||
-    content.includes("# Unprocessed") ||
-    content.includes("[!abstract]")
-  ) {
-    return true;
-  }
-  return false;
-}
+// Re-export everything from shared egg-parser for backward compatibility
+export * from "@shared/egg-parser";
 
 export class EggParser {
   private plugin: NutEggPlugin;
@@ -223,120 +96,23 @@ export class EggParser {
   }
 
   parseEggFile(fileName: string, content: string): EggContent {
-    const result: EggContent = {
-      fileName,
-      topic: "Unknown",
-      language: "",
-      scope: "",
-      actionGuide: "",
-      keyQuestions: [],
-      rejectionCriteria: [],
-      formattingRules: "",
-      knowledge: "",
-      unprocessed: "",
-      indexDescription: "",
-    };
-
-    // Frontmatter
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    if (fmMatch) {
-      for (const line of fmMatch[1].split("\n")) {
-        const kv = line.match(/^(\w+):\s*(.*)$/);
-        if (!kv) continue;
-        const key = kv[1].toLowerCase();
-        const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
-        if (key === "topic") result.topic = value;
-        if (key === "language") result.language = value;
-      }
-    }
-
-    // Instructions callout (new format)
-    const callout = this.extractCallout(content);
-    const sections = callout ? this.splitLabeledSections(callout) : new Map();
-    result.scope = (sections.get("scope") || "").trim();
-    result.actionGuide = (sections.get("action guide") || "").trim();
-    result.keyQuestions = this.parseListItems(sections.get("key questions") || "");
-    result.rejectionCriteria = this.parseListItems(sections.get("rejection criteria") || "");
-    result.formattingRules = (sections.get("formatting rules") || "").trim();
-
-    // Knowledge ends at the `# Unprocessed` heading; Unprocessed at the next
-    // `#` heading (see findSection).
-    const lines = content.split("\n");
-    const knowledgeSection = this.findSection(lines, "knowledge");
-    if (knowledgeSection) {
-      result.knowledge = this.sectionBody(lines, knowledgeSection, "knowledge");
-    }
-    const unprocessedSection = this.findSection(lines, "unprocessed");
-    if (unprocessedSection) {
-      result.unprocessed = this.sectionBody(lines, unprocessedSection, "unprocessed");
-    }
-
-    return result;
+    return parseEggFile(fileName, content);
   }
 
-  /**
-   * Section content without the surrounding blank lines. Indentation of the
-   * first line is preserved (unlike trim()) so re-indented sections survive.
-   *
-   * A stray duplicate heading of the same name (AI merge output that included
-   * its own `# Knowledge`-style line) is stripped so the body starts with the
-   * actual content.
-   */
-  private sectionBody(
-    lines: string[],
-    section: { start: number; end: number },
-    name: string
-  ): string {
-    const body = lines.slice(section.start + 1, section.end);
-    while (
-      body.length > 0 &&
-      (body[0].trim() === "" || this.headingName(body[0]) === name.toLowerCase())
-    ) {
-      body.shift();
-    }
-    return body.join("\n").replace(/\n+$/g, "");
-  }
-
-  /** Format only the egg's instructions (Scope, Key Questions, Rejection Criteria, Formatting Rules) for Step 1 extraction. */
   formatEggInstructionsForPrompt(egg: EggContent): string {
-    const parts: string[] = [];
-    parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
-    if (egg.keyQuestions.length > 0) {
-      parts.push(
-        `**Key Questions:**\n${egg.keyQuestions
-          .map((q, i) => `${i + 1}. ${q}`)
-          .join("\n")}`
-      );
-    }
-    if (egg.rejectionCriteria.length > 0) {
-      parts.push(
-        `**Rejection Criteria:**\n${egg.rejectionCriteria
-          .map((c) => `- ${c}`)
-          .join("\n")}`
-      );
-    }
-    if (egg.formattingRules) {
-      parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
-    }
-    return parts.join("\n\n");
+    return formatEggInstructionsForPrompt(egg);
   }
 
-  /** Format only the egg's existing Knowledge tree and Unprocessed entries for Step 2 comparison. */
   formatEggKnowledgeForPrompt(egg: EggContent): string {
-    const parts: string[] = [];
-    parts.push(`**Current Knowledge:**\n${egg.knowledge || "(empty)"}`);
-    if (egg.unprocessed.trim()) {
-      parts.push(`**Unprocessed (pending merge):**\n${egg.unprocessed}`);
-    }
-    return parts.join("\n\n");
+    return formatEggKnowledgeForPrompt(egg);
   }
 
-  /** Format one egg's instructions + knowledge for an AI prompt (backward compatibility). */
-  formatEggForPrompt(egg: EggContent): string {
-    return [
-      this.formatEggInstructionsForPrompt(egg),
-      this.formatEggKnowledgeForPrompt(egg),
-    ].join("\n\n");
+  formatEggForPrompt = (egg: EggContent): string => {
+    return formatEggForPrompt(egg);
+  };
+
+  countUnprocessed(egg: EggContent): number {
+    return countUnprocessed(egg);
   }
 
   /**
@@ -362,7 +138,7 @@ export class EggParser {
 
     const existing = await this.plugin.app.vault.read(file as any);
     const lines = existing.replace(/\n+$/, "").split("\n");
-    const section = this.findSection(lines, "unprocessed");
+    const section = findSection(lines, "unprocessed");
 
     // One entry = the insight bullet(s) + provenance lines. Insist on a
     // top-level bullet so entry counting stays reliable.
@@ -386,20 +162,6 @@ export class EggParser {
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
 
-  /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */
-  countUnprocessed(egg: EggContent): number {
-    const indentOf = (l: string) => (l.match(/^\s*/) || [""])[0].length;
-    const bullets = egg.unprocessed
-      .split("\n")
-      .map((l) => l.replace(/\s+$/, ""))
-      .filter((l) => /^\s*[-*]\s/.test(l));
-    if (bullets.length === 0) return 0;
-    // Entries sit at the section's base indent (whatever the user uses);
-    // example/detail sub-bullets are deeper.
-    const base = Math.min(...bullets.map(indentOf));
-    return bullets.filter((l) => indentOf(l) === base).length;
-  }
-
   /**
    * Replace the Knowledge and Unprocessed sections with the merged output
    * from the merge AI call. Missing sections are created as needed.
@@ -418,14 +180,14 @@ export class EggParser {
     // The AI sometimes includes the section headings themselves ("# Knowledge",
     // "# Unprocessed") in its output. Strip them — the file keeps exactly one
     // heading per section, written by us below.
-    knowledge = this.stripSectionHeading(knowledge, "knowledge");
-    unprocessed = this.stripSectionHeading(unprocessed, "unprocessed");
+    knowledge = stripSectionHeading(knowledge, "knowledge");
+    unprocessed = stripSectionHeading(unprocessed, "unprocessed");
     // If the model dumped the whole file into `knowledge`, cut at the embedded
     // Unprocessed heading and treat the rest as the leftovers.
     const kLines = knowledge.split("\n");
-    const uIdx = kLines.findIndex((l) => this.headingName(l) === "unprocessed");
+    const uIdx = kLines.findIndex((l) => headingName(l) === "unprocessed");
     if (uIdx !== -1) {
-      const rest = this.stripSectionHeading(
+      const rest = stripSectionHeading(
         kLines.slice(uIdx).join("\n"),
         "unprocessed"
       );
@@ -436,7 +198,7 @@ export class EggParser {
     const existing = await this.plugin.app.vault.read(file as any);
     let lines = existing.replace(/\n+$/, "").split("\n");
 
-    const knowledgeSection = this.findSection(lines, "knowledge");
+    const knowledgeSection = findSection(lines, "knowledge");
     if (knowledgeSection) {
       lines = [
         ...lines.slice(0, knowledgeSection.start + 1),
@@ -447,7 +209,7 @@ export class EggParser {
     } else {
       // No Knowledge section yet — insert it before Unprocessed (or append
       // at the end) so the canonical Knowledge → Unprocessed order holds.
-      const unprocessedSection = this.findSection(lines, "unprocessed");
+      const unprocessedSection = findSection(lines, "unprocessed");
       if (unprocessedSection) {
         lines = [
           ...lines.slice(0, unprocessedSection.start),
@@ -463,7 +225,7 @@ export class EggParser {
       }
     }
 
-    const unprocessedSection = this.findSection(lines, "unprocessed");
+    const unprocessedSection = findSection(lines, "unprocessed");
     const remainder = unprocessed.trim();
     if (unprocessedSection) {
       lines = [
@@ -477,121 +239,5 @@ export class EggParser {
 
     await this.plugin.app.vault.modify(file as any, lines.join("\n") + "\n");
     console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
-  }
-
-  /**
-   * Locate a `# Name` section heading: `{start, end}`. Returns null when the
-   * heading doesn't exist. Sections are h1; `##` lines are knowledge-tree
-   * branches and are never treated as section headings.
-   *
-   * The Knowledge section runs until its successor — the `# Unprocessed`
-   * heading — instead of stopping at the next `#` heading, so the tree can
-   * use `##` branches as its top level. Other sections end at the next `#`
-   * heading.
-   *
-   * A duplicate heading of the SAME name (a `# Knowledge` line that slipped
-   * in below the section heading via a merge) is never treated as the
-   * boundary — it stays inside the section, where sectionBody strips it.
-   */
-  private findSection(
-    lines: string[],
-    name: string
-  ): { start: number; end: number } | null {
-    const wanted = name.toLowerCase();
-    const start = lines.findIndex(
-      (l) => this.headingName(l) === wanted
-    );
-    if (start === -1) return null;
-
-    let end = -1;
-    if (wanted === "knowledge") {
-      // The Knowledge section's successor is the Unprocessed section
-      end = lines.findIndex(
-        (l, i) => i > start && this.headingName(l) === "unprocessed"
-      );
-    }
-    if (end === -1) {
-      // Generic boundary: the next `#` heading with a different name
-      // (same-name duplicates are corruption, not boundaries)
-      end = lines.findIndex((l, i) => {
-        if (i <= start) return false;
-        const head = this.headingName(l);
-        return head !== null && head !== wanted;
-      });
-    }
-    return { start, end: end === -1 ? lines.length : end };
-  }
-
-  /**
-   * Lowercased name of an h1 (`# Name`) heading line, or null when the line
-   * is not one.
-   */
-  private headingName(line: string): string | null {
-    const m = line.trim().match(/^#\s+(.+?)\s*#*\s*$/);
-    if (!m) return null;
-    return m[1].trim().toLowerCase();
-  }
-
-  /**
-   * Drop a leading duplicate `# Name` heading plus the blank lines around
-   * it, so the body starts with the actual content.
-   */
-  private stripSectionHeading(body: string, name: string): string {
-    const lines = body.split("\n");
-    const wanted = name.toLowerCase();
-    while (
-      lines.length > 0 &&
-      (lines[0].trim() === "" || this.headingName(lines[0]) === wanted)
-    ) {
-      lines.shift();
-    }
-    return lines.join("\n").replace(/\s+$/g, "");
-  }
-
-  /** Extract the `> [!abstract]- Instructions:` callout body (lines without `>`). */
-  private extractCallout(content: string): string | null {
-    const calloutLines: string[] = [];
-    for (const line of content.split("\n")) {
-      if (line.startsWith(">")) {
-        calloutLines.push(line.replace(/^>\s?/, ""));
-      } else if (calloutLines.length > 0) {
-        break;
-      }
-    }
-    if (calloutLines.length === 0) return null;
-
-    const marker = calloutLines.findIndex((l) => l.includes("[!abstract]"));
-    const body =
-      marker >= 0 ? calloutLines.slice(marker + 1) : calloutLines.slice(1);
-    return body.join("\n");
-  }
-
-  /** Split instruction text into sections by `**Label:**` lines (content may follow on the same line). */
-  private splitLabeledSections(text: string): Map<string, string> {
-    const map = new Map<string, string>();
-    let current: string | null = null;
-    let buffer: string[] = [];
-
-    for (const line of text.split("\n")) {
-      const labelMatch = line.match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
-      if (labelMatch) {
-        if (current) map.set(current, buffer.join("\n"));
-        current = labelMatch[1].toLowerCase();
-        buffer = labelMatch[2] ? [labelMatch[2]] : [];
-      } else {
-        buffer.push(line);
-      }
-    }
-    if (current) map.set(current, buffer.join("\n"));
-    return map;
-  }
-
-  /** Parse numbered (`1.`) or bulleted (`-`) list items, stripping markers. */
-  private parseListItems(text: string): string[] {
-    return text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l))
-      .map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
   }
 }
