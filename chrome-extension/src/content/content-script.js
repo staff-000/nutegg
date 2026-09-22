@@ -105,7 +105,7 @@ if (!window.__nutegg_listener_attached) {
         }
       }
 
-      if (!matchedEl && quote && quote.length >= 8) {
+      if (!matchedEl && quote && quote.length >= 8 && document.body) {
         const sample = quote.slice(0, 40);
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
         let node;

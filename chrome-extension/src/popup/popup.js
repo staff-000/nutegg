@@ -568,6 +568,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     tabsExtracting.delete(tabId);
   });
 
+  // Synchronize settings changes from options page in real time
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (changes.analysisMode) {
+      analysisMode = changes.analysisMode.newValue || "fast";
+    }
+    if (changes.enabledSections) {
+      enabledSections = { ...DEFAULT_SECTIONS, ...(changes.enabledSections.newValue || {}) };
+      updateSectionChipsUI();
+      if (analysisResult) {
+        showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+      }
+    }
+    if (
+      changes.serverPort ||
+      changes.chromeAiEnabled ||
+      changes.chromeAiApiKey ||
+      changes.chromeAiProvider ||
+      changes.chromeAiModel
+    ) {
+      checkServerStatus();
+    }
+  });
+
   await refreshForCurrentTab();
 });
 
@@ -2962,6 +2986,9 @@ function showHistoryEntry(entry) {
       metadata: extractedContent?.metadata,
       nutId: entry.nutId,
     };
+  } else {
+    stage1ContentAnalysis = null;
+    stage1Payload = null;
   }
 
   if (entry.content) {
@@ -2988,8 +3015,8 @@ function showHistoryEntry(entry) {
         currentNutId: entry.nutId,
         eggHatched,
         nutCollected,
-        stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : existing.stage1Payload),
-        stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : existing.stage1ContentAnalysis),
+        stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : null),
+        stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : null),
       });
     }
   }
