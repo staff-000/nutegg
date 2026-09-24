@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Weniger lesen, mehr ausbrüten. Webinhalte erfassen und Wissen kuratieren.",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — Weniger lesen, mehr ausbrüten",
+    "description": "Tooltip for the extension action button"
+  }
+}

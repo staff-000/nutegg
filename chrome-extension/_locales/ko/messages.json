@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "더 적게 읽고, 더 많이 부화시키세요. 웹 콘텐츠를 캡처하고 지식을 큐레이션합니다.",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — 더 적게 읽고, 더 많이 부화시키세요",
+    "description": "Tooltip for the extension action button"
+  }
+}

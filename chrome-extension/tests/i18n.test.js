@@ -7,6 +7,14 @@ describe("Chrome Extension i18n", () => {
     assert.strictEqual(resolveLanguage("zh"), "zh_CN");
     assert.strictEqual(resolveLanguage("zh_CN"), "zh_CN");
     assert.strictEqual(resolveLanguage("en"), "en");
+    assert.strictEqual(resolveLanguage("es"), "es");
+    assert.strictEqual(resolveLanguage("ja"), "ja");
+    assert.strictEqual(resolveLanguage("ko"), "ko");
+    assert.strictEqual(resolveLanguage("ar"), "ar");
+    assert.strictEqual(resolveLanguage("fr"), "fr");
+    assert.strictEqual(resolveLanguage("de"), "de");
+    assert.strictEqual(resolveLanguage("pt"), "pt");
+    assert.strictEqual(resolveLanguage("ru"), "ru");
   });
 
   it("translates strings in English", () => {
@@ -15,15 +23,19 @@ describe("Chrome Extension i18n", () => {
     assert.strictEqual(t("optionsTitle"), "NutEgg Settings");
   });
 
-  it("translates strings in Simplified Chinese without translating NutEgg", () => {
-    initI18n("zh_CN");
-    assert.strictEqual(t("aiCredit"), "AI 额度");
-    assert.strictEqual(t("optionsTitle"), "NutEgg 设置");
+  it("translates strings in all 10 languages without translating NutEgg", () => {
+    const supported = ["en", "zh_CN", "es", "ja", "ko", "ar", "fr", "de", "pt", "ru"];
+    for (const lang of supported) {
+      initI18n(lang);
+      assert.ok(translations[lang], `Dictionary for ${lang} must exist`);
+      assert.ok(t("analyze"), `t(analyze) must exist for ${lang}`);
+      assert.ok(t("optionsTitle").includes("NutEgg"), `optionsTitle in ${lang} must keep "NutEgg": ${t("optionsTitle")}`);
 
-    // CRITICAL: Ensure "NutEgg" is never translated in Chinese
-    for (const [key, value] of Object.entries(translations.zh_CN)) {
-      if (typeof value === "string") {
-        assert.doesNotMatch(value, /坚果蛋|螺母蛋|果蛋/, `Key "${key}" translated NutEgg incorrectly: ${value}`);
+      // Verify "NutEgg" is preserved and not mistranslated
+      for (const [key, value] of Object.entries(translations[lang])) {
+        if (typeof value === "string") {
+          assert.doesNotMatch(value, /坚果蛋|螺母蛋|果蛋/, `Key "${key}" in ${lang} translated NutEgg incorrectly: ${value}`);
+        }
       }
     }
   });

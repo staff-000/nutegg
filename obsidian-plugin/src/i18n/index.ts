@@ -1,11 +1,27 @@
 import { en, type TranslationKey } from "./en";
 import { zh } from "./zh";
+import { es } from "./es";
+import { ja } from "./ja";
+import { ko } from "./ko";
+import { ar } from "./ar";
+import { fr } from "./fr";
+import { de } from "./de";
+import { pt } from "./pt";
+import { ru } from "./ru";
 
 export type { TranslationKey };
 
 const translations: Record<string, Record<TranslationKey, string>> = {
   en,
   zh,
+  es,
+  ja,
+  ko,
+  ar,
+  fr,
+  de,
+  pt,
+  ru,
 };
 
 /**
@@ -14,9 +30,15 @@ const translations: Record<string, Record<TranslationKey, string>> = {
 export function getLanguage(): string {
   try {
     const lang = (window?.localStorage?.getItem("language") || navigator?.language || "en").toLowerCase();
-    if (lang.startsWith("zh")) {
-      return "zh";
-    }
+    if (lang.startsWith("zh")) return "zh";
+    if (lang.startsWith("es")) return "es";
+    if (lang.startsWith("ja")) return "ja";
+    if (lang.startsWith("ko")) return "ko";
+    if (lang.startsWith("ar")) return "ar";
+    if (lang.startsWith("fr")) return "fr";
+    if (lang.startsWith("de")) return "de";
+    if (lang.startsWith("pt")) return "pt";
+    if (lang.startsWith("ru")) return "ru";
   } catch {
     // ignore
   }
@@ -39,4 +61,3 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
 
   return str;
 }
-

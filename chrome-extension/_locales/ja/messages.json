@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "読む量を減らし、より多くを孵化させる。Webコンテンツをキャプチャし、知識を整理します。",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — 読む量を減らし、より多くを孵化させる",
+    "description": "Tooltip for the extension action button"
+  }
+}

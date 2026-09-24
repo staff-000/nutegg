@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "اقرأ أقل، وافقس أكثر. التقط محتوى الويب ونظّم المعرفة.",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — اقرأ أقل، وافقس أكثر",
+    "description": "Tooltip for the extension action button"
+  }
+}
