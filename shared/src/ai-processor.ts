@@ -31,6 +31,7 @@ import {
   type AIProcessorHost,
   type AnalysisResult,
   type AnalysisSectionsConfig,
+  type CapturePayload,
   type ChapterEntry,
   type ContentAnalysis,
   type ContentChunk,
@@ -322,11 +323,11 @@ export class AIProcessor {
     );
   }
 
-  /** Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage). */
-  private getContentOutputRules(): string {
+  /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
+  private getContentOutputRules(capture?: { outputLanguage?: string; [key: string]: any }): string {
     const langSetting =
-      this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeAiOutputLanguage ||
+      capture?.outputLanguage ||
+      this.host?.settings?.outputLanguage ||
       "same-as-content";
     const isSame = !langSetting || langSetting === "same-as-content";
     const outputLanguage = isSame
@@ -340,7 +341,8 @@ export class AIProcessor {
   /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
   private getEggOutputRules(
     eggOrLanguage: EggContent | string = "",
-    fallbackDescription = ""
+    fallbackDescription = "",
+    capture?: { outputLanguage?: string; [key: string]: any }
   ): string {
     let lang = "";
     let desc = fallbackDescription;
@@ -352,18 +354,18 @@ export class AIProcessor {
       lang = (eggOrLanguage || "").trim();
     }
 
-    const pluginSetting =
-      this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeAiOutputLanguage;
-    const pluginLang =
-      pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+    const hostSetting =
+      capture?.outputLanguage ||
+      this.host?.settings?.outputLanguage;
+    const hostLang =
+      hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
 
     const outputLanguage = lang
       ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang)
         ? `the same language as this reference: "${lang}"`
         : `${lang} (translate into ${lang} even if the source content is in a different language)`
-      : pluginLang
-      ? `${pluginLang} (translate into ${pluginLang} even if the source content is in a different language)`
+      : hostLang
+      ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)`
       : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
 
     const tpl = this.getPrompt("sharedOutputRules");
@@ -619,7 +621,7 @@ export class AIProcessor {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules(),
+      shared_output_rules: this.getContentOutputRules(capture as any),
     });
 
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -678,7 +680,7 @@ export class AIProcessor {
       source_type: capture.sourceType,
       part_note: partNoteStr,
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getEggOutputRules(egg),
+      shared_output_rules: this.getEggOutputRules(egg, "", capture),
     });
 
     try {
@@ -773,7 +775,7 @@ export class AIProcessor {
       extracted_entries: extractedEntries
         .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
         .join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg),
+      shared_output_rules: this.getEggOutputRules(egg, "", capture),
     });
 
     try {
@@ -956,7 +958,7 @@ export class AIProcessor {
         "User Questions (answer each directly and concisely)"
       ),
       content_task_default: prunedTask,
-      shared_output_rules: this.getContentOutputRules(),
+      shared_output_rules: this.getContentOutputRules(capture),
     });
 
     const defaultMax = sections.mindMap ? 4096 : 1500;
@@ -1183,7 +1185,7 @@ export class AIProcessor {
       prior_qa: priorBlock,
       content: this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getContentOutputRules(),
+      shared_output_rules: this.getContentOutputRules(capture),
     });
 
     try {
@@ -1251,21 +1253,19 @@ export class AIProcessor {
       } catch {}
     }
 
-    const pluginSetting =
-      this.host?.settings?.contentOutputLanguage ||
-      this.host?.settings?.chromeAiOutputLanguage;
-    const pluginLang =
-      pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
+    const hostSetting = this.host?.settings?.outputLanguage;
+    const hostLang =
+      hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
 
     const outputLanguage =
       egg.language ||
-      (pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source is in a different language)` : "") ||
+      (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") ||
       "the same language as this egg's existing knowledge";
 
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
       output_language: outputLanguage,
-      egg_description: outputLanguage,
+      egg_description: fallbackDesc || egg.scope || egg.topic || "",
       formatting_rules: egg.formattingRules || "(none)",
       knowledge_tree: egg.knowledge || "(empty)",
       unprocessed: egg.unprocessed,

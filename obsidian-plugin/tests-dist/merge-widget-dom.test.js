@@ -353,49 +353,6 @@ function makeFakePlugin(overrides = {}) {
 }
 
 // ../shared/src/egg-format.ts
-function extractEggLanguage(content) {
-  if (!content)
-    return "";
-  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (fmMatch) {
-    for (const line of fmMatch[1].split(/\r?\n/)) {
-      const kv = line.match(/^(\w+):\s*(.*)$/);
-      if (kv && kv[1].toLowerCase() === "language") {
-        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
-      }
-    }
-  }
-  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
-  return directMatch ? directMatch[1].trim() : "";
-}
-function insertEggLanguage(content, language, options) {
-  if (!content || !language)
-    return content;
-  const existing = extractEggLanguage(content);
-  if (existing && !options?.overwrite)
-    return content;
-  if (existing && options?.overwrite) {
-    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
-  }
-  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
-    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
-  }
-  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
-  const match = content.match(fmRegex);
-  if (match) {
-    const opening = match[1];
-    const body = match[2];
-    const closing = match[3];
-    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
-    const newBody = `${body}${separator}language: "${language}"`;
-    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
-  }
-  return `---
-language: "${language}"
----
-
-${content}`;
-}
 function formatEggInstructionsForPrompt(egg) {
   const parts = [];
   parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
@@ -625,24 +582,6 @@ var EggParser = class {
     const parsed = this.parseEggFile(file.path || fileName, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
-    }
-    if (!parsed.language) {
-      const settingLang = this.plugin.settings?.contentOutputLanguage;
-      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-      if (pluginLang) {
-        parsed.language = pluginLang;
-        const updated = insertEggLanguage(content, pluginLang);
-        if (updated !== content) {
-          try {
-            await this.plugin.app.vault.modify(file, updated);
-          } catch (err) {
-            console.warn(
-              `[NutEgg] Could not persist filled language to ${file.path}:`,
-              err
-            );
-          }
-        }
-      }
     }
     return parsed;
   }

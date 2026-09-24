@@ -114,34 +114,7 @@ export class CreateEggModal extends Modal {
         );
         this.close();
 
-        const detected = result.language;
-        const currentSetting =
-          this.plugin.settings.contentOutputLanguage || "same-as-content";
-
-        const isDifferent =
-          detected &&
-          detected.toLowerCase() !== currentSetting.toLowerCase() &&
-          !(currentSetting === "same-as-content" && detected.toLowerCase() === "english");
-
-        if (isDifferent) {
-          const notice = new Notice("", 8000);
-          const frag = notice.noticeEl.createDiv();
-          frag.createSpan({
-            text: `NutEgg: Created ${result.path} (${detected}). `,
-          });
-          const switchBtn = frag.createEl("button", {
-            text: `Set Content Language to ${detected}`,
-          });
-          switchBtn.style.cssText = "margin-left: 6px; padding: 2px 6px; font-size: 0.85em;";
-          switchBtn.addEventListener("click", async () => {
-            this.plugin.settings.contentOutputLanguage = detected;
-            await this.plugin.saveSettings();
-            notice.hide();
-            new Notice(
-              `NutEgg: Content analysis output language set to ${detected}`
-            );
-          });
-        } else if (result.alreadyExists) {
+        if (result.alreadyExists) {
           new Notice(`NutEgg: ${result.path} already exists.`);
         } else {
           new Notice(`NutEgg: Created ${result.path}`);

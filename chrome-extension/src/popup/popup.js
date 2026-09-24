@@ -132,6 +132,7 @@ let chromeAiConfigured = false;
 let chromeAiProvider = "";
 let chromeAiModel = "";
 let obsidianAiConfigured = false;
+let outputLanguage = "same-as-content";
 let analysisResult = null;
 let activeTabId = null;
 let isReanalyzing = false;
@@ -191,7 +192,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
     const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections"], resolve);
+      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage"], resolve);
     });
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
@@ -201,6 +202,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (stored?.enabledSections) {
       enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...stored.enabledSections };
+    }
+    if (stored?.outputLanguage) {
+      outputLanguage = stored.outputLanguage;
     }
   } catch {}
 
@@ -217,6 +221,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (newMode === "confirm" || newMode === "fast") {
           setAnalysisMode(newMode);
         }
+      }
+      if (changes.outputLanguage && changes.outputLanguage.newValue) {
+        outputLanguage = changes.outputLanguage.newValue;
       }
       if (changes.enabledSections && changes.enabledSections.newValue) {
         enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...changes.enabledSections.newValue };
@@ -1179,6 +1186,7 @@ async function handleProceedStage2(
       questions,
       stage: 2,
       eggs: targetEggs,
+      outputLanguage,
       nutId: base?.nutId || currentNutId || undefined,
       contentAnalysis: analysis || {
         titleVerdict: title,
@@ -2203,6 +2211,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       force: true,
       stage: 1,
       enabledSections: { ...enabledSections },
+      outputLanguage,
       ...(Array.isArray(targetEggs) ? { eggs: targetEggs } : {}),
     };
 
@@ -3305,6 +3314,7 @@ async function handleFollowUp() {
       sourceType: content?.sourceType || result?.sourceType || "generic",
       questions: [q],
       priorQa: buildPriorQa(result, followUpQa),
+      outputLanguage,
     };
     const response = await chrome.runtime.sendMessage({ action: "ask", payload });
 

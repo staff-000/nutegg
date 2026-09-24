@@ -30,6 +30,27 @@
       </div>
     </section>
 
+    <!-- Output Language -->
+    <section class="option-group" id="language-config-group">
+      <h2>Output Language</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+        Choose the language used for generated verdicts, summaries, and mind maps.
+      </p>
+      <div class="option-row">
+        <label for="output-lang-select">Preferred Language</label>
+        <select id="output-lang-select" class="mode-select">
+          <option value="same-as-content">Same as content (follow captured text)</option>
+          <option value="English">English</option>
+          <option value="Chinese">Chinese (中文)</option>
+          <option value="Japanese">Japanese (日本語)</option>
+          <option value="Korean">Korean (한국어)</option>
+          <option value="Spanish">Spanish (Español)</option>
+          <option value="French">French (Français)</option>
+          <option value="German">German (Deutsch)</option>
+        </select>
+      </div>
+    </section>
+
     <!-- Content Analysis Sections -->
     <section class="option-group" id="sections-config-group">
       <h2>Content Analysis Sections</h2>
@@ -153,25 +174,9 @@
         <p class="hint" id="ai-key-hint">API keys are stored securely in Chrome local storage and sent only to the provider endpoint.</p>
       </div>
 
-      <div class="option-row">
-        <label for="ai-lang-select">4. Output Language</label>
-        <div class="ai-input-group">
-          <select id="ai-lang-select">
-            <option value="same-as-content">Same as content (follow captured text)</option>
-            <option value="English">English</option>
-            <option value="Chinese">Chinese (中文)</option>
-            <option value="Japanese">Japanese (日本語)</option>
-            <option value="Korean">Korean (한국어)</option>
-            <option value="Spanish">Spanish (Español)</option>
-            <option value="French">French (Français)</option>
-            <option value="German">German (Deutsch)</option>
-          </select>
-        </div>
-      </div>
-
       <div class="option-row" id="ai-prompt-row">
         <div class="prompt-header-container">
-          <label for="ai-prompt-select">5. Custom Prompts</label>
+          <label for="ai-prompt-select">4. Custom Prompts</label>
           <button id="ai-prompt-reset-btn" type="button" class="reset-prompt-btn">Reset to Default</button>
         </div>
         <div class="ai-input-group">

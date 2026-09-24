@@ -32,14 +32,13 @@ export async function analyzeContentStandalone(
 ): Promise<ContentAnalysis> {
   const config = resolveConfig(settings);
   const language =
-    settings.contentOutputLanguage ||
-    settings.chromeAiOutputLanguage ||
+    payload.outputLanguage ||
+    settings.outputLanguage ||
     "same-as-content";
   const host: AIProcessorHost = {
     settings: {
       ...settings,
-      contentOutputLanguage: language,
-      chromeAiOutputLanguage: language,
+      outputLanguage: language,
     },
     aiClient: {
       chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 16384, config),
@@ -60,14 +59,13 @@ export async function askFollowUpStandalone(
 ): Promise<string> {
   const config = resolveConfig(settings);
   const language =
-    settings.contentOutputLanguage ||
-    settings.chromeAiOutputLanguage ||
+    payload.outputLanguage ||
+    settings.outputLanguage ||
     "same-as-content";
   const host: AIProcessorHost = {
     settings: {
       ...settings,
-      contentOutputLanguage: language,
-      chromeAiOutputLanguage: language,
+      outputLanguage: language,
     },
     aiClient: {
       chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 2000, config),

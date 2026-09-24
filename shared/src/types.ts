@@ -52,9 +52,8 @@ export interface NutEggAISettings {
   aiModelFamily?: string;
   openrouterApiKey?: string;
   openrouterModel?: string;
-  openrouterFamily?: string;
   contentAnalysisMaxTokens?: number;
-  contentOutputLanguage?: string;
+  outputLanguage?: string;
   chunkWindowChars?: number;
   sectionGridSeconds?: number;
   // Chrome settings keys compatibility
@@ -63,7 +62,6 @@ export interface NutEggAISettings {
   chromeAiApiKey?: string;
   chromeAiModel?: string;
   chromeAiEndpoint?: string;
-  chromeAiOutputLanguage?: string;
   promptOverrides?: Partial<Record<string, string>>;
   chromeAiPromptOverrides?: Partial<Record<string, string>>;
   [key: string]: any;
@@ -151,6 +149,7 @@ export interface CapturePayload {
   chapters?: Array<{ time: string; title: string }>;
   questions?: string[];
   enabledSections?: Partial<AnalysisSectionsConfig>;
+  outputLanguage?: string;
 }
 
 /** In-memory representation of a parsed Egg note file. */

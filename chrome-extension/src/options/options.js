@@ -30,7 +30,7 @@ const aiLocalEndpoint = document.getElementById("ai-local-endpoint");
 const aiKeyInput = document.getElementById("ai-key-input");
 const aiKeyToggle = document.getElementById("ai-key-toggle");
 const aiKeyHint = document.getElementById("ai-key-hint");
-const aiLangSelect = document.getElementById("ai-lang-select");
+const outputLangSelect = document.getElementById("output-lang-select");
 const aiSaveBtn = document.getElementById("ai-save-btn");
 const aiTestBtn = document.getElementById("ai-test-btn");
 const aiTestResult = document.getElementById("ai-test-result");
@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiApiKey",
     "chromeAiModel",
     "chromeAiLocalEndpoint",
-    "chromeAiOutputLanguage",
+    "outputLanguage",
     "chromeAiPromptOverrides",
   ]);
   savedPromptOverrides = stored.chromeAiPromptOverrides || {};
@@ -231,16 +231,11 @@ function initAiSettings(stored) {
     aiLocalEndpoint.value = stored.chromeAiLocalEndpoint;
   }
 
-  const savedLang = stored.chromeAiOutputLanguage || stored.contentOutputLanguage;
-  if (savedLang && aiLangSelect) {
-    aiLangSelect.value = savedLang;
-  }
-
-  if (aiLangSelect) {
-    aiLangSelect.addEventListener("change", async () => {
+  if (outputLangSelect) {
+    outputLangSelect.value = stored.outputLanguage || "same-as-content";
+    outputLangSelect.addEventListener("change", async () => {
       await chrome.storage.local.set({
-        chromeAiOutputLanguage: aiLangSelect.value,
-        contentOutputLanguage: aiLangSelect.value,
+        outputLanguage: outputLangSelect.value,
       });
     });
   }
@@ -393,7 +388,6 @@ async function handleAiSave() {
 
   const apiKey = aiKeyInput.value.trim();
   const localEndpoint = aiLocalEndpoint ? aiLocalEndpoint.value.trim() : "";
-  const outputLanguage = aiLangSelect ? aiLangSelect.value : "same-as-content";
 
   saveActivePromptToState();
   const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
@@ -403,8 +397,6 @@ async function handleAiSave() {
     chromeAiModel: model,
     chromeAiApiKey: apiKey,
     chromeAiLocalEndpoint: localEndpoint,
-    chromeAiOutputLanguage: outputLanguage,
-    contentOutputLanguage: outputLanguage,
     chromeAiPromptOverrides: savedPromptOverrides,
   });
 

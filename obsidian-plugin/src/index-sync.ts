@@ -545,12 +545,8 @@ export class IndexSync {
       }
     }
 
-    const settingLang = this.plugin.settings?.contentOutputLanguage;
-    const pluginLang =
-      settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-
     if (!detectedLanguage) {
-      detectedLanguage = extractEggLanguage(content) || pluginLang || "English";
+      detectedLanguage = extractEggLanguage(content) || "English";
     }
 
     if (detectedLanguage) {

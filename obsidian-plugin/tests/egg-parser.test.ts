@@ -529,25 +529,7 @@ describe("insertEggLanguage", () => {
 });
 
 describe("EggParser.readEgg language handling", () => {
-  it("uses plugin setting language if egg language is not set", async () => {
-    const { vault } = makeFakeVault({
-      "nutegg/notes.md": `---\ntopic: "System Architecture"\n---\n# Knowledge\n- microservices\n`,
-    });
-    const plugin = makeFakePlugin({
-      vault,
-      settings: { contentOutputLanguage: "Spanish" },
-    } as any);
-    const parser = new EggParser(plugin as any);
-
-    const egg = await parser.readEgg("nutegg/notes.md");
-    assert.ok(egg);
-    assert.equal(egg.language, "Spanish");
-
-    const saved = await vault.adapter.read("nutegg/notes.md");
-    assert.ok(saved.includes('language: "Spanish"'));
-  });
-
-  it("does not modify file if language is already present", async () => {
+  it("reads egg language from frontmatter when present", async () => {
     const original = `---\ntopic: "Trading"\nlanguage: "English"\n---\n\n# Knowledge\n- risk\n`;
     const { vault } = makeFakeVault({
       "nutegg/trading.md": original,
@@ -556,10 +538,7 @@ describe("EggParser.readEgg language handling", () => {
     vault.on("modify", () => {
       modified = true;
     });
-    const plugin = makeFakePlugin({
-      vault,
-      settings: { contentOutputLanguage: "Chinese" },
-    } as any);
+    const plugin = makeFakePlugin({ vault } as any);
     const parser = new EggParser(plugin as any);
 
     const egg = await parser.readEgg("nutegg/trading.md");

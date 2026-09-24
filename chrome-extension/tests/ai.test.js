@@ -88,15 +88,20 @@ test("AI Processor - AIProcessor class available in Chrome bundle", () => {
   assert.equal(typeof processor.analyze, "function");
 });
 
-test("AI Processor - follows chromeAiOutputLanguage setting", () => {
+test("AI Processor - follows outputLanguage setting", () => {
   const processorDefault = new AIProcessor({ settings: {} });
   const rulesDefault = processorDefault.getContentOutputRules();
   assert.ok(rulesDefault.includes("the same language as the captured content"));
 
-  const processorZh = new AIProcessor({ settings: { chromeAiOutputLanguage: "Chinese" } });
+  const processorZh = new AIProcessor({ settings: { outputLanguage: "Chinese" } });
   const rulesZh = processorZh.getContentOutputRules();
   assert.ok(rulesZh.includes("Chinese"));
   assert.ok(rulesZh.includes("translate into Chinese"));
+
+  // Payload outputLanguage overrides settings
+  const rulesPayload = processorZh.getContentOutputRules({ outputLanguage: "Japanese" });
+  assert.ok(rulesPayload.includes("Japanese"));
+  assert.ok(rulesPayload.includes("translate into Japanese"));
 });
 
 test("AI Processor - respects promptOverrides in standalone settings", () => {

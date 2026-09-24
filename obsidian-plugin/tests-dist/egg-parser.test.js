@@ -300,24 +300,6 @@ var EggParser = class {
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
-    if (!parsed.language) {
-      const settingLang = this.plugin.settings?.contentOutputLanguage;
-      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-      if (pluginLang) {
-        parsed.language = pluginLang;
-        const updated = insertEggLanguage(content, pluginLang);
-        if (updated !== content) {
-          try {
-            await this.plugin.app.vault.modify(file, updated);
-          } catch (err) {
-            console.warn(
-              `[NutEgg] Could not persist filled language to ${file.path}:`,
-              err
-            );
-          }
-        }
-      }
-    }
     return parsed;
   }
   async readEggs(entries) {
@@ -1071,27 +1053,7 @@ language: "Spanish"
   });
 });
 (0, import_node_test.describe)("EggParser.readEgg language handling", () => {
-  (0, import_node_test.it)("uses plugin setting language if egg language is not set", async () => {
-    const { vault } = makeFakeVault({
-      "nutegg/notes.md": `---
-topic: "System Architecture"
----
-# Knowledge
-- microservices
-`
-    });
-    const plugin = makeFakePlugin({
-      vault,
-      settings: { contentOutputLanguage: "Spanish" }
-    });
-    const parser = new EggParser(plugin);
-    const egg = await parser.readEgg("nutegg/notes.md");
-    import_strict.default.ok(egg);
-    import_strict.default.equal(egg.language, "Spanish");
-    const saved = await vault.adapter.read("nutegg/notes.md");
-    import_strict.default.ok(saved.includes('language: "Spanish"'));
-  });
-  (0, import_node_test.it)("does not modify file if language is already present", async () => {
+  (0, import_node_test.it)("reads egg language from frontmatter when present", async () => {
     const original = `---
 topic: "Trading"
 language: "English"
@@ -1107,10 +1069,7 @@ language: "English"
     vault.on("modify", () => {
       modified = true;
     });
-    const plugin = makeFakePlugin({
-      vault,
-      settings: { contentOutputLanguage: "Chinese" }
-    });
+    const plugin = makeFakePlugin({ vault });
     const parser = new EggParser(plugin);
     const egg = await parser.readEgg("nutegg/trading.md");
     import_strict.default.ok(egg);

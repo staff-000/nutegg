@@ -1874,16 +1874,16 @@ ${footer}`;
       }
       return this.host?.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
     }
-    /** Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage). */
-    getContentOutputRules() {
-      const langSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage || "same-as-content";
+    /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
+    getContentOutputRules(capture) {
+      const langSetting = capture?.outputLanguage || this.host?.settings?.outputLanguage || "same-as-content";
       const isSame = !langSetting || langSetting === "same-as-content";
       const outputLanguage = isSame ? "the same language as the captured content" : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
       const tpl = this.getPrompt("sharedOutputRules");
       return renderPrompt(tpl, { output_language: outputLanguage }).trim();
     }
     /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
-    getEggOutputRules(eggOrLanguage = "", fallbackDescription = "") {
+    getEggOutputRules(eggOrLanguage = "", fallbackDescription = "", capture) {
       let lang = "";
       let desc = fallbackDescription;
       if (typeof eggOrLanguage === "object" && eggOrLanguage !== null) {
@@ -1892,9 +1892,9 @@ ${footer}`;
       } else {
         lang = (eggOrLanguage || "").trim();
       }
-      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
-      const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-      const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : `${lang} (translate into ${lang} even if the source content is in a different language)` : pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source content is in a different language)` : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
+      const hostSetting = capture?.outputLanguage || this.host?.settings?.outputLanguage;
+      const hostLang = hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+      const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : `${lang} (translate into ${lang} even if the source content is in a different language)` : hostLang ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)` : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
       const tpl = this.getPrompt("sharedOutputRules");
       return renderPrompt(tpl, {
         output_language: outputLanguage
@@ -2076,7 +2076,7 @@ ${footer}`;
           "User Questions (answer each directly and concisely)"
         ),
         content: this.truncate(capture.content, this.chunkWindowChars),
-        shared_output_rules: this.getContentOutputRules()
+        shared_output_rules: this.getContentOutputRules(capture)
       });
       const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
       const response = await this.callAI(prompt, configuredMax);
@@ -2112,7 +2112,7 @@ ${footer}`;
         source_type: capture.sourceType,
         part_note: partNoteStr,
         content: this.truncate(capture.content, this.chunkWindowChars),
-        shared_output_rules: this.getEggOutputRules(egg)
+        shared_output_rules: this.getEggOutputRules(egg, "", capture)
       });
       try {
         const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -2184,7 +2184,7 @@ ${footer}`;
         rejection_criteria: egg.rejectionCriteria && egg.rejectionCriteria.length > 0 ? egg.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
         extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-        shared_output_rules: this.getEggOutputRules(egg)
+        shared_output_rules: this.getEggOutputRules(egg, "", capture)
       });
       try {
         const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -2315,7 +2315,7 @@ ${bullets || "- (no summary)"}${mmStr}`;
           "User Questions (answer each directly and concisely)"
         ),
         content_task_default: prunedTask,
-        shared_output_rules: this.getContentOutputRules()
+        shared_output_rules: this.getContentOutputRules(capture)
       });
       const defaultMax = sections.mindMap ? 4096 : 1500;
       const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
@@ -2468,7 +2468,7 @@ A: ${qa.answer}`).join("\n")}` : "";
         prior_qa: priorBlock,
         content: this.truncate(capture.content, this.chunkWindowChars),
         questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-        shared_output_rules: this.getContentOutputRules()
+        shared_output_rules: this.getContentOutputRules(capture)
       });
       try {
         const response = await this.callAI(prompt, 2e3);
@@ -2530,13 +2530,13 @@ A: ${qa.answer}`).join("\n")}` : "";
         } catch {
         }
       }
-      const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
-      const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-      const outputLanguage = egg.language || (pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
+      const hostSetting = this.host?.settings?.outputLanguage;
+      const hostLang = hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+      const outputLanguage = egg.language || (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
       const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
         egg_file: fileName,
         output_language: outputLanguage,
-        egg_description: outputLanguage,
+        egg_description: fallbackDesc || egg.scope || egg.topic || "",
         formatting_rules: egg.formattingRules || "(none)",
         knowledge_tree: egg.knowledge || "(empty)",
         unprocessed: egg.unprocessed,
@@ -2687,12 +2687,11 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   // ../shared/src/index.ts
   async function analyzeContentStandalone(payload, settings) {
     const config = resolveConfig(settings);
-    const language = settings.contentOutputLanguage || settings.chromeAiOutputLanguage || "same-as-content";
+    const language = payload.outputLanguage || settings.outputLanguage || "same-as-content";
     const host = {
       settings: {
         ...settings,
-        contentOutputLanguage: language,
-        chromeAiOutputLanguage: language
+        outputLanguage: language
       },
       aiClient: {
         chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 16384, config)
@@ -2703,12 +2702,11 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
   }
   async function askFollowUpStandalone(payload, question, priorQa = [], settings) {
     const config = resolveConfig(settings);
-    const language = settings.contentOutputLanguage || settings.chromeAiOutputLanguage || "same-as-content";
+    const language = payload.outputLanguage || settings.outputLanguage || "same-as-content";
     const host = {
       settings: {
         ...settings,
-        contentOutputLanguage: language,
-        chromeAiOutputLanguage: language
+        outputLanguage: language
       },
       aiClient: {
         chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 2e3, config)

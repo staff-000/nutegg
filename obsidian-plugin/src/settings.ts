@@ -42,8 +42,6 @@ export interface NutEggSettings {
   sectionGridSeconds: number;
   /** Max completion tokens for Stage 1 content analysis and chapter map (default: 2500) */
   contentAnalysisMaxTokens: number;
-  /** Output language for Stage 1 content analysis ("same-as-content" or specific language name) */
-  contentOutputLanguage: string;
 }
 
 export const DEFAULT_SETTINGS: NutEggSettings = {
@@ -61,12 +59,10 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   chunkWindowChars: 30000,
   sectionGridSeconds: 300,
   contentAnalysisMaxTokens: 16384,
-  contentOutputLanguage: "same-as-content",
 };
 
 export class NutEggSettingTab extends PluginSettingTab {
   plugin: NutEggPlugin;
-  private customLanguageMode = false;
 
   constructor(app: App, plugin: NutEggPlugin) {
     super(app, plugin);
@@ -646,79 +642,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     containerEl: HTMLElement,
     settings: NutEggSettings
   ): void {
-    // ==========================================
-    // Language & Output
-    // ==========================================
-    containerEl.createEl("h3", { text: "Language & Output" });
-
-    const PRESET_LANGUAGES: Record<string, string> = {
-      "same-as-content": "Same as content (follow captured text)",
-      English: "English",
-      Chinese: "Chinese (中文)",
-      Japanese: "Japanese (日本語)",
-      Korean: "Korean (한국어)",
-      Spanish: "Spanish (Español)",
-      French: "French (Français)",
-      German: "German (Deutsch)",
-    };
-
-    const isCustomLang =
-      this.customLanguageMode ||
-      (!!settings.contentOutputLanguage &&
-        !Object.keys(PRESET_LANGUAGES).includes(settings.contentOutputLanguage));
-
-    new Setting(containerEl)
-      .setName("Content analysis output language")
-      .setDesc(
-        "Language used for Stage 1 summaries, verdicts, and chapter maps. (Stage 2 egg analysis always follows each egg's own language property.)"
-      )
-      .addDropdown((dropdown) => {
-        for (const [key, label] of Object.entries(PRESET_LANGUAGES)) {
-          dropdown.addOption(key, label);
-        }
-        dropdown.addOption("custom", "Custom language...");
-        dropdown.setValue(
-          isCustomLang
-            ? "custom"
-            : settings.contentOutputLanguage || "same-as-content"
-        );
-        dropdown.onChange(async (val) => {
-          if (val === "custom") {
-            this.customLanguageMode = true;
-          } else {
-            this.customLanguageMode = false;
-            settings.contentOutputLanguage = val;
-            await this.plugin.saveSettings();
-          }
-          this.display();
-        });
-      });
-
-    if (isCustomLang) {
-      new Setting(containerEl)
-        .setName("Custom output language")
-        .setDesc("Specify the target language name (e.g. Italian, Traditional Chinese)")
-        .addText((text) => {
-          text
-            .setPlaceholder("e.g. Italian")
-            .setValue(
-              !Object.keys(PRESET_LANGUAGES).includes(settings.contentOutputLanguage)
-                ? settings.contentOutputLanguage
-                : ""
-            )
-            .onChange(async (val) => {
-              const trimmed = val.trim();
-              if (trimmed) {
-                settings.contentOutputLanguage = trimmed;
-                await this.plugin.saveSettings();
-              }
-            });
-          if (this.customLanguageMode) {
-            setTimeout(() => text.inputEl?.focus(), 50);
-          }
-          return text;
-        });
-    }
   }
 }
+
 

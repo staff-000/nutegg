@@ -692,8 +692,7 @@ var DEFAULT_SETTINGS = {
   workflowHashes: {},
   chunkWindowChars: 3e4,
   sectionGridSeconds: 300,
-  contentAnalysisMaxTokens: 16384,
-  contentOutputLanguage: "same-as-content"
+  contentAnalysisMaxTokens: 16384
 };
 
 // tests/ai-client.test.ts

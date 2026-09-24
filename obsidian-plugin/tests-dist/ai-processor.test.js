@@ -1705,16 +1705,16 @@ var AIProcessor = class {
     }
     return this.host?.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
-  /** Output rules for Stage 1 content analysis (follows settings.contentOutputLanguage). */
-  getContentOutputRules() {
-    const langSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage || "same-as-content";
+  /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
+  getContentOutputRules(capture2) {
+    const langSetting = capture2?.outputLanguage || this.host?.settings?.outputLanguage || "same-as-content";
     const isSame = !langSetting || langSetting === "same-as-content";
     const outputLanguage = isSame ? "the same language as the captured content" : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, { output_language: outputLanguage }).trim();
   }
   /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
-  getEggOutputRules(eggOrLanguage = "", fallbackDescription = "") {
+  getEggOutputRules(eggOrLanguage = "", fallbackDescription = "", capture2) {
     let lang = "";
     let desc = fallbackDescription;
     if (typeof eggOrLanguage === "object" && eggOrLanguage !== null) {
@@ -1723,9 +1723,9 @@ var AIProcessor = class {
     } else {
       lang = (eggOrLanguage || "").trim();
     }
-    const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
-    const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-    const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : `${lang} (translate into ${lang} even if the source content is in a different language)` : pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source content is in a different language)` : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
+    const hostSetting = capture2?.outputLanguage || this.host?.settings?.outputLanguage;
+    const hostLang = hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+    const outputLanguage = lang ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang) ? `the same language as this reference: "${lang}"` : `${lang} (translate into ${lang} even if the source content is in a different language)` : hostLang ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)` : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
       output_language: outputLanguage
@@ -1907,7 +1907,7 @@ var AIProcessor = class {
         "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules()
+      shared_output_rules: this.getContentOutputRules(capture2)
     });
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
     const response = await this.callAI(prompt, configuredMax);
@@ -1943,7 +1943,7 @@ var AIProcessor = class {
       source_type: capture2.sourceType,
       part_note: partNoteStr,
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getEggOutputRules(egg2)
+      shared_output_rules: this.getEggOutputRules(egg2, "", capture2)
     });
     try {
       const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -2015,7 +2015,7 @@ var AIProcessor = class {
       rejection_criteria: egg2.rejectionCriteria && egg2.rejectionCriteria.length > 0 ? egg2.rejectionCriteria.map((c) => `- ${c}`).join("\n") : "(none)",
       extracted_entries: extractedEntries.map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})
 ${e.content}`).join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg2)
+      shared_output_rules: this.getEggOutputRules(egg2, "", capture2)
     });
     try {
       const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -2146,7 +2146,7 @@ ${bullets || "- (no summary)"}${mmStr}`;
         "User Questions (answer each directly and concisely)"
       ),
       content_task_default: prunedTask,
-      shared_output_rules: this.getContentOutputRules()
+      shared_output_rules: this.getContentOutputRules(capture2)
     });
     const defaultMax = sections.mindMap ? 4096 : 1500;
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
@@ -2299,7 +2299,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       prior_qa: priorBlock,
       content: this.truncate(capture2.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getContentOutputRules()
+      shared_output_rules: this.getContentOutputRules(capture2)
     });
     try {
       const response = await this.callAI(prompt, 2e3);
@@ -2361,13 +2361,13 @@ A: ${qa.answer}`).join("\n")}` : "";
       } catch {
       }
     }
-    const pluginSetting = this.host?.settings?.contentOutputLanguage || this.host?.settings?.chromeAiOutputLanguage;
-    const pluginLang = pluginSetting && pluginSetting !== "same-as-content" ? pluginSetting.trim() : "";
-    const outputLanguage = egg2.language || (pluginLang ? `${pluginLang} (translate into ${pluginLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
+    const hostSetting = this.host?.settings?.outputLanguage;
+    const hostLang = hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+    const outputLanguage = egg2.language || (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
       output_language: outputLanguage,
-      egg_description: outputLanguage,
+      egg_description: fallbackDesc || egg2.scope || egg2.topic || "",
       formatting_rules: egg2.formattingRules || "(none)",
       knowledge_tree: egg2.knowledge || "(empty)",
       unprocessed: egg2.unprocessed,
@@ -2698,24 +2698,6 @@ var EggParser = class {
     const parsed = this.parseEggFile(file.path || fileName, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
-    }
-    if (!parsed.language) {
-      const settingLang = this.plugin.settings?.contentOutputLanguage;
-      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-      if (pluginLang) {
-        parsed.language = pluginLang;
-        const updated = insertEggLanguage(content, pluginLang);
-        if (updated !== content) {
-          try {
-            await this.plugin.app.vault.modify(file, updated);
-          } catch (err) {
-            console.warn(
-              `[NutEgg] Could not persist filled language to ${file.path}:`,
-              err
-            );
-          }
-        }
-      }
     }
     return parsed;
   }
@@ -3991,9 +3973,9 @@ ${entries}
   });
 });
 (0, import_node_test.describe)("AIProcessor Output Language Rules", () => {
-  (0, import_node_test.it)("content analysis follows contentOutputLanguage setting", () => {
+  (0, import_node_test.it)("content analysis follows outputLanguage setting or capture payload", () => {
     const pluginSame = makeFakePlugin({
-      settings: { contentOutputLanguage: "same-as-content" }
+      settings: { outputLanguage: "same-as-content" }
     });
     const pSame = new AIProcessor(pluginSame);
     const ruleSame = pSame.getContentOutputRules();
@@ -4002,7 +3984,7 @@ ${entries}
       `expected rule to specify same language as captured content, got: ${ruleSame}`
     );
     const pluginZh = makeFakePlugin({
-      settings: { contentOutputLanguage: "Chinese" }
+      settings: { outputLanguage: "Chinese" }
     });
     const pZh = new AIProcessor(pluginZh);
     const ruleZh = pZh.getContentOutputRules();
@@ -4010,10 +3992,15 @@ ${entries}
       ruleZh.includes("Chinese"),
       `expected rule to specify Chinese, got: ${ruleZh}`
     );
+    const rulePayload = pZh.getContentOutputRules({ outputLanguage: "Spanish" });
+    import_strict.default.ok(
+      rulePayload.includes("Spanish"),
+      `expected payload outputLanguage to override host settings, got: ${rulePayload}`
+    );
   });
-  (0, import_node_test.it)("egg analysis follows the egg language property, falling back to plugin setting or egg knowledge", () => {
+  (0, import_node_test.it)("egg analysis follows the egg language property, falling back to outputLanguage setting or egg knowledge", () => {
     const plugin = makeFakePlugin({
-      settings: { contentOutputLanguage: "English" }
+      settings: { outputLanguage: "English" }
     });
     const p = new AIProcessor(plugin);
     const eggWithLang = {
@@ -4039,10 +4026,10 @@ ${entries}
     const ruleWithSetting = p.getEggOutputRules(eggWithoutLang);
     import_strict.default.ok(
       ruleWithSetting.includes("English"),
-      `expected fallback to plugin setting when language is empty, got: ${ruleWithSetting}`
+      `expected fallback to outputLanguage setting when language is empty, got: ${ruleWithSetting}`
     );
     const pluginNoSetting = makeFakePlugin({
-      settings: { contentOutputLanguage: "same-as-content" }
+      settings: { outputLanguage: "same-as-content" }
     });
     const pNoSetting = new AIProcessor(pluginNoSetting);
     const ruleNoSetting = pNoSetting.getEggOutputRules(eggWithoutLang);
@@ -4064,7 +4051,7 @@ topic: "ML"
     });
     const plugin = makeFakePlugin({
       vault,
-      settings: { contentOutputLanguage: "same-as-content" }
+      settings: { outputLanguage: "same-as-content" }
     });
     const p = new AIProcessor(plugin);
     p.callAI = async (prompt) => {

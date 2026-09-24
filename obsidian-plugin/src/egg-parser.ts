@@ -58,28 +58,6 @@ export class EggParser {
       parsed.indexDescription = fallbackDescription;
     }
 
-    // If egg language is not set, use plugin setting if configured
-    if (!parsed.language) {
-      const settingLang = this.plugin.settings?.contentOutputLanguage;
-      const pluginLang =
-        settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-
-      if (pluginLang) {
-        parsed.language = pluginLang;
-        const updated = insertEggLanguage(content, pluginLang);
-        if (updated !== content) {
-          try {
-            await this.plugin.app.vault.modify(file as any, updated);
-          } catch (err) {
-            console.warn(
-              `[NutEgg] Could not persist filled language to ${(file as any).path}:`,
-              err
-            );
-          }
-        }
-      }
-    }
-
     return parsed;
   }
 

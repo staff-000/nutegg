@@ -1110,9 +1110,9 @@ describe("AIProcessor.compareEggKnowledge (Step 2)", () => {
 });
 
 describe("AIProcessor Output Language Rules", () => {
-  it("content analysis follows contentOutputLanguage setting", () => {
+  it("content analysis follows outputLanguage setting or capture payload", () => {
     const pluginSame = makeFakePlugin({
-      settings: { contentOutputLanguage: "same-as-content" },
+      settings: { outputLanguage: "same-as-content" },
     });
     const pSame = new AIProcessor(pluginSame as any) as any;
     const ruleSame = pSame.getContentOutputRules();
@@ -1122,7 +1122,7 @@ describe("AIProcessor Output Language Rules", () => {
     );
 
     const pluginZh = makeFakePlugin({
-      settings: { contentOutputLanguage: "Chinese" },
+      settings: { outputLanguage: "Chinese" },
     });
     const pZh = new AIProcessor(pluginZh as any) as any;
     const ruleZh = pZh.getContentOutputRules();
@@ -1130,11 +1130,18 @@ describe("AIProcessor Output Language Rules", () => {
       ruleZh.includes("Chinese"),
       `expected rule to specify Chinese, got: ${ruleZh}`
     );
+
+    // Payload outputLanguage overrides host settings
+    const rulePayload = pZh.getContentOutputRules({ outputLanguage: "Spanish" } as any);
+    assert.ok(
+      rulePayload.includes("Spanish"),
+      `expected payload outputLanguage to override host settings, got: ${rulePayload}`
+    );
   });
 
-  it("egg analysis follows the egg language property, falling back to plugin setting or egg knowledge", () => {
+  it("egg analysis follows the egg language property, falling back to outputLanguage setting or egg knowledge", () => {
     const plugin = makeFakePlugin({
-      settings: { contentOutputLanguage: "English" },
+      settings: { outputLanguage: "English" },
     });
     const p = new AIProcessor(plugin as any) as any;
 
@@ -1163,11 +1170,11 @@ describe("AIProcessor Output Language Rules", () => {
     const ruleWithSetting = p.getEggOutputRules(eggWithoutLang);
     assert.ok(
       ruleWithSetting.includes("English"),
-      `expected fallback to plugin setting when language is empty, got: ${ruleWithSetting}`
+      `expected fallback to outputLanguage setting when language is empty, got: ${ruleWithSetting}`
     );
 
     const pluginNoSetting = makeFakePlugin({
-      settings: { contentOutputLanguage: "same-as-content" },
+      settings: { outputLanguage: "same-as-content" },
     });
     const pNoSetting = new AIProcessor(pluginNoSetting as any) as any;
     const ruleNoSetting = pNoSetting.getEggOutputRules(eggWithoutLang);
@@ -1183,7 +1190,7 @@ describe("AIProcessor Output Language Rules", () => {
     });
     const plugin = makeFakePlugin({
       vault,
-      settings: { contentOutputLanguage: "same-as-content" },
+      settings: { outputLanguage: "same-as-content" },
     } as any);
     const p = new AIProcessor(plugin as any) as any;
     p.callAI = async (prompt: string) => {

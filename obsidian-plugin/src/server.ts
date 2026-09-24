@@ -32,6 +32,8 @@ interface AnalyzeRequest {
   nutId?: number;
   /** Content analysis sections to include (sent from Chrome as single source of truth). */
   enabledSections?: Partial<AnalysisSectionsConfig>;
+  /** Output language for content analysis and summaries (sent from Chrome as single source of truth). */
+  outputLanguage?: string;
 }
 
 interface AskRequest {
@@ -43,6 +45,8 @@ interface AskRequest {
   questions: string[];
   /** Previously answered Q&A (egg key questions + custom + earlier follow-ups). */
   priorQa?: Array<{ question: string; answer: string }>;
+  /** Output language for follow-up answers (sent from Chrome). */
+  outputLanguage?: string;
 }
 
 interface CreateEggRequest {

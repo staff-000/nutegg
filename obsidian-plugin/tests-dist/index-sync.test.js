@@ -372,24 +372,6 @@ var EggParser = class {
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
-    if (!parsed.language) {
-      const settingLang = this.plugin.settings?.contentOutputLanguage;
-      const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
-      if (pluginLang) {
-        parsed.language = pluginLang;
-        const updated = insertEggLanguage(content, pluginLang);
-        if (updated !== content) {
-          try {
-            await this.plugin.app.vault.modify(file, updated);
-          } catch (err) {
-            console.warn(
-              `[NutEgg] Could not persist filled language to ${file.path}:`,
-              err
-            );
-          }
-        }
-      }
-    }
     return parsed;
   }
   async readEggs(entries) {
@@ -940,10 +922,8 @@ ${line}
         console.warn("[NutEgg] Failed to localize egg template with AI:", err);
       }
     }
-    const settingLang = this.plugin.settings?.contentOutputLanguage;
-    const pluginLang = settingLang && settingLang !== "same-as-content" ? settingLang.trim() : "";
     if (!detectedLanguage) {
-      detectedLanguage = extractEggLanguage(content) || pluginLang || "English";
+      detectedLanguage = extractEggLanguage(content) || "English";
     }
     if (detectedLanguage) {
       content = insertEggLanguage(content, detectedLanguage, { overwrite: true });
