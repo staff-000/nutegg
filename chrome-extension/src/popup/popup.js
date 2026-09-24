@@ -197,12 +197,8 @@ async function initPopup() {
   // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
     const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "uiLanguage"], resolve);
+      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage"], resolve);
     });
-    if (stored?.uiLanguage) {
-      i18n?.initI18n(stored.uiLanguage);
-      i18n?.applyI18n();
-    }
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
     }
@@ -225,11 +221,6 @@ async function initPopup() {
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName === "local") {
-      if (changes.uiLanguage && changes.uiLanguage.newValue) {
-        const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
-        i18n?.initI18n(changes.uiLanguage.newValue);
-        i18n?.applyI18n();
-      }
       if (changes.analysisMode) {
         const newMode = changes.analysisMode.newValue;
         if (newMode === "confirm" || newMode === "fast") {

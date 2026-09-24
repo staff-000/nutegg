@@ -19,7 +19,6 @@ const saveBtn = document.getElementById("save-btn");
 const testBtn = document.getElementById("test-btn");
 const testResult = document.getElementById("test-result");
 const shortcutsLink = document.getElementById("shortcuts-link");
-const uiLangSelect = document.getElementById("ui-lang-select");
 
 // AI configuration elements
 const aiConfigSection = document.getElementById("ai-config-section");
@@ -82,26 +81,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiLocalEndpoint",
     "outputLanguage",
     "chromeAiPromptOverrides",
-    "uiLanguage",
   ]);
   savedPromptOverrides = stored.chromeAiPromptOverrides || {};
 
-  // 0. Interface Language
-  const uiLanguage = stored.uiLanguage || "auto";
-  window.NutEggI18n?.initI18n(uiLanguage);
+  // Initialize i18n following browser language
+  window.NutEggI18n?.initI18n();
   window.NutEggI18n?.applyI18n();
-
-  if (uiLangSelect) {
-    uiLangSelect.value = uiLanguage;
-    uiLangSelect.addEventListener("change", async () => {
-      const selected = uiLangSelect.value;
-      await chrome.storage.local.set({ uiLanguage: selected });
-      window.NutEggI18n?.initI18n(selected);
-      window.NutEggI18n?.applyI18n();
-      showResult(window.NutEggI18n?.t("saved") || "Saved!", "ok");
-      setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
-    });
-  }
 
   // 1. Server settings
   const port = stored.serverPort || DEFAULT_PORT;

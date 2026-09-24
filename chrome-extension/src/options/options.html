@@ -10,50 +10,6 @@
   <div class="options-container">
     <h1><img src="../../icons/icon32.png" alt="NutEgg" class="logo-icon"> NutEgg Settings</h1>
 
-    <!-- 0. Interface Language -->
-    <section class="option-group" id="ui-language-group">
-      <h2 data-i18n="uiLanguageSection">Interface Language</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="uiLanguageDesc">
-        Choose extension display language.
-      </p>
-      <div class="option-row">
-        <label for="ui-lang-select" data-i18n="uiLanguageLabel">Language</label>
-        <select id="ui-lang-select" class="mode-select">
-          <option value="auto" data-i18n="uiLangAuto">Auto (Follow Browser)</option>
-          <option value="en" data-i18n="uiLangEn">English</option>
-          <option value="zh" data-i18n="uiLangZh">简体中文 (Chinese)</option>
-          <option value="es" data-i18n="uiLangEs">Español (Spanish)</option>
-          <option value="ja" data-i18n="uiLangJa">日本語 (Japanese)</option>
-          <option value="ko" data-i18n="uiLangKo">한국어 (Korean)</option>
-          <option value="ar" data-i18n="uiLangAr">العربية (Arabic)</option>
-          <option value="fr" data-i18n="uiLangFr">Français (French)</option>
-          <option value="de" data-i18n="uiLangDe">Deutsch (German)</option>
-          <option value="pt" data-i18n="uiLangPt">Português (Portuguese)</option>
-          <option value="ru" data-i18n="uiLangRu">Русский (Russian)</option>
-        </select>
-      </div>
-    </section>
-
-    <!-- 1. Analysis Workflow -->
-    <section class="option-group">
-      <h2 data-i18n="workflowSection">Analysis Workflow</h2>
-      <div class="option-row">
-        <label for="mode-select" data-i18n="defaultAnalysisMode">Default Analysis Mode</label>
-        <select id="mode-select" class="mode-select">
-          <option value="fast" data-i18n="fastModeOpt">⚡ Fast Mode (Auto-proceed)</option>
-          <option value="confirm" data-i18n="confirmModeOpt">🎯 Confirm Eggs Mode (Interactive)</option>
-        </select>
-        <div class="mode-descriptions">
-          <p class="hint mode-desc" id="fast-desc">
-            <strong>⚡ Fast Mode:</strong> <span data-i18n="fastDescText">NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.</span>
-          </p>
-          <p class="hint mode-desc" id="confirm-desc">
-            <strong>🎯 Confirm Eggs Mode:</strong> <span data-i18n="confirmDescText">NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.</span>
-          </p>
-        </div>
-      </div>
-    </section>
-
     <!-- Output Language -->
     <section class="option-group" id="language-config-group">
       <h2 data-i18n="outputLanguageSection">Output Language</h2>
@@ -75,6 +31,26 @@
           <option value="Portuguese">Portuguese (Português)</option>
           <option value="Russian">Russian (Русский)</option>
         </select>
+      </div>
+    </section>
+
+    <!-- 1. Analysis Workflow -->
+    <section class="option-group">
+      <h2 data-i18n="workflowSection">Analysis Workflow</h2>
+      <div class="option-row">
+        <label for="mode-select" data-i18n="defaultAnalysisMode">Default Analysis Mode</label>
+        <select id="mode-select" class="mode-select">
+          <option value="fast" data-i18n="fastModeOpt">⚡ Fast Mode (Auto-proceed)</option>
+          <option value="confirm" data-i18n="confirmModeOpt">🎯 Confirm Eggs Mode (Interactive)</option>
+        </select>
+        <div class="mode-descriptions">
+          <p class="hint mode-desc" id="fast-desc">
+            <strong>⚡ Fast Mode:</strong> <span data-i18n="fastDescText">NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.</span>
+          </p>
+          <p class="hint mode-desc" id="confirm-desc">
+            <strong>🎯 Confirm Eggs Mode:</strong> <span data-i18n="confirmDescText">NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.</span>
+          </p>
+        </div>
       </div>
     </section>
 
