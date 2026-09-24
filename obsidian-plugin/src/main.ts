@@ -16,6 +16,7 @@ import { INDEX_TEMPLATE, EGG_TEMPLATE, EXAMPLE_EGGS } from "./defaults";
 import { registerMergeWidget, registerMergeEditorExtension, runMerge } from "./merge-widget";
 import { CreateEggModal, registerIndexWidget, registerIndexEditorExtension } from "./index-widget";
 import { WorkflowManager } from "./workflow-manager";
+import { t } from "./i18n";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
@@ -61,10 +62,10 @@ export default class NutEggPlugin extends Plugin {
     this.server = new NutEggServer(this, this.settings.serverPort);
     try {
       await this.server.start();
-      new Notice(`NutEgg server started on port ${this.settings.serverPort}`);
+      new Notice(t("serverStarted", { port: this.settings.serverPort }));
     } catch (err) {
       console.error("[NutEgg] Failed to start server:", err);
-      new Notice("NutEgg: Failed to start server. Check console for details.");
+      new Notice(t("serverFailed"));
     }
 
     // Add settings tab
@@ -97,7 +98,7 @@ export default class NutEggPlugin extends Plugin {
     }
 
     // Ribbon icon — opens the index file for editing
-    this.addRibbonIcon("egg", "NutEgg: Open Index", async () => {
+    this.addRibbonIcon("egg", t("ribbonOpenIndex"), async () => {
       const indexPath = this.settings.indexFile;
       const file = this.app.vault.getAbstractFileByPath(indexPath);
       if (file) {
@@ -107,14 +108,14 @@ export default class NutEggPlugin extends Plugin {
     });
 
     // Ribbon icon — 1-click AI credit & balance check
-    this.addRibbonIcon("coins", "NutEgg: Check AI Credit & Balance", async () => {
+    this.addRibbonIcon("coins", t("ribbonCheckCredit"), async () => {
       await this.updateCreditStatusBar(true);
     });
 
     // Command: Create a new egg file
     this.addCommand({
       id: "nutegg-new-egg",
-      name: "Create a new egg file",
+      name: t("cmdNewEgg"),
       callback: () => {
         new CreateEggModal(this.app, this).open();
       },
@@ -123,7 +124,7 @@ export default class NutEggPlugin extends Plugin {
     // Command: Open index file
     this.addCommand({
       id: "nutegg-open-index",
-      name: "Open index file",
+      name: t("cmdOpenIndex"),
       callback: async () => {
         const indexPath = this.settings.indexFile;
         const file = this.app.vault.getAbstractFileByPath(indexPath);
@@ -131,7 +132,7 @@ export default class NutEggPlugin extends Plugin {
           const leaf = this.app.workspace.getLeaf(false);
           await leaf.openFile(file as any);
         } else {
-          new Notice(`NutEgg: ${indexPath} not found. Click the egg icon to create it.`);
+          new Notice(t("indexNotFound", { path: indexPath }));
         }
       },
     });
@@ -139,28 +140,28 @@ export default class NutEggPlugin extends Plugin {
     // Command: Merge unprocessed entries in current egg file
     this.addCommand({
       id: "nutegg-merge-current-egg",
-      name: "Merge unprocessed entries in current egg",
+      name: t("cmdMergeCurrent"),
       callback: async () => {
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile) {
-          new Notice("NutEgg: No active file");
+          new Notice(t("noActiveFile"));
           return;
         }
         if (!isEggPath(activeFile.path, this.vaultFolder)) {
-          new Notice("NutEgg: Active file is not an egg note");
+          new Notice(t("notEggNote"));
           return;
         }
 
-        new Notice(`NutEgg: Merging unprocessed entries in ${activeFile.basename}...`);
+        new Notice(t("mergingEntries", { name: activeFile.basename }));
         // Merge against the editor's live buffer (saved first when dirty)
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
         const cm = (activeView as any)?.editor?.cm;
         const docText = cm ? cm.state.doc.toString() : null;
         const result = await runMerge(this, activeFile.path, docText);
         if (result && result.entries > 0) {
-          new Notice(`[NutEgg] Merged ${result.entries} entries into knowledge tree`);
+          new Notice(t("mergedEntries", { count: result.entries }));
         } else {
-          new Notice("[NutEgg] No unprocessed entries to merge or merge failed.");
+          new Notice(t("noUnprocessed"));
         }
       },
     });
@@ -168,7 +169,7 @@ export default class NutEggPlugin extends Plugin {
     // Command: Check AI credit & balance
     this.addCommand({
       id: "nutegg-check-credit",
-      name: "Check AI provider credit & balance",
+      name: t("cmdCheckCredit"),
       callback: async () => {
         await this.updateCreditStatusBar(true);
       },
@@ -177,7 +178,7 @@ export default class NutEggPlugin extends Plugin {
     // Command: Use default workflow prompts (backup existing)
     this.addCommand({
       id: "nutegg-use-default-workflow-prompts",
-      name: "Use default workflow prompts (backup existing)",
+      name: t("cmdUseDefaultWorkflowPrompts"),
       callback: async () => {
         await this.workflowManager.resetToDefaults();
       },
@@ -186,7 +187,7 @@ export default class NutEggPlugin extends Plugin {
     // Command: Report a bug on GitHub
     this.addCommand({
       id: "nutegg-report-bug",
-      name: "Report a bug on GitHub",
+      name: t("cmdReportBug"),
       callback: () => {
         this.openBugReport();
       },

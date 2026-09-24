@@ -9,6 +9,7 @@ import {
 } from "@codemirror/view";
 import type NutEggPlugin from "./main";
 import type { MergeResult } from "./ai-processor";
+import { t } from "./i18n";
 
 /**
  * Merge UI in both modes:
@@ -194,8 +195,11 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     badge.className = "nutegg-merge-badge";
     badge.textContent =
       count > 0
-        ? `🥚 ${count} unprocessed ${count === 1 ? "entry" : "entries"}`
-        : "✅ Knowledge tree is up to date";
+        ? t("unprocessedEntries", {
+            count,
+            entries: count === 1 ? t("entrySingle") : t("entryPlural"),
+          })
+        : t("treeUpToDate");
 
     appendCreditPill(plugin, badge);
     container.appendChild(badge);
@@ -203,7 +207,7 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     if (count > 0) {
       const button = document.createElement("button");
       button.className = "nutegg-merge-btn mod-cta";
-      button.textContent = "⚡ Merge into Knowledge Tree";
+      button.textContent = t("mergeButtonText");
 
       button.addEventListener("click", async (e) => {
         e.preventDefault();
@@ -212,25 +216,25 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
-        button.textContent = "⏳ Merging with AI...";
+        button.textContent = t("mergingWithAi");
 
         try {
           const result = await runMerge(plugin, ctx.sourcePath, null);
           if (result && result.entries > 0) {
-            new Notice(`[NutEgg] Merged ${result.entries} entries into knowledge tree`);
-            button.textContent = "✅ Merged!";
-            badge.textContent = "✅ Knowledge tree is up to date";
+            new Notice(t("mergedEntries", { count: result.entries }));
+            button.textContent = t("mergedSuccess");
+            badge.textContent = t("treeUpToDate");
             setTimeout(() => {
               button.remove();
             }, 2000);
           } else {
-            new Notice("[NutEgg] Merge returned no changes or failed. Check console.");
+            new Notice(t("mergeNoChanges"));
             button.disabled = false;
             button.textContent = originalText;
           }
         } catch (err) {
           console.error("[NutEgg] Merge button click failed:", err);
-          new Notice(`[NutEgg] Merge failed: ${err instanceof Error ? err.message : String(err)}`);
+          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
           button.disabled = false;
           button.textContent = originalText;
         }
@@ -266,22 +270,25 @@ class MergeButtonWidget extends WidgetType {
     badge.className = "nutegg-merge-badge";
     badge.textContent =
       this.count > 0
-        ? `🥚 ${this.count} unprocessed ${this.count === 1 ? "entry" : "entries"}`
-        : "✅ Knowledge tree is up to date";
+        ? t("unprocessedEntries", {
+            count: this.count,
+            entries: this.count === 1 ? t("entrySingle") : t("entryPlural"),
+          })
+        : t("treeUpToDate");
     appendCreditPill(this.plugin, badge);
     wrap.appendChild(badge);
 
     if (this.count > 0) {
       const button = document.createElement("button");
       button.className = "nutegg-merge-btn mod-cta";
-      button.textContent = "⚡ Merge into Knowledge Tree";
+      button.textContent = t("mergeButtonText");
       button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
-        button.textContent = "⏳ Merging...";
+        button.textContent = t("merging");
         try {
           // The live buffer may hold edits made since the widget was built —
           // read it fresh at click time.
@@ -291,17 +298,17 @@ class MergeButtonWidget extends WidgetType {
             this.view.state.doc.toString()
           );
           if (result && result.entries > 0) {
-            new Notice(`[NutEgg] Merged ${result.entries} entries into knowledge tree`);
+            new Notice(t("mergedEntries", { count: result.entries }));
             // The merge rewrites the file; the editor reloads it and the
             // widget flips to the up-to-date badge.
           } else {
-            new Notice("[NutEgg] Merge returned no changes or failed. Check console.");
+            new Notice(t("mergeNoChanges"));
             button.disabled = false;
             button.textContent = originalText;
           }
         } catch (err) {
           console.error("[NutEgg] Editor merge failed:", err);
-          new Notice(`[NutEgg] Merge failed: ${err instanceof Error ? err.message : String(err)}`);
+          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
           button.disabled = false;
           button.textContent = originalText;
         }

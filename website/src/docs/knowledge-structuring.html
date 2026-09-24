@@ -13,11 +13,12 @@
     <div class="docs-header-content">
       <a href="../index.html" class="brand-link">
         <img src="../icons/icon48.png" alt="NutEgg icon">
-        <span>NutEgg Docs</span>
+        <span data-i18n="docsHeaderTitle">NutEgg Docs</span>
       </a>
       <div class="header-nav">
-        <a href="../index.html">← Back to Website</a>
+        <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
         <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+        <button type="button" id="lang-toggle-btn" class="nav-lang-btn" title="Switch language">🌐 中文</button>
       </div>
     </div>
   </header>
@@ -25,18 +26,18 @@
   <div class="docs-container">
     <aside class="docs-sidebar">
       <div class="sidebar-group">
-        <div class="sidebar-title">Getting Started</div>
+        <div class="sidebar-title" data-i18n="sidebarGettingStarted">Getting Started</div>
         <ul class="sidebar-links">
-          <li><a href="index.html">Overview & Core Concepts</a></li>
-          <li><a href="chrome-extension.html">Chrome Extension</a></li>
-          <li><a href="obsidian-plugin.html">Obsidian Plugin</a></li>
-          <li><a href="knowledge-structuring.html" class="active">Knowledge Structuring</a></li>
-          <li><a href="workflow.html">AI Workflow Engine</a></li>
+          <li><a href="index.html" data-i18n="sidebarOverview">Overview & Core Concepts</a></li>
+          <li><a href="chrome-extension.html" data-i18n="sidebarChrome">Chrome Extension</a></li>
+          <li><a href="obsidian-plugin.html" data-i18n="sidebarObsidian">Obsidian Plugin</a></li>
+          <li><a href="knowledge-structuring.html" class="active" data-i18n="sidebarKnowledge">Knowledge Structuring</a></li>
+          <li><a href="workflow.html" data-i18n="sidebarWorkflow">AI Workflow Engine</a></li>
         </ul>
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-title">Resources</div>
+        <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
         <ul class="sidebar-links">
           <li><a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Web Store ↗</a></li>
           <li><a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin ↗</a></li>
@@ -214,6 +215,7 @@ Merge Cycle (20+ entries or manual button)
     </main>
   </div>
 
+  <script src="../i18n.js"></script>
 </body>
 </html>
 

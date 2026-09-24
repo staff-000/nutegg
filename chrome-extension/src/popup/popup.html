@@ -15,16 +15,16 @@
         <div class="header-actions">
           <div id="ai-credit-pill" class="ai-credit-pill hidden" title="Current AI provider and remaining credit (click to refresh)">
             <span class="ai-credit-icon">🪙</span>
-            <span id="ai-credit-text">AI Credit</span>
+            <span id="ai-credit-text" data-i18n="aiCredit">AI Credit</span>
           </div>
           <div class="status-indicator-wrap" id="status-indicator-wrap" role="status">
             <span id="server-status" class="status-dot offline" aria-label="Obsidian is offline"></span>
             <div id="server-status-tooltip" class="status-tooltip offline">
-              <div class="status-tooltip-title" id="status-tooltip-title">Obsidian is offline</div>
-              <div class="status-tooltip-sub" id="status-tooltip-sub">Start Obsidian with NutEgg</div>
+              <div class="status-tooltip-title" id="status-tooltip-title" data-i18n="obsidianOffline">Obsidian is offline</div>
+              <div class="status-tooltip-sub" id="status-tooltip-sub" data-i18n="startObsidian">Start Obsidian with NutEgg</div>
             </div>
           </div>
-          <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Settings">
+          <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Settings" data-i18n-title="settingsTooltip">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3"></circle>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -44,16 +44,16 @@
       <div>
         <div id="error-message"></div>
         <div id="error-hint" class="error-hint hidden"></div>
-        <a href="#" id="error-report-bug" class="error-report-link">Report this issue on GitHub ↗</a>
+        <a href="#" id="error-report-bug" class="error-report-link" data-i18n="reportBug">Report this issue on GitHub ↗</a>
       </div>
     </div>
 
     <!-- State 1: Capture -->
-    <div id="capture-state" class="hidden">
+    <div id="capture-state">
       <div id="page-info" class="page-info">
         <div class="page-info-top">
           <div class="page-title" id="page-title">Loading...</div>
-          <button id="refresh-btn" class="refresh-btn" title="Refresh content extraction" aria-label="Refresh content extraction">
+          <button id="refresh-btn" class="refresh-btn" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-title="refreshTooltip">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
               <path d="M3 3v5h5"></path>
@@ -72,9 +72,10 @@
 
       <div id="content-preview" class="content-preview">Loading content…</div>
 
-      <button id="questions-toggle" class="questions-toggle">💭 Ask your own questions <span class="questions-toggle-chevron">▾</span></button>
+      <button id="questions-toggle" class="questions-toggle"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
       <div id="questions-area" class="questions-area hidden">
         <textarea id="custom-questions" rows="3"
+          data-i18n-placeholder="customQuestionsPlaceholder"
           placeholder="One question per line — answered along with the egg's key questions."></textarea>
       </div>
 
@@ -85,24 +86,24 @@
 
       <div id="capture-credit-row" class="capture-credit-row hidden" title="Current AI provider & remaining balance (click to refresh)">
         <span class="capture-credit-icon">🪙</span>
-        <span id="capture-credit-text">AI Credit</span>
+        <span id="capture-credit-text" data-i18n="aiCredit">AI Credit</span>
       </div>
 
       <!-- Analysis Mode Selector -->
       <div class="mode-toggle-wrap">
         <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
-          <button type="button" class="mode-pill-btn active" id="mode-fast-btn" title="Full analysis in 1 click (fastest)">⚡ Fast</button>
-          <button type="button" class="mode-pill-btn" id="mode-confirm-btn" title="Review matching eggs before comparing knowledge (saves tokens)">🎯 Confirm Eggs</button>
+          <button type="button" class="mode-pill-btn active" id="mode-fast-btn" title="Full analysis in 1 click (fastest)" data-i18n="modeFast" data-i18n-title="modeFastTooltip">⚡ Fast</button>
+          <button type="button" class="mode-pill-btn" id="mode-confirm-btn" title="Review matching eggs before comparing knowledge (saves tokens)" data-i18n="modeConfirm" data-i18n-title="modeConfirmTooltip">🎯 Confirm Eggs</button>
         </div>
       </div>
 
       <div id="ai-key-missing-banner" class="ai-key-missing-banner hidden">
         <span class="key-banner-icon">⚠️</span>
         <div class="key-banner-content">
-          <strong>AI Key Required:</strong> Obsidian is offline and no AI API key is configured in Chrome.
+          <span data-i18n="aiKeyMissing"><strong>AI Key Required:</strong> Obsidian is offline and no AI API key is configured in Chrome.</span>
           <div class="key-banner-actions">
-            <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">⚙️ Open Settings to Add Key</button>
-            <span>or <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">start Obsidian</a></span>
+            <button id="open-settings-key-btn" type="button" class="key-banner-link-btn" data-i18n="openSettingsKeyBtn">⚙️ Open Settings to Add Key</button>
+            <span><span data-i18n="orStartObsidian">or</span> <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">start Obsidian</a></span>
           </div>
         </div>
       </div>
@@ -110,7 +111,7 @@
       <div id="chrome-mode-tip-banner" class="chrome-mode-tip-banner hidden">
         <span class="tip-banner-icon">💡</span>
         <div class="tip-banner-content">
-          <strong>Standalone Mode:</strong> Analyzing directly in Chrome. <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="tip-banner-link">Use Obsidian</a> to unlock knowledge tree curation!
+          <strong data-i18n="standaloneTip">Standalone Mode:</strong> Analyzing directly in Chrome. <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="tip-banner-link" data-i18n="useObsidianUnlock">Use Obsidian to unlock knowledge tree curation!</a>
         </div>
       </div>
 
@@ -119,7 +120,7 @@
         <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" title="Click to customize analysis sections">
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon">🎯</span>
-            <span class="sections-toggle-title">Analysis Sections</span>
+            <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
             <span class="sections-badge" id="sections-badge">4/4</span>
           </div>
           <span class="sections-toggle-chevron" id="sections-chevron">▸</span>
@@ -128,34 +129,34 @@
           <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
             <button type="button" class="section-chip active" id="chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict">
               <span class="chip-icon">🎯</span>
-              <span class="chip-label">Verdict</span>
+              <span class="chip-label" data-i18n="chipVerdict">Verdict</span>
             </button>
             <button type="button" class="section-chip active" id="chip-summary" data-section="coreSummary" title="Toggle Core Summary">
               <span class="chip-icon">📌</span>
-              <span class="chip-label">Summary</span>
+              <span class="chip-label" data-i18n="chipSummary">Summary</span>
             </button>
             <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" title="Toggle Mind Map">
               <span class="chip-icon">🧠</span>
-              <span class="chip-label">Mind Map</span>
+              <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
             </button>
             <button type="button" class="section-chip active" id="chip-chapters" data-section="chapterMap" title="Toggle Chapter Map">
               <span class="chip-icon">⏱️</span>
-              <span class="chip-label">Chapters</span>
+              <span class="chip-label" data-i18n="chipChapters">Chapters</span>
             </button>
           </div>
         </div>
       </div>
 
       <button id="analyze-btn" class="analyze-btn inactive">
-        <span id="analyze-btn-text">Analyze</span>
+        <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
       </button>
     </div>
 
     <!-- State 2: Results -->
     <div id="results-state" class="hidden">
       <div id="chrome-result-banner" class="chrome-result-banner hidden">
-        <span>📱 <strong>Standalone Analysis</strong> — Stage 1 content summary.</span>
-        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="chrome-result-link">Start Obsidian to save & match eggs ↗</a>
+        <span>📱 <strong data-i18n="standaloneResult">Standalone Analysis — Stage 1 content summary.</strong></span>
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="chrome-result-link" data-i18n="startObsidianToMatch">Start Obsidian to save & match eggs ↗</a>
       </div>
 
       <div id="result-page-info" class="page-info hidden">
@@ -171,7 +172,7 @@
         <div class="processed-info">
           <span id="processed-message"></span>
           <div class="processed-actions">
-            <button id="reanalyze-btn" class="reanalyze-btn">🔄 Re-analyze</button>
+            <button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button>
             <select id="history-select" class="history-select hidden"></select>
           </div>
           <!-- Re-analysis Section Selector (expandable) -->
@@ -179,7 +180,7 @@
             <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections">
               <div class="sections-toggle-left">
                 <span class="sections-toggle-icon">🎯</span>
-                <span class="sections-toggle-title">Analysis Sections</span>
+                <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
                 <span class="sections-badge" id="reanalyze-sections-badge">4/4</span>
               </div>
               <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
@@ -188,19 +189,19 @@
               <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
                 <button type="button" class="section-chip active" id="reanalyze-chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict">
                   <span class="chip-icon">🎯</span>
-                  <span class="chip-label">Verdict</span>
+                  <span class="chip-label" data-i18n="chipVerdict">Verdict</span>
                 </button>
                 <button type="button" class="section-chip active" id="reanalyze-chip-summary" data-section="coreSummary" title="Toggle Core Summary">
                   <span class="chip-icon">📌</span>
-                  <span class="chip-label">Summary</span>
+                  <span class="chip-label" data-i18n="chipSummary">Summary</span>
                 </button>
                 <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map">
                   <span class="chip-icon">🧠</span>
-                  <span class="chip-label">Mind Map</span>
+                  <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
                 </button>
                 <button type="button" class="section-chip active" id="reanalyze-chip-chapters" data-section="chapterMap" title="Toggle Chapter Map">
                   <span class="chip-icon">⏱️</span>
-                  <span class="chip-label">Chapters</span>
+                  <span class="chip-label" data-i18n="chipChapters">Chapters</span>
                 </button>
               </div>
             </div>
@@ -217,39 +218,39 @@
       <div id="stage1-confirm-box" class="stage1-confirm-box hidden">
         <div class="stage1-confirm-header">
           <span class="stage1-confirm-icon">🎯</span>
-          <div class="stage1-confirm-text" id="stage1-confirm-text">
+          <div class="stage1-confirm-text" id="stage1-confirm-text" data-i18n="stage1Complete">
             <strong>Stage 1 Complete:</strong> Review matching eggs below to hatch into the vault and decide if worth reading.
           </div>
         </div>
         <div class="stage1-confirm-actions">
-          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn">🐣 Hatch Egg</button>
-          <button id="stage1-skip-btn" class="collect-nut-btn">🌰 Collect Nut Only</button>
+          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" data-i18n="hatchEgg">🐣 Hatch Egg</button>
+          <button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly">🌰 Collect Nut Only</button>
         </div>
       </div>
 
       <div id="eggs-section" class="result-section hidden">
         <button id="eggs-toggle" class="questions-toggle">
-          <span>🥚 Eggs <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
+          <span>🥚 <span data-i18n="eggsHeader">Eggs</span> <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
           <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
         </button>
         <div id="eggs-expanded" class="hidden">
           <div id="eggs-list" class="eggs-list"></div>
           <div id="eggs-create-inline" class="create-egg-inline">
-            <button id="eggs-create-toggle" class="eggs-create-toggle">➕ Create a new egg</button>
+            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg">➕ Create a new egg</button>
             <div id="eggs-create-form" class="create-egg-box hidden">
-              <input id="eggs-new-name" type="text" placeholder="egg name (e.g. productivity)" />
-              <input id="eggs-new-desc" type="text" placeholder="what this egg captures (one line)" />
-              <button id="eggs-create-btn" class="confirm-btn create-egg-btn">Create an Egg</button>
+              <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
+              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" />
+              <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create an Egg</button>
             </div>
           </div>
-          <button id="reanalyze-eggs-btn" class="reanalyze-btn reanalyze-eggs-btn hidden">🔄 Re-analyze with selected eggs</button>
+          <button id="reanalyze-eggs-btn" class="reanalyze-btn reanalyze-eggs-btn hidden" data-i18n="reanalyzeEggsBtn">🔄 Re-analyze with selected eggs</button>
           <div id="eggs-error" class="eggs-error hidden"></div>
         </div>
       </div>
 
       <div class="result-section" id="verdict-section">
         <div class="section-header">
-          <div class="section-label">📖 Should you read it?</div>
+          <div class="section-label" data-i18n="verdictReadSection">📖 Should you read it?</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -263,7 +264,7 @@
 
       <div class="result-section" id="title-verdict-section">
         <div class="section-header">
-          <div class="section-label">🎯 Title Verdict</div>
+          <div class="section-label" data-i18n="titleVerdictSection">🎯 Title Verdict</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -273,7 +274,7 @@
 
       <div class="result-section" id="core-summary-section">
         <div class="section-header">
-          <div class="section-label">📋 Core Summary</div>
+          <div class="section-label" data-i18n="coreSummarySection">📋 Core Summary</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -283,7 +284,7 @@
 
       <div id="mindmap-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label">🧠 Mind Map</div>
+          <div class="section-label" data-i18n="mindmapSection">🧠 Mind Map</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -293,7 +294,7 @@
 
       <div id="chapter-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label">🗺️ Chapter Map <span class="section-hint">(click to jump)</span></div>
+          <div class="section-label">🗺️ <span data-i18n="chapterSection">Chapter Map</span> <span class="section-hint" data-i18n="chapterJumpHint">(click to jump)</span></div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -303,14 +304,14 @@
 
       <div id="custom-questions-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label">💭 Your Questions</div>
+          <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
           <div id="custom-questions-list" class="keyquestions-list"></div>
           <div class="followup-area">
-            <input id="followup-input" type="text" placeholder="Ask a follow-up question about this content…" />
-            <button id="followup-btn" class="followup-btn">Ask</button>
+            <input id="followup-input" type="text" data-i18n-placeholder="followupPlaceholder" placeholder="Ask a follow-up question about this content…" />
+            <button id="followup-btn" class="followup-btn" data-i18n="askBtn">Ask</button>
           </div>
         </div>
       </div>
@@ -318,7 +319,7 @@
       <!-- Unified Egg Knowledge Section with Tabs -->
       <div id="egg-knowledge-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label">🥚 Egg Knowledge <span class="section-hint" id="egg-knowledge-hint">(by egg)</span></div>
+          <div class="section-label">🥚 <span data-i18n="eggKnowledgeSection">Egg Knowledge</span> <span class="section-hint" id="egg-knowledge-hint" data-i18n="eggKnowledgeHint">(by egg)</span></div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -329,49 +330,50 @@
 
       <div id="no-egg-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label">🐣 No egg matched — create one?</div>
+          <div class="section-label" data-i18n="noEggMatched">🐣 No egg matched — create one?</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
           <div class="create-egg-box">
-            <input id="new-egg-name" type="text" placeholder="egg name (e.g. productivity)" />
-            <input id="new-egg-description" type="text" placeholder="what this egg captures (one line)" />
-            <button id="create-egg-btn" class="confirm-btn create-egg-btn">Create Egg</button>
+            <input id="new-egg-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
+            <input id="new-egg-description" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" />
+            <button id="create-egg-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create Egg</button>
           </div>
         </div>
       </div>
 
       <div id="chrome-actions-card" class="chrome-actions-card hidden">
-        <p>✨ <strong>Want to curate this into your knowledge base?</strong> Start Obsidian with the NutEgg plugin to compare against your knowledge eggs and record insights into your vault.</p>
+        <p data-i18n="curatePitch">✨ <strong>Want to curate this into your knowledge base?</strong> Start Obsidian with the NutEgg plugin to compare against your knowledge eggs and record insights into your vault.</p>
       </div>
 
       <div class="action-buttons">
-        <button id="confirm-btn" class="confirm-btn hidden">🥚 Hatch Egg</button>
-        <button id="collect-nut-btn" class="collect-nut-btn">🌰 Collect Nut</button>
-        <button id="discard-btn" class="discard-btn">Discard</button>
-        <button id="back-btn" class="back-btn">← Back</button>
+        <button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🥚 Hatch Egg</button>
+        <button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button>
+        <button id="discard-btn" class="discard-btn" data-i18n="discard">Discard</button>
+        <button id="back-btn" class="back-btn" data-i18n="back">← Back</button>
       </div>
     </div>
 
     <div id="metrics-bar" class="metrics-bar">
-      <span class="metric" title="Nuts collected">Collected 🌰 <strong id="metric-nuts">0</strong></span>
-      <span class="metric" title="Eggs created">Hatched 🥚 <strong id="metric-eggs">0</strong></span>
-      <span class="metric" title="Time saved">Saved ⏱️ <strong id="metric-time">0m</strong></span>
+      <span class="metric" title="Nuts collected"><span data-i18n="metricNuts">Collected 🌰</span> <strong id="metric-nuts">0</strong></span>
+      <span class="metric" title="Eggs created"><span data-i18n="metricEggs">Hatched 🥚</span> <strong id="metric-eggs">0</strong></span>
+      <span class="metric" title="Time saved"><span data-i18n="metricTime">Saved ⏱️</span> <strong id="metric-time">0m</strong></span>
     </div>
 
     <footer class="footer">
       <small id="version-tag">NutEgg 0.0.0</small>
       <div class="footer-links">
         <a href="#" class="footer-link" id="report-bug-link" title="Report a Bug on GitHub">
-          <span>🐛 Report Bug</span>
+          <span data-i18n="reportBug">🐛 Report Bug</span>
         </a>
         <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="footer-link hidden" id="obsidian-plugin-link" title="Get NutEgg Obsidian Plugin">
-          <span>Get Obsidian Plugin</span> ↗
+          <span data-i18n="getObsidianPlugin">Get Obsidian Plugin</span> ↗
         </a>
       </div>
     </footer>
   </div>
 
+  <script src="../i18n.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

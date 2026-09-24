@@ -6,6 +6,7 @@ import {
   PROVIDER_CATALOG,
   findOpenRouterFamily,
 } from "./ai-client";
+import { t } from "./i18n";
 
 export type LocalApiType = "openai" | "ollama";
 
@@ -76,15 +77,15 @@ export class NutEggSettingTab extends PluginSettingTab {
     const isOpenRouter = settings.aiProvider === "openrouter";
 
     containerEl.empty();
-    containerEl.createEl("h2", { text: "NutEgg Settings" });
+    containerEl.createEl("h2", { text: t("settingsTitle") });
 
     // Companion Chrome Extension Card
     new Setting(containerEl)
-      .setName("Chrome Extension Companion")
-      .setDesc("Capture and analyze articles, YouTube videos, and tweets directly from your browser into Obsidian.")
+      .setName(t("chromeCompanionName"))
+      .setDesc(t("chromeCompanionDesc"))
       .addButton((btn) =>
         btn
-          .setButtonText("Get Chrome Extension ↗")
+          .setButtonText(t("getChromeExtension"))
           .setCta()
           .onClick(() => {
             window.open(
@@ -96,11 +97,11 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     // Bug Report & Feedback Card
     new Setting(containerEl)
-      .setName("Report a Bug")
-      .setDesc("Found an issue, unexpected behavior, or need help? Report it on GitHub issues.")
+      .setName(t("reportBugName"))
+      .setDesc(t("reportBugDesc"))
       .addButton((btn) =>
         btn
-          .setButtonText("🐛 Report Bug on GitHub ↗")
+          .setButtonText(t("reportBugBtn"))
           .onClick(() => {
             this.plugin.openBugReport();
           })
@@ -109,11 +110,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Vault Paths (always visible)
     // ==========================================
-    containerEl.createEl("h3", { text: "Vault Paths" });
+    containerEl.createEl("h3", { text: t("vaultPathsHeader") });
 
     new Setting(containerEl)
-      .setName("Raw Content Folder")
-      .setDesc("Folder for saved raw content")
+      .setName(t("rawFolder"))
+      .setDesc(t("rawFolderDesc"))
       .addText((text) =>
         text
           .setPlaceholder("nutegg/_raw")
@@ -125,8 +126,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Index File")
-      .setDesc("File that maps eggs to their markdown files")
+      .setName(t("indexFile"))
+      .setDesc(t("indexFileDesc"))
       .addText((text) =>
         text
           .setPlaceholder("nutegg/_index.md")
@@ -138,8 +139,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Workflow Engine Folder")
-      .setDesc("Folder where AI prompts, schemas, and pipeline rules are stored as editable markdown files")
+      .setName(t("workflowFolder"))
+      .setDesc(t("workflowFolderDesc"))
       .addText((text) =>
         text
           .setPlaceholder("nutegg/_workflow")
@@ -151,13 +152,11 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Use Default Workflow Prompts")
-      .setDesc(
-        "Moves all current files in nutegg/_workflow to a timestamped backup folder under _backup/ and restores clean built-in prompt defaults."
-      )
+      .setName(t("useDefaultWorkflows"))
+      .setDesc(t("useDefaultWorkflowsDesc"))
       .addButton((btn) =>
         btn
-          .setButtonText("Use Defaults")
+          .setButtonText(t("useDefaultsBtn"))
           .setWarning()
           .onClick(async () => {
             await this.plugin.workflowManager.resetToDefaults();
@@ -165,19 +164,14 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     // ==========================================
-    // Language & Output (always visible)
-    // ==========================================
-    this.displayLanguageSettings(containerEl, settings);
-
-    // ==========================================
     // Developer Mode toggle
     // ==========================================
     new Setting(containerEl)
-      .setName("Developer mode")
+      .setName(t("devMode"))
       .setDesc(
         settings.developerMode
-          ? "Advanced settings are visible below"
-          : "Show advanced settings (AI provider, API key, server port)"
+          ? t("devModeOn")
+          : t("devModeOff")
       )
       .addToggle((toggle) => {
         toggle.setValue(settings.developerMode);
@@ -205,12 +199,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // AI Model Configuration
     // ==========================================
-    containerEl.createEl("h3", { text: isLocal ? "Local LLM Configuration" : "AI Model Configuration" });
+    containerEl.createEl("h3", { text: isLocal ? t("localModelConfig") : t("aiModelConfig") });
 
     // 1. AI Provider
     new Setting(containerEl)
-      .setName("1. AI Provider")
-      .setDesc("Choose a local runner (Ollama, LM Studio), OpenRouter, or cloud AI provider")
+      .setName(t("aiProvider"))
+      .setDesc(t("aiProviderDesc"))
       .addDropdown((dropdown) => {
         for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
           dropdown.addOption(id, info.label);
@@ -240,8 +234,8 @@ export class NutEggSettingTab extends PluginSettingTab {
     if (isLocal) {
       // Local LLM API Type
       new Setting(containerEl)
-        .setName("API Type")
-        .setDesc("Protocol format used by your local runner")
+        .setName(t("localApiType"))
+        .setDesc(t("localApiTypeDesc"))
         .addDropdown((dropdown) => {
           dropdown.addOption("openai", "OpenAI-compatible (LM Studio, llama.cpp, vLLM, Ollama /v1)");
           dropdown.addOption("ollama", "Ollama Native (/api/chat)");
@@ -265,11 +259,11 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // Local Server Endpoint
       new Setting(containerEl)
-        .setName("Local Server Endpoint")
+        .setName(t("localEndpoint"))
         .setDesc(
           settings.localApiType === "ollama"
-            ? "Ollama native chat URL (default: http://127.0.0.1:11434/api/chat)"
-            : "OpenAI-compatible chat completions URL for your local runner"
+            ? t("localEndpointOllamaDesc")
+            : t("localEndpointOpenAiDesc")
         )
         .addText((text) => {
           text
@@ -298,7 +292,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       });
       const presetInfo = presetContainer.createDiv({
         cls: "setting-item-description",
-        text: "Presets: ",
+        text: t("localPresets"),
       });
       presetInfo.style.fontSize = "0.85em";
       presetInfo.style.color = "var(--text-muted)";
@@ -332,8 +326,8 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // API Key (Optional)
       new Setting(containerEl)
-        .setName("API Key (Optional)")
-        .setDesc("Optional for local LLMs. Leave empty if your local server does not require authentication.")
+        .setName(t("aiApiKey"))
+        .setDesc(t("localApiKeyDesc"))
         .addText((text) => {
           text
             .setPlaceholder("Optional for local LLMs")
@@ -359,8 +353,8 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // 2. Model Family (Vendor filter on OpenRouter)
       new Setting(containerEl)
-        .setName("2. Model Family")
-        .setDesc("Choose model vendor or architecture group on OpenRouter")
+        .setName(t("aiModelFamily"))
+        .setDesc(t("aiModelFamilyDesc"))
         .addDropdown((dropdown) => {
           for (const fam of families) {
             dropdown.addOption(fam.id, fam.label);
@@ -382,8 +376,8 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // 3. Model Version
       const versionSetting = new Setting(containerEl)
-        .setName("3. Model Version")
-        .setDesc(`Sent to OpenRouter as "${settings.aiModel}"`);
+        .setName(t("modelVersion"))
+        .setDesc(t("modelVersionDesc", { model: settings.aiModel }));
 
       const familyModels = currentFamily?.models || [];
       if (familyModels.length > 0) {
@@ -420,8 +414,8 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // API Key
       new Setting(containerEl)
-        .setName("API Key")
-        .setDesc("Your OpenRouter API key (openrouter.ai/keys)")
+        .setName(t("aiApiKey"))
+        .setDesc(t("openRouterApiKeyDesc"))
         .addText((text) => {
           text
             .setPlaceholder("sk-or-...")
@@ -439,8 +433,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       // ==========================================
       const providerModels = provider.models || [];
       const versionSetting = new Setting(containerEl)
-        .setName("2. Model")
-        .setDesc(`Model to use for analysis (${provider.label})`);
+        .setName(t("aiModel"))
+        .setDesc(t("aiModelDesc", { provider: provider.label }));
 
       if (providerModels.length > 0) {
         versionSetting.addDropdown((dropdown) => {
@@ -476,8 +470,8 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // API Key
       new Setting(containerEl)
-        .setName("API Key")
-        .setDesc(`Your ${provider.label} API key`)
+        .setName(t("aiApiKey"))
+        .setDesc(t("providerApiKeyDesc", { provider: provider.label }))
         .addText((text) => {
           text
             .setPlaceholder(provider.keyPlaceholder)
@@ -492,18 +486,18 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     // Credit & Balance / Connection Monitor Setting
     const creditSetting = new Setting(containerEl)
-      .setName(isLocal ? "Local LLM connection status" : "AI credit & balance")
-      .setDesc(isLocal ? "Checking local server connection..." : "Checking credit balance with provider...")
+      .setName(isLocal ? t("creditStatusTitleLocal") : t("creditStatusTitleCloud"))
+      .setDesc(isLocal ? t("creditCheckingLocal") : t("creditCheckingCloud"))
       .addButton((btn) => {
         btn
-          .setButtonText("Refresh")
+          .setButtonText(t("refresh"))
           .setCta()
           .onClick(async () => {
             btn.setDisabled(true);
-            btn.setButtonText("Checking...");
+            btn.setButtonText(t("checking"));
             await updateCreditDisplay();
             btn.setDisabled(false);
-            btn.setButtonText("Refresh");
+            btn.setButtonText(t("refresh"));
           });
         return btn;
       });
@@ -513,15 +507,15 @@ export class NutEggSettingTab extends PluginSettingTab {
         const credit = await this.plugin.aiClient.checkCredit(settings);
         if (credit.hasBalance && credit.balanceFormatted) {
           creditSetting.setDesc(
-            `💰 Remaining Balance: ${credit.balanceFormatted} (${credit.statusText})`
+            t("remainingBalance", { balance: credit.balanceFormatted, status: credit.statusText })
           );
         } else {
           creditSetting.setDesc(
-            `ℹ️ Provider: ${credit.providerLabel} — ${credit.statusText}`
+            t("providerStatus", { provider: credit.providerLabel, status: credit.statusText })
           );
         }
       } catch (err) {
-        creditSetting.setDesc(`⚠️ Failed to check credit: ${String(err)}`);
+        creditSetting.setDesc(t("creditCheckFailed", { error: String(err) }));
       }
     };
 
@@ -530,13 +524,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Processing & Chunking
     // ==========================================
-    containerEl.createEl("h3", { text: "Processing & Chunking" });
+    containerEl.createEl("h3", { text: t("processingHeader") });
 
     new Setting(containerEl)
-      .setName("General chunk window size")
-      .setDesc(
-        "Maximum character length per chunk (~30,000 chars ≈ 8,000 tokens). Long content exceeding this threshold is split into parts and processed with multi-stage map-reduce aggregation."
-      )
+      .setName(t("chunkWindowChars"))
+      .setDesc(t("chunkWindowCharsDesc"))
       .addText((text) =>
         text
           .setPlaceholder("30000")
@@ -551,10 +543,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Section grid interval")
-      .setDesc(
-        "Time interval in seconds (default: 300s / 5 minutes) used to generate section lattice points and chapter maps for videos lacking native chapter markers."
-      )
+      .setName(t("sectionGridSeconds"))
+      .setDesc(t("sectionGridSecondsDesc"))
       .addText((text) =>
         text
           .setPlaceholder("300")
@@ -569,10 +559,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Max completion tokens")
-      .setDesc(
-        "Maximum completion tokens allocated for AI calls (default: 16384). Cloud models (DeepSeek, OpenAI, Anthropic) support large output windows. Local LLM users can adjust this to match their model's context window."
-      )
+      .setName(t("maxTokens"))
+      .setDesc(t("maxTokensDesc"))
       .addText((text) =>
         text
           .setPlaceholder("16384")
@@ -589,11 +577,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Server
     // ==========================================
-    containerEl.createEl("h3", { text: "Server" });
+    containerEl.createEl("h3", { text: t("serverHeader") });
 
     new Setting(containerEl)
-      .setName("Server Port")
-      .setDesc("Port for the local HTTP server connecting with Chrome Extension (requires restart)")
+      .setName(t("serverPort"))
+      .setDesc(t("serverPortDesc"))
       .addText((text) =>
         text
           .setPlaceholder("27123")
@@ -610,14 +598,14 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Links & Resources
     // ==========================================
-    containerEl.createEl("h3", { text: "Links & Resources" });
+    containerEl.createEl("h3", { text: t("linksHeader") });
 
     new Setting(containerEl)
-      .setName("NutEgg on Chrome Web Store")
-      .setDesc("Install or update the NutEgg companion extension for Google Chrome.")
+      .setName(t("nuteggChromeStoreName"))
+      .setDesc(t("nuteggChromeStoreDesc"))
       .addButton((btn) =>
         btn
-          .setButtonText("Open Chrome Web Store ↗")
+          .setButtonText(t("openChromeWebStore"))
           .onClick(() => {
             window.open(
               "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
@@ -627,11 +615,11 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("NutEgg on Obsidian Community Plugins")
-      .setDesc("View NutEgg in the Obsidian Community Plugins directory.")
+      .setName(t("nuteggObsidianPluginName"))
+      .setDesc(t("nuteggObsidianPluginDesc"))
       .addButton((btn) =>
         btn
-          .setButtonText("Open Obsidian Directory ↗")
+          .setButtonText(t("openObsidianDirectory"))
           .onClick(() => {
             window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
           })

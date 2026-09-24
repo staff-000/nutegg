@@ -1,0 +1,15 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "少读水文，收获更多。收集网络信息，构建知识架构",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — 少读水文，收获更多。收集网络信息，构建知识架构",
+    "description": "Tooltip for the extension action button"
+  }
+}
+

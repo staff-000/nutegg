@@ -10,21 +10,37 @@
   <div class="options-container">
     <h1><img src="../../icons/icon32.png" alt="NutEgg" class="logo-icon"> NutEgg Settings</h1>
 
+    <!-- 0. Interface Language -->
+    <section class="option-group" id="ui-language-group">
+      <h2 data-i18n="uiLanguageSection">Interface Language</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="uiLanguageDesc">
+        Choose extension display language.
+      </p>
+      <div class="option-row">
+        <label for="ui-lang-select" data-i18n="uiLanguageLabel">Language</label>
+        <select id="ui-lang-select" class="mode-select">
+          <option value="auto" data-i18n="uiLangAuto">Auto (Follow Browser)</option>
+          <option value="en" data-i18n="uiLangEn">English</option>
+          <option value="zh" data-i18n="uiLangZh">简体中文 (Chinese)</option>
+        </select>
+      </div>
+    </section>
+
     <!-- 1. Analysis Workflow -->
     <section class="option-group">
-      <h2>Analysis Workflow</h2>
+      <h2 data-i18n="workflowSection">Analysis Workflow</h2>
       <div class="option-row">
-        <label for="mode-select">Default Analysis Mode</label>
+        <label for="mode-select" data-i18n="defaultAnalysisMode">Default Analysis Mode</label>
         <select id="mode-select" class="mode-select">
-          <option value="fast">⚡ Fast Mode (Auto-proceed)</option>
-          <option value="confirm">🎯 Confirm Eggs Mode (Interactive)</option>
+          <option value="fast" data-i18n="fastModeOpt">⚡ Fast Mode (Auto-proceed)</option>
+          <option value="confirm" data-i18n="confirmModeOpt">🎯 Confirm Eggs Mode (Interactive)</option>
         </select>
         <div class="mode-descriptions">
           <p class="hint mode-desc" id="fast-desc">
-            <strong>⚡ Fast Mode:</strong> NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.
+            <strong>⚡ Fast Mode:</strong> <span data-i18n="fastDescText">NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.</span>
           </p>
           <p class="hint mode-desc" id="confirm-desc">
-            <strong>🎯 Confirm Eggs Mode:</strong> NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.
+            <strong>🎯 Confirm Eggs Mode:</strong> <span data-i18n="confirmDescText">NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.</span>
           </p>
         </div>
       </div>
@@ -32,14 +48,14 @@
 
     <!-- Output Language -->
     <section class="option-group" id="language-config-group">
-      <h2>Output Language</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+      <h2 data-i18n="outputLanguageSection">Output Language</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="outputLanguageDesc">
         Choose the language used for generated verdicts, summaries, and mind maps.
       </p>
       <div class="option-row">
-        <label for="output-lang-select">Preferred Language</label>
+        <label for="output-lang-select" data-i18n="preferredLanguage">Preferred Language</label>
         <select id="output-lang-select" class="mode-select">
-          <option value="same-as-content">Same as content (follow captured text)</option>
+          <option value="same-as-content" data-i18n="sameAsContent">Same as content (follow captured text)</option>
           <option value="English">English</option>
           <option value="Chinese">Chinese (中文)</option>
           <option value="Japanese">Japanese (日本語)</option>
@@ -53,48 +69,48 @@
 
     <!-- Content Analysis Sections -->
     <section class="option-group" id="sections-config-group">
-      <h2>Content Analysis Sections</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+      <h2 data-i18n="sectionsConfigSection">Content Analysis Sections</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="sectionsConfigDesc">
         Configure which sections are generated during Content Analysis. Disabling unused sections completely removes them from the AI prompt and output schema, saving tokens and cutting latency.
       </p>
       <div class="option-row">
         <label class="toggle-checkbox-label" for="section-verdict">
           <input type="checkbox" id="section-verdict" checked>
-          <span><strong>🎯 Title Verdict</strong> — Direct 1-sentence answer to the title's question</span>
+          <span><strong>🎯 <span data-i18n="chipVerdict">Verdict</span></strong> — <span data-i18n="sectionVerdictOpt">Direct 1-sentence answer to the title's question</span></span>
         </label>
       </div>
       <div class="option-row">
         <label class="toggle-checkbox-label" for="section-summary">
           <input type="checkbox" id="section-summary" checked>
-          <span><strong>📌 Key Takeaways / Core Summary</strong> — Top 3 bullet points of core insights</span>
+          <span><strong>📌 <span data-i18n="chipSummary">Summary</span></strong> — <span data-i18n="sectionSummaryOpt">Top 3 bullet points of core insights</span></span>
         </label>
       </div>
       <div class="option-row">
         <label class="toggle-checkbox-label" for="section-mindmap">
           <input type="checkbox" id="section-mindmap" checked>
-          <span><strong>🧠 Mind Map</strong> — Concept tree & outline (<span style="color:#059669; font-weight:500;">saves ~1,000–2,500 tokens &amp; 5–15s</span> when disabled)</span>
+          <span><strong>🧠 <span data-i18n="chipMindmap">Mind Map</span></strong> — <span data-i18n="sectionMindmapOpt">Concept tree & outline</span> (<span style="color:#059669; font-weight:500;" data-i18n="sectionMindmapSaving">saves ~1,000–2,500 tokens &amp; 5–15s</span>)</span>
         </label>
       </div>
       <div class="option-row">
         <label class="toggle-checkbox-label" for="section-chapters">
           <input type="checkbox" id="section-chapters" checked>
-          <span><strong>⏱️ Chapter Map</strong> — Timestamped breakdown for videos and long articles</span>
+          <span><strong>⏱️ <span data-i18n="chipChapters">Chapters</span></strong> — <span data-i18n="sectionChaptersOpt">Timestamped breakdown for videos and long articles</span></span>
         </label>
       </div>
       <div class="option-actions">
-        <button id="sections-save-btn" class="primary-btn">Save Section Preferences</button>
+        <button id="sections-save-btn" class="primary-btn" data-i18n="saveSectionsBtn">Save Section Preferences</button>
         <span id="sections-status" class="test-result hidden"></span>
       </div>
     </section>
 
     <!-- 2. Obsidian Plugin Companion -->
     <section class="option-group">
-      <h2>Obsidian Plugin Companion</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+      <h2 data-i18n="obsidianCompanionSection">Obsidian Plugin Companion</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="obsidianCompanionDesc">
         NutEgg is a two-part system: this Chrome Extension captures content from your browser, while the Obsidian plugin handles AI analysis and knowledge tree curation in your vault.
       </p>
       <div class="option-row">
-        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="primary-btn companion-btn">
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="primary-btn companion-btn" data-i18n="getObsidianPluginBtn">
           📥 Get NutEgg on Obsidian Community Plugins ↗
         </a>
       </div>
@@ -102,56 +118,56 @@
 
     <!-- 3. Server Connection -->
     <section class="option-group">
-      <h2>Server Connection</h2>
+      <h2 data-i18n="serverConnSection">Server Connection</h2>
       <div class="option-row">
-        <label for="port-input">Obsidian Server Port</label>
+        <label for="port-input" data-i18n="serverPortLabel">Obsidian Server Port</label>
         <div class="port-config">
           <input id="port-input" type="number" min="1" max="65535" value="27123">
           <span class="port-url">http://127.0.0.1:<strong id="port-display">27123</strong></span>
         </div>
         <p class="hint">
-          Must match the port configured in Obsidian → NutEgg → Developer Mode → Server Port.
-          Don't have the plugin yet? <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Install NutEgg for Obsidian ↗</a>
+          <span data-i18n="serverPortHint">Must match the port configured in Obsidian → NutEgg → Developer Mode → Server Port.</span>
+          <span data-i18n="dontHavePlugin">Don't have the plugin yet?</span> <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" data-i18n="installNutEggObsidian">Install NutEgg for Obsidian ↗</a>
         </p>
       </div>
       <div class="option-actions">
-        <button id="save-btn" class="primary-btn">Save</button>
-        <button id="test-btn" class="secondary-btn">Test Connection</button>
+        <button id="save-btn" class="primary-btn" data-i18n="saveBtn">Save</button>
+        <button id="test-btn" class="secondary-btn" data-i18n="testConnBtn">Test Connection</button>
         <span id="test-result" class="test-result hidden"></span>
       </div>
     </section>
 
     <!-- 4. Standalone Mode (Optional) -->
     <section class="option-group" id="standalone-toggle-group">
-      <h2>Standalone Mode (Optional)</h2>
+      <h2 data-i18n="standaloneSection">Standalone Mode (Optional)</h2>
       <div class="option-row standalone-toggle-row">
         <label class="toggle-checkbox-label" for="ai-enable-standalone">
           <input type="checkbox" id="ai-enable-standalone">
-          <span>Use Chrome-only AI (when Obsidian is offline)</span>
+          <span data-i18n="useChromeOnlyAi">Use Chrome-only AI (when Obsidian is offline)</span>
         </label>
-        <p class="hint">
+        <p class="hint" data-i18n="standaloneHint">
           Allows Chrome to run Stage 1 content analysis and summaries directly in the browser when Obsidian is closed.
         </p>
       </div>
     </section>
 
     <section class="option-group hidden" id="ai-config-section">
-      <h2>AI Configuration (Standalone Mode)</h2>
+      <h2 data-i18n="aiConfigSection">AI Configuration (Standalone Mode)</h2>
       
       <div id="ai-status-banner" class="ai-status-banner obsidian-offline">
         Checking Obsidian status...
       </div>
 
       <div class="option-row">
-        <label for="ai-provider-select">1. AI Provider</label>
+        <label for="ai-provider-select" data-i18n="aiProviderLabel">1. AI Provider</label>
         <div class="ai-input-group">
           <select id="ai-provider-select"></select>
         </div>
-        <p class="hint">Choose your preferred provider for direct in-browser analysis when Obsidian is closed.</p>
+        <p class="hint" data-i18n="aiProviderHint">Choose your preferred provider for direct in-browser analysis when Obsidian is closed.</p>
       </div>
 
       <div class="option-row" id="ai-model-row">
-        <label for="ai-model-select">2. Model</label>
+        <label for="ai-model-select" data-i18n="aiModelLabel">2. Model</label>
         <div class="ai-input-group">
           <select id="ai-model-select"></select>
           <input id="ai-model-custom" type="text" placeholder="Custom model tag" style="display: none;">
@@ -159,25 +175,25 @@
       </div>
 
       <div class="option-row" id="ai-local-endpoint-row" style="display: none;">
-        <label for="ai-local-endpoint">Local Server Endpoint</label>
+        <label for="ai-local-endpoint" data-i18n="localEndpointLabel">Local Server Endpoint</label>
         <div class="ai-input-group">
           <input id="ai-local-endpoint" type="text" placeholder="http://127.0.0.1:11434/v1/chat/completions">
         </div>
       </div>
 
       <div class="option-row" id="ai-key-row">
-        <label for="ai-key-input">3. API Key</label>
+        <label for="ai-key-input" data-i18n="aiKeyLabel">3. API Key</label>
         <div class="ai-input-group">
           <input id="ai-key-input" type="password" placeholder="sk-...">
           <button id="ai-key-toggle" type="button" class="toggle-key-btn">Show</button>
         </div>
-        <p class="hint" id="ai-key-hint">API keys are stored securely in Chrome local storage and sent only to the provider endpoint.</p>
+        <p class="hint" id="ai-key-hint" data-i18n="aiKeyHint">API keys are stored securely in Chrome local storage and sent only to the provider endpoint.</p>
       </div>
 
       <div class="option-row" id="ai-prompt-row">
         <div class="prompt-header-container">
-          <label for="ai-prompt-select">4. Custom Prompts</label>
-          <button id="ai-prompt-reset-btn" type="button" class="reset-prompt-btn">Reset to Default</button>
+          <label for="ai-prompt-select" data-i18n="customPromptsLabel">4. Custom Prompts</label>
+          <button id="ai-prompt-reset-btn" type="button" class="reset-prompt-btn" data-i18n="resetDefaultPrompt">Reset to Default</button>
         </div>
         <div class="ai-input-group">
           <select id="ai-prompt-select">
@@ -187,14 +203,14 @@
           </select>
         </div>
         <textarea id="ai-prompt-textarea" rows="12" spellcheck="false" class="prompt-textarea"></textarea>
-        <p class="hint">
+        <p class="hint" data-i18n="promptHint">
           Customize the template used by Chrome standalone AI. Variables like <code>{{title}}</code>, <code>{{url}}</code>, <code>{{content}}</code> are dynamically replaced during analysis.
         </p>
       </div>
 
       <div class="option-actions">
-        <button id="ai-save-btn" class="primary-btn">Save AI Settings</button>
-        <button id="ai-test-btn" class="secondary-btn">Test AI Connection</button>
+        <button id="ai-save-btn" class="primary-btn" data-i18n="saveAiBtn">Save AI Settings</button>
+        <button id="ai-test-btn" class="secondary-btn" data-i18n="testAiBtn">Test AI Connection</button>
         <span id="ai-test-result" class="test-result hidden"></span>
       </div>
 
@@ -206,18 +222,18 @@
 
     <!-- 5. Keyboard Shortcut -->
     <section class="option-group">
-      <h2>Keyboard Shortcut</h2>
-      <p>Configure the quick-capture shortcut at <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a></p>
+      <h2 data-i18n="keyboardShortcutSection">Keyboard Shortcut</h2>
+      <p><span data-i18n="keyboardShortcutDesc">Configure the quick-capture shortcut at</span> <a href="#" id="shortcuts-link">chrome://extensions/shortcuts</a></p>
     </section>
 
     <!-- 6. Help & Feedback -->
     <section class="option-group">
-      <h2>Help &amp; Feedback</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;">
+      <h2 data-i18n="helpSection">Help &amp; Feedback</h2>
+      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="helpDesc">
         Encountered an issue or unexpected behavior? Let us know on GitHub.
       </p>
       <div class="option-row">
-        <button id="report-bug-btn" class="secondary-btn">
+        <button id="report-bug-btn" class="secondary-btn" data-i18n="reportBugBtn">
           🐛 Report Bug on GitHub ↗
         </button>
       </div>
@@ -225,6 +241,7 @@
   </div>
 
   <script src="../ai/ai-core.js"></script>
+  <script src="../i18n.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

@@ -1,0 +1,15 @@
+{
+  "extensionName": {
+    "message": "NutEgg",
+    "description": "Name of the extension"
+  },
+  "extensionDescription": {
+    "message": "Read less, hatch more. Capture web content, curate knowledge.",
+    "description": "Description of the extension"
+  },
+  "extensionActionTitle": {
+    "message": "NutEgg — Read Less, Hatch More",
+    "description": "Tooltip for the extension action button"
+  }
+}
+

@@ -121,6 +121,27 @@ a {
   box-shadow: 0 4px 16px rgba(217, 119, 6, 0.35);
 }
 
+.nav-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-lang-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: var(--border-main);
+  transform: translateY(-1px);
+}
+
 /* Hero Section */
 .hero {
   padding: 80px 0 60px;

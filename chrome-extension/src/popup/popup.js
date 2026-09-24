@@ -1,4 +1,4 @@
-// NutEgg Popup Script — Two-state UI
+const t = (key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
 
 // DOM — Capture state
 const serverStatus = document.getElementById("server-status");
@@ -182,18 +182,27 @@ const tabsExtracting = new Set();
 
 // --- Init ---
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function initPopup() {
   const versionTag = document.getElementById("version-tag");
   if (versionTag) {
     const version = chrome.runtime?.getManifest?.()?.version;
     if (version) versionTag.textContent = `NutEgg ${version}`;
   }
 
+  // Initialize i18n
+  const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
+  i18n?.initI18n();
+  i18n?.applyI18n();
+
   // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
     const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage"], resolve);
+      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "uiLanguage"], resolve);
     });
+    if (stored?.uiLanguage) {
+      i18n?.initI18n(stored.uiLanguage);
+      i18n?.applyI18n();
+    }
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
     }
@@ -216,6 +225,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName === "local") {
+      if (changes.uiLanguage && changes.uiLanguage.newValue) {
+        const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
+        i18n?.initI18n(changes.uiLanguage.newValue);
+        i18n?.applyI18n();
+      }
       if (changes.analysisMode) {
         const newMode = changes.analysisMode.newValue;
         if (newMode === "confirm" || newMode === "fast") {
@@ -601,7 +615,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   await refreshForCurrentTab();
-});
+}
+
+if (typeof module === "undefined" || !module.exports) {
+  if (typeof document !== "undefined" && document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initPopup);
+  } else {
+    initPopup();
+  }
+}
 
 /** Initialize expandable section selectors on capture screen & re-analysis screen */
 function initSectionChips() {
@@ -716,6 +738,7 @@ async function refreshForCurrentTab(forceExtract = false) {
   pagePublishedEl.textContent = "";
   currentTabLoading = false;
   updateAnalyzeButtonsState();
+  showCaptureState();
 
   let tabUrl = "";
   try {

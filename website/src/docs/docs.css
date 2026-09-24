@@ -87,6 +87,27 @@ a:hover {
   font-size: 0.9rem;
 }
 
+.nav-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-lang-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: var(--border-main);
+  transform: translateY(-1px);
+}
+
 .header-nav a {
   color: var(--text-muted);
 }

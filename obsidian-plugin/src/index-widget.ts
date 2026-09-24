@@ -9,6 +9,7 @@ import {
 } from "@codemirror/view";
 import type NutEggPlugin from "./main";
 import { sanitizeEggName } from "./index-sync";
+import { t } from "./i18n";
 
 /**
  * Modal dialog for quickly creating a new egg file.
@@ -36,7 +37,7 @@ export class CreateEggModal extends Modal {
     contentEl.empty();
     contentEl.addClass("nutegg-create-egg-modal");
 
-    contentEl.createEl("h2", { text: "🐣 Create New Egg" });
+    contentEl.createEl("h2", { text: t("createEggTitle") });
 
     // Name field
     const nameGroup = contentEl.createEl("div", {
@@ -44,13 +45,13 @@ export class CreateEggModal extends Modal {
     });
     nameGroup.style.marginBottom = "14px";
     nameGroup.createEl("label", {
-      text: "Egg Name (file name):",
+      text: t("eggNameLabel"),
       cls: "nutegg-modal-label",
     }).style.cssText = "display: block; font-weight: 600; margin-bottom: 4px;";
     const nameInput = nameGroup.createEl("input", {
       type: "text",
       value: this.defaultName,
-      placeholder: "e.g. methodology, invest_strategy, 方法论...",
+      placeholder: t("eggNamePlaceholder"),
     });
     nameInput.style.cssText = "width: 100%; box-sizing: border-box; padding: 6px 10px;";
 
@@ -60,11 +61,11 @@ export class CreateEggModal extends Modal {
     });
     descGroup.style.marginBottom = "10px";
     descGroup.createEl("label", {
-      text: "Description (scope of what it covers):",
+      text: t("eggDescLabel"),
       cls: "nutegg-modal-label",
     }).style.cssText = "display: block; font-weight: 600; margin-bottom: 4px;";
     const descInput = descGroup.createEl("textarea", {
-      placeholder: "e.g. 介绍做事的具体方法 / practical methods and tactics...",
+      placeholder: t("eggDescPlaceholder"),
     });
     descInput.value = this.defaultDescription;
     descInput.rows = 3;
@@ -74,7 +75,7 @@ export class CreateEggModal extends Modal {
     // Language hint
     const hint = contentEl.createEl("p", {
       cls: "nutegg-modal-hint",
-      text: "🌐 Language of instructions and knowledge output will match the description language.",
+      text: t("eggLangHint"),
     });
     hint.style.cssText = "font-size: 0.85em; opacity: 0.75; margin: 4px 0 10px 0;";
 
@@ -84,12 +85,12 @@ export class CreateEggModal extends Modal {
     });
     btnRow.style.cssText = "display: flex; justify-content: flex-end; gap: 8px;";
 
-    const cancelBtn = btnRow.createEl("button", { text: "Cancel" });
+    const cancelBtn = btnRow.createEl("button", { text: t("cancel") });
     cancelBtn.addEventListener("click", () => this.close());
 
     const submitBtn = btnRow.createEl("button", {
       cls: "mod-cta",
-      text: "Create Egg",
+      text: t("createEgg"),
     });
 
     const submit = async () => {
@@ -97,7 +98,7 @@ export class CreateEggModal extends Modal {
       const description = descInput.value.trim();
 
       if (!safeName) {
-        new Notice("NutEgg: Please enter a valid egg name.");
+        new Notice(t("eggNameRequired"));
         nameInput.focus();
         return;
       }
@@ -105,7 +106,7 @@ export class CreateEggModal extends Modal {
       submitBtn.disabled = true;
       cancelBtn.disabled = true;
       const originalText = submitBtn.textContent;
-      submitBtn.textContent = "⏳ Creating egg...";
+      submitBtn.textContent = t("creatingEgg");
 
       try {
         const result = await this.plugin.indexSync.createEgg(
@@ -115,9 +116,9 @@ export class CreateEggModal extends Modal {
         this.close();
 
         if (result.alreadyExists) {
-          new Notice(`NutEgg: ${result.path} already exists.`);
+          new Notice(t("eggAlreadyExists", { path: result.path }));
         } else {
-          new Notice(`NutEgg: Created ${result.path}`);
+          new Notice(t("eggCreated", { path: result.path }));
         }
 
         // Open newly created or existing egg file in workspace
@@ -195,7 +196,7 @@ export function renderSyncButton(
     e.preventDefault();
     e.stopPropagation();
     const originalText = btn.textContent;
-    btn.textContent = "Syncing...";
+    btn.textContent = t("syncingIndex");
     btn.disabled = true;
     try {
       const res = await plugin.indexSync.sync();
@@ -214,13 +215,13 @@ export function renderSyncButton(
       }
 
       if (parts.length > 0) {
-        new Notice(`[NutEgg] Index synced: ${parts.join(", ")}`);
+        new Notice(t("indexSynced", { summary: parts.join(", ") }));
       } else {
-        new Notice("[NutEgg] Everything is in sync.");
+        new Notice(t("indexAllSynced"));
       }
       await update();
     } catch (err) {
-      new Notice(`[NutEgg] Sync failed: ${err instanceof Error ? err.message : String(err)}`);
+      new Notice(t("indexSyncFailed", { error: err instanceof Error ? err.message : String(err) }));
       btn.textContent = originalText;
     } finally {
       btn.disabled = false;
@@ -265,8 +266,8 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
 
       const btn = document.createElement("button");
       btn.className = "nutegg-new-egg-btn mod-cta";
-      btn.textContent = "🐣 + New Egg";
-      btn.title = "Create a new egg file and add to index";
+      btn.textContent = `🐣 ${t("newEggButton")}`;
+      btn.title = t("cmdNewEgg");
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -295,8 +296,8 @@ class IndexActionBarWidget extends WidgetType {
 
     const btn = document.createElement("button");
     btn.className = "nutegg-new-egg-btn mod-cta";
-    btn.textContent = "🐣 + New Egg";
-    btn.title = "Create a new egg file and add to index";
+    btn.textContent = `🐣 ${t("newEggButton")}`;
+    btn.title = t("cmdNewEgg");
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
