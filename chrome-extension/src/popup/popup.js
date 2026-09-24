@@ -45,13 +45,26 @@ const mindmapTree = document.getElementById("mindmap-tree");
 const chapterSection = document.getElementById("chapter-section");
 const chapterList = document.getElementById("chapter-list");
 
-// Content Analysis section chips
-const sectionsQuickToggle = document.getElementById("sections-quick-toggle");
-const openSectionSettingsBtn = document.getElementById("open-section-settings-btn");
+// Content Analysis section selectors (Capture state & Re-analysis state)
+const sectionsToggle = document.getElementById("sections-toggle");
+const sectionsChevron = document.getElementById("sections-chevron");
+const sectionsBody = document.getElementById("sections-body");
+const sectionsBadge = document.getElementById("sections-badge");
+
+const reanalyzeSectionsToggle = document.getElementById("reanalyze-sections-toggle");
+const reanalyzeSectionsChevron = document.getElementById("reanalyze-sections-chevron");
+const reanalyzeSectionsBody = document.getElementById("reanalyze-sections-body");
+const reanalyzeSectionsBadge = document.getElementById("reanalyze-sections-badge");
+
 const chipVerdict = document.getElementById("chip-verdict");
 const chipSummary = document.getElementById("chip-summary");
 const chipMindmap = document.getElementById("chip-mindmap");
 const chipChapters = document.getElementById("chip-chapters");
+
+const reanalyzeChipVerdict = document.getElementById("reanalyze-chip-verdict");
+const reanalyzeChipSummary = document.getElementById("reanalyze-chip-summary");
+const reanalyzeChipMindmap = document.getElementById("reanalyze-chip-mindmap");
+const reanalyzeChipChapters = document.getElementById("reanalyze-chip-chapters");
 const customQuestionsSection = document.getElementById("custom-questions-section");
 const customQuestionsList = document.getElementById("custom-questions-list");
 const followupInput = document.getElementById("followup-input");
@@ -208,6 +221,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (changes.enabledSections && changes.enabledSections.newValue) {
         enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...changes.enabledSections.newValue };
         updateSectionChipsUI();
+        if (analysisResult) {
+          showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+        }
+      }
+      if (
+        changes.serverPort ||
+        changes.chromeAiEnabled ||
+        changes.chromeAiApiKey ||
+        changes.chromeAiProvider ||
+        changes.chromeAiModel
+      ) {
+        checkServerStatus();
       }
     }
   });
@@ -568,45 +593,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     tabsExtracting.delete(tabId);
   });
 
-  // Synchronize settings changes from options page in real time
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
-    if (changes.analysisMode) {
-      analysisMode = changes.analysisMode.newValue || "fast";
-    }
-    if (changes.enabledSections) {
-      enabledSections = { ...DEFAULT_SECTIONS, ...(changes.enabledSections.newValue || {}) };
-      updateSectionChipsUI();
-      if (analysisResult) {
-        showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
-      }
-    }
-    if (
-      changes.serverPort ||
-      changes.chromeAiEnabled ||
-      changes.chromeAiApiKey ||
-      changes.chromeAiProvider ||
-      changes.chromeAiModel
-    ) {
-      checkServerStatus();
-    }
-  });
-
   await refreshForCurrentTab();
 });
 
-/** Initialize quick-toggle chips on capture screen */
+/** Initialize expandable section selectors on capture screen & re-analysis screen */
 function initSectionChips() {
   updateSectionChipsUI();
 
-  const chips = [
+  // Accordion toggle listeners
+  sectionsToggle?.addEventListener("click", () => {
+    const isHidden = sectionsBody.classList.toggle("hidden");
+    sectionsChevron.textContent = isHidden ? "▸" : "▾";
+    sectionsToggle.setAttribute("aria-expanded", String(!isHidden));
+  });
+
+  reanalyzeSectionsToggle?.addEventListener("click", () => {
+    const isHidden = reanalyzeSectionsBody.classList.toggle("hidden");
+    reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
+    reanalyzeSectionsToggle.setAttribute("aria-expanded", String(!isHidden));
+  });
+
+  const allChips = [
     { el: chipVerdict, key: "titleVerdict" },
     { el: chipSummary, key: "coreSummary" },
     { el: chipMindmap, key: "mindMap" },
     { el: chipChapters, key: "chapterMap" },
+    { el: reanalyzeChipVerdict, key: "titleVerdict" },
+    { el: reanalyzeChipSummary, key: "coreSummary" },
+    { el: reanalyzeChipMindmap, key: "mindMap" },
+    { el: reanalyzeChipChapters, key: "chapterMap" },
   ];
 
-  chips.forEach(({ el, key }) => {
+  allChips.forEach(({ el, key }) => {
     if (!el) return;
     el.addEventListener("click", async () => {
       const currentVal = enabledSections[key] !== false;
@@ -620,21 +638,26 @@ function initSectionChips() {
       try {
         await chrome.storage?.local?.set?.({ enabledSections: { ...enabledSections } });
       } catch {}
-    });
-  });
 
-  openSectionSettingsBtn?.addEventListener("click", () => {
-    chrome.runtime?.openOptionsPage?.();
+      // If results are currently showing, update sections visibility dynamically
+      if (analysisResult) {
+        showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+      }
+    });
   });
 }
 
-/** Update chip visual states (active vs inactive) */
+/** Update chip visual states (active vs inactive) and active count badges */
 function updateSectionChipsUI() {
   const map = [
     { el: chipVerdict, key: "titleVerdict" },
     { el: chipSummary, key: "coreSummary" },
     { el: chipMindmap, key: "mindMap" },
     { el: chipChapters, key: "chapterMap" },
+    { el: reanalyzeChipVerdict, key: "titleVerdict" },
+    { el: reanalyzeChipSummary, key: "coreSummary" },
+    { el: reanalyzeChipMindmap, key: "mindMap" },
+    { el: reanalyzeChipChapters, key: "chapterMap" },
   ];
   map.forEach(({ el, key }) => {
     if (!el) return;
@@ -647,6 +670,19 @@ function updateSectionChipsUI() {
       el.classList.add("inactive");
     }
   });
+
+  // Calculate active count
+  const total = 4;
+  const activeCount = [
+    enabledSections.titleVerdict !== false,
+    enabledSections.coreSummary !== false,
+    enabledSections.mindMap !== false,
+    enabledSections.chapterMap !== false,
+  ].filter(Boolean).length;
+
+  const badgeText = `${activeCount}/${total}`;
+  if (sectionsBadge) sectionsBadge.textContent = badgeText;
+  if (reanalyzeSectionsBadge) reanalyzeSectionsBadge.textContent = badgeText;
 }
 
 let refreshSeq = 0;
@@ -2438,20 +2474,19 @@ function showResultsState(result, provenance = null) {
   if (!isReanalyzing) {
     resetCollapsibleSections();
   }
-  if (!isReanalyzing && captureHistory.length <= 1) {
-    processedNote.classList.add("hidden");
-  } else {
-    processedNote.classList.remove("hidden");
-    if (captureHistory.length > 1 && !processedMessage.textContent) {
-      const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
-      if (entry) {
-        const when = new Date(entry.capturedAt).toLocaleString();
-        const stateLabel = entry.saved === "saved"
-          ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
-        processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
-      }
+  processedNote.classList.remove("hidden");
+  if (!processedMessage.textContent) {
+    const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
+    if (entry) {
+      const when = new Date(entry.capturedAt).toLocaleString();
+      const stateLabel = entry.saved === "saved"
+        ? "saved" : entry.saved === "skip" ? "collected" : "analyzed";
+      processedMessage.textContent = `Captured ${when} (${stateLabel}) — showing stored result.`;
+    } else {
+      processedMessage.textContent = "Analysis complete — adjust sections below to re-analyze anytime.";
     }
   }
+  updateSectionChipsUI();
   if (!isReanalyzing) {
     updateAnalyzeButtonsState();
     if (historySelect) historySelect.disabled = false;
@@ -3450,6 +3485,7 @@ function showCaptureState() {
   hideMessages();
   updateAnalyzeButtonsState();
   updateCaptureBanners();
+  updateSectionChipsUI();
 }
 
 // --- Confirm (add to knowledge base) ---
