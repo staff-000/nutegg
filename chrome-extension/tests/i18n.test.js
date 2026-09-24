@@ -44,6 +44,59 @@ describe("Chrome Extension i18n", () => {
     initI18n("en");
     const formatted = t("chapterJumpHint", {});
     assert.ok(formatted);
+    assert.strictEqual(t("countMatched", { count: 3 }), "— 3 matched");
+    assert.strictEqual(t("unprocessedParent", { parent: "Tech" }), "🐣 → Unprocessed · suggested under: <strong>Tech</strong>");
+  });
+
+  it("translates all required popup keys across all 10 languages", () => {
+    const supported = ["en", "zh_CN", "es", "ja", "ko", "ar", "fr", "de", "pt", "ru"];
+    const requiredKeys = [
+      "hatchEgg",
+      "hatchEggSelectEgg",
+      "collectNutOnly",
+      "collectNut",
+      "nutCollected",
+      "eggHatched",
+      "alreadyCoveredHeading",
+      "viewCovered",
+      "hideCovered",
+      "badgeCovered",
+      "currentKnowledgeInEgg",
+      "viewTree",
+      "hideTree",
+      "questionsAndAnswers",
+      "askAQuestion",
+      "askQuestionPlaceholder",
+      "verdictWorthReading",
+      "verdictSkipIt",
+      "comparingKnowledge",
+      "reanalyze",
+      "loadAndReanalyze",
+      "countMatched",
+      "noneMatched",
+      "badgeNewEntry",
+      "unprocessedOnly",
+      "unprocessedParent",
+      "newInsightsHeading",
+      "stage1NutSavedNotice",
+      "stage1NoEggsNotice",
+      "stage1NoSelectedNotice",
+      "stage1SelectedNotice",
+      "selectEggWarning",
+      "couldNotRetrieveContent",
+      "atLeastOneSection",
+      "errorHintNoApiKey",
+      "errorHintAuthFailed",
+    ];
+
+    for (const lang of supported) {
+      initI18n(lang);
+      for (const key of requiredKeys) {
+        const val = t(key, { count: 2, parent: "X", reason: "Y", extra: "Z" });
+        assert.ok(val, `Missing or empty translation for key "${key}" in language "${lang}"`);
+        assert.notStrictEqual(val, key, `Untranslated fallback key returned for "${key}" in language "${lang}"`);
+      }
+    }
   });
 });
 

@@ -13,7 +13,7 @@
       <div class="header-top">
         <span class="logo"><img src="../../icons/icon32.png" alt="NutEgg" class="logo-icon"> NutEgg</span>
         <div class="header-actions">
-          <div id="ai-credit-pill" class="ai-credit-pill hidden" title="Current AI provider and remaining credit (click to refresh)">
+          <div id="ai-credit-pill" class="ai-credit-pill hidden" title="Current AI provider and remaining credit (click to refresh)" data-i18n-title="aiCreditTooltip">
             <span class="ai-credit-icon">🪙</span>
             <span id="ai-credit-text" data-i18n="aiCredit">AI Credit</span>
           </div>
@@ -70,7 +70,7 @@
         </div>
       </div>
 
-      <div id="content-preview" class="content-preview">Loading content…</div>
+      <div id="content-preview" class="content-preview" data-i18n="loadingContent">Loading content…</div>
 
       <button id="questions-toggle" class="questions-toggle"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
       <div id="questions-area" class="questions-area hidden">
@@ -84,7 +84,7 @@
         <span id="duplicate-message"></span>
       </div>
 
-      <div id="capture-credit-row" class="capture-credit-row hidden" title="Current AI provider & remaining balance (click to refresh)">
+      <div id="capture-credit-row" class="capture-credit-row hidden" title="Current AI provider & remaining balance (click to refresh)" data-i18n-title="aiCreditTooltip">
         <span class="capture-credit-icon">🪙</span>
         <span id="capture-credit-text" data-i18n="aiCredit">AI Credit</span>
       </div>
@@ -117,7 +117,7 @@
 
       <!-- Expandable Sections Selector -->
       <div class="sections-accordion" id="sections-accordion">
-        <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" title="Click to customize analysis sections">
+        <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" title="Click to customize analysis sections" data-i18n-title="customizeSectionsTooltip">
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon">🎯</span>
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
@@ -127,19 +127,19 @@
         </button>
         <div class="sections-body hidden" id="sections-body">
           <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
-            <button type="button" class="section-chip active" id="chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict">
+            <button type="button" class="section-chip active" id="chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict" data-i18n-title="toggleVerdictTooltip">
               <span class="chip-icon">🎯</span>
               <span class="chip-label" data-i18n="chipVerdict">Verdict</span>
             </button>
-            <button type="button" class="section-chip active" id="chip-summary" data-section="coreSummary" title="Toggle Core Summary">
+            <button type="button" class="section-chip active" id="chip-summary" data-section="coreSummary" title="Toggle Core Summary" data-i18n-title="toggleSummaryTooltip">
               <span class="chip-icon">📌</span>
               <span class="chip-label" data-i18n="chipSummary">Summary</span>
             </button>
-            <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" title="Toggle Mind Map">
+            <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
               <span class="chip-icon">🧠</span>
               <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
             </button>
-            <button type="button" class="section-chip active" id="chip-chapters" data-section="chapterMap" title="Toggle Chapter Map">
+            <button type="button" class="section-chip active" id="chip-chapters" data-section="chapterMap" title="Toggle Chapter Map" data-i18n-title="toggleChaptersTooltip">
               <span class="chip-icon">⏱️</span>
               <span class="chip-label" data-i18n="chipChapters">Chapters</span>
             </button>
@@ -177,7 +177,7 @@
           </div>
           <!-- Re-analysis Section Selector (expandable) -->
           <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
-            <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections">
+            <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections" data-i18n-title="customizeReanalyzeSectionsTooltip">
               <div class="sections-toggle-left">
                 <span class="sections-toggle-icon">🎯</span>
                 <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
@@ -187,19 +187,19 @@
             </button>
             <div class="sections-body hidden" id="reanalyze-sections-body">
               <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
-                <button type="button" class="section-chip active" id="reanalyze-chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict">
+                <button type="button" class="section-chip active" id="reanalyze-chip-verdict" data-section="titleVerdict" title="Toggle Title Verdict" data-i18n-title="toggleVerdictTooltip">
                   <span class="chip-icon">🎯</span>
                   <span class="chip-label" data-i18n="chipVerdict">Verdict</span>
                 </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-summary" data-section="coreSummary" title="Toggle Core Summary">
+                <button type="button" class="section-chip active" id="reanalyze-chip-summary" data-section="coreSummary" title="Toggle Core Summary" data-i18n-title="toggleSummaryTooltip">
                   <span class="chip-icon">📌</span>
                   <span class="chip-label" data-i18n="chipSummary">Summary</span>
                 </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map">
+                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
                   <span class="chip-icon">🧠</span>
                   <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
                 </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-chapters" data-section="chapterMap" title="Toggle Chapter Map">
+                <button type="button" class="section-chip active" id="reanalyze-chip-chapters" data-section="chapterMap" title="Toggle Chapter Map" data-i18n-title="toggleChaptersTooltip">
                   <span class="chip-icon">⏱️</span>
                   <span class="chip-label" data-i18n="chipChapters">Chapters</span>
                 </button>
@@ -355,18 +355,18 @@
     </div>
 
     <div id="metrics-bar" class="metrics-bar">
-      <span class="metric" title="Nuts collected"><span data-i18n="metricNuts">Collected 🌰</span> <strong id="metric-nuts">0</strong></span>
-      <span class="metric" title="Eggs created"><span data-i18n="metricEggs">Hatched 🥚</span> <strong id="metric-eggs">0</strong></span>
-      <span class="metric" title="Time saved"><span data-i18n="metricTime">Saved ⏱️</span> <strong id="metric-time">0m</strong></span>
+      <span class="metric" title="Nuts collected" data-i18n-title="metricNutsTooltip"><span data-i18n="metricNuts">Collected 🌰</span> <strong id="metric-nuts">0</strong></span>
+      <span class="metric" title="Eggs created" data-i18n-title="metricEggsTooltip"><span data-i18n="metricEggs">Hatched 🥚</span> <strong id="metric-eggs">0</strong></span>
+      <span class="metric" title="Time saved" data-i18n-title="metricTimeTooltip"><span data-i18n="metricTime">Saved ⏱️</span> <strong id="metric-time">0m</strong></span>
     </div>
 
     <footer class="footer">
       <small id="version-tag">NutEgg 0.0.0</small>
       <div class="footer-links">
-        <a href="#" class="footer-link" id="report-bug-link" title="Report a Bug on GitHub">
+        <a href="#" class="footer-link" id="report-bug-link" title="Report a Bug on GitHub" data-i18n-title="reportBugTooltip">
           <span data-i18n="reportBug">🐛 Report Bug</span>
         </a>
-        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="footer-link hidden" id="obsidian-plugin-link" title="Get NutEgg Obsidian Plugin">
+        <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="footer-link hidden" id="obsidian-plugin-link" title="Get NutEgg Obsidian Plugin" data-i18n-title="getObsidianPluginTooltip">
           <span data-i18n="getObsidianPlugin">Get Obsidian Plugin</span> ↗
         </a>
       </div>

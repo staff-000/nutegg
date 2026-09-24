@@ -5,6 +5,8 @@ const {
   checkCreditAI,
 } = window.NutEggAI || {};
 
+const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
+
 const DEFAULT_PORT = 27123;
 
 // Server connection elements
@@ -113,7 +115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     modeSelect.addEventListener("change", async () => {
       updateModeDesc(modeSelect.value);
       await chrome.storage.local.set({ analysisMode: modeSelect.value });
-      showResult("Workflow mode updated.", "ok");
+      showResult(t("workflowModeUpdated"), "ok");
       setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
     });
   }
@@ -180,16 +182,16 @@ async function checkObsidianForAiBanner(port) {
     clearTimeout(timeout);
     if (resp.ok) {
       aiStatusBanner.className = "ai-status-banner obsidian-online";
-      aiStatusBanner.innerHTML = "🟢 <strong>Obsidian is currently connected.</strong> NutEgg uses Obsidian's AI configuration and vault knowledge tree by default." + (isEnabled ? " The settings below will act as your fallback when Obsidian is closed." : "");
+      aiStatusBanner.innerHTML = t("aiBannerConnected") + (isEnabled ? t("aiBannerConnectedFallback") : "");
       return;
     }
   } catch {}
 
   aiStatusBanner.className = "ai-status-banner obsidian-offline";
   if (isEnabled) {
-    aiStatusBanner.innerHTML = "🟠 <strong>Obsidian is currently offline.</strong> NutEgg will run in standalone mode using the AI configuration below for fast content verdicts and summaries.";
+    aiStatusBanner.innerHTML = t("aiBannerOfflineStandalone");
   } else {
-    aiStatusBanner.innerHTML = "⚪ <strong>Obsidian is currently offline.</strong> Standalone Chrome AI is turned off. Start Obsidian to capture, or enable the option below.";
+    aiStatusBanner.innerHTML = t("aiBannerOfflineDisabled");
   }
 }
 
@@ -277,10 +279,10 @@ function initAiSettings(stored) {
   aiKeyToggle.addEventListener("click", () => {
     if (aiKeyInput.type === "password") {
       aiKeyInput.type = "text";
-      aiKeyToggle.textContent = "Hide";
+      aiKeyToggle.textContent = t("hideKeyBtn");
     } else {
       aiKeyInput.type = "password";
-      aiKeyToggle.textContent = "Show";
+      aiKeyToggle.textContent = t("showKeyBtn");
     }
   });
 
@@ -305,7 +307,7 @@ function initAiSettings(stored) {
         delete savedPromptOverrides[activePromptKey];
         loadPromptIntoTextarea(activePromptKey);
         chrome.storage.local.set({ chromeAiPromptOverrides: savedPromptOverrides });
-        showAiResult(`Reset ${activePromptKey} prompt to default.`, "ok");
+        showAiResult(t("resetPromptDefault", { key: activePromptKey }), "ok");
         setTimeout(() => {
           aiTestResult.classList.add("hidden");
         }, 2000);
@@ -358,7 +360,7 @@ function updateModelOptions(providerId, savedModel) {
   // Custom option
   const customOpt = document.createElement("option");
   customOpt.value = "__custom__";
-  customOpt.textContent = "Custom model tag...";
+  customOpt.textContent = t("customModelTag");
   aiModelSelect.appendChild(customOpt);
 
   if (models.includes(activeModel)) {
@@ -387,9 +389,9 @@ function updateProviderHints(providerId) {
 
   if (aiKeyHint) {
     if (providerId === "local") {
-      aiKeyHint.textContent = "Optional for local LLMs (Ollama, LM Studio). Leave blank if auth is disabled.";
+      aiKeyHint.textContent = t("aiKeyHintLocal");
     } else {
-      aiKeyHint.textContent = `Enter your ${provider.label} API key. Stored locally in your browser.`;
+      aiKeyHint.textContent = t("aiKeyHintProvider", { provider: provider.label });
     }
   }
 
@@ -419,14 +421,14 @@ async function handleAiSave() {
     chromeAiPromptOverrides: savedPromptOverrides,
   });
 
-  showAiResult("AI Settings saved successfully.", "ok");
+  showAiResult(t("aiSettingsSaved"), "ok");
   setTimeout(() => {
     aiTestResult.classList.add("hidden");
   }, 3000);
 }
 
 async function handleAiTest() {
-  aiTestResult.textContent = "Testing AI connection...";
+  aiTestResult.textContent = t("testingAiConnection");
   aiTestResult.className = "test-result";
   aiTestResult.classList.remove("hidden");
 
@@ -448,14 +450,14 @@ async function handleAiTest() {
   try {
     const info = await checkCreditAI(tempSettings);
     if (info.error) {
-      showAiResult(`❌ Connection failed: ${info.error} (${info.statusText})`, "error");
+      showAiResult(t("aiConnectionFailed", { error: info.error, status: info.statusText }), "error");
     } else if (info.hasBalance) {
-      showAiResult(`✅ Connected: ${info.providerLabel} · Balance: ${info.balanceFormatted}`, "ok");
+      showAiResult(t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted }), "ok");
     } else {
-      showAiResult(`✅ Connected: ${info.providerLabel} · Status: ${info.statusText}`, "ok");
+      showAiResult(t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText }), "ok");
     }
   } catch (err) {
-    showAiResult(`❌ AI Error: ${err.message}`, "error");
+    showAiResult(t("aiError", { error: err.message }), "error");
   }
 }
 
@@ -469,7 +471,7 @@ function showAiResult(msg, type) {
 async function handleSave() {
   const port = parseInt(portInput.value, 10);
   if (!port || port < 1 || port > 65535) {
-    showResult("Invalid port number.", "error");
+    showResult(t("invalidPortNumber"), "error");
     return;
   }
 
@@ -477,7 +479,7 @@ async function handleSave() {
   await chrome.storage.local.set({ serverPort: port, analysisMode: mode });
   // Notify background
   await chrome.runtime.sendMessage({ action: "set-port", port });
-  showResult("Saved.", "ok");
+  showResult(t("serverPortSaved"), "ok");
   setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
   checkObsidianForAiBanner(port);
 }
@@ -485,11 +487,11 @@ async function handleSave() {
 async function handleTest() {
   const port = parseInt(portInput.value, 10);
   if (!port || port < 1 || port > 65535) {
-    showResult("Invalid port.", "error");
+    showResult(t("invalidPortNumber"), "error");
     return;
   }
 
-  testResult.textContent = "Testing...";
+  testResult.textContent = t("testingServer");
   testResult.className = "test-result";
   testResult.classList.remove("hidden");
 
@@ -507,7 +509,7 @@ async function handleTest() {
       const extVersion = chrome.runtime?.getManifest?.()?.version;
       let versionWarn = "";
       if (health.version && extVersion && health.version !== extVersion) {
-        versionWarn = ` ⚠️ Version mismatch: Plugin is v${health.version}, Extension is v${extVersion}.`;
+        versionWarn = t("versionMismatchShort", { pluginVersion: health.version, extVersion });
       }
       let creditInfo = "";
       try {
@@ -522,14 +524,14 @@ async function handleTest() {
           }
         }
       } catch {}
-      showResult(`✅ Connected successfully.${versionWarn}${creditInfo}`, versionWarn ? "warning" : "ok");
+      showResult(`${t("connectedSuccessfully")}${versionWarn}${creditInfo}`, versionWarn ? "warning" : "ok");
       checkObsidianForAiBanner(port);
     } else {
-      showResult("❌ Server responded with error.", "error");
+      showResult(t("serverErrorResponse"), "error");
     }
   } catch {
     clearTimeout(timeout);
-    showResult(`❌ Cannot reach server on port ${port}. Start Obsidian with NutEgg.`, "error");
+    showResult(t("cannotReachServer", { port }), "error");
     checkObsidianForAiBanner(port);
   }
 }
@@ -562,7 +564,7 @@ function initSectionsSettings(savedSections) {
     cb.addEventListener("change", () => {
       if (getActiveCount() === 0) {
         cb.checked = true;
-        showSectionStatus("At least one section must remain enabled.", "error");
+        showSectionStatus(t("atLeastOneSection"), "error");
         setTimeout(() => {
           sectionsStatus?.classList.add("hidden");
         }, 2500);
@@ -572,7 +574,7 @@ function initSectionsSettings(savedSections) {
 
   sectionsSaveBtn?.addEventListener("click", async () => {
     if (getActiveCount() === 0) {
-      showSectionStatus("At least one section must remain enabled.", "error");
+      showSectionStatus(t("atLeastOneSection"), "error");
       return;
     }
     const newConfig = {
@@ -582,7 +584,7 @@ function initSectionsSettings(savedSections) {
       chapterMap: sectionChapters ? sectionChapters.checked : true,
     };
     await chrome.storage.local.set({ enabledSections: newConfig });
-    showSectionStatus("Section preferences saved.", "ok");
+    showSectionStatus(t("sectionPreferencesSaved"), "ok");
     setTimeout(() => {
       sectionsStatus?.classList.add("hidden");
     }, 2500);

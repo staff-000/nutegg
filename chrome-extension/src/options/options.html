@@ -165,7 +165,7 @@
     <section class="option-group hidden" id="ai-config-section">
       <h2 data-i18n="aiConfigSection">AI Configuration (Standalone Mode)</h2>
       
-      <div id="ai-status-banner" class="ai-status-banner obsidian-offline">
+      <div id="ai-status-banner" class="ai-status-banner obsidian-offline" data-i18n="checkingObsidianStatus">
         Checking Obsidian status...
       </div>
 
@@ -181,7 +181,7 @@
         <label for="ai-model-select" data-i18n="aiModelLabel">2. Model</label>
         <div class="ai-input-group">
           <select id="ai-model-select"></select>
-          <input id="ai-model-custom" type="text" placeholder="Custom model tag" style="display: none;">
+          <input id="ai-model-custom" type="text" placeholder="Custom model tag" data-i18n-placeholder="customModelTag" style="display: none;">
         </div>
       </div>
 
@@ -196,7 +196,7 @@
         <label for="ai-key-input" data-i18n="aiKeyLabel">3. API Key</label>
         <div class="ai-input-group">
           <input id="ai-key-input" type="password" placeholder="sk-...">
-          <button id="ai-key-toggle" type="button" class="toggle-key-btn">Show</button>
+          <button id="ai-key-toggle" type="button" class="toggle-key-btn" data-i18n="showKeyBtn">Show</button>
         </div>
         <p class="hint" id="ai-key-hint" data-i18n="aiKeyHint">API keys are stored securely in Chrome local storage and sent only to the provider endpoint.</p>
       </div>
@@ -208,9 +208,9 @@
         </div>
         <div class="ai-input-group">
           <select id="ai-prompt-select">
-            <option value="contentAnalysis">Content Analysis (Stage 1 Summary & Chapter Map)</option>
-            <option value="contentTaskDefault">Default Content Task Instructions</option>
-            <option value="followUp">Follow-up Q&A</option>
+            <option value="contentAnalysis" data-i18n="promptOptContentAnalysis">Content Analysis (Stage 1 Summary & Chapter Map)</option>
+            <option value="contentTaskDefault" data-i18n="promptOptContentTask">Default Content Task Instructions</option>
+            <option value="followUp" data-i18n="promptOptFollowUp">Follow-up Q&A</option>
           </select>
         </div>
         <textarea id="ai-prompt-textarea" rows="12" spellcheck="false" class="prompt-textarea"></textarea>
@@ -226,8 +226,8 @@
       </div>
 
       <div class="obsidian-pitch-box">
-        <strong>💡 Want full knowledge curation?</strong><br>
-        Chrome standalone mode provides fast reading verdicts and summaries. Connecting NutEgg with the <strong>Obsidian companion plugin</strong> unlocks automated knowledge tree matching, delta tracking across reading sessions, and direct vault note saving.
+        <strong data-i18n="obsidianPitchTitle">💡 Want full knowledge curation?</strong><br>
+        <span data-i18n-html="obsidianPitchDesc">Chrome standalone mode provides fast reading verdicts and summaries. Connecting NutEgg with the <strong>Obsidian companion plugin</strong> unlocks automated knowledge tree matching, delta tracking across reading sessions, and direct vault note saving.</span>
       </div>
     </section>
 
