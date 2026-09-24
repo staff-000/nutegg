@@ -19,3 +19,9 @@ export class TFile extends TAbstractFile {
   basename: string = "";
   extension: string = "";
 }
+export function getLanguage(): string {
+  return "en";
+}
+export const moment = {
+  locale: () => "en",
+};

@@ -8,6 +8,7 @@ import { fr } from "./fr";
 import { de } from "./de";
 import { pt } from "./pt";
 import { ru } from "./ru";
+import { getLanguage as getObsidianLanguage, moment } from "obsidian";
 
 export type { TranslationKey };
 
@@ -29,7 +30,46 @@ const translations: Record<string, Record<TranslationKey, string>> = {
  */
 export function getLanguage(): string {
   try {
-    const lang = (window?.localStorage?.getItem("language") || navigator?.language || "en").toLowerCase();
+    let raw: string | undefined;
+
+    // 1. Official Obsidian API: getLanguage() (available since Obsidian v1.8.7)
+    try {
+      if (typeof getObsidianLanguage === "function") {
+        raw = getObsidianLanguage();
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Obsidian's persistent app language in localStorage (used in all Obsidian versions)
+    if (!raw && typeof window !== "undefined" && window?.localStorage) {
+      raw = window.localStorage.getItem("language") || undefined;
+    }
+
+    // 3. Obsidian's bundled Moment.js locale (set to the active language by Obsidian)
+    if (!raw) {
+      try {
+        if (typeof moment?.locale === "function") {
+          raw = moment.locale();
+        } else if (typeof (window as any)?.moment?.locale === "function") {
+          raw = (window as any).moment.locale();
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. HTML document element lang
+    if (!raw && typeof document !== "undefined" && document.documentElement?.lang) {
+      raw = document.documentElement.lang;
+    }
+
+    // 5. System/browser fallback
+    if (!raw && typeof navigator !== "undefined" && navigator?.language) {
+      raw = navigator.language;
+    }
+
+    const lang = (raw || "en").toLowerCase();
     if (lang.startsWith("zh")) return "zh";
     if (lang.startsWith("es")) return "es";
     if (lang.startsWith("ja")) return "ja";

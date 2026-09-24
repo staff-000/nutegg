@@ -1234,6 +1234,14 @@ var ru = {
   "unprocessedBadge": "{count} \u043D\u0435\u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E"
 };
 
+// tests/obsidian-stub.ts
+function getLanguage() {
+  return "en";
+}
+var moment = {
+  locale: () => "en"
+};
+
 // src/i18n/index.ts
 var translations = {
   en,
@@ -1247,9 +1255,35 @@ var translations = {
   pt,
   ru
 };
-function getLanguage() {
+function getLanguage2() {
   try {
-    const lang = (window?.localStorage?.getItem("language") || navigator?.language || "en").toLowerCase();
+    let raw;
+    try {
+      if (typeof getLanguage === "function") {
+        raw = getLanguage();
+      }
+    } catch {
+    }
+    if (!raw && typeof window !== "undefined" && window?.localStorage) {
+      raw = window.localStorage.getItem("language") || void 0;
+    }
+    if (!raw) {
+      try {
+        if (typeof moment?.locale === "function") {
+          raw = moment.locale();
+        } else if (typeof window?.moment?.locale === "function") {
+          raw = window.moment.locale();
+        }
+      } catch {
+      }
+    }
+    if (!raw && typeof document !== "undefined" && document.documentElement?.lang) {
+      raw = document.documentElement.lang;
+    }
+    if (!raw && typeof navigator !== "undefined" && navigator?.language) {
+      raw = navigator.language;
+    }
+    const lang = (raw || "en").toLowerCase();
     if (lang.startsWith("zh"))
       return "zh";
     if (lang.startsWith("es"))
@@ -1273,7 +1307,7 @@ function getLanguage() {
   return "en";
 }
 function t(key, params) {
-  const lang = getLanguage();
+  const lang = getLanguage2();
   const dict = translations[lang] || translations.en;
   let str = dict[key] || translations.en[key] || key;
   if (params) {
