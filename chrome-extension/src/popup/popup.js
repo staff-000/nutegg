@@ -485,9 +485,8 @@ async function initPopup() {
 
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
-  function saveActiveTabState(tabId) {
-    if (!tabId) return;
-    tabStateManager.saveActiveTabState(tabId, {
+  function getActiveTabSnapshot() {
+    return {
       extractedContent,
       analysisResult,
       captureHistory,
@@ -502,21 +501,25 @@ async function initPopup() {
       preSelectedEggs,
       customQuestions: customQuestionsEl?.value || "",
       activeEggTab,
-    });
+      analysisMode,
+    };
+  }
+
+  // The side panel persists across tabs — refresh content when the user
+  // switches to another tab or the active tab navigates to a new URL.
+  function saveActiveTabState(tabId) {
+    if (!tabId) return;
+    tabStateManager.saveActiveTabState(tabId, getActiveTabSnapshot());
   }
 
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-    if (activeTabId && activeTabId !== tabId) {
-      saveActiveTabState(activeTabId);
-    }
+    const { targetState } = tabStateManager.switchActiveTab(tabId, getActiveTabSnapshot());
     activeTabId = tabId;
-    // Check if we have cached results for this tab
-    const cached = tabResultCache.get(tabId);
-    if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
-      restoreFromTabCache(tabId, cached);
-    } else if (tabsExtracting.has(tabId)) {
+    if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
+      restoreFromTabCache(tabId, targetState);
+    } else if (tabStateManager.isExtracting(tabId)) {
       // Tab is currently retrieving in the background — show retrieving state and let it finish
       contentPreview.textContent = t("retrievingPageContent");
       pageAuthorEl.textContent = "";
@@ -537,14 +540,11 @@ async function initPopup() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id != null && tab.id !== activeTabId) {
-        if (activeTabId) {
-          saveActiveTabState(activeTabId);
-        }
+        const { targetState } = tabStateManager.switchActiveTab(tab.id, getActiveTabSnapshot());
         activeTabId = tab.id;
-        const cached = tabResultCache.get(tab.id);
-        if (cached && (cached.analysisResult || cached.status === "analyzing" || cached.status === "hatching" || cached.extractedContent)) {
-          restoreFromTabCache(tab.id, cached);
-        } else if (tabsExtracting.has(tab.id)) {
+        if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
+          restoreFromTabCache(tab.id, targetState);
+        } else if (tabStateManager.isExtracting(tab.id)) {
           contentPreview.textContent = t("retrievingPageContent");
           pageAuthorEl.textContent = "";
           pagePublishedEl.textContent = "";
@@ -596,13 +596,8 @@ async function initPopup() {
         } else {
           updateAnalyzeButtonsState();
         }
-      } else {
-        // Background tab finished loading — extract in background if not already cached
-        const bgCached = tabResultCache.get(tabId);
-        if (!bgCached?.extractedContent && !bgCached?.analysisResult && !bgCached?.status && !tabsExtracting.has(tabId)) {
-          extractPageContent(refreshSeq, tabId);
-        }
       }
+      // Note: Do NOT auto-extract for unvisited background tabs to prevent race conditions and port exhaustion
       return;
     }
   });
@@ -749,12 +744,15 @@ async function refreshForCurrentTab(forceExtract = false) {
   showCaptureState();
 
   let tabUrl = "";
+  let targetTabId = activeTabId;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id != null) {
       activeTabId = tab.id;
+      targetTabId = tab.id;
+      tabStateManager.setActiveTabId(tab.id);
       if (forceExtract) {
-        tabResultCache.delete(tab.id);
+        tabStateManager.invalidateTab(tab.id);
       }
     }
     if (tab?.status === "loading") currentTabLoading = true;
@@ -795,7 +793,7 @@ async function refreshForCurrentTab(forceExtract = false) {
 
   // Not captured before (or force-refresh requested) — show capture state and retrieve content
   showCaptureState();
-  await extractPageContent(seq);
+  await extractPageContent(seq, targetTabId || activeTabId);
   if (seq !== refreshSeq) return;
 
   if (serverOnline) {
@@ -836,6 +834,10 @@ async function restoreFromTabCache(tabId, cached) {
   if (followupInput) followupInput.value = "";
   currentTabLoading = false;
 
+  if (restored.analysisMode && typeof setAnalysisMode === "function") {
+    setAnalysisMode(restored.analysisMode);
+  }
+
   // Update header and capture preview so capture state is ready if user switches back
   pageTitle.textContent = extractedContent?.title || "Untitled";
   pageUrl.textContent = extractedContent?.url || "";
@@ -843,7 +845,18 @@ async function restoreFromTabCache(tabId, cached) {
   contentPreview.textContent = extractedContent?.content || t("noContentExtracted");
   showProvenance(extractedContent?.metadata || {});
 
-  if (cached.status === "analyzing") {
+  if (cached.status === "error" || cached.error) {
+    if (analysisResult) {
+      showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+    } else {
+      showCaptureState();
+      if (extractedContent) {
+        contentPreview.textContent = extractedContent.content || t("noContentExtracted");
+      }
+    }
+    showError(cached.error, cached.errorCode);
+    updateAnalyzeButtonsState();
+  } else if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
@@ -879,6 +892,12 @@ async function restoreFromTabCache(tabId, cached) {
     if (historySelect) historySelect.disabled = true;
     analyzeBtn.disabled = true;
     analyzeBtnText.textContent = t("analyzing");
+    if (analysisMode === "fast") {
+      if (verdictSection) verdictSection.classList.remove("hidden");
+      if (verdictBadge) verdictBadge.className = "verdict-badge";
+      if (verdictIcon) verdictIcon.textContent = "⏳";
+      if (verdictText) verdictText.textContent = t("comparingKnowledge");
+    }
   } else if (analysisResult) {
     eggHatched = !!cached.eggHatched;
     nutCollected = !!cached.nutCollected;
@@ -886,6 +905,11 @@ async function restoreFromTabCache(tabId, cached) {
     updateAnalyzeButtonsState();
     if (historySelect) historySelect.disabled = false;
     updateActionButtons();
+    if (analysisResult.stage === "stage1" && analysisMode === "confirm") {
+      if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
+      if (verdictSection) verdictSection.classList.add("hidden");
+      updateStage1ProceedBtn();
+    }
     if (captureHistory.length > 0) {
       const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
       const when = new Date(entry.capturedAt).toLocaleString();
@@ -1201,11 +1225,7 @@ async function handleProceedStage2(
     const response = await sendAnalyzeViaPort(payload);
     if (response?.error) {
       if (targetPinnedId) {
-        const existing = tabResultCache.get(targetPinnedId) || {};
-        tabResultCache.set(targetPinnedId, {
-          ...existing,
-          status: "done",
-        });
+        tabStateManager.setError(targetPinnedId, response.error, response.errorCode);
       }
       if (activeTabId === targetPinnedId) {
         showError(response.error, response.errorCode);
@@ -1325,12 +1345,9 @@ async function handleProceedStage2(
       }, 100);
     }
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : t("hatchingFailed");
     if (targetPinnedId) {
-      const existing = tabResultCache.get(targetPinnedId) || {};
-      tabResultCache.set(targetPinnedId, {
-        ...existing,
-        status: "done",
-      });
+      tabStateManager.setError(targetPinnedId, errorMsg);
     }
     if (activeTabId === targetPinnedId) {
       showError(err instanceof Error ? err.message : t("hatchingFailed"));
@@ -1798,6 +1815,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       return null; // Tab closed
     }
   } else {
+    const currentActiveId = activeTabId;
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) {
@@ -1807,6 +1825,9 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
         tabStatus = tab.status;
       }
     } catch {
+      return null;
+    }
+    if (currentActiveId && tabId !== currentActiveId) {
       return null;
     }
   }
@@ -2272,7 +2293,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     const response = await sendAnalyzeViaPort(payload);
 
     if (response?.error) {
-      tabResultCache.delete(pinnedTabId);
+      tabStateManager.setError(pinnedTabId, response.error, response.errorCode);
       if (activeTabId === pinnedTabId) {
         showError(response.error, response.errorCode);
       }
@@ -2374,7 +2395,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         delete response.newKnowledge;
       }
       const stage1NutId = response.nutId || null;
-      if (stage1NutId) {
+      if (activeTabId === pinnedTabId && stage1NutId) {
         currentNutId = stage1NutId;
       }
       let freshHistory = null;
@@ -2442,14 +2463,14 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return null;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
-    tabResultCache.delete(pinnedTabId);
+    tabStateManager.setError(pinnedTabId, message);
     if (activeTabId === pinnedTabId) {
       showError(message);
     }
     return message;
   } finally {
-    isReanalyzing = false;
     if (activeTabId === pinnedTabId) {
+      isReanalyzing = false;
       if (historySelect) historySelect.disabled = false;
       const activeCache = tabResultCache.get(activeTabId);
       if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {

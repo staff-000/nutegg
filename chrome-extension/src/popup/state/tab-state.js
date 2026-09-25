@@ -98,7 +98,7 @@ class TabStateManager {
     }
   }
 
-  // --- Tab Status ---
+  // --- Tab Status & Errors ---
 
   getStatus(tabId) {
     return this.cache.get(tabId)?.status || null;
@@ -110,6 +110,34 @@ class TabStateManager {
     this.cache.set(tabId, { ...existing, ...extra, status });
   }
 
+  setError(tabId, error, errorCode = null) {
+    if (!tabId) return;
+    const existing = this.cache.get(tabId) || {};
+    this.cache.set(tabId, {
+      ...existing,
+      status: "error",
+      error: typeof error === "string" ? error : (error?.message || "Unknown error"),
+      errorCode: errorCode || error?.code || null,
+    });
+  }
+
+  clearError(tabId) {
+    if (!tabId) return;
+    const existing = this.cache.get(tabId);
+    if (existing) {
+      delete existing.error;
+      delete existing.errorCode;
+      if (existing.status === "error") {
+        existing.status = existing.analysisResult ? "done" : "idle";
+      }
+    }
+  }
+
+  getError(tabId) {
+    const entry = this.cache.get(tabId);
+    return entry?.error ? { message: entry.error, code: entry.errorCode } : null;
+  }
+
   isAnalyzing(tabId) {
     const status = this.getStatus(tabId);
     return status === "analyzing" || status === "hatching";
@@ -119,27 +147,44 @@ class TabStateManager {
 
   /**
    * Save the active session state into the tab cache.
-   * Handles converting Sets (selectedEggs, preSelectedEggs) to arrays.
+   * Performs smart non-destructive merging so transient null/empty values
+   * during loading or tab switching do not wipe out valid cached analysis.
    */
   saveActiveTabState(tabId, state = {}) {
     if (!tabId) return null;
     const prev = this.cache.get(tabId) || {};
+
+    // Smart non-destructive preservation for critical fields
+    const extractedContent = state.extractedContent != null ? state.extractedContent : prev.extractedContent;
+    const analysisResult = state.analysisResult != null ? state.analysisResult : prev.analysisResult;
+    const stage1Payload = state.stage1Payload != null ? state.stage1Payload : prev.stage1Payload;
+    const stage1ContentAnalysis = state.stage1ContentAnalysis != null ? state.stage1ContentAnalysis : prev.stage1ContentAnalysis;
+    const currentNutId = state.currentNutId != null ? state.currentNutId : prev.currentNutId;
+    const status = state.status || prev.status || (analysisResult ? "done" : (extractedContent ? "idle" : null));
+
     const entry = {
       ...prev,
       ...state,
+      extractedContent,
+      analysisResult,
+      stage1Payload,
+      stage1ContentAnalysis,
+      currentNutId,
+      status,
       selectedEggs: state.selectedEggs instanceof Set
         ? Array.from(state.selectedEggs)
         : (state.selectedEggs || prev.selectedEggs || []),
       preSelectedEggs: state.preSelectedEggs instanceof Set
         ? Array.from(state.preSelectedEggs)
         : (state.preSelectedEggs || prev.preSelectedEggs || []),
-      captureHistory: state.captureHistory
+      captureHistory: Array.isArray(state.captureHistory) && state.captureHistory.length > 0
         ? [...state.captureHistory]
         : (prev.captureHistory || []),
       followUpQa: state.followUpQa
         ? [...state.followUpQa]
         : (prev.followUpQa || []),
     };
+
     this.cache.set(tabId, entry);
     return entry;
   }
@@ -157,6 +202,23 @@ class TabStateManager {
       preSelectedEggs: new Set(cached.preSelectedEggs || []),
       captureHistory: cached.captureHistory ? [...cached.captureHistory] : [],
       followUpQa: cached.followUpQa ? [...cached.followUpQa] : [],
+    };
+  }
+
+  /**
+   * Atomically snapshot the departing tab and switch activeTabId to newTabId.
+   * Returns { fromTabId, toTabId, targetState }.
+   */
+  switchActiveTab(toTabId, departingState = null) {
+    const fromTabId = this.activeTabId;
+    if (fromTabId && fromTabId !== toTabId && departingState) {
+      this.saveActiveTabState(fromTabId, departingState);
+    }
+    this.setActiveTabId(toTabId);
+    return {
+      fromTabId,
+      toTabId,
+      targetState: toTabId ? this.restoreTabState(toTabId) : null,
     };
   }
 

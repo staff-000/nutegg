@@ -138,3 +138,66 @@ test("TabStateManager - invalidateTab clears cache, sequence, and extracting fla
   assert.equal(manager.isExtracting(77), false);
 });
 
+test("TabStateManager - non-destructive saving preserves existing analysis when transient state is saved", () => {
+  const manager = new TabStateManager();
+
+  // Initial full analysis state
+  manager.saveActiveTabState(10, {
+    extractedContent: { title: "NutEgg Paper", content: "Content here" },
+    analysisResult: { titleVerdict: "Good read", stage: "stage1" },
+    currentNutId: 42,
+    captureHistory: [{ nutId: 42 }],
+  });
+
+  // Now simulate a fast tab switch where transient globals are null during loading
+  manager.saveActiveTabState(10, {
+    extractedContent: null,
+    analysisResult: null,
+    currentNutId: null,
+    captureHistory: [],
+  });
+
+  const restored = manager.restoreTabState(10);
+  // Must preserve previously cached analysis & content!
+  assert.equal(restored.extractedContent?.title, "NutEgg Paper");
+  assert.equal(restored.analysisResult?.titleVerdict, "Good read");
+  assert.equal(restored.currentNutId, 42);
+  assert.equal(restored.captureHistory.length, 1);
+});
+
+test("TabStateManager - error tracking (setError, getError, clearError)", () => {
+  const manager = new TabStateManager();
+
+  manager.setError(20, "Connection closed before response received", "ERR_CLOSED");
+  assert.equal(manager.getStatus(20), "error");
+  const err = manager.getError(20);
+  assert.equal(err?.message, "Connection closed before response received");
+  assert.equal(err?.code, "ERR_CLOSED");
+
+  manager.clearError(20);
+  assert.equal(manager.getError(20), null);
+  assert.equal(manager.getStatus(20), "idle");
+});
+
+test("TabStateManager - atomic tab switching (switchActiveTab)", () => {
+  const manager = new TabStateManager();
+  manager.setActiveTabId(1);
+
+  // Tab 1 state to save on departing
+  const departingState = {
+    extractedContent: { title: "Tab 1 Title" },
+    analysisResult: { stage: "stage1" },
+  };
+
+  // Switch to Tab 2
+  const res = manager.switchActiveTab(2, departingState);
+  assert.equal(res.fromTabId, 1);
+  assert.equal(res.toTabId, 2);
+  assert.equal(manager.getActiveTabId(), 2);
+
+  // Check Tab 1 was safely saved
+  const tab1 = manager.restoreTabState(1);
+  assert.equal(tab1.extractedContent.title, "Tab 1 Title");
+});
+
+
