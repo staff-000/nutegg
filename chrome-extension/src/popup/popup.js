@@ -643,7 +643,7 @@ async function restoreFromTabCache(tabId, cached) {
     updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
     updateActionButtons();
-    if (session.analysisResult.stage === "stage1" && settings.analysisMode === "confirm") {
+    if (session.isStage1() && settings.analysisMode === "confirm") {
       actionsUI.showStage1Confirm();
       verdictUI.hide();
       updateStage1ProceedBtn();
@@ -817,7 +817,7 @@ function setAnalysisMode(mode) {
   settings.setAnalysisMode(mode);
   actionsUI.setMode(mode);
 
-  if (session.analysisResult?.stage === "stage1") {
+  if (session.isStage1()) {
     if (mode === "confirm") {
       actionsUI.showStage1Confirm();
       verdictUI.hide();
@@ -1794,9 +1794,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     }
 
     // In Chrome standalone mode, skip stage 2 egg comparison
-    const isChromeMode = settings.isChromeMode(response);
     const isExplicitEggReanalyze = isReanalyze && Array.isArray(eggsOverride) && eggsOverride.length > 0;
-    const shouldRunStage2 = !isChromeMode && (settings.analysisMode === "fast" || isExplicitEggReanalyze);
+    const shouldRunStage2 = !settings.isChromeMode(response) && (settings.analysisMode === "fast" || isExplicitEggReanalyze);
     const eggsForStage2 = isReanalyze
       ? (Array.isArray(targetEggs) ? targetEggs : [])
       : ((targetEggs && targetEggs.length > 0)
@@ -1998,11 +1997,8 @@ function showResultsState(result, provenance = null) {
   }
   renderHistorySelect(session.currentNutId);
   renderResultProvenance(provenance);
-
-  const isChromeMode = settings.isChromeMode(result);
-  const isStage1 = result.stage === "stage1" || isChromeMode;
-
-  if (isChromeMode) {
+ 
+  if (settings.isChromeMode()) {
     bannersUI.setChromeResultBanner(true);
     bannersUI.setChromeActionsCard(true);
     actionsUI.hideStage1Confirm();
@@ -2016,7 +2012,7 @@ function showResultsState(result, provenance = null) {
     bannersUI.setChromeActionsCard(false);
     actionsUI.setCollectNutButtonVisible(true);
 
-    if (isStage1) {
+    if (session.isStage1()) {
       if (settings.analysisMode === "confirm") {
         actionsUI.showStage1Confirm();
         verdictUI.hide();
@@ -2038,7 +2034,7 @@ function showResultsState(result, provenance = null) {
     // this result's matched eggs (user edits + re-analyze changes the match)
     fetchEggs().then(() => {
       renderEggsSection(result.matchedEggs || []);
-      if (isStage1 && settings.analysisMode === "confirm") {
+      if (session.isStage1() && settings.analysisMode === "confirm") {
         eggsUI.expandEggsList(true);
         updateStage1ProceedBtn();
         window.scrollTo(0, 0);
@@ -2118,7 +2114,7 @@ function renderEggKnowledge(eggResults = []) {
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
-  if (session.analysisResult?.mode === "chrome") {
+  if (settings.isChromeMode()) {
     actionsUI.updateActionButtons({ isChromeMode: true });
     bannersUI.setChromeActionsCard(true);
     return;
@@ -2126,7 +2122,7 @@ function updateActionButtons() {
   bannersUI.setChromeActionsCard(false);
 
   actionsUI.updateActionButtons({
-    isStage1: session.analysisResult?.stage === "stage1",
+    isStage1: session.isStage1(),
     nutCollected: session.nutCollected,
     eggHatched: session.eggHatched,
     hasDelta: (session.analysisResult?.newKnowledge?.length || 0) > 0,
@@ -2210,8 +2206,8 @@ function showHistoryEntry(entry) {
       currentNutId: entry.nutId,
       eggHatched: session.eggHatched,
       nutCollected: session.nutCollected,
-      stage1Payload: (entry.result?.stage === "stage1" ? session.stage1Payload : null),
-      stage1ContentAnalysis: (entry.result?.stage === "stage1" ? session.stage1ContentAnalysis : null),
+      stage1Payload: (session.isStage1(entry.result) ? session.stage1Payload : null),
+      stage1ContentAnalysis: (session.isStage1(entry.result) ? session.stage1ContentAnalysis : null),
     });
   }
 
@@ -2603,7 +2599,7 @@ async function doSave(
               .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
               .join(", ")}`
           : "";
-        const isStage1BoxVisible = result?.stage === "stage1" && actionsUI.isStage1ConfirmVisible();
+        const isStage1BoxVisible = session.isStage1(result) && actionsUI.isStage1ConfirmVisible();
         if (isStage1BoxVisible) {
           // In Stage 1, stage1-confirm-box updates in-place to show the saved state.
           // Hide successBanner so only one message is displayed.

@@ -174,6 +174,20 @@ class SessionState {
       this.followUpQa.push({ question: questionOrItem, answer, sources });
     }
   }
+
+  /**
+   * Determine whether the active session result (or a passed result) represents Stage 1.
+   * True if stage is explicitly "stage1", or if running in Chrome AI mode.
+   * @param {Object} [result] - Optional result to check; defaults to this.analysisResult.
+   * @returns {boolean}
+   */
+  isStage1(result = this.analysisResult) {
+    const res = result || this.analysisResult;
+    if (!res) return false;
+    if (res.stage === "stage1" || res.mode === "chrome") return true;
+    if (typeof settings !== "undefined" && settings.isChromeMode?.(res)) return true;
+    return false;
+  }
 }
 
 const _sessionScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

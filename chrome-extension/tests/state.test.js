@@ -259,4 +259,25 @@ describe("SessionState", () => {
     assert.equal(newSession.selectedEggs.has("egg-2"), true);
     assert.deepEqual(newSession.followUpQa, [{ question: "q1", answer: "a1" }]);
   });
+
+  it("determines isStage1 correctly on session", () => {
+    const session = new SessionState();
+    assert.equal(session.isStage1(), false);
+
+    // Stage 1 explicit
+    session.analysisResult = { stage: "stage1", summary: "Content analysis" };
+    assert.equal(session.isStage1(), true);
+
+    // Chrome mode result
+    session.analysisResult = { mode: "chrome", summary: "Chrome result" };
+    assert.equal(session.isStage1(), true);
+
+    // Stage 2 result with matched eggs
+    session.analysisResult = { stage: "stage2", matchedEggs: ["egg-1"] };
+    assert.equal(session.isStage1(), false);
+
+    // Passed result override
+    assert.equal(session.isStage1({ stage: "stage1" }), true);
+    assert.equal(session.isStage1({ stage: "done" }), false);
+  });
 });

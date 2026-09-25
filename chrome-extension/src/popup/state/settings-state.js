@@ -119,10 +119,17 @@ class SettingsState {
 
   /**
    * Determine whether Chrome AI fallback mode is active for analysis or results.
+   * If resultOrMode is omitted, inspects active session.analysisResult or server connection status.
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
-    const mode = typeof resultOrMode === "string" ? resultOrMode : resultOrMode?.mode;
-    return mode === "chrome" || (!this.serverOnline && !matchedEggsCount);
+    const res = resultOrMode || (typeof session !== "undefined" ? session.analysisResult : null);
+    const mode = typeof res === "string" ? res : res?.mode;
+    if (mode === "chrome") return true;
+    if (!this.serverOnline) {
+      const eggsCount = matchedEggsCount || (Array.isArray(res?.matchedEggs) ? res.matchedEggs.length : 0);
+      return !eggsCount;
+    }
+    return false;
   }
 }
 
