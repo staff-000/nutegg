@@ -166,6 +166,10 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 
   port.onMessage.addListener(async (message) => {
+    if (message.action === "ping") {
+      // Heartbeat to keep service worker alive during long LLM calls (prevents MV3 30s idle termination)
+      return;
+    }
     if (message.action === "analyze") {
       try {
         const result = await handleAnalyze(message.payload);

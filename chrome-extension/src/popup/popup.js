@@ -1323,12 +1323,24 @@ async function handleProceedStage2(
       }, 100);
     }
   } catch (err) {
+    if (targetPinnedId) {
+      const existing = tabResultCache.get(targetPinnedId) || {};
+      tabResultCache.set(targetPinnedId, {
+        ...existing,
+        status: "done",
+      });
+    }
     if (activeTabId === targetPinnedId) {
       showError(err instanceof Error ? err.message : t("hatchingFailed"));
       if (stage1ProceedBtn) {
         stage1ProceedBtn.disabled = false;
         updateStage1ProceedBtn();
       }
+      if (analysisMode === "confirm") {
+        if (verdictSection) verdictSection.classList.add("hidden");
+        if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
+      }
+      updateAnalyzeButtonsState();
     }
   }
 }
@@ -2126,15 +2138,29 @@ function sendAnalyzeViaPort(payload) {
     try {
       let settled = false;
       const port = chrome.runtime.connect({ name: "nutegg-analyze" });
+      const heartbeat = setInterval(() => {
+        if (!settled && port) {
+          try {
+            port.postMessage({ action: "ping" });
+          } catch {
+            clearInterval(heartbeat);
+          }
+        } else {
+          clearInterval(heartbeat);
+        }
+      }, 10000);
+
       port.onMessage.addListener((response) => {
         if (settled) return;
         settled = true;
+        clearInterval(heartbeat);
         try { port.disconnect(); } catch {}
         resolve(response);
       });
       port.onDisconnect.addListener(() => {
         if (settled) return;
         settled = true;
+        clearInterval(heartbeat);
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
         } else {
@@ -2256,7 +2282,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
     // In Chrome standalone mode, skip stage 2 egg comparison
     const isChromeMode = response?.mode === "chrome" || (!serverOnline && !response?.matchedEggs?.length);
-    const shouldRunStage2 = !isChromeMode && (isReanalyze || analysisMode === "fast");
+    const isExplicitEggReanalyze = isReanalyze && Array.isArray(eggsOverride) && eggsOverride.length > 0;
+    const shouldRunStage2 = !isChromeMode && (analysisMode === "fast" || isExplicitEggReanalyze);
     const eggsForStage2 = isReanalyze
       ? (Array.isArray(targetEggs) ? targetEggs : [])
       : ((targetEggs && targetEggs.length > 0)
@@ -2400,7 +2427,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
         if (isReanalyze || captureHistory.length > 0) {
-          processedMessage.textContent = isReanalyze ? "Re-analyzed just now — showing fresh result." : "Analyzed (Stage 1) — choose eggs to hatch.";
+          processedMessage.textContent = isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete");
           processedNote.classList.remove("hidden");
           renderHistorySelect(currentNutId);
         }
@@ -2532,15 +2559,12 @@ function showResultsState(result, provenance = null) {
     collectNutBtn?.classList.remove("hidden");
 
     if (isStage1) {
-      if (isReanalyzing) {
-        stage1ConfirmBox?.classList.add("hidden");
-        verdictSection?.classList.add("hidden");
-      } else if (analysisMode === "fast") {
-        stage1ConfirmBox?.classList.add("hidden");
-        verdictSection?.classList.remove("hidden");
-      } else {
+      if (analysisMode === "confirm") {
         stage1ConfirmBox?.classList.remove("hidden");
         verdictSection?.classList.add("hidden");
+      } else {
+        stage1ConfirmBox?.classList.add("hidden");
+        verdictSection?.classList.remove("hidden");
       }
       confirmBtn?.classList.add("hidden");
     } else {
