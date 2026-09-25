@@ -476,21 +476,33 @@ async function initPopup() {
 
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
+  function saveActiveTabState(tabId) {
+    if (!tabId) return;
+    const prevCache = tabResultCache.get(tabId) || {};
+    tabResultCache.set(tabId, {
+      ...prevCache,
+      extractedContent,
+      analysisResult,
+      captureHistory: [...captureHistory],
+      currentNutId,
+      stage1Payload,
+      stage1ContentAnalysis,
+      eggHatched,
+      nutCollected,
+      cachedProcessedSaved,
+      followUpQa: [...followUpQa],
+      selectedEggs: Array.from(selectedEggs),
+      preSelectedEggs: Array.from(preSelectedEggs),
+      customQuestions: customQuestionsEl?.value || "",
+      activeEggTab,
+    });
+  }
+
+  // The side panel persists across tabs — refresh content when the user
+  // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-    if (activeTabId && activeTabId !== tabId && extractedContent) {
-      const prevCache = tabResultCache.get(activeTabId) || {};
-      tabResultCache.set(activeTabId, {
-        ...prevCache,
-        extractedContent,
-        analysisResult,
-        captureHistory: [...captureHistory],
-        currentNutId,
-        stage1Payload,
-        stage1ContentAnalysis,
-        eggHatched,
-        nutCollected,
-        followUpQa: [...followUpQa],
-      });
+    if (activeTabId && activeTabId !== tabId) {
+      saveActiveTabState(activeTabId);
     }
     activeTabId = tabId;
     // Check if we have cached results for this tab
@@ -507,6 +519,7 @@ async function initPopup() {
       refreshForCurrentTab();
     }
   });
+
   // Reopen handling: browsers that keep the side-panel document alive while
   // the panel is closed don't re-fire DOMContentLoaded. Refresh on show —
   // but only when the displayed content belongs to a DIFFERENT tab. Plain
@@ -517,20 +530,8 @@ async function initPopup() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id != null && tab.id !== activeTabId) {
-        if (activeTabId && extractedContent) {
-          const prevCache = tabResultCache.get(activeTabId) || {};
-          tabResultCache.set(activeTabId, {
-            ...prevCache,
-            extractedContent,
-            analysisResult,
-            captureHistory: [...captureHistory],
-            currentNutId,
-            stage1Payload,
-            stage1ContentAnalysis,
-            eggHatched,
-            nutCollected,
-            followUpQa: [...followUpQa],
-          });
+        if (activeTabId) {
+          saveActiveTabState(activeTabId);
         }
         activeTabId = tab.id;
         const cached = tabResultCache.get(tab.id);
@@ -549,12 +550,29 @@ async function initPopup() {
       // tabs API unavailable — leave the current state alone
     }
   });
+
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     let isActiveTab = false;
+    let activeUrl = null;
     try {
       const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
       isActiveTab = activeTab?.id === tabId;
+      if (isActiveTab) activeUrl = activeTab.url;
     } catch {}
+
+    const newUrl = changeInfo.url || (isActiveTab ? activeUrl : null);
+    const cached = tabResultCache.get(tabId);
+
+    // URL changed — invalidate its cache immediately before checking loading status
+    if ((newUrl && cached?.url && newUrl !== cached.url) || changeInfo.url) {
+      tabResultCache.delete(tabId);
+      tabExtractSeq.delete(tabId);
+      tabsExtracting.delete(tabId);
+      if (isActiveTab) {
+        refreshForCurrentTab();
+        return;
+      }
+    }
 
     if (changeInfo.status === "loading") {
       if (isActiveTab) {
@@ -575,22 +593,12 @@ async function initPopup() {
         }
       } else {
         // Background tab finished loading — extract in background if not already cached
-        const cached = tabResultCache.get(tabId);
-        if (!cached?.extractedContent && !cached?.analysisResult && !cached?.status && !tabsExtracting.has(tabId)) {
+        const bgCached = tabResultCache.get(tabId);
+        if (!bgCached?.extractedContent && !bgCached?.analysisResult && !bgCached?.status && !tabsExtracting.has(tabId)) {
           extractPageContent(refreshSeq, tabId);
         }
       }
       return;
-    }
-
-    if (changeInfo.url) {
-      // URL changed — invalidate its cache
-      tabResultCache.delete(tabId);
-      tabExtractSeq.delete(tabId);
-      tabsExtracting.delete(tabId);
-      if (isActiveTab) {
-        refreshForCurrentTab();
-      }
     }
   });
 
@@ -720,6 +728,16 @@ async function refreshForCurrentTab(forceExtract = false) {
   historySelect.innerHTML = "";
   captureHistory = []; // fresh URL — old history doesn't apply
   extractedContent = null;
+  analysisResult = null;
+  currentNutId = null;
+  stage1Payload = null;
+  stage1ContentAnalysis = null;
+  eggHatched = false;
+  nutCollected = false;
+  cachedProcessedSaved = null;
+  followUpQa = [];
+  activeEggTab = null;
+  selectedEggs.clear();
   contentPreview.textContent = t("loadingContent");
   pageAuthorEl.textContent = "";
   pagePublishedEl.textContent = "";
@@ -795,13 +813,22 @@ async function refreshForCurrentTab(forceExtract = false) {
 async function restoreFromTabCache(tabId, cached) {
   const seq = ++refreshSeq;
   activeTabId = tabId;
-  extractedContent = cached.extractedContent;
-  analysisResult = cached.analysisResult;
+  extractedContent = cached.extractedContent || null;
+  analysisResult = cached.analysisResult || null;
   captureHistory = cached.captureHistory || [];
   currentNutId = cached.currentNutId || (cached.captureHistory?.[0]?.nutId ?? null);
-  stage1Payload = cached.stage1Payload || stage1Payload;
-  stage1ContentAnalysis = cached.stage1ContentAnalysis || stage1ContentAnalysis;
+  stage1Payload = cached.stage1Payload || null;
+  stage1ContentAnalysis = cached.stage1ContentAnalysis || null;
   followUpQa = cached.followUpQa ? [...cached.followUpQa] : [];
+  eggHatched = !!cached.eggHatched;
+  nutCollected = !!cached.nutCollected;
+  cachedProcessedSaved = cached.cachedProcessedSaved || null;
+  selectedEggs = cached.selectedEggs ? new Set(cached.selectedEggs) : (analysisResult?.matchedEggs ? new Set(analysisResult.matchedEggs) : new Set());
+  preSelectedEggs = cached.preSelectedEggs ? new Set(cached.preSelectedEggs) : new Set();
+  updateCaptureEggsLabel();
+  if (customQuestionsEl) {
+    customQuestionsEl.value = cached.customQuestions || "";
+  }
   if (followupInput) followupInput.value = "";
   currentTabLoading = false;
 
@@ -849,12 +876,12 @@ async function restoreFromTabCache(tabId, cached) {
     analyzeBtn.disabled = true;
     analyzeBtnText.textContent = t("analyzing");
   } else if (analysisResult) {
-    if (cached.eggHatched) eggHatched = true;
-    if (cached.nutCollected) nutCollected = true;
+    eggHatched = !!cached.eggHatched;
+    nutCollected = !!cached.nutCollected;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     updateAnalyzeButtonsState();
     if (historySelect) historySelect.disabled = false;
-    if (cached.eggHatched) updateActionButtons();
+    updateActionButtons();
     if (captureHistory.length > 0) {
       const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
       const when = new Date(entry.capturedAt).toLocaleString();
@@ -1907,6 +1934,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       const cached = tabResultCache.get(tabId) || {};
       tabResultCache.set(tabId, {
         ...cached,
+        url: response.content?.url || tabUrl || cached.url,
         extractedContent: response.content,
       });
 
@@ -2318,8 +2346,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         stage1Payload: payload,
         stage1ContentAnalysis: response,
         isReanalyzing: isReanalyze,
-        captureHistory: [...captureHistory],
-        currentNutId: currentNutId || existingCache2.currentNutId,
+        captureHistory: [...(activeTabId === pinnedTabId ? captureHistory : (existingCache2.captureHistory || []))],
+        currentNutId: (activeTabId === pinnedTabId ? currentNutId : null) || existingCache2.currentNutId,
       });
 
       if (activeTabId === pinnedTabId) {
@@ -2417,7 +2445,9 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
             publishedAt: contentToAnalyze.metadata?.published || "",
           }
         : null;
-      const updatedHistory = freshHistory || (stage1Entry ? [stage1Entry, ...captureHistory] : captureHistory);
+      const cachedBefore = tabResultCache.get(pinnedTabId) || {};
+      const priorHistory = activeTabId === pinnedTabId ? captureHistory : (cachedBefore.captureHistory || []);
+      const updatedHistory = freshHistory || (stage1Entry ? [stage1Entry, ...priorHistory] : priorHistory);
 
       tabResultCache.set(pinnedTabId, {
         status: "done",
@@ -2426,7 +2456,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         analysisResult: response,
         stage1Payload: { ...payload, nutId: stage1NutId },
         stage1ContentAnalysis: response,
-        currentNutId: stage1NutId || currentNutId,
+        currentNutId: stage1NutId || (activeTabId === pinnedTabId ? currentNutId : cachedBefore.currentNutId),
         captureHistory: updatedHistory,
         justReanalyzed: isReanalyze,
       });
@@ -3652,8 +3682,13 @@ async function doSave(
       // Hatching collects the nut too — skip the raw save only when the
       // nut was already collected (this session or a previous one).
       // "analyzed" means processed but never saved, so the raw must be saved.
-      skipRaw: (newKnowledge.length > 0 || isHatch) &&
-        (nutCollected || (cachedProcessedSaved !== null && cachedProcessedSaved !== "analyzed")),
+      skipRaw: (() => {
+        const cachedForSave = targetPinnedId ? tabResultCache.get(targetPinnedId) : null;
+        const isTargetNutCollected = isTargetActive ? nutCollected : !!cachedForSave?.nutCollected;
+        const isTargetCachedSaved = isTargetActive ? cachedProcessedSaved : (cachedForSave?.cachedProcessedSaved ?? null);
+        return (newKnowledge.length > 0 || isHatch) &&
+          (isTargetNutCollected || (isTargetCachedSaved !== null && isTargetCachedSaved !== "analyzed"));
+      })(),
     };
 
     const response = await chrome.runtime.sendMessage({ action: "confirm", payload });
