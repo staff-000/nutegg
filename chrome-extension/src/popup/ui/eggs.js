@@ -405,13 +405,47 @@ function renderEggKnowledge(eggResults = [], options = {}) {
   });
 }
 
+class EggsComponent {
+  constructor(root = document) {
+    this.root = root;
+    this.eggKnowledgeSection = root.getElementById("egg-knowledge-section");
+    this.eggKnowledgeHint = root.getElementById("egg-knowledge-hint");
+    this.eggTabsBar = root.getElementById("egg-tabs-bar");
+    this.eggKnowledgeContent = root.getElementById("egg-knowledge-content");
+    this.noEggSection = root.getElementById("no-egg-section");
+    this.newEggName = root.getElementById("new-egg-name");
+    this.newEggDescription = root.getElementById("new-egg-description");
+    this.createEggBtn = root.getElementById("create-egg-btn");
+    this.eggsSection = root.getElementById("eggs-section");
+    this.eggsToggle = root.getElementById("eggs-toggle");
+    this.eggsToggleLabel = root.getElementById("eggs-toggle-label");
+    this.eggsToggleChevron = root.getElementById("eggs-toggle-chevron");
+    this.eggsExpanded = root.getElementById("eggs-expanded");
+    this.eggsList = root.getElementById("eggs-list");
+    this.reanalyzeEggsBtn = root.getElementById("reanalyze-eggs-btn");
+    this.eggsErrorEl = root.getElementById("eggs-error");
+    this.eggsCreateToggle = root.getElementById("eggs-create-toggle");
+    this.eggsCreateForm = root.getElementById("eggs-create-form");
+    this.eggsNewName = root.getElementById("eggs-new-name");
+    this.eggsNewDesc = root.getElementById("eggs-new-desc");
+    this.eggsCreateBtn = root.getElementById("eggs-create-btn");
+    this.captureEggsToggle = root.getElementById("capture-eggs-toggle");
+    this.captureEggsLabel = root.getElementById("capture-eggs-label");
+    this.captureEggsChevron = root.getElementById("capture-eggs-chevron");
+    this.captureEggsArea = root.getElementById("capture-eggs-area");
+    this.captureEggsList = root.getElementById("capture-eggs-list");
+  }
+}
+
 const _eggScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _eggScope.NutEggUI = _eggScope.NutEggUI || {};
+_eggScope.NutEggUI.EggsComponent = EggsComponent;
 _eggScope.NutEggUI.cleanEggName = cleanEggName;
 _eggScope.NutEggUI.renderCaptureEggsList = renderCaptureEggsList;
 _eggScope.NutEggUI.updateCaptureEggsLabel = updateCaptureEggsLabel;
 _eggScope.NutEggUI.renderEggsSection = renderEggsSection;
 _eggScope.NutEggUI.renderEggKnowledge = renderEggKnowledge;
+_eggScope.EggsComponent = EggsComponent;
 _eggScope.cleanEggName = cleanEggName;
 _eggScope.renderCaptureEggsList = renderCaptureEggsList;
 _eggScope.updateCaptureEggsLabel = updateCaptureEggsLabel;
@@ -420,6 +454,7 @@ _eggScope.renderEggKnowledge = renderEggKnowledge;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    EggsComponent,
     cleanEggName,
     renderCaptureEggsList,
     updateCaptureEggsLabel,
@@ -427,3 +462,4 @@ if (typeof module !== "undefined" && module.exports) {
     renderEggKnowledge,
   };
 }
+

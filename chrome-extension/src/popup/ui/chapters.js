@@ -84,19 +84,35 @@ function renderChapterMap({
   }
 }
 
+class ChaptersComponent {
+  constructor(root = document) {
+    this.root = root;
+    this.chapterSection = root.getElementById("chapter-section");
+    this.chapterList = root.getElementById("chapter-list");
+  }
+
+  render(chapters, durationSeconds, options) {
+    return renderChapterMap(chapters, durationSeconds, options);
+  }
+}
+
 const _chapterScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _chapterScope.NutEggUI = _chapterScope.NutEggUI || {};
+_chapterScope.NutEggUI.ChaptersComponent = ChaptersComponent;
 _chapterScope.NutEggUI.extractTimestamp = extractTimestamp;
 _chapterScope.NutEggUI.timeToSeconds = timeToSeconds;
 _chapterScope.NutEggUI.renderChapterMap = renderChapterMap;
+_chapterScope.ChaptersComponent = ChaptersComponent;
 _chapterScope.extractTimestamp = extractTimestamp;
 _chapterScope.timeToSeconds = timeToSeconds;
 _chapterScope.renderChapterMap = renderChapterMap;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    ChaptersComponent,
     extractTimestamp,
     timeToSeconds,
     renderChapterMap,
   };
 }
+

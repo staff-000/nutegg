@@ -182,13 +182,29 @@ function handleSourcePillClick(e, { onSeek, onScroll } = {}) {
   }
 }
 
+class QaComponent {
+  constructor(root = document) {
+    this.root = root;
+    this.customQuestionsSection = root.getElementById("custom-questions-section");
+    this.customQuestionsList = root.getElementById("custom-questions-list");
+    this.followupInput = root.getElementById("followup-input");
+    this.followupBtn = root.getElementById("followup-btn");
+  }
+
+  render(res, qaList) {
+    return renderCustomQuestions(res, qaList);
+  }
+}
+
 const _qaScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _qaScope.NutEggUI = _qaScope.NutEggUI || {};
+_qaScope.NutEggUI.QaComponent = QaComponent;
 _qaScope.NutEggUI.linkifyTimestamps = linkifyTimestamps;
 _qaScope.NutEggUI.renderQaSources = renderQaSources;
 _qaScope.NutEggUI.renderCustomQuestions = renderCustomQuestions;
 _qaScope.NutEggUI.buildPriorQa = buildPriorQa;
 _qaScope.NutEggUI.handleSourcePillClick = handleSourcePillClick;
+_qaScope.QaComponent = QaComponent;
 _qaScope.linkifyTimestamps = linkifyTimestamps;
 _qaScope.renderQaSources = renderQaSources;
 _qaScope.renderCustomQuestions = renderCustomQuestions;
@@ -197,6 +213,7 @@ _qaScope.handleSourcePillClick = handleSourcePillClick;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    QaComponent,
     linkifyTimestamps,
     renderQaSources,
     renderCustomQuestions,
@@ -204,3 +221,4 @@ if (typeof module !== "undefined" && module.exports) {
     handleSourcePillClick,
   };
 }
+

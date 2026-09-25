@@ -103,16 +103,32 @@ function renderMindMap(nodes, container) {
   }
 }
 
+class MindmapComponent {
+  constructor(root = document) {
+    this.root = root;
+    this.mindmapSection = root.getElementById("mindmap-section");
+    this.mindmapTree = root.getElementById("mindmap-tree");
+  }
+
+  render(nodes) {
+    return renderMindMap(nodes, this.mindmapTree);
+  }
+}
+
 const _mindmapScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _mindmapScope.NutEggUI = _mindmapScope.NutEggUI || {};
+_mindmapScope.NutEggUI.MindmapComponent = MindmapComponent;
 _mindmapScope.NutEggUI.unwrapMindMapRoots = unwrapMindMapRoots;
 _mindmapScope.NutEggUI.renderMindMap = renderMindMap;
+_mindmapScope.MindmapComponent = MindmapComponent;
 _mindmapScope.unwrapMindMapRoots = unwrapMindMapRoots;
 _mindmapScope.renderMindMap = renderMindMap;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
+    MindmapComponent,
     unwrapMindMapRoots,
     renderMindMap,
   };
 }
+

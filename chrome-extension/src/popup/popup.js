@@ -7,136 +7,51 @@ if (typeof require !== "undefined") {
     const chaptersUI = require("./ui/chapters.js");
     const qaUI = require("./ui/qa.js");
     const eggsUI = require("./ui/eggs.js");
-    Object.assign(globalThis, tabState, collapsibleUI, mindmapUI, chaptersUI, qaUI, eggsUI);
+    const headerUI = require("./ui/header.js");
+    const bannersUI = require("./ui/banners.js");
+    const captureViewUI = require("./ui/capture-view.js");
+    const sectionChipsUI = require("./ui/section-chips.js");
+    const verdictUI = require("./ui/verdict.js");
+    const actionControlsUI = require("./ui/action-controls.js");
+    const resultsViewUI = require("./ui/results-view.js");
+    const metricsUI = require("./ui/metrics.js");
+    Object.assign(
+      globalThis,
+      tabState,
+      collapsibleUI,
+      mindmapUI,
+      chaptersUI,
+      qaUI,
+      eggsUI,
+      headerUI,
+      bannersUI,
+      captureViewUI,
+      sectionChipsUI,
+      verdictUI,
+      actionControlsUI,
+      resultsViewUI,
+      metricsUI
+    );
   } catch { /* ignore in browser */ }
 }
 
 const t = (key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
 
-// DOM — Capture state
-const serverStatus = document.getElementById("server-status");
-const aiCreditPill = document.getElementById("ai-credit-pill");
-const aiCreditText = document.getElementById("ai-credit-text");
-const settingsBtn = document.getElementById("settings-btn");
-const pageTitle = document.getElementById("page-title");
-const pageUrl = document.getElementById("page-url");
-const pageType = document.getElementById("page-type");
-const pageAuthorEl = document.getElementById("page-author");
-const pagePublishedEl = document.getElementById("page-published");
-const refreshBtn = document.getElementById("refresh-btn");
-const contentPreview = document.getElementById("content-preview");
-const questionsToggle = document.getElementById("questions-toggle");
-const questionsArea = document.getElementById("questions-area");
-const customQuestionsEl = document.getElementById("custom-questions");
-const analyzeBtn = document.getElementById("analyze-btn");
-const analyzeBtnText = document.getElementById("analyze-btn-text");
-const warningBanner = document.getElementById("warning-banner");
-const warningMessage = document.getElementById("warning-message");
-const errorBanner = document.getElementById("error-banner");
-const errorMessage = document.getElementById("error-message");
-const errorHint = document.getElementById("error-hint");
-const duplicateBanner = document.getElementById("duplicate-banner");
-const duplicateMessage = document.getElementById("duplicate-message");
-
-// DOM — Results state
-const captureState = document.getElementById("capture-state");
-const resultsState = document.getElementById("results-state");
-const resultPageInfo = document.getElementById("result-page-info");
-const resultPageTitle = document.getElementById("result-page-title");
-const resultPageAuthor = document.getElementById("result-page-author");
-const resultPagePublished = document.getElementById("result-page-published");
-const processedNote = document.getElementById("processed-note");
-const processedMessage = document.getElementById("processed-message");
-const reanalyzeBtn = document.getElementById("reanalyze-btn");
-const historySelect = document.getElementById("history-select");
-const titleVerdictSection = document.getElementById("title-verdict-section");
-const verdictAnswer = document.getElementById("verdict-answer");
-const coreSummarySection = document.getElementById("core-summary-section");
-const coreSummaryEl = document.getElementById("core-summary");
-const mindmapSection = document.getElementById("mindmap-section");
-const mindmapTree = document.getElementById("mindmap-tree");
-const chapterSection = document.getElementById("chapter-section");
-const chapterList = document.getElementById("chapter-list");
-
-// Content Analysis section selectors (Capture state & Re-analysis state)
-const sectionsToggle = document.getElementById("sections-toggle");
-const sectionsChevron = document.getElementById("sections-chevron");
-const sectionsBody = document.getElementById("sections-body");
-const sectionsBadge = document.getElementById("sections-badge");
-
-const reanalyzeSectionsToggle = document.getElementById("reanalyze-sections-toggle");
-const reanalyzeSectionsChevron = document.getElementById("reanalyze-sections-chevron");
-const reanalyzeSectionsBody = document.getElementById("reanalyze-sections-body");
-const reanalyzeSectionsBadge = document.getElementById("reanalyze-sections-badge");
-
-const chipVerdict = document.getElementById("chip-verdict");
-const chipSummary = document.getElementById("chip-summary");
-const chipMindmap = document.getElementById("chip-mindmap");
-const chipChapters = document.getElementById("chip-chapters");
-
-const reanalyzeChipVerdict = document.getElementById("reanalyze-chip-verdict");
-const reanalyzeChipSummary = document.getElementById("reanalyze-chip-summary");
-const reanalyzeChipMindmap = document.getElementById("reanalyze-chip-mindmap");
-const reanalyzeChipChapters = document.getElementById("reanalyze-chip-chapters");
-const customQuestionsSection = document.getElementById("custom-questions-section");
-const customQuestionsList = document.getElementById("custom-questions-list");
-const followupInput = document.getElementById("followup-input");
-const followupBtn = document.getElementById("followup-btn");
-const eggKnowledgeSection = document.getElementById("egg-knowledge-section");
-const eggKnowledgeHint = document.getElementById("egg-knowledge-hint");
-const eggTabsBar = document.getElementById("egg-tabs-bar");
-const eggKnowledgeContent = document.getElementById("egg-knowledge-content");
-const verdictIcon = document.getElementById("verdict-icon");
-const verdictText = document.getElementById("verdict-text");
-const verdictBadge = document.getElementById("verdict-badge");
-const verdictReason = document.getElementById("verdict-reason");
-const noEggSection = document.getElementById("no-egg-section");
-const newEggName = document.getElementById("new-egg-name");
-const newEggDescription = document.getElementById("new-egg-description");
-const createEggBtn = document.getElementById("create-egg-btn");
-const eggsSection = document.getElementById("eggs-section");
-const eggsToggle = document.getElementById("eggs-toggle");
-const eggsToggleLabel = document.getElementById("eggs-toggle-label");
-const eggsToggleChevron = document.getElementById("eggs-toggle-chevron");
-const eggsExpanded = document.getElementById("eggs-expanded");
-const eggsList = document.getElementById("eggs-list");
-const reanalyzeEggsBtn = document.getElementById("reanalyze-eggs-btn");
-const eggsErrorEl = document.getElementById("eggs-error");
-const eggsCreateToggle = document.getElementById("eggs-create-toggle");
-const eggsCreateForm = document.getElementById("eggs-create-form");
-const eggsNewName = document.getElementById("eggs-new-name");
-const eggsNewDesc = document.getElementById("eggs-new-desc");
-const eggsCreateBtn = document.getElementById("eggs-create-btn");
-const confirmBtn = document.getElementById("confirm-btn");
-const collectNutBtn = document.getElementById("collect-nut-btn");
-const discardBtn = document.getElementById("discard-btn");
-const backBtn = document.getElementById("back-btn");
-const successBanner = document.getElementById("success-banner");
-const successMessage = document.getElementById("success-message");
-const metricNuts = document.getElementById("metric-nuts");
-const metricEggs = document.getElementById("metric-eggs");
-const metricTime = document.getElementById("metric-time");
-const captureEggsToggle = document.getElementById("capture-eggs-toggle");
-const captureEggsLabel = document.getElementById("capture-eggs-label");
-const captureEggsChevron = document.getElementById("capture-eggs-chevron");
-const captureEggsArea = document.getElementById("capture-eggs-area");
-const captureEggsList = document.getElementById("capture-eggs-list");
-const obsidianPluginLink = document.getElementById("obsidian-plugin-link");
-
-// Mode toggle & Stage 1 elements
-const modeFastBtn = document.getElementById("mode-fast-btn");
-const modeConfirmBtn = document.getElementById("mode-confirm-btn");
-const verdictSection = document.getElementById("verdict-section");
-const stage1ConfirmBox = document.getElementById("stage1-confirm-box");
-const stage1ProceedBtn = document.getElementById("stage1-proceed-btn");
-const stage1SkipBtn = document.getElementById("stage1-skip-btn");
-
-// Standalone mode and guidance elements
-const aiKeyMissingBanner = document.getElementById("ai-key-missing-banner");
-const openSettingsKeyBtn = document.getElementById("open-settings-key-btn");
-const chromeModeTipBanner = document.getElementById("chrome-mode-tip-banner");
-const chromeResultBanner = document.getElementById("chrome-result-banner");
-const chromeActionsCard = document.getElementById("chrome-actions-card");
+// ============================================================
+// Modular UI Components
+// ============================================================
+const headerUI = new (globalThis.NutEggUI?.HeaderComponent || (typeof HeaderComponent !== "undefined" ? HeaderComponent : class {}))();
+const bannersUI = new (globalThis.NutEggUI?.BannersComponent || (typeof BannersComponent !== "undefined" ? BannersComponent : class {}))();
+const captureUI = new (globalThis.NutEggUI?.CaptureViewComponent || (typeof CaptureViewComponent !== "undefined" ? CaptureViewComponent : class {}))();
+const resultsUI = new (globalThis.NutEggUI?.ResultsViewComponent || (typeof ResultsViewComponent !== "undefined" ? ResultsViewComponent : class {}))();
+const sectionsUI = new (globalThis.NutEggUI?.SectionChipsComponent || (typeof SectionChipsComponent !== "undefined" ? SectionChipsComponent : class {}))();
+const verdictUI = new (globalThis.NutEggUI?.VerdictComponent || (typeof VerdictComponent !== "undefined" ? VerdictComponent : class {}))();
+const actionsUI = new (globalThis.NutEggUI?.ActionControlsComponent || (typeof ActionControlsComponent !== "undefined" ? ActionControlsComponent : class {}))();
+const metricsUI = new (globalThis.NutEggUI?.MetricsComponent || (typeof MetricsComponent !== "undefined" ? MetricsComponent : class {}))();
+const mindmapUI = new (globalThis.NutEggUI?.MindmapComponent || (typeof MindmapComponent !== "undefined" ? MindmapComponent : class {}))();
+const chaptersUI = new (globalThis.NutEggUI?.ChaptersComponent || (typeof ChaptersComponent !== "undefined" ? ChaptersComponent : class {}))();
+const qaUI = new (globalThis.NutEggUI?.QaComponent || (typeof QaComponent !== "undefined" ? QaComponent : class {}))();
+const eggsUI = new (globalThis.NutEggUI?.EggsComponent || (typeof EggsComponent !== "undefined" ? EggsComponent : class {}))();
 
 let extractedContent = null;
 let serverOnline = false;
@@ -192,10 +107,9 @@ const tabsExtracting = tabStateManager.extracting || new Set();
 // --- Init ---
 
 async function initPopup() {
-  const versionTag = document.getElementById("version-tag");
-  if (versionTag) {
+  if (headerUI.versionTag) {
     const version = chrome.runtime?.getManifest?.()?.version;
-    if (version) versionTag.textContent = `NutEgg ${version}`;
+    if (version) headerUI.versionTag.textContent = `NutEgg ${version}`;
   }
 
   // Initialize i18n
@@ -258,12 +172,12 @@ async function initPopup() {
     }
   });
 
-  modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
-  modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
-  stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true, false, activeTabId));
-  stage1SkipBtn?.addEventListener("click", handleSaveRaw);
+  actionsUI.modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
+  actionsUI.modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
+  actionsUI.stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true, false, activeTabId));
+  actionsUI.stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
-  analyzeBtn.addEventListener("click", () => {
+  actionsUI.analyzeBtn.addEventListener("click", () => {
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
       showWarning(notReady);
@@ -271,11 +185,11 @@ async function initPopup() {
     }
     handleAnalyze(true);
   });
-  confirmBtn.addEventListener("click", handleConfirm);
-  collectNutBtn.addEventListener("click", handleSaveRaw);
-  discardBtn.addEventListener("click", handleDiscard);
+  actionsUI.confirmBtn.addEventListener("click", handleConfirm);
+  actionsUI.collectNutBtn.addEventListener("click", handleSaveRaw);
+  actionsUI.discardBtn.addEventListener("click", handleDiscard);
   initCollapsibleSections();
-  backBtn.addEventListener("click", async () => {
+  actionsUI.backBtn.addEventListener("click", async () => {
     showCaptureState();
     let currentTabUrl = "";
     try {
@@ -287,59 +201,54 @@ async function initPopup() {
       extractedContent.url.split("#")[0] === currentTabUrl.split("#")[0];
 
     if (urlMatches && extractedContent?.content) {
-      contentPreview.textContent = extractedContent.content;
-      pageTitle.textContent = extractedContent.title || pageTitle.textContent;
-      pageUrl.textContent = extractedContent.url || pageUrl.textContent;
-      pageType.textContent = extractedContent.sourceType || pageType.textContent;
+      captureUI.contentPreview.textContent = extractedContent.content;
+      captureUI.pageTitle.textContent = extractedContent.title || captureUI.pageTitle.textContent;
+      captureUI.pageUrl.textContent = extractedContent.url || captureUI.pageUrl.textContent;
+      captureUI.pageType.textContent = extractedContent.sourceType || captureUI.pageType.textContent;
       showProvenance(extractedContent.metadata || {});
       updateAnalyzeButtonsState();
     } else {
       extractedContent = null;
-      contentPreview.textContent = t("retrievingPageContent");
+      captureUI.contentPreview.textContent = t("retrievingPageContent");
       await extractPageContent();
     }
   });
-  settingsBtn.addEventListener("click", () => {
+  headerUI.settingsBtn.addEventListener("click", () => {
     chrome.runtime.openOptionsPage();
   });
-  const reportBugLink = document.getElementById("report-bug-link");
-  reportBugLink?.addEventListener("click", (e) => {
+  metricsUI.reportBugLink?.addEventListener("click", (e) => {
     e.preventDefault();
     openGitHubBugReport();
   });
-  const errorReportBug = document.getElementById("error-report-bug");
-  errorReportBug?.addEventListener("click", (e) => {
+  bannersUI.errorReportBug?.addEventListener("click", (e) => {
     e.preventDefault();
-    const errMsg = errorMessage?.textContent || "";
+    const errMsg = bannersUI.errorMessage?.textContent || "";
     openGitHubBugReport(errMsg);
   });
-  if (aiCreditPill) {
-    aiCreditPill.addEventListener("click", () => {
-      if (aiCreditText) aiCreditText.textContent = t("checking");
+  if (headerUI.aiCreditPill) {
+    headerUI.aiCreditPill.addEventListener("click", () => {
+      if (headerUI.aiCreditText) headerUI.aiCreditText.textContent = t("checking");
       checkCreditStatus();
     });
   }
-  const statusIndicatorWrap = document.getElementById("status-indicator-wrap");
-  if (statusIndicatorWrap) {
-    statusIndicatorWrap.addEventListener("click", () => {
+  if (headerUI.statusIndicatorWrap) {
+    headerUI.statusIndicatorWrap.addEventListener("click", () => {
       if (!serverOnline) {
         window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
         return;
       }
-      const title = document.getElementById("status-tooltip-title");
-      const sub = document.getElementById("status-tooltip-sub");
-      if (title) title.textContent = t("checking");
-      if (sub) sub.textContent = t("connectingToObsidian");
+      if (headerUI.tooltipTitle) headerUI.tooltipTitle.textContent = t("checking");
+      if (headerUI.tooltipSub) headerUI.tooltipSub.textContent = t("connectingToObsidian");
       checkServerStatus();
     });
   }
-  if (openSettingsKeyBtn) {
-    openSettingsKeyBtn.addEventListener("click", () => {
+  if (bannersUI.openSettingsKeyBtn) {
+    bannersUI.openSettingsKeyBtn.addEventListener("click", () => {
       chrome.runtime.openOptionsPage();
     });
   }
-  if (aiKeyMissingBanner) {
-    aiKeyMissingBanner.addEventListener("click", (e) => {
+  if (bannersUI.aiKeyMissingBanner) {
+    bannersUI.aiKeyMissingBanner.addEventListener("click", (e) => {
       if (e.target && (e.target.id === "open-settings-enable-ai-btn" || e.target.closest("#open-settings-enable-ai-btn"))) {
         chrome.tabs.create({ url: chrome.runtime.getURL("src/options/options.html?enableAi=1") });
         return;
@@ -349,46 +258,46 @@ async function initPopup() {
       }
     });
   }
-  questionsToggle.addEventListener("click", () => {
-    questionsArea.classList.toggle("hidden");
+  captureUI.questionsToggle.addEventListener("click", () => {
+    captureUI.questionsArea.classList.toggle("hidden");
   });
-  if (captureEggsToggle) {
-    captureEggsToggle.addEventListener("click", () => {
-      const isExpanded = !captureEggsArea.classList.toggle("hidden");
-      captureEggsChevron.textContent = isExpanded ? "▾" : "▸";
+  if (eggsUI.captureEggsToggle) {
+    eggsUI.captureEggsToggle.addEventListener("click", () => {
+      const isExpanded = !eggsUI.captureEggsArea.classList.toggle("hidden");
+      eggsUI.captureEggsChevron.textContent = isExpanded ? "▾" : "▸";
     });
   }
-  followupBtn.addEventListener("click", handleFollowUp);
-  followupInput.addEventListener("keydown", (e) => {
+  qaUI.followupBtn.addEventListener("click", handleFollowUp);
+  qaUI.followupInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") handleFollowUp();
   });
-  if (customQuestionsList) {
-    customQuestionsList.addEventListener("click", handleSourcePillClick);
+  if (qaUI.customQuestionsList) {
+    qaUI.customQuestionsList.addEventListener("click", handleSourcePillClick);
   }
-  if (eggKnowledgeContent) {
-    eggKnowledgeContent.addEventListener("click", handleSourcePillClick);
+  if (eggsUI.eggKnowledgeContent) {
+    eggsUI.eggKnowledgeContent.addEventListener("click", handleSourcePillClick);
   }
-  if (resultsState) {
-    resultsState.addEventListener("click", handleSourcePillClick);
+  if (resultsUI.resultsState) {
+    resultsUI.resultsState.addEventListener("click", handleSourcePillClick);
   }
-  refreshBtn.addEventListener("click", handleRefresh);
-  createEggBtn.addEventListener("click", handleCreateEgg);
-  eggsCreateToggle.addEventListener("click", () => {
-    const form = eggsCreateForm;
+  captureUI.refreshBtn.addEventListener("click", handleRefresh);
+  eggsUI.createEggBtn.addEventListener("click", handleCreateEgg);
+  eggsUI.eggsCreateToggle.addEventListener("click", () => {
+    const form = eggsUI.eggsCreateForm;
     const isHidden = form.classList.toggle("hidden");
-    eggsCreateToggle.textContent = isHidden ? "➕ Create new egg" : "✕ Cancel";
+    eggsUI.eggsCreateToggle.textContent = isHidden ? "➕ Create new egg" : "✕ Cancel";
   });
-  eggsCreateBtn.addEventListener("click", handleCreateEggInline);
-  reanalyzeEggsBtn.addEventListener("click", async () => {
+  eggsUI.eggsCreateBtn.addEventListener("click", handleCreateEggInline);
+  eggsUI.reanalyzeEggsBtn.addEventListener("click", async () => {
     const pinnedTabId = activeTabId;
     const pinnedEggs = [...selectedEggs];
-    if (pinnedEggs.length === 0 || reanalyzeEggsBtn.disabled) return;
+    if (pinnedEggs.length === 0 || eggsUI.reanalyzeEggsBtn.disabled) return;
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
-      reanalyzeEggsBtn.disabled = true;
-      const original = reanalyzeEggsBtn.textContent;
-      reanalyzeEggsBtn.textContent = t("loadingContent");
+      eggsUI.reanalyzeEggsBtn.disabled = true;
+      const original = eggsUI.reanalyzeEggsBtn.textContent;
+      eggsUI.reanalyzeEggsBtn.textContent = t("loadingContent");
       hideMessages();
       hideWarning();
 
@@ -400,13 +309,13 @@ async function initPopup() {
 
       if (activeTabId !== pinnedTabId) return;
 
-      reanalyzeEggsBtn.disabled = false;
-      reanalyzeEggsBtn.textContent = original;
+      eggsUI.reanalyzeEggsBtn.disabled = false;
+      eggsUI.reanalyzeEggsBtn.textContent = original;
 
       const nowHasContent = !!(extractedContent && extractedContent.content);
       if (!nowHasContent) {
         showError(t("couldNotRetrieveContent"));
-        errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        bannersUI.errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
         return;
       }
     }
@@ -418,37 +327,37 @@ async function initPopup() {
       showWarning(notReady);
       return;
     }
-    reanalyzeEggsBtn.disabled = true;
-    const original = reanalyzeEggsBtn.textContent;
-    reanalyzeEggsBtn.textContent = `⏳ ${t("analyzing")}`;
-    eggsErrorEl.classList.add("hidden");
+    eggsUI.reanalyzeEggsBtn.disabled = true;
+    const original = eggsUI.reanalyzeEggsBtn.textContent;
+    eggsUI.reanalyzeEggsBtn.textContent = `⏳ ${t("analyzing")}`;
+    eggsUI.eggsErrorEl.classList.add("hidden");
     if (stage1ContentAnalysis) {
       await handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
     } else {
       const error = await handleAnalyze(true, pinnedEggs, true);
       if (error && activeTabId === pinnedTabId) {
-        eggsErrorEl.textContent = `❌ ${error}`;
-        eggsErrorEl.classList.remove("hidden");
+        eggsUI.eggsErrorEl.textContent = `❌ ${error}`;
+        eggsUI.eggsErrorEl.classList.remove("hidden");
       }
     }
     if (activeTabId === pinnedTabId) {
-      reanalyzeEggsBtn.disabled = false;
-      reanalyzeEggsBtn.textContent = original;
+      eggsUI.reanalyzeEggsBtn.disabled = false;
+      eggsUI.reanalyzeEggsBtn.textContent = original;
     }
   });
   // Egg picker is collapsed by default — expand on demand
-  eggsToggle.addEventListener("click", () => {
-    const isHidden = eggsExpanded.classList.toggle("hidden");
-    eggsToggleChevron.textContent = isHidden ? "▸" : "▾";
+  eggsUI.eggsToggle.addEventListener("click", () => {
+    const isHidden = eggsUI.eggsExpanded.classList.toggle("hidden");
+    eggsUI.eggsToggleChevron.textContent = isHidden ? "▸" : "▾";
   });
-  reanalyzeBtn.addEventListener("click", async () => {
-    if (reanalyzeBtn.disabled) return;
+  actionsUI.reanalyzeBtn.addEventListener("click", async () => {
+    if (actionsUI.reanalyzeBtn.disabled) return;
     const pinnedTabId = activeTabId;
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
-      reanalyzeBtn.disabled = true;
-      reanalyzeBtn.textContent = t("loadingContent");
+      actionsUI.reanalyzeBtn.disabled = true;
+      actionsUI.reanalyzeBtn.textContent = t("loadingContent");
       hideMessages();
       hideWarning();
 
@@ -464,7 +373,7 @@ async function initPopup() {
       if (!nowHasContent) {
         updateAnalyzeButtonsState();
         showError(t("couldNotRetrieveContent"));
-        errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        bannersUI.errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
         return;
       }
     }
@@ -478,8 +387,8 @@ async function initPopup() {
     }
     handleAnalyze(true, null, true);
   });
-  historySelect.addEventListener("change", () => {
-    const idx = parseInt(historySelect.value, 10);
+  actionsUI.historySelect.addEventListener("change", () => {
+    const idx = parseInt(actionsUI.historySelect.value, 10);
     if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
   });
 
@@ -499,7 +408,7 @@ async function initPopup() {
       followUpQa,
       selectedEggs,
       preSelectedEggs,
-      customQuestions: customQuestionsEl?.value || "",
+      customQuestions: captureUI.customQuestionsEl?.value || "",
       activeEggTab,
       analysisMode,
     };
@@ -521,9 +430,9 @@ async function initPopup() {
       restoreFromTabCache(tabId, targetState);
     } else if (tabStateManager.isExtracting(tabId)) {
       // Tab is currently retrieving in the background — show retrieving state and let it finish
-      contentPreview.textContent = t("retrievingPageContent");
-      pageAuthorEl.textContent = "";
-      pagePublishedEl.textContent = "";
+      captureUI.contentPreview.textContent = t("retrievingPageContent");
+      captureUI.pageAuthorEl.textContent = "";
+      captureUI.pagePublishedEl.textContent = "";
       updateAnalyzeButtonsState();
     } else {
       refreshForCurrentTab();
@@ -545,9 +454,9 @@ async function initPopup() {
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
           restoreFromTabCache(tab.id, targetState);
         } else if (tabStateManager.isExtracting(tab.id)) {
-          contentPreview.textContent = t("retrievingPageContent");
-          pageAuthorEl.textContent = "";
-          pagePublishedEl.textContent = "";
+          captureUI.contentPreview.textContent = t("retrievingPageContent");
+          captureUI.pageAuthorEl.textContent = "";
+          captureUI.pagePublishedEl.textContent = "";
           updateAnalyzeButtonsState();
         } else {
           refreshForCurrentTab();
@@ -623,27 +532,27 @@ function initSectionChips() {
   updateSectionChipsUI();
 
   // Accordion toggle listeners
-  sectionsToggle?.addEventListener("click", () => {
-    const isHidden = sectionsBody.classList.toggle("hidden");
-    sectionsChevron.textContent = isHidden ? "▸" : "▾";
-    sectionsToggle.setAttribute("aria-expanded", String(!isHidden));
+  sectionsUI.sectionsToggle?.addEventListener("click", () => {
+    const isHidden = sectionsUI.sectionsBody.classList.toggle("hidden");
+    sectionsUI.sectionsChevron.textContent = isHidden ? "▸" : "▾";
+    sectionsUI.sectionsToggle.setAttribute("aria-expanded", String(!isHidden));
   });
 
-  reanalyzeSectionsToggle?.addEventListener("click", () => {
-    const isHidden = reanalyzeSectionsBody.classList.toggle("hidden");
-    reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
-    reanalyzeSectionsToggle.setAttribute("aria-expanded", String(!isHidden));
+  sectionsUI.reanalyzeSectionsToggle?.addEventListener("click", () => {
+    const isHidden = sectionsUI.reanalyzeSectionsBody.classList.toggle("hidden");
+    sectionsUI.reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
+    sectionsUI.reanalyzeSectionsToggle.setAttribute("aria-expanded", String(!isHidden));
   });
 
   const allChips = [
-    { el: chipVerdict, key: "titleVerdict" },
-    { el: chipSummary, key: "coreSummary" },
-    { el: chipMindmap, key: "mindMap" },
-    { el: chipChapters, key: "chapterMap" },
-    { el: reanalyzeChipVerdict, key: "titleVerdict" },
-    { el: reanalyzeChipSummary, key: "coreSummary" },
-    { el: reanalyzeChipMindmap, key: "mindMap" },
-    { el: reanalyzeChipChapters, key: "chapterMap" },
+    { el: sectionsUI.chipVerdict, key: "titleVerdict" },
+    { el: sectionsUI.chipSummary, key: "coreSummary" },
+    { el: sectionsUI.chipMindmap, key: "mindMap" },
+    { el: sectionsUI.chipChapters, key: "chapterMap" },
+    { el: sectionsUI.reanalyzeChipVerdict, key: "titleVerdict" },
+    { el: sectionsUI.reanalyzeChipSummary, key: "coreSummary" },
+    { el: sectionsUI.reanalyzeChipMindmap, key: "mindMap" },
+    { el: sectionsUI.reanalyzeChipChapters, key: "chapterMap" },
   ];
 
   allChips.forEach(({ el, key }) => {
@@ -672,14 +581,14 @@ function initSectionChips() {
 /** Update chip visual states (active vs inactive) and active count badges */
 function updateSectionChipsUI() {
   const map = [
-    { el: chipVerdict, key: "titleVerdict" },
-    { el: chipSummary, key: "coreSummary" },
-    { el: chipMindmap, key: "mindMap" },
-    { el: chipChapters, key: "chapterMap" },
-    { el: reanalyzeChipVerdict, key: "titleVerdict" },
-    { el: reanalyzeChipSummary, key: "coreSummary" },
-    { el: reanalyzeChipMindmap, key: "mindMap" },
-    { el: reanalyzeChipChapters, key: "chapterMap" },
+    { el: sectionsUI.chipVerdict, key: "titleVerdict" },
+    { el: sectionsUI.chipSummary, key: "coreSummary" },
+    { el: sectionsUI.chipMindmap, key: "mindMap" },
+    { el: sectionsUI.chipChapters, key: "chapterMap" },
+    { el: sectionsUI.reanalyzeChipVerdict, key: "titleVerdict" },
+    { el: sectionsUI.reanalyzeChipSummary, key: "coreSummary" },
+    { el: sectionsUI.reanalyzeChipMindmap, key: "mindMap" },
+    { el: sectionsUI.reanalyzeChipChapters, key: "chapterMap" },
   ];
   map.forEach(({ el, key }) => {
     if (!el) return;
@@ -703,8 +612,8 @@ function updateSectionChipsUI() {
   ].filter(Boolean).length;
 
   const badgeText = `${activeCount}/${total}`;
-  if (sectionsBadge) sectionsBadge.textContent = badgeText;
-  if (reanalyzeSectionsBadge) reanalyzeSectionsBadge.textContent = badgeText;
+  if (sectionsUI.sectionsBadge) sectionsUI.sectionsBadge.textContent = badgeText;
+  if (sectionsUI.reanalyzeSectionsBadge) sectionsUI.reanalyzeSectionsBadge.textContent = badgeText;
 }
 
 let refreshSeq = 0;
@@ -716,14 +625,14 @@ let refreshSeq = 0;
  */
 async function refreshForCurrentTab(forceExtract = false) {
   const seq = ++refreshSeq;
-  customQuestionsEl.value = "";
-  followupInput.value = "";
+  captureUI.customQuestionsEl.value = "";
+  qaUI.followupInput.value = "";
   preSelectedEggs.clear();
   updateCaptureEggsLabel();
   isReanalyzing = false;
-  processedNote.classList.add("hidden");
-  historySelect.classList.add("hidden");
-  historySelect.innerHTML = "";
+  actionsUI.processedNote.classList.add("hidden");
+  actionsUI.historySelect.classList.add("hidden");
+  actionsUI.historySelect.innerHTML = "";
   captureHistory = []; // fresh URL — old history doesn't apply
   extractedContent = null;
   analysisResult = null;
@@ -736,9 +645,9 @@ async function refreshForCurrentTab(forceExtract = false) {
   followUpQa = [];
   activeEggTab = null;
   selectedEggs.clear();
-  contentPreview.textContent = t("loadingContent");
-  pageAuthorEl.textContent = "";
-  pagePublishedEl.textContent = "";
+  captureUI.contentPreview.textContent = t("loadingContent");
+  captureUI.pageAuthorEl.textContent = "";
+  captureUI.pagePublishedEl.textContent = "";
   currentTabLoading = false;
   updateAnalyzeButtonsState();
   showCaptureState();
@@ -758,9 +667,9 @@ async function refreshForCurrentTab(forceExtract = false) {
     if (tab?.status === "loading") currentTabLoading = true;
     if (tab?.url) {
       tabUrl = tab.url;
-      pageTitle.textContent = tab.title || t("loading");
-      pageUrl.textContent = tab.url;
-      pageType.textContent = detectPageTypeFromUrl(tab.url);
+      captureUI.pageTitle.textContent = tab.title || t("loading");
+      captureUI.pageUrl.textContent = tab.url;
+      captureUI.pageType.textContent = detectPageTypeFromUrl(tab.url);
     }
   } catch {}
 
@@ -828,10 +737,10 @@ async function restoreFromTabCache(tabId, cached) {
   selectedEggs = restored.selectedEggs instanceof Set ? restored.selectedEggs : new Set(restored.selectedEggs || []);
   preSelectedEggs = restored.preSelectedEggs instanceof Set ? restored.preSelectedEggs : new Set(restored.preSelectedEggs || []);
   updateCaptureEggsLabel();
-  if (customQuestionsEl) {
-    customQuestionsEl.value = restored.customQuestions || "";
+  if (captureUI.customQuestionsEl) {
+    captureUI.customQuestionsEl.value = restored.customQuestions || "";
   }
-  if (followupInput) followupInput.value = "";
+  if (qaUI.followupInput) qaUI.followupInput.value = "";
   currentTabLoading = false;
 
   if (restored.analysisMode && typeof setAnalysisMode === "function") {
@@ -839,10 +748,10 @@ async function restoreFromTabCache(tabId, cached) {
   }
 
   // Update header and capture preview so capture state is ready if user switches back
-  pageTitle.textContent = extractedContent?.title || "Untitled";
-  pageUrl.textContent = extractedContent?.url || "";
-  pageType.textContent = extractedContent?.sourceType || "";
-  contentPreview.textContent = extractedContent?.content || t("noContentExtracted");
+  captureUI.pageTitle.textContent = extractedContent?.title || "Untitled";
+  captureUI.pageUrl.textContent = extractedContent?.url || "";
+  captureUI.pageType.textContent = extractedContent?.sourceType || "";
+  captureUI.contentPreview.textContent = extractedContent?.content || t("noContentExtracted");
   showProvenance(extractedContent?.metadata || {});
 
   if (cached.status === "error" || cached.error) {
@@ -851,7 +760,7 @@ async function restoreFromTabCache(tabId, cached) {
     } else {
       showCaptureState();
       if (extractedContent) {
-        contentPreview.textContent = extractedContent.content || t("noContentExtracted");
+        captureUI.contentPreview.textContent = extractedContent.content || t("noContentExtracted");
       }
     }
     showError(cached.error, cached.errorCode);
@@ -860,54 +769,54 @@ async function restoreFromTabCache(tabId, cached) {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
-      if (reanalyzeBtn) {
-        reanalyzeBtn.disabled = true;
-        reanalyzeBtn.textContent = t("analyzing");
+      if (actionsUI.reanalyzeBtn) {
+        actionsUI.reanalyzeBtn.disabled = true;
+        actionsUI.reanalyzeBtn.textContent = t("analyzing");
       }
-      if (historySelect) historySelect.disabled = true;
-      analyzeBtn.disabled = true;
-      analyzeBtnText.textContent = t("analyzing");
-      processedNote.classList.remove("hidden");
-      processedMessage.textContent = t("analyzingContent");
+      if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
+      actionsUI.analyzeBtn.disabled = true;
+      actionsUI.analyzeBtnText.textContent = t("analyzing");
+      actionsUI.processedNote.classList.remove("hidden");
+      actionsUI.processedMessage.textContent = t("analyzingContent");
     } else {
       showCaptureState();
       if (extractedContent) {
-        contentPreview.textContent = extractedContent.content || t("noContentExtracted");
+        captureUI.contentPreview.textContent = extractedContent.content || t("noContentExtracted");
       }
-      analyzeBtn.disabled = true;
-      analyzeBtnText.textContent = t("analyzing");
+      actionsUI.analyzeBtn.disabled = true;
+      actionsUI.analyzeBtnText.textContent = t("analyzing");
     }
   } else if (cached.status === "hatching") {
     if (analysisResult) {
       showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     }
-    if (stage1ProceedBtn) {
-      stage1ProceedBtn.disabled = true;
-      stage1ProceedBtn.textContent = t("hatchingEggWaiting");
+    if (actionsUI.stage1ProceedBtn) {
+      actionsUI.stage1ProceedBtn.disabled = true;
+      actionsUI.stage1ProceedBtn.textContent = t("hatchingEggWaiting");
     }
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = true;
-      reanalyzeBtn.textContent = t("comparingKnowledge");
+    if (actionsUI.reanalyzeBtn) {
+      actionsUI.reanalyzeBtn.disabled = true;
+      actionsUI.reanalyzeBtn.textContent = t("comparingKnowledge");
     }
-    if (historySelect) historySelect.disabled = true;
-    analyzeBtn.disabled = true;
-    analyzeBtnText.textContent = t("analyzing");
+    if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
+    actionsUI.analyzeBtn.disabled = true;
+    actionsUI.analyzeBtnText.textContent = t("analyzing");
     if (analysisMode === "fast") {
-      if (verdictSection) verdictSection.classList.remove("hidden");
-      if (verdictBadge) verdictBadge.className = "verdict-badge";
-      if (verdictIcon) verdictIcon.textContent = "⏳";
-      if (verdictText) verdictText.textContent = t("comparingKnowledge");
+      if (verdictUI.verdictSection) verdictUI.verdictSection.classList.remove("hidden");
+      if (verdictUI.verdictBadge) verdictUI.verdictBadge.className = "verdict-badge";
+      if (verdictUI.verdictIcon) verdictUI.verdictIcon.textContent = "⏳";
+      if (verdictUI.verdictText) verdictUI.verdictText.textContent = t("comparingKnowledge");
     }
   } else if (analysisResult) {
     eggHatched = !!cached.eggHatched;
     nutCollected = !!cached.nutCollected;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     updateAnalyzeButtonsState();
-    if (historySelect) historySelect.disabled = false;
+    if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
     updateActionButtons();
     if (analysisResult.stage === "stage1" && analysisMode === "confirm") {
-      if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
-      if (verdictSection) verdictSection.classList.add("hidden");
+      if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
+      if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
       updateStage1ProceedBtn();
     }
     if (captureHistory.length > 0) {
@@ -916,12 +825,12 @@ async function restoreFromTabCache(tabId, cached) {
       const stateLabel = entry.saved === "saved"
         ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
       if (cached.justReanalyzed) {
-        processedMessage.textContent = t("reanalyzedFreshResult");
+        actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
         delete cached.justReanalyzed;
       } else {
-        processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
+        actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
       }
-      processedNote.classList.remove("hidden");
+      actionsUI.processedNote.classList.remove("hidden");
       renderHistorySelect(currentNutId);
     }
   } else {
@@ -944,15 +853,15 @@ async function handleRefresh() {
 /** 🐣 Create an egg from the no-match form, then re-analyze against it. */
 async function handleCreateEgg() {
   const pinnedTabId = activeTabId;
-  const name = newEggName.value.trim();
-  if (!name || createEggBtn.disabled) return;
-  createEggBtn.disabled = true;
-  createEggBtn.textContent = t("creatingEgg");
+  const name = eggsUI.newEggName.value.trim();
+  if (!name || eggsUI.createEggBtn.disabled) return;
+  eggsUI.createEggBtn.disabled = true;
+  eggsUI.createEggBtn.textContent = t("creatingEgg");
   try {
     const response = await chrome.runtime.sendMessage({
       action: "create-egg",
       name,
-      description: newEggDescription.value.trim(),
+      description: eggsUI.newEggDescription.value.trim(),
     });
     if (response?.success) {
       if (activeTabId !== pinnedTabId) return;
@@ -970,23 +879,23 @@ async function handleCreateEgg() {
     }
   }
   if (activeTabId === pinnedTabId) {
-    createEggBtn.disabled = false;
-    createEggBtn.textContent = t("createEggBtn");
+    eggsUI.createEggBtn.disabled = false;
+    eggsUI.createEggBtn.textContent = t("createEggBtn");
   }
 }
 
 /** 🐣 Create an egg from the inline form inside the egg picker. */
 async function handleCreateEggInline() {
   const pinnedTabId = activeTabId;
-  const name = eggsNewName.value.trim();
-  if (!name || eggsCreateBtn.disabled) return;
-  eggsCreateBtn.disabled = true;
-  eggsCreateBtn.textContent = t("creatingEgg");
+  const name = eggsUI.eggsNewName.value.trim();
+  if (!name || eggsUI.eggsCreateBtn.disabled) return;
+  eggsUI.eggsCreateBtn.disabled = true;
+  eggsUI.eggsCreateBtn.textContent = t("creatingEgg");
   try {
     const response = await chrome.runtime.sendMessage({
       action: "create-egg",
       name,
-      description: eggsNewDesc.value.trim(),
+      description: eggsUI.eggsNewDesc.value.trim(),
     });
     if (response?.success) {
       if (activeTabId !== pinnedTabId) return;
@@ -995,18 +904,18 @@ async function handleCreateEggInline() {
       return;
     }
     if (activeTabId === pinnedTabId) {
-      eggsErrorEl.textContent = `❌ ${response?.error || t("failedToCreateEgg")}`;
-      eggsErrorEl.classList.remove("hidden");
+      eggsUI.eggsErrorEl.textContent = `❌ ${response?.error || t("failedToCreateEgg")}`;
+      eggsUI.eggsErrorEl.classList.remove("hidden");
     }
   } catch (err) {
     if (activeTabId === pinnedTabId) {
-      eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`;
-      eggsErrorEl.classList.remove("hidden");
+      eggsUI.eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`;
+      eggsUI.eggsErrorEl.classList.remove("hidden");
     }
   }
   if (activeTabId === pinnedTabId) {
-    eggsCreateBtn.disabled = false;
-    eggsCreateBtn.textContent = t("createEggBtn");
+    eggsUI.eggsCreateBtn.disabled = false;
+    eggsUI.eggsCreateBtn.textContent = t("createEggBtn");
   }
 }
 
@@ -1035,9 +944,9 @@ function renderCaptureEggsList() {
   const fn = globalThis.NutEggUI?.renderCaptureEggsList || globalThis.renderCaptureEggsList;
   if (fn) {
     fn({
-      captureEggsList,
-      captureEggsToggle,
-      captureEggsLabel,
+      captureEggsList: eggsUI.captureEggsList,
+      captureEggsToggle: eggsUI.captureEggsToggle,
+      captureEggsLabel: eggsUI.captureEggsLabel,
       allEggs,
       preSelectedEggs,
       updateLabel: updateCaptureEggsLabel,
@@ -1049,7 +958,7 @@ function updateCaptureEggsLabel() {
   const fn = globalThis.NutEggUI?.updateCaptureEggsLabel || globalThis.updateCaptureEggsLabel;
   if (fn) {
     fn({
-      captureEggsLabel,
+      captureEggsLabel: eggsUI.captureEggsLabel,
       preSelectedEggs,
     });
   }
@@ -1065,26 +974,26 @@ function renderEggsSection(matchedEggs) {
     fn(matchedEggs, {
       allEggs,
       selectedEggs,
-      eggsSection,
-      eggsList,
-      eggsExpanded,
-      eggsToggleChevron,
-      eggsErrorEl,
-      eggsToggleLabel,
-      reanalyzeEggsBtn,
-      eggsCreateForm,
+      eggsSection: eggsUI.eggsSection,
+      eggsList: eggsUI.eggsList,
+      eggsExpanded: eggsUI.eggsExpanded,
+      eggsToggleChevron: eggsUI.eggsToggleChevron,
+      eggsErrorEl: eggsUI.eggsErrorEl,
+      eggsToggleLabel: eggsUI.eggsToggleLabel,
+      reanalyzeEggsBtn: eggsUI.reanalyzeEggsBtn,
+      eggsCreateForm: eggsUI.eggsCreateForm,
       onSelectChange: () => updateStage1ProceedBtn(),
     });
   }
 
   // Reset inline create-egg form
-  eggsCreateForm?.classList.add("hidden");
-  if (eggsCreateToggle) eggsCreateToggle.textContent = t("createNewEgg");
-  if (eggsNewName) eggsNewName.value = "";
-  if (eggsNewDesc) eggsNewDesc.value = "";
-  if (eggsCreateBtn) {
-    eggsCreateBtn.disabled = false;
-    eggsCreateBtn.textContent = t("createEggBtn");
+  eggsUI.eggsCreateForm?.classList.add("hidden");
+  if (eggsUI.eggsCreateToggle) eggsUI.eggsCreateToggle.textContent = t("createNewEgg");
+  if (eggsUI.eggsNewName) eggsUI.eggsNewName.value = "";
+  if (eggsUI.eggsNewDesc) eggsUI.eggsNewDesc.value = "";
+  if (eggsUI.eggsCreateBtn) {
+    eggsUI.eggsCreateBtn.disabled = false;
+    eggsUI.eggsCreateBtn.textContent = t("createEggBtn");
   }
 }
 
@@ -1092,37 +1001,37 @@ function renderEggsSection(matchedEggs) {
 function setAnalysisMode(mode) {
   analysisMode = mode;
   if (mode === "confirm") {
-    modeConfirmBtn?.classList.add("active");
-    modeFastBtn?.classList.remove("active");
+    actionsUI.modeConfirmBtn?.classList.add("active");
+    actionsUI.modeFastBtn?.classList.remove("active");
   } else {
-    modeFastBtn?.classList.add("active");
-    modeConfirmBtn?.classList.remove("active");
+    actionsUI.modeFastBtn?.classList.add("active");
+    actionsUI.modeConfirmBtn?.classList.remove("active");
   }
   chrome.storage?.local?.set?.({ analysisMode: mode });
 
   if (analysisResult?.stage === "stage1") {
     if (mode === "confirm") {
-      stage1ConfirmBox?.classList.remove("hidden");
-      verdictSection?.classList.add("hidden");
-      eggKnowledgeSection?.classList.add("hidden");
-      eggsExpanded?.classList.remove("hidden");
-      if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+      actionsUI.stage1ConfirmBox?.classList.remove("hidden");
+      verdictUI.verdictSection?.classList.add("hidden");
+      eggsUI.eggKnowledgeSection?.classList.add("hidden");
+      eggsUI.eggsExpanded?.classList.remove("hidden");
+      if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
       updateStage1ProceedBtn();
       window.scrollTo(0, 0);
     } else {
-      stage1ConfirmBox?.classList.add("hidden");
-      verdictSection?.classList.remove("hidden");
+      actionsUI.stage1ConfirmBox?.classList.add("hidden");
+      verdictUI.verdictSection?.classList.remove("hidden");
     }
   }
 }
 
 function updateStage1ProceedBtn() {
-  if (!stage1ProceedBtn) return;
+  if (!actionsUI.stage1ProceedBtn) return;
   const count = selectedEggs.size;
-  const confirmTextEl = document.getElementById("stage1-confirm-text");
+  const confirmTextEl = actionsUI.stage1ConfirmText;
   if (count === 0) {
-    stage1ProceedBtn.disabled = true;
-    stage1ProceedBtn.textContent = t("hatchEggSelectEgg");
+    actionsUI.stage1ProceedBtn.disabled = true;
+    actionsUI.stage1ProceedBtn.textContent = t("hatchEggSelectEgg");
     if (confirmTextEl) {
       if (allEggs.length === 0) {
         confirmTextEl.innerHTML = t("stage1NoEggsNotice");
@@ -1131,8 +1040,8 @@ function updateStage1ProceedBtn() {
       }
     }
   } else {
-    stage1ProceedBtn.disabled = false;
-    stage1ProceedBtn.textContent = count === 1 ? t("hatchEgg") : t("hatchEggCount", { count });
+    actionsUI.stage1ProceedBtn.disabled = false;
+    actionsUI.stage1ProceedBtn.textContent = count === 1 ? t("hatchEgg") : t("hatchEggCount", { count });
     if (confirmTextEl) {
       confirmTextEl.innerHTML = t("stage1SelectedNotice", { count });
     }
@@ -1155,19 +1064,18 @@ async function handleProceedStage2(
   const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
   if (!isExplicitEggs && targetEggs.length === 0) {
     if (isPinnedActive) {
-      if (eggsExpanded) eggsExpanded.classList.remove("hidden");
-      if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
-      const eggSec = document.getElementById("eggs-section");
-      if (eggSec) eggSec.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      if (eggsUI.eggsExpanded) eggsUI.eggsExpanded.classList.remove("hidden");
+      if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
+      if (eggsUI.eggsSection) eggsUI.eggsSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
       showWarning(t("selectEggWarning"));
     }
     return;
   }
 
   if (isPinnedActive) {
-    if (stage1ProceedBtn) {
-      stage1ProceedBtn.disabled = true;
-      stage1ProceedBtn.textContent = autoSave ? t("hatchingEggWaiting") : t("analyzing");
+    if (actionsUI.stage1ProceedBtn) {
+      actionsUI.stage1ProceedBtn.disabled = true;
+      actionsUI.stage1ProceedBtn.textContent = autoSave ? t("hatchingEggWaiting") : t("analyzing");
     }
     hideMessages();
   }
@@ -1191,13 +1099,13 @@ async function handleProceedStage2(
       }
     }
 
-    const url = base?.url || content?.url || pageUrl?.textContent || "";
-    const title = base?.title || content?.title || pageTitle?.textContent || "";
+    const url = base?.url || content?.url || captureUI.pageUrl?.textContent || "";
+    const title = base?.title || content?.title || captureUI.pageTitle?.textContent || "";
     const bodyContent = base?.content || content?.content || "";
     const sourceType = base?.sourceType || content?.sourceType || "generic";
     const metadata = base?.metadata || content?.metadata;
     const chapters = base?.chapters || content?.chapters;
-    const questions = base?.questions || (customQuestionsEl?.value ? customQuestionsEl.value.split("\n").map((q) => q.trim()).filter(Boolean) : []);
+    const questions = base?.questions || (captureUI.customQuestionsEl?.value ? captureUI.customQuestionsEl.value.split("\n").map((q) => q.trim()).filter(Boolean) : []);
 
     const payload = {
       ...(base || {}),
@@ -1229,13 +1137,13 @@ async function handleProceedStage2(
       }
       if (activeTabId === targetPinnedId) {
         showError(response.error, response.errorCode);
-        if (stage1ProceedBtn) {
-          stage1ProceedBtn.disabled = false;
+        if (actionsUI.stage1ProceedBtn) {
+          actionsUI.stage1ProceedBtn.disabled = false;
           updateStage1ProceedBtn();
         }
         if (analysisMode === "confirm") {
-          if (verdictSection) verdictSection.classList.add("hidden");
-          if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
+          if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
+          if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
         }
         updateAnalyzeButtonsState();
       }
@@ -1330,15 +1238,15 @@ async function handleProceedStage2(
     if (captureHistory.length > 0) {
       renderHistorySelect(currentNutId);
       if (isReanalyzing) {
-        processedMessage.textContent = t("reanalyzedFreshResult");
-        processedNote.classList.remove("hidden");
+        actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
+        actionsUI.processedNote.classList.remove("hidden");
       }
     }
     if (!skipScroll) {
       setTimeout(() => {
-        const target = eggKnowledgeSection && !eggKnowledgeSection.classList.contains("hidden")
-          ? eggKnowledgeSection
-          : verdictSection;
+        const target = eggsUI.eggKnowledgeSection && !eggsUI.eggKnowledgeSection.classList.contains("hidden")
+          ? eggsUI.eggKnowledgeSection
+          : verdictUI.verdictSection;
         if (target && !target.classList.contains("hidden")) {
           target.scrollIntoView({ behavior: "smooth", block: "start" });
         }
@@ -1351,13 +1259,13 @@ async function handleProceedStage2(
     }
     if (activeTabId === targetPinnedId) {
       showError(err instanceof Error ? err.message : t("hatchingFailed"));
-      if (stage1ProceedBtn) {
-        stage1ProceedBtn.disabled = false;
+      if (actionsUI.stage1ProceedBtn) {
+        actionsUI.stage1ProceedBtn.disabled = false;
         updateStage1ProceedBtn();
       }
       if (analysisMode === "confirm") {
-        if (verdictSection) verdictSection.classList.add("hidden");
-        if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
+        if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
+        if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
       }
       updateAnalyzeButtonsState();
     }
@@ -1367,10 +1275,7 @@ async function handleProceedStage2(
 // --- Metrics ---
 
 function applyMetrics(data) {
-  if (!data) return;
-  if (metricNuts && data.nuts != null) metricNuts.textContent = data.nuts;
-  if (metricEggs && data.eggs != null) metricEggs.textContent = data.eggs;
-  if (metricTime && data.timeSaved != null) metricTime.textContent = data.timeSaved;
+  metricsUI.render(data);
 }
 
 async function fetchMetrics() {
@@ -1390,21 +1295,7 @@ async function fetchMetrics() {
 let obsidianPluginVersion = null;
 
 function updateVersionDisplay(pluginVersion) {
-  const versionTag = document.getElementById("version-tag");
-  const extVersion = chrome.runtime?.getManifest?.()?.version;
-  if (!versionTag || !extVersion) return;
-
-  if (pluginVersion && pluginVersion !== extVersion) {
-    versionTag.textContent = `NutEgg v${extVersion} (Obsidian v${pluginVersion})`;
-    versionTag.title = t("versionMismatchFull", { extVersion, pluginVersion });
-    versionTag.style.color = "#d97706";
-  } else {
-    versionTag.textContent = `NutEgg v${extVersion}`;
-    versionTag.title = pluginVersion
-      ? `NutEgg v${extVersion} (Obsidian plugin v${pluginVersion})`
-      : `NutEgg v${extVersion}`;
-    versionTag.style.color = "";
-  }
+  headerUI.updateVersion(null, pluginVersion);
 }
 
 function getVersionMismatchIssue(pluginVersion) {
@@ -1444,48 +1335,19 @@ async function checkConfigStatus() {
 
 async function checkCreditStatus() {
   if (!serverOnline) {
-    aiCreditPill?.classList.add("hidden");
+    headerUI.aiCreditPill?.classList.add("hidden");
     return;
   }
   try {
     const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
     renderCreditPill(credit);
   } catch {
-    aiCreditPill?.classList.add("hidden");
+    headerUI.aiCreditPill?.classList.add("hidden");
   }
 }
 
 function renderCreditPill(credit) {
-  if (!credit || credit.error || !serverOnline) {
-    aiCreditPill?.classList.add("hidden");
-    return;
-  }
-  aiCreditPill?.classList.remove("hidden");
-
-  const providerName =
-    credit.source === "openrouter"
-      ? "OpenRouter"
-      : credit.provider === "anthropic"
-      ? "Claude"
-      : credit.provider === "kimi"
-      ? "Kimi"
-      : credit.provider === "gemini"
-      ? "Gemini"
-      : credit.provider === "openai"
-      ? "OpenAI"
-      : credit.provider === "local"
-      ? (credit.model ? `Local (${credit.model})` : "Local LLM")
-      : credit.providerLabel || credit.provider;
-
-  if (credit.hasBalance && credit.balanceFormatted) {
-    aiCreditText.textContent = `${providerName}: ${credit.balanceFormatted}`;
-    aiCreditPill.title = t("aiCreditTooltip");
-    aiCreditPill.classList.remove("has-warning");
-  } else {
-    aiCreditText.textContent = providerName;
-    aiCreditPill.title = t("aiCreditTooltip");
-    aiCreditPill.classList.remove("has-warning");
-  }
+  headerUI.renderCredit(credit, serverOnline);
 }
 
 // --- Server check ---
@@ -1516,7 +1378,7 @@ async function checkServerStatus() {
     }
 
     checkCreditStatus();
-    obsidianPluginLink?.classList.add("hidden");
+    metricsUI.obsidianPluginLink?.classList.add("hidden");
 
     const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
     if (mismatch) {
@@ -1540,10 +1402,10 @@ async function checkServerStatus() {
     if (chromeAiConfigured) {
       checkChromeCreditStatus();
     } else {
-      aiCreditPill?.classList.add("hidden");
+      headerUI.aiCreditPill?.classList.add("hidden");
     }
 
-    obsidianPluginLink?.classList.remove("hidden");
+    metricsUI.obsidianPluginLink?.classList.remove("hidden");
     updateServerStatusIndicator();
   }
 
@@ -1555,14 +1417,14 @@ async function checkChromeCreditStatus() {
   try {
     const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
     if (credit && !serverOnline) {
-      aiCreditPill?.classList.remove("hidden");
+      headerUI.aiCreditPill?.classList.remove("hidden");
       const providerLabel = credit.providerLabel || chromeAiProvider || "Chrome AI";
       if (credit.hasBalance && credit.balanceFormatted) {
-        aiCreditText.textContent = credit.balanceFormatted;
-        aiCreditPill.title = t("aiCreditTooltip");
+        headerUI.aiCreditText.textContent = credit.balanceFormatted;
+        headerUI.aiCreditPill.title = t("aiCreditTooltip");
       } else {
-        aiCreditText.textContent = providerLabel;
-        aiCreditPill.title = t("aiCreditTooltip");
+        headerUI.aiCreditText.textContent = providerLabel;
+        headerUI.aiCreditPill.title = t("aiCreditTooltip");
       }
     }
   } catch {}
@@ -1570,21 +1432,21 @@ async function checkChromeCreditStatus() {
 
 function updateCaptureBanners() {
   if (serverOnline) {
-    aiKeyMissingBanner?.classList.add("hidden");
-    chromeModeTipBanner?.classList.add("hidden");
+    bannersUI.aiKeyMissingBanner?.classList.add("hidden");
+    bannersUI.chromeModeTipBanner?.classList.add("hidden");
     return;
   }
 
   // Obsidian is offline
   if (chromeAiConfigured) {
-    aiKeyMissingBanner?.classList.add("hidden");
-    chromeModeTipBanner?.classList.remove("hidden");
+    bannersUI.aiKeyMissingBanner?.classList.add("hidden");
+    bannersUI.chromeModeTipBanner?.classList.remove("hidden");
   } else {
-    chromeModeTipBanner?.classList.add("hidden");
-    if (aiKeyMissingBanner) {
-      aiKeyMissingBanner.classList.remove("hidden");
+    bannersUI.chromeModeTipBanner?.classList.add("hidden");
+    if (bannersUI.aiKeyMissingBanner) {
+      bannersUI.aiKeyMissingBanner.classList.remove("hidden");
       if (chromeAiEnabled) {
-        aiKeyMissingBanner.innerHTML = `
+        bannersUI.aiKeyMissingBanner.innerHTML = `
           <span class="key-banner-icon">⚠️</span>
           <div class="key-banner-content">
             ${t("aiKeyRequiredChrome")}
@@ -1595,7 +1457,7 @@ function updateCaptureBanners() {
           </div>
         `;
       } else {
-        aiKeyMissingBanner.innerHTML = `
+        bannersUI.aiKeyMissingBanner.innerHTML = `
           <span class="key-banner-icon">⚪</span>
           <div class="key-banner-content">
             ${t("obsidianOfflineBanner")}
@@ -1614,13 +1476,10 @@ function updateServerStatusIndicator() {
   if (serverOnline) {
     const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
     if (mismatch) {
-      serverStatus.className = "status-dot warning";
       updateServerStatusTooltip("obsidian-mismatch", obsidianPluginVersion, mismatch);
     } else if (!obsidianAiConfigured) {
-      serverStatus.className = "status-dot warning";
       updateServerStatusTooltip("obsidian-no-key", obsidianPluginVersion);
     } else {
-      serverStatus.className = "status-dot online";
       updateServerStatusTooltip("obsidian-online", obsidianPluginVersion);
     }
     return;
@@ -1628,54 +1487,16 @@ function updateServerStatusIndicator() {
 
   // Obsidian offline
   if (chromeAiConfigured) {
-    serverStatus.className = "status-dot chrome-ai";
     updateServerStatusTooltip("chrome-ai", null, chromeAiProvider);
   } else if (chromeAiEnabled) {
-    serverStatus.className = "status-dot warning";
     updateServerStatusTooltip("chrome-no-key", null, chromeAiProvider);
   } else {
-    serverStatus.className = "status-dot offline";
     updateServerStatusTooltip("offline");
   }
 }
 
 function updateServerStatusTooltip(state, version = null, extra = null) {
-  const tooltip = document.getElementById("server-status-tooltip");
-  const title = document.getElementById("status-tooltip-title");
-  const sub = document.getElementById("status-tooltip-sub");
-  if (!tooltip || !title || !sub) return;
-
-  if (state === "obsidian-online") {
-    tooltip.className = "status-tooltip online";
-    title.textContent = t("obsidianOnline");
-    sub.textContent = version ? t("pluginVersionFull", { version }) : t("readyToCapture");
-    serverStatus.setAttribute("aria-label", t("obsidianOnlineAria", { version: version ? ` (v${version})` : "" }));
-  } else if (state === "obsidian-no-key") {
-    tooltip.className = "status-tooltip warning";
-    title.textContent = t("obsidianOnlineNoKey");
-    sub.textContent = t("addKeyInObsidian");
-    serverStatus.setAttribute("aria-label", t("obsidianNoKeyConfig"));
-  } else if (state === "obsidian-mismatch") {
-    tooltip.className = "status-tooltip warning";
-    title.textContent = t("versionMismatch");
-    sub.textContent = extra || t("updateNutEggPlugin");
-    serverStatus.setAttribute("aria-label", extra || t("versionMismatch"));
-  } else if (state === "chrome-ai") {
-    tooltip.className = "status-tooltip chrome-ai";
-    title.textContent = t("usingChromeAi");
-    sub.textContent = t("usingChromeAiSub", { extra: extra || t("standalone") });
-    serverStatus.setAttribute("aria-label", `${t("usingChromeAi")} (${extra || t("standalone")})`);
-  } else if (state === "chrome-no-key") {
-    tooltip.className = "status-tooltip warning";
-    title.textContent = t("chromeAiNoKey");
-    sub.textContent = t("addKeyInChrome");
-    serverStatus.setAttribute("aria-label", t("chromeAiNoKeyConfig"));
-  } else {
-    tooltip.className = "status-tooltip offline";
-    title.textContent = t("obsidianOffline");
-    sub.textContent = t("startObsidianOrChromeAi");
-    serverStatus.setAttribute("aria-label", t("obsidianOfflineStart"));
-  }
+  headerUI.updateServerStatus(state, version, extra);
 }
 
 // --- Button Readiness & State ---
@@ -1726,64 +1547,64 @@ function updateAnalyzeButtonsState() {
   const isAnalyzing = tabStateManager.isAnalyzing(activeTabId);
 
   if (isAnalyzing) {
-    analyzeBtn.disabled = true;
-    analyzeBtn.classList.remove("inactive");
-    analyzeBtnText.textContent = t("analyzing");
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = true;
-      reanalyzeBtn.classList.remove("inactive");
-      reanalyzeBtn.textContent = t("analyzing");
+    actionsUI.analyzeBtn.disabled = true;
+    actionsUI.analyzeBtn.classList.remove("inactive");
+    actionsUI.analyzeBtnText.textContent = t("analyzing");
+    if (actionsUI.reanalyzeBtn) {
+      actionsUI.reanalyzeBtn.disabled = true;
+      actionsUI.reanalyzeBtn.classList.remove("inactive");
+      actionsUI.reanalyzeBtn.textContent = t("analyzing");
     }
     return;
   }
 
-  analyzeBtn.disabled = false;
-  if (reanalyzeBtn) reanalyzeBtn.disabled = false;
+  actionsUI.analyzeBtn.disabled = false;
+  if (actionsUI.reanalyzeBtn) actionsUI.reanalyzeBtn.disabled = false;
 
   const notReady = getAnalyzeNotReadyReason();
   const hasContent = !!(extractedContent && extractedContent.content);
 
   if (notReady) {
-    analyzeBtn.classList.add("inactive");
+    actionsUI.analyzeBtn.classList.add("inactive");
 
     if (isTranscriptBlocked()) {
-      analyzeBtnText.textContent = t("transcriptUnavailable");
+      actionsUI.analyzeBtnText.textContent = t("transcriptUnavailable");
     } else if (currentTabLoading || extractionPending) {
-      analyzeBtnText.textContent = t("loadingContent");
+      actionsUI.analyzeBtnText.textContent = t("loadingContent");
     } else {
-      analyzeBtnText.textContent = t("analyze");
+      actionsUI.analyzeBtnText.textContent = t("analyze");
     }
-    analyzeBtn.title = notReady;
+    actionsUI.analyzeBtn.title = notReady;
 
-    if (reanalyzeBtn) {
+    if (actionsUI.reanalyzeBtn) {
       if (!hasContent) {
         if (extractionPending) {
-          reanalyzeBtn.disabled = true;
-          reanalyzeBtn.classList.remove("inactive");
-          reanalyzeBtn.textContent = t("loadingContent");
-          reanalyzeBtn.title = t("retrievingPageContent");
+          actionsUI.reanalyzeBtn.disabled = true;
+          actionsUI.reanalyzeBtn.classList.remove("inactive");
+          actionsUI.reanalyzeBtn.textContent = t("loadingContent");
+          actionsUI.reanalyzeBtn.title = t("retrievingPageContent");
         } else {
-          reanalyzeBtn.disabled = false;
-          reanalyzeBtn.classList.remove("inactive");
-          reanalyzeBtn.textContent = t("loadAndReanalyze");
-          reanalyzeBtn.title = t("loadAndReanalyzeTitle");
+          actionsUI.reanalyzeBtn.disabled = false;
+          actionsUI.reanalyzeBtn.classList.remove("inactive");
+          actionsUI.reanalyzeBtn.textContent = t("loadAndReanalyze");
+          actionsUI.reanalyzeBtn.title = t("loadAndReanalyzeTitle");
         }
       } else {
-        reanalyzeBtn.disabled = false;
-        reanalyzeBtn.classList.add("inactive");
-        reanalyzeBtn.textContent = t("reanalyze");
-        reanalyzeBtn.title = notReady;
+        actionsUI.reanalyzeBtn.disabled = false;
+        actionsUI.reanalyzeBtn.classList.add("inactive");
+        actionsUI.reanalyzeBtn.textContent = t("reanalyze");
+        actionsUI.reanalyzeBtn.title = notReady;
       }
     }
   } else {
-    analyzeBtn.classList.remove("inactive");
-    analyzeBtnText.textContent = analysisResult ? t("analyzeAgain") : t("analyze");
-    analyzeBtn.title = "";
-    if (reanalyzeBtn) {
-      reanalyzeBtn.disabled = false;
-      reanalyzeBtn.classList.remove("inactive");
-      reanalyzeBtn.title = "";
-      reanalyzeBtn.textContent = t("reanalyze");
+    actionsUI.analyzeBtn.classList.remove("inactive");
+    actionsUI.analyzeBtnText.textContent = analysisResult ? t("analyzeAgain") : t("analyze");
+    actionsUI.analyzeBtn.title = "";
+    if (actionsUI.reanalyzeBtn) {
+      actionsUI.reanalyzeBtn.disabled = false;
+      actionsUI.reanalyzeBtn.classList.remove("inactive");
+      actionsUI.reanalyzeBtn.title = "";
+      actionsUI.reanalyzeBtn.textContent = t("reanalyze");
     }
   }
 }
@@ -1833,7 +1654,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
   }
 
   if (!tabId) {
-    if (!targetTabId || targetTabId === activeTabId) pageTitle.textContent = t("unknownPage");
+    if (!targetTabId || targetTabId === activeTabId) captureUI.pageTitle.textContent = t("unknownPage");
     return null;
   }
 
@@ -1852,13 +1673,13 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
     extractionFailed = false;
     lastLoadWasLoading = false;
     extractionPending = true;
-    refreshBtn.disabled = false; // Always clickable to cancel and retry!
-    contentPreview.textContent = t("retrievingPageContent");
-    pageAuthorEl.textContent = "";
-    pagePublishedEl.textContent = "";
-    pageTitle.textContent = tabTitle || t("retrieving");
-    pageUrl.textContent = tabUrl || "";
-    pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
+    captureUI.refreshBtn.disabled = false; // Always clickable to cancel and retry!
+    captureUI.contentPreview.textContent = t("retrievingPageContent");
+    captureUI.pageAuthorEl.textContent = "";
+    captureUI.pagePublishedEl.textContent = "";
+    captureUI.pageTitle.textContent = tabTitle || t("retrieving");
+    captureUI.pageUrl.textContent = tabUrl || "";
+    captureUI.pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
     updateAnalyzeButtonsState();
   }
 
@@ -1875,8 +1696,8 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
         tabTitle = refreshedTab.title || tabTitle;
         tabUrl = refreshedTab.url || tabUrl;
         if (activeTabId === tabId) {
-          pageTitle.textContent = tabTitle || pageTitle.textContent;
-          pageUrl.textContent = tabUrl || pageUrl.textContent;
+          captureUI.pageTitle.textContent = tabTitle || captureUI.pageTitle.textContent;
+          captureUI.pageUrl.textContent = tabUrl || captureUI.pageUrl.textContent;
         }
       } catch {}
       await waitForPageSettle(tabId, tabSeq);
@@ -1921,9 +1742,9 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       if (activeTabId === tabId) {
         extractedContent = response.content;
         currentTabLoading = false;
-        pageTitle.textContent = response.content.title || tabTitle || "Untitled";
-        pageType.textContent = response.content.sourceType || pageType.textContent;
-        contentPreview.textContent = response.content.content || "(No content extracted)";
+        captureUI.pageTitle.textContent = response.content.title || tabTitle || "Untitled";
+        captureUI.pageType.textContent = response.content.sourceType || captureUI.pageType.textContent;
+        captureUI.contentPreview.textContent = response.content.content || "(No content extracted)";
         showProvenance(response.content.metadata || {});
         applyTranscriptBlock();
         updateAnalyzeButtonsState();
@@ -1940,14 +1761,14 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
     tabStateManager.setExtracting(tabId, false);
     if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
       extractionPending = false;
-      refreshBtn.disabled = false;
+      captureUI.refreshBtn.disabled = false;
       updateAnalyzeButtonsState();
     }
   }
 
   if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
     if (extractionFailed && !extractedContent) {
-      contentPreview.textContent = t("couldNotExtractContent");
+      captureUI.contentPreview.textContent = t("couldNotExtractContent");
       showWarning(t("couldNotExtractRestricted"));
     }
     applyTranscriptBlock();
@@ -2111,8 +1932,8 @@ function detectPageTypeFromUrl(url) {
 /** Show the author + published date extracted from the page itself. */
 function showProvenance(metadata) {
   const author = metadata.author || metadata.channel || metadata.handle || "";
-  pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
-  pagePublishedEl.textContent = metadata.published
+  captureUI.pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
+  captureUI.pagePublishedEl.textContent = metadata.published
     ? `📅 ${formatPublishedDate(metadata.published)}`
     : "";
 }
@@ -2139,13 +1960,13 @@ function provenanceFromExtraction(content = extractedContent) {
 /** Title/author/publish-time card at the top of the results view. */
 function renderResultProvenance(prov) {
   if (!prov?.title) {
-    resultPageInfo.classList.add("hidden");
+    resultsUI.resultPageInfo.classList.add("hidden");
     return;
   }
-  resultPageInfo.classList.remove("hidden");
-  resultPageTitle.textContent = prov.title;
-  resultPageAuthor.textContent = prov.author ? `✍️ ${prov.author}` : "";
-  resultPagePublished.textContent = prov.publishedAt
+  resultsUI.resultPageInfo.classList.remove("hidden");
+  resultsUI.resultPageTitle.textContent = prov.title;
+  resultsUI.resultPageAuthor.textContent = prov.author ? `✍️ ${prov.author}` : "";
+  resultsUI.resultPagePublished.textContent = prov.publishedAt
     ? `📅 ${formatPublishedDate(prov.publishedAt)}`
     : "";
 }
@@ -2228,20 +2049,20 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   if (activeTabId === pinnedTabId) {
     hideMessages();
     if (isReanalyze) {
-      processedNote.classList.remove("hidden");
-      processedMessage.textContent = t("analyzingContent");
-      if (reanalyzeBtn) {
-        reanalyzeBtn.disabled = true;
-        reanalyzeBtn.textContent = t("analyzing");
+      actionsUI.processedNote.classList.remove("hidden");
+      actionsUI.processedMessage.textContent = t("analyzingContent");
+      if (actionsUI.reanalyzeBtn) {
+        actionsUI.reanalyzeBtn.disabled = true;
+        actionsUI.reanalyzeBtn.textContent = t("analyzing");
       }
     }
-    if (historySelect) historySelect.disabled = true;
-    analyzeBtn.disabled = true;
-    analyzeBtnText.textContent = t("analyzing");
+    if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
+    actionsUI.analyzeBtn.disabled = true;
+    actionsUI.analyzeBtnText.textContent = t("analyzing");
   }
 
   try {
-    const questions = customQuestionsEl.value
+    const questions = captureUI.customQuestionsEl.value
       .split("\n")
       .map((q) => q.trim())
       .filter(Boolean);
@@ -2334,7 +2155,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         stage1ContentAnalysis = response;
         cachedProcessedSaved = null;
         followUpQa = [];
-        followupInput.value = "";
+        qaUI.followupInput.value = "";
         nutCollected = false;
         eggHatched = false;
         activeEggTab = null;
@@ -2343,27 +2164,27 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
 
         if (isReanalyze) {
-          processedNote.classList.remove("hidden");
-          processedMessage.textContent = t("comparingAgainstSelected");
-          if (reanalyzeBtn) {
-            reanalyzeBtn.disabled = true;
-            reanalyzeBtn.textContent = t("comparingKnowledge");
+          actionsUI.processedNote.classList.remove("hidden");
+          actionsUI.processedMessage.textContent = t("comparingAgainstSelected");
+          if (actionsUI.reanalyzeBtn) {
+            actionsUI.reanalyzeBtn.disabled = true;
+            actionsUI.reanalyzeBtn.textContent = t("comparingKnowledge");
           }
         }
 
         if (eggsForStage2.length > 0) {
           if (!isReanalyze) {
-            if (verdictSection) verdictSection.classList.remove("hidden");
-            if (verdictBadge) verdictBadge.className = "verdict-badge";
-            if (verdictIcon) verdictIcon.textContent = "⏳";
-            if (verdictText) verdictText.textContent = t("comparingKnowledge");
-            if (verdictReason) {
-              verdictReason.textContent = t("comparingAgainstEggs", { count: eggsForStage2.length });
+            if (verdictUI.verdictSection) verdictUI.verdictSection.classList.remove("hidden");
+            if (verdictUI.verdictBadge) verdictUI.verdictBadge.className = "verdict-badge";
+            if (verdictUI.verdictIcon) verdictUI.verdictIcon.textContent = "⏳";
+            if (verdictUI.verdictText) verdictUI.verdictText.textContent = t("comparingKnowledge");
+            if (verdictUI.verdictReason) {
+              verdictUI.verdictReason.textContent = t("comparingAgainstEggs", { count: eggsForStage2.length });
             }
           } else {
-            if (verdictSection) verdictSection.classList.add("hidden");
+            if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
           }
-          if (stage1ConfirmBox) stage1ConfirmBox.classList.add("hidden");
+          if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.add("hidden");
         }
       }
 
@@ -2381,8 +2202,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
       if (activeTabId === pinnedTabId) {
         if (isReanalyze || captureHistory.length > 0) {
-          processedMessage.textContent = t("reanalyzedFreshResult");
-          processedNote.classList.remove("hidden");
+          actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
+          actionsUI.processedNote.classList.remove("hidden");
           renderHistorySelect(currentNutId);
         }
       }
@@ -2446,15 +2267,15 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         captureHistory = updatedHistory;
         cachedProcessedSaved = null;
         followUpQa = [];
-        followupInput.value = "";
+        qaUI.followupInput.value = "";
         nutCollected = false;
         eggHatched = false;
         activeEggTab = null;
         analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
         if (isReanalyze || captureHistory.length > 0) {
-          processedMessage.textContent = isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete");
-          processedNote.classList.remove("hidden");
+          actionsUI.processedMessage.textContent = isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete");
+          actionsUI.processedNote.classList.remove("hidden");
           renderHistorySelect(currentNutId);
         }
       }
@@ -2471,7 +2292,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   } finally {
     if (activeTabId === pinnedTabId) {
       isReanalyzing = false;
-      if (historySelect) historySelect.disabled = false;
+      if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
       const activeCache = tabResultCache.get(activeTabId);
       if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
         updateAnalyzeButtonsState();
@@ -2496,28 +2317,28 @@ function resetCollapsibleSections() {
 
 function showResultsState(result, provenance = null) {
   analysisResult = result;
-  captureState.classList.add("hidden");
-  resultsState.classList.remove("hidden");
+  resultsUI.captureState.classList.add("hidden");
+  resultsUI.resultsState.classList.remove("hidden");
   initCollapsibleSections();
   if (!isReanalyzing) {
     resetCollapsibleSections();
   }
-  processedNote.classList.remove("hidden");
-  if (!processedMessage.textContent) {
+  actionsUI.processedNote.classList.remove("hidden");
+  if (!actionsUI.processedMessage.textContent) {
     const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
     if (entry) {
       const when = new Date(entry.capturedAt).toLocaleString();
       const stateLabel = entry.saved === "saved"
         ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
-      processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
+      actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
     } else {
-      processedMessage.textContent = t("analysisCompleteAdjust");
+      actionsUI.processedMessage.textContent = t("analysisCompleteAdjust");
     }
   }
   updateSectionChipsUI();
   if (!isReanalyzing) {
     updateAnalyzeButtonsState();
-    if (historySelect) historySelect.disabled = false;
+    if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
   }
   renderHistorySelect(currentNutId);
   renderResultProvenance(provenance);
@@ -2526,41 +2347,41 @@ function showResultsState(result, provenance = null) {
   const isStage1 = result.stage === "stage1" || isChromeMode;
 
   if (isChromeMode) {
-    chromeResultBanner?.classList.remove("hidden");
-    chromeActionsCard?.classList.remove("hidden");
-    stage1ConfirmBox?.classList.add("hidden");
-    verdictSection?.classList.add("hidden");
-    noEggSection?.classList.add("hidden");
-    eggKnowledgeSection?.classList.add("hidden");
-    confirmBtn?.classList.add("hidden");
-    collectNutBtn?.classList.add("hidden");
+    bannersUI.chromeResultBanner?.classList.remove("hidden");
+    bannersUI.chromeActionsCard?.classList.remove("hidden");
+    actionsUI.stage1ConfirmBox?.classList.add("hidden");
+    verdictUI.verdictSection?.classList.add("hidden");
+    eggsUI.noEggSection?.classList.add("hidden");
+    eggsUI.eggKnowledgeSection?.classList.add("hidden");
+    actionsUI.confirmBtn?.classList.add("hidden");
+    actionsUI.collectNutBtn?.classList.add("hidden");
   } else {
-    chromeResultBanner?.classList.add("hidden");
-    chromeActionsCard?.classList.add("hidden");
-    collectNutBtn?.classList.remove("hidden");
+    bannersUI.chromeResultBanner?.classList.add("hidden");
+    bannersUI.chromeActionsCard?.classList.add("hidden");
+    actionsUI.collectNutBtn?.classList.remove("hidden");
 
     if (isStage1) {
       if (analysisMode === "confirm") {
-        stage1ConfirmBox?.classList.remove("hidden");
-        verdictSection?.classList.add("hidden");
+        actionsUI.stage1ConfirmBox?.classList.remove("hidden");
+        verdictUI.verdictSection?.classList.add("hidden");
       } else {
-        stage1ConfirmBox?.classList.add("hidden");
-        verdictSection?.classList.remove("hidden");
+        actionsUI.stage1ConfirmBox?.classList.add("hidden");
+        verdictUI.verdictSection?.classList.remove("hidden");
       }
-      confirmBtn?.classList.add("hidden");
+      actionsUI.confirmBtn?.classList.add("hidden");
     } else {
-      stage1ConfirmBox?.classList.add("hidden");
-      verdictSection?.classList.remove("hidden");
+      actionsUI.stage1ConfirmBox?.classList.add("hidden");
+      verdictUI.verdictSection?.classList.remove("hidden");
     }
 
     // No egg matched — offer to create one
     const noEgg = (result.matchedEggs || []).length === 0;
     if (noEgg) {
-      noEggSection.classList.remove("hidden");
-      newEggName.value = "";
-      newEggDescription.value = "";
+      eggsUI.noEggSection.classList.remove("hidden");
+      eggsUI.newEggName.value = "";
+      eggsUI.newEggDescription.value = "";
     } else {
-      noEggSection.classList.add("hidden");
+      eggsUI.noEggSection.classList.add("hidden");
     }
 
     // Egg picker — sync the checklist with _index.md, then render it with
@@ -2568,8 +2389,8 @@ function showResultsState(result, provenance = null) {
     fetchEggs().then(() => {
       renderEggsSection(result.matchedEggs || []);
       if (isStage1 && analysisMode === "confirm") {
-        eggsExpanded?.classList.remove("hidden");
-        if (eggsToggleChevron) eggsToggleChevron.textContent = "▾";
+        eggsUI.eggsExpanded?.classList.remove("hidden");
+        if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
         updateStage1ProceedBtn();
         window.scrollTo(0, 0);
       }
@@ -2579,11 +2400,11 @@ function showResultsState(result, provenance = null) {
   // Title Verdict
   const showVerdict = result.titleVerdict && enabledSections.titleVerdict !== false;
   if (showVerdict) {
-    titleVerdictSection?.classList.remove("hidden");
-    verdictAnswer.textContent = result.titleVerdict || "";
+    verdictUI.titleVerdictSection?.classList.remove("hidden");
+    verdictUI.verdictAnswer.textContent = result.titleVerdict || "";
   } else {
-    titleVerdictSection?.classList.add("hidden");
-    verdictAnswer.textContent = "";
+    verdictUI.titleVerdictSection?.classList.add("hidden");
+    verdictUI.verdictAnswer.textContent = "";
   }
 
   // Core Summary
@@ -2592,13 +2413,13 @@ function showResultsState(result, provenance = null) {
     result.coreSummary.length > 0 &&
     enabledSections.coreSummary !== false;
   if (showSummary) {
-    coreSummarySection?.classList.remove("hidden");
-    coreSummaryEl.innerHTML = (result.coreSummary || [])
+    resultsUI.coreSummarySection?.classList.remove("hidden");
+    resultsUI.coreSummaryEl.innerHTML = (result.coreSummary || [])
       .map((b) => `<li>${escapeHtml(b)}</li>`)
       .join("");
   } else {
-    coreSummarySection?.classList.add("hidden");
-    coreSummaryEl.innerHTML = "";
+    resultsUI.coreSummarySection?.classList.add("hidden");
+    resultsUI.coreSummaryEl.innerHTML = "";
   }
 
   // Mind Map — text-heavy concept tree for side panel
@@ -2607,10 +2428,10 @@ function showResultsState(result, provenance = null) {
     result.mindMap.length > 0 &&
     enabledSections.mindMap !== false;
   if (showMindmap) {
-    mindmapSection?.classList.remove("hidden");
+    mindmapUI.mindmapSection?.classList.remove("hidden");
     renderMindMap(result.mindMap);
   } else {
-    mindmapSection?.classList.add("hidden");
+    mindmapUI.mindmapSection?.classList.add("hidden");
   }
 
   // Chapter Map — clickable when timestamps exist (video).
@@ -2630,8 +2451,8 @@ function showResultsState(result, provenance = null) {
   const renderChapters = globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap;
   if (renderChapters) {
     renderChapters({
-      chapterSection,
-      chapterList,
+      chapterSection: chaptersUI.chapterSection,
+      chapterList: chaptersUI.chapterList,
       chapterMap: result.chapterMap,
       enabled: enabledSections.chapterMap !== false,
       isShortWithoutChapters,
@@ -2649,25 +2470,25 @@ function showResultsState(result, provenance = null) {
   // Verdict
   if (isStage1) {
     if (analysisMode === "fast") {
-      verdictSection?.classList.remove("hidden");
+      verdictUI.verdictSection?.classList.remove("hidden");
     } else {
-      verdictSection?.classList.add("hidden");
+      verdictUI.verdictSection?.classList.add("hidden");
     }
   } else {
-    verdictSection?.classList.remove("hidden");
+    verdictUI.verdictSection?.classList.remove("hidden");
     if (result.shouldRead) {
-      verdictIcon.textContent = "✅";
-      verdictText.textContent = t("verdictWorthReading");
-      verdictBadge.className = "verdict-badge verdict-yes";
+      verdictUI.verdictIcon.textContent = "✅";
+      verdictUI.verdictText.textContent = t("verdictWorthReading");
+      verdictUI.verdictBadge.className = "verdict-badge verdict-yes";
     } else {
-      verdictIcon.textContent = "⏭️";
-      verdictText.textContent = t("verdictSkipIt");
-      verdictBadge.className = "verdict-badge verdict-no";
+      verdictUI.verdictIcon.textContent = "⏭️";
+      verdictUI.verdictText.textContent = t("verdictSkipIt");
+      verdictUI.verdictBadge.className = "verdict-badge verdict-no";
     }
-    verdictReason.textContent = result.shouldReadReason || "";
+    verdictUI.verdictReason.textContent = result.shouldReadReason || "";
   }
 
-  successBanner.classList.add("hidden");
+  bannersUI.successBanner.classList.add("hidden");
   updateActionButtons();
 }
 
@@ -2679,10 +2500,10 @@ function renderEggKnowledge(eggResults = []) {
   const fn = globalThis.NutEggUI?.renderEggKnowledge || globalThis.renderEggKnowledge;
   if (fn) {
     fn(eggResults, {
-      eggKnowledgeSection,
-      eggKnowledgeContent,
-      eggTabsBar,
-      eggKnowledgeHint,
+      eggKnowledgeSection: eggsUI.eggKnowledgeSection,
+      eggKnowledgeContent: eggsUI.eggKnowledgeContent,
+      eggTabsBar: eggsUI.eggTabsBar,
+      eggKnowledgeHint: eggsUI.eggKnowledgeHint,
       activeEggTab,
       onTabChange: (newTab) => { activeEggTab = newTab; },
     });
@@ -2692,22 +2513,22 @@ function renderEggKnowledge(eggResults = []) {
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
   if (analysisResult?.mode === "chrome") {
-    confirmBtn.classList.add("hidden");
-    collectNutBtn.classList.add("hidden");
-    chromeActionsCard?.classList.remove("hidden");
+    actionsUI.confirmBtn.classList.add("hidden");
+    actionsUI.collectNutBtn.classList.add("hidden");
+    bannersUI.chromeActionsCard?.classList.remove("hidden");
     return;
   }
 
   if (analysisResult?.stage === "stage1") {
-    confirmBtn.classList.add("hidden");
+    actionsUI.confirmBtn.classList.add("hidden");
     if (nutCollected) {
-      collectNutBtn.disabled = true;
-      collectNutBtn.textContent = t("nutCollected");
-      if (stage1SkipBtn) {
-        stage1SkipBtn.disabled = true;
-        stage1SkipBtn.textContent = t("nutCollected");
+      actionsUI.collectNutBtn.disabled = true;
+      actionsUI.collectNutBtn.textContent = t("nutCollected");
+      if (actionsUI.stage1SkipBtn) {
+        actionsUI.stage1SkipBtn.disabled = true;
+        actionsUI.stage1SkipBtn.textContent = t("nutCollected");
       }
-      const confirmTextEl = document.getElementById("stage1-confirm-text");
+      const confirmTextEl = actionsUI.stage1ConfirmText;
       const confirmIconEl = document.querySelector(".stage1-confirm-icon");
       if (confirmTextEl) {
         confirmTextEl.innerHTML = t("stage1NutSavedNotice");
@@ -2715,48 +2536,48 @@ function updateActionButtons() {
       if (confirmIconEl) {
         confirmIconEl.textContent = "✅";
       }
-      if (stage1ConfirmBox) {
-        stage1ConfirmBox.classList.add("stage1-saved");
+      if (actionsUI.stage1ConfirmBox) {
+        actionsUI.stage1ConfirmBox.classList.add("stage1-saved");
       }
     } else {
-      collectNutBtn.disabled = false;
-      collectNutBtn.textContent = t("collectNutOnly");
-      if (stage1SkipBtn) {
-        stage1SkipBtn.disabled = false;
-        stage1SkipBtn.textContent = t("collectNutOnly");
+      actionsUI.collectNutBtn.disabled = false;
+      actionsUI.collectNutBtn.textContent = t("collectNutOnly");
+      if (actionsUI.stage1SkipBtn) {
+        actionsUI.stage1SkipBtn.disabled = false;
+        actionsUI.stage1SkipBtn.textContent = t("collectNutOnly");
       }
-      if (stage1ConfirmBox) {
-        stage1ConfirmBox.classList.remove("stage1-saved");
+      if (actionsUI.stage1ConfirmBox) {
+        actionsUI.stage1ConfirmBox.classList.remove("stage1-saved");
       }
     }
     return;
   }
 
   if (nutCollected) {
-    collectNutBtn.disabled = true;
-    collectNutBtn.textContent = t("nutCollected");
+    actionsUI.collectNutBtn.disabled = true;
+    actionsUI.collectNutBtn.textContent = t("nutCollected");
   } else {
-    collectNutBtn.disabled = false;
-    collectNutBtn.textContent = t("collectNut");
+    actionsUI.collectNutBtn.disabled = false;
+    actionsUI.collectNutBtn.textContent = t("collectNut");
   }
 
   const hasDelta = (analysisResult?.newKnowledge?.length || 0) > 0;
   if (eggHatched) {
-    confirmBtn.classList.remove("hidden");
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = t("eggHatched");
-    confirmBtn.title = "";
+    actionsUI.confirmBtn.classList.remove("hidden");
+    actionsUI.confirmBtn.disabled = true;
+    actionsUI.confirmBtn.textContent = t("eggHatched");
+    actionsUI.confirmBtn.title = "";
   } else if (hasDelta) {
-    confirmBtn.classList.remove("hidden");
-    confirmBtn.disabled = false;
-    confirmBtn.textContent = t("hatchEgg");
-    confirmBtn.title = "";
+    actionsUI.confirmBtn.classList.remove("hidden");
+    actionsUI.confirmBtn.disabled = false;
+    actionsUI.confirmBtn.textContent = t("hatchEgg");
+    actionsUI.confirmBtn.title = "";
   } else {
     // No novel delta — show the button but keep it unclickable
-    confirmBtn.classList.remove("hidden");
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = t("hatchEgg");
-    confirmBtn.title = t("noNewKnowledgeToAdd");
+    actionsUI.confirmBtn.classList.remove("hidden");
+    actionsUI.confirmBtn.disabled = true;
+    actionsUI.confirmBtn.textContent = t("hatchEgg");
+    actionsUI.confirmBtn.title = t("noNewKnowledgeToAdd");
   }
 }
 
@@ -2776,7 +2597,7 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
     if (response?.history?.length) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
-      analyzeBtnText.textContent = t("analyzeAgain");
+      actionsUI.analyzeBtnText.textContent = t("analyzeAgain");
       return true;
     }
   } catch {
@@ -2787,11 +2608,11 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
 
 /** Render or update the version history select dropdown. */
 function renderHistorySelect(selectedNutId = currentNutId) {
-  if (!historySelect) return;
+  if (!actionsUI.historySelect) return;
   if (captureHistory.length > 1) {
     const hasMatch = selectedNutId != null && captureHistory.some((h) => String(h.nutId) === String(selectedNutId));
-    historySelect.classList.remove("hidden");
-    historySelect.innerHTML = captureHistory
+    actionsUI.historySelect.classList.remove("hidden");
+    actionsUI.historySelect.innerHTML = captureHistory
       .map((h, i) => {
         const d = new Date(h.capturedAt).toLocaleString();
         const s = h.saved === "saved" ? t("stateSaved") : h.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
@@ -2800,8 +2621,8 @@ function renderHistorySelect(selectedNutId = currentNutId) {
       })
       .join("");
   } else {
-    historySelect.classList.add("hidden");
-    historySelect.innerHTML = "";
+    actionsUI.historySelect.classList.add("hidden");
+    actionsUI.historySelect.innerHTML = "";
   }
 }
 
@@ -2816,8 +2637,8 @@ function showHistoryEntry(entry) {
   if (entry.result?.stage === "stage1") {
     stage1ContentAnalysis = entry.result;
     stage1Payload = {
-      url: entry.url || extractedContent?.url || pageUrl.textContent || "",
-      title: entry.title || extractedContent?.title || pageTitle.textContent || "",
+      url: entry.url || extractedContent?.url || captureUI.pageUrl.textContent || "",
+      title: entry.title || extractedContent?.title || captureUI.pageTitle.textContent || "",
       content: entry.content || extractedContent?.content || "",
       sourceType: entry.sourceType || extractedContent?.sourceType || "generic",
       metadata: extractedContent?.metadata,
@@ -2830,8 +2651,8 @@ function showHistoryEntry(entry) {
 
   if (entry.content) {
     extractedContent = {
-      url: entry.url || pageUrl.textContent || "",
-      title: entry.title || pageTitle.textContent || "",
+      url: entry.url || captureUI.pageUrl.textContent || "",
+      title: entry.title || captureUI.pageTitle.textContent || "",
       content: entry.content,
       sourceType: entry.sourceType || "webpage",
       metadata: {
@@ -2839,7 +2660,7 @@ function showHistoryEntry(entry) {
         ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
       },
     };
-    contentPreview.textContent = entry.content;
+    captureUI.contentPreview.textContent = entry.content;
   }
 
   if (activeTabId) {
@@ -2869,8 +2690,8 @@ function showHistoryEntry(entry) {
   const when = new Date(entry.capturedAt).toLocaleString();
   const stateLabel = entry.saved === "saved"
     ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
-  processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
-  processedNote.classList.remove("hidden");
+  actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
+  actionsUI.processedNote.classList.remove("hidden");
 
   // Version selector when multiple captures exist
   renderHistorySelect(entry.nutId);
@@ -2903,7 +2724,7 @@ function unwrapMindMapRoots(nodes) {
 function renderMindMap(nodes) {
   const fn = globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap;
   if (fn) {
-    fn(nodes, mindmapTree);
+    fn(nodes, mindmapUI.mindmapTree);
   }
 }
 
@@ -2912,9 +2733,9 @@ function renderCustomQuestions() {
   const fn = globalThis.NutEggUI?.renderCustomQuestions || globalThis.renderCustomQuestions;
   if (fn) {
     fn({
-      customQuestionsSection,
-      customQuestionsList,
-      followupInput,
+      customQuestionsSection: qaUI.customQuestionsSection,
+      customQuestionsList: qaUI.customQuestionsList,
+      followupInput: qaUI.followupInput,
       questions: analysisResult?.customQuestionAnswers,
       followUps: followUpQa,
     });
@@ -2924,11 +2745,11 @@ function renderCustomQuestions() {
 /** Ask a follow-up question against the already-analyzed content. */
 async function handleFollowUp() {
   const pinnedTabId = activeTabId;
-  const q = followupInput.value.trim();
-  if (!q || followupBtn.disabled) return;
-  followupInput.value = "";
-  followupBtn.disabled = true;
-  followupBtn.textContent = "…";
+  const q = qaUI.followupInput.value.trim();
+  if (!q || qaUI.followupBtn.disabled) return;
+  qaUI.followupInput.value = "";
+  qaUI.followupBtn.disabled = true;
+  qaUI.followupBtn.textContent = "…";
 
   const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
   let content = extractedContent || cached?.extractedContent;
@@ -3007,8 +2828,8 @@ async function handleFollowUp() {
   }
 
   if (activeTabId === pinnedTabId) {
-    followupBtn.disabled = false;
-    followupBtn.textContent = t("askBtn");
+    qaUI.followupBtn.disabled = false;
+    qaUI.followupBtn.textContent = t("askBtn");
     renderCustomQuestions();
   }
 }
@@ -3098,21 +2919,21 @@ function timeToSeconds(time) {
 }
 
 function showCaptureState() {
-  resultsState.classList.add("hidden");
-  resultPageInfo.classList.add("hidden");
-  captureState.classList.remove("hidden");
+  resultsUI.resultsState.classList.add("hidden");
+  resultsUI.resultPageInfo.classList.add("hidden");
+  resultsUI.captureState.classList.remove("hidden");
   resetCollapsibleSections();
   if (extractedContent) {
-    contentPreview.textContent = extractedContent.content || "(No content extracted)";
-    if (extractedContent.title) pageTitle.textContent = extractedContent.title;
-    if (extractedContent.url) pageUrl.textContent = extractedContent.url;
-    if (extractedContent.sourceType) pageType.textContent = extractedContent.sourceType;
+    captureUI.contentPreview.textContent = extractedContent.content || "(No content extracted)";
+    if (extractedContent.title) captureUI.pageTitle.textContent = extractedContent.title;
+    if (extractedContent.url) captureUI.pageUrl.textContent = extractedContent.url;
+    if (extractedContent.sourceType) captureUI.pageType.textContent = extractedContent.sourceType;
     showProvenance(extractedContent.metadata || {});
   }
   analysisResult = null;
   cachedProcessedSaved = null;
   followUpQa = [];
-  followupInput.value = "";
+  qaUI.followupInput.value = "";
   nutCollected = false;
   eggHatched = false;
   currentNutId = null;
@@ -3135,14 +2956,14 @@ async function handleConfirm() {
   if (!targetResult || eggHatched || !(targetResult.newKnowledge?.length)) return;
   if (!targetContent) {
     if (activeTabId === pinnedTabId) {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = t("retrieving");
+      actionsUI.confirmBtn.disabled = true;
+      actionsUI.confirmBtn.textContent = t("retrieving");
     }
     targetContent = await extractPageContent(refreshSeq, pinnedTabId);
   }
   if (activeTabId === pinnedTabId) {
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = t("hatching");
+    actionsUI.confirmBtn.disabled = true;
+    actionsUI.confirmBtn.textContent = t("hatching");
   }
   await doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
   if (activeTabId === pinnedTabId) {
@@ -3162,13 +2983,13 @@ async function handleSaveRaw() {
   if (nutCollected) return; // already collected — no duplicate work
   if (!targetContent) {
     if (activeTabId === pinnedTabId) {
-      if (collectNutBtn) {
-        collectNutBtn.disabled = true;
-        collectNutBtn.textContent = t("retrieving");
+      if (actionsUI.collectNutBtn) {
+        actionsUI.collectNutBtn.disabled = true;
+        actionsUI.collectNutBtn.textContent = t("retrieving");
       }
-      if (stage1SkipBtn) {
-        stage1SkipBtn.disabled = true;
-        stage1SkipBtn.textContent = t("retrieving");
+      if (actionsUI.stage1SkipBtn) {
+        actionsUI.stage1SkipBtn.disabled = true;
+        actionsUI.stage1SkipBtn.textContent = t("retrieving");
       }
     }
     targetContent = await extractPageContent(refreshSeq, pinnedTabId);
@@ -3181,13 +3002,13 @@ async function handleSaveRaw() {
     return;
   }
   if (activeTabId === pinnedTabId) {
-    if (collectNutBtn) {
-      collectNutBtn.disabled = true;
-      collectNutBtn.textContent = t("collecting");
+    if (actionsUI.collectNutBtn) {
+      actionsUI.collectNutBtn.disabled = true;
+      actionsUI.collectNutBtn.textContent = t("collecting");
     }
-    if (stage1SkipBtn) {
-      stage1SkipBtn.disabled = true;
-      stage1SkipBtn.textContent = t("collecting");
+    if (actionsUI.stage1SkipBtn) {
+      actionsUI.stage1SkipBtn.disabled = true;
+      actionsUI.stage1SkipBtn.textContent = t("collecting");
     }
   }
   await doSave([], false, targetContent, targetResult, targetNutId, pinnedTabId);
@@ -3269,20 +3090,20 @@ async function doSave(
               .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
               .join(", ")}`
           : "";
-        const isStage1BoxVisible = result?.stage === "stage1" && stage1ConfirmBox && !stage1ConfirmBox.classList.contains("hidden");
+        const isStage1BoxVisible = result?.stage === "stage1" && actionsUI.stage1ConfirmBox && !actionsUI.stage1ConfirmBox.classList.contains("hidden");
         if (isStage1BoxVisible) {
           // In Stage 1, stage1-confirm-box updates in-place to show the saved state.
           // Hide successBanner so only one message is displayed.
-          successBanner.classList.add("hidden");
+          bannersUI.successBanner.classList.add("hidden");
         } else {
           if (newKnowledge.length > 0) {
-            successMessage.textContent = t("eggHatchedSuccess", { mergedNote });
+            bannersUI.successMessage.textContent = t("eggHatchedSuccess", { mergedNote });
           } else if (isHatch) {
-            successMessage.textContent = t("eggHatchedNoKnowledge");
+            bannersUI.successMessage.textContent = t("eggHatchedNoKnowledge");
           } else {
-            successMessage.textContent = t("nutCollectedVault");
+            bannersUI.successMessage.textContent = t("nutCollectedVault");
           }
-          successBanner.classList.remove("hidden");
+          bannersUI.successBanner.classList.remove("hidden");
         }
         updateActionButtons();
         fetchMetrics();
@@ -3304,45 +3125,23 @@ function handleDiscard() { window.close(); }
 // --- Messages ---
 
 function showError(msg, errorCode) {
-  errorMessage.textContent = msg;
-  errorBanner.classList.remove("hidden");
-  const hints = {
-    no_api_key: t("errorHintNoApiKey"),
-    auth_failed: t("errorHintAuthFailed"),
-    forbidden: t("errorHintForbidden"),
-    model_not_found: t("errorHintModelNotFound"),
-    rate_limited: t("errorHintRateLimited"),
-    quota_exceeded: t("errorHintQuotaExceeded"),
-    network_error: t("errorHintNetwork"),
-    server_error: t("errorHintServerError"),
-  };
-  if (errorCode && hints[errorCode]) {
-    errorHint.innerHTML = hints[errorCode];
-    errorHint.classList.remove("hidden");
-  } else {
-    errorHint.classList.add("hidden");
-  }
+  bannersUI.showError(msg, errorCode);
 }
 
 function showDuplicate(msg) {
-  duplicateMessage.textContent = msg;
-  duplicateBanner.classList.remove("hidden");
+  bannersUI.showDuplicate(msg);
 }
 
 function hideMessages() {
-  errorBanner.classList.add("hidden");
-  errorHint.classList.add("hidden");
-  duplicateBanner.classList.add("hidden");
+  bannersUI.hideMessages();
 }
 
 function showWarning(msg) {
-  warningMessage.textContent = msg;
-  warningBanner.classList.remove("hidden");
+  bannersUI.showWarning(msg);
   updateServerStatusIndicator();
 }
 function hideWarning() {
-  warningBanner.classList.add("hidden");
-  warningMessage.textContent = "";
+  bannersUI.hideWarning();
   updateServerStatusIndicator();
 }
 
@@ -3357,8 +3156,8 @@ function openGitHubBugReport(errorContext = "") {
   let contentUrl = "";
   if (extractedContent?.url) {
     contentUrl = extractedContent.url;
-  } else if (pageUrl?.textContent && pageUrl.textContent !== "Loading...") {
-    contentUrl = pageUrl.textContent;
+  } else if (captureUI.pageUrl?.textContent && captureUI.pageUrl.textContent !== "Loading...") {
+    contentUrl = captureUI.pageUrl.textContent;
   }
 
   const manifest = chrome.runtime?.getManifest?.() || {};
