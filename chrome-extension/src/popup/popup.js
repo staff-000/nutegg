@@ -1721,7 +1721,7 @@ function updateAnalyzeButtonsState() {
     } else if (currentTabLoading || extractionPending) {
       analyzeBtnText.textContent = t("loadingContent");
     } else {
-      analyzeBtnText.textContent = t("analyzeBtn");
+      analyzeBtnText.textContent = t("analyze");
     }
     analyzeBtn.title = notReady;
 
@@ -1747,7 +1747,7 @@ function updateAnalyzeButtonsState() {
     }
   } else {
     analyzeBtn.classList.remove("inactive");
-    analyzeBtnText.textContent = analysisResult ? t("analyzeAgain") : t("analyzeBtn");
+    analyzeBtnText.textContent = analysisResult ? t("analyzeAgain") : t("analyze");
     analyzeBtn.title = "";
     if (reanalyzeBtn) {
       reanalyzeBtn.disabled = false;
