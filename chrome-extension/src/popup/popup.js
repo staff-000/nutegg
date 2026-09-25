@@ -2,6 +2,8 @@
 if (typeof require !== "undefined") {
   try {
     const tabState = require("./state/tab-state.js");
+    const settingsState = require("./state/settings-state.js");
+    const sessionState = require("./state/session-state.js");
     const collapsibleUI = require("./ui/collapsible.js");
     const mindmapUI = require("./ui/mindmap.js");
     const chaptersUI = require("./ui/chapters.js");
@@ -18,6 +20,8 @@ if (typeof require !== "undefined") {
     Object.assign(
       globalThis,
       tabState,
+      settingsState,
+      sessionState,
       collapsibleUI,
       mindmapUI,
       chaptersUI,
@@ -53,56 +57,22 @@ const chaptersUI = new (globalThis.NutEggUI?.ChaptersComponent || (typeof Chapte
 const qaUI = new (globalThis.NutEggUI?.QaComponent || (typeof QaComponent !== "undefined" ? QaComponent : class {}))();
 const eggsUI = new (globalThis.NutEggUI?.EggsComponent || (typeof EggsComponent !== "undefined" ? EggsComponent : class {}))();
 
-let extractedContent = null;
-let serverOnline = false;
-let chromeAiEnabled = false;
-let chromeAiConfigured = false;
-let chromeAiProvider = "";
-let chromeAiModel = "";
-let obsidianAiConfigured = false;
-let outputLanguage = "same-as-content";
-let analysisResult = null;
-let activeTabId = null;
-let isReanalyzing = false;
-/** How the shown result was saved previously: "saved" | "skip" | "analyzed" | null (fresh analysis). */
-let cachedProcessedSaved = null;
-/** Follow-up questions asked after the result was shown (this session). */
-let followUpQa = [];
-/** Save-state of the shown result this session. Hatch implies both. */
-let nutCollected = false;
-let eggHatched = false;
-/** Capture history for the current URL (newest first) — URLs change over time. */
-let captureHistory = [];
-/** Row id of the capture currently shown / last analyzed. */
-let currentNutId = null;
-/** All eggs from _index.md (for the manual egg picker). */
-let allEggs = [];
-/** The user's checkbox selection in the egg picker. */
-let selectedEggs = new Set();
-/** Pre-selected eggs on the capture screen (before analyze). Empty = auto-detect. */
-let preSelectedEggs = new Set();
-
-const DEFAULT_ANALYSIS_SECTIONS = {
-  titleVerdict: true,
-  coreSummary: true,
-  mindMap: true,
-  chapterMap: true,
-};
-let enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
-
-/** Analysis mode: "fast" (1-click full) | "confirm" (confirm eggs after stage 1). */
-let analysisMode = "fast";
-let stage1Payload = null;
-let stage1ContentAnalysis = null;
-let activeEggTab = null;
-let currentTabLoading = false;
-
+// ============================================================
+// State Managers
+// ============================================================
 /** Per-tab state & cache manager. When the user switches away
  *  and back, the cached result is restored instead of re-extracting. */
 const tabStateManager = typeof TabStateManager !== "undefined" ? new TabStateManager() : new (globalThis.NutEggTabState?.TabStateManager || Map)();
 const tabResultCache = tabStateManager;
 const tabExtractSeq = tabStateManager.extractSeq || new Map();
 const tabsExtracting = tabStateManager.extracting || new Set();
+
+/** Persisted user preferences and environment/connection status. */
+const settings = new (globalThis.NutEggState?.SettingsState || (typeof SettingsState !== "undefined" ? SettingsState : class {}))();
+const DEFAULT_ANALYSIS_SECTIONS = settings.DEFAULT_ANALYSIS_SECTIONS;
+
+/** Active tab runtime session state (extracted content, analysis, egg selections). */
+const session = new (globalThis.NutEggState?.SessionState || (typeof SessionState !== "undefined" ? SessionState : class {}))();
 
 // --- Init ---
 
@@ -117,20 +87,12 @@ async function initPopup() {
 
   // Restore analysis mode preference and cached metrics immediately (0ms paint)
   try {
-    const stored = await new Promise((resolve) => {
-      chrome.storage?.local?.get?.(["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage"], resolve);
-    });
+    const stored = await settings.loadFromStorage();
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       setAnalysisMode(stored.analysisMode);
     }
     if (stored?.cachedMetrics) {
       applyMetrics(stored.cachedMetrics);
-    }
-    if (stored?.enabledSections) {
-      enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...stored.enabledSections };
-    }
-    if (stored?.outputLanguage) {
-      outputLanguage = stored.outputLanguage;
     }
   } catch {}
 
@@ -149,13 +111,13 @@ async function initPopup() {
         }
       }
       if (changes.outputLanguage && changes.outputLanguage.newValue) {
-        outputLanguage = changes.outputLanguage.newValue;
+        settings.setOutputLanguage(changes.outputLanguage.newValue, false);
       }
       if (changes.enabledSections && changes.enabledSections.newValue) {
-        enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS, ...changes.enabledSections.newValue };
+        settings.setEnabledSections(changes.enabledSections.newValue);
         updateSectionChipsUI();
-        if (analysisResult) {
-          showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+        if (session.analysisResult) {
+          showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
         }
       }
       if (
@@ -172,7 +134,7 @@ async function initPopup() {
 
   actionsUI.modeFastBtn?.addEventListener("click", () => setAnalysisMode("fast"));
   actionsUI.modeConfirmBtn?.addEventListener("click", () => setAnalysisMode("confirm"));
-  actionsUI.stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true, false, activeTabId));
+  actionsUI.stage1ProceedBtn?.addEventListener("click", () => handleProceedStage2(null, true, false, session.activeTabId));
   actionsUI.stage1SkipBtn?.addEventListener("click", handleSaveRaw);
 
   actionsUI.analyzeBtn.addEventListener("click", () => {
@@ -195,18 +157,18 @@ async function initPopup() {
       currentTabUrl = tab?.url || "";
     } catch {}
 
-    const urlMatches = extractedContent?.url && currentTabUrl &&
-      extractedContent.url.split("#")[0] === currentTabUrl.split("#")[0];
+    const urlMatches = session.extractedContent?.url && currentTabUrl &&
+      session.extractedContent.url.split("#")[0] === currentTabUrl.split("#")[0];
 
-    if (urlMatches && extractedContent?.content) {
-      captureUI.setContent(extractedContent, {
+    if (urlMatches && session.extractedContent?.content) {
+      captureUI.setContent(session.extractedContent, {
         defaultTitle: captureUI.getPageTitle(),
         defaultType: captureUI.getPageType(),
       });
-      showProvenance(extractedContent.metadata || {});
+      showProvenance(session.extractedContent.metadata || {});
       updateAnalyzeButtonsState();
     } else {
-      extractedContent = null;
+      session.extractedContent = null;
       captureUI.setLoading(t("retrievingPageContent"));
       await extractPageContent();
     }
@@ -231,7 +193,7 @@ async function initPopup() {
   }
   if (headerUI.statusIndicatorWrap) {
     headerUI.statusIndicatorWrap.addEventListener("click", () => {
-      if (!serverOnline) {
+      if (!settings.serverOnline) {
         window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
         return;
       }
@@ -283,11 +245,11 @@ async function initPopup() {
   });
   eggsUI.eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   eggsUI.reanalyzeEggsBtn.addEventListener("click", async () => {
-    const pinnedTabId = activeTabId;
-    const pinnedEggs = [...selectedEggs];
+    const pinnedTabId = session.activeTabId;
+    const pinnedEggs = [...session.selectedEggs];
     if (pinnedEggs.length === 0 || eggsUI.reanalyzeEggsBtn.disabled) return;
 
-    const hasContent = !!(extractedContent && extractedContent.content);
+    const hasContent = !!(session.extractedContent && session.extractedContent.content);
     if (!hasContent) {
       const original = eggsUI.reanalyzeEggsBtn.textContent;
       eggsUI.setReanalyzeLoading(true, t("loadingContent"));
@@ -295,16 +257,16 @@ async function initPopup() {
       hideWarning();
 
       try {
-        await extractPageContent(refreshSeq, pinnedTabId);
+        await extractPageContent(session.refreshSeq, pinnedTabId);
       } catch (err) {
         console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
       }
 
-      if (activeTabId !== pinnedTabId) return;
+      if (session.activeTabId !== pinnedTabId) return;
 
       eggsUI.setReanalyzeLoading(false, original);
 
-      const nowHasContent = !!(extractedContent && extractedContent.content);
+      const nowHasContent = !!(session.extractedContent && session.extractedContent.content);
       if (!nowHasContent) {
         showError(t("couldNotRetrieveContent"));
         bannersUI.errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
@@ -312,7 +274,7 @@ async function initPopup() {
       }
     }
 
-    if (activeTabId !== pinnedTabId) return;
+    if (session.activeTabId !== pinnedTabId) return;
 
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
@@ -322,15 +284,15 @@ async function initPopup() {
     const original = eggsUI.reanalyzeEggsBtn.textContent;
     eggsUI.setReanalyzeLoading(true, `⏳ ${t("analyzing")}`);
     eggsUI.clearError();
-    if (stage1ContentAnalysis) {
+    if (session.stage1ContentAnalysis) {
       await handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
     } else {
       const error = await handleAnalyze(true, pinnedEggs, true);
-      if (error && activeTabId === pinnedTabId) {
+      if (error && session.activeTabId === pinnedTabId) {
         eggsUI.showError(`❌ ${error}`);
       }
     }
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       eggsUI.setReanalyzeLoading(false, original);
     }
   });
@@ -340,23 +302,23 @@ async function initPopup() {
   });
   actionsUI.reanalyzeBtn.addEventListener("click", async () => {
     if (actionsUI.reanalyzeBtn.disabled) return;
-    const pinnedTabId = activeTabId;
+    const pinnedTabId = session.activeTabId;
 
-    const hasContent = !!(extractedContent && extractedContent.content);
+    const hasContent = !!(session.extractedContent && session.extractedContent.content);
     if (!hasContent) {
       actionsUI.setReanalyzingState(t("loadingContent"));
       hideMessages();
       hideWarning();
 
       try {
-        await extractPageContent(refreshSeq, pinnedTabId);
+        await extractPageContent(session.refreshSeq, pinnedTabId);
       } catch (err) {
         console.error("[NutEgg] Error extracting content on re-analyze:", err);
       }
 
-      if (activeTabId !== pinnedTabId) return;
+      if (session.activeTabId !== pinnedTabId) return;
 
-      const nowHasContent = !!(extractedContent && extractedContent.content);
+      const nowHasContent = !!(session.extractedContent && session.extractedContent.content);
       if (!nowHasContent) {
         updateAnalyzeButtonsState();
         showError(t("couldNotRetrieveContent"));
@@ -365,7 +327,7 @@ async function initPopup() {
       }
     }
 
-    if (activeTabId !== pinnedTabId) return;
+    if (session.activeTabId !== pinnedTabId) return;
 
     const notReady = getAnalyzeNotReadyReason();
     if (notReady) {
@@ -376,29 +338,16 @@ async function initPopup() {
   });
   actionsUI.historySelect.addEventListener("change", () => {
     const idx = parseInt(actionsUI.historySelect.value, 10);
-    if (captureHistory[idx]) showHistoryEntry(captureHistory[idx]);
+    if (session.captureHistory[idx]) showHistoryEntry(session.captureHistory[idx]);
   });
 
   // The side panel persists across tabs — refresh content when the user
   // switches to another tab or the active tab navigates to a new URL.
   function getActiveTabSnapshot() {
-    return {
-      extractedContent,
-      analysisResult,
-      captureHistory,
-      currentNutId,
-      stage1Payload,
-      stage1ContentAnalysis,
-      eggHatched,
-      nutCollected,
-      cachedProcessedSaved,
-      followUpQa,
-      selectedEggs,
-      preSelectedEggs,
+    return session.snapshot({
       customQuestions: captureUI.getCustomQuestions(),
-      activeEggTab,
-      analysisMode,
-    };
+      analysisMode: settings.analysisMode,
+    });
   }
 
   // The side panel persists across tabs — refresh content when the user
@@ -412,7 +361,7 @@ async function initPopup() {
   // switches to another tab or the active tab navigates to a new URL.
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
     const { targetState } = tabStateManager.switchActiveTab(tabId, getActiveTabSnapshot());
-    activeTabId = tabId;
+    session.activeTabId = tabId;
     if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
       restoreFromTabCache(tabId, targetState);
     } else if (tabStateManager.isExtracting(tabId)) {
@@ -433,9 +382,9 @@ async function initPopup() {
     if (document.visibilityState !== "visible") return;
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id != null && tab.id !== activeTabId) {
+      if (tab?.id != null && tab.id !== session.activeTabId) {
         const { targetState } = tabStateManager.switchActiveTab(tab.id, getActiveTabSnapshot());
-        activeTabId = tab.id;
+        session.activeTabId = tab.id;
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
           restoreFromTabCache(tab.id, targetState);
         } else if (tabStateManager.isExtracting(tab.id)) {
@@ -473,7 +422,7 @@ async function initPopup() {
 
     if (changeInfo.status === "loading") {
       if (isActiveTab) {
-        currentTabLoading = true;
+        session.currentTabLoading = true;
         updateAnalyzeButtonsState();
       }
       return;
@@ -482,8 +431,8 @@ async function initPopup() {
     // Page finished loading:
     if (changeInfo.status === "complete") {
       if (isActiveTab) {
-        currentTabLoading = false;
-        if (!extractedContent || lastLoadWasLoading || extractionFailed) {
+        session.currentTabLoading = false;
+        if (!session.extractedContent || session.lastLoadWasLoading || session.extractionFailed) {
           refreshForCurrentTab();
         } else {
           updateAnalyzeButtonsState();
@@ -514,21 +463,16 @@ if (typeof module === "undefined" || !module.exports) {
 function initSectionChips() {
   sectionsUI.init({
     onToggle: async (key) => {
-      const currentVal = enabledSections[key] !== false;
-      const activeCount = Object.values(enabledSections).filter(Boolean).length;
-      if (currentVal && activeCount <= 1) {
+      const ok = await settings.toggleSection(key);
+      if (!ok) {
         showWarning(t("atLeastOneSection"));
         return;
       }
-      enabledSections[key] = !currentVal;
       updateSectionChipsUI();
-      try {
-        await chrome.storage?.local?.set?.({ enabledSections: { ...enabledSections } });
-      } catch {}
 
       // If results are currently showing, update sections visibility dynamically
-      if (analysisResult) {
-        showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+      if (session.analysisResult) {
+        showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
       }
     },
   });
@@ -537,10 +481,8 @@ function initSectionChips() {
 
 /** Update chip visual states (active vs inactive) and active count badges */
 function updateSectionChipsUI() {
-  sectionsUI.updateUI(enabledSections);
+  sectionsUI.updateUI(settings.enabledSections);
 }
-
-let refreshSeq = 0;
 
 /**
  * Re-run the capture flow for the currently active tab: reset state, check if
@@ -548,44 +490,36 @@ let refreshSeq = 0;
  * `refreshSeq` guards against interleaved refreshes on rapid tab switches.
  */
 async function refreshForCurrentTab(forceExtract = false) {
-  const seq = ++refreshSeq;
+  const seq = session.nextRefreshSeq();
   captureUI.setCustomQuestions("");
   qaUI.clearFollowup();
-  preSelectedEggs.clear();
+  session.reset();
   updateCaptureEggsLabel();
-  isReanalyzing = false;
   actionsUI.hideProcessedNote();
   actionsUI.renderHistory([]);
-  captureHistory = []; // fresh URL — old history doesn't apply
-  extractedContent = null;
-  analysisResult = null;
-  currentNutId = null;
-  stage1Payload = null;
-  stage1ContentAnalysis = null;
-  eggHatched = false;
-  nutCollected = false;
-  cachedProcessedSaved = null;
-  followUpQa = [];
-  activeEggTab = null;
-  selectedEggs.clear();
   captureUI.setLoading(t("loadingContent"));
-  currentTabLoading = false;
   updateAnalyzeButtonsState();
   showCaptureState();
 
   let tabUrl = "";
-  let targetTabId = activeTabId;
+  let targetTabId = session.activeTabId;
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab?.id != null) {
-      activeTabId = tab.id;
+      session.activeTabId = tab.id;
       targetTabId = tab.id;
       tabStateManager.setActiveTabId(tab.id);
       if (forceExtract) {
         tabStateManager.invalidateTab(tab.id);
       }
     }
-    if (tab?.status === "loading") currentTabLoading = true;
+    if (tab?.status === "loading") {
+      session.currentTabLoading = true;
+      tabStateManager.setCurrentTabLoading(true);
+    } else {
+      session.currentTabLoading = false;
+      tabStateManager.setCurrentTabLoading(false);
+    }
     if (tab?.url) {
       tabUrl = tab.url;
       captureUI.setPageInfo({
@@ -598,13 +532,13 @@ async function refreshForCurrentTab(forceExtract = false) {
 
   updateAnalyzeButtonsState();
 
-  if (seq !== refreshSeq) return;
+  if (seq !== session.refreshSeq) return;
 
   await checkServerStatus();
-  if (seq !== refreshSeq) return;
+  if (seq !== session.refreshSeq) return;
 
   // Kick off server tasks in parallel immediately without waiting for content extraction
-  const serverTasks = serverOnline
+  const serverTasks = settings.serverOnline
     ? Promise.all([
         checkConfigStatus(),
         fetchMetrics(),
@@ -613,9 +547,9 @@ async function refreshForCurrentTab(forceExtract = false) {
     : null;
 
   // Check if this URL has been captured before — skip content retrieval if so!
-  if (!forceExtract && serverOnline && tabUrl) {
+  if (!forceExtract && settings.serverOnline && tabUrl) {
     const captured = await loadHistoryIfAny(seq, tabUrl);
-    if (seq !== refreshSeq) return;
+    if (seq !== session.refreshSeq) return;
     if (captured) {
       if (serverTasks) await serverTasks;
       updateAnalyzeButtonsState();
@@ -625,16 +559,16 @@ async function refreshForCurrentTab(forceExtract = false) {
 
   // Not captured before (or force-refresh requested) — show capture state and retrieve content
   showCaptureState();
-  await extractPageContent(seq, targetTabId || activeTabId);
-  if (seq !== refreshSeq) return;
+  await extractPageContent(seq, targetTabId || session.activeTabId);
+  if (seq !== session.refreshSeq) return;
 
-  if (serverOnline) {
+  if (settings.serverOnline) {
     if (serverTasks) await serverTasks;
-    if (seq !== refreshSeq) return;
+    if (seq !== session.refreshSeq) return;
     updateAnalyzeButtonsState();
     // Fallback: check if the canonical/cleaned extracted URL has history
-    if (extractedContent?.url && extractedContent.url !== tabUrl) {
-      await loadHistoryIfAny(seq, extractedContent.url);
+    if (session.extractedContent?.url && session.extractedContent.url !== tabUrl) {
+      await loadHistoryIfAny(seq, session.extractedContent.url);
     }
   }
 }
@@ -644,45 +578,34 @@ async function refreshForCurrentTab(forceExtract = false) {
  * Called when the user switches back to a tab that was previously analyzed or in-flight.
  */
 async function restoreFromTabCache(tabId, cached) {
-  const seq = ++refreshSeq;
-  activeTabId = tabId;
+  const seq = session.nextRefreshSeq();
+  session.activeTabId = tabId;
   const restored = tabStateManager.restoreTabState(tabId) || cached;
-  extractedContent = restored.extractedContent || null;
-  analysisResult = restored.analysisResult || null;
-  captureHistory = restored.captureHistory || [];
-  currentNutId = restored.currentNutId || (restored.captureHistory?.[0]?.nutId ?? null);
-  stage1Payload = restored.stage1Payload || null;
-  stage1ContentAnalysis = restored.stage1ContentAnalysis || null;
-  followUpQa = restored.followUpQa ? [...restored.followUpQa] : [];
-  eggHatched = !!restored.eggHatched;
-  nutCollected = !!restored.nutCollected;
-  cachedProcessedSaved = restored.cachedProcessedSaved || null;
-  selectedEggs = restored.selectedEggs instanceof Set ? restored.selectedEggs : new Set(restored.selectedEggs || []);
-  preSelectedEggs = restored.preSelectedEggs instanceof Set ? restored.preSelectedEggs : new Set(restored.preSelectedEggs || []);
+  session.restore(restored);
   updateCaptureEggsLabel();
   captureUI.setCustomQuestions(restored.customQuestions || "");
   qaUI.clearFollowup();
-  currentTabLoading = false;
+  session.currentTabLoading = false;
 
   if (restored.analysisMode && typeof setAnalysisMode === "function") {
     setAnalysisMode(restored.analysisMode);
   }
 
   // Update header and capture preview so capture state is ready if user switches back
-  if (extractedContent) {
-    captureUI.setContent(extractedContent);
-    showProvenance(extractedContent.metadata || {});
+  if (session.extractedContent) {
+    captureUI.setContent(session.extractedContent);
+    showProvenance(session.extractedContent.metadata || {});
   } else {
     captureUI.clear();
   }
 
   if (cached.status === "error" || cached.error) {
-    if (analysisResult) {
-      showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+    if (session.analysisResult) {
+      showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
     } else {
       showCaptureState();
-      if (extractedContent) {
-        captureUI.setPreviewText(extractedContent.content || t("noContentExtracted"));
+      if (session.extractedContent) {
+        captureUI.setPreviewText(session.extractedContent.content || t("noContentExtracted"));
       }
     }
     showError(cached.error, cached.errorCode);
@@ -690,43 +613,43 @@ async function restoreFromTabCache(tabId, cached) {
   } else if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
-      showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
+      showResultsState(cached.analysisResult, provenanceFromExtraction(session.extractedContent));
       actionsUI.setReanalyzingState(t("analyzing"));
       actionsUI.setHistorySelectDisabled(true);
       actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
       actionsUI.showProcessedNote(t("analyzingContent"));
     } else {
       showCaptureState();
-      if (extractedContent) {
-        captureUI.setPreviewText(extractedContent.content || t("noContentExtracted"));
+      if (session.extractedContent) {
+        captureUI.setPreviewText(session.extractedContent.content || t("noContentExtracted"));
       }
       actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
     }
   } else if (cached.status === "hatching") {
-    if (analysisResult) {
-      showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+    if (session.analysisResult) {
+      showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
     }
     actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
     actionsUI.setReanalyzingState(t("comparingKnowledge"));
     actionsUI.setHistorySelectDisabled(true);
     actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
-    if (analysisMode === "fast") {
+    if (settings.analysisMode === "fast") {
       verdictUI.setComparing();
     }
-  } else if (analysisResult) {
-    eggHatched = !!cached.eggHatched;
-    nutCollected = !!cached.nutCollected;
-    showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
+  } else if (session.analysisResult) {
+    session.eggHatched = !!cached.eggHatched;
+    session.nutCollected = !!cached.nutCollected;
+    showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
     updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
     updateActionButtons();
-    if (analysisResult.stage === "stage1" && analysisMode === "confirm") {
+    if (session.analysisResult.stage === "stage1" && settings.analysisMode === "confirm") {
       actionsUI.showStage1Confirm();
       verdictUI.hide();
       updateStage1ProceedBtn();
     }
-    if (captureHistory.length > 0) {
-      const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
+    if (session.captureHistory.length > 0) {
+      const entry = (session.currentNutId != null && session.captureHistory.find((h) => String(h.nutId) === String(session.currentNutId))) || session.captureHistory[0];
       const when = new Date(entry.capturedAt).toLocaleString();
       const stateLabel = entry.saved === "saved"
         ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
@@ -736,7 +659,7 @@ async function restoreFromTabCache(tabId, cached) {
       } else {
         actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
       }
-      renderHistorySelect(currentNutId);
+      renderHistorySelect(session.currentNutId);
     }
   } else {
     showCaptureState();
@@ -745,7 +668,7 @@ async function restoreFromTabCache(tabId, cached) {
 
   // Refresh server status and eggs without resetting content
   await checkServerStatus();
-  if (serverOnline) {
+  if (settings.serverOnline) {
     await fetchEggs();
   }
 }
@@ -757,7 +680,7 @@ async function handleRefresh() {
 
 /** 🐣 Create an egg from the no-match form, then re-analyze against it. */
 async function handleCreateEgg() {
-  const pinnedTabId = activeTabId;
+  const pinnedTabId = session.activeTabId;
   const { name, desc } = eggsUI.getNewEggInput();
   if (!name || eggsUI.createEggBtn?.disabled) return;
   eggsUI.setCreateButtonLoading(true);
@@ -768,28 +691,28 @@ async function handleCreateEgg() {
       description: desc,
     });
     if (response?.success) {
-      if (activeTabId !== pinnedTabId) return;
+      if (session.activeTabId !== pinnedTabId) return;
       // Target the newly created egg explicitly
       const eggFile = response.path ? response.path.split("/").pop() : slugify(name) + ".md";
       await handleAnalyze(true, [eggFile]);
       return;
     }
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       showError(response?.error || t("failedToCreateEgg"));
     }
   } catch (err) {
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       showError(err instanceof Error ? err.message : t("failedToCreateEgg"));
     }
   }
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     eggsUI.setCreateButtonLoading(false);
   }
 }
 
 /** 🐣 Create an egg from the inline form inside the egg picker. */
 async function handleCreateEggInline() {
-  const pinnedTabId = activeTabId;
+  const pinnedTabId = session.activeTabId;
   const { name, desc } = eggsUI.getNewEggInput();
   if (!name || eggsUI.eggsCreateBtn?.disabled) return;
   eggsUI.setCreateButtonLoading(true);
@@ -800,20 +723,20 @@ async function handleCreateEggInline() {
       description: desc,
     });
     if (response?.success) {
-      if (activeTabId !== pinnedTabId) return;
+      if (session.activeTabId !== pinnedTabId) return;
       // Re-analyze with the new egg included
       await handleAnalyze(true);
       return;
     }
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       eggsUI.showError(`❌ ${response?.error || t("failedToCreateEgg")}`);
     }
   } catch (err) {
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       eggsUI.showError(`❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`);
     }
   }
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     eggsUI.setCreateButtonLoading(false);
   }
 }
@@ -831,9 +754,9 @@ function slugify(text) {
 async function fetchEggs() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "get-eggs" });
-    allEggs = response?.eggs || [];
+    session.allEggs = response?.eggs || [];
   } catch {
-    allEggs = [];
+    session.allEggs = [];
   }
   renderCaptureEggsList();
 }
@@ -846,8 +769,8 @@ function renderCaptureEggsList() {
       captureEggsList: eggsUI.captureEggsList,
       captureEggsToggle: eggsUI.captureEggsToggle,
       captureEggsLabel: eggsUI.captureEggsLabel,
-      allEggs,
-      preSelectedEggs,
+      allEggs: session.allEggs,
+      preSelectedEggs: session.preSelectedEggs,
       updateLabel: updateCaptureEggsLabel,
     });
   }
@@ -858,7 +781,7 @@ function updateCaptureEggsLabel() {
   if (fn) {
     fn({
       captureEggsLabel: eggsUI.captureEggsLabel,
-      preSelectedEggs,
+      preSelectedEggs: session.preSelectedEggs,
     });
   }
 }
@@ -871,8 +794,8 @@ function renderEggsSection(matchedEggs) {
   const fn = globalThis.NutEggUI?.renderEggsSection || globalThis.renderEggsSection;
   if (fn) {
     fn(matchedEggs, {
-      allEggs,
-      selectedEggs,
+      allEggs: session.allEggs,
+      selectedEggs: session.selectedEggs,
       eggsSection: eggsUI.eggsSection,
       eggsList: eggsUI.eggsList,
       eggsExpanded: eggsUI.eggsExpanded,
@@ -891,11 +814,10 @@ function renderEggsSection(matchedEggs) {
 
 
 function setAnalysisMode(mode) {
-  analysisMode = mode;
+  settings.setAnalysisMode(mode);
   actionsUI.setMode(mode);
-  chrome.storage?.local?.set?.({ analysisMode: mode });
 
-  if (analysisResult?.stage === "stage1") {
+  if (session.analysisResult?.stage === "stage1") {
     if (mode === "confirm") {
       actionsUI.showStage1Confirm();
       verdictUI.hide();
@@ -912,8 +834,8 @@ function setAnalysisMode(mode) {
 
 function updateStage1ProceedBtn() {
   actionsUI.updateStage1ProceedBtn({
-    selectedCount: selectedEggs.size,
-    totalEggsCount: allEggs.length,
+    selectedCount: session.selectedEggs.size,
+    totalEggsCount: session.allEggs.length,
   });
 }
 
@@ -926,11 +848,11 @@ async function handleProceedStage2(
   basePayload = null,
   contentForProvenance = null
 ) {
-  const targetPinnedId = pinnedTabId || activeTabId;
-  const isPinnedActive = activeTabId === targetPinnedId;
+  const targetPinnedId = pinnedTabId || session.activeTabId;
+  const isPinnedActive = session.activeTabId === targetPinnedId;
 
   const isExplicitEggs = Array.isArray(eggsToCompare);
-  const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
+  const targetEggs = isExplicitEggs ? eggsToCompare : [...session.selectedEggs];
   if (!isExplicitEggs && targetEggs.length === 0) {
     if (isPinnedActive) {
       eggsUI.expandEggsList(true);
@@ -947,9 +869,9 @@ async function handleProceedStage2(
 
   try {
     const cached = targetPinnedId ? tabResultCache.get(targetPinnedId) : null;
-    const base = basePayload || stage1Payload || cached?.stage1Payload;
-    const content = contentForProvenance || extractedContent || cached?.extractedContent;
-    const analysis = contentAnalysis || stage1ContentAnalysis || cached?.stage1ContentAnalysis || analysisResult;
+    const base = basePayload || session.stage1Payload || cached?.stage1Payload;
+    const content = contentForProvenance || session.extractedContent || cached?.extractedContent;
+    const analysis = contentAnalysis || session.stage1ContentAnalysis || cached?.stage1ContentAnalysis || session.analysisResult;
 
     if (targetPinnedId) {
       const existing = tabResultCache.get(targetPinnedId) || {};
@@ -983,8 +905,8 @@ async function handleProceedStage2(
       questions,
       stage: 2,
       eggs: targetEggs,
-      outputLanguage,
-      nutId: base?.nutId || currentNutId || undefined,
+      outputLanguage: settings.outputLanguage,
+      nutId: base?.nutId || session.currentNutId || undefined,
       contentAnalysis: analysis || {
         titleVerdict: title,
         coreSummary: [],
@@ -1000,10 +922,10 @@ async function handleProceedStage2(
       if (targetPinnedId) {
         tabStateManager.setError(targetPinnedId, response.error, response.errorCode);
       }
-      if (activeTabId === targetPinnedId) {
+      if (session.activeTabId === targetPinnedId) {
         showError(response.error, response.errorCode);
         updateStage1ProceedBtn();
-        if (analysisMode === "confirm") {
+        if (settings.analysisMode === "confirm") {
           verdictUI.hide();
           actionsUI.showStage1Confirm();
         }
@@ -1027,7 +949,7 @@ async function handleProceedStage2(
     }
 
     let freshHistory = null;
-    if (payload.url && serverOnline) {
+    if (payload.url && settings.serverOnline) {
       try {
         const histResp = await chrome.runtime.sendMessage({
           action: "history",
@@ -1065,7 +987,7 @@ async function handleProceedStage2(
         ...existing,
         status: "done",
         url: payload.url,
-        extractedContent: contentForProvenance || existing.extractedContent || extractedContent,
+        extractedContent: contentForProvenance || existing.extractedContent || session.extractedContent,
         analysisResult: response,
         stage1Payload: base,
         stage1ContentAnalysis: analysis,
@@ -1073,33 +995,33 @@ async function handleProceedStage2(
         nutCollected: autoSave ? true : (existing.nutCollected || false),
         currentNutId: newNutId || existing.currentNutId,
         captureHistory: updatedHistory,
-        justReanalyzed: isReanalyzing || existing.isReanalyzing,
+        justReanalyzed: session.isReanalyzing || existing.isReanalyzing,
       });
     }
 
     // Only update active UI if the user is currently looking at the analyzed tab
-    if (activeTabId !== targetPinnedId) {
+    if (session.activeTabId !== targetPinnedId) {
       return;
     }
 
     if (newNutId) {
-      currentNutId = newNutId;
-      cachedProcessedSaved = null;
-      captureHistory = freshHistory || (newHistoryEntry ? [newHistoryEntry, ...captureHistory] : captureHistory);
+      session.currentNutId = newNutId;
+      session.cachedProcessedSaved = null;
+      session.captureHistory = freshHistory || (newHistoryEntry ? [newHistoryEntry, ...session.captureHistory] : session.captureHistory);
     } else if (freshHistory) {
-      captureHistory = freshHistory;
+      session.captureHistory = freshHistory;
     }
 
     showResultsState(response, provenanceFromExtraction(contentForProvenance));
     if (autoSave) {
-      eggHatched = true;
-      nutCollected = true;
+      session.eggHatched = true;
+      session.nutCollected = true;
       updateActionButtons();
       fetchMetrics();
     }
-    if (captureHistory.length > 0) {
-      renderHistorySelect(currentNutId);
-      if (isReanalyzing) {
+    if (session.captureHistory.length > 0) {
+      renderHistorySelect(session.currentNutId);
+      if (session.isReanalyzing) {
         actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
       }
     }
@@ -1118,10 +1040,10 @@ async function handleProceedStage2(
     if (targetPinnedId) {
       tabStateManager.setError(targetPinnedId, errorMsg);
     }
-    if (activeTabId === targetPinnedId) {
+    if (session.activeTabId === targetPinnedId) {
       showError(err instanceof Error ? err.message : t("hatchingFailed"));
       updateStage1ProceedBtn();
-      if (analysisMode === "confirm") {
+      if (settings.analysisMode === "confirm") {
         verdictUI.hide();
         actionsUI.showStage1Confirm();
       }
@@ -1150,8 +1072,6 @@ async function fetchMetrics() {
 
 // --- Config & Credit status ---
 
-let obsidianPluginVersion = null;
-
 function updateVersionDisplay(pluginVersion) {
   headerUI.updateVersion(null, pluginVersion);
 }
@@ -1168,12 +1088,12 @@ async function checkConfigStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "config-status" });
     if (response?.version) {
-      obsidianPluginVersion = response.version;
-      updateVersionDisplay(obsidianPluginVersion);
+      settings.obsidianPluginVersion = response.version;
+      updateVersionDisplay(settings.obsidianPluginVersion);
     }
 
     const issues = Array.isArray(response?.issues) ? [...response.issues] : [];
-    const mismatch = getVersionMismatchIssue(response?.version || obsidianPluginVersion);
+    const mismatch = getVersionMismatchIssue(response?.version || settings.obsidianPluginVersion);
     if (mismatch && !issues.some((i) => i.includes("Version mismatch"))) {
       issues.unshift(mismatch);
     }
@@ -1192,7 +1112,7 @@ async function checkConfigStatus() {
 }
 
 async function checkCreditStatus() {
-  if (!serverOnline) {
+  if (!settings.serverOnline) {
     headerUI.hideCredit();
     return;
   }
@@ -1205,40 +1125,44 @@ async function checkCreditStatus() {
 }
 
 function renderCreditPill(credit) {
-  headerUI.renderCredit(credit, serverOnline);
+  headerUI.renderCredit(credit, settings.serverOnline);
 }
 
 // --- Server check ---
 
 async function checkServerStatus() {
+  let online = false;
+  let version = null;
   try {
     const response = await chrome.runtime.sendMessage({ action: "check-server" });
-    serverOnline = response?.online || false;
-    obsidianPluginVersion = response?.version || null;
+    online = response?.online || false;
+    version = response?.version || null;
   } catch {
-    serverOnline = false;
-    obsidianPluginVersion = null;
+    online = false;
+    version = null;
   }
 
-  updateVersionDisplay(obsidianPluginVersion);
+  settings.setServerStatus({ online, version, aiConfigured: settings.obsidianAiConfigured });
+  updateVersionDisplay(settings.obsidianPluginVersion);
 
-  if (serverOnline) {
+  if (settings.serverOnline) {
     // Check Obsidian AI config status
     try {
       const config = await chrome.runtime.sendMessage({ action: "config-status" });
       const issues = config?.issues || [];
-      obsidianAiConfigured = !issues.some((i) =>
+      const aiConfigured = !issues.some((i) =>
         i.toLowerCase().includes("no api key") ||
         i.toLowerCase().includes("not configured")
       );
+      settings.setServerStatus({ online: true, version, aiConfigured });
     } catch {
-      obsidianAiConfigured = true;
+      settings.setServerStatus({ online: true, version, aiConfigured: true });
     }
 
     checkCreditStatus();
     metricsUI.showPluginLink(false);
 
-    const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
+    const mismatch = getVersionMismatchIssue(settings.obsidianPluginVersion);
     if (mismatch) {
       showWarning(mismatch);
     } else {
@@ -1248,16 +1172,17 @@ async function checkServerStatus() {
     // Check Chrome AI config status
     try {
       const chromeAi = await chrome.runtime.sendMessage({ action: "check-chrome-ai" });
-      chromeAiEnabled = chromeAi?.enabled || false;
-      chromeAiConfigured = chromeAi?.configured || false;
-      chromeAiProvider = chromeAi?.provider || "";
-      chromeAiModel = chromeAi?.model || "";
+      settings.setChromeAiStatus({
+        enabled: chromeAi?.enabled || false,
+        configured: chromeAi?.configured || false,
+        provider: chromeAi?.provider || "",
+        model: chromeAi?.model || "",
+      });
     } catch {
-      chromeAiEnabled = false;
-      chromeAiConfigured = false;
+      settings.setChromeAiStatus({ enabled: false, configured: false });
     }
 
-    if (chromeAiConfigured) {
+    if (settings.chromeAiConfigured) {
       checkChromeCreditStatus();
     } else {
       headerUI.hideCredit();
@@ -1274,7 +1199,7 @@ async function checkServerStatus() {
 async function checkChromeCreditStatus() {
   try {
     const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
-    if (credit && !serverOnline) {
+    if (credit && !settings.serverOnline) {
       credit.isChromeAi = true;
       headerUI.renderCredit(credit, false);
     }
@@ -1282,27 +1207,31 @@ async function checkChromeCreditStatus() {
 }
 
 function updateCaptureBanners() {
-  bannersUI.updateCaptureBanners({ serverOnline, chromeAiConfigured, chromeAiEnabled });
+  bannersUI.updateCaptureBanners({
+    serverOnline: settings.serverOnline,
+    chromeAiConfigured: settings.chromeAiConfigured,
+    chromeAiEnabled: settings.chromeAiEnabled,
+  });
 }
 
 function updateServerStatusIndicator() {
-  if (serverOnline) {
-    const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
+  if (settings.serverOnline) {
+    const mismatch = getVersionMismatchIssue(settings.obsidianPluginVersion);
     if (mismatch) {
-      updateServerStatusTooltip("obsidian-mismatch", obsidianPluginVersion, mismatch);
-    } else if (!obsidianAiConfigured) {
-      updateServerStatusTooltip("obsidian-no-key", obsidianPluginVersion);
+      updateServerStatusTooltip("obsidian-mismatch", settings.obsidianPluginVersion, mismatch);
+    } else if (!settings.obsidianAiConfigured) {
+      updateServerStatusTooltip("obsidian-no-key", settings.obsidianPluginVersion);
     } else {
-      updateServerStatusTooltip("obsidian-online", obsidianPluginVersion);
+      updateServerStatusTooltip("obsidian-online", settings.obsidianPluginVersion);
     }
     return;
   }
 
   // Obsidian offline
-  if (chromeAiConfigured) {
-    updateServerStatusTooltip("chrome-ai", null, chromeAiProvider);
-  } else if (chromeAiEnabled) {
-    updateServerStatusTooltip("chrome-no-key", null, chromeAiProvider);
+  if (settings.chromeAiConfigured) {
+    updateServerStatusTooltip("chrome-ai", null, settings.chromeAiProvider);
+  } else if (settings.chromeAiEnabled) {
+    updateServerStatusTooltip("chrome-no-key", null, settings.chromeAiProvider);
   } else {
     updateServerStatusTooltip("offline");
   }
@@ -1319,9 +1248,9 @@ function updateServerStatusTooltip(state, version = null, extra = null) {
  * which produces misleading answers — warn and refuse to process.
  */
 function isTranscriptBlocked() {
-  return !!extractedContent &&
-    extractedContent.sourceType === "youtube" &&
-    extractedContent.transcriptAvailable === false;
+  return !!session.extractedContent &&
+    session.extractedContent.sourceType === "youtube" &&
+    session.extractedContent.transcriptAvailable === false;
 }
 
 function applyTranscriptBlock() {
@@ -1332,23 +1261,23 @@ function applyTranscriptBlock() {
 
 /** Returns a non-null string prompt if the page or content is not ready for analysis. */
 function getAnalyzeNotReadyReason() {
-  if (currentTabLoading) {
+  if (session.currentTabLoading) {
     return t("pageStillLoading");
   }
-  if (extractionPending) {
+  if (session.extractionPending) {
     return t("retrievingContentWait");
   }
-  if (!extractedContent || !extractedContent.content) {
+  if (!session.extractedContent || !session.extractedContent.content) {
     return t("pageOrContentNotReady");
   }
   if (isTranscriptBlocked()) {
     return t("transcriptUnavailableAnalyze");
   }
-  if (!serverOnline) {
-    if (!chromeAiEnabled) {
+  if (!settings.serverOnline) {
+    if (!settings.chromeAiEnabled) {
       return t("obsidianOfflineStart");
     }
-    if (!chromeAiConfigured) {
+    if (!settings.chromeAiConfigured) {
       return t("chromeAiNoKeyConfig");
     }
   }
@@ -1357,36 +1286,29 @@ function getAnalyzeNotReadyReason() {
 
 /** Updates analyze and re-analyze buttons' active / inactive visual state and labels. */
 function updateAnalyzeButtonsState() {
-  const isAnalyzing = tabStateManager.isAnalyzing(activeTabId);
+  const isAnalyzing = tabStateManager.isAnalyzing(session.activeTabId);
   const notReady = getAnalyzeNotReadyReason();
-  const hasContent = !!(extractedContent && extractedContent.content);
+  const hasContent = !!(session.extractedContent && session.extractedContent.content);
 
   actionsUI.updateAnalyzeState({
     isAnalyzing,
     notReadyReason: notReady,
     isTranscriptBlocked: isTranscriptBlocked(),
-    currentTabLoading,
-    extractionPending,
+    currentTabLoading: session.currentTabLoading,
+    extractionPending: session.extractionPending,
     hasContent,
-    hasAnalysisResult: Boolean(analysisResult),
+    hasAnalysisResult: Boolean(session.analysisResult),
   });
 }
 
 // --- Content extraction ---
-
-/** True when extraction ran against a still-loading page (retry on complete). */
-let lastLoadWasLoading = false;
-/** True when extraction failed (restricted page, mid-load injection, ...). */
-let extractionFailed = false;
-/** True while an extraction attempt is in flight — the refresh button no-ops. */
-let extractionPending = false;
 
 /**
  * Extract content from the active tab (or background tab when loaded).
  * Uses per-tab sequence numbers so background extractions finish and cache
  * cleanly without clobbering or being aborted by tab switches.
  */
-async function extractPageContent(seq = refreshSeq, targetTabId = null) {
+async function extractPageContent(seq = session.refreshSeq, targetTabId = null) {
   let tabId, tabTitle, tabUrl, tabStatus;
   if (targetTabId) {
     try {
@@ -1399,7 +1321,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       return null; // Tab closed
     }
   } else {
-    const currentActiveId = activeTabId;
+    const currentActiveId = session.activeTabId;
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab) {
@@ -1417,11 +1339,11 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
   }
 
   if (!tabId) {
-    if (!targetTabId || targetTabId === activeTabId) captureUI.setPageInfo({ title: t("unknownPage") });
+    if (!targetTabId || targetTabId === session.activeTabId) captureUI.setPageInfo({ title: t("unknownPage") });
     return null;
   }
 
-  const isBackground = tabId !== activeTabId;
+  const isBackground = tabId !== session.activeTabId;
   const isTargetActive = !isBackground;
 
   // For background tabs: ONLY extract if content is already loaded!
@@ -1433,9 +1355,9 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
   tabStateManager.setExtracting(tabId, true);
 
   if (isTargetActive) {
-    extractionFailed = false;
-    lastLoadWasLoading = false;
-    extractionPending = true;
+    session.extractionFailed = false;
+    session.lastLoadWasLoading = false;
+    session.extractionPending = true;
     captureUI.setRefreshDisabled(false); // Always clickable to cancel and retry!
     captureUI.setLoading(t("retrievingPageContent"));
     captureUI.setPageInfo({
@@ -1449,8 +1371,8 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
   try {
     // If active tab is still loading, wait for it to complete or settle
     if (tabStatus === "loading" && isTargetActive) {
-      lastLoadWasLoading = true;
-      currentTabLoading = true;
+      session.lastLoadWasLoading = true;
+      session.currentTabLoading = true;
       updateAnalyzeButtonsState();
       await waitForTabComplete(tabId, 6000);
       if (tabExtractSeq.get(tabId) !== tabSeq) return null;
@@ -1458,7 +1380,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
         const refreshedTab = await chrome.tabs.get(tabId);
         tabTitle = refreshedTab.title || tabTitle;
         tabUrl = refreshedTab.url || tabUrl;
-        if (activeTabId === tabId) {
+        if (session.activeTabId === tabId) {
           captureUI.setPageInfo({
             title: tabTitle || captureUI.getPageTitle(),
             url: tabUrl || captureUI.getPageUrl(),
@@ -1480,7 +1402,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
           if (tabExtractSeq.get(tabId) !== tabSeq) return null;
           continue;
         }
-        if (activeTabId === tabId) extractionFailed = true;
+        if (session.activeTabId === tabId) session.extractionFailed = true;
         break;
       }
 
@@ -1504,9 +1426,9 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       });
 
       // Update UI only if this tab is currently the active tab
-      if (activeTabId === tabId) {
-        extractedContent = response.content;
-        currentTabLoading = false;
+      if (session.activeTabId === tabId) {
+        session.extractedContent = response.content;
+        session.currentTabLoading = false;
         captureUI.setPageInfo({
           title: response.content.title || tabTitle || "Untitled",
           sourceType: response.content.sourceType || captureUI.getPageType(),
@@ -1520,21 +1442,21 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       return response.content;
     }
   } catch (err) {
-    if (activeTabId === tabId) {
+    if (session.activeTabId === tabId) {
       console.error("[NutEgg] Extraction error:", err);
-      extractionFailed = true;
+      session.extractionFailed = true;
     }
   } finally {
     tabStateManager.setExtracting(tabId, false);
-    if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
-      extractionPending = false;
+    if (session.activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
+      session.extractionPending = false;
       captureUI.setRefreshDisabled(false);
       updateAnalyzeButtonsState();
     }
   }
 
-  if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
-    if (extractionFailed && !extractedContent) {
+  if (session.activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
+    if (session.extractionFailed && !session.extractedContent) {
       captureUI.setError(t("couldNotExtractContent"));
       showWarning(t("couldNotExtractRestricted"));
     }
@@ -1679,8 +1601,8 @@ async function waitForPageSettle(tabId, seq) {
       identity.youtubeReady !== false &&
       identity.twitterReady !== false
     ) {
-      if (tabId === activeTabId) {
-        currentTabLoading = false;
+      if (tabId === session.activeTabId) {
+        session.currentTabLoading = false;
       }
       return identity;
     }
@@ -1710,7 +1632,7 @@ function formatPublishedDate(raw) {
 }
 
 /** Provenance of the extracted page (fresh analyses). */
-function provenanceFromExtraction(content = extractedContent) {
+function provenanceFromExtraction(content = session.extractedContent) {
   if (!content) return null;
   const m = content.metadata || {};
   return {
@@ -1785,8 +1707,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return notReady;
   }
 
-  const pinnedTabId = activeTabId;
-  const contentToAnalyze = extractedContent;
+  const pinnedTabId = session.activeTabId;
+  const contentToAnalyze = session.extractedContent;
 
   if (!contentToAnalyze || !contentToAnalyze.content) {
     const msg = "The page is still loading or content is not ready yet. Please wait until it finishes loading.";
@@ -1799,8 +1721,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     return "Video transcript unavailable — NutEgg will not process this video.";
   }
 
-  isReanalyzing = isReanalyze;
-  if (activeTabId === pinnedTabId) {
+  session.isReanalyzing = isReanalyze;
+  if (session.activeTabId === pinnedTabId) {
     hideMessages();
     if (isReanalyze) {
       actionsUI.showProcessedNote(t("analyzingContent"));
@@ -1819,13 +1741,13 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       // In re-analyze mode, do not auto-select eggs: strictly preserve the user's explicit selection
       targetEggs = eggsOverride !== null && eggsOverride !== undefined
         ? eggsOverride
-        : [...selectedEggs];
+        : [...session.selectedEggs];
     } else {
       targetEggs = eggsOverride ||
-        (selectedEggs.size > 0 ? [...selectedEggs] : null) ||
-        (analysisResult?.matchedEggs?.length > 0 ? analysisResult.matchedEggs : null) ||
-        (captureHistory[0]?.result?.matchedEggs?.length > 0 ? captureHistory[0].result.matchedEggs : null) ||
-        (preSelectedEggs.size > 0 ? [...preSelectedEggs] : null);
+        (session.selectedEggs.size > 0 ? [...session.selectedEggs] : null) ||
+        (session.analysisResult?.matchedEggs?.length > 0 ? session.analysisResult.matchedEggs : null) ||
+        (session.captureHistory[0]?.result?.matchedEggs?.length > 0 ? session.captureHistory[0].result.matchedEggs : null) ||
+        (session.preSelectedEggs.size > 0 ? [...session.preSelectedEggs] : null);
     }
 
     const payload = {
@@ -1838,8 +1760,8 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       questions,
       force: true,
       stage: 1,
-      enabledSections: { ...enabledSections },
-      outputLanguage,
+      enabledSections: { ...settings.enabledSections },
+      outputLanguage: settings.outputLanguage,
       ...(Array.isArray(targetEggs) ? { eggs: targetEggs } : {}),
     };
 
@@ -1852,16 +1774,16 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       extractedContent: contentToAnalyze,
       stage1Payload: payload,
       isReanalyzing: isReanalyze,
-      analysisResult: isReanalyze ? (analysisResult || existingCache.analysisResult) : null,
-      captureHistory: [...captureHistory],
-      currentNutId: currentNutId || existingCache.currentNutId,
+      analysisResult: isReanalyze ? (session.analysisResult || existingCache.analysisResult) : null,
+      captureHistory: [...session.captureHistory],
+      currentNutId: session.currentNutId || existingCache.currentNutId,
     });
 
     const response = await sendAnalyzeViaPort(payload);
 
     if (response?.error) {
       tabStateManager.setError(pinnedTabId, response.error, response.errorCode);
-      if (activeTabId === pinnedTabId) {
+      if (session.activeTabId === pinnedTabId) {
         showError(response.error, response.errorCode);
       }
       return response.error;
@@ -1872,9 +1794,9 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
     }
 
     // In Chrome standalone mode, skip stage 2 egg comparison
-    const isChromeMode = response?.mode === "chrome" || (!serverOnline && !response?.matchedEggs?.length);
+    const isChromeMode = settings.isChromeMode(response);
     const isExplicitEggReanalyze = isReanalyze && Array.isArray(eggsOverride) && eggsOverride.length > 0;
-    const shouldRunStage2 = !isChromeMode && (analysisMode === "fast" || isExplicitEggReanalyze);
+    const shouldRunStage2 = !isChromeMode && (settings.analysisMode === "fast" || isExplicitEggReanalyze);
     const eggsForStage2 = isReanalyze
       ? (Array.isArray(targetEggs) ? targetEggs : [])
       : ((targetEggs && targetEggs.length > 0)
@@ -1892,20 +1814,20 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         stage1Payload: payload,
         stage1ContentAnalysis: response,
         isReanalyzing: isReanalyze,
-        captureHistory: [...(activeTabId === pinnedTabId ? captureHistory : (existingCache2.captureHistory || []))],
-        currentNutId: (activeTabId === pinnedTabId ? currentNutId : null) || existingCache2.currentNutId,
+        captureHistory: [...(session.activeTabId === pinnedTabId ? session.captureHistory : (existingCache2.captureHistory || []))],
+        currentNutId: (session.activeTabId === pinnedTabId ? session.currentNutId : null) || existingCache2.currentNutId,
       });
 
-      if (activeTabId === pinnedTabId) {
-        stage1Payload = payload;
-        stage1ContentAnalysis = response;
-        cachedProcessedSaved = null;
-        followUpQa = [];
+      if (session.activeTabId === pinnedTabId) {
+        session.stage1Payload = payload;
+        session.stage1ContentAnalysis = response;
+        session.cachedProcessedSaved = null;
+        session.followUpQa = [];
         qaUI.clearFollowup();
-        nutCollected = false;
-        eggHatched = false;
-        activeEggTab = null;
-        analysisResult = response;
+        session.nutCollected = false;
+        session.eggHatched = false;
+        session.activeEggTab = null;
+        session.analysisResult = response;
 
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
 
@@ -1936,14 +1858,14 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         );
       }
 
-      if (activeTabId === pinnedTabId) {
-        if (isReanalyze || captureHistory.length > 0) {
+      if (session.activeTabId === pinnedTabId) {
+        if (isReanalyze || session.captureHistory.length > 0) {
           actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
-          renderHistorySelect(currentNutId);
+          renderHistorySelect(session.currentNutId);
         }
       }
     } else {
-      if (analysisMode === "confirm") {
+      if (settings.analysisMode === "confirm") {
         response.stage = "stage1";
         delete response.eggResults;
         delete response.shouldRead;
@@ -1951,11 +1873,11 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         delete response.newKnowledge;
       }
       const stage1NutId = response.nutId || null;
-      if (activeTabId === pinnedTabId && stage1NutId) {
-        currentNutId = stage1NutId;
+      if (session.activeTabId === pinnedTabId && stage1NutId) {
+        session.currentNutId = stage1NutId;
       }
       let freshHistory = null;
-      if (contentToAnalyze.url && serverOnline) {
+      if (contentToAnalyze.url && settings.serverOnline) {
         try {
           const histResp = await chrome.runtime.sendMessage({
             action: "history",
@@ -1981,7 +1903,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
           }
         : null;
       const cachedBefore = tabResultCache.get(pinnedTabId) || {};
-      const priorHistory = activeTabId === pinnedTabId ? captureHistory : (cachedBefore.captureHistory || []);
+      const priorHistory = session.activeTabId === pinnedTabId ? session.captureHistory : (cachedBefore.captureHistory || []);
       const updatedHistory = freshHistory || (stage1Entry ? [stage1Entry, ...priorHistory] : priorHistory);
 
       tabResultCache.set(pinnedTabId, {
@@ -1991,26 +1913,26 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         analysisResult: response,
         stage1Payload: { ...payload, nutId: stage1NutId },
         stage1ContentAnalysis: response,
-        currentNutId: stage1NutId || (activeTabId === pinnedTabId ? currentNutId : cachedBefore.currentNutId),
+        currentNutId: stage1NutId || (session.activeTabId === pinnedTabId ? session.currentNutId : cachedBefore.currentNutId),
         captureHistory: updatedHistory,
         justReanalyzed: isReanalyze,
       });
-      if (activeTabId === pinnedTabId) {
-        stage1Payload = { ...payload, nutId: stage1NutId };
-        stage1ContentAnalysis = response;
-        currentNutId = stage1NutId || currentNutId;
-        captureHistory = updatedHistory;
-        cachedProcessedSaved = null;
-        followUpQa = [];
+      if (session.activeTabId === pinnedTabId) {
+        session.stage1Payload = { ...payload, nutId: stage1NutId };
+        session.stage1ContentAnalysis = response;
+        session.currentNutId = stage1NutId || session.currentNutId;
+        session.captureHistory = updatedHistory;
+        session.cachedProcessedSaved = null;
+        session.followUpQa = [];
         qaUI.clearFollowup();
-        nutCollected = false;
-        eggHatched = false;
-        activeEggTab = null;
-        analysisResult = response;
+        session.nutCollected = false;
+        session.eggHatched = false;
+        session.activeEggTab = null;
+        session.analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
-        if (isReanalyze || captureHistory.length > 0) {
+        if (isReanalyze || session.captureHistory.length > 0) {
           actionsUI.showProcessedNote(isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete"));
-          renderHistorySelect(currentNutId);
+          renderHistorySelect(session.currentNutId);
         }
       }
     }
@@ -2019,15 +1941,15 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
     tabStateManager.setError(pinnedTabId, message);
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       showError(message);
     }
     return message;
   } finally {
-    if (activeTabId === pinnedTabId) {
-      isReanalyzing = false;
+    if (session.activeTabId === pinnedTabId) {
+      session.isReanalyzing = false;
       actionsUI.setHistorySelectDisabled(false);
-      const activeCache = tabResultCache.get(activeTabId);
+      const activeCache = tabResultCache.get(session.activeTabId);
       if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
         updateAnalyzeButtonsState();
       }
@@ -2050,14 +1972,14 @@ function resetCollapsibleSections() {
 // --- Show results ---
 
 function showResultsState(result, provenance = null) {
-  analysisResult = result;
+  session.analysisResult = result;
   resultsUI.showResults();
   initCollapsibleSections();
-  if (!isReanalyzing) {
+  if (!session.isReanalyzing) {
     resetCollapsibleSections();
   }
   if (!actionsUI.getProcessedMessage()) {
-    const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
+    const entry = (session.currentNutId != null && session.captureHistory.find((h) => String(h.nutId) === String(session.currentNutId))) || session.captureHistory[0];
     if (entry) {
       const when = new Date(entry.capturedAt).toLocaleString();
       const stateLabel = entry.saved === "saved"
@@ -2070,14 +1992,14 @@ function showResultsState(result, provenance = null) {
     actionsUI.showProcessedNote(actionsUI.getProcessedMessage());
   }
   updateSectionChipsUI();
-  if (!isReanalyzing) {
+  if (!session.isReanalyzing) {
     updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
   }
-  renderHistorySelect(currentNutId);
+  renderHistorySelect(session.currentNutId);
   renderResultProvenance(provenance);
 
-  const isChromeMode = result.mode === "chrome" || (!serverOnline && !result.matchedEggs?.length);
+  const isChromeMode = settings.isChromeMode(result);
   const isStage1 = result.stage === "stage1" || isChromeMode;
 
   if (isChromeMode) {
@@ -2095,7 +2017,7 @@ function showResultsState(result, provenance = null) {
     actionsUI.setCollectNutButtonVisible(true);
 
     if (isStage1) {
-      if (analysisMode === "confirm") {
+      if (settings.analysisMode === "confirm") {
         actionsUI.showStage1Confirm();
         verdictUI.hide();
       } else {
@@ -2116,7 +2038,7 @@ function showResultsState(result, provenance = null) {
     // this result's matched eggs (user edits + re-analyze changes the match)
     fetchEggs().then(() => {
       renderEggsSection(result.matchedEggs || []);
-      if (isStage1 && analysisMode === "confirm") {
+      if (isStage1 && settings.analysisMode === "confirm") {
         eggsUI.expandEggsList(true);
         updateStage1ProceedBtn();
         window.scrollTo(0, 0);
@@ -2125,22 +2047,22 @@ function showResultsState(result, provenance = null) {
   }
 
   // Title Verdict
-  verdictUI.renderTitleVerdict(result.titleVerdict, enabledSections.titleVerdict !== false);
+  verdictUI.renderTitleVerdict(result.titleVerdict, settings.enabledSections.titleVerdict !== false);
 
   // Core Summary
-  resultsUI.renderCoreSummary(result.coreSummary, enabledSections.coreSummary !== false);
+  resultsUI.renderCoreSummary(result.coreSummary, settings.enabledSections.coreSummary !== false);
 
   // Mind Map — text-heavy concept tree for side panel
-  mindmapUI.render(result.mindMap, enabledSections.mindMap !== false);
+  mindmapUI.render(result.mindMap, settings.enabledSections.mindMap !== false);
 
   // Chapter Map — clickable when timestamps exist (video).
   // For short content without an original chapter map, don't show it:
   // - If isLongForm is false and no author chapters were provided, don't show it.
   // - If chapterMap has fewer than 2 entries and no author chapters were provided, don't show it.
   const hasAuthorChapters =
-    (Array.isArray(extractedContent?.chapters) && extractedContent.chapters.length > 0) ||
-    (Array.isArray(stage1Payload?.chapters) && stage1Payload.chapters.length > 0) ||
-    (Array.isArray(stage1Payload?.content?.chapters) && stage1Payload.content.chapters.length > 0) ||
+    (Array.isArray(session.extractedContent?.chapters) && session.extractedContent.chapters.length > 0) ||
+    (Array.isArray(session.stage1Payload?.chapters) && session.stage1Payload.chapters.length > 0) ||
+    (Array.isArray(session.stage1Payload?.content?.chapters) && session.stage1Payload.content.chapters.length > 0) ||
     (Array.isArray(result?.chapters) && result.chapters.length > 0);
 
   const isShortWithoutChapters =
@@ -2149,9 +2071,9 @@ function showResultsState(result, provenance = null) {
 
   chaptersUI.render({
     chapterMap: result.chapterMap,
-    enabled: enabledSections.chapterMap !== false,
+    enabled: settings.enabledSections.chapterMap !== false,
     isShortWithoutChapters,
-    activeTabId,
+    activeTabId: session.activeTabId,
     onSeek: seekToChapter,
   });
 
@@ -2163,7 +2085,7 @@ function showResultsState(result, provenance = null) {
 
   // Verdict
   if (isStage1) {
-    if (analysisMode === "fast") {
+    if (settings.analysisMode === "fast") {
       verdictUI.show();
     } else {
       verdictUI.hide();
@@ -2188,15 +2110,15 @@ function renderEggKnowledge(eggResults = []) {
       eggKnowledgeContent: eggsUI.eggKnowledgeContent,
       eggTabsBar: eggsUI.eggTabsBar,
       eggKnowledgeHint: eggsUI.eggKnowledgeHint,
-      activeEggTab,
-      onTabChange: (newTab) => { activeEggTab = newTab; },
+      activeEggTab: session.activeEggTab,
+      onTabChange: (newTab) => { session.activeEggTab = newTab; },
     });
   }
 }
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
-  if (analysisResult?.mode === "chrome") {
+  if (session.analysisResult?.mode === "chrome") {
     actionsUI.updateActionButtons({ isChromeMode: true });
     bannersUI.setChromeActionsCard(true);
     return;
@@ -2204,10 +2126,10 @@ function updateActionButtons() {
   bannersUI.setChromeActionsCard(false);
 
   actionsUI.updateActionButtons({
-    isStage1: analysisResult?.stage === "stage1",
-    nutCollected,
-    eggHatched,
-    hasDelta: (analysisResult?.newKnowledge?.length || 0) > 0,
+    isStage1: session.analysisResult?.stage === "stage1",
+    nutCollected: session.nutCollected,
+    eggHatched: session.eggHatched,
+    hasDelta: (session.analysisResult?.newKnowledge?.length || 0) > 0,
   });
 }
 
@@ -2215,17 +2137,17 @@ function updateActionButtons() {
  * On popup open: if this URL has cached captures, show the latest result
  * without waiting for the user to click Analyze.
  */
-async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
-  const url = urlOverride || extractedContent?.url;
-  if (!serverOnline || !url) return false;
+async function loadHistoryIfAny(seq = session.refreshSeq, urlOverride = null) {
+  const url = urlOverride || session.extractedContent?.url;
+  if (!settings.serverOnline || !url) return false;
   try {
     const response = await chrome.runtime.sendMessage({
       action: "history",
       url,
     });
-    if (seq !== refreshSeq) return false; // a newer tab refresh superseded this one
+    if (seq !== session.refreshSeq) return false; // a newer tab refresh superseded this one
     if (response?.history?.length) {
-      captureHistory = response.history;
+      session.captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
       actionsUI.setAnalyzeButtonLoading(false, t("analyzeAgain"));
       return true;
@@ -2237,35 +2159,35 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
 }
 
 /** Render or update the version history select dropdown. */
-function renderHistorySelect(selectedNutId = currentNutId) {
-  actionsUI.renderHistory(captureHistory, selectedNutId);
+function renderHistorySelect(selectedNutId = session.currentNutId) {
+  actionsUI.renderHistory(session.captureHistory, selectedNutId);
 }
 
 /** Show one cached capture (from history) with its capture timestamp. */
 function showHistoryEntry(entry) {
-  cachedProcessedSaved = entry.saved || "analyzed";
-  nutCollected = cachedProcessedSaved === "saved" || cachedProcessedSaved === "skip";
-  eggHatched = cachedProcessedSaved === "saved";
-  currentNutId = entry.nutId ?? null;
-  analysisResult = entry.result;
+  session.cachedProcessedSaved = entry.saved || "analyzed";
+  session.nutCollected = session.cachedProcessedSaved === "saved" || session.cachedProcessedSaved === "skip";
+  session.eggHatched = session.cachedProcessedSaved === "saved";
+  session.currentNutId = entry.nutId ?? null;
+  session.analysisResult = entry.result;
 
   if (entry.result?.stage === "stage1") {
-    stage1ContentAnalysis = entry.result;
-    stage1Payload = {
-      url: entry.url || extractedContent?.url || captureUI.getPageUrl() || "",
-      title: entry.title || extractedContent?.title || captureUI.getPageTitle() || "",
-      content: entry.content || extractedContent?.content || "",
-      sourceType: entry.sourceType || extractedContent?.sourceType || "generic",
-      metadata: extractedContent?.metadata,
+    session.stage1ContentAnalysis = entry.result;
+    session.stage1Payload = {
+      url: entry.url || session.extractedContent?.url || captureUI.getPageUrl() || "",
+      title: entry.title || session.extractedContent?.title || captureUI.getPageTitle() || "",
+      content: entry.content || session.extractedContent?.content || "",
+      sourceType: entry.sourceType || session.extractedContent?.sourceType || "generic",
+      metadata: session.extractedContent?.metadata,
       nutId: entry.nutId,
     };
   } else {
-    stage1ContentAnalysis = null;
-    stage1Payload = null;
+    session.stage1ContentAnalysis = null;
+    session.stage1Payload = null;
   }
 
   if (entry.content) {
-    extractedContent = {
+    session.extractedContent = {
       url: entry.url || captureUI.getPageUrl() || "",
       title: entry.title || captureUI.getPageTitle() || "",
       content: entry.content,
@@ -2278,18 +2200,18 @@ function showHistoryEntry(entry) {
     captureUI.setPreviewText(entry.content);
   }
 
-  if (activeTabId) {
-    const existing = tabResultCache.get(activeTabId) || {};
-    tabResultCache.set(activeTabId, {
+  if (session.activeTabId) {
+    const existing = tabResultCache.get(session.activeTabId) || {};
+    tabResultCache.set(session.activeTabId, {
       ...existing,
       status: "done",
-      extractedContent: existing.extractedContent || extractedContent,
+      extractedContent: existing.extractedContent || session.extractedContent,
       analysisResult: entry.result,
       currentNutId: entry.nutId,
-      eggHatched,
-      nutCollected,
-      stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : null),
-      stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : null),
+      eggHatched: session.eggHatched,
+      nutCollected: session.nutCollected,
+      stage1Payload: (entry.result?.stage === "stage1" ? session.stage1Payload : null),
+      stage1ContentAnalysis: (entry.result?.stage === "stage1" ? session.stage1ContentAnalysis : null),
     });
   }
 
@@ -2350,37 +2272,37 @@ function renderCustomQuestions() {
       customQuestionsSection: qaUI.customQuestionsSection,
       customQuestionsList: qaUI.customQuestionsList,
       followupInput: qaUI.followupInput,
-      questions: analysisResult?.customQuestionAnswers,
-      followUps: followUpQa,
+      questions: session.analysisResult?.customQuestionAnswers,
+      followUps: session.followUpQa,
     });
   }
 }
 
 /** Ask a follow-up question against the already-analyzed content. */
 async function handleFollowUp() {
-  const pinnedTabId = activeTabId;
+  const pinnedTabId = session.activeTabId;
   const q = qaUI.getFollowupText();
   if (!q || qaUI.followupBtn?.disabled) return;
   qaUI.clearFollowup();
   qaUI.setFollowupLoading(true);
 
   const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
-  let content = extractedContent || cached?.extractedContent;
-  const result = analysisResult || cached?.analysisResult;
+  let content = session.extractedContent || cached?.extractedContent;
+  const result = session.analysisResult || cached?.analysisResult;
 
-  followUpQa.push({ question: q, answer: "…" });
+  session.followUpQa.push({ question: q, answer: "…" });
   if (pinnedTabId) {
     const existingCache = tabResultCache.get(pinnedTabId) || {};
     tabResultCache.set(pinnedTabId, {
       ...existingCache,
-      followUpQa: [...followUpQa],
+      followUpQa: [...session.followUpQa],
     });
   }
   renderCustomQuestions();
 
   try {
     if (!content) {
-      content = await extractPageContent(refreshSeq, pinnedTabId);
+      content = await extractPageContent(session.refreshSeq, pinnedTabId);
     }
     const payload = {
       url: content?.url || result?.url || "",
@@ -2388,8 +2310,8 @@ async function handleFollowUp() {
       content: content?.content || "",
       sourceType: content?.sourceType || result?.sourceType || "generic",
       questions: [q],
-      priorQa: buildPriorQa(result, followUpQa),
-      outputLanguage,
+      priorQa: buildPriorQa(result, session.followUpQa),
+      outputLanguage: settings.outputLanguage,
     };
     const response = await chrome.runtime.sendMessage({ action: "ask", payload });
 
@@ -2404,7 +2326,7 @@ async function handleFollowUp() {
 
     if (pinnedTabId) {
       const c = tabResultCache.get(pinnedTabId) || {};
-      const currentQa = c.followUpQa ? [...c.followUpQa] : [...followUpQa];
+      const currentQa = c.followUpQa ? [...c.followUpQa] : [...session.followUpQa];
       const lastIdx = currentQa.length - 1;
       if (lastIdx >= 0 && currentQa[lastIdx].question === q && currentQa[lastIdx].answer === "…") {
         currentQa[lastIdx] = answeredEntry;
@@ -2415,8 +2337,8 @@ async function handleFollowUp() {
       tabResultCache.set(pinnedTabId, c);
     }
 
-    if (activeTabId === pinnedTabId) {
-      followUpQa[followUpQa.length - 1] = answeredEntry;
+    if (session.activeTabId === pinnedTabId) {
+      session.followUpQa[session.followUpQa.length - 1] = answeredEntry;
     }
   } catch (err) {
     const errorEntry = {
@@ -2425,7 +2347,7 @@ async function handleFollowUp() {
     };
     if (pinnedTabId) {
       const c = tabResultCache.get(pinnedTabId) || {};
-      const currentQa = c.followUpQa ? [...c.followUpQa] : [...followUpQa];
+      const currentQa = c.followUpQa ? [...c.followUpQa] : [...session.followUpQa];
       const lastIdx = currentQa.length - 1;
       if (lastIdx >= 0 && currentQa[lastIdx].question === q && currentQa[lastIdx].answer === "…") {
         currentQa[lastIdx] = errorEntry;
@@ -2435,25 +2357,25 @@ async function handleFollowUp() {
       c.followUpQa = currentQa;
       tabResultCache.set(pinnedTabId, c);
     }
-    if (activeTabId === pinnedTabId) {
-      followUpQa[followUpQa.length - 1] = errorEntry;
+    if (session.activeTabId === pinnedTabId) {
+      session.followUpQa[session.followUpQa.length - 1] = errorEntry;
     }
   }
 
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     qaUI.setFollowupLoading(false);
     renderCustomQuestions();
   }
 }
 
 /** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
-function buildPriorQa(res = analysisResult, qaList = followUpQa) {
+function buildPriorQa(res = session.analysisResult, qaList = session.followUpQa) {
   return (globalThis.NutEggUI?.buildPriorQa || globalThis.buildPriorQa)(res, qaList);
 }
 
 /** Seek the active tab's video to a chapter timestamp. */
 async function seekToChapter(seconds) {
-  let tabId = activeTabId;
+  let tabId = session.activeTabId;
   if (!tabId) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -2485,7 +2407,7 @@ async function seekToChapter(seconds) {
 
 /** Scroll the active tab to a section heading or quote text. */
 async function scrollToSection(heading, quote) {
-  let tabId = activeTabId;
+  let tabId = session.activeTabId;
   if (!tabId) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -2533,18 +2455,18 @@ function timeToSeconds(time) {
 function showCaptureState() {
   resultsUI.showCapture();
   resetCollapsibleSections();
-  if (extractedContent) {
-    captureUI.setContent(extractedContent);
-    showProvenance(extractedContent.metadata || {});
+  if (session.extractedContent) {
+    captureUI.setContent(session.extractedContent);
+    showProvenance(session.extractedContent.metadata || {});
   }
-  analysisResult = null;
-  cachedProcessedSaved = null;
-  followUpQa = [];
+  session.analysisResult = null;
+  session.cachedProcessedSaved = null;
+  session.followUpQa = [];
   qaUI.clearFollowup();
-  nutCollected = false;
-  eggHatched = false;
-  currentNutId = null;
-  activeEggTab = null;
+  session.nutCollected = false;
+  session.eggHatched = false;
+  session.currentNutId = null;
+  session.activeEggTab = null;
   hideMessages();
   updateAnalyzeButtonsState();
   updateCaptureBanners();
@@ -2554,24 +2476,24 @@ function showCaptureState() {
 // --- Confirm (add to knowledge base) ---
 
 async function handleConfirm() {
-  const pinnedTabId = activeTabId;
+  const pinnedTabId = session.activeTabId;
   const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
-  const targetResult = analysisResult || cached?.analysisResult;
-  let targetContent = extractedContent || cached?.extractedContent;
-  const targetNutId = currentNutId || cached?.currentNutId;
+  const targetResult = session.analysisResult || cached?.analysisResult;
+  let targetContent = session.extractedContent || cached?.extractedContent;
+  const targetNutId = session.currentNutId || cached?.currentNutId;
 
-  if (!targetResult || eggHatched || !(targetResult.newKnowledge?.length)) return;
+  if (!targetResult || session.eggHatched || !(targetResult.newKnowledge?.length)) return;
   if (!targetContent) {
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       actionsUI.setConfirmButtonLoading(true, t("retrieving"));
     }
-    targetContent = await extractPageContent(refreshSeq, pinnedTabId);
+    targetContent = await extractPageContent(session.refreshSeq, pinnedTabId);
   }
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     actionsUI.setConfirmButtonLoading(true, t("hatching"));
   }
   await doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     updateActionButtons();
   }
 }
@@ -2579,31 +2501,31 @@ async function handleConfirm() {
 // --- Collect Nut (save content only, no knowledge additions) ---
 
 async function handleSaveRaw() {
-  const pinnedTabId = activeTabId;
+  const pinnedTabId = session.activeTabId;
   const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
-  const targetResult = analysisResult || cached?.analysisResult;
-  let targetContent = extractedContent || cached?.extractedContent;
-  const targetNutId = currentNutId || cached?.currentNutId;
+  const targetResult = session.analysisResult || cached?.analysisResult;
+  let targetContent = session.extractedContent || cached?.extractedContent;
+  const targetNutId = session.currentNutId || cached?.currentNutId;
 
-  if (nutCollected) return; // already collected — no duplicate work
+  if (session.nutCollected) return; // already collected — no duplicate work
   if (!targetContent) {
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       actionsUI.setCollectNutLoading(true, t("retrieving"));
     }
-    targetContent = await extractPageContent(refreshSeq, pinnedTabId);
+    targetContent = await extractPageContent(session.refreshSeq, pinnedTabId);
   }
   if (!targetContent) {
-    if (activeTabId === pinnedTabId) {
+    if (session.activeTabId === pinnedTabId) {
       showError(t("couldNotExtractToSave"));
       updateActionButtons();
     }
     return;
   }
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     actionsUI.setCollectNutLoading(true, t("collecting"));
   }
   await doSave([], false, targetContent, targetResult, targetNutId, pinnedTabId);
-  if (activeTabId === pinnedTabId) {
+  if (session.activeTabId === pinnedTabId) {
     updateActionButtons();
   }
 }
@@ -2616,14 +2538,14 @@ async function doSave(
   overrideNutId = null,
   targetPinnedId = null
 ) {
-  const isTargetActive = !targetPinnedId || (activeTabId === targetPinnedId);
-  let content = overrideContent || (isTargetActive ? extractedContent : null);
-  const result = overrideResult || (isTargetActive ? analysisResult : null);
-  const nutId = overrideNutId ?? (isTargetActive ? currentNutId : null);
+  const isTargetActive = !targetPinnedId || (session.activeTabId === targetPinnedId);
+  let content = overrideContent || (isTargetActive ? session.extractedContent : null);
+  const result = overrideResult || (isTargetActive ? session.analysisResult : null);
+  const nutId = overrideNutId ?? (isTargetActive ? session.currentNutId : null);
 
   try {
     if (!content && isTargetActive) {
-      content = await extractPageContent(refreshSeq, targetPinnedId || activeTabId);
+      content = await extractPageContent(session.refreshSeq, targetPinnedId || session.activeTabId);
     }
     const payload = {
       url: content?.url || result?.url || "",
@@ -2641,8 +2563,8 @@ async function doSave(
       // "analyzed" means processed but never saved, so the raw must be saved.
       skipRaw: (() => {
         const cachedForSave = targetPinnedId ? tabResultCache.get(targetPinnedId) : null;
-        const isTargetNutCollected = isTargetActive ? nutCollected : !!cachedForSave?.nutCollected;
-        const isTargetCachedSaved = isTargetActive ? cachedProcessedSaved : (cachedForSave?.cachedProcessedSaved ?? null);
+        const isTargetNutCollected = isTargetActive ? session.nutCollected : !!cachedForSave?.nutCollected;
+        const isTargetCachedSaved = isTargetActive ? session.cachedProcessedSaved : (cachedForSave?.cachedProcessedSaved ?? null);
         return (newKnowledge.length > 0 || isHatch) &&
           (isTargetNutCollected || (isTargetCachedSaved !== null && isTargetCachedSaved !== "analyzed"));
       })(),
@@ -2664,17 +2586,17 @@ async function doSave(
       if (isTargetActive) {
         if (newKnowledge.length > 0 || isHatch) {
           // Hatching the egg collects the nut as well
-          eggHatched = true;
-          nutCollected = true;
+          session.eggHatched = true;
+          session.nutCollected = true;
         } else {
-          nutCollected = true;
+          session.nutCollected = true;
         }
         // Keep the capture history entry in sync with the new save state
         if (nutId != null) {
-          const entry = captureHistory.find((h) => String(h.nutId) === String(nutId));
+          const entry = session.captureHistory.find((h) => String(h.nutId) === String(nutId));
           if (entry) entry.saved = (newKnowledge.length > 0 || isHatch) ? "saved" : "skip";
         }
-        renderHistorySelect(currentNutId);
+        renderHistorySelect(session.currentNutId);
         const merged = response?.merged || [];
         const mergedNote = merged.length > 0
           ? ` 🧹 ${merged
@@ -2744,8 +2666,8 @@ function escapeHtml(str) {
 /** Redirect to GitHub issues prefilled with bug report template. */
 function openGitHubBugReport(errorContext = "") {
   let contentUrl = "";
-  if (extractedContent?.url) {
-    contentUrl = extractedContent.url;
+  if (session.extractedContent?.url) {
+    contentUrl = session.extractedContent.url;
   } else if (captureUI.getPageUrl() && captureUI.getPageUrl() !== "Loading...") {
     contentUrl = captureUI.getPageUrl();
   }
@@ -2799,5 +2721,7 @@ if (typeof module !== "undefined" && module.exports) {
     renderEggKnowledge,
     tabStateManager,
     tabResultCache,
+    settings,
+    session,
   };
 }
