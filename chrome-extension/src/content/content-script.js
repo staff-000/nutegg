@@ -57,11 +57,16 @@ if (!window.__nutegg_listener_attached) {
     if (message.action === "page-identity") {
       // Cheap page-state check (no transcript fetching) — the popup uses it to
       // wait for the page to settle and to detect SPA navigation races.
+      const isTwitter = window.location.href.includes("twitter.com") || window.location.href.includes("x.com");
+      const twitterReady = !isTwitter || !!document.querySelector(
+        'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
+      );
       sendResponse({
         success: true,
         url: window.location.href,
         title: document.title,
         readyState: document.readyState,
+        twitterReady,
         // YouTube: the watch page shell has rendered (not the loading skeleton)
         youtubeReady: !window.location.href.includes("youtube.com/watch") ||
           !!document.querySelector("ytd-watch-flexy"),

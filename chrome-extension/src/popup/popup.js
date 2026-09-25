@@ -2051,7 +2051,12 @@ async function waitForPageSettle(tabId, seq) {
   while (Date.now() < deadline) {
     if (tabExtractSeq.get(tabId) !== seq) return null;
     const identity = await requestPageIdentity(tabId);
-    if (identity && identity.readyState === "complete" && identity.youtubeReady !== false) {
+    if (
+      identity &&
+      identity.readyState === "complete" &&
+      identity.youtubeReady !== false &&
+      identity.twitterReady !== false
+    ) {
       currentTabLoading = false;
       return identity;
     }
