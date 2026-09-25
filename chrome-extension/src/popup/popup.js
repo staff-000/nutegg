@@ -1,3 +1,15 @@
+// Load UI modules in Node environment if required by tests
+if (typeof require !== "undefined") {
+  try {
+    const collapsibleUI = require("./ui/collapsible.js");
+    const mindmapUI = require("./ui/mindmap.js");
+    const chaptersUI = require("./ui/chapters.js");
+    const qaUI = require("./ui/qa.js");
+    const eggsUI = require("./ui/eggs.js");
+    Object.assign(globalThis, collapsibleUI, mindmapUI, chaptersUI, qaUI, eggsUI);
+  } catch { /* ignore in browser */ }
+}
+
 const t = (key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
 
 // DOM — Capture state
@@ -1004,43 +1016,26 @@ async function fetchEggs() {
 
 /** Render target egg checklist on the capture screen (State 1). */
 function renderCaptureEggsList() {
-  if (!captureEggsList || !captureEggsToggle) return;
-  if (allEggs.length === 0) {
-    captureEggsToggle.classList.add("hidden");
-    return;
-  }
-  captureEggsToggle.classList.remove("hidden");
-  captureEggsList.innerHTML = allEggs
-    .map((e) => {
-      const checked = preSelectedEggs.has(e.fileName) ? "checked" : "";
-      return `<label class="egg-row">
-        <input type="checkbox" data-capture-egg="${escapeHtml(e.fileName)}" ${checked} />
-        <span class="egg-row-name">${escapeHtml(e.fileName)}</span>
-        <span class="egg-row-desc">${escapeHtml(e.description || e.topic || "")}</span>
-      </label>`;
-    })
-    .join("");
-
-  captureEggsList.querySelectorAll("input").forEach((cb) => {
-    cb.addEventListener("change", (ev) => {
-      const name = ev.target.dataset.captureEgg;
-      if (ev.target.checked) preSelectedEggs.add(name);
-      else preSelectedEggs.delete(name);
-      updateCaptureEggsLabel();
+  const fn = globalThis.NutEggUI?.renderCaptureEggsList || globalThis.renderCaptureEggsList;
+  if (fn) {
+    fn({
+      captureEggsList,
+      captureEggsToggle,
+      captureEggsLabel,
+      allEggs,
+      preSelectedEggs,
+      updateLabel: updateCaptureEggsLabel,
     });
-  });
-  updateCaptureEggsLabel();
+  }
 }
 
 function updateCaptureEggsLabel() {
-  if (!captureEggsLabel) return;
-  if (preSelectedEggs.size === 0) {
-    captureEggsLabel.textContent = t("autoDetect");
-  } else if (preSelectedEggs.size === 1) {
-    const egg = [...preSelectedEggs][0].split("/").pop();
-    captureEggsLabel.textContent = `(${egg})`;
-  } else {
-    captureEggsLabel.textContent = t("countSelected", { count: preSelectedEggs.size });
+  const fn = globalThis.NutEggUI?.updateCaptureEggsLabel || globalThis.updateCaptureEggsLabel;
+  if (fn) {
+    fn({
+      captureEggsLabel,
+      preSelectedEggs,
+    });
   }
 }
 
@@ -1049,61 +1044,34 @@ function updateCaptureEggsLabel() {
  * reveals the "Re-analyze with selected eggs" button.
  */
 function renderEggsSection(matchedEggs) {
-  // Include matched eggs that are missing from the index list (index drift)
-  for (const m of matchedEggs) {
-    if (!allEggs.some((e) => e.fileName === m)) {
-      allEggs.push({ fileName: m, description: "", topic: "" });
-    }
-  }
-
-  if (allEggs.length === 0) {
-    eggsSection.classList.add("hidden");
-    eggsList.innerHTML = "";
-    return;
-  }
-
-  selectedEggs = new Set(matchedEggs);
-  eggsSection.classList.remove("hidden");
-  // Collapsed by default — the checklist only appears when asked for
-  eggsExpanded.classList.add("hidden");
-  eggsToggleChevron.textContent = "▸";
-  eggsErrorEl.classList.add("hidden");
-  eggsToggleLabel.textContent = matchedEggs.length > 0
-    ? t("countMatched", { count: matchedEggs.length })
-    : t("noneMatched");
-  eggsList.innerHTML = allEggs
-    .map((e) => {
-      const checked = selectedEggs.has(e.fileName) ? "checked" : "";
-      return `<label class="egg-row">
-        <input type="checkbox" data-egg="${escapeHtml(e.fileName)}" ${checked} />
-        <span class="egg-row-name">${escapeHtml(e.fileName)}</span>
-        <span class="egg-row-desc">${escapeHtml(e.description || e.topic || "")}</span>
-      </label>`;
-    })
-    .join("");
-  eggsList.querySelectorAll("input").forEach((cb) => {
-    cb.addEventListener("change", (ev) => {
-      const name = ev.target.dataset.egg;
-      if (ev.target.checked) selectedEggs.add(name);
-      else selectedEggs.delete(name);
-      if (analysisResult?.stage === "stage1") {
-        reanalyzeEggsBtn?.classList.add("hidden");
-      } else {
-        reanalyzeEggsBtn?.classList.remove("hidden");
-      }
-      updateStage1ProceedBtn();
+  const fn = globalThis.NutEggUI?.renderEggsSection || globalThis.renderEggsSection;
+  if (fn) {
+    fn(matchedEggs, {
+      allEggs,
+      selectedEggs,
+      eggsSection,
+      eggsList,
+      eggsExpanded,
+      eggsToggleChevron,
+      eggsErrorEl,
+      eggsToggleLabel,
+      reanalyzeEggsBtn,
+      eggsCreateForm,
+      onSelectChange: () => updateStage1ProceedBtn(),
     });
-  });
-  reanalyzeEggsBtn.classList.add("hidden");
+  }
 
   // Reset inline create-egg form
-  eggsCreateForm.classList.add("hidden");
-  eggsCreateToggle.textContent = t("createNewEgg");
-  eggsNewName.value = "";
-  eggsNewDesc.value = "";
-  eggsCreateBtn.disabled = false;
-  eggsCreateBtn.textContent = t("createEggBtn");
+  eggsCreateForm?.classList.add("hidden");
+  if (eggsCreateToggle) eggsCreateToggle.textContent = t("createNewEgg");
+  if (eggsNewName) eggsNewName.value = "";
+  if (eggsNewDesc) eggsNewDesc.value = "";
+  if (eggsCreateBtn) {
+    eggsCreateBtn.disabled = false;
+    eggsCreateBtn.textContent = t("createEggBtn");
+  }
 }
+
 
 function setAnalysisMode(mode) {
   analysisMode = mode;
@@ -2503,59 +2471,14 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
 // --- Collapsible Results Sections ---
 
-/** Initialize collapsible behavior for all result sections. */
+/** Initialize collapsible behavior for all result sections in results-state. */
 function initCollapsibleSections() {
-  document.querySelectorAll("#results-state .result-section").forEach((section) => {
-    const header = section.querySelector(".section-header");
-    const content = section.querySelector(".section-content");
-    const chevron = section.querySelector(".section-chevron");
-    if (!header || !content || !chevron) return;
-
-    if (header.dataset.collapsibleInit) return;
-    header.dataset.collapsibleInit = "true";
-
-    header.setAttribute("role", "button");
-    header.setAttribute("tabindex", "0");
-    header.setAttribute("aria-expanded", "true");
-    header.setAttribute("title", "Click to collapse / expand section");
-
-    const toggle = (e) => {
-      if (e.target.closest("button, a, input, select, textarea")) return;
-      const isCollapsed = content.classList.toggle("collapsed");
-      chevron.classList.toggle("collapsed", isCollapsed);
-      const svg = chevron.querySelector("svg");
-      if (!svg) {
-        chevron.textContent = isCollapsed ? "▸" : "▾";
-      }
-      header.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
-    };
-
-    header.addEventListener("click", toggle);
-    header.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        toggle(e);
-      }
-    });
-  });
+  (globalThis.NutEggUI?.initCollapsibleSections || globalThis.initCollapsibleSections)?.();
 }
 
 /** Reset all result sections to expanded state. */
 function resetCollapsibleSections() {
-  document.querySelectorAll("#results-state .result-section").forEach((section) => {
-    const header = section.querySelector(".section-header");
-    const content = section.querySelector(".section-content");
-    const chevron = section.querySelector(".section-chevron");
-    if (content && chevron && header) {
-      content.classList.remove("collapsed");
-      chevron.classList.remove("collapsed");
-      const svg = chevron.querySelector("svg");
-      if (!svg) {
-        chevron.textContent = "▾";
-      }
-      header.setAttribute("aria-expanded", "true");
-    }
-  });
+  (globalThis.NutEggUI?.resetCollapsibleSections || globalThis.resetCollapsibleSections)?.();
 }
 
 // --- Show results ---
@@ -2693,32 +2616,17 @@ function showResultsState(result, provenance = null) {
     (result.isLongForm === false || !result.chapterMap || result.chapterMap.length <= 1) &&
     !hasAuthorChapters;
 
-  const shouldShowChapterMap =
-    enabledSections.chapterMap !== false &&
-    Array.isArray(result.chapterMap) &&
-    result.chapterMap.length > 0 &&
-    !isShortWithoutChapters;
-
-  if (shouldShowChapterMap) {
-    chapterSection.classList.remove("hidden");
-    chapterList.innerHTML = result.chapterMap
-      .map((c) => {
-        const clickable = c.time && activeTabId != null;
-        const data = clickable ? ` data-seconds="${timeToSeconds(c.time)}"` : "";
-        const timeLabel = c.time ? `<span class="chapter-time">⏱ ${escapeHtml(c.time)}</span>` : "";
-        const titleLabel = c.title ? `<span class="chapter-title">${escapeHtml(c.title)}</span>` : "";
-        const summaryLabel = c.summary ? `<span class="chapter-summary">${escapeHtml(c.summary)}</span>` : "";
-        return `<div class="chapter-row${clickable ? " chapter-clickable" : ""}"${data}>${timeLabel}${titleLabel}${summaryLabel}</div>`;
-      })
-      .join("");
-    chapterList.querySelectorAll(".chapter-clickable").forEach((row) => {
-      row.addEventListener("click", () =>
-        seekToChapter(parseInt(row.dataset.seconds, 10))
-      );
+  const renderChapters = globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap;
+  if (renderChapters) {
+    renderChapters({
+      chapterSection,
+      chapterList,
+      chapterMap: result.chapterMap,
+      enabled: enabledSections.chapterMap !== false,
+      isShortWithoutChapters,
+      activeTabId,
+      onSeek: seekToChapter,
     });
-  } else {
-    chapterSection.classList.add("hidden");
-    chapterList.innerHTML = "";
   }
 
   // Your Questions — initial answers + follow-ups asked this session
@@ -2753,230 +2661,21 @@ function showResultsState(result, provenance = null) {
 }
 
 function cleanEggName(fileName) {
-  if (!fileName) return "Egg";
-  return fileName.split("/").pop().replace(/\.md$/, "");
+  return (globalThis.NutEggUI?.cleanEggName || globalThis.cleanEggName || ((f) => f ? f.split("/").pop().replace(/\.md$/, "") : "Egg"))(fileName);
 }
 
 function renderEggKnowledge(eggResults = []) {
-  if (!eggKnowledgeSection || !eggKnowledgeContent) return;
-
-  if (eggResults.length === 0) {
-    eggKnowledgeSection.classList.add("hidden");
-    eggKnowledgeContent.innerHTML = "";
-    if (eggTabsBar) eggTabsBar.innerHTML = "";
-    return;
-  }
-
-  eggKnowledgeSection.classList.remove("hidden");
-
-  // Determine active tab
-  const eggNames = eggResults.map((r) => r.egg);
-  if (!activeEggTab || (!eggNames.includes(activeEggTab) && activeEggTab !== "all")) {
-    // Default to the first egg that has new deltas, or the first egg
-    const eggWithDeltas = eggResults.find((r) => (r.novelDelta || []).length > 0);
-    activeEggTab = eggWithDeltas ? eggWithDeltas.egg : eggResults[0].egg;
-  }
-
-  // Render Tabs (only if 2+ eggs)
-  if (eggResults.length > 1) {
-    eggTabsBar.classList.remove("hidden");
-    if (eggKnowledgeHint) eggKnowledgeHint.textContent = t("eggsMatchedCount", { count: eggResults.length });
-
-    const totalNewCount = eggResults.reduce((acc, r) => acc + (r.novelDelta?.length || 0), 0);
-
-    const tabsHtml = eggResults
-      .map((r) => {
-        const newCount = (r.novelDelta || []).length;
-        let badgeClass = "badge-tab-covered";
-        let badgeText = "✓";
-        if (r.rejected) {
-          badgeClass = "badge-tab-reject";
-          badgeText = "✕";
-        } else if (newCount > 0) {
-          badgeClass = "badge-tab-new";
-          badgeText = `+${newCount}`;
-        }
-
-        const isActive = activeEggTab === r.egg ? " active" : "";
-        return `
-          <button type="button" class="egg-tab-btn${isActive}" data-tab="${escapeHtml(r.egg)}" title="${escapeHtml(r.egg)}">
-            <span class="egg-tab-name">${escapeHtml(cleanEggName(r.egg))}</span>
-            <span class="egg-tab-badge ${badgeClass}">${badgeText}</span>
-          </button>`;
-      })
-      .join("");
-
-    const isAllActive = activeEggTab === "all" ? " active" : "";
-    const allBadgeText = totalNewCount > 0 ? `+${totalNewCount}` : "✓";
-    const allBadgeClass = totalNewCount > 0 ? "badge-tab-new" : "badge-tab-covered";
-
-    eggTabsBar.innerHTML =
-      tabsHtml +
-      `
-      <button type="button" class="egg-tab-btn${isAllActive}" data-tab="all" title="${escapeHtml(t("viewAllEggs"))}">
-        <span class="egg-tab-name">📋 ${escapeHtml(t("allEggsTab"))}</span>
-        <span class="egg-tab-badge ${allBadgeClass}">${allBadgeText}</span>
-      </button>`;
-
-    // Tab click listeners
-    eggTabsBar.querySelectorAll(".egg-tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        activeEggTab = btn.dataset.tab;
-        renderEggKnowledge(eggResults);
-      });
+  const fn = globalThis.NutEggUI?.renderEggKnowledge || globalThis.renderEggKnowledge;
+  if (fn) {
+    fn(eggResults, {
+      eggKnowledgeSection,
+      eggKnowledgeContent,
+      eggTabsBar,
+      eggKnowledgeHint,
+      activeEggTab,
+      onTabChange: (newTab) => { activeEggTab = newTab; },
     });
-  } else {
-    eggTabsBar.classList.add("hidden");
-    eggTabsBar.innerHTML = "";
-    if (eggKnowledgeHint) eggKnowledgeHint.textContent = `(${cleanEggName(eggResults[0]?.egg)})`;
-    activeEggTab = eggResults[0]?.egg;
   }
-
-  // Render Egg Cards
-  eggKnowledgeContent.innerHTML = eggResults
-    .map((r) => {
-      const isVisible = activeEggTab === "all" || activeEggTab === r.egg;
-      const hideClass = isVisible ? "" : " hidden";
-      const newDeltas = r.novelDelta || [];
-      const redundantDeltas = r.redundantEntries || [];
-      const existingKnowledge = (r.existingKnowledge || "").trim();
-      const qaItems = r.keyQuestionAnswers || [];
-
-      let statusHeader = "";
-      if (eggResults.length > 1 && activeEggTab === "all") {
-        statusHeader = `
-          <div class="egg-card-header">
-            <span class="egg-card-title">📄 ${escapeHtml(cleanEggName(r.egg))}</span>
-            <span class="egg-card-file">${escapeHtml(r.egg)}</span>
-          </div>`;
-      }
-
-      let statusNote = "";
-      if (r.rejected) {
-        statusNote = `
-          <div class="egg-status-banner banner-reject">
-            ${t("rejectedByEgg", { reason: escapeHtml(r.rejectReason || t("outOfScope")) })}
-          </div>`;
-      } else if (newDeltas.length === 0 && redundantDeltas.length > 0) {
-        statusNote = `
-          <div class="egg-status-banner banner-covered">
-            ${t("fullyCoveredNotice")}
-          </div>`;
-      } else if (newDeltas.length === 0 && qaItems.length === 0) {
-        statusNote = `
-          <div class="egg-status-banner banner-covered">
-            ${t("noNewKnowledgeNotice")}
-          </div>`;
-      }
-
-      let newHtml = "";
-      if (newDeltas.length > 0) {
-        newHtml = `
-          <div class="knowledge-subsection">
-            <div class="knowledge-subhead new-subhead">${t("newInsightsHeading", { count: newDeltas.length })}</div>
-            ${newDeltas
-              .map(
-                (d) => `
-                <div class="delta-item is-new">
-                  <div class="delta-header">
-                    <span class="delta-badge badge-new">${t("badgeNewEntry")}</span>
-                    <span class="delta-parent">${d.parent ? t("unprocessedParent", { parent: escapeHtml(d.parent) }) : t("unprocessedOnly")}</span>
-                  </div>
-                  <div class="delta-content">${escapeHtml(d.content)}</div>
-                </div>`
-              )
-              .join("")}
-          </div>`;
-      }
-
-      let qaHtml = "";
-      if (qaItems.length > 0) {
-        qaHtml = `
-          <div class="knowledge-subsection egg-qa-block">
-            <div class="knowledge-subhead qa-subhead">${t("eggKeyQuestions", { count: qaItems.length })}</div>
-            ${qaItems
-              .map(
-                (qa) => `
-                <div class="qa-item">
-                  <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-                  <div class="qa-answer">${linkifyTimestamps(escapeHtml(qa.answer))}</div>
-                  ${renderQaSources(qa.sources)}
-                </div>`
-              )
-              .join("")}
-          </div>`;
-      }
-
-      let redundantHtml = "";
-      if (redundantDeltas.length > 0) {
-        redundantHtml = `
-          <div class="existing-tree-container">
-            <div class="existing-tree-header">
-              <span class="existing-tree-title">${t("alreadyCoveredHeading", { count: redundantDeltas.length })}</span>
-              <button type="button" class="covered-toggle">${t("viewCovered")}</button>
-            </div>
-            <div class="covered-body hidden">
-              ${redundantDeltas
-                .map(
-                  (d) => `
-                  <div class="delta-item is-covered">
-                    <div class="delta-header">
-                      <span class="delta-badge badge-covered">${t("badgeCovered")}</span>
-                      <span class="delta-parent">${d.existingParent ? t("underParent", { parent: escapeHtml(d.existingParent) }) : t("alreadyKnown")}</span>
-                    </div>
-                    <div class="delta-content">${escapeHtml(d.content)}</div>
-                  </div>`
-                )
-                .join("")}
-            </div>
-          </div>`;
-      }
-
-      let treeHtml = "";
-      if (existingKnowledge) {
-        treeHtml = `
-          <div class="existing-tree-container">
-            <div class="existing-tree-header">
-              <span class="existing-tree-title">${t("currentKnowledgeInEgg")}</span>
-              <button type="button" class="existing-tree-toggle">${t("viewTree")}</button>
-            </div>
-            <div class="existing-tree-body hidden">${escapeHtml(existingKnowledge)}</div>
-          </div>`;
-      }
-
-      return `
-        <div class="egg-card${hideClass}" data-egg="${escapeHtml(r.egg)}">
-          ${statusHeader}
-          ${statusNote}
-          ${newHtml}
-          ${qaHtml}
-          ${redundantHtml}
-          ${treeHtml}
-        </div>`;
-    })
-    .join("");
-
-  // Wire covered toggles
-  eggKnowledgeContent.querySelectorAll(".covered-toggle").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const body = btn.closest(".existing-tree-container")?.querySelector(".covered-body");
-      if (body) {
-        const isHidden = body.classList.toggle("hidden");
-        btn.textContent = isHidden ? t("viewCovered") : t("hideCovered");
-      }
-    });
-  });
-
-  // Wire tree toggles
-  eggKnowledgeContent.querySelectorAll(".existing-tree-toggle").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const body = btn.closest(".existing-tree-container")?.querySelector(".existing-tree-body");
-      if (body) {
-        const isHidden = body.classList.toggle("hidden");
-        btn.textContent = isHidden ? t("viewTree") : t("hideTree");
-      }
-    });
-  });
 }
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
@@ -3168,67 +2867,17 @@ function showHistoryEntry(entry) {
 
 /** Extract timestamp string like "12:34" or "1:05:30" from a reference string, or null if none. */
 function extractTimestamp(str) {
-  if (!str) return null;
-  const s = String(str).trim();
-  // Check for patterns like [12:34], 12:34, 1:23:45, [1:23:45], 12:34 - 13:00, ⏱ 12:34
-  const match = s.match(/(?:^|[^\d:])(\d{1,2}(?::\d{2}){1,2})(?:[^\d:]|$)/);
-  return match ? match[1] : null;
+  return (globalThis.NutEggUI?.extractTimestamp || globalThis.extractTimestamp)(str);
 }
 
 /** Replace timestamps in text like "[12:34]" or "12:34" with clickable timestamp buttons. */
 function linkifyTimestamps(escapedText) {
-  if (!escapedText) return "";
-  return escapedText.replace(
-    /(\[|\()(\d{1,2}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,2}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
-    (match, open, time1, close, space, time2) => {
-      const time = time1 || time2;
-      const leading = space || "";
-      return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="${escapeHtml(t("jumpToVideoTime", { time }))}"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
-    }
-  );
+  return (globalThis.NutEggUI?.linkifyTimestamps || globalThis.linkifyTimestamps)(escapedText);
 }
 
 /** Render clickable source pills and supporting quotes for a Q&A answer. */
 function renderQaSources(sources) {
-  if (!Array.isArray(sources) || sources.length === 0) return "";
-
-  const validSources = sources.filter((s) => s && s.ref && String(s.ref).trim().length > 0);
-  if (validSources.length === 0) return "";
-
-  const items = validSources
-    .map((s) => {
-      const ref = String(s.ref).trim();
-      const timestamp = extractTimestamp(ref);
-      const isTime = timestamp !== null;
-      const pillClass = isTime ? "source-pill source-timestamp" : "source-pill source-section";
-      const icon = isTime ? "⏱️" : "§";
-      const dataAttr = isTime
-        ? `data-time="${escapeHtml(timestamp)}"`
-        : `data-heading="${escapeHtml(ref)}"`;
-      const quoteText = s.quote ? String(s.quote).trim() : "";
-      const quoteAttr = quoteText ? ` data-quote="${escapeHtml(quoteText)}"` : "";
-      const quoteTitle = quoteText
-        ? ` title="${escapeHtml(quoteText)}"`
-        : (isTime ? ` title="${escapeHtml(t("jumpToVideoTime", { time: timestamp }))}"` : ` title="${escapeHtml(t("scrollToSection", { ref }))}"`);
-
-      const quoteHtml = quoteText
-        ? `<span class="source-quote" title="${escapeHtml(quoteText)}">“${escapeHtml(quoteText)}”</span>`
-        : "";
-
-      const displayRef = isTime && /^\[\d{1,2}(?::\d{2}){1,2}\]$/.test(ref) ? timestamp : ref;
-
-      return `
-        <div class="qa-source-item">
-          <button type="button" class="${pillClass}" ${dataAttr}${quoteAttr}${quoteTitle}>
-            <span class="source-icon">${icon}</span>
-            <span class="source-ref">${escapeHtml(displayRef)}</span>
-          </button>
-          ${quoteHtml}
-        </div>`;
-    })
-    .join("");
-
-  return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 ${escapeHtml(t("qaSourcesLabel"))}:</div>${items}</div>` : "";
+  return (globalThis.NutEggUI?.renderQaSources || globalThis.renderQaSources)(sources);
 }
 
 /**
@@ -3236,127 +2885,28 @@ function renderQaSources(sources) {
  * displays the core branches at the root level instead of an unnecessary single root.
  */
 function unwrapMindMapRoots(nodes) {
-  let current = nodes;
-  while (
-    Array.isArray(current) &&
-    current.length === 1 &&
-    Array.isArray(current[0].children) &&
-    current[0].children.length > 0
-  ) {
-    current = current[0].children;
-  }
-  return current;
+  return (globalThis.NutEggUI?.unwrapMindMapRoots || globalThis.unwrapMindMapRoots)(nodes);
 }
 
 /** Render the Mind Map hierarchical concept tree. */
 function renderMindMap(nodes) {
-  if (!mindmapTree) return;
-  mindmapTree.innerHTML = "";
-  if (!Array.isArray(nodes) || nodes.length === 0) return;
-
-  const displayNodes = unwrapMindMapRoots(nodes);
-  if (!Array.isArray(displayNodes) || displayNodes.length === 0) return;
-
-  function buildNode(node) {
-    const nodeEl = document.createElement("div");
-    nodeEl.className = "mindmap-node";
-
-    const headerEl = document.createElement("div");
-    headerEl.className = "mindmap-node-header";
-
-    const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-
-    let toggleBtn = null;
-    if (hasChildren) {
-      toggleBtn = document.createElement("button");
-      toggleBtn.type = "button";
-      toggleBtn.className = "mindmap-toggle-btn";
-      toggleBtn.setAttribute("aria-label", t("toggleBranch"));
-      toggleBtn.innerHTML = `<span class="mindmap-toggle-icon">▾</span>`;
-      headerEl.appendChild(toggleBtn);
-    } else {
-      const bullet = document.createElement("span");
-      bullet.className = "mindmap-bullet";
-      headerEl.appendChild(bullet);
-    }
-
-    const contentWrap = document.createElement("div");
-    contentWrap.className = "mindmap-node-content";
-
-    const nameEl = document.createElement("div");
-    nameEl.className = "mindmap-node-name";
-    nameEl.textContent = node.name || "";
-    contentWrap.appendChild(nameEl);
-
-    if (node.detail) {
-      const detailEl = document.createElement("div");
-      detailEl.className = "mindmap-node-detail";
-      detailEl.textContent = node.detail;
-      contentWrap.appendChild(detailEl);
-    }
-
-    headerEl.appendChild(contentWrap);
-    nodeEl.appendChild(headerEl);
-
-    if (hasChildren) {
-      const childrenContainer = document.createElement("div");
-      childrenContainer.className = "mindmap-children";
-      for (const child of node.children) {
-        childrenContainer.appendChild(buildNode(child));
-      }
-      nodeEl.appendChild(childrenContainer);
-
-      const toggleBranch = (e) => {
-        e.stopPropagation();
-        const isCollapsed = childrenContainer.classList.toggle("collapsed");
-        const icon = toggleBtn.querySelector(".mindmap-toggle-icon");
-        if (icon) icon.textContent = isCollapsed ? "▸" : "▾";
-      };
-
-      toggleBtn.addEventListener("click", toggleBranch);
-      nameEl.addEventListener("click", toggleBranch);
-    }
-
-    return nodeEl;
-  }
-
-  for (const node of displayNodes) {
-    mindmapTree.appendChild(buildNode(node));
+  const fn = globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap;
+  if (fn) {
+    fn(nodes, mindmapTree);
   }
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
 function renderCustomQuestions() {
-  const all = [
-    ...(analysisResult?.customQuestionAnswers || []),
-    ...followUpQa,
-  ];
-
-  // Always keep questions section visible in results view so user can ask questions anytime
-  customQuestionsSection.classList.remove("hidden");
-
-  const labelEl = customQuestionsSection.querySelector(".section-label");
-  if (labelEl) {
-    labelEl.textContent = all.length > 0 ? t("questionsAndAnswers") : t("askAQuestion");
-  }
-
-  if (followupInput) {
-    followupInput.placeholder = t("askQuestionPlaceholder");
-  }
-
-  if (all.length > 0) {
-    customQuestionsList.innerHTML = all
-      .map((qa) => `
-        <div class="egg-group">
-          <div class="qa-item">
-            <div class="qa-question">Q: ${escapeHtml(qa.question)}</div>
-            <div class="qa-answer">${linkifyTimestamps(escapeHtml(qa.answer))}</div>
-            ${renderQaSources(qa.sources)}
-          </div>
-        </div>`)
-      .join("");
-  } else {
-    customQuestionsList.innerHTML = "";
+  const fn = globalThis.NutEggUI?.renderCustomQuestions || globalThis.renderCustomQuestions;
+  if (fn) {
+    fn({
+      customQuestionsSection,
+      customQuestionsList,
+      followupInput,
+      questions: analysisResult?.customQuestionAnswers,
+      followUps: followUpQa,
+    });
   }
 }
 
@@ -3454,11 +3004,7 @@ async function handleFollowUp() {
 
 /** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
 function buildPriorQa(res = analysisResult, qaList = followUpQa) {
-  const eggQa = (res?.eggResults || []).flatMap(
-    (r) => r.keyQuestionAnswers || []
-  );
-  const customQa = res?.customQuestionAnswers || [];
-  return [...eggQa, ...customQa, ...(qaList || []).filter((qa) => qa.answer !== "…")];
+  return (globalThis.NutEggUI?.buildPriorQa || globalThis.buildPriorQa)(res, qaList);
 }
 
 /** Seek the active tab's video to a chapter timestamp. */
@@ -3526,30 +3072,18 @@ async function scrollToSection(heading, quote) {
 
 /** Handle click on source pills (timestamp seek or section scroll). */
 function handleSourcePillClick(e) {
-  const pill = e.target.closest(".source-pill");
-  if (!pill) return;
-  e.preventDefault();
-  e.stopPropagation();
-
-  const timeVal = pill.dataset.time || extractTimestamp(pill.dataset.heading);
-  if (timeVal) {
-    seekToChapter(timeToSeconds(timeVal));
-  } else if (pill.dataset.heading) {
-    scrollToSection(pill.dataset.heading, pill.dataset.quote || "");
+  const fn = globalThis.NutEggUI?.handleSourcePillClick || globalThis.handleSourcePillClick;
+  if (fn) {
+    fn(e, {
+      onSeek: seekToChapter,
+      onScroll: scrollToSection,
+    });
   }
 }
 
 /** "MM:SS" or "HH:MM:SS" → seconds. */
 function timeToSeconds(time) {
-  if (typeof time === "number" && !isNaN(time)) return Math.floor(time);
-  if (!time) return 0;
-  const ts = extractTimestamp(time) || String(time).trim();
-  const parts = ts.split(":").map((p) => parseInt(p, 10));
-  if (parts.length === 0 || parts.some(isNaN)) {
-    const directNum = parseInt(time, 10);
-    return isNaN(directNum) ? 0 : directNum;
-  }
-  return parts.reduce((acc, p) => acc * 60 + p, 0);
+  return (globalThis.NutEggUI?.timeToSeconds || globalThis.timeToSeconds)(time);
 }
 
 function showCaptureState() {
@@ -3851,5 +3385,17 @@ if (typeof module !== "undefined" && module.exports) {
     renderQaSources,
     timeToSeconds,
     unwrapMindMapRoots,
+    initCollapsibleSections,
+    resetCollapsibleSections,
+    renderMindMap: globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap || renderMindMap,
+    renderChapterMap: globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap,
+    renderCustomQuestions,
+    buildPriorQa,
+    handleSourcePillClick,
+    cleanEggName,
+    renderCaptureEggsList,
+    updateCaptureEggsLabel,
+    renderEggsSection,
+    renderEggKnowledge,
   };
 }
