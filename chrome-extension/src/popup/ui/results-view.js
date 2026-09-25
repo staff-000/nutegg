@@ -2,6 +2,21 @@
 // NutEgg Popup UI — Results View Component
 // ============================================================
 
+function _resultsEscapeHtml(str) {
+  if (typeof escapeHtml === "function") return escapeHtml(str);
+  if (typeof document !== "undefined" && document.createElement) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 class ResultsViewComponent {
   constructor(root = document) {
     this.root = root;
@@ -22,38 +37,44 @@ class ResultsViewComponent {
 
   showCapture() {
     this.resultsState?.classList.add("hidden");
+    this.resultPageInfo?.classList.add("hidden");
     this.captureState?.classList.remove("hidden");
   }
 
-  renderProvenance(metadata = {}, title = "") {
-    if (this.resultPageTitle) this.resultPageTitle.textContent = title;
-    const author = metadata.author || metadata.channel || metadata.handle || "";
+  renderProvenance(prov) {
+    if (!this.resultPageInfo) return;
+    if (!prov || !prov.title) {
+      this.resultPageInfo.classList.add("hidden");
+      return;
+    }
+    this.resultPageInfo.classList.remove("hidden");
+    if (this.resultPageTitle) this.resultPageTitle.textContent = prov.title;
     if (this.resultPageAuthor) {
-      this.resultPageAuthor.textContent = author ? `✍️ ${author}` : "";
+      this.resultPageAuthor.textContent = prov.author ? `✍️ ${prov.author}` : "";
     }
     if (this.resultPagePublished) {
-      if (metadata.published) {
-        const d = new Date(metadata.published);
-        const formatted = isNaN(d.getTime())
-          ? metadata.published
-          : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-        this.resultPagePublished.textContent = `📅 ${formatted}`;
-      } else {
-        this.resultPagePublished.textContent = "";
-      }
-    } else if (this.resultPageAuthor && !author) {
-      this.resultPageAuthor.textContent = "";
+      this.resultPagePublished.textContent = prov.publishedAt
+        ? `📅 ${new Date(prov.publishedAt).toLocaleDateString()}`
+        : "";
     }
   }
 
   renderCoreSummary(summary, enabled = true) {
     if (!this.coreSummarySection || !this.coreSummaryEl) return;
-    if (summary && enabled) {
+    const hasBullets = Array.isArray(summary) && summary.length > 0;
+    const hasString = typeof summary === "string" && summary.trim().length > 0;
+    if ((hasBullets || hasString) && enabled !== false) {
       this.coreSummarySection.classList.remove("hidden");
-      this.coreSummaryEl.textContent = summary;
+      if (hasBullets) {
+        this.coreSummaryEl.innerHTML = summary
+          .map((b) => `<li>${_resultsEscapeHtml(b)}</li>`)
+          .join("");
+      } else {
+        this.coreSummaryEl.textContent = summary;
+      }
     } else {
       this.coreSummarySection.classList.add("hidden");
-      this.coreSummaryEl.textContent = "";
+      this.coreSummaryEl.innerHTML = "";
     }
   }
 }

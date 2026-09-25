@@ -107,10 +107,8 @@ const tabsExtracting = tabStateManager.extracting || new Set();
 // --- Init ---
 
 async function initPopup() {
-  if (headerUI.versionTag) {
-    const version = chrome.runtime?.getManifest?.()?.version;
-    if (version) headerUI.versionTag.textContent = `NutEgg ${version}`;
-  }
+  const version = chrome.runtime?.getManifest?.()?.version;
+  if (version) headerUI.updateVersion(version);
 
   // Initialize i18n
   const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
@@ -201,15 +199,15 @@ async function initPopup() {
       extractedContent.url.split("#")[0] === currentTabUrl.split("#")[0];
 
     if (urlMatches && extractedContent?.content) {
-      captureUI.contentPreview.textContent = extractedContent.content;
-      captureUI.pageTitle.textContent = extractedContent.title || captureUI.pageTitle.textContent;
-      captureUI.pageUrl.textContent = extractedContent.url || captureUI.pageUrl.textContent;
-      captureUI.pageType.textContent = extractedContent.sourceType || captureUI.pageType.textContent;
+      captureUI.setContent(extractedContent, {
+        defaultTitle: captureUI.getPageTitle(),
+        defaultType: captureUI.getPageType(),
+      });
       showProvenance(extractedContent.metadata || {});
       updateAnalyzeButtonsState();
     } else {
       extractedContent = null;
-      captureUI.contentPreview.textContent = t("retrievingPageContent");
+      captureUI.setLoading(t("retrievingPageContent"));
       await extractPageContent();
     }
   });
@@ -227,7 +225,7 @@ async function initPopup() {
   });
   if (headerUI.aiCreditPill) {
     headerUI.aiCreditPill.addEventListener("click", () => {
-      if (headerUI.aiCreditText) headerUI.aiCreditText.textContent = t("checking");
+      headerUI.setCheckingCredit();
       checkCreditStatus();
     });
   }
@@ -237,8 +235,7 @@ async function initPopup() {
         window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
         return;
       }
-      if (headerUI.tooltipTitle) headerUI.tooltipTitle.textContent = t("checking");
-      if (headerUI.tooltipSub) headerUI.tooltipSub.textContent = t("connectingToObsidian");
+      headerUI.setCheckingServer();
       checkServerStatus();
     });
   }
@@ -259,12 +256,11 @@ async function initPopup() {
     });
   }
   captureUI.questionsToggle.addEventListener("click", () => {
-    captureUI.questionsArea.classList.toggle("hidden");
+    captureUI.toggleQuestionsArea();
   });
   if (eggsUI.captureEggsToggle) {
     eggsUI.captureEggsToggle.addEventListener("click", () => {
-      const isExpanded = !eggsUI.captureEggsArea.classList.toggle("hidden");
-      eggsUI.captureEggsChevron.textContent = isExpanded ? "▾" : "▸";
+      eggsUI.toggleCaptureEggs();
     });
   }
   qaUI.followupBtn.addEventListener("click", handleFollowUp);
@@ -283,9 +279,7 @@ async function initPopup() {
   captureUI.refreshBtn.addEventListener("click", handleRefresh);
   eggsUI.createEggBtn.addEventListener("click", handleCreateEgg);
   eggsUI.eggsCreateToggle.addEventListener("click", () => {
-    const form = eggsUI.eggsCreateForm;
-    const isHidden = form.classList.toggle("hidden");
-    eggsUI.eggsCreateToggle.textContent = isHidden ? "➕ Create new egg" : "✕ Cancel";
+    eggsUI.toggleCreateForm();
   });
   eggsUI.eggsCreateBtn.addEventListener("click", handleCreateEggInline);
   eggsUI.reanalyzeEggsBtn.addEventListener("click", async () => {
@@ -295,9 +289,8 @@ async function initPopup() {
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
-      eggsUI.reanalyzeEggsBtn.disabled = true;
       const original = eggsUI.reanalyzeEggsBtn.textContent;
-      eggsUI.reanalyzeEggsBtn.textContent = t("loadingContent");
+      eggsUI.setReanalyzeLoading(true, t("loadingContent"));
       hideMessages();
       hideWarning();
 
@@ -309,8 +302,7 @@ async function initPopup() {
 
       if (activeTabId !== pinnedTabId) return;
 
-      eggsUI.reanalyzeEggsBtn.disabled = false;
-      eggsUI.reanalyzeEggsBtn.textContent = original;
+      eggsUI.setReanalyzeLoading(false, original);
 
       const nowHasContent = !!(extractedContent && extractedContent.content);
       if (!nowHasContent) {
@@ -327,28 +319,24 @@ async function initPopup() {
       showWarning(notReady);
       return;
     }
-    eggsUI.reanalyzeEggsBtn.disabled = true;
     const original = eggsUI.reanalyzeEggsBtn.textContent;
-    eggsUI.reanalyzeEggsBtn.textContent = `⏳ ${t("analyzing")}`;
-    eggsUI.eggsErrorEl.classList.add("hidden");
+    eggsUI.setReanalyzeLoading(true, `⏳ ${t("analyzing")}`);
+    eggsUI.clearError();
     if (stage1ContentAnalysis) {
       await handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
     } else {
       const error = await handleAnalyze(true, pinnedEggs, true);
       if (error && activeTabId === pinnedTabId) {
-        eggsUI.eggsErrorEl.textContent = `❌ ${error}`;
-        eggsUI.eggsErrorEl.classList.remove("hidden");
+        eggsUI.showError(`❌ ${error}`);
       }
     }
     if (activeTabId === pinnedTabId) {
-      eggsUI.reanalyzeEggsBtn.disabled = false;
-      eggsUI.reanalyzeEggsBtn.textContent = original;
+      eggsUI.setReanalyzeLoading(false, original);
     }
   });
   // Egg picker is collapsed by default — expand on demand
   eggsUI.eggsToggle.addEventListener("click", () => {
-    const isHidden = eggsUI.eggsExpanded.classList.toggle("hidden");
-    eggsUI.eggsToggleChevron.textContent = isHidden ? "▸" : "▾";
+    eggsUI.toggleEggsList();
   });
   actionsUI.reanalyzeBtn.addEventListener("click", async () => {
     if (actionsUI.reanalyzeBtn.disabled) return;
@@ -356,8 +344,7 @@ async function initPopup() {
 
     const hasContent = !!(extractedContent && extractedContent.content);
     if (!hasContent) {
-      actionsUI.reanalyzeBtn.disabled = true;
-      actionsUI.reanalyzeBtn.textContent = t("loadingContent");
+      actionsUI.setReanalyzingState(t("loadingContent"));
       hideMessages();
       hideWarning();
 
@@ -408,7 +395,7 @@ async function initPopup() {
       followUpQa,
       selectedEggs,
       preSelectedEggs,
-      customQuestions: captureUI.customQuestionsEl?.value || "",
+      customQuestions: captureUI.getCustomQuestions(),
       activeEggTab,
       analysisMode,
     };
@@ -430,9 +417,7 @@ async function initPopup() {
       restoreFromTabCache(tabId, targetState);
     } else if (tabStateManager.isExtracting(tabId)) {
       // Tab is currently retrieving in the background — show retrieving state and let it finish
-      captureUI.contentPreview.textContent = t("retrievingPageContent");
-      captureUI.pageAuthorEl.textContent = "";
-      captureUI.pagePublishedEl.textContent = "";
+      captureUI.setLoading(t("retrievingPageContent"));
       updateAnalyzeButtonsState();
     } else {
       refreshForCurrentTab();
@@ -454,9 +439,7 @@ async function initPopup() {
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
           restoreFromTabCache(tab.id, targetState);
         } else if (tabStateManager.isExtracting(tab.id)) {
-          captureUI.contentPreview.textContent = t("retrievingPageContent");
-          captureUI.pageAuthorEl.textContent = "";
-          captureUI.pagePublishedEl.textContent = "";
+          captureUI.setLoading(t("retrievingPageContent"));
           updateAnalyzeButtonsState();
         } else {
           refreshForCurrentTab();
@@ -529,35 +512,8 @@ if (typeof module === "undefined" || !module.exports) {
 
 /** Initialize expandable section selectors on capture screen & re-analysis screen */
 function initSectionChips() {
-  updateSectionChipsUI();
-
-  // Accordion toggle listeners
-  sectionsUI.sectionsToggle?.addEventListener("click", () => {
-    const isHidden = sectionsUI.sectionsBody.classList.toggle("hidden");
-    sectionsUI.sectionsChevron.textContent = isHidden ? "▸" : "▾";
-    sectionsUI.sectionsToggle.setAttribute("aria-expanded", String(!isHidden));
-  });
-
-  sectionsUI.reanalyzeSectionsToggle?.addEventListener("click", () => {
-    const isHidden = sectionsUI.reanalyzeSectionsBody.classList.toggle("hidden");
-    sectionsUI.reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
-    sectionsUI.reanalyzeSectionsToggle.setAttribute("aria-expanded", String(!isHidden));
-  });
-
-  const allChips = [
-    { el: sectionsUI.chipVerdict, key: "titleVerdict" },
-    { el: sectionsUI.chipSummary, key: "coreSummary" },
-    { el: sectionsUI.chipMindmap, key: "mindMap" },
-    { el: sectionsUI.chipChapters, key: "chapterMap" },
-    { el: sectionsUI.reanalyzeChipVerdict, key: "titleVerdict" },
-    { el: sectionsUI.reanalyzeChipSummary, key: "coreSummary" },
-    { el: sectionsUI.reanalyzeChipMindmap, key: "mindMap" },
-    { el: sectionsUI.reanalyzeChipChapters, key: "chapterMap" },
-  ];
-
-  allChips.forEach(({ el, key }) => {
-    if (!el) return;
-    el.addEventListener("click", async () => {
+  sectionsUI.init({
+    onToggle: async (key) => {
       const currentVal = enabledSections[key] !== false;
       const activeCount = Object.values(enabledSections).filter(Boolean).length;
       if (currentVal && activeCount <= 1) {
@@ -574,46 +530,14 @@ function initSectionChips() {
       if (analysisResult) {
         showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
       }
-    });
+    },
   });
+  updateSectionChipsUI();
 }
 
 /** Update chip visual states (active vs inactive) and active count badges */
 function updateSectionChipsUI() {
-  const map = [
-    { el: sectionsUI.chipVerdict, key: "titleVerdict" },
-    { el: sectionsUI.chipSummary, key: "coreSummary" },
-    { el: sectionsUI.chipMindmap, key: "mindMap" },
-    { el: sectionsUI.chipChapters, key: "chapterMap" },
-    { el: sectionsUI.reanalyzeChipVerdict, key: "titleVerdict" },
-    { el: sectionsUI.reanalyzeChipSummary, key: "coreSummary" },
-    { el: sectionsUI.reanalyzeChipMindmap, key: "mindMap" },
-    { el: sectionsUI.reanalyzeChipChapters, key: "chapterMap" },
-  ];
-  map.forEach(({ el, key }) => {
-    if (!el) return;
-    const active = enabledSections[key] !== false;
-    if (active) {
-      el.classList.add("active");
-      el.classList.remove("inactive");
-    } else {
-      el.classList.remove("active");
-      el.classList.add("inactive");
-    }
-  });
-
-  // Calculate active count
-  const total = 4;
-  const activeCount = [
-    enabledSections.titleVerdict !== false,
-    enabledSections.coreSummary !== false,
-    enabledSections.mindMap !== false,
-    enabledSections.chapterMap !== false,
-  ].filter(Boolean).length;
-
-  const badgeText = `${activeCount}/${total}`;
-  if (sectionsUI.sectionsBadge) sectionsUI.sectionsBadge.textContent = badgeText;
-  if (sectionsUI.reanalyzeSectionsBadge) sectionsUI.reanalyzeSectionsBadge.textContent = badgeText;
+  sectionsUI.updateUI(enabledSections);
 }
 
 let refreshSeq = 0;
@@ -625,14 +549,13 @@ let refreshSeq = 0;
  */
 async function refreshForCurrentTab(forceExtract = false) {
   const seq = ++refreshSeq;
-  captureUI.customQuestionsEl.value = "";
-  qaUI.followupInput.value = "";
+  captureUI.setCustomQuestions("");
+  qaUI.clearFollowup();
   preSelectedEggs.clear();
   updateCaptureEggsLabel();
   isReanalyzing = false;
-  actionsUI.processedNote.classList.add("hidden");
-  actionsUI.historySelect.classList.add("hidden");
-  actionsUI.historySelect.innerHTML = "";
+  actionsUI.hideProcessedNote();
+  actionsUI.renderHistory([]);
   captureHistory = []; // fresh URL — old history doesn't apply
   extractedContent = null;
   analysisResult = null;
@@ -645,9 +568,7 @@ async function refreshForCurrentTab(forceExtract = false) {
   followUpQa = [];
   activeEggTab = null;
   selectedEggs.clear();
-  captureUI.contentPreview.textContent = t("loadingContent");
-  captureUI.pageAuthorEl.textContent = "";
-  captureUI.pagePublishedEl.textContent = "";
+  captureUI.setLoading(t("loadingContent"));
   currentTabLoading = false;
   updateAnalyzeButtonsState();
   showCaptureState();
@@ -667,9 +588,11 @@ async function refreshForCurrentTab(forceExtract = false) {
     if (tab?.status === "loading") currentTabLoading = true;
     if (tab?.url) {
       tabUrl = tab.url;
-      captureUI.pageTitle.textContent = tab.title || t("loading");
-      captureUI.pageUrl.textContent = tab.url;
-      captureUI.pageType.textContent = detectPageTypeFromUrl(tab.url);
+      captureUI.setPageInfo({
+        title: tab.title || t("loading"),
+        url: tab.url,
+        sourceType: detectPageTypeFromUrl(tab.url),
+      });
     }
   } catch {}
 
@@ -737,10 +660,8 @@ async function restoreFromTabCache(tabId, cached) {
   selectedEggs = restored.selectedEggs instanceof Set ? restored.selectedEggs : new Set(restored.selectedEggs || []);
   preSelectedEggs = restored.preSelectedEggs instanceof Set ? restored.preSelectedEggs : new Set(restored.preSelectedEggs || []);
   updateCaptureEggsLabel();
-  if (captureUI.customQuestionsEl) {
-    captureUI.customQuestionsEl.value = restored.customQuestions || "";
-  }
-  if (qaUI.followupInput) qaUI.followupInput.value = "";
+  captureUI.setCustomQuestions(restored.customQuestions || "");
+  qaUI.clearFollowup();
   currentTabLoading = false;
 
   if (restored.analysisMode && typeof setAnalysisMode === "function") {
@@ -748,11 +669,12 @@ async function restoreFromTabCache(tabId, cached) {
   }
 
   // Update header and capture preview so capture state is ready if user switches back
-  captureUI.pageTitle.textContent = extractedContent?.title || "Untitled";
-  captureUI.pageUrl.textContent = extractedContent?.url || "";
-  captureUI.pageType.textContent = extractedContent?.sourceType || "";
-  captureUI.contentPreview.textContent = extractedContent?.content || t("noContentExtracted");
-  showProvenance(extractedContent?.metadata || {});
+  if (extractedContent) {
+    captureUI.setContent(extractedContent);
+    showProvenance(extractedContent.metadata || {});
+  } else {
+    captureUI.clear();
+  }
 
   if (cached.status === "error" || cached.error) {
     if (analysisResult) {
@@ -760,7 +682,7 @@ async function restoreFromTabCache(tabId, cached) {
     } else {
       showCaptureState();
       if (extractedContent) {
-        captureUI.contentPreview.textContent = extractedContent.content || t("noContentExtracted");
+        captureUI.setPreviewText(extractedContent.content || t("noContentExtracted"));
       }
     }
     showError(cached.error, cached.errorCode);
@@ -769,54 +691,38 @@ async function restoreFromTabCache(tabId, cached) {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
       showResultsState(cached.analysisResult, provenanceFromExtraction(extractedContent));
-      if (actionsUI.reanalyzeBtn) {
-        actionsUI.reanalyzeBtn.disabled = true;
-        actionsUI.reanalyzeBtn.textContent = t("analyzing");
-      }
-      if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
-      actionsUI.analyzeBtn.disabled = true;
-      actionsUI.analyzeBtnText.textContent = t("analyzing");
-      actionsUI.processedNote.classList.remove("hidden");
-      actionsUI.processedMessage.textContent = t("analyzingContent");
+      actionsUI.setReanalyzingState(t("analyzing"));
+      actionsUI.setHistorySelectDisabled(true);
+      actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
+      actionsUI.showProcessedNote(t("analyzingContent"));
     } else {
       showCaptureState();
       if (extractedContent) {
-        captureUI.contentPreview.textContent = extractedContent.content || t("noContentExtracted");
+        captureUI.setPreviewText(extractedContent.content || t("noContentExtracted"));
       }
-      actionsUI.analyzeBtn.disabled = true;
-      actionsUI.analyzeBtnText.textContent = t("analyzing");
+      actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
     }
   } else if (cached.status === "hatching") {
     if (analysisResult) {
       showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     }
-    if (actionsUI.stage1ProceedBtn) {
-      actionsUI.stage1ProceedBtn.disabled = true;
-      actionsUI.stage1ProceedBtn.textContent = t("hatchingEggWaiting");
-    }
-    if (actionsUI.reanalyzeBtn) {
-      actionsUI.reanalyzeBtn.disabled = true;
-      actionsUI.reanalyzeBtn.textContent = t("comparingKnowledge");
-    }
-    if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
-    actionsUI.analyzeBtn.disabled = true;
-    actionsUI.analyzeBtnText.textContent = t("analyzing");
+    actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
+    actionsUI.setReanalyzingState(t("comparingKnowledge"));
+    actionsUI.setHistorySelectDisabled(true);
+    actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
     if (analysisMode === "fast") {
-      if (verdictUI.verdictSection) verdictUI.verdictSection.classList.remove("hidden");
-      if (verdictUI.verdictBadge) verdictUI.verdictBadge.className = "verdict-badge";
-      if (verdictUI.verdictIcon) verdictUI.verdictIcon.textContent = "⏳";
-      if (verdictUI.verdictText) verdictUI.verdictText.textContent = t("comparingKnowledge");
+      verdictUI.setComparing();
     }
   } else if (analysisResult) {
     eggHatched = !!cached.eggHatched;
     nutCollected = !!cached.nutCollected;
     showResultsState(analysisResult, provenanceFromExtraction(extractedContent));
     updateAnalyzeButtonsState();
-    if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
+    actionsUI.setHistorySelectDisabled(false);
     updateActionButtons();
     if (analysisResult.stage === "stage1" && analysisMode === "confirm") {
-      if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
-      if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
+      actionsUI.showStage1Confirm();
+      verdictUI.hide();
       updateStage1ProceedBtn();
     }
     if (captureHistory.length > 0) {
@@ -825,12 +731,11 @@ async function restoreFromTabCache(tabId, cached) {
       const stateLabel = entry.saved === "saved"
         ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
       if (cached.justReanalyzed) {
-        actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
+        actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
         delete cached.justReanalyzed;
       } else {
-        actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
+        actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
       }
-      actionsUI.processedNote.classList.remove("hidden");
       renderHistorySelect(currentNutId);
     }
   } else {
@@ -853,15 +758,14 @@ async function handleRefresh() {
 /** 🐣 Create an egg from the no-match form, then re-analyze against it. */
 async function handleCreateEgg() {
   const pinnedTabId = activeTabId;
-  const name = eggsUI.newEggName.value.trim();
-  if (!name || eggsUI.createEggBtn.disabled) return;
-  eggsUI.createEggBtn.disabled = true;
-  eggsUI.createEggBtn.textContent = t("creatingEgg");
+  const { name, desc } = eggsUI.getNewEggInput();
+  if (!name || eggsUI.createEggBtn?.disabled) return;
+  eggsUI.setCreateButtonLoading(true);
   try {
     const response = await chrome.runtime.sendMessage({
       action: "create-egg",
       name,
-      description: eggsUI.newEggDescription.value.trim(),
+      description: desc,
     });
     if (response?.success) {
       if (activeTabId !== pinnedTabId) return;
@@ -879,23 +783,21 @@ async function handleCreateEgg() {
     }
   }
   if (activeTabId === pinnedTabId) {
-    eggsUI.createEggBtn.disabled = false;
-    eggsUI.createEggBtn.textContent = t("createEggBtn");
+    eggsUI.setCreateButtonLoading(false);
   }
 }
 
 /** 🐣 Create an egg from the inline form inside the egg picker. */
 async function handleCreateEggInline() {
   const pinnedTabId = activeTabId;
-  const name = eggsUI.eggsNewName.value.trim();
-  if (!name || eggsUI.eggsCreateBtn.disabled) return;
-  eggsUI.eggsCreateBtn.disabled = true;
-  eggsUI.eggsCreateBtn.textContent = t("creatingEgg");
+  const { name, desc } = eggsUI.getNewEggInput();
+  if (!name || eggsUI.eggsCreateBtn?.disabled) return;
+  eggsUI.setCreateButtonLoading(true);
   try {
     const response = await chrome.runtime.sendMessage({
       action: "create-egg",
       name,
-      description: eggsUI.eggsNewDesc.value.trim(),
+      description: desc,
     });
     if (response?.success) {
       if (activeTabId !== pinnedTabId) return;
@@ -904,18 +806,15 @@ async function handleCreateEggInline() {
       return;
     }
     if (activeTabId === pinnedTabId) {
-      eggsUI.eggsErrorEl.textContent = `❌ ${response?.error || t("failedToCreateEgg")}`;
-      eggsUI.eggsErrorEl.classList.remove("hidden");
+      eggsUI.showError(`❌ ${response?.error || t("failedToCreateEgg")}`);
     }
   } catch (err) {
     if (activeTabId === pinnedTabId) {
-      eggsUI.eggsErrorEl.textContent = `❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`;
-      eggsUI.eggsErrorEl.classList.remove("hidden");
+      eggsUI.showError(`❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`);
     }
   }
   if (activeTabId === pinnedTabId) {
-    eggsUI.eggsCreateBtn.disabled = false;
-    eggsUI.eggsCreateBtn.textContent = t("createEggBtn");
+    eggsUI.setCreateButtonLoading(false);
   }
 }
 
@@ -987,65 +886,35 @@ function renderEggsSection(matchedEggs) {
   }
 
   // Reset inline create-egg form
-  eggsUI.eggsCreateForm?.classList.add("hidden");
-  if (eggsUI.eggsCreateToggle) eggsUI.eggsCreateToggle.textContent = t("createNewEgg");
-  if (eggsUI.eggsNewName) eggsUI.eggsNewName.value = "";
-  if (eggsUI.eggsNewDesc) eggsUI.eggsNewDesc.value = "";
-  if (eggsUI.eggsCreateBtn) {
-    eggsUI.eggsCreateBtn.disabled = false;
-    eggsUI.eggsCreateBtn.textContent = t("createEggBtn");
-  }
+  eggsUI.resetCreateForm();
 }
 
 
 function setAnalysisMode(mode) {
   analysisMode = mode;
-  if (mode === "confirm") {
-    actionsUI.modeConfirmBtn?.classList.add("active");
-    actionsUI.modeFastBtn?.classList.remove("active");
-  } else {
-    actionsUI.modeFastBtn?.classList.add("active");
-    actionsUI.modeConfirmBtn?.classList.remove("active");
-  }
+  actionsUI.setMode(mode);
   chrome.storage?.local?.set?.({ analysisMode: mode });
 
   if (analysisResult?.stage === "stage1") {
     if (mode === "confirm") {
-      actionsUI.stage1ConfirmBox?.classList.remove("hidden");
-      verdictUI.verdictSection?.classList.add("hidden");
-      eggsUI.eggKnowledgeSection?.classList.add("hidden");
-      eggsUI.eggsExpanded?.classList.remove("hidden");
-      if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
+      actionsUI.showStage1Confirm();
+      verdictUI.hide();
+      eggsUI.setKnowledgeVisible(false);
+      eggsUI.expandEggsList(true);
       updateStage1ProceedBtn();
       window.scrollTo(0, 0);
     } else {
-      actionsUI.stage1ConfirmBox?.classList.add("hidden");
-      verdictUI.verdictSection?.classList.remove("hidden");
+      actionsUI.hideStage1Confirm();
+      verdictUI.show();
     }
   }
 }
 
 function updateStage1ProceedBtn() {
-  if (!actionsUI.stage1ProceedBtn) return;
-  const count = selectedEggs.size;
-  const confirmTextEl = actionsUI.stage1ConfirmText;
-  if (count === 0) {
-    actionsUI.stage1ProceedBtn.disabled = true;
-    actionsUI.stage1ProceedBtn.textContent = t("hatchEggSelectEgg");
-    if (confirmTextEl) {
-      if (allEggs.length === 0) {
-        confirmTextEl.innerHTML = t("stage1NoEggsNotice");
-      } else {
-        confirmTextEl.innerHTML = t("stage1NoSelectedNotice");
-      }
-    }
-  } else {
-    actionsUI.stage1ProceedBtn.disabled = false;
-    actionsUI.stage1ProceedBtn.textContent = count === 1 ? t("hatchEgg") : t("hatchEggCount", { count });
-    if (confirmTextEl) {
-      confirmTextEl.innerHTML = t("stage1SelectedNotice", { count });
-    }
-  }
+  actionsUI.updateStage1ProceedBtn({
+    selectedCount: selectedEggs.size,
+    totalEggsCount: allEggs.length,
+  });
 }
 
 async function handleProceedStage2(
@@ -1064,8 +933,7 @@ async function handleProceedStage2(
   const targetEggs = isExplicitEggs ? eggsToCompare : [...selectedEggs];
   if (!isExplicitEggs && targetEggs.length === 0) {
     if (isPinnedActive) {
-      if (eggsUI.eggsExpanded) eggsUI.eggsExpanded.classList.remove("hidden");
-      if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
+      eggsUI.expandEggsList(true);
       if (eggsUI.eggsSection) eggsUI.eggsSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
       showWarning(t("selectEggWarning"));
     }
@@ -1073,10 +941,7 @@ async function handleProceedStage2(
   }
 
   if (isPinnedActive) {
-    if (actionsUI.stage1ProceedBtn) {
-      actionsUI.stage1ProceedBtn.disabled = true;
-      actionsUI.stage1ProceedBtn.textContent = autoSave ? t("hatchingEggWaiting") : t("analyzing");
-    }
+    actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave });
     hideMessages();
   }
 
@@ -1099,13 +964,13 @@ async function handleProceedStage2(
       }
     }
 
-    const url = base?.url || content?.url || captureUI.pageUrl?.textContent || "";
-    const title = base?.title || content?.title || captureUI.pageTitle?.textContent || "";
+    const url = base?.url || content?.url || captureUI.getPageUrl() || "";
+    const title = base?.title || content?.title || captureUI.getPageTitle() || "";
     const bodyContent = base?.content || content?.content || "";
     const sourceType = base?.sourceType || content?.sourceType || "generic";
     const metadata = base?.metadata || content?.metadata;
     const chapters = base?.chapters || content?.chapters;
-    const questions = base?.questions || (captureUI.customQuestionsEl?.value ? captureUI.customQuestionsEl.value.split("\n").map((q) => q.trim()).filter(Boolean) : []);
+    const questions = base?.questions || captureUI.getParsedQuestions();
 
     const payload = {
       ...(base || {}),
@@ -1137,13 +1002,10 @@ async function handleProceedStage2(
       }
       if (activeTabId === targetPinnedId) {
         showError(response.error, response.errorCode);
-        if (actionsUI.stage1ProceedBtn) {
-          actionsUI.stage1ProceedBtn.disabled = false;
-          updateStage1ProceedBtn();
-        }
+        updateStage1ProceedBtn();
         if (analysisMode === "confirm") {
-          if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
-          if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
+          verdictUI.hide();
+          actionsUI.showStage1Confirm();
         }
         updateAnalyzeButtonsState();
       }
@@ -1238,8 +1100,7 @@ async function handleProceedStage2(
     if (captureHistory.length > 0) {
       renderHistorySelect(currentNutId);
       if (isReanalyzing) {
-        actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
-        actionsUI.processedNote.classList.remove("hidden");
+        actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
       }
     }
     if (!skipScroll) {
@@ -1259,13 +1120,10 @@ async function handleProceedStage2(
     }
     if (activeTabId === targetPinnedId) {
       showError(err instanceof Error ? err.message : t("hatchingFailed"));
-      if (actionsUI.stage1ProceedBtn) {
-        actionsUI.stage1ProceedBtn.disabled = false;
-        updateStage1ProceedBtn();
-      }
+      updateStage1ProceedBtn();
       if (analysisMode === "confirm") {
-        if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
-        if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.remove("hidden");
+        verdictUI.hide();
+        actionsUI.showStage1Confirm();
       }
       updateAnalyzeButtonsState();
     }
@@ -1335,14 +1193,14 @@ async function checkConfigStatus() {
 
 async function checkCreditStatus() {
   if (!serverOnline) {
-    headerUI.aiCreditPill?.classList.add("hidden");
+    headerUI.hideCredit();
     return;
   }
   try {
     const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
     renderCreditPill(credit);
   } catch {
-    headerUI.aiCreditPill?.classList.add("hidden");
+    headerUI.hideCredit();
   }
 }
 
@@ -1378,7 +1236,7 @@ async function checkServerStatus() {
     }
 
     checkCreditStatus();
-    metricsUI.obsidianPluginLink?.classList.add("hidden");
+    metricsUI.showPluginLink(false);
 
     const mismatch = getVersionMismatchIssue(obsidianPluginVersion);
     if (mismatch) {
@@ -1402,10 +1260,10 @@ async function checkServerStatus() {
     if (chromeAiConfigured) {
       checkChromeCreditStatus();
     } else {
-      headerUI.aiCreditPill?.classList.add("hidden");
+      headerUI.hideCredit();
     }
 
-    metricsUI.obsidianPluginLink?.classList.remove("hidden");
+    metricsUI.showPluginLink(true);
     updateServerStatusIndicator();
   }
 
@@ -1417,59 +1275,14 @@ async function checkChromeCreditStatus() {
   try {
     const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
     if (credit && !serverOnline) {
-      headerUI.aiCreditPill?.classList.remove("hidden");
-      const providerLabel = credit.providerLabel || chromeAiProvider || "Chrome AI";
-      if (credit.hasBalance && credit.balanceFormatted) {
-        headerUI.aiCreditText.textContent = credit.balanceFormatted;
-        headerUI.aiCreditPill.title = t("aiCreditTooltip");
-      } else {
-        headerUI.aiCreditText.textContent = providerLabel;
-        headerUI.aiCreditPill.title = t("aiCreditTooltip");
-      }
+      credit.isChromeAi = true;
+      headerUI.renderCredit(credit, false);
     }
   } catch {}
 }
 
 function updateCaptureBanners() {
-  if (serverOnline) {
-    bannersUI.aiKeyMissingBanner?.classList.add("hidden");
-    bannersUI.chromeModeTipBanner?.classList.add("hidden");
-    return;
-  }
-
-  // Obsidian is offline
-  if (chromeAiConfigured) {
-    bannersUI.aiKeyMissingBanner?.classList.add("hidden");
-    bannersUI.chromeModeTipBanner?.classList.remove("hidden");
-  } else {
-    bannersUI.chromeModeTipBanner?.classList.add("hidden");
-    if (bannersUI.aiKeyMissingBanner) {
-      bannersUI.aiKeyMissingBanner.classList.remove("hidden");
-      if (chromeAiEnabled) {
-        bannersUI.aiKeyMissingBanner.innerHTML = `
-          <span class="key-banner-icon">⚠️</span>
-          <div class="key-banner-content">
-            ${t("aiKeyRequiredChrome")}
-            <div class="key-banner-actions">
-              <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">${escapeHtml(t("openSettingsKeyBtn"))}</button>
-              <span>${escapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
-            </div>
-          </div>
-        `;
-      } else {
-        bannersUI.aiKeyMissingBanner.innerHTML = `
-          <span class="key-banner-icon">⚪</span>
-          <div class="key-banner-content">
-            ${t("obsidianOfflineBanner")}
-            <div class="key-banner-actions">
-              <button id="open-settings-enable-ai-btn" type="button" class="key-banner-link-btn">${escapeHtml(t("enableChromeAiBtn"))}</button>
-              <span>${escapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
-            </div>
-          </div>
-        `;
-      }
-    }
-  }
+  bannersUI.updateCaptureBanners({ serverOnline, chromeAiConfigured, chromeAiEnabled });
 }
 
 function updateServerStatusIndicator() {
@@ -1545,68 +1358,18 @@ function getAnalyzeNotReadyReason() {
 /** Updates analyze and re-analyze buttons' active / inactive visual state and labels. */
 function updateAnalyzeButtonsState() {
   const isAnalyzing = tabStateManager.isAnalyzing(activeTabId);
-
-  if (isAnalyzing) {
-    actionsUI.analyzeBtn.disabled = true;
-    actionsUI.analyzeBtn.classList.remove("inactive");
-    actionsUI.analyzeBtnText.textContent = t("analyzing");
-    if (actionsUI.reanalyzeBtn) {
-      actionsUI.reanalyzeBtn.disabled = true;
-      actionsUI.reanalyzeBtn.classList.remove("inactive");
-      actionsUI.reanalyzeBtn.textContent = t("analyzing");
-    }
-    return;
-  }
-
-  actionsUI.analyzeBtn.disabled = false;
-  if (actionsUI.reanalyzeBtn) actionsUI.reanalyzeBtn.disabled = false;
-
   const notReady = getAnalyzeNotReadyReason();
   const hasContent = !!(extractedContent && extractedContent.content);
 
-  if (notReady) {
-    actionsUI.analyzeBtn.classList.add("inactive");
-
-    if (isTranscriptBlocked()) {
-      actionsUI.analyzeBtnText.textContent = t("transcriptUnavailable");
-    } else if (currentTabLoading || extractionPending) {
-      actionsUI.analyzeBtnText.textContent = t("loadingContent");
-    } else {
-      actionsUI.analyzeBtnText.textContent = t("analyze");
-    }
-    actionsUI.analyzeBtn.title = notReady;
-
-    if (actionsUI.reanalyzeBtn) {
-      if (!hasContent) {
-        if (extractionPending) {
-          actionsUI.reanalyzeBtn.disabled = true;
-          actionsUI.reanalyzeBtn.classList.remove("inactive");
-          actionsUI.reanalyzeBtn.textContent = t("loadingContent");
-          actionsUI.reanalyzeBtn.title = t("retrievingPageContent");
-        } else {
-          actionsUI.reanalyzeBtn.disabled = false;
-          actionsUI.reanalyzeBtn.classList.remove("inactive");
-          actionsUI.reanalyzeBtn.textContent = t("loadAndReanalyze");
-          actionsUI.reanalyzeBtn.title = t("loadAndReanalyzeTitle");
-        }
-      } else {
-        actionsUI.reanalyzeBtn.disabled = false;
-        actionsUI.reanalyzeBtn.classList.add("inactive");
-        actionsUI.reanalyzeBtn.textContent = t("reanalyze");
-        actionsUI.reanalyzeBtn.title = notReady;
-      }
-    }
-  } else {
-    actionsUI.analyzeBtn.classList.remove("inactive");
-    actionsUI.analyzeBtnText.textContent = analysisResult ? t("analyzeAgain") : t("analyze");
-    actionsUI.analyzeBtn.title = "";
-    if (actionsUI.reanalyzeBtn) {
-      actionsUI.reanalyzeBtn.disabled = false;
-      actionsUI.reanalyzeBtn.classList.remove("inactive");
-      actionsUI.reanalyzeBtn.title = "";
-      actionsUI.reanalyzeBtn.textContent = t("reanalyze");
-    }
-  }
+  actionsUI.updateAnalyzeState({
+    isAnalyzing,
+    notReadyReason: notReady,
+    isTranscriptBlocked: isTranscriptBlocked(),
+    currentTabLoading,
+    extractionPending,
+    hasContent,
+    hasAnalysisResult: Boolean(analysisResult),
+  });
 }
 
 // --- Content extraction ---
@@ -1654,7 +1417,7 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
   }
 
   if (!tabId) {
-    if (!targetTabId || targetTabId === activeTabId) captureUI.pageTitle.textContent = t("unknownPage");
+    if (!targetTabId || targetTabId === activeTabId) captureUI.setPageInfo({ title: t("unknownPage") });
     return null;
   }
 
@@ -1673,13 +1436,13 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
     extractionFailed = false;
     lastLoadWasLoading = false;
     extractionPending = true;
-    captureUI.refreshBtn.disabled = false; // Always clickable to cancel and retry!
-    captureUI.contentPreview.textContent = t("retrievingPageContent");
-    captureUI.pageAuthorEl.textContent = "";
-    captureUI.pagePublishedEl.textContent = "";
-    captureUI.pageTitle.textContent = tabTitle || t("retrieving");
-    captureUI.pageUrl.textContent = tabUrl || "";
-    captureUI.pageType.textContent = detectPageTypeFromUrl(tabUrl || "");
+    captureUI.setRefreshDisabled(false); // Always clickable to cancel and retry!
+    captureUI.setLoading(t("retrievingPageContent"));
+    captureUI.setPageInfo({
+      title: tabTitle || t("retrieving"),
+      url: tabUrl || "",
+      sourceType: detectPageTypeFromUrl(tabUrl || ""),
+    });
     updateAnalyzeButtonsState();
   }
 
@@ -1696,8 +1459,10 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
         tabTitle = refreshedTab.title || tabTitle;
         tabUrl = refreshedTab.url || tabUrl;
         if (activeTabId === tabId) {
-          captureUI.pageTitle.textContent = tabTitle || captureUI.pageTitle.textContent;
-          captureUI.pageUrl.textContent = tabUrl || captureUI.pageUrl.textContent;
+          captureUI.setPageInfo({
+            title: tabTitle || captureUI.getPageTitle(),
+            url: tabUrl || captureUI.getPageUrl(),
+          });
         }
       } catch {}
       await waitForPageSettle(tabId, tabSeq);
@@ -1742,9 +1507,11 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       if (activeTabId === tabId) {
         extractedContent = response.content;
         currentTabLoading = false;
-        captureUI.pageTitle.textContent = response.content.title || tabTitle || "Untitled";
-        captureUI.pageType.textContent = response.content.sourceType || captureUI.pageType.textContent;
-        captureUI.contentPreview.textContent = response.content.content || "(No content extracted)";
+        captureUI.setPageInfo({
+          title: response.content.title || tabTitle || "Untitled",
+          sourceType: response.content.sourceType || captureUI.getPageType(),
+        });
+        captureUI.setPreviewText(response.content.content || "(No content extracted)");
         showProvenance(response.content.metadata || {});
         applyTranscriptBlock();
         updateAnalyzeButtonsState();
@@ -1761,14 +1528,14 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
     tabStateManager.setExtracting(tabId, false);
     if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
       extractionPending = false;
-      captureUI.refreshBtn.disabled = false;
+      captureUI.setRefreshDisabled(false);
       updateAnalyzeButtonsState();
     }
   }
 
   if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
     if (extractionFailed && !extractedContent) {
-      captureUI.contentPreview.textContent = t("couldNotExtractContent");
+      captureUI.setError(t("couldNotExtractContent"));
       showWarning(t("couldNotExtractRestricted"));
     }
     applyTranscriptBlock();
@@ -1931,11 +1698,7 @@ function detectPageTypeFromUrl(url) {
 
 /** Show the author + published date extracted from the page itself. */
 function showProvenance(metadata) {
-  const author = metadata.author || metadata.channel || metadata.handle || "";
-  captureUI.pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
-  captureUI.pagePublishedEl.textContent = metadata.published
-    ? `📅 ${formatPublishedDate(metadata.published)}`
-    : "";
+  captureUI.showProvenance(metadata);
 }
 
 /** ISO/date string → short locale date (e.g. "Aug 10, 2026"); raw on failure. */
@@ -1959,16 +1722,7 @@ function provenanceFromExtraction(content = extractedContent) {
 
 /** Title/author/publish-time card at the top of the results view. */
 function renderResultProvenance(prov) {
-  if (!prov?.title) {
-    resultsUI.resultPageInfo.classList.add("hidden");
-    return;
-  }
-  resultsUI.resultPageInfo.classList.remove("hidden");
-  resultsUI.resultPageTitle.textContent = prov.title;
-  resultsUI.resultPageAuthor.textContent = prov.author ? `✍️ ${prov.author}` : "";
-  resultsUI.resultPagePublished.textContent = prov.publishedAt
-    ? `📅 ${formatPublishedDate(prov.publishedAt)}`
-    : "";
+  resultsUI.renderProvenance(prov);
 }
 
 // --- Analyze ---
@@ -2049,23 +1803,15 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   if (activeTabId === pinnedTabId) {
     hideMessages();
     if (isReanalyze) {
-      actionsUI.processedNote.classList.remove("hidden");
-      actionsUI.processedMessage.textContent = t("analyzingContent");
-      if (actionsUI.reanalyzeBtn) {
-        actionsUI.reanalyzeBtn.disabled = true;
-        actionsUI.reanalyzeBtn.textContent = t("analyzing");
-      }
+      actionsUI.showProcessedNote(t("analyzingContent"));
+      actionsUI.setReanalyzingState(t("analyzing"));
     }
-    if (actionsUI.historySelect) actionsUI.historySelect.disabled = true;
-    actionsUI.analyzeBtn.disabled = true;
-    actionsUI.analyzeBtnText.textContent = t("analyzing");
+    actionsUI.setHistorySelectDisabled(true);
+    actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
   }
 
   try {
-    const questions = captureUI.customQuestionsEl.value
-      .split("\n")
-      .map((q) => q.trim())
-      .filter(Boolean);
+    const questions = captureUI.getParsedQuestions();
 
     // Check which eggs are selected on the page or pre-selected
     let targetEggs;
@@ -2155,7 +1901,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         stage1ContentAnalysis = response;
         cachedProcessedSaved = null;
         followUpQa = [];
-        qaUI.followupInput.value = "";
+        qaUI.clearFollowup();
         nutCollected = false;
         eggHatched = false;
         activeEggTab = null;
@@ -2164,27 +1910,17 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
 
         if (isReanalyze) {
-          actionsUI.processedNote.classList.remove("hidden");
-          actionsUI.processedMessage.textContent = t("comparingAgainstSelected");
-          if (actionsUI.reanalyzeBtn) {
-            actionsUI.reanalyzeBtn.disabled = true;
-            actionsUI.reanalyzeBtn.textContent = t("comparingKnowledge");
-          }
+          actionsUI.showProcessedNote(t("comparingAgainstSelected"));
+          actionsUI.setReanalyzingState(t("comparingKnowledge"));
         }
 
         if (eggsForStage2.length > 0) {
           if (!isReanalyze) {
-            if (verdictUI.verdictSection) verdictUI.verdictSection.classList.remove("hidden");
-            if (verdictUI.verdictBadge) verdictUI.verdictBadge.className = "verdict-badge";
-            if (verdictUI.verdictIcon) verdictUI.verdictIcon.textContent = "⏳";
-            if (verdictUI.verdictText) verdictUI.verdictText.textContent = t("comparingKnowledge");
-            if (verdictUI.verdictReason) {
-              verdictUI.verdictReason.textContent = t("comparingAgainstEggs", { count: eggsForStage2.length });
-            }
+            verdictUI.setComparing(eggsForStage2.length);
           } else {
-            if (verdictUI.verdictSection) verdictUI.verdictSection.classList.add("hidden");
+            verdictUI.hide();
           }
-          if (actionsUI.stage1ConfirmBox) actionsUI.stage1ConfirmBox.classList.add("hidden");
+          actionsUI.hideStage1Confirm();
         }
       }
 
@@ -2202,8 +1938,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
       if (activeTabId === pinnedTabId) {
         if (isReanalyze || captureHistory.length > 0) {
-          actionsUI.processedMessage.textContent = t("reanalyzedFreshResult");
-          actionsUI.processedNote.classList.remove("hidden");
+          actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
           renderHistorySelect(currentNutId);
         }
       }
@@ -2267,15 +2002,14 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         captureHistory = updatedHistory;
         cachedProcessedSaved = null;
         followUpQa = [];
-        qaUI.followupInput.value = "";
+        qaUI.clearFollowup();
         nutCollected = false;
         eggHatched = false;
         activeEggTab = null;
         analysisResult = response;
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
         if (isReanalyze || captureHistory.length > 0) {
-          actionsUI.processedMessage.textContent = isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete");
-          actionsUI.processedNote.classList.remove("hidden");
+          actionsUI.showProcessedNote(isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete"));
           renderHistorySelect(currentNutId);
         }
       }
@@ -2292,7 +2026,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
   } finally {
     if (activeTabId === pinnedTabId) {
       isReanalyzing = false;
-      if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
+      actionsUI.setHistorySelectDisabled(false);
       const activeCache = tabResultCache.get(activeTabId);
       if (!activeCache || (activeCache.status !== "analyzing" && activeCache.status !== "hatching")) {
         updateAnalyzeButtonsState();
@@ -2317,28 +2051,28 @@ function resetCollapsibleSections() {
 
 function showResultsState(result, provenance = null) {
   analysisResult = result;
-  resultsUI.captureState.classList.add("hidden");
-  resultsUI.resultsState.classList.remove("hidden");
+  resultsUI.showResults();
   initCollapsibleSections();
   if (!isReanalyzing) {
     resetCollapsibleSections();
   }
-  actionsUI.processedNote.classList.remove("hidden");
-  if (!actionsUI.processedMessage.textContent) {
+  if (!actionsUI.getProcessedMessage()) {
     const entry = (currentNutId != null && captureHistory.find((h) => String(h.nutId) === String(currentNutId))) || captureHistory[0];
     if (entry) {
       const when = new Date(entry.capturedAt).toLocaleString();
       const stateLabel = entry.saved === "saved"
         ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
-      actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
+      actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
     } else {
-      actionsUI.processedMessage.textContent = t("analysisCompleteAdjust");
+      actionsUI.showProcessedNote(t("analysisCompleteAdjust"));
     }
+  } else {
+    actionsUI.showProcessedNote(actionsUI.getProcessedMessage());
   }
   updateSectionChipsUI();
   if (!isReanalyzing) {
     updateAnalyzeButtonsState();
-    if (actionsUI.historySelect) actionsUI.historySelect.disabled = false;
+    actionsUI.setHistorySelectDisabled(false);
   }
   renderHistorySelect(currentNutId);
   renderResultProvenance(provenance);
@@ -2347,50 +2081,43 @@ function showResultsState(result, provenance = null) {
   const isStage1 = result.stage === "stage1" || isChromeMode;
 
   if (isChromeMode) {
-    bannersUI.chromeResultBanner?.classList.remove("hidden");
-    bannersUI.chromeActionsCard?.classList.remove("hidden");
-    actionsUI.stage1ConfirmBox?.classList.add("hidden");
-    verdictUI.verdictSection?.classList.add("hidden");
-    eggsUI.noEggSection?.classList.add("hidden");
-    eggsUI.eggKnowledgeSection?.classList.add("hidden");
-    actionsUI.confirmBtn?.classList.add("hidden");
-    actionsUI.collectNutBtn?.classList.add("hidden");
+    bannersUI.setChromeResultBanner(true);
+    bannersUI.setChromeActionsCard(true);
+    actionsUI.hideStage1Confirm();
+    verdictUI.hide();
+    eggsUI.setNoEggVisible(false);
+    eggsUI.setKnowledgeVisible(false);
+    actionsUI.setConfirmButtonVisible(false);
+    actionsUI.setCollectNutButtonVisible(false);
   } else {
-    bannersUI.chromeResultBanner?.classList.add("hidden");
-    bannersUI.chromeActionsCard?.classList.add("hidden");
-    actionsUI.collectNutBtn?.classList.remove("hidden");
+    bannersUI.setChromeResultBanner(false);
+    bannersUI.setChromeActionsCard(false);
+    actionsUI.setCollectNutButtonVisible(true);
 
     if (isStage1) {
       if (analysisMode === "confirm") {
-        actionsUI.stage1ConfirmBox?.classList.remove("hidden");
-        verdictUI.verdictSection?.classList.add("hidden");
+        actionsUI.showStage1Confirm();
+        verdictUI.hide();
       } else {
-        actionsUI.stage1ConfirmBox?.classList.add("hidden");
-        verdictUI.verdictSection?.classList.remove("hidden");
+        actionsUI.hideStage1Confirm();
+        verdictUI.show();
       }
-      actionsUI.confirmBtn?.classList.add("hidden");
+      actionsUI.setConfirmButtonVisible(false);
     } else {
-      actionsUI.stage1ConfirmBox?.classList.add("hidden");
-      verdictUI.verdictSection?.classList.remove("hidden");
+      actionsUI.hideStage1Confirm();
+      verdictUI.show();
     }
 
     // No egg matched — offer to create one
     const noEgg = (result.matchedEggs || []).length === 0;
-    if (noEgg) {
-      eggsUI.noEggSection.classList.remove("hidden");
-      eggsUI.newEggName.value = "";
-      eggsUI.newEggDescription.value = "";
-    } else {
-      eggsUI.noEggSection.classList.add("hidden");
-    }
+    eggsUI.setNoEggVisible(noEgg);
 
     // Egg picker — sync the checklist with _index.md, then render it with
     // this result's matched eggs (user edits + re-analyze changes the match)
     fetchEggs().then(() => {
       renderEggsSection(result.matchedEggs || []);
       if (isStage1 && analysisMode === "confirm") {
-        eggsUI.eggsExpanded?.classList.remove("hidden");
-        if (eggsUI.eggsToggleChevron) eggsUI.eggsToggleChevron.textContent = "▾";
+        eggsUI.expandEggsList(true);
         updateStage1ProceedBtn();
         window.scrollTo(0, 0);
       }
@@ -2398,41 +2125,13 @@ function showResultsState(result, provenance = null) {
   }
 
   // Title Verdict
-  const showVerdict = result.titleVerdict && enabledSections.titleVerdict !== false;
-  if (showVerdict) {
-    verdictUI.titleVerdictSection?.classList.remove("hidden");
-    verdictUI.verdictAnswer.textContent = result.titleVerdict || "";
-  } else {
-    verdictUI.titleVerdictSection?.classList.add("hidden");
-    verdictUI.verdictAnswer.textContent = "";
-  }
+  verdictUI.renderTitleVerdict(result.titleVerdict, enabledSections.titleVerdict !== false);
 
   // Core Summary
-  const showSummary =
-    Array.isArray(result.coreSummary) &&
-    result.coreSummary.length > 0 &&
-    enabledSections.coreSummary !== false;
-  if (showSummary) {
-    resultsUI.coreSummarySection?.classList.remove("hidden");
-    resultsUI.coreSummaryEl.innerHTML = (result.coreSummary || [])
-      .map((b) => `<li>${escapeHtml(b)}</li>`)
-      .join("");
-  } else {
-    resultsUI.coreSummarySection?.classList.add("hidden");
-    resultsUI.coreSummaryEl.innerHTML = "";
-  }
+  resultsUI.renderCoreSummary(result.coreSummary, enabledSections.coreSummary !== false);
 
   // Mind Map — text-heavy concept tree for side panel
-  const showMindmap =
-    Array.isArray(result.mindMap) &&
-    result.mindMap.length > 0 &&
-    enabledSections.mindMap !== false;
-  if (showMindmap) {
-    mindmapUI.mindmapSection?.classList.remove("hidden");
-    renderMindMap(result.mindMap);
-  } else {
-    mindmapUI.mindmapSection?.classList.add("hidden");
-  }
+  mindmapUI.render(result.mindMap, enabledSections.mindMap !== false);
 
   // Chapter Map — clickable when timestamps exist (video).
   // For short content without an original chapter map, don't show it:
@@ -2448,18 +2147,13 @@ function showResultsState(result, provenance = null) {
     (result.isLongForm === false || !result.chapterMap || result.chapterMap.length <= 1) &&
     !hasAuthorChapters;
 
-  const renderChapters = globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap;
-  if (renderChapters) {
-    renderChapters({
-      chapterSection: chaptersUI.chapterSection,
-      chapterList: chaptersUI.chapterList,
-      chapterMap: result.chapterMap,
-      enabled: enabledSections.chapterMap !== false,
-      isShortWithoutChapters,
-      activeTabId,
-      onSeek: seekToChapter,
-    });
-  }
+  chaptersUI.render({
+    chapterMap: result.chapterMap,
+    enabled: enabledSections.chapterMap !== false,
+    isShortWithoutChapters,
+    activeTabId,
+    onSeek: seekToChapter,
+  });
 
   // Your Questions — initial answers + follow-ups asked this session
   renderCustomQuestions();
@@ -2470,25 +2164,15 @@ function showResultsState(result, provenance = null) {
   // Verdict
   if (isStage1) {
     if (analysisMode === "fast") {
-      verdictUI.verdictSection?.classList.remove("hidden");
+      verdictUI.show();
     } else {
-      verdictUI.verdictSection?.classList.add("hidden");
+      verdictUI.hide();
     }
   } else {
-    verdictUI.verdictSection?.classList.remove("hidden");
-    if (result.shouldRead) {
-      verdictUI.verdictIcon.textContent = "✅";
-      verdictUI.verdictText.textContent = t("verdictWorthReading");
-      verdictUI.verdictBadge.className = "verdict-badge verdict-yes";
-    } else {
-      verdictUI.verdictIcon.textContent = "⏭️";
-      verdictUI.verdictText.textContent = t("verdictSkipIt");
-      verdictUI.verdictBadge.className = "verdict-badge verdict-no";
-    }
-    verdictUI.verdictReason.textContent = result.shouldReadReason || "";
+    verdictUI.renderDecision(result);
   }
 
-  bannersUI.successBanner.classList.add("hidden");
+  bannersUI.hideSuccess();
   updateActionButtons();
 }
 
@@ -2513,72 +2197,18 @@ function renderEggKnowledge(eggResults = []) {
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
   if (analysisResult?.mode === "chrome") {
-    actionsUI.confirmBtn.classList.add("hidden");
-    actionsUI.collectNutBtn.classList.add("hidden");
-    bannersUI.chromeActionsCard?.classList.remove("hidden");
+    actionsUI.updateActionButtons({ isChromeMode: true });
+    bannersUI.setChromeActionsCard(true);
     return;
   }
+  bannersUI.setChromeActionsCard(false);
 
-  if (analysisResult?.stage === "stage1") {
-    actionsUI.confirmBtn.classList.add("hidden");
-    if (nutCollected) {
-      actionsUI.collectNutBtn.disabled = true;
-      actionsUI.collectNutBtn.textContent = t("nutCollected");
-      if (actionsUI.stage1SkipBtn) {
-        actionsUI.stage1SkipBtn.disabled = true;
-        actionsUI.stage1SkipBtn.textContent = t("nutCollected");
-      }
-      const confirmTextEl = actionsUI.stage1ConfirmText;
-      const confirmIconEl = document.querySelector(".stage1-confirm-icon");
-      if (confirmTextEl) {
-        confirmTextEl.innerHTML = t("stage1NutSavedNotice");
-      }
-      if (confirmIconEl) {
-        confirmIconEl.textContent = "✅";
-      }
-      if (actionsUI.stage1ConfirmBox) {
-        actionsUI.stage1ConfirmBox.classList.add("stage1-saved");
-      }
-    } else {
-      actionsUI.collectNutBtn.disabled = false;
-      actionsUI.collectNutBtn.textContent = t("collectNutOnly");
-      if (actionsUI.stage1SkipBtn) {
-        actionsUI.stage1SkipBtn.disabled = false;
-        actionsUI.stage1SkipBtn.textContent = t("collectNutOnly");
-      }
-      if (actionsUI.stage1ConfirmBox) {
-        actionsUI.stage1ConfirmBox.classList.remove("stage1-saved");
-      }
-    }
-    return;
-  }
-
-  if (nutCollected) {
-    actionsUI.collectNutBtn.disabled = true;
-    actionsUI.collectNutBtn.textContent = t("nutCollected");
-  } else {
-    actionsUI.collectNutBtn.disabled = false;
-    actionsUI.collectNutBtn.textContent = t("collectNut");
-  }
-
-  const hasDelta = (analysisResult?.newKnowledge?.length || 0) > 0;
-  if (eggHatched) {
-    actionsUI.confirmBtn.classList.remove("hidden");
-    actionsUI.confirmBtn.disabled = true;
-    actionsUI.confirmBtn.textContent = t("eggHatched");
-    actionsUI.confirmBtn.title = "";
-  } else if (hasDelta) {
-    actionsUI.confirmBtn.classList.remove("hidden");
-    actionsUI.confirmBtn.disabled = false;
-    actionsUI.confirmBtn.textContent = t("hatchEgg");
-    actionsUI.confirmBtn.title = "";
-  } else {
-    // No novel delta — show the button but keep it unclickable
-    actionsUI.confirmBtn.classList.remove("hidden");
-    actionsUI.confirmBtn.disabled = true;
-    actionsUI.confirmBtn.textContent = t("hatchEgg");
-    actionsUI.confirmBtn.title = t("noNewKnowledgeToAdd");
-  }
+  actionsUI.updateActionButtons({
+    isStage1: analysisResult?.stage === "stage1",
+    nutCollected,
+    eggHatched,
+    hasDelta: (analysisResult?.newKnowledge?.length || 0) > 0,
+  });
 }
 
 /**
@@ -2597,7 +2227,7 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
     if (response?.history?.length) {
       captureHistory = response.history;
       showHistoryEntry(response.latest || response.history[0]);
-      actionsUI.analyzeBtnText.textContent = t("analyzeAgain");
+      actionsUI.setAnalyzeButtonLoading(false, t("analyzeAgain"));
       return true;
     }
   } catch {
@@ -2608,22 +2238,7 @@ async function loadHistoryIfAny(seq = refreshSeq, urlOverride = null) {
 
 /** Render or update the version history select dropdown. */
 function renderHistorySelect(selectedNutId = currentNutId) {
-  if (!actionsUI.historySelect) return;
-  if (captureHistory.length > 1) {
-    const hasMatch = selectedNutId != null && captureHistory.some((h) => String(h.nutId) === String(selectedNutId));
-    actionsUI.historySelect.classList.remove("hidden");
-    actionsUI.historySelect.innerHTML = captureHistory
-      .map((h, i) => {
-        const d = new Date(h.capturedAt).toLocaleString();
-        const s = h.saved === "saved" ? t("stateSaved") : h.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
-        const selected = (hasMatch ? String(h.nutId) === String(selectedNutId) : i === 0) ? " selected" : "";
-        return `<option value="${i}"${selected}>${d} — ${s}</option>`;
-      })
-      .join("");
-  } else {
-    actionsUI.historySelect.classList.add("hidden");
-    actionsUI.historySelect.innerHTML = "";
-  }
+  actionsUI.renderHistory(captureHistory, selectedNutId);
 }
 
 /** Show one cached capture (from history) with its capture timestamp. */
@@ -2637,8 +2252,8 @@ function showHistoryEntry(entry) {
   if (entry.result?.stage === "stage1") {
     stage1ContentAnalysis = entry.result;
     stage1Payload = {
-      url: entry.url || extractedContent?.url || captureUI.pageUrl.textContent || "",
-      title: entry.title || extractedContent?.title || captureUI.pageTitle.textContent || "",
+      url: entry.url || extractedContent?.url || captureUI.getPageUrl() || "",
+      title: entry.title || extractedContent?.title || captureUI.getPageTitle() || "",
       content: entry.content || extractedContent?.content || "",
       sourceType: entry.sourceType || extractedContent?.sourceType || "generic",
       metadata: extractedContent?.metadata,
@@ -2651,8 +2266,8 @@ function showHistoryEntry(entry) {
 
   if (entry.content) {
     extractedContent = {
-      url: entry.url || captureUI.pageUrl.textContent || "",
-      title: entry.title || captureUI.pageTitle.textContent || "",
+      url: entry.url || captureUI.getPageUrl() || "",
+      title: entry.title || captureUI.getPageTitle() || "",
       content: entry.content,
       sourceType: entry.sourceType || "webpage",
       metadata: {
@@ -2660,7 +2275,7 @@ function showHistoryEntry(entry) {
         ...(entry.publishedAt ? { published: entry.publishedAt } : {}),
       },
     };
-    captureUI.contentPreview.textContent = entry.content;
+    captureUI.setPreviewText(entry.content);
   }
 
   if (activeTabId) {
@@ -2690,8 +2305,7 @@ function showHistoryEntry(entry) {
   const when = new Date(entry.capturedAt).toLocaleString();
   const stateLabel = entry.saved === "saved"
     ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
-  actionsUI.processedMessage.textContent = t("capturedWhenStored", { when, state: stateLabel });
-  actionsUI.processedNote.classList.remove("hidden");
+  actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
 
   // Version selector when multiple captures exist
   renderHistorySelect(entry.nutId);
@@ -2745,11 +2359,10 @@ function renderCustomQuestions() {
 /** Ask a follow-up question against the already-analyzed content. */
 async function handleFollowUp() {
   const pinnedTabId = activeTabId;
-  const q = qaUI.followupInput.value.trim();
-  if (!q || qaUI.followupBtn.disabled) return;
-  qaUI.followupInput.value = "";
-  qaUI.followupBtn.disabled = true;
-  qaUI.followupBtn.textContent = "…";
+  const q = qaUI.getFollowupText();
+  if (!q || qaUI.followupBtn?.disabled) return;
+  qaUI.clearFollowup();
+  qaUI.setFollowupLoading(true);
 
   const cached = pinnedTabId ? tabResultCache.get(pinnedTabId) : null;
   let content = extractedContent || cached?.extractedContent;
@@ -2828,8 +2441,7 @@ async function handleFollowUp() {
   }
 
   if (activeTabId === pinnedTabId) {
-    qaUI.followupBtn.disabled = false;
-    qaUI.followupBtn.textContent = t("askBtn");
+    qaUI.setFollowupLoading(false);
     renderCustomQuestions();
   }
 }
@@ -2919,21 +2531,16 @@ function timeToSeconds(time) {
 }
 
 function showCaptureState() {
-  resultsUI.resultsState.classList.add("hidden");
-  resultsUI.resultPageInfo.classList.add("hidden");
-  resultsUI.captureState.classList.remove("hidden");
+  resultsUI.showCapture();
   resetCollapsibleSections();
   if (extractedContent) {
-    captureUI.contentPreview.textContent = extractedContent.content || "(No content extracted)";
-    if (extractedContent.title) captureUI.pageTitle.textContent = extractedContent.title;
-    if (extractedContent.url) captureUI.pageUrl.textContent = extractedContent.url;
-    if (extractedContent.sourceType) captureUI.pageType.textContent = extractedContent.sourceType;
+    captureUI.setContent(extractedContent);
     showProvenance(extractedContent.metadata || {});
   }
   analysisResult = null;
   cachedProcessedSaved = null;
   followUpQa = [];
-  qaUI.followupInput.value = "";
+  qaUI.clearFollowup();
   nutCollected = false;
   eggHatched = false;
   currentNutId = null;
@@ -2956,14 +2563,12 @@ async function handleConfirm() {
   if (!targetResult || eggHatched || !(targetResult.newKnowledge?.length)) return;
   if (!targetContent) {
     if (activeTabId === pinnedTabId) {
-      actionsUI.confirmBtn.disabled = true;
-      actionsUI.confirmBtn.textContent = t("retrieving");
+      actionsUI.setConfirmButtonLoading(true, t("retrieving"));
     }
     targetContent = await extractPageContent(refreshSeq, pinnedTabId);
   }
   if (activeTabId === pinnedTabId) {
-    actionsUI.confirmBtn.disabled = true;
-    actionsUI.confirmBtn.textContent = t("hatching");
+    actionsUI.setConfirmButtonLoading(true, t("hatching"));
   }
   await doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
   if (activeTabId === pinnedTabId) {
@@ -2983,14 +2588,7 @@ async function handleSaveRaw() {
   if (nutCollected) return; // already collected — no duplicate work
   if (!targetContent) {
     if (activeTabId === pinnedTabId) {
-      if (actionsUI.collectNutBtn) {
-        actionsUI.collectNutBtn.disabled = true;
-        actionsUI.collectNutBtn.textContent = t("retrieving");
-      }
-      if (actionsUI.stage1SkipBtn) {
-        actionsUI.stage1SkipBtn.disabled = true;
-        actionsUI.stage1SkipBtn.textContent = t("retrieving");
-      }
+      actionsUI.setCollectNutLoading(true, t("retrieving"));
     }
     targetContent = await extractPageContent(refreshSeq, pinnedTabId);
   }
@@ -3002,14 +2600,7 @@ async function handleSaveRaw() {
     return;
   }
   if (activeTabId === pinnedTabId) {
-    if (actionsUI.collectNutBtn) {
-      actionsUI.collectNutBtn.disabled = true;
-      actionsUI.collectNutBtn.textContent = t("collecting");
-    }
-    if (actionsUI.stage1SkipBtn) {
-      actionsUI.stage1SkipBtn.disabled = true;
-      actionsUI.stage1SkipBtn.textContent = t("collecting");
-    }
+    actionsUI.setCollectNutLoading(true, t("collecting"));
   }
   await doSave([], false, targetContent, targetResult, targetNutId, pinnedTabId);
   if (activeTabId === pinnedTabId) {
@@ -3090,20 +2681,19 @@ async function doSave(
               .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
               .join(", ")}`
           : "";
-        const isStage1BoxVisible = result?.stage === "stage1" && actionsUI.stage1ConfirmBox && !actionsUI.stage1ConfirmBox.classList.contains("hidden");
+        const isStage1BoxVisible = result?.stage === "stage1" && actionsUI.isStage1ConfirmVisible();
         if (isStage1BoxVisible) {
           // In Stage 1, stage1-confirm-box updates in-place to show the saved state.
           // Hide successBanner so only one message is displayed.
-          bannersUI.successBanner.classList.add("hidden");
+          bannersUI.hideSuccess();
         } else {
           if (newKnowledge.length > 0) {
-            bannersUI.successMessage.textContent = t("eggHatchedSuccess", { mergedNote });
+            bannersUI.showSuccess(t("eggHatchedSuccess", { mergedNote }));
           } else if (isHatch) {
-            bannersUI.successMessage.textContent = t("eggHatchedNoKnowledge");
+            bannersUI.showSuccess(t("eggHatchedNoKnowledge"));
           } else {
-            bannersUI.successMessage.textContent = t("nutCollectedVault");
+            bannersUI.showSuccess(t("nutCollectedVault"));
           }
-          bannersUI.successBanner.classList.remove("hidden");
         }
         updateActionButtons();
         fetchMetrics();
@@ -3156,8 +2746,8 @@ function openGitHubBugReport(errorContext = "") {
   let contentUrl = "";
   if (extractedContent?.url) {
     contentUrl = extractedContent.url;
-  } else if (captureUI.pageUrl?.textContent && captureUI.pageUrl.textContent !== "Loading...") {
-    contentUrl = captureUI.pageUrl.textContent;
+  } else if (captureUI.getPageUrl() && captureUI.getPageUrl() !== "Loading...") {
+    contentUrl = captureUI.getPageUrl();
   }
 
   const manifest = chrome.runtime?.getManifest?.() || {};

@@ -63,9 +63,22 @@ class VerdictComponent {
     }
   }
 
+  show() {
+    this.verdictSection?.classList.remove("hidden");
+  }
+
   hide() {
     this.verdictSection?.classList.add("hidden");
     this.titleVerdictSection?.classList.add("hidden");
+  }
+
+  reset() {
+    this.hide();
+    if (this.verdictAnswer) this.verdictAnswer.textContent = "";
+    if (this.verdictText) this.verdictText.textContent = "";
+    if (this.verdictReason) this.verdictReason.textContent = "";
+    if (this.verdictIcon) this.verdictIcon.textContent = "";
+    if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
   }
 }
 

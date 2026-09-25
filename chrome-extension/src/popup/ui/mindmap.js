@@ -110,8 +110,21 @@ class MindmapComponent {
     this.mindmapTree = root.getElementById("mindmap-tree");
   }
 
-  render(nodes) {
-    return renderMindMap(nodes, this.mindmapTree);
+  show() {
+    this.mindmapSection?.classList.remove("hidden");
+  }
+
+  hide() {
+    this.mindmapSection?.classList.add("hidden");
+  }
+
+  render(nodes, enabled = true) {
+    if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {
+      this.show();
+      return renderMindMap(nodes, this.mindmapTree);
+    } else {
+      this.hide();
+    }
   }
 }
 

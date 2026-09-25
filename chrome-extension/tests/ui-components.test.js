@@ -188,5 +188,171 @@ describe("Modular UI Components", () => {
     assert.ok(eggs.eggsList);
     assert.ok(eggs.eggKnowledgeContent);
   });
+
+  it("ActionControlsComponent encapsulated helper methods work correctly", () => {
+    const root = createMockRoot();
+    const actions = new ActionControlsComponent(root);
+
+    actions.showStage1Confirm();
+    assert.strictEqual(actions.isStage1ConfirmVisible(), true);
+    actions.hideStage1Confirm();
+    assert.strictEqual(actions.isStage1ConfirmVisible(), false);
+
+    actions.showProcessedNote("Processing...");
+    assert.strictEqual(actions.getProcessedMessage(), "Processing...");
+    actions.hideProcessedNote();
+    assert.strictEqual(actions.getProcessedMessage(), "");
+
+    actions.setAnalyzeButtonLoading(true, "Analyzing");
+    assert.strictEqual(actions.analyzeBtn.disabled, true);
+    assert.strictEqual(actions.analyzeBtnText.textContent, "Analyzing");
+
+    actions.setHistorySelectDisabled(true);
+    assert.strictEqual(actions.historySelect.disabled, true);
+
+    actions.setConfirmButtonVisible(true);
+    assert.strictEqual(actions.confirmBtn.classList.contains("hidden"), false);
+    actions.setConfirmButtonVisible(false);
+    assert.strictEqual(actions.confirmBtn.classList.contains("hidden"), true);
+
+    actions.setCollectNutButtonVisible(true);
+    assert.strictEqual(actions.collectNutBtn.classList.contains("hidden"), false);
+    actions.setCollectNutButtonVisible(false);
+    assert.strictEqual(actions.collectNutBtn.classList.contains("hidden"), true);
+
+    actions.setConfirmButtonLoading(true, "Hatching");
+    assert.strictEqual(actions.confirmBtn.disabled, true);
+    assert.strictEqual(actions.confirmBtn.textContent, "Hatching");
+
+    actions.setCollectNutLoading(true, "Collecting");
+    assert.strictEqual(actions.collectNutBtn.disabled, true);
+    assert.strictEqual(actions.collectNutBtn.textContent, "Collecting");
+    assert.strictEqual(actions.stage1SkipBtn.disabled, true);
+    assert.strictEqual(actions.stage1SkipBtn.textContent, "Collecting");
+
+    actions.updateStage1ProceedBtn({ selectedCount: 2 });
+    assert.strictEqual(actions.stage1ProceedBtn.disabled, false);
+    assert.ok(actions.stage1ProceedBtn.textContent);
+
+    actions.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
+    assert.strictEqual(actions.stage1ProceedBtn.disabled, true);
+  });
+
+  it("CaptureViewComponent encapsulated helper methods work correctly", () => {
+    const root = createMockRoot();
+    const capture = new CaptureViewComponent(root);
+
+    capture.setPageInfo({ title: "My Title", url: "https://example.com", sourceType: "webpage" });
+    assert.strictEqual(capture.getPageTitle(), "My Title");
+    assert.strictEqual(capture.getPageUrl(), "https://example.com");
+    assert.strictEqual(capture.getPageType(), "webpage");
+
+    capture.setLoading("Loading test...");
+    assert.strictEqual(capture.contentPreview.textContent, "Loading test...");
+    assert.strictEqual(capture.pageAuthorEl.textContent, "");
+
+    capture.setError("Error message");
+    assert.strictEqual(capture.contentPreview.textContent, "Error message");
+
+    capture.setRefreshDisabled(true);
+    assert.strictEqual(capture.refreshBtn.disabled, true);
+
+    capture.setCustomQuestions("Question 1\nQuestion 2");
+    assert.deepStrictEqual(capture.getParsedQuestions(), ["Question 1", "Question 2"]);
+
+    capture.toggleQuestionsArea();
+    assert.strictEqual(capture.questionsArea.classList.contains("hidden"), true);
+  });
+
+  it("EggsComponent encapsulated helper methods work correctly", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+
+    eggs.setNoEggVisible(true);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
+    eggs.setNoEggVisible(false);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
+
+    eggs.setKnowledgeVisible(true);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+    eggs.setKnowledgeVisible(false);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
+
+    eggs.expandEggsList(true);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsToggleChevron.textContent, "▾");
+
+    eggs.toggleEggsList();
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), true);
+
+    eggs.expandCaptureEggs(true);
+    assert.strictEqual(eggs.captureEggsArea.classList.contains("hidden"), false);
+
+    eggs.toggleCaptureEggs();
+    assert.strictEqual(eggs.captureEggsArea.classList.contains("hidden"), true);
+
+    eggs.setReanalyzeLoading(true, "Comparing");
+    assert.strictEqual(eggs.reanalyzeEggsBtn.disabled, true);
+    assert.strictEqual(eggs.reanalyzeEggsBtn.textContent, "Comparing");
+
+    eggs.showError("Failed to match");
+    assert.strictEqual(eggs.eggsErrorEl.textContent, "Failed to match");
+    eggs.clearError();
+    assert.strictEqual(eggs.eggsErrorEl.classList.contains("hidden"), true);
+
+    eggs.resetCreateForm();
+    assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), true);
+  });
+
+  it("ResultsViewComponent renders bullet array and handles provenance", () => {
+    const root = createMockRoot();
+    const results = new ResultsViewComponent(root);
+
+    results.renderCoreSummary(["Bullet 1", "Bullet 2"]);
+    assert.strictEqual(results.coreSummarySection.classList.contains("hidden"), false);
+    assert.ok(results.coreSummaryEl.innerHTML.includes("<li>Bullet 1</li>"));
+    assert.ok(results.coreSummaryEl.innerHTML.includes("<li>Bullet 2</li>"));
+
+    results.renderProvenance({ title: "Results Provenance Title", author: "Bob", publishedAt: "2026-02-01" });
+    assert.strictEqual(results.resultPageInfo.classList.contains("hidden"), false);
+    assert.strictEqual(results.resultPageTitle.textContent, "Results Provenance Title");
+    assert.ok(results.resultPageAuthor.textContent.includes("Bob"));
+
+    results.renderProvenance(null);
+    assert.strictEqual(results.resultPageInfo.classList.contains("hidden"), true);
+  });
+
+  it("VerdictComponent show, hide, reset, and setComparing work correctly", () => {
+    const root = createMockRoot();
+    const verdict = new VerdictComponent(root);
+
+    verdict.setComparing(3);
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
+    assert.strictEqual(verdict.verdictIcon.textContent, "⏳");
+
+    verdict.hide();
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+
+    verdict.show();
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
+
+    verdict.reset();
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+    assert.strictEqual(verdict.verdictAnswer.textContent, "");
+  });
+
+  it("MindmapComponent show, hide, and render work correctly", () => {
+    const root = createMockRoot();
+    const mindmap = new MindmapComponent(root);
+
+    mindmap.show();
+    assert.strictEqual(mindmap.mindmapSection.classList.contains("hidden"), false);
+
+    mindmap.hide();
+    assert.strictEqual(mindmap.mindmapSection.classList.contains("hidden"), true);
+
+    mindmap.render([], false);
+    assert.strictEqual(mindmap.mindmapSection.classList.contains("hidden"), true);
+  });
 });
 

@@ -90,6 +90,15 @@ class HeaderComponent {
     }
   }
 
+  setCheckingServer() {
+    if (this.tooltipTitle) this.tooltipTitle.textContent = _headerT("checking");
+    if (this.tooltipSub) this.tooltipSub.textContent = _headerT("connectingToObsidian");
+  }
+
+  setCheckingCredit() {
+    if (this.aiCreditText) this.aiCreditText.textContent = _headerT("checking");
+  }
+
   renderCredit(credit, serverOnline) {
     if (!this.aiCreditPill || !this.aiCreditText) return;
 

@@ -119,8 +119,21 @@ class ActionControlsComponent {
     }
   }
 
-  updateStage1ProceedBtn({ selectedCount = 0, totalEggsCount = 0 } = {}) {
+  showStage1Confirm() {
+    this.stage1ConfirmBox?.classList.remove("hidden");
+  }
+
+  hideStage1Confirm() {
+    this.stage1ConfirmBox?.classList.add("hidden");
+  }
+
+  updateStage1ProceedBtn({ selectedCount = 0, totalEggsCount = 0, autoSave = false, isProceeding = false } = {}) {
     if (!this.stage1ProceedBtn) return;
+    if (isProceeding) {
+      this.stage1ProceedBtn.disabled = true;
+      this.stage1ProceedBtn.textContent = autoSave ? _actionsT("hatchingEggWaiting") : _actionsT("analyzing");
+      return;
+    }
     if (selectedCount === 0) {
       this.stage1ProceedBtn.disabled = true;
       this.stage1ProceedBtn.textContent = _actionsT("hatchEggSelectEgg");
@@ -138,33 +151,160 @@ class ActionControlsComponent {
     }
   }
 
-  updateActionButtons({ eggHatched = false, nutCollected = false, hasNewKnowledge = false, isHatch = false } = {}) {
-    if (this.confirmBtn) {
-      if (eggHatched) {
-        this.confirmBtn.disabled = true;
-        this.confirmBtn.textContent = _actionsT("eggHatchedStatus");
-        this.confirmBtn.classList.add("confirmed");
-      } else if (!hasNewKnowledge) {
-        this.confirmBtn.disabled = true;
-        this.confirmBtn.textContent = _actionsT("noNewKnowledge");
-        this.confirmBtn.classList.remove("confirmed");
+  updateActionButtons({
+    isChromeMode = false,
+    isStage1 = false,
+    nutCollected = false,
+    eggHatched = false,
+    hasDelta = false,
+  } = {}) {
+    if (isChromeMode) {
+      this.confirmBtn?.classList.add("hidden");
+      this.collectNutBtn?.classList.add("hidden");
+      return;
+    }
+
+    if (isStage1) {
+      this.confirmBtn?.classList.add("hidden");
+      if (nutCollected) {
+        if (this.collectNutBtn) {
+          this.collectNutBtn.disabled = true;
+          this.collectNutBtn.textContent = _actionsT("nutCollected");
+        }
+        if (this.stage1SkipBtn) {
+          this.stage1SkipBtn.disabled = true;
+          this.stage1SkipBtn.textContent = _actionsT("nutCollected");
+        }
+        if (this.stage1ConfirmText) {
+          this.stage1ConfirmText.innerHTML = _actionsT("stage1NutSavedNotice");
+        }
+        const confirmIconEl = this.root.querySelector?.(".stage1-confirm-icon");
+        if (confirmIconEl) {
+          confirmIconEl.textContent = "✅";
+        }
+        this.stage1ConfirmBox?.classList.add("stage1-saved");
       } else {
-        this.confirmBtn.disabled = false;
-        this.confirmBtn.textContent = _actionsT("hatchEgg");
-        this.confirmBtn.classList.remove("confirmed");
+        if (this.collectNutBtn) {
+          this.collectNutBtn.disabled = false;
+          this.collectNutBtn.textContent = _actionsT("collectNutOnly");
+        }
+        if (this.stage1SkipBtn) {
+          this.stage1SkipBtn.disabled = false;
+          this.stage1SkipBtn.textContent = _actionsT("collectNutOnly");
+        }
+        this.stage1ConfirmBox?.classList.remove("stage1-saved");
+      }
+      return;
+    }
+
+    if (nutCollected) {
+      if (this.collectNutBtn) {
+        this.collectNutBtn.disabled = true;
+        this.collectNutBtn.textContent = _actionsT("nutCollected");
+      }
+    } else {
+      if (this.collectNutBtn) {
+        this.collectNutBtn.disabled = false;
+        this.collectNutBtn.textContent = _actionsT("collectNut");
       }
     }
 
-    if (this.collectNutBtn) {
-      if (nutCollected) {
-        this.collectNutBtn.disabled = true;
-        this.collectNutBtn.textContent = isHatch ? _actionsT("eggHatchedStatus") : _actionsT("nutCollectedStatus");
-        this.collectNutBtn.classList.add("collected");
+    if (this.confirmBtn) {
+      this.confirmBtn.classList.remove("hidden");
+      if (eggHatched) {
+        this.confirmBtn.disabled = true;
+        this.confirmBtn.textContent = _actionsT("eggHatched");
+        this.confirmBtn.title = "";
+      } else if (hasDelta) {
+        this.confirmBtn.disabled = false;
+        this.confirmBtn.textContent = _actionsT("hatchEgg");
+        this.confirmBtn.title = "";
       } else {
-        this.collectNutBtn.disabled = false;
-        this.collectNutBtn.textContent = _actionsT("collectNut");
-        this.collectNutBtn.classList.remove("collected");
+        this.confirmBtn.disabled = true;
+        this.confirmBtn.textContent = _actionsT("hatchEgg");
+        this.confirmBtn.title = _actionsT("noNewKnowledgeToAdd");
       }
+    }
+  }
+
+  showProcessedNote(msg) {
+    if (this.processedMessage) this.processedMessage.textContent = msg;
+    this.processedNote?.classList.remove("hidden");
+  }
+
+  hideProcessedNote() {
+    this.processedNote?.classList.add("hidden");
+    if (this.processedMessage) this.processedMessage.textContent = "";
+  }
+
+  getProcessedMessage() {
+    return this.processedMessage?.textContent || "";
+  }
+
+  isStage1ConfirmVisible() {
+    return Boolean(this.stage1ConfirmBox && !this.stage1ConfirmBox.classList.contains("hidden"));
+  }
+
+  renderHistory(captureHistory = [], selectedNutId = null) {
+    if (!this.historySelect) return;
+    if (Array.isArray(captureHistory) && captureHistory.length > 1) {
+      const hasMatch = selectedNutId != null && captureHistory.some((h) => String(h.nutId) === String(selectedNutId));
+      this.historySelect.classList.remove("hidden");
+      this.historySelect.innerHTML = captureHistory
+        .map((h, i) => {
+          const d = new Date(h.capturedAt).toLocaleString();
+          const s = h.saved === "saved" ? _actionsT("stateSaved") : h.saved === "skip" ? _actionsT("stateCollected") : _actionsT("stateAnalyzed");
+          const selected = (hasMatch ? String(h.nutId) === String(selectedNutId) : i === 0) ? " selected" : "";
+          return `<option value="${i}"${selected}>${d} — ${s}</option>`;
+        })
+        .join("");
+    } else {
+      this.historySelect.classList.add("hidden");
+      this.historySelect.innerHTML = "";
+    }
+  }
+
+  setReanalyzingState(text) {
+    if (this.reanalyzeBtn) {
+      this.reanalyzeBtn.disabled = true;
+      this.reanalyzeBtn.textContent = text;
+    }
+  }
+
+  setAnalyzeButtonLoading(isLoading, text) {
+    if (this.analyzeBtn) this.analyzeBtn.disabled = Boolean(isLoading);
+    if (this.analyzeBtnText && text) this.analyzeBtnText.textContent = text;
+  }
+
+  setHistorySelectDisabled(disabled) {
+    if (this.historySelect) this.historySelect.disabled = Boolean(disabled);
+  }
+
+  setConfirmButtonVisible(visible) {
+    if (visible) this.confirmBtn?.classList.remove("hidden");
+    else this.confirmBtn?.classList.add("hidden");
+  }
+
+  setCollectNutButtonVisible(visible) {
+    if (visible) this.collectNutBtn?.classList.remove("hidden");
+    else this.collectNutBtn?.classList.add("hidden");
+  }
+
+  setConfirmButtonLoading(isLoading, text) {
+    if (this.confirmBtn) {
+      this.confirmBtn.disabled = Boolean(isLoading);
+      if (text) this.confirmBtn.textContent = text;
+    }
+  }
+
+  setCollectNutLoading(isLoading, text) {
+    if (this.collectNutBtn) {
+      this.collectNutBtn.disabled = Boolean(isLoading);
+      if (text) this.collectNutBtn.textContent = text;
+    }
+    if (this.stage1SkipBtn) {
+      this.stage1SkipBtn.disabled = Boolean(isLoading);
+      if (text) this.stage1SkipBtn.textContent = text;
     }
   }
 }

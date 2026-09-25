@@ -194,6 +194,27 @@ class QaComponent {
   render(res, qaList) {
     return renderCustomQuestions(res, qaList);
   }
+
+  getFollowupText() {
+    return this.followupInput?.value?.trim() || "";
+  }
+
+  clearFollowup() {
+    if (this.followupInput) this.followupInput.value = "";
+  }
+
+  setFollowupLoading(isLoading) {
+    if (this.followupBtn) this.followupBtn.disabled = isLoading;
+    if (this.followupInput) this.followupInput.disabled = isLoading;
+  }
+
+  showQuestions() {
+    this.customQuestionsSection?.classList.remove("hidden");
+  }
+
+  hideQuestions() {
+    this.customQuestionsSection?.classList.add("hidden");
+  }
 }
 
 const _qaScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

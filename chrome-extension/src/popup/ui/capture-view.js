@@ -60,6 +60,28 @@ class CaptureViewComponent {
     if (this.pagePublishedEl) this.pagePublishedEl.textContent = "";
   }
 
+  setLoading(text) {
+    if (this.contentPreview) this.contentPreview.textContent = text || _captureT("retrievingPageContent");
+    this.clearAuthorAndPublished();
+  }
+
+  setError(message) {
+    if (this.contentPreview) this.contentPreview.textContent = message;
+    this.clearAuthorAndPublished();
+  }
+
+  clear() {
+    if (this.pageTitle) this.pageTitle.textContent = _captureT("untitled");
+    if (this.pageUrl) this.pageUrl.textContent = "";
+    if (this.pageType) this.pageType.textContent = "";
+    if (this.contentPreview) this.contentPreview.textContent = _captureT("noContentExtracted");
+    this.clearAuthorAndPublished();
+  }
+
+  setContent(content, options = {}) {
+    this.render(content, options);
+  }
+
   getCustomQuestions() {
     return this.customQuestionsEl?.value || "";
   }
@@ -73,6 +95,32 @@ class CaptureViewComponent {
   getParsedQuestions() {
     const raw = this.getCustomQuestions();
     return raw ? raw.split("\n").map((q) => q.trim()).filter(Boolean) : [];
+  }
+
+  setPageInfo({ title, url, sourceType } = {}) {
+    if (title !== undefined && this.pageTitle) this.pageTitle.textContent = title;
+    if (url !== undefined && this.pageUrl) this.pageUrl.textContent = url;
+    if (sourceType !== undefined && this.pageType) this.pageType.textContent = sourceType;
+  }
+
+  getPageUrl() {
+    return this.pageUrl?.textContent || "";
+  }
+
+  getPageTitle() {
+    return this.pageTitle?.textContent || "";
+  }
+
+  getPageType() {
+    return this.pageType?.textContent || "";
+  }
+
+  setRefreshDisabled(disabled) {
+    if (this.refreshBtn) this.refreshBtn.disabled = Boolean(disabled);
+  }
+
+  toggleQuestionsArea() {
+    this.questionsArea?.classList.toggle("hidden");
   }
 }
 

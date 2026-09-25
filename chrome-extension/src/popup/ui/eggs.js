@@ -435,6 +435,130 @@ class EggsComponent {
     this.captureEggsArea = root.getElementById("capture-eggs-area");
     this.captureEggsList = root.getElementById("capture-eggs-list");
   }
+
+  toggleCreateForm(open) {
+    if (!this.eggsCreateForm) return;
+    const isHidden = open !== undefined ? !open : !this.eggsCreateForm.classList.contains("hidden");
+    if (isHidden) {
+      this.eggsCreateForm.classList.add("hidden");
+      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = _eggT("createNewEgg");
+    } else {
+      this.eggsCreateForm.classList.remove("hidden");
+      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = _eggT("cancel");
+      this.eggsNewName?.focus();
+    }
+  }
+
+  getNewEggInput() {
+    const name = (this.eggsNewName?.value || this.newEggName?.value || "").trim();
+    const desc = (this.eggsNewDesc?.value || this.newEggDescription?.value || "").trim();
+    return { name, desc };
+  }
+
+  clearNewEggInput() {
+    if (this.eggsNewName) this.eggsNewName.value = "";
+    if (this.eggsNewDesc) this.eggsNewDesc.value = "";
+    if (this.newEggName) this.newEggName.value = "";
+    if (this.newEggDescription) this.newEggDescription.value = "";
+  }
+
+  setCreateButtonLoading(isLoading) {
+    if (this.eggsCreateBtn) {
+      this.eggsCreateBtn.disabled = isLoading;
+      this.eggsCreateBtn.textContent = isLoading ? _eggT("creating") : _eggT("createEggBtn");
+    }
+    if (this.createEggBtn) {
+      this.createEggBtn.disabled = isLoading;
+      this.createEggBtn.textContent = isLoading ? _eggT("creating") : _eggT("createEggBtn");
+    }
+  }
+
+  resetCreateForm() {
+    this.toggleCreateForm(false);
+    this.clearNewEggInput();
+    this.setCreateButtonLoading(false);
+  }
+
+  setReanalyzeLoading(isLoading, text = "") {
+    if (!this.reanalyzeEggsBtn) return;
+    this.reanalyzeEggsBtn.disabled = Boolean(isLoading);
+    if (text) this.reanalyzeEggsBtn.textContent = text;
+  }
+
+  showError(msg) {
+    if (this.eggsErrorEl) {
+      this.eggsErrorEl.textContent = msg;
+      this.eggsErrorEl.classList.remove("hidden");
+    }
+  }
+
+  clearError() {
+    if (this.eggsErrorEl) {
+      this.eggsErrorEl.textContent = "";
+      this.eggsErrorEl.classList.add("hidden");
+    }
+  }
+
+  expandEggsList(expanded = true) {
+    if (expanded) {
+      this.eggsExpanded?.classList.remove("hidden");
+      if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▾";
+    } else {
+      this.eggsExpanded?.classList.add("hidden");
+      if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▸";
+    }
+  }
+
+  toggleEggsList() {
+    const isCurrentlyHidden = this.eggsExpanded?.classList.contains("hidden");
+    this.expandEggsList(isCurrentlyHidden);
+    return isCurrentlyHidden;
+  }
+
+  expandCaptureEggs(expanded = true) {
+    if (expanded) {
+      this.captureEggsArea?.classList.remove("hidden");
+      if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▾";
+    } else {
+      this.captureEggsArea?.classList.add("hidden");
+      if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▸";
+    }
+  }
+
+  toggleCaptureEggs() {
+    const isCurrentlyHidden = this.captureEggsArea?.classList.contains("hidden");
+    this.expandCaptureEggs(isCurrentlyHidden);
+    return isCurrentlyHidden;
+  }
+
+  renderCaptureList(options = {}) {
+    return renderCaptureEggsList({ ...options, captureEggsList: this.captureEggsList, captureEggsToggle: this.captureEggsToggle });
+  }
+
+  renderSection(options = {}) {
+    return renderEggsSection({ ...options, eggsSection: this.eggsSection, eggsList: this.eggsList });
+  }
+
+  renderKnowledge(options = {}) {
+    return renderEggKnowledge({ ...options, eggKnowledgeSection: this.eggKnowledgeSection, eggKnowledgeContent: this.eggKnowledgeContent });
+  }
+
+  setNoEggVisible(visible) {
+    if (visible) {
+      this.noEggSection?.classList.remove("hidden");
+      this.clearNewEggInput();
+    } else {
+      this.noEggSection?.classList.add("hidden");
+    }
+  }
+
+  setKnowledgeVisible(visible) {
+    if (visible) {
+      this.eggKnowledgeSection?.classList.remove("hidden");
+    } else {
+      this.eggKnowledgeSection?.classList.add("hidden");
+    }
+  }
 }
 
 const _eggScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

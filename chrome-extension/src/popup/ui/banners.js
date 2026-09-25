@@ -138,6 +138,16 @@ class BannersComponent {
       }
     }
   }
+
+  setChromeResultBanner(visible) {
+    if (visible) this.chromeResultBanner?.classList.remove("hidden");
+    else this.chromeResultBanner?.classList.add("hidden");
+  }
+
+  setChromeActionsCard(visible) {
+    if (visible) this.chromeActionsCard?.classList.remove("hidden");
+    else this.chromeActionsCard?.classList.add("hidden");
+  }
 }
 
 const _bannersScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

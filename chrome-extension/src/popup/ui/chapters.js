@@ -91,8 +91,15 @@ class ChaptersComponent {
     this.chapterList = root.getElementById("chapter-list");
   }
 
-  render(chapters, durationSeconds, options) {
-    return renderChapterMap(chapters, durationSeconds, options);
+  render(firstArg, ...rest) {
+    if (firstArg && typeof firstArg === "object" && !Array.isArray(firstArg)) {
+      return renderChapterMap({
+        chapterSection: this.chapterSection,
+        chapterList: this.chapterList,
+        ...firstArg,
+      });
+    }
+    return renderChapterMap(firstArg, ...rest);
   }
 }
 
