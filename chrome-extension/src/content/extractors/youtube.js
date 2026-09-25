@@ -640,9 +640,9 @@ function dedupChapters(chapters) {
     if (!time || !title) continue;
 
     const seconds = parseTimestamp(`[${time.replace(/^\[|\]$/g, "")}]`);
-    // If the list starts repeating from 0 or earlier time, or duplicate timestamp
+    // If the list starts repeating from an earlier time, or duplicate timestamp
     if (seenTimes.has(time) || (seconds >= 0 && seconds <= lastSeconds && seenTimes.size >= 2)) {
-      if (seconds >= 0 && seconds <= 0 && seenTimes.size >= 2) break;
+      if (seconds >= 0 && seconds < lastSeconds && seenTimes.size >= 2) break;
       continue;
     }
 
@@ -988,8 +988,20 @@ function decodeHtmlEntities(str) {
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return "";
+      }
+    })
     .replace(/\s+/g, " ");
 }
 
@@ -1067,4 +1079,12 @@ function dedupTranscriptLines(lines) {
     );
   }
   return out;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    decodeHtmlEntities,
+    dedupChapters,
+    cleanChapterTitle,
+  };
 }

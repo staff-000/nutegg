@@ -429,8 +429,8 @@ async function initPopup() {
   });
   // Egg picker is collapsed by default — expand on demand
   eggsToggle.addEventListener("click", () => {
-    const expanded = eggsExpanded.classList.toggle("hidden");
-    eggsToggleChevron.textContent = expanded ? "▾" : "▸";
+    const isHidden = eggsExpanded.classList.toggle("hidden");
+    eggsToggleChevron.textContent = isHidden ? "▸" : "▾";
   });
   reanalyzeBtn.addEventListener("click", async () => {
     if (reanalyzeBtn.disabled) return;
@@ -1203,6 +1203,7 @@ async function handleProceedStage2(
         coreSummary: [],
         isLongForm: false,
         chapterMap: [],
+        mindMap: [],
         customQuestionAnswers: [],
       },
     };
@@ -2069,7 +2070,9 @@ async function waitForPageSettle(tabId, seq) {
       identity.youtubeReady !== false &&
       identity.twitterReady !== false
     ) {
-      currentTabLoading = false;
+      if (tabId === activeTabId) {
+        currentTabLoading = false;
+      }
       return identity;
     }
     await new Promise((r) => setTimeout(r, 300));
@@ -2638,6 +2641,7 @@ function showResultsState(result, provenance = null) {
   // - If chapterMap has fewer than 2 entries and no author chapters were provided, don't show it.
   const hasAuthorChapters =
     (Array.isArray(extractedContent?.chapters) && extractedContent.chapters.length > 0) ||
+    (Array.isArray(stage1Payload?.chapters) && stage1Payload.chapters.length > 0) ||
     (Array.isArray(stage1Payload?.content?.chapters) && stage1Payload.content.chapters.length > 0) ||
     (Array.isArray(result?.chapters) && result.chapters.length > 0);
 
@@ -3085,19 +3089,18 @@ function showHistoryEntry(entry) {
   }
 
   if (activeTabId) {
-    const existing = tabResultCache.get(activeTabId);
-    if (existing) {
-      tabResultCache.set(activeTabId, {
-        ...existing,
-        extractedContent: existing.extractedContent || extractedContent,
-        analysisResult: entry.result,
-        currentNutId: entry.nutId,
-        eggHatched,
-        nutCollected,
-        stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : null),
-        stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : null),
-      });
-    }
+    const existing = tabResultCache.get(activeTabId) || {};
+    tabResultCache.set(activeTabId, {
+      ...existing,
+      status: "done",
+      extractedContent: existing.extractedContent || extractedContent,
+      analysisResult: entry.result,
+      currentNutId: entry.nutId,
+      eggHatched,
+      nutCollected,
+      stage1Payload: (entry.result?.stage === "stage1" ? stage1Payload : null),
+      stage1ContentAnalysis: (entry.result?.stage === "stage1" ? stage1ContentAnalysis : null),
+    });
   }
 
   // Stored provenance from the DB row, falling back to the live extraction

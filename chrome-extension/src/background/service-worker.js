@@ -269,7 +269,7 @@ async function handleConfirm(payload) {
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     return { error: data.error || `Server error (${response.status})` };
@@ -303,7 +303,7 @@ async function handleCreateEgg({ name, description }) {
     body: JSON.stringify({ name, description }),
   });
 
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     return { error: data.error || `Server error (${response.status})` };

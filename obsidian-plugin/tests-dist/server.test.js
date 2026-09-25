@@ -770,6 +770,7 @@ var NutEggServer = class {
           coreSummary: [],
           isLongForm: false,
           chapterMap: [],
+          mindMap: [],
           customQuestionAnswers: []
         };
         const result = await this.plugin.aiProcessor.analyzeEggs(
@@ -1020,16 +1021,29 @@ var NutEggServer = class {
     return new Promise((resolve, reject) => {
       let data = "";
       let bytes = 0;
+      let settled = false;
       req.on("data", (chunk) => {
         bytes += chunk.length;
         if (bytes > maxBytes) {
+          settled = true;
           req.destroy(new Error("Request body too large (exceeds 25MB)"));
+          reject(new Error("Request body too large (exceeds 25MB)"));
           return;
         }
         data += chunk;
       });
-      req.on("end", () => resolve(data));
-      req.on("error", reject);
+      req.on("end", () => {
+        if (!settled) {
+          settled = true;
+          resolve(data);
+        }
+      });
+      req.on("error", (err) => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      });
     });
   }
   async stop() {

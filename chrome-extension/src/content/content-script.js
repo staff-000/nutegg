@@ -146,14 +146,23 @@ if (!window.__nutegg_listener_attached) {
         if (result instanceof Promise) {
           result
             .then((content) => sendResponse({ success: true, content }))
-            .catch((err) => sendResponse({ success: false, error: err.message }));
+            .catch((err) =>
+              sendResponse({
+                success: false,
+                error: err instanceof Error ? err.message : String(err),
+              })
+            );
           return true; // Keep channel open for async
         }
         sendResponse({ success: true, content: result });
+        return false;
       } catch (err) {
-        sendResponse({ success: false, error: err instanceof Error ? err.message : "Extraction failed" });
+        sendResponse({
+          success: false,
+          error: err instanceof Error ? err.message : "Extraction failed",
+        });
+        return false;
       }
-      return true;
     }
   });
 }
