@@ -1,12 +1,13 @@
-// Load UI modules in Node environment if required by tests
+// Load UI & state modules in Node environment if required by tests
 if (typeof require !== "undefined") {
   try {
+    const tabState = require("./state/tab-state.js");
     const collapsibleUI = require("./ui/collapsible.js");
     const mindmapUI = require("./ui/mindmap.js");
     const chaptersUI = require("./ui/chapters.js");
     const qaUI = require("./ui/qa.js");
     const eggsUI = require("./ui/eggs.js");
-    Object.assign(globalThis, collapsibleUI, mindmapUI, chaptersUI, qaUI, eggsUI);
+    Object.assign(globalThis, tabState, collapsibleUI, mindmapUI, chaptersUI, qaUI, eggsUI);
   } catch { /* ignore in browser */ }
 }
 
@@ -181,16 +182,12 @@ let stage1ContentAnalysis = null;
 let activeEggTab = null;
 let currentTabLoading = false;
 
-/** Per-tab cache of extraction/analysis results. When the user switches away
+/** Per-tab state & cache manager. When the user switches away
  *  and back, the cached result is restored instead of re-extracting. */
-const tabResultCache = new Map();
-
-/** Per-tab extraction sequence numbers. Allows background tab extractions to complete
- *  and cache cleanly without being aborted when the active tab switches. */
-const tabExtractSeq = new Map();
-
-/** Set of tab IDs currently executing an extraction. */
-const tabsExtracting = new Set();
+const tabStateManager = typeof TabStateManager !== "undefined" ? new TabStateManager() : new (globalThis.NutEggTabState?.TabStateManager || Map)();
+const tabResultCache = tabStateManager;
+const tabExtractSeq = tabStateManager.extractSeq || new Map();
+const tabsExtracting = tabStateManager.extracting || new Set();
 
 // --- Init ---
 
@@ -490,21 +487,19 @@ async function initPopup() {
   // switches to another tab or the active tab navigates to a new URL.
   function saveActiveTabState(tabId) {
     if (!tabId) return;
-    const prevCache = tabResultCache.get(tabId) || {};
-    tabResultCache.set(tabId, {
-      ...prevCache,
+    tabStateManager.saveActiveTabState(tabId, {
       extractedContent,
       analysisResult,
-      captureHistory: [...captureHistory],
+      captureHistory,
       currentNutId,
       stage1Payload,
       stage1ContentAnalysis,
       eggHatched,
       nutCollected,
       cachedProcessedSaved,
-      followUpQa: [...followUpQa],
-      selectedEggs: Array.from(selectedEggs),
-      preSelectedEggs: Array.from(preSelectedEggs),
+      followUpQa,
+      selectedEggs,
+      preSelectedEggs,
       customQuestions: customQuestionsEl?.value || "",
       activeEggTab,
     });
@@ -577,9 +572,7 @@ async function initPopup() {
 
     // URL changed — invalidate its cache immediately before checking loading status
     if ((newUrl && cached?.url && newUrl !== cached.url) || changeInfo.url) {
-      tabResultCache.delete(tabId);
-      tabExtractSeq.delete(tabId);
-      tabsExtracting.delete(tabId);
+      tabStateManager.invalidateTab(tabId);
       if (isActiveTab) {
         refreshForCurrentTab();
         return;
@@ -616,9 +609,7 @@ async function initPopup() {
 
   // Clean up cache when tabs are closed
   chrome.tabs.onRemoved.addListener((tabId) => {
-    tabResultCache.delete(tabId);
-    tabExtractSeq.delete(tabId);
-    tabsExtracting.delete(tabId);
+    tabStateManager.invalidateTab(tabId);
   });
 
   await refreshForCurrentTab();
@@ -825,21 +816,22 @@ async function refreshForCurrentTab(forceExtract = false) {
 async function restoreFromTabCache(tabId, cached) {
   const seq = ++refreshSeq;
   activeTabId = tabId;
-  extractedContent = cached.extractedContent || null;
-  analysisResult = cached.analysisResult || null;
-  captureHistory = cached.captureHistory || [];
-  currentNutId = cached.currentNutId || (cached.captureHistory?.[0]?.nutId ?? null);
-  stage1Payload = cached.stage1Payload || null;
-  stage1ContentAnalysis = cached.stage1ContentAnalysis || null;
-  followUpQa = cached.followUpQa ? [...cached.followUpQa] : [];
-  eggHatched = !!cached.eggHatched;
-  nutCollected = !!cached.nutCollected;
-  cachedProcessedSaved = cached.cachedProcessedSaved || null;
-  selectedEggs = cached.selectedEggs ? new Set(cached.selectedEggs) : (analysisResult?.matchedEggs ? new Set(analysisResult.matchedEggs) : new Set());
-  preSelectedEggs = cached.preSelectedEggs ? new Set(cached.preSelectedEggs) : new Set();
+  const restored = tabStateManager.restoreTabState(tabId) || cached;
+  extractedContent = restored.extractedContent || null;
+  analysisResult = restored.analysisResult || null;
+  captureHistory = restored.captureHistory || [];
+  currentNutId = restored.currentNutId || (restored.captureHistory?.[0]?.nutId ?? null);
+  stage1Payload = restored.stage1Payload || null;
+  stage1ContentAnalysis = restored.stage1ContentAnalysis || null;
+  followUpQa = restored.followUpQa ? [...restored.followUpQa] : [];
+  eggHatched = !!restored.eggHatched;
+  nutCollected = !!restored.nutCollected;
+  cachedProcessedSaved = restored.cachedProcessedSaved || null;
+  selectedEggs = restored.selectedEggs instanceof Set ? restored.selectedEggs : new Set(restored.selectedEggs || []);
+  preSelectedEggs = restored.preSelectedEggs instanceof Set ? restored.preSelectedEggs : new Set(restored.preSelectedEggs || []);
   updateCaptureEggsLabel();
   if (customQuestionsEl) {
-    customQuestionsEl.value = cached.customQuestions || "";
+    customQuestionsEl.value = restored.customQuestions || "";
   }
   if (followupInput) followupInput.value = "";
   currentTabLoading = false;
@@ -1714,8 +1706,7 @@ function getAnalyzeNotReadyReason() {
 
 /** Updates analyze and re-analyze buttons' active / inactive visual state and labels. */
 function updateAnalyzeButtonsState() {
-  const currentTabStatus = tabResultCache.get(activeTabId)?.status;
-  const isAnalyzing = currentTabStatus === "analyzing" || currentTabStatus === "hatching";
+  const isAnalyzing = tabStateManager.isAnalyzing(activeTabId);
 
   if (isAnalyzing) {
     analyzeBtn.disabled = true;
@@ -1833,9 +1824,8 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
     return null;
   }
 
-  const tabSeq = (tabExtractSeq.get(tabId) || 0) + 1;
-  tabExtractSeq.set(tabId, tabSeq);
-  tabsExtracting.add(tabId);
+  const tabSeq = tabStateManager.nextExtractSeq(tabId);
+  tabStateManager.setExtracting(tabId, true);
 
   if (isTargetActive) {
     extractionFailed = false;
@@ -1926,15 +1916,15 @@ async function extractPageContent(seq = refreshSeq, targetTabId = null) {
       extractionFailed = true;
     }
   } finally {
-    tabsExtracting.delete(tabId);
-    if (activeTabId === tabId && tabExtractSeq.get(tabId) === tabSeq) {
+    tabStateManager.setExtracting(tabId, false);
+    if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
       extractionPending = false;
       refreshBtn.disabled = false;
       updateAnalyzeButtonsState();
     }
   }
 
-  if (activeTabId === tabId && tabExtractSeq.get(tabId) === tabSeq) {
+  if (activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
     if (extractionFailed && !extractedContent) {
       contentPreview.textContent = t("couldNotExtractContent");
       showWarning(t("couldNotExtractRestricted"));
@@ -3397,5 +3387,7 @@ if (typeof module !== "undefined" && module.exports) {
     updateCaptureEggsLabel,
     renderEggsSection,
     renderEggKnowledge,
+    tabStateManager,
+    tabResultCache,
   };
 }
