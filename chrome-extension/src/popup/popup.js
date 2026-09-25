@@ -1175,6 +1175,9 @@ async function handleProceedStage2(
         stage1Payload: base,
         stage1ContentAnalysis: analysis,
       });
+      if (isPinnedActive) {
+        updateAnalyzeButtonsState();
+      }
     }
 
     const url = base?.url || content?.url || pageUrl?.textContent || "";
@@ -1210,13 +1213,24 @@ async function handleProceedStage2(
 
     const response = await sendAnalyzeViaPort(payload);
     if (response?.error) {
-      if (targetPinnedId) tabResultCache.delete(targetPinnedId);
+      if (targetPinnedId) {
+        const existing = tabResultCache.get(targetPinnedId) || {};
+        tabResultCache.set(targetPinnedId, {
+          ...existing,
+          status: "done",
+        });
+      }
       if (activeTabId === targetPinnedId) {
         showError(response.error, response.errorCode);
         if (stage1ProceedBtn) {
           stage1ProceedBtn.disabled = false;
           updateStage1ProceedBtn();
         }
+        if (analysisMode === "confirm") {
+          if (verdictSection) verdictSection.classList.add("hidden");
+          if (stage1ConfirmBox) stage1ConfirmBox.classList.remove("hidden");
+        }
+        updateAnalyzeButtonsState();
       }
       return;
     }
