@@ -256,17 +256,21 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
     // Tab click listeners
     tabsBarEl.querySelectorAll(".egg-tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const nextTab = btn.dataset.tab;
         if (typeof activeEggTab !== "undefined") {
-          activeEggTab = btn.dataset.tab;
+          activeEggTab = nextTab;
         }
         if (typeof window !== "undefined") {
-          window.activeEggTab = btn.dataset.tab;
+          window.activeEggTab = nextTab;
         }
-        activeTab = btn.dataset.tab;
-        if (options.onTabChange) {
-          options.onTabChange(activeTab);
+        activeTab = nextTab;
+        if (opts.onTabChange) {
+          opts.onTabChange(nextTab);
         }
-        renderEggKnowledge(eggResults, options);
+        _renderEggKnowledge(eggResults, {
+          ...opts,
+          activeEggTab: nextTab,
+        });
       });
     });
   } else if (tabsBarEl) {
@@ -340,8 +344,14 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
 
       let qaHtml = "";
       if (qaItems.length > 0) {
-        const linkify = typeof linkifyTimestamps === "function" ? linkifyTimestamps : (t) => t;
-        const renderSources = typeof renderQaSources === "function" ? renderQaSources : () => "";
+        const linkify = (typeof linkifyTimestamps === "function" ? linkifyTimestamps : null)
+          || globalThis.NutEggHelpers?.linkifyTimestamps
+          || globalThis.linkifyTimestamps
+          || ((t) => t);
+        const renderSources = (typeof renderQaSources === "function" ? renderQaSources : null)
+          || globalThis.NutEggUI?.renderQaSources
+          || globalThis.renderQaSources
+          || (() => "");
         qaHtml = `
           <div class="knowledge-subsection egg-qa-block">
             <div class="knowledge-subhead qa-subhead">${_eggT("eggKeyQuestions", { count: qaItems.length })}</div>

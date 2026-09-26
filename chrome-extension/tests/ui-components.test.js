@@ -594,6 +594,81 @@ describe("Modular UI Components", () => {
     });
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
   });
+
+  it("multi-egg tab switching updates active tab and card visibility", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+
+    const eggResults = [
+      { egg: "egg1.md", novelDelta: [{ content: "delta 1" }] },
+      { egg: "egg2.md", novelDelta: [{ content: "delta 2" }] },
+    ];
+
+    function createTabButton(tab) {
+      const listeners = {};
+      return {
+        dataset: { tab },
+        addEventListener(evt, fn) {
+          listeners[evt] = fn;
+        },
+        click() {
+          listeners["click"]?.();
+        },
+      };
+    }
+
+    let currentButtons = [createTabButton("egg1.md"), createTabButton("egg2.md"), createTabButton("all")];
+    eggs.eggTabsBar.querySelectorAll = (selector) => {
+      if (selector === ".egg-tab-btn") return currentButtons;
+      return [];
+    };
+
+    let switchedTab = null;
+    eggs.renderKnowledge({
+      eggResults,
+      activeEggTab: "egg1.md",
+      onTabChange: (t) => { switchedTab = t; },
+    });
+
+    // Content initially shows egg1.md and hides egg2.md
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes('data-egg="egg1.md"'));
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes('data-egg="egg2.md"'));
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes('egg-card hidden" data-egg="egg2.md"'));
+
+    // Prepare next buttons for the re-render when clicked
+    const nextButtons = [createTabButton("egg1.md"), createTabButton("egg2.md"), createTabButton("all")];
+    eggs.eggTabsBar.querySelectorAll = (selector) => {
+      if (selector === ".egg-tab-btn") return nextButtons;
+      return [];
+    };
+
+    // Click tab for egg2.md
+    assert.doesNotThrow(() => {
+      currentButtons[1].click();
+    });
+
+    assert.strictEqual(switchedTab, "egg2.md");
+    // After clicking egg2.md, egg1.md is hidden and egg2.md is active
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes('egg-card hidden" data-egg="egg1.md"'));
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes('egg-card" data-egg="egg2.md"'));
+
+    // Now click the "all" tab
+    currentButtons = nextButtons;
+    const allButtons = [createTabButton("egg1.md"), createTabButton("egg2.md"), createTabButton("all")];
+    eggs.eggTabsBar.querySelectorAll = (selector) => {
+      if (selector === ".egg-tab-btn") return allButtons;
+      return [];
+    };
+
+    assert.doesNotThrow(() => {
+      currentButtons[2].click();
+    });
+
+    assert.strictEqual(switchedTab, "all");
+    // In "all" tab, neither egg is hidden
+    assert.ok(!eggs.eggKnowledgeContent.innerHTML.includes('hidden" data-egg="egg1.md"'));
+    assert.ok(!eggs.eggKnowledgeContent.innerHTML.includes('hidden" data-egg="egg2.md"'));
+  });
 });
 
 
