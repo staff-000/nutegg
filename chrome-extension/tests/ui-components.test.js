@@ -77,22 +77,46 @@ describe("Modular UI Components", () => {
     const root = createMockRoot();
     const banners = new BannersComponent(root);
 
-    banners.showError("Failed to fetch");
+    banners.showError("Failed to fetch", "network_error");
     assert.strictEqual(banners.errorMessage.textContent, "Failed to fetch");
     assert.strictEqual(banners.errorBanner.classList.contains("hidden"), false);
+    assert.strictEqual(banners.getError(), "Failed to fetch");
+    assert.strictEqual(banners.getErrorCode(), "network_error");
 
     banners.showWarning("Low memory");
     assert.strictEqual(banners.warningMessage.textContent, "Low memory");
+    assert.strictEqual(banners.getWarning(), "Low memory");
 
     banners.hideWarning();
     assert.strictEqual(banners.warningBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.getWarning(), null);
 
     banners.showDuplicate("Note already exists");
     assert.strictEqual(banners.duplicateMessage.textContent, "Note already exists");
+    assert.strictEqual(banners.getDuplicate(), "Note already exists");
 
+    banners.showWarning("Could not extract content");
+    assert.strictEqual(banners.getWarning(), "Could not extract content");
+
+    // hideMessages hides warning, error, duplicate
     banners.hideMessages();
     assert.strictEqual(banners.errorBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.warningBanner.classList.contains("hidden"), true);
     assert.strictEqual(banners.duplicateBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.getError(), null);
+    assert.strictEqual(banners.getWarning(), null);
+    assert.strictEqual(banners.getDuplicate(), null);
+
+    // showSuccess and hideAll
+    banners.showSuccess("Saved note successfully");
+    assert.strictEqual(banners.successMessage.textContent, "Saved note successfully");
+    assert.strictEqual(banners.successBanner.classList.contains("hidden"), false);
+
+    banners.showWarning("Warning again");
+    banners.hideAll();
+    assert.strictEqual(banners.successBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.warningBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.getWarning(), null);
   });
 
   it("CaptureViewComponent renders extracted content and provenance", () => {

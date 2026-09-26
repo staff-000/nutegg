@@ -38,6 +38,7 @@ class BannersComponent {
   }
 
   showError(msg, errorCode = null) {
+    this.currentErrorCode = errorCode;
     if (this.errorMessage) this.errorMessage.textContent = msg;
     if (this.errorBanner) this.errorBanner.classList.remove("hidden");
 
@@ -87,9 +88,46 @@ class BannersComponent {
   }
 
   hideMessages() {
+    this.hideWarning();
     if (this.errorBanner) this.errorBanner.classList.add("hidden");
+    if (this.errorMessage) this.errorMessage.textContent = "";
     if (this.errorHint) this.errorHint.classList.add("hidden");
     if (this.duplicateBanner) this.duplicateBanner.classList.add("hidden");
+    if (this.duplicateMessage) this.duplicateMessage.textContent = "";
+    this.currentErrorCode = null;
+  }
+
+  hideAll() {
+    this.hideMessages();
+    this.hideSuccess();
+  }
+
+  getWarning() {
+    if (this.warningBanner && !this.warningBanner.classList.contains("hidden")) {
+      return this.warningMessage?.textContent || "";
+    }
+    return null;
+  }
+
+  getError() {
+    if (this.errorBanner && !this.errorBanner.classList.contains("hidden")) {
+      return this.errorMessage?.textContent || "";
+    }
+    return null;
+  }
+
+  getErrorCode() {
+    if (this.errorBanner && !this.errorBanner.classList.contains("hidden")) {
+      return this.currentErrorCode || null;
+    }
+    return null;
+  }
+
+  getDuplicate() {
+    if (this.duplicateBanner && !this.duplicateBanner.classList.contains("hidden")) {
+      return this.duplicateMessage?.textContent || "";
+    }
+    return null;
   }
 
   updateCaptureBanners({ serverOnline, chromeAiConfigured, chromeAiEnabled }) {

@@ -75,6 +75,73 @@ describe("Action Handlers", () => {
       assert.strictEqual(snap.analysisMode, "confirm");
       assert.strictEqual(snap.test, true);
     });
+
+    it("snapshots active banners and isolates banners across tab switches", async () => {
+      let currentWarning = "Could not extract content from this page";
+      let allHidden = false;
+      const bannersUI = {
+        getWarning: () => currentWarning,
+        getError: () => null,
+        getErrorCode: () => null,
+        getDuplicate: () => null,
+        showWarning: (w) => { currentWarning = w; },
+        hideAll: () => { allHidden = true; currentWarning = null; },
+        hideMessages: () => { currentWarning = null; },
+      };
+
+      const session = {
+        activeTabId: 2,
+        snapshot: (extra) => ({ activeTabId: session.activeTabId, ...extra }),
+        restore: (st) => { session.activeTabId = st.activeTabId; session.analysisResult = st.analysisResult; },
+        nextRefreshSeq: () => 2,
+      };
+
+      const tabCache = new Map();
+      tabCache.set(1, {
+        activeTabId: 1,
+        analysisResult: { titleVerdict: "Good" },
+        extractedContent: { title: "Tab 1" },
+        status: "done",
+      });
+
+      const tabStateManager = {
+        switchActiveTab: (toTabId, departingState) => {
+          if (departingState) tabCache.set(departingState.activeTabId, departingState);
+          return { targetState: tabCache.get(toTabId) };
+        },
+        restoreTabState: (tabId) => tabCache.get(tabId),
+        isExtracting: () => false,
+      };
+
+      let resultsRendered = null;
+      const tabAction = new TabAction({
+        session,
+        tabStateManager,
+        ui: { bannersUI, captureUI: { render: () => {} } },
+        showResultsState: (res) => { resultsRendered = res; },
+        showCaptureState: () => {},
+      });
+
+      // While on Tab 2, snapshot contains the active warning
+      const snapTab2 = tabAction.getActiveTabSnapshot();
+      assert.strictEqual(snapTab2.warning, "Could not extract content from this page");
+
+      // Switch to Tab 1 (which has valid results)
+      await tabAction.handleTabActivated({ tabId: 1 });
+
+      // Tab 2's warning banner MUST be hidden and NOT pinned on Tab 1
+      assert.strictEqual(allHidden, true);
+      assert.strictEqual(currentWarning, null);
+      assert.strictEqual(session.activeTabId, 1);
+      assert.ok(resultsRendered);
+
+      // Now switch back to Tab 2
+      allHidden = false;
+      await tabAction.handleTabActivated({ tabId: 2 });
+      assert.strictEqual(session.activeTabId, 2);
+      // Tab 2 restores its warning banner
+      assert.strictEqual(currentWarning, "Could not extract content from this page");
+    });
   });
 
   describe("AnalyzeAction", () => {

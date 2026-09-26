@@ -237,7 +237,7 @@ function showResultsState(result, provenance = null) {
     onTabChange: (newTab) => { session.activeEggTab = newTab; },
   });
 
-  bannersUI.hideSuccess();
+  bannersUI.hideAll();
 }
 
 function showCaptureState() {
@@ -250,7 +250,7 @@ function showCaptureState() {
   session.currentNutId = null;
   session.activeEggTab = null;
   globalThis.NutEggUI?.resetCollapsibleSections?.();
-  bannersUI.hideMessages();
+  bannersUI.hideAll();
   sectionsUI.updateUI(settings.enabledSections);
   renderApp();
 }

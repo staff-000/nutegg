@@ -128,7 +128,7 @@ class TabStateManager {
       delete existing.error;
       delete existing.errorCode;
       if (existing.status === "error") {
-        existing.status = existing.analysisResult ? "done" : "idle";
+        existing.status = existing.analysisResult ? "done" : (existing.extractedContent ? "idle" : null);
       }
     }
   }
@@ -136,6 +136,27 @@ class TabStateManager {
   getError(tabId) {
     const entry = this.cache.get(tabId);
     return entry?.error ? { message: entry.error, code: entry.errorCode } : null;
+  }
+
+  setWarning(tabId, warning) {
+    if (!tabId) return;
+    const existing = this.cache.get(tabId) || {};
+    this.cache.set(tabId, {
+      ...existing,
+      warning: typeof warning === "string" ? warning : (warning?.message || null),
+    });
+  }
+
+  clearWarning(tabId) {
+    if (!tabId) return;
+    const existing = this.cache.get(tabId);
+    if (existing) {
+      delete existing.warning;
+    }
+  }
+
+  getWarning(tabId) {
+    return this.cache.get(tabId)?.warning || null;
   }
 
   isAnalyzing(tabId) {
@@ -161,6 +182,11 @@ class TabStateManager {
     const stage1ContentAnalysis = state.stage1ContentAnalysis != null ? state.stage1ContentAnalysis : prev.stage1ContentAnalysis;
     const currentNutId = state.currentNutId != null ? state.currentNutId : prev.currentNutId;
     const status = state.status || prev.status || (analysisResult ? "done" : (extractedContent ? "idle" : null));
+    const warning = state.warning !== undefined ? state.warning : prev.warning;
+    const error = state.error !== undefined ? state.error : prev.error;
+    const errorCode = state.errorCode !== undefined ? state.errorCode : prev.errorCode;
+    const duplicate = state.duplicate !== undefined ? state.duplicate : prev.duplicate;
+    const extractionFailed = state.extractionFailed !== undefined ? state.extractionFailed : prev.extractionFailed;
 
     const entry = {
       ...prev,
@@ -171,6 +197,11 @@ class TabStateManager {
       stage1ContentAnalysis,
       currentNutId,
       status,
+      warning: warning || null,
+      error: error || null,
+      errorCode: errorCode || null,
+      duplicate: duplicate || null,
+      extractionFailed: !!extractionFailed,
       selectedEggs: state.selectedEggs instanceof Set
         ? Array.from(state.selectedEggs)
         : (state.selectedEggs || prev.selectedEggs || []),
@@ -198,6 +229,11 @@ class TabStateManager {
     if (!cached) return null;
     return {
       ...cached,
+      warning: cached.warning || null,
+      error: cached.error || null,
+      errorCode: cached.errorCode || null,
+      duplicate: cached.duplicate || null,
+      extractionFailed: !!cached.extractionFailed,
       selectedEggs: new Set(cached.selectedEggs || (cached.analysisResult?.matchedEggs || [])),
       preSelectedEggs: new Set(cached.preSelectedEggs || []),
       captureHistory: cached.captureHistory ? [...cached.captureHistory] : [],

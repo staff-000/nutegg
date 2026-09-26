@@ -200,4 +200,30 @@ test("TabStateManager - atomic tab switching (switchActiveTab)", () => {
   assert.equal(tab1.extractedContent.title, "Tab 1 Title");
 });
 
+test("TabStateManager - warning tracking (setWarning, getWarning, clearWarning)", () => {
+  const manager = new TabStateManager();
+
+  assert.equal(manager.getWarning(30), null);
+  manager.setWarning(30, "Could not extract content from restricted page");
+  assert.equal(manager.getWarning(30), "Could not extract content from restricted page");
+
+  manager.clearWarning(30);
+  assert.equal(manager.getWarning(30), null);
+});
+
+test("TabStateManager - saveActiveTabState and restoreTabState preserves warning, duplicate, and extractionFailed", () => {
+  const manager = new TabStateManager();
+
+  manager.saveActiveTabState(40, {
+    warning: "Restricted URL",
+    duplicate: "Note already exists",
+    extractionFailed: true,
+  });
+
+  const restored = manager.restoreTabState(40);
+  assert.equal(restored.warning, "Restricted URL");
+  assert.equal(restored.duplicate, "Note already exists");
+  assert.equal(restored.extractionFailed, true);
+});
+
 

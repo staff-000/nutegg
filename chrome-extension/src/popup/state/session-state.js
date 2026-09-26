@@ -85,6 +85,7 @@ class SessionState {
       selectedEggs: new Set(this.selectedEggs),
       preSelectedEggs: new Set(this.preSelectedEggs),
       activeEggTab: this.activeEggTab,
+      extractionFailed: !!this.extractionFailed,
       ...extra,
     };
   }
@@ -104,6 +105,7 @@ class SessionState {
     this.nutCollected = !!restored.nutCollected;
     this.cachedProcessedSaved = restored.cachedProcessedSaved || null;
     this.activeEggTab = restored.activeEggTab || null;
+    this.extractionFailed = !!restored.extractionFailed;
 
     if (restored.selectedEggs instanceof Set) {
       this.selectedEggs = new Set(restored.selectedEggs);

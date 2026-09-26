@@ -20,6 +20,10 @@ class TabAction {
     return this.session.snapshot({
       customQuestions: this.ui.captureUI?.getCustomQuestions?.() || "",
       analysisMode: this.settings?.analysisMode,
+      warning: this.ui.bannersUI?.getWarning?.() || null,
+      error: this.ui.bannersUI?.getError?.() || null,
+      errorCode: this.ui.bannersUI?.getErrorCode?.() || null,
+      duplicate: this.ui.bannersUI?.getDuplicate?.() || null,
     });
   }
 
@@ -58,6 +62,7 @@ class TabAction {
     const historyAction = this.getHistoryAction();
 
     const seq = session.nextRefreshSeq();
+    ui.bannersUI?.hideAll?.();
     ui.captureUI?.setCustomQuestions?.("");
     ui.qaUI?.clearFollowup?.();
     session.reset();
@@ -239,11 +244,19 @@ class TabAction {
       if (!content) {
         if (session.activeTabId === tabId) session.extractionFailed = true;
       } else {
+        tabStateManager.clearWarning(tabId);
+        tabStateManager.clearError(tabId);
+        if (session.activeTabId === tabId) {
+          ui.bannersUI?.hideAll?.();
+        }
         const cached = tabStateManager.get(tabId) || {};
         tabStateManager.set(tabId, {
           ...cached,
           url: content.url || tabUrl || cached.url,
           extractedContent: content,
+          extractionFailed: false,
+          warning: null,
+          error: null,
         });
 
         if (session.activeTabId === tabId) {
@@ -277,8 +290,17 @@ class TabAction {
 
     if (session.activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
       if (session.extractionFailed && !session.extractedContent) {
+        const warningMsg = t("couldNotExtractRestricted");
         ui.captureUI?.setError?.(t("couldNotExtractContent"));
-        ui.bannersUI?.showWarning?.(t("couldNotExtractRestricted"));
+        ui.bannersUI?.showWarning?.(warningMsg);
+        tabStateManager.setWarning(tabId, warningMsg);
+        const cached = tabStateManager.get(tabId) || {};
+        tabStateManager.set(tabId, {
+          ...cached,
+          url: tabUrl || cached.url,
+          extractionFailed: true,
+          warning: warningMsg,
+        });
       }
       analyzeAction?.applyTranscriptBlock?.();
       analyzeAction?.updateAnalyzeButtonsState?.();
@@ -298,6 +320,7 @@ class TabAction {
     session.activeTabId = tabId;
     const restored = tabStateManager.restoreTabState(tabId) || cached;
     session.restore(restored);
+    ui.bannersUI?.hideAll?.();
     ui.eggsUI?.updateCaptureLabel?.(session.preSelectedEggs);
     ui.captureUI?.setCustomQuestions?.(restored.customQuestions || "");
     ui.qaUI?.clearFollowup?.();
@@ -316,6 +339,8 @@ class TabAction {
         this.showCaptureState();
         if (session.extractedContent) {
           ui.captureUI?.setPreviewText?.(session.extractedContent.content || t("noContentExtracted"));
+        } else if (cached.extractionFailed) {
+          ui.captureUI?.setError?.(t("couldNotExtractContent"));
         }
       }
       ui.bannersUI?.showError?.(cached.error, cached.errorCode);
@@ -348,6 +373,12 @@ class TabAction {
       session.eggHatched = !!cached.eggHatched;
       session.nutCollected = !!cached.nutCollected;
       this.showResultsState(session.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
+      if (cached.warning) {
+        ui.bannersUI?.showWarning?.(cached.warning);
+      }
+      if (cached.duplicate) {
+        ui.bannersUI?.showDuplicate?.(cached.duplicate);
+      }
       ui.actionsUI?.setHistorySelectDisabled?.(false);
       if (session.isStage1() && settings?.analysisMode === "confirm") {
         ui.actionsUI?.showStage1Confirm?.();
@@ -369,6 +400,17 @@ class TabAction {
       }
     } else {
       this.showCaptureState();
+      if (session.extractedContent) {
+        ui.captureUI?.setPreviewText?.(session.extractedContent.content || t("noContentExtracted"));
+      } else if (cached.extractionFailed) {
+        ui.captureUI?.setError?.(t("couldNotExtractContent"));
+      }
+      if (cached.warning) {
+        ui.bannersUI?.showWarning?.(cached.warning);
+      }
+      if (cached.duplicate) {
+        ui.bannersUI?.showDuplicate?.(cached.duplicate);
+      }
       analyzeAction?.updateAnalyzeButtonsState?.();
     }
 
@@ -384,7 +426,8 @@ class TabAction {
     const snapshot = this.getActiveTabSnapshot();
     const { targetState } = this.tabStateManager.switchActiveTab(tabId, snapshot);
     this.session.activeTabId = tabId;
-    if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
+    this.ui.bannersUI?.hideAll?.();
+    if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {
       this.restoreFromTabCache(tabId, targetState);
     } else if (this.tabStateManager.isExtracting(tabId)) {
       this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
@@ -402,7 +445,8 @@ class TabAction {
         const snapshot = this.getActiveTabSnapshot();
         const { targetState } = this.tabStateManager.switchActiveTab(tab.id, snapshot);
         this.session.activeTabId = tab.id;
-        if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
+        this.ui.bannersUI?.hideAll?.();
+        if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {
           this.restoreFromTabCache(tab.id, targetState);
         } else if (this.tabStateManager.isExtracting(tab.id)) {
           this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
