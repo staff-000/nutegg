@@ -148,6 +148,31 @@ class BannersComponent {
     if (visible) this.chromeActionsCard?.classList.remove("hidden");
     else this.chromeActionsCard?.classList.add("hidden");
   }
+
+  render(session, settings) {
+    if (!settings) return;
+    const hasResult = Boolean(session?.analysisResult);
+    const isChrome = settings.isChromeMode();
+
+    if (hasResult && isChrome) {
+      this.setChromeResultBanner(true);
+      this.setChromeActionsCard(true);
+    } else {
+      this.setChromeResultBanner(false);
+      this.setChromeActionsCard(false);
+    }
+
+    if (!hasResult) {
+      this.updateCaptureBanners({
+        serverOnline: settings.serverOnline,
+        chromeAiConfigured: settings.chromeAiConfigured,
+        chromeAiEnabled: settings.chromeAiEnabled,
+      });
+    } else {
+      this.aiKeyMissingBanner?.classList.add("hidden");
+      this.chromeModeTipBanner?.classList.add("hidden");
+    }
+  }
 }
 
 const _bannersScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

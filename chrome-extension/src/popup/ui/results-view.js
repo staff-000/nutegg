@@ -77,6 +77,23 @@ class ResultsViewComponent {
       this.coreSummaryEl.innerHTML = "";
     }
   }
+
+  render(session, settings) {
+    if (!session) return;
+    const result = session.analysisResult;
+    if (result) {
+      this.showResults();
+      const prov = session.provenance || {
+        title: session.extractedContent?.title || result.title,
+        author: session.extractedContent?.metadata?.author || result.author,
+        publishedAt: session.extractedContent?.metadata?.published || result.publishedAt,
+      };
+      this.renderProvenance(prov);
+      this.renderCoreSummary(result.coreSummary, settings?.enabledSections?.coreSummary !== false);
+    } else {
+      this.showCapture();
+    }
+  }
 }
 
 const _resultsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

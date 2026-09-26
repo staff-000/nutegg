@@ -307,6 +307,80 @@ class ActionControlsComponent {
       if (text) this.stage1SkipBtn.textContent = text;
     }
   }
+
+  render(session, settings) {
+    if (!settings && !session) return;
+    if (settings?.analysisMode) {
+      this.setMode(settings.analysisMode);
+    }
+
+    const result = session?.analysisResult;
+    const isChrome = settings ? settings.isChromeMode() : false;
+    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result?.stage === "stage1" || result?.mode === "chrome");
+
+    if (result) {
+      if (isChrome) {
+        this.hideStage1Confirm();
+        this.setConfirmButtonVisible(false);
+        this.setCollectNutButtonVisible(false);
+      } else {
+        this.setCollectNutButtonVisible(true);
+        if (isStage1) {
+          const matchedCount = (result?.matchedEggs || []).length;
+          const shouldShowConfirm = settings?.analysisMode === "confirm" || matchedCount === 0;
+          if (shouldShowConfirm) {
+            this.showStage1Confirm();
+          } else {
+            this.hideStage1Confirm();
+          }
+          this.setConfirmButtonVisible(false);
+        } else {
+          this.hideStage1Confirm();
+          this.setConfirmButtonVisible(true);
+        }
+      }
+
+      const hasDelta = (result?.newKnowledge?.length || 0) > 0 || (result?.novelDelta?.length || 0) > 0;
+      this.updateActionButtons({
+        isChromeMode: isChrome,
+        isStage1,
+        nutCollected: Boolean(session?.nutCollected),
+        eggHatched: Boolean(session?.eggHatched),
+        hasDelta,
+      });
+
+      const matchedCount = (result?.matchedEggs || []).length;
+      const shouldShowConfirm = isStage1 && (settings?.analysisMode === "confirm" || matchedCount === 0);
+      if (shouldShowConfirm) {
+        this.updateStage1ProceedBtn({
+          selectedCount: session?.selectedEggs?.size || 0,
+          totalEggsCount: session?.allEggs?.length || 0,
+          isProceeding: Boolean(session?.isAnalyzing),
+        });
+      }
+    } else {
+      this.hideStage1Confirm();
+      this.setConfirmButtonVisible(false);
+      this.setCollectNutButtonVisible(false);
+    }
+
+    // Analyze buttons
+    this.updateAnalyzeState({
+      isAnalyzing: Boolean(session?.isAnalyzing),
+      canAnalyze: session?.canAnalyze !== false,
+      notReadyReason: session?.notReadyReason || null,
+      isTranscriptBlocked: Boolean(session?.isTranscriptBlocked),
+      currentTabLoading: Boolean(session?.currentTabLoading),
+      extractionPending: Boolean(session?.extractionPending),
+      hasContent: Boolean(session?.extractedContent?.content),
+      hasAnalysisResult: Boolean(session?.analysisResult),
+    });
+
+    // History select
+    if (session?.captureHistory) {
+      this.renderHistory(session.captureHistory, session.currentNutId);
+    }
+  }
 }
 
 const _actionsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

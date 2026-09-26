@@ -23,12 +23,30 @@ class CaptureViewComponent {
     this.customQuestionsEl = root.getElementById("custom-questions");
   }
 
-  render(content, options = {}) {
+  render(firstArg, options = {}) {
+    const isSession = Boolean(
+      firstArg &&
+      (firstArg.extractedContent !== undefined || firstArg.currentTabLoading !== undefined || firstArg.isAnalyzing !== undefined)
+    );
+    const content = isSession ? firstArg.extractedContent : firstArg;
+    const isSessionLoading = isSession && Boolean(firstArg.currentTabLoading);
+    const isSessionAnalyzing = isSession && Boolean(firstArg.isAnalyzing);
+
     if (this.pageTitle) this.pageTitle.textContent = content?.title || options.defaultTitle || _captureT("untitled");
     if (this.pageUrl) this.pageUrl.textContent = content?.url || options.defaultUrl || "";
     if (this.pageType) this.pageType.textContent = content?.sourceType || options.defaultType || "";
-    if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || _captureT("noContentExtracted");
-    this.showProvenance(content?.metadata || {});
+
+    if (isSessionLoading) {
+      if (this.contentPreview) this.contentPreview.textContent = _captureT("retrievingPageContent");
+      this.clearAuthorAndPublished();
+    } else {
+      if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || _captureT("noContentExtracted");
+      this.showProvenance(content?.metadata || {});
+    }
+
+    if (isSession) {
+      this.setRefreshDisabled(isSessionLoading || isSessionAnalyzing);
+    }
   }
 
   showProvenance(metadata = {}) {

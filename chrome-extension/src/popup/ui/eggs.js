@@ -82,38 +82,61 @@ function updateCaptureEggsLabel(options = {}) {
  * Render the egg picker: the matched eggs are checked; changing any box
  * reveals the "Re-analyze with selected eggs" button.
  */
-function renderEggsSection(matchedEggs = [], options = {}) {
-  const eggs = options.allEggs || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
+function renderEggsSection(firstArg = [], options = {}) {
+  const matchedEggs = Array.isArray(firstArg) ? firstArg : (firstArg?.matchedEggs || []);
+  const opts = Array.isArray(firstArg) ? options : (firstArg || {});
+  const rawEggs = opts.allEggs || (typeof session !== "undefined" ? session.allEggs : null) || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
+  const eggs = rawEggs.map((e) => (typeof e === "string" ? { fileName: e, description: "", topic: "" } : { ...e }));
   // Include matched eggs that are missing from the index list (index drift)
   for (const m of matchedEggs) {
-    if (!eggs.some((e) => e.fileName === m)) {
-      eggs.push({ fileName: m, description: "", topic: "" });
+    const mName = typeof m === "string" ? m : m?.fileName;
+    if (mName && !eggs.some((e) => e.fileName === mName)) {
+      eggs.push({ fileName: mName, description: "", topic: "" });
     }
   }
 
-  const sectionEl = options.eggsSection || (typeof eggsSection !== "undefined" ? eggsSection : (typeof document !== "undefined" ? document.getElementById("eggs-section") : null));
-  const listEl = options.eggsList || (typeof eggsList !== "undefined" ? eggsList : (typeof document !== "undefined" ? document.getElementById("eggs-list") : null));
-  const expandedEl = options.eggsExpanded || (typeof eggsExpanded !== "undefined" ? eggsExpanded : (typeof document !== "undefined" ? document.getElementById("eggs-expanded") : null));
-  const chevronEl = options.eggsToggleChevron || (typeof eggsToggleChevron !== "undefined" ? eggsToggleChevron : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-chevron") : null));
-  const errorEl = options.eggsErrorEl || (typeof eggsErrorEl !== "undefined" ? eggsErrorEl : (typeof document !== "undefined" ? document.getElementById("eggs-error") : null));
-  const toggleLabelEl = options.eggsToggleLabel || (typeof eggsToggleLabel !== "undefined" ? eggsToggleLabel : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-label") : null));
-  const reanalyzeBtnEl = options.reanalyzeEggsBtn || (typeof reanalyzeEggsBtn !== "undefined" ? reanalyzeEggsBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-btn") : null));
-  const createFormEl = options.eggsCreateForm || (typeof eggsCreateForm !== "undefined" ? eggsCreateForm : (typeof document !== "undefined" ? document.getElementById("eggs-create-form") : null));
+  const sectionEl = opts.eggsSection || (typeof eggsSection !== "undefined" ? eggsSection : (typeof document !== "undefined" ? document.getElementById("eggs-section") : null));
+  const listEl = opts.eggsList || (typeof eggsList !== "undefined" ? eggsList : (typeof document !== "undefined" ? document.getElementById("eggs-list") : null));
+  const expandedEl = opts.eggsExpanded || (typeof eggsExpanded !== "undefined" ? eggsExpanded : (typeof document !== "undefined" ? document.getElementById("eggs-expanded") : null));
+  const chevronEl = opts.eggsToggleChevron || (typeof eggsToggleChevron !== "undefined" ? eggsToggleChevron : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-chevron") : null));
+  const errorEl = opts.eggsErrorEl || (typeof eggsErrorEl !== "undefined" ? eggsErrorEl : (typeof document !== "undefined" ? document.getElementById("eggs-error") : null));
+  const toggleLabelEl = opts.eggsToggleLabel || (typeof eggsToggleLabel !== "undefined" ? eggsToggleLabel : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-label") : null));
+  const reanalyzeBtnEl = opts.reanalyzeEggsBtn || (typeof reanalyzeEggsBtn !== "undefined" ? reanalyzeEggsBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-btn") : null));
+  const createFormEl = opts.eggsCreateForm || (typeof eggsCreateForm !== "undefined" ? eggsCreateForm : (typeof document !== "undefined" ? document.getElementById("eggs-create-form") : null));
 
   if (eggs.length === 0) {
-    if (sectionEl) sectionEl.classList.add("hidden");
-    if (listEl) listEl.innerHTML = "";
+    if (listEl) {
+      listEl.innerHTML = `<div class="eggs-empty-notice" style="padding: 8px 10px; font-size: 12px; color: #6b7280; font-style: italic;">🐣 No eggs found in your vault yet. Create your first egg below to hatch:</div>`;
+    }
+    if (createFormEl) {
+      createFormEl.classList.remove("hidden");
+    }
+    if (sectionEl) sectionEl.classList.remove("hidden");
+    if (expandedEl) expandedEl.classList.remove("hidden");
+    if (toggleLabelEl) toggleLabelEl.textContent = _eggT("noneMatched");
     return;
   }
 
   if (typeof selectedEggs !== "undefined") {
     selectedEggs = new Set(matchedEggs);
   }
-  const currentSelected = options.selectedEggs || (typeof selectedEggs !== "undefined" ? selectedEggs : (typeof window !== "undefined" ? window.selectedEggs : null)) || new Set(matchedEggs);
+  const currentSelected = opts.selectedEggs || (typeof session !== "undefined" ? session.selectedEggs : null) || (typeof selectedEggs !== "undefined" ? selectedEggs : (typeof window !== "undefined" ? window.selectedEggs : null)) || new Set();
+  if (currentSelected.size === 0 && Array.isArray(matchedEggs) && matchedEggs.length > 0) {
+    matchedEggs.forEach((m) => {
+      const name = typeof m === "string" ? m : m?.fileName;
+      if (name) currentSelected.add(name);
+    });
+  }
 
   if (sectionEl) sectionEl.classList.remove("hidden");
-  if (expandedEl) expandedEl.classList.add("hidden");
-  if (chevronEl) chevronEl.textContent = "▸";
+  const shouldExpand = opts.expand === true || (expandedEl && !expandedEl.classList.contains("hidden"));
+  if (shouldExpand) {
+    if (expandedEl) expandedEl.classList.remove("hidden");
+    if (chevronEl) chevronEl.textContent = "▾";
+  } else {
+    if (expandedEl) expandedEl.classList.add("hidden");
+    if (chevronEl) chevronEl.textContent = "▸";
+  }
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
     toggleLabelEl.textContent = matchedEggs.length > 0
@@ -143,8 +166,8 @@ function renderEggsSection(matchedEggs = [], options = {}) {
         } else {
           reanalyzeBtnEl?.classList.remove("hidden");
         }
-        if (options.onSelectChange) {
-          options.onSelectChange(name, ev.target.checked);
+        if (opts.onSelectChange) {
+          opts.onSelectChange(name, ev.target.checked);
         } else if (typeof updateStage1ProceedBtn === "function") {
           updateStage1ProceedBtn();
         }
@@ -156,15 +179,17 @@ function renderEggsSection(matchedEggs = [], options = {}) {
   if (createFormEl) createFormEl.classList.add("hidden");
 }
 
-function renderEggKnowledge(eggResults = [], options = {}) {
-  const sectionEl = options.eggKnowledgeSection || (typeof eggKnowledgeSection !== "undefined" ? eggKnowledgeSection : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-section") : null));
-  const contentEl = options.eggKnowledgeContent || (typeof eggKnowledgeContent !== "undefined" ? eggKnowledgeContent : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-content") : null));
-  const tabsBarEl = options.eggTabsBar || (typeof eggTabsBar !== "undefined" ? eggTabsBar : (typeof document !== "undefined" ? document.getElementById("egg-tabs-bar") : null));
-  const hintEl = options.eggKnowledgeHint || (typeof eggKnowledgeHint !== "undefined" ? eggKnowledgeHint : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-hint") : null));
+function renderEggKnowledge(firstArg = [], options = {}) {
+  const eggResults = Array.isArray(firstArg) ? firstArg : (firstArg?.eggResults || []);
+  const opts = Array.isArray(firstArg) ? options : (firstArg || {});
+  const sectionEl = opts.eggKnowledgeSection || (typeof eggKnowledgeSection !== "undefined" ? eggKnowledgeSection : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-section") : null));
+  const contentEl = opts.eggKnowledgeContent || (typeof eggKnowledgeContent !== "undefined" ? eggKnowledgeContent : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-content") : null));
+  const tabsBarEl = opts.eggTabsBar || (typeof eggTabsBar !== "undefined" ? eggTabsBar : (typeof document !== "undefined" ? document.getElementById("egg-tabs-bar") : null));
+  const hintEl = opts.eggKnowledgeHint || (typeof eggKnowledgeHint !== "undefined" ? eggKnowledgeHint : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-hint") : null));
 
   if (!sectionEl || !contentEl) return;
 
-  if (eggResults.length === 0) {
+  if (!Array.isArray(eggResults) || eggResults.length === 0) {
     sectionEl.classList.add("hidden");
     contentEl.innerHTML = "";
     if (tabsBarEl) tabsBarEl.innerHTML = "";
@@ -175,7 +200,7 @@ function renderEggKnowledge(eggResults = [], options = {}) {
 
   // Determine active tab
   const eggNames = eggResults.map((r) => r.egg);
-  let activeTab = options.activeEggTab || (typeof activeEggTab !== "undefined" ? activeEggTab : (typeof window !== "undefined" ? window.activeEggTab : null));
+  let activeTab = opts.activeEggTab || (typeof activeEggTab !== "undefined" ? activeEggTab : (typeof window !== "undefined" ? window.activeEggTab : null));
   if (!activeTab || (!eggNames.includes(activeTab) && activeTab !== "all")) {
     const eggWithDeltas = eggResults.find((r) => (r.novelDelta || []).length > 0);
     activeTab = eggWithDeltas ? eggWithDeltas.egg : eggResults[0].egg;
@@ -500,6 +525,9 @@ class EggsComponent {
   }
 
   expandEggsList(expanded = true) {
+    if (this.eggsSection) {
+      this.eggsSection.classList.remove("hidden");
+    }
     if (expanded) {
       this.eggsExpanded?.classList.remove("hidden");
       if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▾";
@@ -535,12 +563,32 @@ class EggsComponent {
     return renderCaptureEggsList({ ...options, captureEggsList: this.captureEggsList, captureEggsToggle: this.captureEggsToggle });
   }
 
-  renderSection(options = {}) {
-    return renderEggsSection({ ...options, eggsSection: this.eggsSection, eggsList: this.eggsList });
+  renderSection(firstArg = [], options = {}) {
+    const matched = Array.isArray(firstArg) ? firstArg : (firstArg?.matchedEggs || []);
+    const opts = Array.isArray(firstArg) ? options : (firstArg || {});
+    return renderEggsSection(matched, {
+      eggsSection: this.eggsSection,
+      eggsList: this.eggsList,
+      eggsExpanded: this.eggsExpanded,
+      eggsToggleChevron: this.eggsToggleChevron,
+      eggsToggleLabel: this.eggsToggleLabel,
+      reanalyzeEggsBtn: this.reanalyzeEggsBtn,
+      eggsCreateForm: this.eggsCreateForm,
+      eggsErrorEl: this.eggsErrorEl,
+      ...opts,
+    });
   }
 
-  renderKnowledge(options = {}) {
-    return renderEggKnowledge({ ...options, eggKnowledgeSection: this.eggKnowledgeSection, eggKnowledgeContent: this.eggKnowledgeContent });
+  renderKnowledge(firstArg = [], options = {}) {
+    const eggResults = Array.isArray(firstArg) ? firstArg : (firstArg?.eggResults || []);
+    const opts = Array.isArray(firstArg) ? options : (firstArg || {});
+    return renderEggKnowledge(eggResults, {
+      eggKnowledgeSection: this.eggKnowledgeSection,
+      eggKnowledgeContent: this.eggKnowledgeContent,
+      eggTabsBar: this.eggTabsBar,
+      eggKnowledgeHint: this.eggKnowledgeHint,
+      ...opts,
+    });
   }
 
   setNoEggVisible(visible) {
@@ -557,6 +605,60 @@ class EggsComponent {
       this.eggKnowledgeSection?.classList.remove("hidden");
     } else {
       this.eggKnowledgeSection?.classList.add("hidden");
+    }
+  }
+
+  render(session, settings) {
+    const result = session?.analysisResult;
+    const isChrome = settings ? settings.isChromeMode() : false;
+    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result?.stage === "stage1" || result?.mode === "chrome");
+
+    if (!result || isChrome) {
+      this.setNoEggVisible(false);
+      this.setKnowledgeVisible(false);
+      if (this.eggsSection) this.eggsSection.classList.add("hidden");
+      return;
+    }
+
+    // No egg matched banner
+    const noEgg = (result.matchedEggs || []).length === 0;
+    this.setNoEggVisible(noEgg);
+
+    // Egg knowledge section
+    const eggResults = isStage1 ? [] : (result.eggResults || []);
+    this.renderKnowledge({
+      eggResults,
+      activeEggTab: session?.activeEggTab,
+      onTabChange: (tab) => {
+        if (session) session.activeEggTab = tab;
+      },
+    });
+
+    // Populate session.selectedEggs if empty and matched eggs exist
+    if (session?.selectedEggs && session.selectedEggs.size === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0) {
+      result.matchedEggs.forEach((egg) => session.selectedEggs.add(egg));
+    }
+
+    // Checklist of eggs
+    const allVaultEggs = session?.allEggs || settings?.allEggs || [];
+    this.renderSection({
+      matchedEggs: result.matchedEggs || [],
+      allEggs: allVaultEggs,
+      selectedEggs: session?.selectedEggs,
+      onSelectChange: () => {
+        if (typeof updateStage1ProceedBtn === "function") {
+          updateStage1ProceedBtn();
+        }
+      },
+    });
+
+    if (this.eggsSection) {
+      this.eggsSection.classList.remove("hidden");
+    }
+
+    const shouldExpand = isStage1 && (settings?.analysisMode === "confirm" || (result?.matchedEggs || []).length === 0);
+    if (shouldExpand) {
+      this.expandEggsList(true);
     }
   }
 }

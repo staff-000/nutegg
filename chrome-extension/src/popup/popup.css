@@ -640,6 +640,31 @@ body {
   background: var(--primary-hover, #8c4414);
 }
 
+.stage1-eggs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.stage1-eggs-section .questions-toggle {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c2d12;
+}
+
+.stage1-eggs-section .eggs-list {
+  max-height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+}
+
 /* Expandable Section Selector (Capture State & Re-Analysis) */
 .sections-accordion {
   width: 100%;

@@ -13,6 +13,8 @@ const { MindmapComponent } = require("../src/popup/ui/mindmap.js");
 const { ChaptersComponent } = require("../src/popup/ui/chapters.js");
 const { QaComponent } = require("../src/popup/ui/qa.js");
 const { EggsComponent } = require("../src/popup/ui/eggs.js");
+const { SettingsState } = require("../src/popup/state/settings-state.js");
+const { SessionState } = require("../src/popup/state/session-state.js");
 
 function createMockElement(id = "") {
   return {
@@ -36,6 +38,7 @@ function createMockElement(id = "") {
     getAttribute(k) { return this[k]; },
     addEventListener() {},
     scrollIntoView() {},
+    querySelectorAll() { return []; },
   };
 }
 
@@ -354,5 +357,243 @@ describe("Modular UI Components", () => {
     mindmap.render([], false);
     assert.strictEqual(mindmap.mindmapSection.classList.contains("hidden"), true);
   });
+
+  it("HeaderComponent.render synchronizes Obsidian and Chrome AI status", () => {
+    const root = createMockRoot();
+    const header = new HeaderComponent(root);
+    const settings = new SettingsState();
+
+    // 1. Obsidian online
+    settings.setServerStatus({ online: true, version: "0.2.0", aiConfigured: true });
+    header.render(null, settings);
+    assert.strictEqual(header.serverStatus.className, "status-dot online");
+
+    // 2. Chrome AI mode
+    settings.setServerStatus({ online: false });
+    settings.setChromeAiStatus({ enabled: true, configured: true, provider: "Gemini" });
+    header.render(null, settings);
+    assert.strictEqual(header.serverStatus.className, "status-dot chrome-ai");
+
+    // 3. Offline
+    settings.setChromeAiStatus({ enabled: false, configured: false });
+    header.render(null, settings);
+    assert.strictEqual(header.serverStatus.className, "status-dot offline");
+  });
+
+  it("BannersComponent.render synchronizes capture and chrome result banners", () => {
+    const root = createMockRoot();
+    const banners = new BannersComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+
+    // Capture state with server offline and chrome AI enabled but not configured
+    settings.setServerStatus({ online: false });
+    settings.setChromeAiStatus({ enabled: true, configured: false });
+    banners.render(session, settings);
+    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), false);
+
+    // Chrome mode with results
+    session.analysisResult = { stage: "stage1", coreSummary: "Hello" };
+    settings.setChromeAiStatus({ enabled: true, configured: true });
+    banners.render(session, settings);
+    assert.strictEqual(banners.chromeResultBanner.classList.contains("hidden"), false);
+    assert.strictEqual(banners.chromeActionsCard.classList.contains("hidden"), false);
+  });
+
+  it("ResultsViewComponent.render toggles view and displays summary/provenance", () => {
+    const root = createMockRoot();
+    const results = new ResultsViewComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+
+    // Capture state
+    results.render(session, settings);
+    assert.strictEqual(results.captureState.classList.contains("hidden"), false);
+    assert.strictEqual(results.resultsState.classList.contains("hidden"), true);
+
+    // Results state
+    session.analysisResult = {
+      title: "My Result",
+      coreSummary: ["Key takeaway 1", "Key takeaway 2"],
+    };
+    results.render(session, settings);
+    assert.strictEqual(results.resultsState.classList.contains("hidden"), false);
+    assert.strictEqual(results.captureState.classList.contains("hidden"), true);
+    assert.strictEqual(results.resultPageTitle.textContent, "My Result");
+    assert.ok(results.coreSummaryEl.innerHTML.includes("Key takeaway 1"));
+  });
+
+  it("CaptureViewComponent.render supports polymorphic session input and loading state", () => {
+    const root = createMockRoot();
+    const capture = new CaptureViewComponent(root);
+    const session = new SessionState();
+
+    // Loading state
+    session.currentTabLoading = true;
+    capture.render(session);
+    assert.ok(capture.refreshBtn.disabled);
+    assert.ok(capture.contentPreview.textContent.length > 0);
+
+    // Content loaded
+    session.currentTabLoading = false;
+    session.extractedContent = {
+      title: "Page Title",
+      url: "https://example.com/page",
+      sourceType: "article",
+      content: "Full extracted article content",
+      metadata: { author: "Bob" },
+    };
+    capture.render(session);
+    assert.strictEqual(capture.refreshBtn.disabled, false);
+    assert.strictEqual(capture.pageTitle.textContent, "Page Title");
+    assert.strictEqual(capture.pageUrl.textContent, "https://example.com/page");
+    assert.ok(capture.pageAuthorEl.textContent.includes("Bob"));
+  });
+
+  it("VerdictComponent.render shows/hides verdicts based on mode and stage", () => {
+    const root = createMockRoot();
+    const verdict = new VerdictComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+
+    // Chrome mode: hidden
+    settings.setServerStatus({ online: false });
+    settings.setChromeAiStatus({ enabled: true, configured: true });
+    session.analysisResult = { titleVerdict: "Title", shouldRead: true };
+    verdict.render(session, settings);
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+
+    // Obsidian mode - Stage 1 confirm: hidden
+    settings.setServerStatus({ online: true });
+    settings.setAnalysisMode("confirm");
+    session.analysisResult = { stage: "stage1", titleVerdict: "Title" };
+    verdict.render(session, settings);
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+
+    // Obsidian mode - Stage 2: shown
+    session.analysisResult = { stage: "stage2", shouldRead: true, shouldReadReason: "Must read" };
+    verdict.render(session, settings);
+    assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
+    assert.strictEqual(verdict.verdictIcon.textContent, "✅");
+    assert.strictEqual(verdict.verdictReason.textContent, "Must read");
+  });
+
+  it("ActionControlsComponent.render updates buttons, modes, and analyze state", () => {
+    const root = createMockRoot();
+    const actions = new ActionControlsComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+    settings.setServerStatus({ online: true });
+
+    settings.setAnalysisMode("confirm");
+    session.analysisResult = { stage: "stage1" };
+    session.selectedEggs = new Set(["Egg1.md"]);
+    session.allEggs = [{ fileName: "Egg1.md" }];
+    actions.render(session, settings);
+
+    assert.strictEqual(actions.modeConfirmBtn.classList.contains("active"), true);
+    assert.strictEqual(actions.stage1ConfirmBox.classList.contains("hidden"), false);
+    assert.strictEqual(actions.confirmBtn.classList.contains("hidden"), true);
+    assert.strictEqual(actions.collectNutBtn.classList.contains("hidden"), false);
+  });
+
+  it("EggsComponent.render toggles no-egg banner and egg knowledge section", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+
+    // Obsidian mode, no eggs matched
+    settings.setServerStatus({ online: true });
+    session.analysisResult = { matchedEggs: [], eggResults: [] };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
+
+    // Chrome mode: no eggs or knowledge shown
+    settings.setServerStatus({ online: false });
+    settings.setChromeAiStatus({ enabled: true, configured: true });
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
+  });
+
+  it("Stage 1 egg selection: expands eggs list in confirm mode and in fast mode with 0 matches", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+    const actions = new ActionControlsComponent(root);
+    const session = new SessionState();
+    const settings = new SettingsState();
+    settings.setServerStatus({ online: true });
+
+    // Case 1: Confirm mode with matched eggs
+    settings.setAnalysisMode("confirm");
+    session.analysisResult = { stage: "stage1", matchedEggs: ["Egg1.md"] };
+    session.allEggs = [{ fileName: "Egg1.md" }, { fileName: "Egg2.md" }];
+    eggs.render(session, settings);
+    actions.render(session, settings);
+
+    assert.strictEqual(actions.stage1ConfirmBox.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
+    assert.strictEqual(session.selectedEggs.has("Egg1.md"), true);
+    assert.strictEqual(actions.stage1ProceedBtn.disabled, false);
+
+    // Case 2: Fast mode with 0 matched eggs - MUST show stage 1 confirm and expand eggs list
+    settings.setAnalysisMode("fast");
+    session.selectedEggs.clear();
+    session.analysisResult = { stage: "stage1", matchedEggs: [] };
+    eggs.render(session, settings);
+    actions.render(session, settings);
+
+    assert.strictEqual(actions.stage1ConfirmBox.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
+    assert.strictEqual(actions.stage1ProceedBtn.disabled, true);
+
+    // Case 3: Empty vault eggs does not hide eggs section, shows notice and create form
+    session.allEggs = [];
+    session.analysisResult = { stage: "stage1", matchedEggs: [] };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.eggsSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsList.innerHTML.includes("eggs-empty-notice"), true);
+    assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), false);
+  });
+
+  it("renderEggKnowledge handles polymorphic arguments and never throws 'eggResults.map is not a function'", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+
+    // 1. Calling renderKnowledge with an options object (the previous bug pattern)
+    assert.doesNotThrow(() => {
+      eggs.renderKnowledge({
+        eggResults: [{ egg: "test.md", novelDelta: ["fact 1"] }],
+        activeEggTab: "test.md",
+      });
+    });
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+
+    // 2. Calling renderKnowledge with empty object
+    assert.doesNotThrow(() => {
+      eggs.renderKnowledge({});
+    });
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
+
+    // 3. Calling renderKnowledge with null/undefined/non-array eggResults
+    assert.doesNotThrow(() => {
+      eggs.renderKnowledge({ eggResults: null });
+    });
+    assert.doesNotThrow(() => {
+      eggs.renderKnowledge({ eggResults: "not-an-array" });
+    });
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
+
+    // 4. Calling renderKnowledge with array directly
+    assert.doesNotThrow(() => {
+      eggs.renderKnowledge([{ egg: "direct.md", novelDelta: [] }]);
+    });
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+  });
 });
+
 

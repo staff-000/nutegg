@@ -80,6 +80,29 @@ const settings = new (globalThis.NutEggState?.SettingsState || (typeof SettingsS
 /** Active tab runtime session state (extracted content, analysis, egg selections). */
 const session = new (globalThis.NutEggState?.SessionState || (typeof SessionState !== "undefined" ? SessionState : class {}))();
 
+// ============================================================
+// UI Render Coordinator
+// ============================================================
+
+/**
+ * Declarative UI synchronization coordinator.
+ * Renders header, banners, views, verdicts, actions, and eggs according to current session and settings state.
+ */
+function renderApp(sessionState = session, settingsState = settings) {
+  headerUI.render(sessionState, settingsState);
+  bannersUI.render(sessionState, settingsState);
+  resultsUI.render(sessionState, settingsState);
+  captureUI.render(sessionState, settingsState);
+  verdictUI.render(sessionState, settingsState);
+  actionsUI.render(sessionState, settingsState);
+  eggsUI.render(sessionState, settingsState);
+}
+
+if (typeof globalThis !== "undefined") {
+  globalThis.NutEggUI = globalThis.NutEggUI || {};
+  globalThis.NutEggUI.renderApp = renderApp;
+}
+
 // --- Init ---
 
 async function initPopup() {
@@ -597,13 +620,8 @@ async function restoreFromTabCache(tabId, cached) {
     setAnalysisMode(restored.analysisMode);
   }
 
-  // Update header and capture preview so capture state is ready if user switches back
-  if (session.extractedContent) {
-    captureUI.setContent(session.extractedContent);
-    showProvenance(session.extractedContent.metadata || {});
-  } else {
-    captureUI.clear();
-  }
+  // Ensure capture preview is updated
+  captureUI.render(session, settings);
 
   if (cached.status === "error" || cached.error) {
     if (session.analysisResult) {
@@ -615,7 +633,6 @@ async function restoreFromTabCache(tabId, cached) {
       }
     }
     showError(cached.error, cached.errorCode);
-    updateAnalyzeButtonsState();
   } else if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
@@ -646,9 +663,7 @@ async function restoreFromTabCache(tabId, cached) {
     session.eggHatched = !!cached.eggHatched;
     session.nutCollected = !!cached.nutCollected;
     showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
-    updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
-    updateActionButtons();
     if (session.isStage1() && settings.analysisMode === "confirm") {
       actionsUI.showStage1Confirm();
       verdictUI.hide();
@@ -814,27 +829,21 @@ function renderEggsSection(matchedEggs) {
     });
   }
 
-  // Reset inline create-egg form
-  eggsUI.resetCreateForm();
+  // Reset inline create-egg form if vault already has eggs
+  if ((session.allEggs || []).length > 0) {
+    eggsUI.resetCreateForm();
+  }
 }
 
 
 function setAnalysisMode(mode) {
   settings.setAnalysisMode(mode);
-  actionsUI.setMode(mode);
+  renderApp();
 
-  if (session.isStage1()) {
-    if (mode === "confirm") {
-      actionsUI.showStage1Confirm();
-      verdictUI.hide();
-      eggsUI.setKnowledgeVisible(false);
-      eggsUI.expandEggsList(true);
-      updateStage1ProceedBtn();
-      window.scrollTo(0, 0);
-    } else {
-      actionsUI.hideStage1Confirm();
-      verdictUI.show();
-    }
+  if (session.isStage1() && mode === "confirm") {
+    eggsUI.expandEggsList(true);
+    updateStage1ProceedBtn();
+    window.scrollTo(0, 0);
   }
 }
 
@@ -1623,6 +1632,21 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       return response.error;
     }
 
+    if (Array.isArray(response.allEggs) && response.allEggs.length > 0) {
+      const currentEggs = session.allEggs || [];
+      const normalized = response.allEggs.map((name) => ({
+        fileName: typeof name === "string" ? name : name?.fileName,
+        description: "",
+        topic: "",
+      }));
+      for (const n of normalized) {
+        if (n.fileName && !currentEggs.some((e) => e.fileName === n.fileName)) {
+          currentEggs.push(n);
+        }
+      }
+      session.allEggs = currentEggs;
+    }
+
     if (isReanalyze && Array.isArray(targetEggs)) {
       response.matchedEggs = [...targetEggs];
     }
@@ -1762,6 +1786,9 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         session.eggHatched = false;
         session.activeEggTab = null;
         session.analysisResult = response;
+        if (Array.isArray(response.matchedEggs) && response.matchedEggs.length > 0) {
+          session.selectedEggs = new Set(response.matchedEggs);
+        }
         showResultsState(response, provenanceFromExtraction(contentToAnalyze));
         if (isReanalyze || session.captureHistory.length > 0) {
           actionsUI.showProcessedNote(isReanalyze ? t("reanalyzedFreshResult") : t("stage1Complete"));
@@ -1806,6 +1833,32 @@ function resetCollapsibleSections() {
 
 function showResultsState(result, provenance = null) {
   session.analysisResult = result;
+  if (provenance) session.provenance = provenance;
+
+  // Populate allEggs from result if session has none
+  if (Array.isArray(result?.allEggs) && result.allEggs.length > 0) {
+    const currentEggs = session.allEggs || [];
+    const normalized = result.allEggs.map((name) => ({
+      fileName: typeof name === "string" ? name : name?.fileName,
+      description: "",
+      topic: "",
+    }));
+    for (const n of normalized) {
+      if (n.fileName && !currentEggs.some((e) => e.fileName === n.fileName)) {
+        currentEggs.push(n);
+      }
+    }
+    session.allEggs = currentEggs;
+  }
+
+  // Initialize selected eggs from matched eggs if empty
+  if (session.selectedEggs.size === 0 && Array.isArray(result?.matchedEggs) && result.matchedEggs.length > 0) {
+    result.matchedEggs.forEach((egg) => {
+      const name = typeof egg === "string" ? egg : egg?.fileName;
+      if (name) session.selectedEggs.add(name);
+    });
+  }
+
   resultsUI.showResults();
   initCollapsibleSections();
   if (!session.isReanalyzing) {
@@ -1831,56 +1884,22 @@ function showResultsState(result, provenance = null) {
   }
   renderHistorySelect(session.currentNutId);
   renderResultProvenance(provenance);
- 
-  if (settings.isChromeMode()) {
-    bannersUI.setChromeResultBanner(true);
-    bannersUI.setChromeActionsCard(true);
-    actionsUI.hideStage1Confirm();
-    verdictUI.hide();
-    eggsUI.setNoEggVisible(false);
-    eggsUI.setKnowledgeVisible(false);
-    actionsUI.setConfirmButtonVisible(false);
-    actionsUI.setCollectNutButtonVisible(false);
-  } else {
-    bannersUI.setChromeResultBanner(false);
-    bannersUI.setChromeActionsCard(false);
-    actionsUI.setCollectNutButtonVisible(true);
 
-    if (session.isStage1()) {
-      if (settings.analysisMode === "confirm") {
-        actionsUI.showStage1Confirm();
-        verdictUI.hide();
-      } else {
-        actionsUI.hideStage1Confirm();
-        verdictUI.show();
-      }
-      actionsUI.setConfirmButtonVisible(false);
-    } else {
-      actionsUI.hideStage1Confirm();
-      verdictUI.show();
-    }
+  // Declarative UI update
+  renderApp();
 
-    // No egg matched — offer to create one
-    const noEgg = (result.matchedEggs || []).length === 0;
-    eggsUI.setNoEggVisible(noEgg);
-
-    // Egg picker — sync the checklist with _index.md, then render it with
-    // this result's matched eggs (user edits + re-analyze changes the match)
+  // If Obsidian online, fetch eggs to sync checklist with _index.md
+  if (!settings.isChromeMode()) {
     fetchEggs().then(() => {
       renderEggsSection(result.matchedEggs || []);
-      if (session.isStage1() && settings.analysisMode === "confirm") {
+      const matchedCount = (result?.matchedEggs || []).length;
+      if (session.isStage1() && (settings.analysisMode === "confirm" || matchedCount === 0)) {
         eggsUI.expandEggsList(true);
         updateStage1ProceedBtn();
-        window.scrollTo(0, 0);
+        actionsUI.stage1ConfirmBox?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
     });
   }
-
-  // Title Verdict
-  verdictUI.renderTitleVerdict(result.titleVerdict, settings.enabledSections.titleVerdict !== false);
-
-  // Core Summary
-  resultsUI.renderCoreSummary(result.coreSummary, settings.enabledSections.coreSummary !== false);
 
   // Mind Map — text-heavy concept tree for side panel
   mindmapUI.render(result.mindMap, settings.enabledSections.mindMap !== false);
@@ -1911,21 +1930,9 @@ function showResultsState(result, provenance = null) {
   renderCustomQuestions();
 
   // Egg Knowledge (Tabs + unified per-egg insights, Q&A, and tree)
-  renderEggKnowledge(isStage1 ? [] : (result.eggResults || []));
-
-  // Verdict
-  if (isStage1) {
-    if (settings.analysisMode === "fast") {
-      verdictUI.show();
-    } else {
-      verdictUI.hide();
-    }
-  } else {
-    verdictUI.renderDecision(result);
-  }
+  renderEggKnowledge(session.isStage1() ? [] : (result.eggResults || []));
 
   bannersUI.hideSuccess();
-  updateActionButtons();
 }
 
 function cleanEggName(fileName) {
@@ -1948,19 +1955,8 @@ function renderEggKnowledge(eggResults = []) {
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
 function updateActionButtons() {
-  if (settings.isChromeMode()) {
-    actionsUI.updateActionButtons({ isChromeMode: true });
-    bannersUI.setChromeActionsCard(true);
-    return;
-  }
-  bannersUI.setChromeActionsCard(false);
-
-  actionsUI.updateActionButtons({
-    isStage1: session.isStage1(),
-    nutCollected: session.nutCollected,
-    eggHatched: session.eggHatched,
-    hasDelta: (session.analysisResult?.newKnowledge?.length || 0) > 0,
-  });
+  actionsUI.render(session, settings);
+  bannersUI.render(session, settings);
 }
 
 /**
@@ -2244,12 +2240,6 @@ function timeToSeconds(time) {
 }
 
 function showCaptureState() {
-  resultsUI.showCapture();
-  resetCollapsibleSections();
-  if (session.extractedContent) {
-    captureUI.setContent(session.extractedContent);
-    showProvenance(session.extractedContent.metadata || {});
-  }
   session.analysisResult = null;
   session.cachedProcessedSaved = null;
   session.followUpQa = [];
@@ -2258,10 +2248,10 @@ function showCaptureState() {
   session.eggHatched = false;
   session.currentNutId = null;
   session.activeEggTab = null;
+  resetCollapsibleSections();
   hideMessages();
-  updateAnalyzeButtonsState();
-  updateCaptureBanners();
   updateSectionChipsUI();
+  renderApp();
 }
 
 // --- Confirm (add to knowledge base) ---

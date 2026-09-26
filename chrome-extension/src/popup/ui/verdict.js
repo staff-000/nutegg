@@ -80,6 +80,40 @@ class VerdictComponent {
     if (this.verdictIcon) this.verdictIcon.textContent = "";
     if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
   }
+
+  render(session, settings) {
+    const result = session?.analysisResult;
+    if (!result) {
+      this.hide();
+      return;
+    }
+
+    const isChrome = settings ? settings.isChromeMode() : false;
+    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result.stage === "stage1" || result.mode === "chrome");
+    const confirmMode = settings?.analysisMode === "confirm";
+
+    if (isChrome || (isStage1 && confirmMode)) {
+      this.hide();
+      return;
+    }
+
+    // Title Verdict
+    this.renderTitleVerdict(result.titleVerdict, settings?.enabledSections?.titleVerdict !== false);
+
+    // Decision Verdict
+    if (isStage1) {
+      if (settings?.analysisMode === "fast") {
+        this.show();
+      } else {
+        this.verdictSection?.classList.add("hidden");
+      }
+    } else if (result.shouldRead !== undefined) {
+      this.show();
+      this.renderDecision(result);
+    } else {
+      this.verdictSection?.classList.add("hidden");
+    }
+  }
 }
 
 const _verdictScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);

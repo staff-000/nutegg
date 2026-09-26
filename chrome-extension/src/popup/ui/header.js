@@ -25,7 +25,7 @@ class HeaderComponent {
   updateVersion(extVersion, pluginVersion) {
     if (!this.versionTag) return;
     if (!extVersion) {
-      extVersion = chrome.runtime?.getManifest?.()?.version;
+      extVersion = typeof chrome !== "undefined" ? chrome.runtime?.getManifest?.()?.version : null;
     }
     if (!extVersion) return;
 
@@ -39,6 +39,29 @@ class HeaderComponent {
         ? `NutEgg v${extVersion} (Obsidian plugin v${pluginVersion})`
         : `NutEgg v${extVersion}`;
       this.versionTag.style.color = "";
+    }
+  }
+
+  render(session, settings) {
+    if (!settings) return;
+    this.updateVersion(null, settings.obsidianPluginVersion);
+    const extVersion = typeof chrome !== "undefined" ? chrome.runtime?.getManifest?.()?.version : null;
+    const hasMismatch = settings.obsidianPluginVersion && extVersion && settings.obsidianPluginVersion !== extVersion;
+
+    if (settings.serverOnline) {
+      if (hasMismatch) {
+        this.updateServerStatus("obsidian-mismatch", settings.obsidianPluginVersion);
+      } else if (!settings.obsidianAiConfigured) {
+        this.updateServerStatus("obsidian-no-key", settings.obsidianPluginVersion);
+      } else {
+        this.updateServerStatus("obsidian-online", settings.obsidianPluginVersion);
+      }
+    } else if (settings.chromeAiConfigured) {
+      this.updateServerStatus("chrome-ai", null, settings.chromeAiProvider || "standalone");
+    } else if (settings.chromeAiEnabled) {
+      this.updateServerStatus("chrome-no-key", null, settings.chromeAiProvider);
+    } else {
+      this.updateServerStatus("offline");
     }
   }
 
