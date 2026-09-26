@@ -346,6 +346,16 @@ body {
   display: block;
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.refresh-btn.rotating svg,
+.refresh-btn.loading svg {
+  animation: spin 0.8s linear infinite;
+}
+
 .page-url {
   font-size: 11px;
   color: #9ca3af;
@@ -1732,6 +1742,27 @@ body {
 
 .egg-row-desc {
   color: #6b7280;
+}
+
+.eggs-reanalyze-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.eggs-reanalyze-wrap .reanalyze-eggs-btn {
+  flex: 1;
+  margin-top: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.eggs-reanalyze-wrap .reanalyze-eggs-refresh-btn {
+  margin-top: 6px;
+  padding: 8px 10px;
+  height: 35px;
+  border: 1px solid #d1d5db;
 }
 
 .reanalyze-eggs-btn {

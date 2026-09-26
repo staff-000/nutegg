@@ -360,7 +360,24 @@ async function initPopup() {
     captureUI.setPageInfo({ title: pageTitle, url: pageUrl });
   });
 
-  actionsUI.reanalyzeBtn?.addEventListener("click", () => {
+  actionsUI.reanalyzeBtn?.addEventListener("click", async () => {
+    const hasContent = !!(session.extractedContent && session.extractedContent.content);
+    if (!hasContent) {
+      actionsUI.setReanalyzeRefreshLoading(true);
+      actionsUI.setReanalyzingState(t("loadingContent"));
+      try {
+        await tabAction.refreshForCurrentTab(true);
+        bannersUI.hideWarning();
+        bannersUI.hideMessages();
+      } finally {
+        actionsUI.setReanalyzeRefreshLoading(false);
+      }
+      if (!session.extractedContent || !session.extractedContent.content) {
+        bannersUI.showWarning(analyzeAction.getAnalyzeNotReadyReason() || t("couldNotRetrieveContent"));
+        actionsUI.setAnalyzeButtonLoading(false, t("reanalyze"));
+        return;
+      }
+    }
     const notReady = analyzeAction.getAnalyzeNotReadyReason();
     if (notReady) {
       bannersUI.showWarning(notReady);
@@ -368,6 +385,19 @@ async function initPopup() {
       return;
     }
     analyzeAction.handleAnalyze(true, null, true);
+  });
+
+  actionsUI.reanalyzeRefreshBtn?.addEventListener("click", async () => {
+    actionsUI.setReanalyzeRefreshLoading(true);
+    try {
+      await tabAction.refreshForCurrentTab(true);
+      bannersUI.hideWarning();
+      bannersUI.hideMessages();
+    } catch (err) {
+      bannersUI.showError(err instanceof Error ? err.message : t("couldNotRetrieveContent"));
+    } finally {
+      actionsUI.setReanalyzeRefreshLoading(false);
+    }
   });
 
   actionsUI.historySelect?.addEventListener("change", () => {
@@ -416,6 +446,18 @@ async function initPopup() {
   eggsUI.eggsCreateBtn?.addEventListener("click", () => saveAction.handleCreateEgg(true));
   eggsUI.reanalyzeEggsBtn?.addEventListener("click", () => {
     analyzeAction.handleReanalyzeEggs();
+  });
+  eggsUI.reanalyzeEggsRefreshBtn?.addEventListener("click", async () => {
+    eggsUI.setReanalyzeEggsRefreshLoading(true);
+    try {
+      await tabAction.refreshForCurrentTab(true);
+      bannersUI.hideWarning();
+      bannersUI.hideMessages();
+    } catch (err) {
+      bannersUI.showError(err instanceof Error ? err.message : t("couldNotRetrieveContent"));
+    } finally {
+      eggsUI.setReanalyzeEggsRefreshLoading(false);
+    }
   });
 
   const reportBugLink = document.getElementById("report-bug-link");

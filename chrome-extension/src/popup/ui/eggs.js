@@ -96,6 +96,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
   const errorEl = opts.eggsErrorEl || (typeof eggsErrorEl !== "undefined" ? eggsErrorEl : (typeof document !== "undefined" ? document.getElementById("eggs-error") : null));
   const toggleLabelEl = opts.eggsToggleLabel || (typeof eggsToggleLabel !== "undefined" ? eggsToggleLabel : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-label") : null));
   const reanalyzeBtnEl = opts.reanalyzeEggsBtn || (typeof reanalyzeEggsBtn !== "undefined" ? reanalyzeEggsBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-btn") : null));
+  const reanalyzeRefreshBtnEl = opts.reanalyzeEggsRefreshBtn || (typeof reanalyzeEggsRefreshBtn !== "undefined" ? reanalyzeEggsRefreshBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-refresh-btn") : null));
   const createFormEl = opts.eggsCreateForm || (typeof eggsCreateForm !== "undefined" ? eggsCreateForm : (typeof document !== "undefined" ? document.getElementById("eggs-create-form") : null));
 
   if (eggs.length === 0) {
@@ -157,8 +158,10 @@ function _renderEggsSection(firstArg = [], options = {}) {
         const stage = typeof analysisResult !== "undefined" ? analysisResult?.stage : null;
         if (stage === "stage1") {
           reanalyzeBtnEl?.classList.add("hidden");
+          reanalyzeRefreshBtnEl?.classList.add("hidden");
         } else {
           reanalyzeBtnEl?.classList.remove("hidden");
+          reanalyzeRefreshBtnEl?.classList.remove("hidden");
         }
         if (opts.onSelectChange) {
           opts.onSelectChange(name, ev.target.checked);
@@ -170,6 +173,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
   }
 
   if (reanalyzeBtnEl) reanalyzeBtnEl.classList.add("hidden");
+  if (reanalyzeRefreshBtnEl) reanalyzeRefreshBtnEl.classList.add("hidden");
   if (createFormEl) createFormEl.classList.add("hidden");
 }
 
@@ -452,6 +456,7 @@ class EggsComponent {
     this.eggsExpanded = root.getElementById("eggs-expanded");
     this.eggsList = root.getElementById("eggs-list");
     this.reanalyzeEggsBtn = root.getElementById("reanalyze-eggs-btn");
+    this.reanalyzeEggsRefreshBtn = root.getElementById("reanalyze-eggs-refresh-btn");
     this.eggsErrorEl = root.getElementById("eggs-error");
     this.eggsCreateToggle = root.getElementById("eggs-create-toggle");
     this.eggsCreateForm = root.getElementById("eggs-create-form");
@@ -509,9 +514,23 @@ class EggsComponent {
   }
 
   setReanalyzeLoading(isLoading, text = "") {
-    if (!this.reanalyzeEggsBtn) return;
-    this.reanalyzeEggsBtn.disabled = Boolean(isLoading);
-    if (text) this.reanalyzeEggsBtn.textContent = text;
+    if (this.reanalyzeEggsBtn) {
+      this.reanalyzeEggsBtn.disabled = Boolean(isLoading);
+      if (text) this.reanalyzeEggsBtn.textContent = text;
+    }
+    if (this.reanalyzeEggsRefreshBtn) {
+      this.reanalyzeEggsRefreshBtn.disabled = Boolean(isLoading);
+    }
+  }
+
+  setReanalyzeEggsRefreshLoading(isLoading) {
+    if (!this.reanalyzeEggsRefreshBtn) return;
+    this.reanalyzeEggsRefreshBtn.disabled = Boolean(isLoading);
+    if (isLoading) {
+      this.reanalyzeEggsRefreshBtn.classList.add("rotating");
+    } else {
+      this.reanalyzeEggsRefreshBtn.classList.remove("rotating");
+    }
   }
 
   showError(msg) {
@@ -592,6 +611,7 @@ class EggsComponent {
       eggsToggleChevron: this.eggsToggleChevron,
       eggsToggleLabel: this.eggsToggleLabel,
       reanalyzeEggsBtn: this.reanalyzeEggsBtn,
+      reanalyzeEggsRefreshBtn: this.reanalyzeEggsRefreshBtn,
       eggsCreateForm: this.eggsCreateForm,
       eggsErrorEl: this.eggsErrorEl,
       ...opts,

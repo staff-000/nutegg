@@ -10,6 +10,7 @@ class ActionControlsComponent {
     this.analyzeBtn = root.getElementById("analyze-btn");
     this.analyzeBtnText = root.getElementById("analyze-btn-text");
     this.reanalyzeBtn = root.getElementById("reanalyze-btn");
+    this.reanalyzeRefreshBtn = root.getElementById("reanalyze-refresh-btn");
     this.historySelect = root.getElementById("history-select");
     this.processedNote = root.getElementById("processed-note");
     this.processedMessage = root.getElementById("processed-message");
@@ -59,11 +60,17 @@ class ActionControlsComponent {
         this.reanalyzeBtn.textContent = t("analyzing");
         this.reanalyzeBtn.title = t("analyzing");
       }
+      if (this.reanalyzeRefreshBtn) {
+        this.reanalyzeRefreshBtn.disabled = true;
+      }
       return;
     }
 
     this.analyzeBtn.disabled = false;
     if (this.reanalyzeBtn) this.reanalyzeBtn.disabled = false;
+    if (this.reanalyzeRefreshBtn) {
+      this.reanalyzeRefreshBtn.disabled = Boolean(currentTabLoading || extractionPending);
+    }
 
     if (notReadyReason) {
       this.analyzeBtn.classList.add("inactive");
@@ -262,6 +269,16 @@ class ActionControlsComponent {
     if (this.reanalyzeBtn) {
       this.reanalyzeBtn.disabled = true;
       this.reanalyzeBtn.textContent = text;
+    }
+  }
+
+  setReanalyzeRefreshLoading(isLoading) {
+    if (!this.reanalyzeRefreshBtn) return;
+    this.reanalyzeRefreshBtn.disabled = Boolean(isLoading);
+    if (isLoading) {
+      this.reanalyzeRefreshBtn.classList.add("rotating");
+    } else {
+      this.reanalyzeRefreshBtn.classList.remove("rotating");
     }
   }
 

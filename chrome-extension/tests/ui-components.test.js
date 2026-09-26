@@ -241,6 +241,13 @@ describe("Modular UI Components", () => {
 
     actions.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
     assert.strictEqual(actions.stage1ProceedBtn.disabled, true);
+
+    actions.setReanalyzeRefreshLoading(true);
+    assert.strictEqual(actions.reanalyzeRefreshBtn.disabled, true);
+    assert.strictEqual(actions.reanalyzeRefreshBtn.classList.contains("rotating"), true);
+    actions.setReanalyzeRefreshLoading(false);
+    assert.strictEqual(actions.reanalyzeRefreshBtn.disabled, false);
+    assert.strictEqual(actions.reanalyzeRefreshBtn.classList.contains("rotating"), false);
   });
 
   it("CaptureViewComponent encapsulated helper methods work correctly", () => {
@@ -299,6 +306,13 @@ describe("Modular UI Components", () => {
     eggs.setReanalyzeLoading(true, "Comparing");
     assert.strictEqual(eggs.reanalyzeEggsBtn.disabled, true);
     assert.strictEqual(eggs.reanalyzeEggsBtn.textContent, "Comparing");
+
+    eggs.setReanalyzeEggsRefreshLoading(true);
+    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.disabled, true);
+    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.classList.contains("rotating"), true);
+    eggs.setReanalyzeEggsRefreshLoading(false);
+    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.disabled, false);
+    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.classList.contains("rotating"), false);
 
     eggs.showError("Failed to match");
     assert.strictEqual(eggs.eggsErrorEl.textContent, "Failed to match");
