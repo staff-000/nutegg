@@ -1,10 +1,12 @@
 // Load UI & state modules in Node environment if required by tests
 if (typeof require !== "undefined") {
   try {
+    const helpers = require("./helpers.js");
     const tabState = require("./state/tab-state.js");
     const settingsState = require("./state/settings-state.js");
     const sessionState = require("./state/session-state.js");
     const pageExtractorService = require("./services/page-extractor.js");
+    const analysisServiceModule = require("./services/analysis-service.js");
     const collapsibleUI = require("./ui/collapsible.js");
     const mindmapUI = require("./ui/mindmap.js");
     const chaptersUI = require("./ui/chapters.js");
@@ -20,10 +22,12 @@ if (typeof require !== "undefined") {
     const metricsUI = require("./ui/metrics.js");
     Object.assign(
       globalThis,
+      helpers,
       tabState,
       settingsState,
       sessionState,
       pageExtractorService,
+      analysisServiceModule,
       collapsibleUI,
       mindmapUI,
       chaptersUI,
@@ -42,6 +46,8 @@ if (typeof require !== "undefined") {
 }
 
 const t = (key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
+
+const helper = globalThis.helper || globalThis.NutEggHelpers || (typeof require !== "undefined" ? require("./helpers.js").helper || require("./helpers.js") : {});
 
 // ============================================================
 // Services
@@ -711,7 +717,7 @@ async function handleCreateEgg() {
     if (response?.success) {
       if (session.activeTabId !== pinnedTabId) return;
       // Target the newly created egg explicitly
-      const eggFile = response.path ? response.path.split("/").pop() : slugify(name) + ".md";
+      const eggFile = response.path ? response.path.split("/").pop() : helper.slugify(name) + ".md";
       await handleAnalyze(true, [eggFile]);
       return;
     }
@@ -755,15 +761,6 @@ async function handleCreateEggInline() {
   }
 }
 
-
-/** Title → snake_case egg name fallback (supports Unicode). */
-function slugify(text) {
-  return (text || "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 60);
-}
 
 /** Load the full egg list from _index.md for the manual picker. */
 async function fetchEggs() {
@@ -983,14 +980,6 @@ function updateVersionDisplay(pluginVersion) {
   headerUI.updateVersion(null, pluginVersion);
 }
 
-function getVersionMismatchIssue(pluginVersion) {
-  const extVersion = chrome.runtime?.getManifest?.()?.version;
-  if (pluginVersion && extVersion && pluginVersion !== extVersion) {
-    return t("versionMismatchFull", { extVersion, pluginVersion });
-  }
-  return null;
-}
-
 async function checkConfigStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: "config-status" });
@@ -1155,9 +1144,7 @@ function updateServerStatusTooltip(state, version = null, extra = null) {
  * which produces misleading answers — warn and refuse to process.
  */
 function isTranscriptBlocked() {
-  return !!session.extractedContent &&
-    session.extractedContent.sourceType === "youtube" &&
-    session.extractedContent.transcriptAvailable === false;
+  return helper.isTranscriptBlocked(session.extractedContent);
 }
 
 function applyTranscriptBlock() {
@@ -1166,29 +1153,8 @@ function applyTranscriptBlock() {
   showWarning(t("transcriptBlockedWarning"));
 }
 
-/** Returns a non-null string prompt if the page or content is not ready for analysis. */
 function getAnalyzeNotReadyReason() {
-  if (session.currentTabLoading) {
-    return t("pageStillLoading");
-  }
-  if (session.extractionPending) {
-    return t("retrievingContentWait");
-  }
-  if (!session.extractedContent || !session.extractedContent.content) {
-    return t("pageOrContentNotReady");
-  }
-  if (isTranscriptBlocked()) {
-    return t("transcriptUnavailableAnalyze");
-  }
-  if (!settings.serverOnline) {
-    if (!settings.chromeAiEnabled) {
-      return t("obsidianOfflineStart");
-    }
-    if (!settings.chromeAiConfigured) {
-      return t("chromeAiNoKeyConfig");
-    }
-  }
-  return null;
+  return helper.getAnalyzeNotReadyReason(session, settings);
 }
 
 /** Updates analyze and re-analyze buttons' active / inactive visual state and labels. */
@@ -1358,23 +1324,9 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
   return null;
 }
 
-function detectPageTypeFromUrl(url) {
-  return pageExtractor.detectPageTypeFromUrl(url);
-}
-
 /** Show the author + published date extracted from the page itself. */
 function showProvenance(metadata) {
   captureUI.showProvenance(metadata);
-}
-
-/** ISO/date string → short locale date (e.g. "Aug 10, 2026"); raw on failure. */
-function formatPublishedDate(raw) {
-  return pageExtractor.formatPublishedDate(raw);
-}
-
-/** Provenance of the extracted page (fresh analyses). */
-function provenanceFromExtraction(content = session.extractedContent) {
-  return pageExtractor.provenanceFromExtraction(content);
 }
 
 /** Title/author/publish-time card at the top of the results view. */
@@ -1691,9 +1643,6 @@ function showResultsState(result, provenance = null) {
   bannersUI.hideSuccess();
 }
 
-function cleanEggName(fileName) {
-  return (globalThis.NutEggUI?.cleanEggName || globalThis.cleanEggName || ((f) => f ? f.split("/").pop().replace(/\.md$/, "") : "Egg"))(fileName);
-}
 
 function renderEggKnowledge(eggResults = []) {
   const fn = globalThis.NutEggUI?.renderEggKnowledge || globalThis.renderEggKnowledge;
@@ -1812,27 +1761,9 @@ function showHistoryEntry(entry) {
   renderHistorySelect(entry.nutId);
 }
 
-/** Extract timestamp string like "12:34" or "1:05:30" from a reference string, or null if none. */
-function extractTimestamp(str) {
-  return (globalThis.NutEggUI?.extractTimestamp || globalThis.extractTimestamp)(str);
-}
-
-/** Replace timestamps in text like "[12:34]" or "12:34" with clickable timestamp buttons. */
-function linkifyTimestamps(escapedText) {
-  return (globalThis.NutEggUI?.linkifyTimestamps || globalThis.linkifyTimestamps)(escapedText);
-}
-
 /** Render clickable source pills and supporting quotes for a Q&A answer. */
 function renderQaSources(sources) {
   return (globalThis.NutEggUI?.renderQaSources || globalThis.renderQaSources)(sources);
-}
-
-/**
- * Unwrap single root node(s) with children so that the mind map directly
- * displays the core branches at the root level instead of an unnecessary single root.
- */
-function unwrapMindMapRoots(nodes) {
-  return (globalThis.NutEggUI?.unwrapMindMapRoots || globalThis.unwrapMindMapRoots)(nodes);
 }
 
 /** Render the Mind Map hierarchical concept tree. */
@@ -1884,10 +1815,6 @@ async function handleFollowUp() {
 
 
 /** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
-function buildPriorQa(res = session.analysisResult, qaList = session.followUpQa) {
-  return (globalThis.NutEggUI?.buildPriorQa || globalThis.buildPriorQa)(res, qaList);
-}
-
 /** Seek the active tab's video to a chapter timestamp. */
 async function seekToChapter(seconds) {
   let tabId = session.activeTabId;
@@ -1921,11 +1848,6 @@ function handleSourcePillClick(e) {
       onScroll: scrollToSection,
     });
   }
-}
-
-/** "MM:SS" or "HH:MM:SS" → seconds. */
-function timeToSeconds(time) {
-  return (globalThis.NutEggUI?.timeToSeconds || globalThis.timeToSeconds)(time);
 }
 
 function showCaptureState() {
@@ -2081,12 +2003,6 @@ function hideWarning() {
   updateServerStatusIndicator();
 }
 
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 /** Redirect to GitHub issues prefilled with bug report template. */
 function openGitHubBugReport(errorContext = "") {
   let contentUrl = "";
@@ -2095,50 +2011,25 @@ function openGitHubBugReport(errorContext = "") {
   } else if (captureUI.getPageUrl() && captureUI.getPageUrl() !== "Loading...") {
     contentUrl = captureUI.getPageUrl();
   }
-
-  const manifest = chrome.runtime?.getManifest?.() || {};
-  const version = manifest.version || "0.0.0";
-  const observed = errorContext
-    ? `Encountered error: ${errorContext}`
-    : "<!-- Describe what actually happened (e.g. error message, unexpected output, stuck on retrieving/analyzing) -->";
-
-  const body = [
-    "### URL of the content",
-    contentUrl || "[Enter the URL of the article, video, or webpage here]",
-    "",
-    "### Expected behavior",
-    "<!-- A clear description of what you expected to happen -->",
-    "",
-    "",
-    "### Observed behavior",
-    observed,
-    "",
-    "",
-    "### Environment",
-    `- NutEgg Extension Version: v${version}`,
-    `- Browser: ${navigator.userAgent || "Chrome"}`,
-  ].join("\n");
-
-  const title = errorContext ? `[Bug]: ${errorContext.slice(0, 60)}` : "[Bug]: ";
-  const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-  window.open(issueUrl, "_blank");
+  return helper.openGitHubBugReport(errorContext, { url: contentUrl });
 }
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    extractTimestamp,
-    linkifyTimestamps,
+    helper,
+    extractTimestamp: helper.extractTimestamp,
+    linkifyTimestamps: helper.linkifyTimestamps,
     renderQaSources,
-    timeToSeconds,
-    unwrapMindMapRoots,
+    timeToSeconds: helper.timeToSeconds,
+    unwrapMindMapRoots: helper.unwrapMindMapRoots,
     initCollapsibleSections,
     resetCollapsibleSections,
     renderMindMap: globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap || renderMindMap,
     renderChapterMap: globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap,
     renderCustomQuestions,
-    buildPriorQa,
+    buildPriorQa: helper.buildPriorQa,
     handleSourcePillClick,
-    cleanEggName,
+    cleanEggName: helper.cleanEggName,
     renderCaptureEggsList,
     updateCaptureEggsLabel,
     renderEggsSection,
@@ -2148,5 +2039,11 @@ if (typeof module !== "undefined" && module.exports) {
     settings,
     session,
     analysisService,
+    escapeHtml: helper.escapeHtml,
+    slugify: helper.slugify,
+    openGitHubBugReport,
+    getVersionMismatchIssue: helper.getVersionMismatchIssue,
+    isTranscriptBlocked,
+    getAnalyzeNotReadyReason,
   };
 }
