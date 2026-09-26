@@ -146,7 +146,7 @@ async function initPopup() {
   initSectionChips();
 
   // Fetch fresh metrics immediately in parallel without waiting for content extraction
-  fetchMetrics();
+  envService.fetchMetrics();
 
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName === "local") {
@@ -173,7 +173,7 @@ async function initPopup() {
         changes.chromeAiProvider ||
         changes.chromeAiModel
       ) {
-        checkServerStatus();
+        envService.checkServerStatus(() => {updateAnalyzeButtonsState();});
       }
     }
   });
@@ -234,7 +234,7 @@ async function initPopup() {
   if (headerUI.aiCreditPill) {
     headerUI.aiCreditPill.addEventListener("click", () => {
       headerUI.setCheckingCredit();
-      checkCreditStatus();
+      envService.checkCreditStatus();
     });
   }
   if (headerUI.statusIndicatorWrap) {
@@ -244,7 +244,7 @@ async function initPopup() {
         return;
       }
       headerUI.setCheckingServer();
-      checkServerStatus();
+      envService.checkCreditStatus();
     });
   }
   if (bannersUI.openSettingsKeyBtn) {
@@ -575,14 +575,14 @@ async function refreshForCurrentTab(forceExtract = false) {
 
   if (seq !== session.refreshSeq) return;
 
-  await checkServerStatus();
+  await envService.checkServerStatus(() => {updateAnalyzeButtonsState();});
   if (seq !== session.refreshSeq) return;
 
   // Kick off server tasks in parallel immediately without waiting for content extraction
   const serverTasks = settings.serverOnline
     ? Promise.all([
-        checkConfigStatus(),
-        fetchMetrics(),
+        envService.checkConfigStatus(),
+        envService.fetchMetrics(),
         fetchEggs(),
       ])
     : null;
@@ -700,7 +700,7 @@ async function restoreFromTabCache(tabId, cached) {
   }
 
   // Refresh server status and eggs without resetting content
-  await checkServerStatus();
+  await envService.checkServerStatus(() => {updateAnalyzeButtonsState();});
   if (settings.serverOnline) {
     await fetchEggs();
   }
@@ -888,7 +888,7 @@ async function handleProceedStage2(
             session.eggHatched = true;
             session.nutCollected = true;
             updateActionButtons();
-            fetchMetrics();
+            envService.fetchMetrics();
           }
           if (session.captureHistory.length > 0) {
             actionsUI.renderHistory(session.captureHistory, session.currentNutId);
@@ -943,35 +943,7 @@ function handleSaveSuccessNotification({ response, newKnowledge: nk, isHatch: ih
     }
   }
   updateActionButtons();
-  fetchMetrics();
-}
-
-// --- Environment & Server Status (Delegated to EnvironmentService) ---
-
-async function fetchMetrics() {
-  return envService.fetchMetrics();
-}
-
-async function checkConfigStatus() {
-  return envService.checkConfigStatus();
-}
-
-async function checkCreditStatus() {
-  return envService.checkCreditStatus();
-}
-
-async function checkServerStatus() {
-  await envService.checkServerStatus(() => {
-    updateAnalyzeButtonsState();
-  });
-}
-
-function updateCaptureBanners() {
-  envService.updateCaptureBanners();
-}
-
-function updateServerStatusIndicator() {
-  envService.updateServerStatusIndicator();
+  envService.fetchMetrics();
 }
 
 // --- Button Readiness & State ---
@@ -1164,15 +1136,6 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
 // --- Analyze ---
 
 /**
- * Send an analyze request via a long-lived port connection instead of a
- * one-shot `sendMessage`. The open port prevents Chrome from terminating
- * the service worker during extended LLM calls (>30s).
- */
-function sendAnalyzeViaPort(payload) {
-  return analysisService.sendAnalyzeViaPort(payload);
-}
-
-/**
  * Run the analysis. Returns null on success (results rendered) or an error
  * message on failure — callers in the results view surface it inline, since
  * the capture-state error banner is hidden there.
@@ -1293,7 +1256,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
             session.eggHatched = true;
             session.nutCollected = true;
             updateActionButtons();
-            fetchMetrics();
+            envService.fetchMetrics();
           }
           if (session.captureHistory.length > 0) {
             actionsUI.renderHistory(session.captureHistory, session.currentNutId);
@@ -1398,7 +1361,7 @@ function showResultsState(result, provenance = null) {
     updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
   }
-  renderHistorySelect(session.currentNutId);
+  actionsUI.renderHistory(session.captureHistory, selectedNutId);
   renderResultProvenance(provenance);
 
   // Declarative UI update
@@ -1492,11 +1455,6 @@ async function loadHistoryIfAny(seq = session.refreshSeq, urlOverride = null) {
     // Server unreachable or no history — stay in capture state
   }
   return false;
-}
-
-/** Render or update the version history select dropdown. */
-function renderHistorySelect(selectedNutId = session.currentNutId) {
-  actionsUI.renderHistory(session.captureHistory, selectedNutId);
 }
 
 /** Show one cached capture (from history) with its capture timestamp. */
@@ -1771,11 +1729,11 @@ async function doSave(
 
 function showWarning(msg) {
   bannersUI.showWarning(msg);
-  updateServerStatusIndicator();
+  envService.updateServerStatusIndicator();
 }
 function hideWarning() {
   bannersUI.hideWarning();
-  updateServerStatusIndicator();
+  envService.updateServerStatusIndicator();
 }
 
 /** Redirect to GitHub issues prefilled with bug report template. */
