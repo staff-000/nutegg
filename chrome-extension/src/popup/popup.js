@@ -535,7 +535,7 @@ async function refreshForCurrentTab(forceExtract = false) {
   captureUI.setCustomQuestions("");
   qaUI.clearFollowup();
   session.reset();
-  updateCaptureEggsLabel();
+  eggsUI.updateCaptureLabel(session.preSelectedEggs);
   actionsUI.hideProcessedNote();
   actionsUI.renderHistory([]);
   captureUI.setLoading(t("loadingContent"));
@@ -623,7 +623,7 @@ async function restoreFromTabCache(tabId, cached) {
   session.activeTabId = tabId;
   const restored = tabStateManager.restoreTabState(tabId) || cached;
   session.restore(restored);
-  updateCaptureEggsLabel();
+  eggsUI.updateCaptureLabel(session.preSelectedEggs);
   captureUI.setCustomQuestions(restored.customQuestions || "");
   qaUI.clearFollowup();
   session.currentTabLoading = false;
@@ -757,60 +757,7 @@ async function fetchEggs() {
   } catch {
     session.allEggs = [];
   }
-  renderCaptureEggsList();
-}
-
-/** Render target egg checklist on the capture screen (State 1). */
-function renderCaptureEggsList() {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderCaptureEggsList;
-  if (fn && fn !== renderCaptureEggsList) {
-    fn({
-      captureEggsList: eggsUI.captureEggsList,
-      captureEggsToggle: eggsUI.captureEggsToggle,
-      captureEggsLabel: eggsUI.captureEggsLabel,
-      allEggs: session.allEggs,
-      preSelectedEggs: session.preSelectedEggs,
-      updateLabel: updateCaptureEggsLabel,
-    });
-  }
-}
-
-function updateCaptureEggsLabel() {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.updateCaptureEggsLabel;
-  if (fn && fn !== updateCaptureEggsLabel) {
-    fn({
-      captureEggsLabel: eggsUI.captureEggsLabel,
-      preSelectedEggs: session.preSelectedEggs,
-    });
-  }
-}
-
-/**
- * Render the egg picker: the matched eggs are checked; changing any box
- * reveals the "Re-analyze with selected eggs" button.
- */
-function renderEggsSection(matchedEggs) {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderEggsSection;
-  if (fn && fn !== renderEggsSection) {
-    fn(matchedEggs, {
-      allEggs: session.allEggs,
-      selectedEggs: session.selectedEggs,
-      eggsSection: eggsUI.eggsSection,
-      eggsList: eggsUI.eggsList,
-      eggsExpanded: eggsUI.eggsExpanded,
-      eggsToggleChevron: eggsUI.eggsToggleChevron,
-      eggsErrorEl: eggsUI.eggsErrorEl,
-      eggsToggleLabel: eggsUI.eggsToggleLabel,
-      reanalyzeEggsBtn: eggsUI.reanalyzeEggsBtn,
-      eggsCreateForm: eggsUI.eggsCreateForm,
-      onSelectChange: () => updateStage1ProceedBtn(),
-    });
-  }
-
-  // Reset inline create-egg form if vault already has eggs
-  if ((session.allEggs || []).length > 0) {
-    eggsUI.resetCreateForm();
-  }
+  eggsUI.renderCaptureList({ allEggs: session.allEggs, preSelectedEggs: session.preSelectedEggs });
 }
 
 
@@ -1356,13 +1303,15 @@ function showResultsState(result, provenance = null) {
   } else {
     actionsUI.showProcessedNote(actionsUI.getProcessedMessage());
   }
-  updateSectionChipsUI();
+  sectionsUI.updateUI(settings.enabledSections);
   if (!session.isReanalyzing) {
     updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
   }
-  actionsUI.renderHistory(session.captureHistory, selectedNutId);
-  renderResultProvenance(provenance);
+  actionsUI.renderHistory(session.captureHistory, session.currentNutId);
+  if (provenance) {
+    resultsUI.renderProvenance(provenance);
+  }
 
   // Declarative UI update
   renderApp();
@@ -1370,7 +1319,11 @@ function showResultsState(result, provenance = null) {
   // If Obsidian online, fetch eggs to sync checklist with _index.md
   if (!settings.isChromeMode()) {
     fetchEggs().then(() => {
-      renderEggsSection(result.matchedEggs || []);
+      eggsUI.renderSection(result.matchedEggs || [], {
+        allEggs: session.allEggs,
+        selectedEggs: session.selectedEggs,
+        onSelectChange: () => updateStage1ProceedBtn(),
+      });
       const matchedCount = (result?.matchedEggs || []).length;
       if (session.isStage1() && (settings.analysisMode === "confirm" || matchedCount === 0)) {
         eggsUI.expandEggsList(true);
@@ -1406,27 +1359,15 @@ function showResultsState(result, provenance = null) {
   });
 
   // Your Questions — initial answers + follow-ups asked this session
-  renderCustomQuestions();
+  qaUI.render(result, session.followUpQa);
 
   // Egg Knowledge (Tabs + unified per-egg insights, Q&A, and tree)
-  renderEggKnowledge(session.isStage1() ? [] : (result.eggResults || []));
+  eggsUI.renderKnowledge(session.isStage1() ? [] : (result.eggResults || []), {
+    activeEggTab: session.activeEggTab,
+    onTabChange: (newTab) => { session.activeEggTab = newTab; },
+  });
 
   bannersUI.hideSuccess();
-}
-
-
-function renderEggKnowledge(eggResults = []) {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderEggKnowledge;
-  if (fn && fn !== renderEggKnowledge) {
-    fn(eggResults, {
-      eggKnowledgeSection: eggsUI.eggKnowledgeSection,
-      eggKnowledgeContent: eggsUI.eggKnowledgeContent,
-      eggTabsBar: eggsUI.eggTabsBar,
-      eggKnowledgeHint: eggsUI.eggKnowledgeHint,
-      activeEggTab: session.activeEggTab,
-      onTabChange: (newTab) => { session.activeEggTab = newTab; },
-    });
-  }
 }
 
 /** Reflect nutCollected/eggHatched in the two action buttons. */
@@ -1527,37 +1468,6 @@ function showHistoryEntry(entry) {
   actionsUI.renderHistory(session.captureHistory, entry.nutId);
 }
 
-/** Render clickable source pills and supporting quotes for a Q&A answer. */
-function renderQaSources(sources) {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderQaSources;
-  if (fn && fn !== renderQaSources) {
-    return fn(sources);
-  }
-  return "";
-}
-
-/** Render the Mind Map hierarchical concept tree. */
-function renderMindMap(nodes) {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderMindMap;
-  if (fn && fn !== renderMindMap) {
-    fn(nodes, mindmapUI.mindmapTree);
-  }
-}
-
-/** Render the "Your Questions" section: initial answers + follow-ups. */
-function renderCustomQuestions() {
-  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderCustomQuestions;
-  if (fn && fn !== renderCustomQuestions) {
-    fn({
-      customQuestionsSection: qaUI.customQuestionsSection,
-      customQuestionsList: qaUI.customQuestionsList,
-      followupInput: qaUI.followupInput,
-      questions: session.analysisResult?.customQuestionAnswers,
-      followUps: session.followUpQa,
-    });
-  }
-}
-
 /** Ask a follow-up question against the already-analyzed content. */
 async function handleFollowUp() {
   const pinnedTabId = session.activeTabId;
@@ -1565,7 +1475,7 @@ async function handleFollowUp() {
   if (!q || qaUI.followupBtn?.disabled) return;
   qaUI.clearFollowup();
   qaUI.setFollowupLoading(true);
-  renderCustomQuestions();
+  qaUI.render(session.analysisResult, session.followUpQa);
 
   await analysisService.askFollowUp({
     session,
@@ -1579,7 +1489,7 @@ async function handleFollowUp() {
 
   if (session.activeTabId === pinnedTabId) {
     qaUI.setFollowupLoading(false);
-    renderCustomQuestions();
+    qaUI.render(session.analysisResult, session.followUpQa);
   }
 }
 
@@ -1752,21 +1662,13 @@ if (typeof module !== "undefined" && module.exports) {
     helper,
     extractTimestamp: helper.extractTimestamp,
     linkifyTimestamps: helper.linkifyTimestamps,
-    renderQaSources,
     timeToSeconds: helper.timeToSeconds,
     unwrapMindMapRoots: helper.unwrapMindMapRoots,
     initCollapsibleSections,
     resetCollapsibleSections,
-    renderMindMap: globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap || renderMindMap,
-    renderChapterMap: globalThis.NutEggUI?.renderChapterMap || globalThis.renderChapterMap,
-    renderCustomQuestions,
     buildPriorQa: helper.buildPriorQa,
     handleSourcePillClick,
     cleanEggName: helper.cleanEggName,
-    renderCaptureEggsList,
-    updateCaptureEggsLabel,
-    renderEggsSection,
-    renderEggKnowledge,
     tabStateManager,
     tabResultCache,
     settings,

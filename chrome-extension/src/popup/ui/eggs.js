@@ -29,7 +29,7 @@ function cleanEggName(fileName) {
 }
 
 /** Render target egg checklist on the capture screen (State 1). */
-function renderCaptureEggsList(options = {}) {
+function _renderCaptureEggsList(options = {}) {
   const listEl = options.captureEggsList || (typeof captureEggsList !== "undefined" ? captureEggsList : (typeof document !== "undefined" ? document.getElementById("capture-eggs-list") : null));
   const toggleEl = options.captureEggsToggle || (typeof captureEggsToggle !== "undefined" ? captureEggsToggle : (typeof document !== "undefined" ? document.getElementById("capture-eggs-toggle") : null));
   const eggs = options.allEggs || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
@@ -64,7 +64,7 @@ function renderCaptureEggsList(options = {}) {
   if (onLabelUpdate) onLabelUpdate();
 }
 
-function updateCaptureEggsLabel(options = {}) {
+function _updateCaptureEggsLabel(options = {}) {
   const labelEl = options.captureEggsLabel || (typeof captureEggsLabel !== "undefined" ? captureEggsLabel : (typeof document !== "undefined" ? document.getElementById("capture-eggs-label") : null));
   const selected = options.preSelectedEggs || (typeof preSelectedEggs !== "undefined" ? preSelectedEggs : (typeof window !== "undefined" ? window.preSelectedEggs : null)) || new Set();
   if (!labelEl) return;
@@ -82,7 +82,7 @@ function updateCaptureEggsLabel(options = {}) {
  * Render the egg picker: the matched eggs are checked; changing any box
  * reveals the "Re-analyze with selected eggs" button.
  */
-function renderEggsSection(firstArg = [], options = {}) {
+function _renderEggsSection(firstArg = [], options = {}) {
   const matchedEggs = Array.isArray(firstArg) ? firstArg : (firstArg?.matchedEggs || []);
   const opts = Array.isArray(firstArg) ? options : (firstArg || {});
   const rawEggs = opts.allEggs || (typeof session !== "undefined" ? session.allEggs : null) || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
@@ -179,7 +179,7 @@ function renderEggsSection(firstArg = [], options = {}) {
   if (createFormEl) createFormEl.classList.add("hidden");
 }
 
-function renderEggKnowledge(firstArg = [], options = {}) {
+function _renderEggKnowledge(firstArg = [], options = {}) {
   const eggResults = Array.isArray(firstArg) ? firstArg : (firstArg?.eggResults || []);
   const opts = Array.isArray(firstArg) ? options : (firstArg || {});
   const sectionEl = opts.eggKnowledgeSection || (typeof eggKnowledgeSection !== "undefined" ? eggKnowledgeSection : (typeof document !== "undefined" ? document.getElementById("egg-knowledge-section") : null));
@@ -559,14 +559,27 @@ class EggsComponent {
     return isCurrentlyHidden;
   }
 
+  updateCaptureLabel(selected = null) {
+    return _updateCaptureEggsLabel({
+      captureEggsLabel: this.captureEggsLabel,
+      preSelectedEggs: selected,
+    });
+  }
+
   renderCaptureList(options = {}) {
-    return renderCaptureEggsList({ ...options, captureEggsList: this.captureEggsList, captureEggsToggle: this.captureEggsToggle });
+    return _renderCaptureEggsList({
+      captureEggsList: this.captureEggsList,
+      captureEggsToggle: this.captureEggsToggle,
+      captureEggsLabel: this.captureEggsLabel,
+      updateLabel: () => this.updateCaptureLabel(options.preSelectedEggs),
+      ...options,
+    });
   }
 
   renderSection(firstArg = [], options = {}) {
     const matched = Array.isArray(firstArg) ? firstArg : (firstArg?.matchedEggs || []);
     const opts = Array.isArray(firstArg) ? options : (firstArg || {});
-    return renderEggsSection(matched, {
+    return _renderEggsSection(matched, {
       eggsSection: this.eggsSection,
       eggsList: this.eggsList,
       eggsExpanded: this.eggsExpanded,
@@ -582,7 +595,7 @@ class EggsComponent {
   renderKnowledge(firstArg = [], options = {}) {
     const eggResults = Array.isArray(firstArg) ? firstArg : (firstArg?.eggResults || []);
     const opts = Array.isArray(firstArg) ? options : (firstArg || {});
-    return renderEggKnowledge(eggResults, {
+    return _renderEggKnowledge(eggResults, {
       eggKnowledgeSection: this.eggKnowledgeSection,
       eggKnowledgeContent: this.eggKnowledgeContent,
       eggTabsBar: this.eggTabsBar,
@@ -667,25 +680,25 @@ const _eggScope = typeof window !== "undefined" ? window : (typeof globalThis !=
 _eggScope.NutEggUI = _eggScope.NutEggUI || {};
 _eggScope.NutEggUI.EggsComponent = EggsComponent;
 _eggScope.NutEggUI.cleanEggName = cleanEggName;
-_eggScope.NutEggUI.renderCaptureEggsList = renderCaptureEggsList;
-_eggScope.NutEggUI.updateCaptureEggsLabel = updateCaptureEggsLabel;
-_eggScope.NutEggUI.renderEggsSection = renderEggsSection;
-_eggScope.NutEggUI.renderEggKnowledge = renderEggKnowledge;
+_eggScope.NutEggUI.renderCaptureEggsList = _renderCaptureEggsList;
+_eggScope.NutEggUI.updateCaptureEggsLabel = _updateCaptureEggsLabel;
+_eggScope.NutEggUI.renderEggsSection = _renderEggsSection;
+_eggScope.NutEggUI.renderEggKnowledge = _renderEggKnowledge;
 _eggScope.EggsComponent = EggsComponent;
 _eggScope.cleanEggName = cleanEggName;
-_eggScope.renderCaptureEggsList = renderCaptureEggsList;
-_eggScope.updateCaptureEggsLabel = updateCaptureEggsLabel;
-_eggScope.renderEggsSection = renderEggsSection;
-_eggScope.renderEggKnowledge = renderEggKnowledge;
+_eggScope.renderCaptureEggsList = _renderCaptureEggsList;
+_eggScope.updateCaptureEggsLabel = _updateCaptureEggsLabel;
+_eggScope.renderEggsSection = _renderEggsSection;
+_eggScope.renderEggKnowledge = _renderEggKnowledge;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     EggsComponent,
     cleanEggName,
-    renderCaptureEggsList,
-    updateCaptureEggsLabel,
-    renderEggsSection,
-    renderEggKnowledge,
+    renderCaptureEggsList: _renderCaptureEggsList,
+    updateCaptureEggsLabel: _updateCaptureEggsLabel,
+    renderEggsSection: _renderEggsSection,
+    renderEggKnowledge: _renderEggKnowledge,
   };
 }
 

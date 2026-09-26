@@ -60,10 +60,10 @@ global.chrome = {
 const {
   extractTimestamp,
   timeToSeconds,
-  renderQaSources,
   linkifyTimestamps,
   unwrapMindMapRoots,
-} = require("../src/popup/popup.js");
+} = require("../src/popup/helpers.js");
+const { renderQaSources } = require("../src/popup/ui/qa.js");
 
 test("extractTimestamp - extracts standard MM:SS and HH:MM:SS", () => {
   assert.equal(extractTimestamp("12:34"), "12:34");

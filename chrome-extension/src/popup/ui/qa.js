@@ -110,7 +110,7 @@ function renderQaSources(sources) {
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
-function renderCustomQuestions(options = {}) {
+function _renderCustomQuestions(options = {}) {
   const sectionEl = options.customQuestionsSection || (typeof customQuestionsSection !== "undefined" ? customQuestionsSection : (typeof document !== "undefined" ? document.getElementById("custom-questions-section") : null));
   const listEl = options.customQuestionsList || (typeof customQuestionsList !== "undefined" ? customQuestionsList : (typeof document !== "undefined" ? document.getElementById("custom-questions-list") : null));
   const inputEl = options.followupInput || (typeof followupInput !== "undefined" ? followupInput : (typeof document !== "undefined" ? document.getElementById("followup-input") : null));
@@ -191,8 +191,40 @@ class QaComponent {
     this.followupBtn = root.getElementById("followup-btn");
   }
 
-  render(res, qaList) {
-    return renderCustomQuestions(res, qaList);
+  render(firstArg, secondArg) {
+    if (firstArg && typeof firstArg === "object" && (firstArg.customQuestionsSection || firstArg.customQuestionsList)) {
+      return _renderCustomQuestions({
+        customQuestionsSection: this.customQuestionsSection,
+        customQuestionsList: this.customQuestionsList,
+        followupInput: this.followupInput,
+        ...firstArg,
+      });
+    }
+
+    let questions = [];
+    let followUps = [];
+    if (firstArg && typeof firstArg === "object") {
+      if (Array.isArray(firstArg.questions)) {
+        questions = firstArg.questions;
+        followUps = firstArg.followUps || secondArg || [];
+      } else if (firstArg.analysisResult) {
+        questions = firstArg.analysisResult.customQuestionAnswers || [];
+        followUps = firstArg.followUpQa || secondArg || [];
+      } else if (firstArg.customQuestionAnswers) {
+        questions = firstArg.customQuestionAnswers || [];
+        followUps = secondArg || [];
+      } else if (Array.isArray(firstArg)) {
+        questions = firstArg;
+        followUps = secondArg || [];
+      }
+    }
+    return _renderCustomQuestions({
+      customQuestionsSection: this.customQuestionsSection,
+      customQuestionsList: this.customQuestionsList,
+      followupInput: this.followupInput,
+      questions,
+      followUps,
+    });
   }
 
   getFollowupText() {
@@ -222,13 +254,13 @@ _qaScope.NutEggUI = _qaScope.NutEggUI || {};
 _qaScope.NutEggUI.QaComponent = QaComponent;
 _qaScope.NutEggUI.linkifyTimestamps = linkifyTimestamps;
 _qaScope.NutEggUI.renderQaSources = renderQaSources;
-_qaScope.NutEggUI.renderCustomQuestions = renderCustomQuestions;
+_qaScope.NutEggUI.renderCustomQuestions = _renderCustomQuestions;
 _qaScope.NutEggUI.buildPriorQa = buildPriorQa;
 _qaScope.NutEggUI.handleSourcePillClick = handleSourcePillClick;
 _qaScope.QaComponent = QaComponent;
 _qaScope.linkifyTimestamps = linkifyTimestamps;
 _qaScope.renderQaSources = renderQaSources;
-_qaScope.renderCustomQuestions = renderCustomQuestions;
+_qaScope.renderCustomQuestions = _renderCustomQuestions;
 _qaScope.buildPriorQa = buildPriorQa;
 _qaScope.handleSourcePillClick = handleSourcePillClick;
 
@@ -237,7 +269,7 @@ if (typeof module !== "undefined" && module.exports) {
     QaComponent,
     linkifyTimestamps,
     renderQaSources,
-    renderCustomQuestions,
+    renderCustomQuestions: _renderCustomQuestions,
     buildPriorQa,
     handleSourcePillClick,
   };
