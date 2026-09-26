@@ -7,6 +7,7 @@ if (typeof require !== "undefined") {
     const sessionState = require("./state/session-state.js");
     const pageExtractorService = require("./services/page-extractor.js");
     const analysisServiceModule = require("./services/analysis-service.js");
+    const environmentServiceModule = require("./services/environment-service.js");
     const collapsibleUI = require("./ui/collapsible.js");
     const mindmapUI = require("./ui/mindmap.js");
     const chaptersUI = require("./ui/chapters.js");
@@ -28,6 +29,7 @@ if (typeof require !== "undefined") {
       sessionState,
       pageExtractorService,
       analysisServiceModule,
+      environmentServiceModule,
       collapsibleUI,
       mindmapUI,
       chaptersUI,
@@ -78,11 +80,19 @@ const eggsUI = new (globalThis.NutEggUI?.EggsComponent || (typeof EggsComponent 
  *  and back, the cached result is restored instead of re-extracting. */
 const tabStateManager = typeof TabStateManager !== "undefined" ? new TabStateManager() : new (globalThis.NutEggTabState?.TabStateManager || Map)();
 const tabResultCache = tabStateManager;
-const tabExtractSeq = tabStateManager.extractSeq || new Map();
-const tabsExtracting = tabStateManager.extracting || new Set();
 
 /** Persisted user preferences and environment/connection status. */
 const settings = new (globalThis.NutEggState?.SettingsState || (typeof SettingsState !== "undefined" ? SettingsState : class {}))();
+
+/** Environment & Server health service */
+const envService = new (globalThis.NutEggServices?.EnvironmentService || (typeof EnvironmentService !== "undefined" ? EnvironmentService : class {}))({
+  settings,
+  headerUI,
+  bannersUI,
+  metricsUI,
+  helper,
+  t,
+});
 
 /** Active tab runtime session state (extracted content, analysis, egg selections). */
 const session = new (globalThis.NutEggState?.SessionState || (typeof SessionState !== "undefined" ? SessionState : class {}))();
@@ -128,7 +138,7 @@ async function initPopup() {
       setAnalysisMode(stored.analysisMode);
     }
     if (stored?.cachedMetrics) {
-      applyMetrics(stored.cachedMetrics);
+      metricsUI.render(stored.cachedMetrics);
     }
   } catch {}
 
@@ -151,9 +161,9 @@ async function initPopup() {
       }
       if (changes.enabledSections && changes.enabledSections.newValue) {
         settings.setEnabledSections(changes.enabledSections.newValue);
-        updateSectionChipsUI();
+        sectionsUI.updateUI(settings.enabledSections);
         if (session.analysisResult) {
-          showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
+          showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
         }
       }
       if (
@@ -183,7 +193,7 @@ async function initPopup() {
   });
   actionsUI.confirmBtn.addEventListener("click", handleConfirm);
   actionsUI.collectNutBtn.addEventListener("click", handleSaveRaw);
-  actionsUI.discardBtn.addEventListener("click", handleDiscard);
+  actionsUI.discardBtn.addEventListener("click", () => window.close());
   initCollapsibleSections();
   actionsUI.backBtn.addEventListener("click", async () => {
     showCaptureState();
@@ -201,7 +211,7 @@ async function initPopup() {
         defaultTitle: captureUI.getPageTitle(),
         defaultType: captureUI.getPageType(),
       });
-      showProvenance(session.extractedContent.metadata || {});
+      captureUI.showProvenance(session.extractedContent.metadata || {});
       updateAnalyzeButtonsState();
     } else {
       session.extractedContent = null;
@@ -274,12 +284,12 @@ async function initPopup() {
   if (resultsUI.resultsState) {
     resultsUI.resultsState.addEventListener("click", handleSourcePillClick);
   }
-  captureUI.refreshBtn.addEventListener("click", handleRefresh);
-  eggsUI.createEggBtn.addEventListener("click", handleCreateEgg);
+  captureUI.refreshBtn.addEventListener("click", () => refreshForCurrentTab(true));
+  eggsUI.createEggBtn.addEventListener("click", () => handleCreateEgg(false));
   eggsUI.eggsCreateToggle.addEventListener("click", () => {
     eggsUI.toggleCreateForm();
   });
-  eggsUI.eggsCreateBtn.addEventListener("click", handleCreateEggInline);
+  eggsUI.eggsCreateBtn.addEventListener("click", () => handleCreateEgg(true));
   eggsUI.reanalyzeEggsBtn.addEventListener("click", async () => {
     const pinnedTabId = session.activeTabId;
     const pinnedEggs = [...session.selectedEggs];
@@ -289,7 +299,7 @@ async function initPopup() {
     if (!hasContent) {
       const original = eggsUI.reanalyzeEggsBtn.textContent;
       eggsUI.setReanalyzeLoading(true, t("loadingContent"));
-      hideMessages();
+      bannersUI.hideMessages();
       hideWarning();
 
       try {
@@ -304,7 +314,7 @@ async function initPopup() {
 
       const nowHasContent = !!(session.extractedContent && session.extractedContent.content);
       if (!nowHasContent) {
-        showError(t("couldNotRetrieveContent"));
+        bannersUI.showError(t("couldNotRetrieveContent"));
         bannersUI.errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
         return;
       }
@@ -343,7 +353,7 @@ async function initPopup() {
     const hasContent = !!(session.extractedContent && session.extractedContent.content);
     if (!hasContent) {
       actionsUI.setReanalyzingState(t("loadingContent"));
-      hideMessages();
+      bannersUI.hideMessages();
       hideWarning();
 
       try {
@@ -357,7 +367,7 @@ async function initPopup() {
       const nowHasContent = !!(session.extractedContent && session.extractedContent.content);
       if (!nowHasContent) {
         updateAnalyzeButtonsState();
-        showError(t("couldNotRetrieveContent"));
+        bannersUI.showError(t("couldNotRetrieveContent"));
         bannersUI.errorBanner.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
         return;
       }
@@ -504,19 +514,14 @@ function initSectionChips() {
         showWarning(t("atLeastOneSection"));
         return;
       }
-      updateSectionChipsUI();
+      sectionsUI.updateUI(settings.enabledSections);
 
       // If results are currently showing, update sections visibility dynamically
       if (session.analysisResult) {
-        showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
+        showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
       }
     },
   });
-  updateSectionChipsUI();
-}
-
-/** Update chip visual states (active vs inactive) and active count badges */
-function updateSectionChipsUI() {
   sectionsUI.updateUI(settings.enabledSections);
 }
 
@@ -561,7 +566,7 @@ async function refreshForCurrentTab(forceExtract = false) {
       captureUI.setPageInfo({
         title: tab.title || t("loading"),
         url: tab.url,
-        sourceType: detectPageTypeFromUrl(tab.url),
+        sourceType: helper.detectPageTypeFromUrl(tab.url),
       });
     }
   } catch {}
@@ -632,18 +637,18 @@ async function restoreFromTabCache(tabId, cached) {
 
   if (cached.status === "error" || cached.error) {
     if (session.analysisResult) {
-      showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
+      showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
     } else {
       showCaptureState();
       if (session.extractedContent) {
         captureUI.setPreviewText(session.extractedContent.content || t("noContentExtracted"));
       }
     }
-    showError(cached.error, cached.errorCode);
+    bannersUI.showError(cached.error, cached.errorCode);
   } else if (cached.status === "analyzing") {
     if (cached.analysisResult) {
       // Re-analysis in flight: keep showing results view with analyzing indicator
-      showResultsState(cached.analysisResult, provenanceFromExtraction(session.extractedContent));
+      showResultsState(cached.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
       actionsUI.setReanalyzingState(t("analyzing"));
       actionsUI.setHistorySelectDisabled(true);
       actionsUI.setAnalyzeButtonLoading(true, t("analyzing"));
@@ -657,7 +662,7 @@ async function restoreFromTabCache(tabId, cached) {
     }
   } else if (cached.status === "hatching") {
     if (session.analysisResult) {
-      showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
+      showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
     }
     actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
     actionsUI.setReanalyzingState(t("comparingKnowledge"));
@@ -669,7 +674,7 @@ async function restoreFromTabCache(tabId, cached) {
   } else if (session.analysisResult) {
     session.eggHatched = !!cached.eggHatched;
     session.nutCollected = !!cached.nutCollected;
-    showResultsState(session.analysisResult, provenanceFromExtraction(session.extractedContent));
+    showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
     actionsUI.setHistorySelectDisabled(false);
     if (session.isStage1() && settings.analysisMode === "confirm") {
       actionsUI.showStage1Confirm();
@@ -687,7 +692,7 @@ async function restoreFromTabCache(tabId, cached) {
       } else {
         actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
       }
-      renderHistorySelect(session.currentNutId);
+      actionsUI.renderHistory(session.captureHistory, session.currentNutId);
     }
   } else {
     showCaptureState();
@@ -701,59 +706,41 @@ async function restoreFromTabCache(tabId, cached) {
   }
 }
 
-/** 🔄 Refresh button — cancels any in-flight retrieval on current tab and starts fresh. */
-async function handleRefresh() {
-  await refreshForCurrentTab(true);
-}
-
-/** 🐣 Create an egg from the no-match form, then re-analyze against it. */
-async function handleCreateEgg() {
+/** 🐣 Create an egg from the create form, then re-analyze against it. */
+async function handleCreateEgg(inline = false) {
   const pinnedTabId = session.activeTabId;
   const { name, desc } = eggsUI.getNewEggInput();
-  if (!name || eggsUI.createEggBtn?.disabled) return;
+  const btn = inline ? eggsUI.eggsCreateBtn : eggsUI.createEggBtn;
+  if (!name || btn?.disabled) return;
   eggsUI.setCreateButtonLoading(true);
   try {
     const response = await analysisService.createEgg(name, desc);
     if (response?.success) {
       if (session.activeTabId !== pinnedTabId) return;
-      // Target the newly created egg explicitly
-      const eggFile = response.path ? response.path.split("/").pop() : helper.slugify(name) + ".md";
-      await handleAnalyze(true, [eggFile]);
+      if (inline) {
+        await handleAnalyze(true);
+      } else {
+        const eggFile = response.path ? response.path.split("/").pop() : helper.slugify(name) + ".md";
+        await handleAnalyze(true, [eggFile]);
+      }
       return;
     }
     if (session.activeTabId === pinnedTabId) {
-      showError(response?.error || t("failedToCreateEgg"));
+      const errText = response?.error || t("failedToCreateEgg");
+      if (inline) {
+        eggsUI.showError(`❌ ${errText}`);
+      } else {
+        bannersUI.showError(errText);
+      }
     }
   } catch (err) {
     if (session.activeTabId === pinnedTabId) {
-      showError(err instanceof Error ? err.message : t("failedToCreateEgg"));
-    }
-  }
-  if (session.activeTabId === pinnedTabId) {
-    eggsUI.setCreateButtonLoading(false);
-  }
-}
-
-/** 🐣 Create an egg from the inline form inside the egg picker. */
-async function handleCreateEggInline() {
-  const pinnedTabId = session.activeTabId;
-  const { name, desc } = eggsUI.getNewEggInput();
-  if (!name || eggsUI.eggsCreateBtn?.disabled) return;
-  eggsUI.setCreateButtonLoading(true);
-  try {
-    const response = await analysisService.createEgg(name, desc);
-    if (response?.success) {
-      if (session.activeTabId !== pinnedTabId) return;
-      // Re-analyze with the new egg included
-      await handleAnalyze(true);
-      return;
-    }
-    if (session.activeTabId === pinnedTabId) {
-      eggsUI.showError(`❌ ${response?.error || t("failedToCreateEgg")}`);
-    }
-  } catch (err) {
-    if (session.activeTabId === pinnedTabId) {
-      eggsUI.showError(`❌ ${err instanceof Error ? err.message : t("failedToCreateEgg")}`);
+      const errText = err instanceof Error ? err.message : t("failedToCreateEgg");
+      if (inline) {
+        eggsUI.showError(`❌ ${errText}`);
+      } else {
+        bannersUI.showError(errText);
+      }
     }
   }
   if (session.activeTabId === pinnedTabId) {
@@ -775,8 +762,8 @@ async function fetchEggs() {
 
 /** Render target egg checklist on the capture screen (State 1). */
 function renderCaptureEggsList() {
-  const fn = globalThis.NutEggUI?.renderCaptureEggsList || globalThis.renderCaptureEggsList;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderCaptureEggsList;
+  if (fn && fn !== renderCaptureEggsList) {
     fn({
       captureEggsList: eggsUI.captureEggsList,
       captureEggsToggle: eggsUI.captureEggsToggle,
@@ -789,8 +776,8 @@ function renderCaptureEggsList() {
 }
 
 function updateCaptureEggsLabel() {
-  const fn = globalThis.NutEggUI?.updateCaptureEggsLabel || globalThis.updateCaptureEggsLabel;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.updateCaptureEggsLabel;
+  if (fn && fn !== updateCaptureEggsLabel) {
     fn({
       captureEggsLabel: eggsUI.captureEggsLabel,
       preSelectedEggs: session.preSelectedEggs,
@@ -803,8 +790,8 @@ function updateCaptureEggsLabel() {
  * reveals the "Re-analyze with selected eggs" button.
  */
 function renderEggsSection(matchedEggs) {
-  const fn = globalThis.NutEggUI?.renderEggsSection || globalThis.renderEggsSection;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderEggsSection;
+  if (fn && fn !== renderEggsSection) {
     fn(matchedEggs, {
       allEggs: session.allEggs,
       selectedEggs: session.selectedEggs,
@@ -880,12 +867,12 @@ async function handleProceedStage2(
       onProceedStart: ({ autoSave: as }) => {
         if (isPinnedActive()) {
           actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave: as });
-          hideMessages();
+          bannersUI.hideMessages();
         }
       },
       onProceedError: (error, code) => {
         if (isPinnedActive()) {
-          showError(error, code);
+          bannersUI.showError(error, code);
           updateStage1ProceedBtn();
           if (settings.analysisMode === "confirm") {
             verdictUI.hide();
@@ -896,7 +883,7 @@ async function handleProceedStage2(
       },
       onProceedComplete: ({ response, contentForProvenance: cfp, autoSave: as, skipScroll: ss }) => {
         if (isPinnedActive()) {
-          showResultsState(response, provenanceFromExtraction(cfp));
+          showResultsState(response, helper.provenanceFromExtraction(cfp));
           if (as) {
             session.eggHatched = true;
             session.nutCollected = true;
@@ -904,7 +891,7 @@ async function handleProceedStage2(
             fetchMetrics();
           }
           if (session.captureHistory.length > 0) {
-            renderHistorySelect(session.currentNutId);
+            actionsUI.renderHistory(session.captureHistory, session.currentNutId);
             if (session.isReanalyzing) {
               actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
             }
@@ -921,33 +908,13 @@ async function handleProceedStage2(
           }
         }
       },
-      onSaveSuccess: ({ response, newKnowledge: nk, isHatch: ih, result }) => {
+      onSaveSuccess: (info) => {
         if (isPinnedActive()) {
-          renderHistorySelect(session.currentNutId);
-          const merged = response?.merged || [];
-          const mergedNote = merged.length > 0
-            ? ` 🧹 ${merged
-                .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
-                .join(", ")}`
-            : "";
-          const isStage1BoxVisible = session.isStage1(result) && actionsUI.isStage1ConfirmVisible();
-          if (isStage1BoxVisible) {
-            bannersUI.hideSuccess();
-          } else {
-            if (nk.length > 0) {
-              bannersUI.showSuccess(t("eggHatchedSuccess", { mergedNote }));
-            } else if (ih) {
-              bannersUI.showSuccess(t("eggHatchedNoKnowledge"));
-            } else {
-              bannersUI.showSuccess(t("nutCollectedVault"));
-            }
-          }
-          updateActionButtons();
-          fetchMetrics();
+          handleSaveSuccessNotification(info);
         }
       },
       onSaveError: (msg) => {
-        if (isPinnedActive()) showError(msg);
+        if (isPinnedActive()) bannersUI.showError(msg);
       },
     },
   });
@@ -955,186 +922,56 @@ async function handleProceedStage2(
   return res.error || null;
 }
 
-
-// --- Metrics ---
-
-function applyMetrics(data) {
-  metricsUI.render(data);
+function handleSaveSuccessNotification({ response, newKnowledge: nk, isHatch: ih, result }) {
+  actionsUI.renderHistory(session.captureHistory, session.currentNutId);
+  const merged = response?.merged || [];
+  const mergedNote = merged.length > 0
+    ? ` 🧹 ${merged
+        .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
+        .join(", ")}`
+    : "";
+  const isStage1BoxVisible = session.isStage1(result) && actionsUI.isStage1ConfirmVisible();
+  if (isStage1BoxVisible) {
+    bannersUI.hideSuccess();
+  } else {
+    if (nk.length > 0) {
+      bannersUI.showSuccess(t("eggHatchedSuccess", { mergedNote }));
+    } else if (ih) {
+      bannersUI.showSuccess(t("eggHatchedNoKnowledge"));
+    } else {
+      bannersUI.showSuccess(t("nutCollectedVault"));
+    }
+  }
+  updateActionButtons();
+  fetchMetrics();
 }
+
+// --- Environment & Server Status (Delegated to EnvironmentService) ---
 
 async function fetchMetrics() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: "metrics" });
-    if (response && (response.nuts != null || response.eggs != null)) {
-      applyMetrics(response);
-      chrome.storage?.local?.set?.({ cachedMetrics: response });
-    }
-  } catch {
-    // server may not support /metrics yet
-  }
-}
-
-// --- Config & Credit status ---
-
-function updateVersionDisplay(pluginVersion) {
-  headerUI.updateVersion(null, pluginVersion);
+  return envService.fetchMetrics();
 }
 
 async function checkConfigStatus() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: "config-status" });
-    if (response?.version) {
-      settings.obsidianPluginVersion = response.version;
-      updateVersionDisplay(settings.obsidianPluginVersion);
-    }
-
-    const issues = Array.isArray(response?.issues) ? [...response.issues] : [];
-    const mismatch = getVersionMismatchIssue(response?.version || settings.obsidianPluginVersion);
-    if (mismatch && !issues.some((i) => i.includes("Version mismatch"))) {
-      issues.unshift(mismatch);
-    }
-
-    if (issues.length > 0) {
-      showWarning(issues.join(" • "));
-    } else {
-      hideWarning();
-    }
-    if (response?.credit) {
-      renderCreditPill(response.credit);
-    }
-  } catch {
-    // handled by server status dot
-  }
+  return envService.checkConfigStatus();
 }
 
 async function checkCreditStatus() {
-  if (!settings.serverOnline) {
-    headerUI.hideCredit();
-    return;
-  }
-  try {
-    const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
-    renderCreditPill(credit);
-  } catch {
-    headerUI.hideCredit();
-  }
+  return envService.checkCreditStatus();
 }
-
-function renderCreditPill(credit) {
-  headerUI.renderCredit(credit, settings.serverOnline);
-}
-
-// --- Server check ---
 
 async function checkServerStatus() {
-  let online = false;
-  let version = null;
-  try {
-    const response = await chrome.runtime.sendMessage({ action: "check-server" });
-    online = response?.online || false;
-    version = response?.version || null;
-  } catch {
-    online = false;
-    version = null;
-  }
-
-  settings.setServerStatus({ online, version, aiConfigured: settings.obsidianAiConfigured });
-  updateVersionDisplay(settings.obsidianPluginVersion);
-
-  if (settings.serverOnline) {
-    // Check Obsidian AI config status
-    try {
-      const config = await chrome.runtime.sendMessage({ action: "config-status" });
-      const issues = config?.issues || [];
-      const aiConfigured = !issues.some((i) =>
-        i.toLowerCase().includes("no api key") ||
-        i.toLowerCase().includes("not configured")
-      );
-      settings.setServerStatus({ online: true, version, aiConfigured });
-    } catch {
-      settings.setServerStatus({ online: true, version, aiConfigured: true });
-    }
-
-    checkCreditStatus();
-    metricsUI.showPluginLink(false);
-
-    const mismatch = getVersionMismatchIssue(settings.obsidianPluginVersion);
-    if (mismatch) {
-      showWarning(mismatch);
-    } else {
-      updateServerStatusIndicator();
-    }
-  } else {
-    // Check Chrome AI config status
-    try {
-      const chromeAi = await chrome.runtime.sendMessage({ action: "check-chrome-ai" });
-      settings.setChromeAiStatus({
-        enabled: chromeAi?.enabled || false,
-        configured: chromeAi?.configured || false,
-        provider: chromeAi?.provider || "",
-        model: chromeAi?.model || "",
-      });
-    } catch {
-      settings.setChromeAiStatus({ enabled: false, configured: false });
-    }
-
-    if (settings.chromeAiConfigured) {
-      checkChromeCreditStatus();
-    } else {
-      headerUI.hideCredit();
-    }
-
-    metricsUI.showPluginLink(true);
-    updateServerStatusIndicator();
-  }
-
-  updateCaptureBanners();
-  updateAnalyzeButtonsState();
-}
-
-async function checkChromeCreditStatus() {
-  try {
-    const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
-    if (credit && !settings.serverOnline) {
-      credit.isChromeAi = true;
-      headerUI.renderCredit(credit, false);
-    }
-  } catch {}
-}
-
-function updateCaptureBanners() {
-  bannersUI.updateCaptureBanners({
-    serverOnline: settings.serverOnline,
-    chromeAiConfigured: settings.chromeAiConfigured,
-    chromeAiEnabled: settings.chromeAiEnabled,
+  await envService.checkServerStatus(() => {
+    updateAnalyzeButtonsState();
   });
 }
 
-function updateServerStatusIndicator() {
-  if (settings.serverOnline) {
-    const mismatch = getVersionMismatchIssue(settings.obsidianPluginVersion);
-    if (mismatch) {
-      updateServerStatusTooltip("obsidian-mismatch", settings.obsidianPluginVersion, mismatch);
-    } else if (!settings.obsidianAiConfigured) {
-      updateServerStatusTooltip("obsidian-no-key", settings.obsidianPluginVersion);
-    } else {
-      updateServerStatusTooltip("obsidian-online", settings.obsidianPluginVersion);
-    }
-    return;
-  }
-
-  // Obsidian offline
-  if (settings.chromeAiConfigured) {
-    updateServerStatusTooltip("chrome-ai", null, settings.chromeAiProvider);
-  } else if (settings.chromeAiEnabled) {
-    updateServerStatusTooltip("chrome-no-key", null, settings.chromeAiProvider);
-  } else {
-    updateServerStatusTooltip("offline");
-  }
+function updateCaptureBanners() {
+  envService.updateCaptureBanners();
 }
 
-function updateServerStatusTooltip(state, version = null, extra = null) {
-  headerUI.updateServerStatus(state, version, extra);
+function updateServerStatusIndicator() {
+  envService.updateServerStatusIndicator();
 }
 
 // --- Button Readiness & State ---
@@ -1236,7 +1073,7 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
     captureUI.setPageInfo({
       title: tabTitle || t("retrieving"),
       url: tabUrl || "",
-      sourceType: detectPageTypeFromUrl(tabUrl || ""),
+      sourceType: helper.detectPageTypeFromUrl(tabUrl || ""),
     });
     updateAnalyzeButtonsState();
   }
@@ -1292,7 +1129,7 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
           sourceType: content.sourceType || captureUI.getPageType(),
         });
         captureUI.setPreviewText(content.content || "(No content extracted)");
-        showProvenance(content.metadata || {});
+        captureUI.showProvenance(content.metadata || {});
         applyTranscriptBlock();
         updateAnalyzeButtonsState();
       }
@@ -1324,23 +1161,8 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
   return null;
 }
 
-/** Show the author + published date extracted from the page itself. */
-function showProvenance(metadata) {
-  captureUI.showProvenance(metadata);
-}
-
-/** Title/author/publish-time card at the top of the results view. */
-function renderResultProvenance(prov) {
-  resultsUI.renderProvenance(prov);
-}
-
 // --- Analyze ---
 
-/**
- * Send an analyze request via a long-lived port connection instead of a
- * one-shot `sendMessage`. The open port prevents Chrome from terminating
- * the service worker during extended LLM calls (>30s).
- */
 /**
  * Send an analyze request via a long-lived port connection instead of a
  * one-shot `sendMessage`. The open port prevents Chrome from terminating
@@ -1392,11 +1214,11 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
         if (isPinnedActive()) showWarning(msg);
       },
       onError: (msg, code) => {
-        if (isPinnedActive()) showError(msg, code);
+        if (isPinnedActive()) bannersUI.showError(msg, code);
       },
       onStart: ({ isReanalyze: ir }) => {
         if (isPinnedActive()) {
-          hideMessages();
+          bannersUI.hideMessages();
           if (ir) {
             actionsUI.showProcessedNote(t("analyzingContent"));
             actionsUI.setReanalyzingState(t("analyzing"));
@@ -1407,7 +1229,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       },
       onStage1Interim: ({ response, eggsForStage2, isReanalyze: ir, contentToAnalyze: cta }) => {
         if (isPinnedActive()) {
-          showResultsState(response, provenanceFromExtraction(cta));
+          showResultsState(response, helper.provenanceFromExtraction(cta));
           if (ir) {
             actionsUI.showProcessedNote(t("comparingAgainstSelected"));
             actionsUI.setReanalyzingState(t("comparingKnowledge"));
@@ -1424,10 +1246,10 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       },
       onStage1Complete: ({ response, contentToAnalyze: cta, isReanalyze: ir }) => {
         if (isPinnedActive()) {
-          showResultsState(response, provenanceFromExtraction(cta));
+          showResultsState(response, helper.provenanceFromExtraction(cta));
           if (ir || session.captureHistory.length > 0) {
             actionsUI.showProcessedNote(ir ? t("reanalyzedFreshResult") : t("stage1Complete"));
-            renderHistorySelect(session.currentNutId);
+            actionsUI.renderHistory(session.captureHistory, session.currentNutId);
           }
         }
       },
@@ -1450,12 +1272,12 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       onProceedStart: ({ autoSave: as }) => {
         if (isPinnedActive()) {
           actionsUI.updateStage1ProceedBtn({ isProceeding: true, autoSave: as });
-          hideMessages();
+          bannersUI.hideMessages();
         }
       },
       onProceedError: (error, code) => {
         if (isPinnedActive()) {
-          showError(error, code);
+          bannersUI.showError(error, code);
           updateStage1ProceedBtn();
           if (settings.analysisMode === "confirm") {
             verdictUI.hide();
@@ -1466,7 +1288,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
       },
       onProceedComplete: ({ response, contentForProvenance: cfp, autoSave: as, skipScroll: ss }) => {
         if (isPinnedActive()) {
-          showResultsState(response, provenanceFromExtraction(cfp));
+          showResultsState(response, helper.provenanceFromExtraction(cfp));
           if (as) {
             session.eggHatched = true;
             session.nutCollected = true;
@@ -1474,7 +1296,7 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
             fetchMetrics();
           }
           if (session.captureHistory.length > 0) {
-            renderHistorySelect(session.currentNutId);
+            actionsUI.renderHistory(session.captureHistory, session.currentNutId);
             if (session.isReanalyzing) {
               actionsUI.showProcessedNote(t("reanalyzedFreshResult"));
             }
@@ -1491,33 +1313,13 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
           }
         }
       },
-      onSaveSuccess: ({ response, newKnowledge: nk, isHatch: ih, result }) => {
+      onSaveSuccess: (info) => {
         if (isPinnedActive()) {
-          renderHistorySelect(session.currentNutId);
-          const merged = response?.merged || [];
-          const mergedNote = merged.length > 0
-            ? ` 🧹 ${merged
-                .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
-                .join(", ")}`
-            : "";
-          const isStage1BoxVisible = session.isStage1(result) && actionsUI.isStage1ConfirmVisible();
-          if (isStage1BoxVisible) {
-            bannersUI.hideSuccess();
-          } else {
-            if (nk.length > 0) {
-              bannersUI.showSuccess(t("eggHatchedSuccess", { mergedNote }));
-            } else if (ih) {
-              bannersUI.showSuccess(t("eggHatchedNoKnowledge"));
-            } else {
-              bannersUI.showSuccess(t("nutCollectedVault"));
-            }
-          }
-          updateActionButtons();
-          fetchMetrics();
+          handleSaveSuccessNotification(info);
         }
       },
       onSaveError: (msg) => {
-        if (isPinnedActive()) showError(msg);
+        if (isPinnedActive()) bannersUI.showError(msg);
       },
     },
   });
@@ -1529,12 +1331,18 @@ async function handleAnalyze(force = false, eggsOverride = null, isReanalyze = f
 
 /** Initialize collapsible behavior for all result sections in results-state. */
 function initCollapsibleSections() {
-  (globalThis.NutEggUI?.initCollapsibleSections || globalThis.initCollapsibleSections)?.();
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.initCollapsibleSections;
+  if (fn && fn !== initCollapsibleSections) {
+    fn();
+  }
 }
 
 /** Reset all result sections to expanded state. */
 function resetCollapsibleSections() {
-  (globalThis.NutEggUI?.resetCollapsibleSections || globalThis.resetCollapsibleSections)?.();
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.resetCollapsibleSections;
+  if (fn && fn !== resetCollapsibleSections) {
+    fn();
+  }
 }
 
 // --- Show results ---
@@ -1645,8 +1453,8 @@ function showResultsState(result, provenance = null) {
 
 
 function renderEggKnowledge(eggResults = []) {
-  const fn = globalThis.NutEggUI?.renderEggKnowledge || globalThis.renderEggKnowledge;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderEggKnowledge;
+  if (fn && fn !== renderEggKnowledge) {
     fn(eggResults, {
       eggKnowledgeSection: eggsUI.eggKnowledgeSection,
       eggKnowledgeContent: eggsUI.eggKnowledgeContent,
@@ -1744,7 +1552,7 @@ function showHistoryEntry(entry) {
   }
 
   // Stored provenance from the DB row, falling back to the live extraction
-  const live = provenanceFromExtraction();
+  const live = helper.provenanceFromExtraction();
   showResultsState(entry.result, {
     title: entry.title || live?.title || "",
     author: entry.author || live?.author || "",
@@ -1758,26 +1566,30 @@ function showHistoryEntry(entry) {
   actionsUI.showProcessedNote(t("capturedWhenStored", { when, state: stateLabel }));
 
   // Version selector when multiple captures exist
-  renderHistorySelect(entry.nutId);
+  actionsUI.renderHistory(session.captureHistory, entry.nutId);
 }
 
 /** Render clickable source pills and supporting quotes for a Q&A answer. */
 function renderQaSources(sources) {
-  return (globalThis.NutEggUI?.renderQaSources || globalThis.renderQaSources)(sources);
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderQaSources;
+  if (fn && fn !== renderQaSources) {
+    return fn(sources);
+  }
+  return "";
 }
 
 /** Render the Mind Map hierarchical concept tree. */
 function renderMindMap(nodes) {
-  const fn = globalThis.NutEggUI?.renderMindMap || globalThis.renderMindMap;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderMindMap;
+  if (fn && fn !== renderMindMap) {
     fn(nodes, mindmapUI.mindmapTree);
   }
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
 function renderCustomQuestions() {
-  const fn = globalThis.NutEggUI?.renderCustomQuestions || globalThis.renderCustomQuestions;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.renderCustomQuestions;
+  if (fn && fn !== renderCustomQuestions) {
     fn({
       customQuestionsSection: qaUI.customQuestionsSection,
       customQuestionsList: qaUI.customQuestionsList,
@@ -1804,7 +1616,7 @@ async function handleFollowUp() {
     question: q,
     pinnedTabId,
     extractFallback: (id) => extractPageContent(session.refreshSeq, id),
-    buildPriorQa: (res, qaList) => buildPriorQa(res, qaList),
+    buildPriorQa: (res, qaList) => helper.buildPriorQa(res, qaList),
   });
 
   if (session.activeTabId === pinnedTabId) {
@@ -1813,8 +1625,6 @@ async function handleFollowUp() {
   }
 }
 
-
-/** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
 /** Seek the active tab's video to a chapter timestamp. */
 async function seekToChapter(seconds) {
   let tabId = session.activeTabId;
@@ -1841,8 +1651,8 @@ async function scrollToSection(heading, quote) {
 
 /** Handle click on source pills (timestamp seek or section scroll). */
 function handleSourcePillClick(e) {
-  const fn = globalThis.NutEggUI?.handleSourcePillClick || globalThis.handleSourcePillClick;
-  if (fn) {
+  const fn = (globalThis.NutEggUI || (typeof window !== "undefined" && window.NutEggUI))?.handleSourcePillClick;
+  if (fn && fn !== handleSourcePillClick) {
     fn(e, {
       onSeek: seekToChapter,
       onScroll: scrollToSection,
@@ -1860,8 +1670,8 @@ function showCaptureState() {
   session.currentNutId = null;
   session.activeEggTab = null;
   resetCollapsibleSections();
-  hideMessages();
-  updateSectionChipsUI();
+  bannersUI.hideMessages();
+  sectionsUI.updateUI(settings.enabledSections);
   renderApp();
 }
 
@@ -1908,7 +1718,7 @@ async function handleSaveRaw() {
   }
   if (!targetContent) {
     if (session.activeTabId === pinnedTabId) {
-      showError(t("couldNotExtractToSave"));
+      bannersUI.showError(t("couldNotExtractToSave"));
       updateActionButtons();
     }
     return;
@@ -1945,54 +1755,19 @@ async function doSave(
     targetPinnedId: targetId,
     extractFallback: (id) => extractPageContent(session.refreshSeq, id),
     callbacks: {
-      onSaveSuccess: ({ response, newKnowledge: nk, isHatch: ih, result }) => {
+      onSaveSuccess: (info) => {
         if (isTargetActive()) {
-          renderHistorySelect(session.currentNutId);
-          const merged = response?.merged || [];
-          const mergedNote = merged.length > 0
-            ? ` 🧹 ${merged
-                .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
-                .join(", ")}`
-            : "";
-          const isStage1BoxVisible = session.isStage1(result) && actionsUI.isStage1ConfirmVisible();
-          if (isStage1BoxVisible) {
-            bannersUI.hideSuccess();
-          } else {
-            if (nk.length > 0) {
-              bannersUI.showSuccess(t("eggHatchedSuccess", { mergedNote }));
-            } else if (ih) {
-              bannersUI.showSuccess(t("eggHatchedNoKnowledge"));
-            } else {
-              bannersUI.showSuccess(t("nutCollectedVault"));
-            }
-          }
-          updateActionButtons();
-          fetchMetrics();
+          handleSaveSuccessNotification(info);
         }
       },
       onSaveError: (msg) => {
-        if (isTargetActive()) showError(msg);
+        if (isTargetActive()) bannersUI.showError(msg);
       },
     },
   });
 }
 
-
-function handleDiscard() { window.close(); }
-
 // --- Messages ---
-
-function showError(msg, errorCode) {
-  bannersUI.showError(msg, errorCode);
-}
-
-function showDuplicate(msg) {
-  bannersUI.showDuplicate(msg);
-}
-
-function hideMessages() {
-  bannersUI.hideMessages();
-}
 
 function showWarning(msg) {
   bannersUI.showWarning(msg);

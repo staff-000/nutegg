@@ -2,7 +2,7 @@
 // NutEgg Popup — Helper & Utility Functions
 // ============================================================
 
-const t = (key, params) => {
+const _helperT = (key, params) => {
   if (typeof window !== "undefined" && window.NutEggI18n) {
     return window.NutEggI18n.t(key, params);
   }
@@ -95,7 +95,7 @@ function linkifyTimestamps(escapedText) {
     (match, open, time1, close, space, time2) => {
       const time = time1 || time2;
       const leading = space || "";
-      const title = escapeHtml(t("jumpToVideoTime", { time }) || `Jump to video ${time}`);
+      const title = escapeHtml(_helperT("jumpToVideoTime", { time }) || `Jump to video ${time}`);
       return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="${title}"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
     }
   );
@@ -190,7 +190,7 @@ function provenanceFromExtraction(content) {
 function getVersionMismatchIssue(pluginVersion, extVersion) {
   const version = extVersion || (typeof chrome !== "undefined" && chrome.runtime?.getManifest?.()?.version);
   if (pluginVersion && version && pluginVersion !== version) {
-    return t("versionMismatchFull", { extVersion: version, pluginVersion });
+    return _helperT("versionMismatchFull", { extVersion: version, pluginVersion });
   }
   return null;
 }
@@ -227,23 +227,23 @@ function isTranscriptBlocked(extractedContent) {
 function getAnalyzeNotReadyReason(sessionState, settingsState) {
   if (!sessionState) return null;
   if (sessionState.currentTabLoading) {
-    return t("pageStillLoading");
+    return _helperT("pageStillLoading");
   }
   if (sessionState.extractionPending) {
-    return t("retrievingContentWait");
+    return _helperT("retrievingContentWait");
   }
   if (!sessionState.extractedContent || !sessionState.extractedContent.content) {
-    return t("pageOrContentNotReady");
+    return _helperT("pageOrContentNotReady");
   }
   if (isTranscriptBlocked(sessionState.extractedContent)) {
-    return t("transcriptUnavailableAnalyze");
+    return _helperT("transcriptUnavailableAnalyze");
   }
   if (settingsState && !settingsState.serverOnline) {
     if (!settingsState.chromeAiEnabled) {
-      return t("obsidianOfflineStart");
+      return _helperT("obsidianOfflineStart");
     }
     if (!settingsState.chromeAiConfigured) {
-      return t("chromeAiNoKeyConfig");
+      return _helperT("chromeAiNoKeyConfig");
     }
   }
   return null;
@@ -296,7 +296,7 @@ function openGitHubBugReport(errorContext = "", context = {}) {
  * Unified Helper Object
  * Enables calling helper methods via `helper.<methodName>` instead of polluting global scope.
  */
-const helper = {
+const NutEggHelpers = {
   escapeHtml,
   slugify,
   cleanEggName,
@@ -318,16 +318,19 @@ const helper = {
 
 // Browser global namespace attachment
 if (typeof globalThis !== "undefined") {
-  globalThis.helper = helper;
-  globalThis.NutEggHelpers = helper;
+  globalThis.NutEggHelpers = NutEggHelpers;
+  globalThis.helper = NutEggHelpers;
   // Fallback for HTML templates frequently invoking escapeHtml
   globalThis.escapeHtml = escapeHtml;
+  globalThis.detectPageTypeFromUrl = detectPageTypeFromUrl;
+  globalThis.provenanceFromExtraction = provenanceFromExtraction;
 }
 
 // CommonJS export for Node test environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    helper,
-    ...helper,
+    NutEggHelpers,
+    helper: NutEggHelpers,
+    ...NutEggHelpers,
   };
 }
