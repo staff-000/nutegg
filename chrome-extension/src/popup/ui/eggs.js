@@ -531,9 +531,11 @@ class EggsComponent {
     if (expanded) {
       this.eggsExpanded?.classList.remove("hidden");
       if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▾";
+      this.eggsToggle?.setAttribute("aria-expanded", "true");
     } else {
       this.eggsExpanded?.classList.add("hidden");
       if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▸";
+      this.eggsToggle?.setAttribute("aria-expanded", "false");
     }
   }
 

@@ -16,6 +16,7 @@ class AnalyzeAction {
     this.analysisService = deps.analysisService;
     this.envService = deps.envService;
     this.ui = deps.ui || {};
+    this.getTabAction = deps.getTabAction || (() => null);
     this.getSaveAction = deps.getSaveAction || (() => null);
     this.showResultsState = deps.showResultsState || (() => {});
     this.renderApp = deps.renderApp || (() => {});
@@ -321,6 +322,61 @@ class AnalyzeAction {
     });
 
     return res.error || null;
+  }
+
+  async handleReanalyzeEggs() {
+    if (this.ui.eggsUI?.reanalyzeEggsBtn?.disabled) return;
+    const pinnedTabId = this.session?.activeTabId;
+    const pinnedEggs = Array.from(this.session?.selectedEggs || []);
+
+    const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
+    if (!hasContent) {
+      this.ui.eggsUI?.setReanalyzeLoading?.(true, _analyzeT("loadingContent"));
+      this.ui.bannersUI?.hideMessages?.();
+      this.ui.bannersUI?.hideWarning?.();
+
+      try {
+        const tabAction = this.getTabAction?.();
+        if (tabAction?.extractPageContent) {
+          await tabAction.extractPageContent(this.session?.refreshSeq, pinnedTabId);
+        }
+      } catch (err) {
+        console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
+      }
+
+      if (this.session?.activeTabId !== pinnedTabId) return;
+
+      this.ui.eggsUI?.setReanalyzeLoading?.(false, _analyzeT("reanalyzeEggsBtn"));
+
+      const nowHasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
+      if (!nowHasContent) {
+        this.ui.bannersUI?.showError?.(_analyzeT("couldNotRetrieveContent"));
+        return;
+      }
+    }
+
+    if (this.session?.activeTabId !== pinnedTabId) return;
+
+    const notReady = this.getAnalyzeNotReadyReason();
+    if (notReady) {
+      this.ui.bannersUI?.showWarning?.(notReady);
+      return;
+    }
+
+    this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${_analyzeT("analyzing")}`);
+    this.ui.eggsUI?.clearError?.();
+
+    if (this.session?.analysisResult?.stage === "stage1") {
+      await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
+    } else {
+      const error = await this.handleAnalyze(true, pinnedEggs, true);
+      if (error && this.session?.activeTabId === pinnedTabId) {
+        this.ui.eggsUI?.showError?.(`❌ ${error}`);
+      }
+    }
+    if (this.session?.activeTabId === pinnedTabId) {
+      this.ui.eggsUI?.setReanalyzeLoading?.(false, _analyzeT("reanalyzeEggsBtn"));
+    }
   }
 }
 

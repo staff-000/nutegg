@@ -90,6 +90,7 @@ const analyzeAction = new AnalyzeActionClass({
   analysisService,
   envService,
   ui: uiComponents,
+  getTabAction: () => tabAction,
   getSaveAction: () => saveAction,
   showResultsState: (res, prov) => showResultsState(res, prov),
   renderApp: () => renderApp(),
@@ -393,9 +394,34 @@ async function initPopup() {
   headerUI.serverStatus?.addEventListener("click", () => {
     if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
   });
+  headerUI.statusIndicatorWrap?.addEventListener("click", () => {
+    if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+  });
+  headerUI.settingsBtn?.addEventListener("click", () => {
+    if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+  });
+  headerUI.aiCreditPill?.addEventListener("click", () => {
+    if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+  });
+  bannersUI.openSettingsKeyBtn?.addEventListener("click", () => {
+    if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
+  });
 
+  captureUI.questionsToggle?.addEventListener("click", () => {
+    captureUI.toggleQuestionsArea();
+  });
+
+  eggsUI.eggsToggle?.addEventListener("click", () => {
+    eggsUI.toggleEggsList();
+  });
+  eggsUI.eggsCreateToggle?.addEventListener("click", () => {
+    eggsUI.toggleCreateForm();
+  });
   eggsUI.createEggBtn?.addEventListener("click", () => saveAction.handleCreateEgg(false));
   eggsUI.eggsCreateBtn?.addEventListener("click", () => saveAction.handleCreateEgg(true));
+  eggsUI.reanalyzeEggsBtn?.addEventListener("click", () => {
+    analyzeAction.handleReanalyzeEggs();
+  });
 
   const reportBugLink = document.getElementById("report-bug-link");
   reportBugLink?.addEventListener("click", (e) => {

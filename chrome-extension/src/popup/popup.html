@@ -229,11 +229,11 @@
       </div>
 
       <div id="eggs-section" class="result-section hidden">
-        <button id="eggs-toggle" class="questions-toggle">
+        <button id="eggs-toggle" class="questions-toggle" aria-expanded="false">
           <span>🥚 <span data-i18n="eggsHeader">Eggs</span> <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
-          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▾</span>
+          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
         </button>
-        <div id="eggs-expanded">
+        <div id="eggs-expanded" class="hidden">
           <div id="eggs-list" class="eggs-list"></div>
           <div id="eggs-create-inline" class="create-egg-inline">
             <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg">➕ Create a new egg</button>

@@ -111,6 +111,43 @@ describe("Action Handlers", () => {
       assert.ok(res.includes("still loading"));
       assert.ok(warned.includes("still loading"));
     });
+
+    it("handleReanalyzeEggs triggers re-analysis with selected eggs", async () => {
+      let analyzedWithEggs = null;
+      const session = {
+        activeTabId: 1,
+        selectedEggs: new Set(["EggA.md"]),
+        extractedContent: { content: "Sample page content" },
+        analysisResult: { stage: "stage2" },
+      };
+      let loadingState = null;
+      const eggsUI = {
+        reanalyzeEggsBtn: { disabled: false },
+        setReanalyzeLoading: (loading, text) => { loadingState = { loading, text }; },
+        clearError: () => {},
+        showError: () => {},
+      };
+      const bannersUI = {
+        hideMessages: () => {},
+        hideWarning: () => {},
+      };
+      const analysisService = {
+        analyze: async (opts) => {
+          analyzedWithEggs = opts.eggsOverride;
+          return { result: { stage: "stage2" } };
+        },
+      };
+
+      const analyzeAction = new AnalyzeAction({
+        session,
+        analysisService,
+        ui: { eggsUI, bannersUI },
+      });
+
+      await analyzeAction.handleReanalyzeEggs();
+      assert.deepStrictEqual(analyzedWithEggs, ["EggA.md"]);
+      assert.strictEqual(loadingState.loading, false);
+    });
   });
 
   describe("SaveAction", () => {
