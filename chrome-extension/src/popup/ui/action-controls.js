@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Action Controls Component
 // ============================================================
 
-const _actionsT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 class ActionControlsComponent {
   constructor(root = document) {
     this.root = root;
@@ -56,14 +50,14 @@ class ActionControlsComponent {
     if (isAnalyzing) {
       this.analyzeBtn.disabled = true;
       this.analyzeBtn.classList.remove("inactive");
-      if (this.analyzeBtnText) this.analyzeBtnText.textContent = _actionsT("analyzing");
-      this.analyzeBtn.title = _actionsT("analyzing");
+      if (this.analyzeBtnText) this.analyzeBtnText.textContent = t("analyzing");
+      this.analyzeBtn.title = t("analyzing");
 
       if (this.reanalyzeBtn) {
         this.reanalyzeBtn.disabled = true;
         this.reanalyzeBtn.classList.remove("inactive");
-        this.reanalyzeBtn.textContent = _actionsT("analyzing");
-        this.reanalyzeBtn.title = _actionsT("analyzing");
+        this.reanalyzeBtn.textContent = t("analyzing");
+        this.reanalyzeBtn.title = t("analyzing");
       }
       return;
     }
@@ -75,11 +69,11 @@ class ActionControlsComponent {
       this.analyzeBtn.classList.add("inactive");
 
       if (isTranscriptBlocked) {
-        if (this.analyzeBtnText) this.analyzeBtnText.textContent = _actionsT("transcriptUnavailable");
+        if (this.analyzeBtnText) this.analyzeBtnText.textContent = t("transcriptUnavailable");
       } else if (currentTabLoading || extractionPending) {
-        if (this.analyzeBtnText) this.analyzeBtnText.textContent = _actionsT("loadingContent");
+        if (this.analyzeBtnText) this.analyzeBtnText.textContent = t("loadingContent");
       } else {
-        if (this.analyzeBtnText) this.analyzeBtnText.textContent = _actionsT("analyze");
+        if (this.analyzeBtnText) this.analyzeBtnText.textContent = t("analyze");
       }
       this.analyzeBtn.title = notReadyReason;
 
@@ -88,25 +82,25 @@ class ActionControlsComponent {
           if (extractionPending) {
             this.reanalyzeBtn.disabled = true;
             this.reanalyzeBtn.classList.remove("inactive");
-            this.reanalyzeBtn.textContent = _actionsT("loadingContent");
-            this.reanalyzeBtn.title = _actionsT("retrievingPageContent");
+            this.reanalyzeBtn.textContent = t("loadingContent");
+            this.reanalyzeBtn.title = t("retrievingPageContent");
           } else {
             this.reanalyzeBtn.disabled = false;
             this.reanalyzeBtn.classList.remove("inactive");
-            this.reanalyzeBtn.textContent = _actionsT("loadAndReanalyze");
-            this.reanalyzeBtn.title = _actionsT("loadAndReanalyzeTitle");
+            this.reanalyzeBtn.textContent = t("loadAndReanalyze");
+            this.reanalyzeBtn.title = t("loadAndReanalyzeTitle");
           }
         } else {
           this.reanalyzeBtn.disabled = false;
           this.reanalyzeBtn.classList.add("inactive");
-          this.reanalyzeBtn.textContent = _actionsT("reanalyze");
+          this.reanalyzeBtn.textContent = t("reanalyze");
           this.reanalyzeBtn.title = notReadyReason;
         }
       }
     } else {
       this.analyzeBtn.classList.remove("inactive");
       if (this.analyzeBtnText) {
-        this.analyzeBtnText.textContent = hasAnalysisResult ? _actionsT("analyzeAgain") : _actionsT("analyze");
+        this.analyzeBtnText.textContent = hasAnalysisResult ? t("analyzeAgain") : t("analyze");
       }
       this.analyzeBtn.title = "";
 
@@ -114,7 +108,7 @@ class ActionControlsComponent {
         this.reanalyzeBtn.disabled = false;
         this.reanalyzeBtn.classList.remove("inactive");
         this.reanalyzeBtn.title = "";
-        this.reanalyzeBtn.textContent = _actionsT("reanalyze");
+        this.reanalyzeBtn.textContent = t("reanalyze");
       }
     }
   }
@@ -131,22 +125,22 @@ class ActionControlsComponent {
     if (!this.stage1ProceedBtn) return;
     if (isProceeding) {
       this.stage1ProceedBtn.disabled = true;
-      this.stage1ProceedBtn.textContent = autoSave ? _actionsT("hatchingEggWaiting") : _actionsT("analyzing");
+      this.stage1ProceedBtn.textContent = autoSave ? t("hatchingEggWaiting") : t("analyzing");
       return;
     }
     if (selectedCount === 0) {
       this.stage1ProceedBtn.disabled = true;
-      this.stage1ProceedBtn.textContent = _actionsT("hatchEggSelectEgg");
+      this.stage1ProceedBtn.textContent = t("hatchEggSelectEgg");
       if (this.stage1ConfirmText) {
         this.stage1ConfirmText.innerHTML = totalEggsCount === 0
-          ? _actionsT("stage1NoEggsNotice")
-          : _actionsT("stage1NoSelectedNotice");
+          ? t("stage1NoEggsNotice")
+          : t("stage1NoSelectedNotice");
       }
     } else {
       this.stage1ProceedBtn.disabled = false;
-      this.stage1ProceedBtn.textContent = selectedCount === 1 ? _actionsT("hatchEgg") : _actionsT("hatchEggCount", { count: selectedCount });
+      this.stage1ProceedBtn.textContent = selectedCount === 1 ? t("hatchEgg") : t("hatchEggCount", { count: selectedCount });
       if (this.stage1ConfirmText) {
-        this.stage1ConfirmText.innerHTML = _actionsT("stage1SelectedNotice", { count: selectedCount });
+        this.stage1ConfirmText.innerHTML = t("stage1SelectedNotice", { count: selectedCount });
       }
     }
   }
@@ -169,14 +163,14 @@ class ActionControlsComponent {
       if (nutCollected) {
         if (this.collectNutBtn) {
           this.collectNutBtn.disabled = true;
-          this.collectNutBtn.textContent = _actionsT("nutCollected");
+          this.collectNutBtn.textContent = t("nutCollected");
         }
         if (this.stage1SkipBtn) {
           this.stage1SkipBtn.disabled = true;
-          this.stage1SkipBtn.textContent = _actionsT("nutCollected");
+          this.stage1SkipBtn.textContent = t("nutCollected");
         }
         if (this.stage1ConfirmText) {
-          this.stage1ConfirmText.innerHTML = _actionsT("stage1NutSavedNotice");
+          this.stage1ConfirmText.innerHTML = t("stage1NutSavedNotice");
         }
         const confirmIconEl = this.root.querySelector?.(".stage1-confirm-icon");
         if (confirmIconEl) {
@@ -186,11 +180,11 @@ class ActionControlsComponent {
       } else {
         if (this.collectNutBtn) {
           this.collectNutBtn.disabled = false;
-          this.collectNutBtn.textContent = _actionsT("collectNutOnly");
+          this.collectNutBtn.textContent = t("collectNutOnly");
         }
         if (this.stage1SkipBtn) {
           this.stage1SkipBtn.disabled = false;
-          this.stage1SkipBtn.textContent = _actionsT("collectNutOnly");
+          this.stage1SkipBtn.textContent = t("collectNutOnly");
         }
         this.stage1ConfirmBox?.classList.remove("stage1-saved");
       }
@@ -200,12 +194,12 @@ class ActionControlsComponent {
     if (nutCollected) {
       if (this.collectNutBtn) {
         this.collectNutBtn.disabled = true;
-        this.collectNutBtn.textContent = _actionsT("nutCollected");
+        this.collectNutBtn.textContent = t("nutCollected");
       }
     } else {
       if (this.collectNutBtn) {
         this.collectNutBtn.disabled = false;
-        this.collectNutBtn.textContent = _actionsT("collectNut");
+        this.collectNutBtn.textContent = t("collectNut");
       }
     }
 
@@ -213,16 +207,16 @@ class ActionControlsComponent {
       this.confirmBtn.classList.remove("hidden");
       if (eggHatched) {
         this.confirmBtn.disabled = true;
-        this.confirmBtn.textContent = _actionsT("eggHatched");
+        this.confirmBtn.textContent = t("eggHatched");
         this.confirmBtn.title = "";
       } else if (hasDelta) {
         this.confirmBtn.disabled = false;
-        this.confirmBtn.textContent = _actionsT("hatchEgg");
+        this.confirmBtn.textContent = t("hatchEgg");
         this.confirmBtn.title = "";
       } else {
         this.confirmBtn.disabled = true;
-        this.confirmBtn.textContent = _actionsT("hatchEgg");
-        this.confirmBtn.title = _actionsT("noNewKnowledgeToAdd");
+        this.confirmBtn.textContent = t("hatchEgg");
+        this.confirmBtn.title = t("noNewKnowledgeToAdd");
       }
     }
   }
@@ -253,7 +247,7 @@ class ActionControlsComponent {
       this.historySelect.innerHTML = captureHistory
         .map((h, i) => {
           const d = new Date(h.capturedAt).toLocaleString();
-          const s = h.saved === "saved" ? _actionsT("stateSaved") : h.saved === "skip" ? _actionsT("stateCollected") : _actionsT("stateAnalyzed");
+          const s = h.saved === "saved" ? t("stateSaved") : h.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
           const selected = (hasMatch ? String(h.nutId) === String(selectedNutId) : i === 0) ? " selected" : "";
           return `<option value="${i}"${selected}>${d} — ${s}</option>`;
         })

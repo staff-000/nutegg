@@ -16,6 +16,9 @@ globalThis.chrome = {
   },
 };
 
+require("../src/i18n.js");
+require("../src/popup/helpers.js");
+
 const { TabAction } = require("../src/popup/action/tab.js");
 const { AnalyzeAction } = require("../src/popup/action/analyze.js");
 const { SaveAction } = require("../src/popup/action/save.js");

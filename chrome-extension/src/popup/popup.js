@@ -3,11 +3,6 @@
 // ============================================================
 
 // --- Translations & Helpers ---
-function t(key, params) {
-  const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
-  return i18n ? i18n.t(key, params) : key;
-}
-
 const helper = typeof NutEggHelpers !== "undefined" ? NutEggHelpers : (typeof globalThis.NutEggHelpers !== "undefined" ? globalThis.NutEggHelpers : globalThis.helper || {});
 
 // --- Core Services & State Management ---

@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Message Banners Component
 // ============================================================
 
-const _bannersT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 function _bannersEscapeHtml(str) {
   if (typeof escapeHtml === "function") return escapeHtml(str);
   if (typeof document !== "undefined" && document.createElement) {
@@ -49,14 +43,14 @@ class BannersComponent {
 
     if (this.errorHint) {
       const hints = {
-        no_api_key: _bannersT("errorHintNoApiKey"),
-        auth_failed: _bannersT("errorHintAuthFailed"),
-        forbidden: _bannersT("errorHintForbidden"),
-        model_not_found: _bannersT("errorHintModelNotFound"),
-        rate_limited: _bannersT("errorHintRateLimited"),
-        quota_exceeded: _bannersT("errorHintQuotaExceeded"),
-        network_error: _bannersT("errorHintNetwork"),
-        server_error: _bannersT("errorHintServerError"),
+        no_api_key: t("errorHintNoApiKey"),
+        auth_failed: t("errorHintAuthFailed"),
+        forbidden: t("errorHintForbidden"),
+        model_not_found: t("errorHintModelNotFound"),
+        rate_limited: t("errorHintRateLimited"),
+        quota_exceeded: t("errorHintQuotaExceeded"),
+        network_error: t("errorHintNetwork"),
+        server_error: t("errorHintServerError"),
       };
       if (errorCode && hints[errorCode]) {
         this.errorHint.innerHTML = hints[errorCode];
@@ -116,10 +110,10 @@ class BannersComponent {
           this.aiKeyMissingBanner.innerHTML = `
             <span class="key-banner-icon">🔑</span>
             <div class="key-banner-content">
-              ${_bannersT("aiKeyRequiredChrome")}
+              ${t("aiKeyRequiredChrome")}
               <div class="key-banner-actions">
-                <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(_bannersT("openSettingsKeyBtn"))}</button>
-                <span>${_bannersEscapeHtml(_bannersT("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
+                <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(t("openSettingsKeyBtn"))}</button>
+                <span>${_bannersEscapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
               </div>
             </div>
           `;
@@ -127,10 +121,10 @@ class BannersComponent {
           this.aiKeyMissingBanner.innerHTML = `
             <span class="key-banner-icon">⚪</span>
             <div class="key-banner-content">
-              ${_bannersT("obsidianOfflineBanner")}
+              ${t("obsidianOfflineBanner")}
               <div class="key-banner-actions">
-                <button id="open-settings-enable-ai-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(_bannersT("enableChromeAiBtn"))}</button>
-                <span>${_bannersEscapeHtml(_bannersT("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
+                <button id="open-settings-enable-ai-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(t("enableChromeAiBtn"))}</button>
+                <span>${_bannersEscapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
               </div>
             </div>
           `;

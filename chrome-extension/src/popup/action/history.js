@@ -2,12 +2,6 @@
 // NutEgg Popup Action — History Action Handler
 // ============================================================
 
-function _historyT(key, params) {
-  if (typeof t === "function") return t(key, params);
-  if (typeof globalThis !== "undefined" && typeof globalThis.t === "function") return globalThis.t(key, params);
-  return key;
-}
-
 class HistoryAction {
   constructor(deps = {}) {
     this.session = deps.session;
@@ -28,7 +22,7 @@ class HistoryAction {
       if (history?.length) {
         this.session.captureHistory = history;
         this.showHistoryEntry(history[0]);
-        this.ui.actionsUI?.setAnalyzeButtonLoading?.(false, _historyT("analyzeAgain"));
+        this.ui.actionsUI?.setAnalyzeButtonLoading?.(false, t("analyzeAgain"));
         return true;
       }
     } catch {}
@@ -102,8 +96,8 @@ class HistoryAction {
 
     const when = new Date(entry.capturedAt).toLocaleString();
     const stateLabel = entry.saved === "saved"
-      ? _historyT("stateSaved") : entry.saved === "skip" ? _historyT("stateCollected") : _historyT("stateAnalyzed");
-    ui.actionsUI?.showProcessedNote?.(_historyT("capturedWhenStored", { when, state: stateLabel }));
+      ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
+    ui.actionsUI?.showProcessedNote?.(t("capturedWhenStored", { when, state: stateLabel }));
     ui.actionsUI?.renderHistory?.(session.captureHistory, entry.nutId);
   }
 

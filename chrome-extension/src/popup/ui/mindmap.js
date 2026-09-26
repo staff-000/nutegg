@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Mind Map Component
 // ============================================================
 
-const _mindmapT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 /**
  * Unwrap single root node(s) with children so that the mind map directly
  * displays the core branches at the root level instead of an unnecessary single root.
@@ -49,7 +43,7 @@ function renderMindMap(nodes, container) {
       toggleBtn = document.createElement("button");
       toggleBtn.type = "button";
       toggleBtn.className = "mindmap-toggle-btn";
-      toggleBtn.setAttribute("aria-label", _mindmapT("toggleBranch"));
+      toggleBtn.setAttribute("aria-label", t("toggleBranch"));
       toggleBtn.innerHTML = `<span class="mindmap-toggle-icon">▾</span>`;
       headerEl.appendChild(toggleBtn);
     } else {

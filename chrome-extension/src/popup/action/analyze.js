@@ -2,12 +2,6 @@
 // NutEgg Popup Action — Analyze Action Handler
 // ============================================================
 
-function _analyzeT(key, params) {
-  if (typeof t === "function") return t(key, params);
-  if (typeof globalThis !== "undefined" && typeof globalThis.t === "function") return globalThis.t(key, params);
-  return key;
-}
-
 class AnalyzeAction {
   constructor(deps = {}) {
     this.session = deps.session;
@@ -49,7 +43,7 @@ class AnalyzeAction {
   applyTranscriptBlock() {
     if (!this.isTranscriptBlocked()) return;
     this.updateAnalyzeButtonsState();
-    this.ui.bannersUI?.showWarning?.(_analyzeT("transcriptBlockedWarning"));
+    this.ui.bannersUI?.showWarning?.(t("transcriptBlockedWarning"));
   }
 
   getAnalyzeNotReadyReason() {
@@ -107,7 +101,7 @@ class AnalyzeAction {
           if (isPinnedActive()) {
             ui.eggsUI?.expandEggsList?.(true);
             if (ui.eggsUI?.eggsSection) ui.eggsUI.eggsSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            ui.bannersUI?.showWarning?.(_analyzeT("selectEggWarning"));
+            ui.bannersUI?.showWarning?.(t("selectEggWarning"));
           }
         },
         onProceedStart: ({ autoSave: as }) => {
@@ -139,7 +133,7 @@ class AnalyzeAction {
             if (session.captureHistory.length > 0) {
               ui.actionsUI?.renderHistory?.(session.captureHistory, session.currentNutId);
               if (session.isReanalyzing) {
-                ui.actionsUI?.showProcessedNote?.(_analyzeT("reanalyzedFreshResult"));
+                ui.actionsUI?.showProcessedNote?.(t("reanalyzedFreshResult"));
               }
             }
             if (!ss) {
@@ -217,19 +211,19 @@ class AnalyzeAction {
           if (isPinnedActive()) {
             ui.bannersUI?.hideMessages?.();
             if (ir) {
-              ui.actionsUI?.showProcessedNote?.(_analyzeT("analyzingContent"));
-              ui.actionsUI?.setReanalyzingState?.(_analyzeT("analyzing"));
+              ui.actionsUI?.showProcessedNote?.(t("analyzingContent"));
+              ui.actionsUI?.setReanalyzingState?.(t("analyzing"));
             }
             ui.actionsUI?.setHistorySelectDisabled?.(true);
-            ui.actionsUI?.setAnalyzeButtonLoading?.(true, _analyzeT("analyzing"));
+            ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
           }
         },
         onStage1Interim: ({ response, eggsForStage2, isReanalyze: ir, contentToAnalyze: cta }) => {
           if (isPinnedActive()) {
             this.showResultsState(response, pageHelper?.provenanceFromExtraction?.(cta));
             if (ir) {
-              ui.actionsUI?.showProcessedNote?.(_analyzeT("comparingAgainstSelected"));
-              ui.actionsUI?.setReanalyzingState?.(_analyzeT("comparingKnowledge"));
+              ui.actionsUI?.showProcessedNote?.(t("comparingAgainstSelected"));
+              ui.actionsUI?.setReanalyzingState?.(t("comparingKnowledge"));
             }
             if (eggsForStage2.length > 0) {
               if (!ir) {
@@ -245,7 +239,7 @@ class AnalyzeAction {
           if (isPinnedActive()) {
             this.showResultsState(response, pageHelper?.provenanceFromExtraction?.(cta));
             if (ir || session.captureHistory.length > 0) {
-              ui.actionsUI?.showProcessedNote?.(ir ? _analyzeT("reanalyzedFreshResult") : _analyzeT("stage1Complete"));
+              ui.actionsUI?.showProcessedNote?.(ir ? t("reanalyzedFreshResult") : t("stage1Complete"));
               ui.actionsUI?.renderHistory?.(session.captureHistory, session.currentNutId);
             }
           }
@@ -263,7 +257,7 @@ class AnalyzeAction {
           if (isPinnedActive()) {
             ui.eggsUI?.expandEggsList?.(true);
             if (ui.eggsUI?.eggsSection) ui.eggsUI.eggsSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            ui.bannersUI?.showWarning?.(_analyzeT("selectEggWarning"));
+            ui.bannersUI?.showWarning?.(t("selectEggWarning"));
           }
         },
         onProceedStart: ({ autoSave: as }) => {
@@ -295,7 +289,7 @@ class AnalyzeAction {
             if (session.captureHistory.length > 0) {
               ui.actionsUI?.renderHistory?.(session.captureHistory, session.currentNutId);
               if (session.isReanalyzing) {
-                ui.actionsUI?.showProcessedNote?.(_analyzeT("reanalyzedFreshResult"));
+                ui.actionsUI?.showProcessedNote?.(t("reanalyzedFreshResult"));
               }
             }
             if (!ss) {
@@ -331,7 +325,7 @@ class AnalyzeAction {
 
     const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
     if (!hasContent) {
-      this.ui.eggsUI?.setReanalyzeLoading?.(true, _analyzeT("loadingContent"));
+      this.ui.eggsUI?.setReanalyzeLoading?.(true, t("loadingContent"));
       this.ui.bannersUI?.hideMessages?.();
       this.ui.bannersUI?.hideWarning?.();
 
@@ -346,11 +340,11 @@ class AnalyzeAction {
 
       if (this.session?.activeTabId !== pinnedTabId) return;
 
-      this.ui.eggsUI?.setReanalyzeLoading?.(false, _analyzeT("reanalyzeEggsBtn"));
+      this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
 
       const nowHasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
       if (!nowHasContent) {
-        this.ui.bannersUI?.showError?.(_analyzeT("couldNotRetrieveContent"));
+        this.ui.bannersUI?.showError?.(t("couldNotRetrieveContent"));
         return;
       }
     }
@@ -363,7 +357,7 @@ class AnalyzeAction {
       return;
     }
 
-    this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${_analyzeT("analyzing")}`);
+    this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${t("analyzing")}`);
     this.ui.eggsUI?.clearError?.();
 
     if (this.session?.analysisResult?.stage === "stage1") {
@@ -375,7 +369,7 @@ class AnalyzeAction {
       }
     }
     if (this.session?.activeTabId === pinnedTabId) {
-      this.ui.eggsUI?.setReanalyzeLoading?.(false, _analyzeT("reanalyzeEggsBtn"));
+      this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
     }
   }
 }

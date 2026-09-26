@@ -2,15 +2,36 @@
 // NutEgg Popup — Helper & Utility Functions
 // ============================================================
 
-const _helperT = (key, params) => {
-  if (typeof window !== "undefined" && window.NutEggI18n) {
-    return window.NutEggI18n.t(key, params);
+/**
+ * Consolidated Translation Function
+ * Resolves translation via NutEggI18n if available; falls back to key interpolation.
+ */
+function t(key, params) {
+  const i18n = (typeof globalThis !== "undefined" && globalThis.NutEggI18n) ||
+               (typeof window !== "undefined" && window.NutEggI18n) ||
+               null;
+  if (i18n && typeof i18n.t === "function") {
+    return i18n.t(key, params);
   }
   if (key === "versionMismatchFull" && params) {
     return `Version mismatch: Extension v${params.extVersion} vs Plugin v${params.pluginVersion}`;
   }
+  if (params && typeof key === "string") {
+    let str = key;
+    for (const [k, v] of Object.entries(params)) {
+      str = str.replace(new RegExp("\\{" + k + "\\}", "g"), String(v));
+    }
+    return str;
+  }
   return key;
-};
+}
+
+if (typeof globalThis !== "undefined" && typeof globalThis.t !== "function") {
+  globalThis.t = t;
+}
+if (typeof window !== "undefined" && typeof window.t !== "function") {
+  window.t = t;
+}
 
 /**
  * Known video/audio media platform identifiers.
@@ -95,7 +116,7 @@ function linkifyTimestamps(escapedText) {
     (match, open, time1, close, space, time2) => {
       const time = time1 || time2;
       const leading = space || "";
-      const title = escapeHtml(_helperT("jumpToVideoTime", { time }) || `Jump to video ${time}`);
+      const title = escapeHtml(t("jumpToVideoTime", { time }) || `Jump to video ${time}`);
       return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="${title}"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
     }
   );
@@ -190,7 +211,7 @@ function provenanceFromExtraction(content) {
 function getVersionMismatchIssue(pluginVersion, extVersion) {
   const version = extVersion || (typeof chrome !== "undefined" && chrome.runtime?.getManifest?.()?.version);
   if (pluginVersion && version && pluginVersion !== version) {
-    return _helperT("versionMismatchFull", { extVersion: version, pluginVersion });
+    return t("versionMismatchFull", { extVersion: version, pluginVersion });
   }
   return null;
 }
@@ -227,23 +248,23 @@ function isTranscriptBlocked(extractedContent) {
 function getAnalyzeNotReadyReason(sessionState, settingsState) {
   if (!sessionState) return null;
   if (sessionState.currentTabLoading) {
-    return _helperT("pageStillLoading");
+    return t("pageStillLoading");
   }
   if (sessionState.extractionPending) {
-    return _helperT("retrievingContentWait");
+    return t("retrievingContentWait");
   }
   if (!sessionState.extractedContent || !sessionState.extractedContent.content) {
-    return _helperT("pageOrContentNotReady");
+    return t("pageOrContentNotReady");
   }
   if (isTranscriptBlocked(sessionState.extractedContent)) {
-    return _helperT("transcriptUnavailableAnalyze");
+    return t("transcriptUnavailableAnalyze");
   }
   if (settingsState && !settingsState.serverOnline) {
     if (!settingsState.chromeAiEnabled) {
-      return _helperT("obsidianOfflineStart");
+      return t("obsidianOfflineStart");
     }
     if (!settingsState.chromeAiConfigured) {
-      return _helperT("chromeAiNoKeyConfig");
+      return t("chromeAiNoKeyConfig");
     }
   }
   return null;
@@ -297,6 +318,7 @@ function openGitHubBugReport(errorContext = "", context = {}) {
  * Enables calling helper methods via `helper.<methodName>` instead of polluting global scope.
  */
 const NutEggHelpers = {
+  t,
   escapeHtml,
   slugify,
   cleanEggName,
@@ -320,6 +342,7 @@ const NutEggHelpers = {
 if (typeof globalThis !== "undefined") {
   globalThis.NutEggHelpers = NutEggHelpers;
   globalThis.helper = NutEggHelpers;
+  globalThis.t = globalThis.t || t;
   // Fallback for HTML templates frequently invoking escapeHtml
   globalThis.escapeHtml = escapeHtml;
   globalThis.detectPageTypeFromUrl = detectPageTypeFromUrl;
@@ -331,6 +354,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     NutEggHelpers,
     helper: NutEggHelpers,
+    t,
     ...NutEggHelpers,
   };
 }

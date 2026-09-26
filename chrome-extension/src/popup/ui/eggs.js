@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Eggs Component
 // ============================================================
 
-const _eggT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 function _eggEscapeHtml(str) {
   if (typeof escapeHtml === "function") return escapeHtml(str);
   if (typeof document !== "undefined" && document.createElement) {
@@ -69,12 +63,12 @@ function _updateCaptureEggsLabel(options = {}) {
   const selected = options.preSelectedEggs || (typeof preSelectedEggs !== "undefined" ? preSelectedEggs : (typeof window !== "undefined" ? window.preSelectedEggs : null)) || new Set();
   if (!labelEl) return;
   if (selected.size === 0) {
-    labelEl.textContent = _eggT("autoDetect");
+    labelEl.textContent = t("autoDetect");
   } else if (selected.size === 1) {
     const egg = [...selected][0].split("/").pop();
     labelEl.textContent = `(${egg})`;
   } else {
-    labelEl.textContent = _eggT("countSelected", { count: selected.size });
+    labelEl.textContent = t("countSelected", { count: selected.size });
   }
 }
 
@@ -113,7 +107,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
     }
     if (sectionEl) sectionEl.classList.remove("hidden");
     if (expandedEl) expandedEl.classList.remove("hidden");
-    if (toggleLabelEl) toggleLabelEl.textContent = _eggT("noneMatched");
+    if (toggleLabelEl) toggleLabelEl.textContent = t("noneMatched");
     return;
   }
 
@@ -140,8 +134,8 @@ function _renderEggsSection(firstArg = [], options = {}) {
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
     toggleLabelEl.textContent = matchedEggs.length > 0
-      ? _eggT("countMatched", { count: matchedEggs.length })
-      : _eggT("noneMatched");
+      ? t("countMatched", { count: matchedEggs.length })
+      : t("noneMatched");
   }
 
   if (listEl) {
@@ -215,7 +209,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
   // Render Tabs (only if 2+ eggs)
   if (eggResults.length > 1 && tabsBarEl) {
     tabsBarEl.classList.remove("hidden");
-    if (hintEl) hintEl.textContent = _eggT("eggsMatchedCount", { count: eggResults.length });
+    if (hintEl) hintEl.textContent = t("eggsMatchedCount", { count: eggResults.length });
 
     const totalNewCount = eggResults.reduce((acc, r) => acc + (r.novelDelta?.length || 0), 0);
 
@@ -248,8 +242,8 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
     tabsBarEl.innerHTML =
       tabsHtml +
       `
-      <button type="button" class="egg-tab-btn${isAllActive}" data-tab="all" title="${_eggEscapeHtml(_eggT("viewAllEggs"))}">
-        <span class="egg-tab-name">📋 ${_eggEscapeHtml(_eggT("allEggsTab"))}</span>
+      <button type="button" class="egg-tab-btn${isAllActive}" data-tab="all" title="${_eggEscapeHtml(t("viewAllEggs"))}">
+        <span class="egg-tab-name">📋 ${_eggEscapeHtml(t("allEggsTab"))}</span>
         <span class="egg-tab-badge ${allBadgeClass}">${allBadgeText}</span>
       </button>`;
 
@@ -308,17 +302,17 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
       if (r.rejected) {
         statusNote = `
           <div class="egg-status-banner banner-reject">
-            ${_eggT("rejectedByEgg", { reason: _eggEscapeHtml(r.rejectReason || _eggT("outOfScope")) })}
+            ${t("rejectedByEgg", { reason: _eggEscapeHtml(r.rejectReason || t("outOfScope")) })}
           </div>`;
       } else if (newDeltas.length === 0 && redundantDeltas.length > 0) {
         statusNote = `
           <div class="egg-status-banner banner-covered">
-            ${_eggT("fullyCoveredNotice")}
+            ${t("fullyCoveredNotice")}
           </div>`;
       } else if (newDeltas.length === 0 && qaItems.length === 0) {
         statusNote = `
           <div class="egg-status-banner banner-covered">
-            ${_eggT("noNewKnowledgeNotice")}
+            ${t("noNewKnowledgeNotice")}
           </div>`;
       }
 
@@ -326,14 +320,14 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
       if (newDeltas.length > 0) {
         newHtml = `
           <div class="knowledge-subsection">
-            <div class="knowledge-subhead new-subhead">${_eggT("newInsightsHeading", { count: newDeltas.length })}</div>
+            <div class="knowledge-subhead new-subhead">${t("newInsightsHeading", { count: newDeltas.length })}</div>
             ${newDeltas
               .map(
                 (d) => `
                 <div class="delta-item is-new">
                   <div class="delta-header">
-                    <span class="delta-badge badge-new">${_eggT("badgeNewEntry")}</span>
-                    <span class="delta-parent">${d.parent ? _eggT("unprocessedParent", { parent: _eggEscapeHtml(d.parent) }) : _eggT("unprocessedOnly")}</span>
+                    <span class="delta-badge badge-new">${t("badgeNewEntry")}</span>
+                    <span class="delta-parent">${d.parent ? t("unprocessedParent", { parent: _eggEscapeHtml(d.parent) }) : t("unprocessedOnly")}</span>
                   </div>
                   <div class="delta-content">${_eggEscapeHtml(d.content)}</div>
                 </div>`
@@ -354,7 +348,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
           || (() => "");
         qaHtml = `
           <div class="knowledge-subsection egg-qa-block">
-            <div class="knowledge-subhead qa-subhead">${_eggT("eggKeyQuestions", { count: qaItems.length })}</div>
+            <div class="knowledge-subhead qa-subhead">${t("eggKeyQuestions", { count: qaItems.length })}</div>
             ${qaItems
               .map(
                 (qa) => `
@@ -373,8 +367,8 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
         redundantHtml = `
           <div class="existing-tree-container">
             <div class="existing-tree-header">
-              <span class="existing-tree-title">${_eggT("alreadyCoveredHeading", { count: redundantDeltas.length })}</span>
-              <button type="button" class="covered-toggle">${_eggT("viewCovered")}</button>
+              <span class="existing-tree-title">${t("alreadyCoveredHeading", { count: redundantDeltas.length })}</span>
+              <button type="button" class="covered-toggle">${t("viewCovered")}</button>
             </div>
             <div class="covered-body hidden">
               ${redundantDeltas
@@ -382,8 +376,8 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
                   (d) => `
                   <div class="delta-item is-covered">
                     <div class="delta-header">
-                      <span class="delta-badge badge-covered">${_eggT("badgeCovered")}</span>
-                      <span class="delta-parent">${d.existingParent ? _eggT("underParent", { parent: _eggEscapeHtml(d.existingParent) }) : _eggT("alreadyKnown")}</span>
+                      <span class="delta-badge badge-covered">${t("badgeCovered")}</span>
+                      <span class="delta-parent">${d.existingParent ? t("underParent", { parent: _eggEscapeHtml(d.existingParent) }) : t("alreadyKnown")}</span>
                     </div>
                     <div class="delta-content">${_eggEscapeHtml(d.content)}</div>
                   </div>`
@@ -398,8 +392,8 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
         treeHtml = `
           <div class="existing-tree-container">
             <div class="existing-tree-header">
-              <span class="existing-tree-title">${_eggT("currentKnowledgeInEgg")}</span>
-              <button type="button" class="existing-tree-toggle">${_eggT("viewTree")}</button>
+              <span class="existing-tree-title">${t("currentKnowledgeInEgg")}</span>
+              <button type="button" class="existing-tree-toggle">${t("viewTree")}</button>
             </div>
             <div class="existing-tree-body hidden">${_eggEscapeHtml(existingKnowledge)}</div>
           </div>`;
@@ -423,7 +417,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
       const body = btn.closest(".existing-tree-container")?.querySelector(".covered-body");
       if (body) {
         const isHidden = body.classList.toggle("hidden");
-        btn.textContent = isHidden ? _eggT("viewCovered") : _eggT("hideCovered");
+        btn.textContent = isHidden ? t("viewCovered") : t("hideCovered");
       }
     });
   });
@@ -434,7 +428,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
       const body = btn.closest(".existing-tree-container")?.querySelector(".existing-tree-body");
       if (body) {
         const isHidden = body.classList.toggle("hidden");
-        btn.textContent = isHidden ? _eggT("viewTree") : _eggT("hideTree");
+        btn.textContent = isHidden ? t("viewTree") : t("hideTree");
       }
     });
   });
@@ -476,10 +470,10 @@ class EggsComponent {
     const isHidden = open !== undefined ? !open : !this.eggsCreateForm.classList.contains("hidden");
     if (isHidden) {
       this.eggsCreateForm.classList.add("hidden");
-      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = _eggT("createNewEgg");
+      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = t("createNewEgg");
     } else {
       this.eggsCreateForm.classList.remove("hidden");
-      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = _eggT("cancel");
+      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = t("cancel");
       this.eggsNewName?.focus();
     }
   }
@@ -500,11 +494,11 @@ class EggsComponent {
   setCreateButtonLoading(isLoading) {
     if (this.eggsCreateBtn) {
       this.eggsCreateBtn.disabled = isLoading;
-      this.eggsCreateBtn.textContent = isLoading ? _eggT("creating") : _eggT("createEggBtn");
+      this.eggsCreateBtn.textContent = isLoading ? t("creating") : t("createEggBtn");
     }
     if (this.createEggBtn) {
       this.createEggBtn.disabled = isLoading;
-      this.createEggBtn.textContent = isLoading ? _eggT("creating") : _eggT("createEggBtn");
+      this.createEggBtn.textContent = isLoading ? t("creating") : t("createEggBtn");
     }
   }
 

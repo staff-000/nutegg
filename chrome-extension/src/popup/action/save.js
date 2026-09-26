@@ -2,12 +2,6 @@
 // NutEgg Popup Action — Save Action Handler
 // ============================================================
 
-function _saveT(key, params) {
-  if (typeof t === "function") return t(key, params);
-  if (typeof globalThis !== "undefined" && typeof globalThis.t === "function") return globalThis.t(key, params);
-  return key;
-}
-
 class SaveAction {
   constructor(deps = {}) {
     this.session = deps.session;
@@ -31,7 +25,7 @@ class SaveAction {
     const merged = response?.merged || [];
     const mergedNote = merged.length > 0
       ? ` 🧹 ${merged
-          .map((m) => _saveT("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
+          .map((m) => t("unprocessedMergedNote", { count: m.entries, egg: m.egg }))
           .join(", ")}`
       : "";
     const isStage1BoxVisible = session.isStage1(result) && ui.actionsUI?.isStage1ConfirmVisible?.();
@@ -39,11 +33,11 @@ class SaveAction {
       ui.bannersUI?.hideSuccess?.();
     } else {
       if (nk && nk.length > 0) {
-        ui.bannersUI?.showSuccess?.(_saveT("eggHatchedSuccess", { mergedNote }));
+        ui.bannersUI?.showSuccess?.(t("eggHatchedSuccess", { mergedNote }));
       } else if (ih) {
-        ui.bannersUI?.showSuccess?.(_saveT("eggHatchedNoKnowledge"));
+        ui.bannersUI?.showSuccess?.(t("eggHatchedNoKnowledge"));
       } else {
-        ui.bannersUI?.showSuccess?.(_saveT("nutCollectedVault"));
+        ui.bannersUI?.showSuccess?.(t("nutCollectedVault"));
       }
     }
     this.updateActionButtons();
@@ -73,7 +67,7 @@ class SaveAction {
         return;
       }
       if (session.activeTabId === pinnedTabId) {
-        const errText = response?.error || _saveT("failedToCreateEgg");
+        const errText = response?.error || t("failedToCreateEgg");
         if (inline) {
           ui.eggsUI?.showError?.(`❌ ${errText}`);
         } else {
@@ -82,7 +76,7 @@ class SaveAction {
       }
     } catch (err) {
       if (session.activeTabId === pinnedTabId) {
-        const errText = err instanceof Error ? err.message : _saveT("failedToCreateEgg");
+        const errText = err instanceof Error ? err.message : t("failedToCreateEgg");
         if (inline) {
           ui.eggsUI?.showError?.(`❌ ${errText}`);
         } else {
@@ -108,12 +102,12 @@ class SaveAction {
     if (!targetResult || session.eggHatched || !(targetResult.newKnowledge?.length)) return;
     if (!targetContent) {
       if (session.activeTabId === pinnedTabId) {
-        ui.actionsUI?.setConfirmButtonLoading?.(true, _saveT("retrieving"));
+        ui.actionsUI?.setConfirmButtonLoading?.(true, t("retrieving"));
       }
       targetContent = await tabAction?.extractPageContent?.(session.refreshSeq, pinnedTabId);
     }
     if (session.activeTabId === pinnedTabId) {
-      ui.actionsUI?.setConfirmButtonLoading?.(true, _saveT("hatching"));
+      ui.actionsUI?.setConfirmButtonLoading?.(true, t("hatching"));
     }
     await this.doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
     if (session.activeTabId === pinnedTabId) {
@@ -134,19 +128,19 @@ class SaveAction {
     if (session.nutCollected) return;
     if (!targetContent) {
       if (session.activeTabId === pinnedTabId) {
-        ui.actionsUI?.setCollectNutLoading?.(true, _saveT("retrieving"));
+        ui.actionsUI?.setCollectNutLoading?.(true, t("retrieving"));
       }
       targetContent = await tabAction?.extractPageContent?.(session.refreshSeq, pinnedTabId);
     }
     if (!targetContent) {
       if (session.activeTabId === pinnedTabId) {
-        ui.bannersUI?.showError?.(_saveT("couldNotExtractToSave"));
+        ui.bannersUI?.showError?.(t("couldNotExtractToSave"));
         this.updateActionButtons();
       }
       return;
     }
     if (session.activeTabId === pinnedTabId) {
-      ui.actionsUI?.setCollectNutLoading?.(true, _saveT("collecting"));
+      ui.actionsUI?.setCollectNutLoading?.(true, t("collecting"));
     }
     await this.doSave([], false, targetContent, targetResult, targetNutId, pinnedTabId);
     if (session.activeTabId === pinnedTabId) {

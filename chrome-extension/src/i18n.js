@@ -1,8 +1,17 @@
 (function (root, factory) {
+  const instance = factory();
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = factory();
-  } else {
-    root.NutEggI18n = factory();
+    module.exports = instance;
+  }
+  if (root) {
+    root.NutEggI18n = instance;
+    if (typeof root.t !== "function") {
+      root.t = instance.t;
+    }
+  }
+  if (typeof globalThis !== "undefined") {
+    if (!globalThis.NutEggI18n) globalThis.NutEggI18n = instance;
+    if (typeof globalThis.t !== "function") globalThis.t = instance.t;
   }
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {

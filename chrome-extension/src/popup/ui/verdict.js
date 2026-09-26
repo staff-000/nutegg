@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Verdict Component
 // ============================================================
 
-const _verdictT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 class VerdictComponent {
   constructor(root = document) {
     this.root = root;
@@ -38,11 +32,11 @@ class VerdictComponent {
     if (this.verdictIcon && this.verdictText && this.verdictBadge) {
       if (result.shouldRead) {
         this.verdictIcon.textContent = "✅";
-        this.verdictText.textContent = _verdictT("verdictWorthReading");
+        this.verdictText.textContent = t("verdictWorthReading");
         this.verdictBadge.className = "verdict-badge verdict-yes";
       } else {
         this.verdictIcon.textContent = "⏭️";
-        this.verdictText.textContent = _verdictT("verdictSkipIt");
+        this.verdictText.textContent = t("verdictSkipIt");
         this.verdictBadge.className = "verdict-badge verdict-no";
       }
     }
@@ -57,9 +51,9 @@ class VerdictComponent {
     this.verdictSection.classList.remove("hidden");
     if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
     if (this.verdictIcon) this.verdictIcon.textContent = "⏳";
-    if (this.verdictText) this.verdictText.textContent = _verdictT("comparingKnowledge");
+    if (this.verdictText) this.verdictText.textContent = t("comparingKnowledge");
     if (this.verdictReason) {
-      this.verdictReason.textContent = count > 0 ? _verdictT("comparingAgainstEggs", { count }) : "";
+      this.verdictReason.textContent = count > 0 ? t("comparingAgainstEggs", { count }) : "";
     }
   }
 

@@ -1,6 +1,8 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
 
+require("../src/i18n.js");
+require("../src/popup/helpers.js");
 const { HeaderComponent } = require("../src/popup/ui/header.js");
 const { BannersComponent } = require("../src/popup/ui/banners.js");
 const { CaptureViewComponent } = require("../src/popup/ui/capture-view.js");

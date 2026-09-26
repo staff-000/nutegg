@@ -2,12 +2,6 @@
 // NutEgg Popup Action — Tab Action Handler
 // ============================================================
 
-function _tabT(key, params) {
-  if (typeof t === "function") return t(key, params);
-  if (typeof globalThis !== "undefined" && typeof globalThis.t === "function") return globalThis.t(key, params);
-  return key;
-}
-
 class TabAction {
   constructor(deps = {}) {
     this.session = deps.session;
@@ -70,7 +64,7 @@ class TabAction {
     ui.eggsUI?.updateCaptureLabel?.(session.preSelectedEggs);
     ui.actionsUI?.hideProcessedNote?.();
     ui.actionsUI?.renderHistory?.([]);
-    ui.captureUI?.setLoading?.(_tabT("loadingContent"));
+    ui.captureUI?.setLoading?.(t("loadingContent"));
     analyzeAction?.updateAnalyzeButtonsState?.();
     this.showCaptureState();
 
@@ -97,7 +91,7 @@ class TabAction {
         tabUrl = tab.url;
         const pageHelper = typeof helper !== "undefined" ? helper : globalThis.helper;
         ui.captureUI?.setPageInfo?.({
-          title: tab.title || _tabT("loading"),
+          title: tab.title || t("loading"),
           url: tab.url,
           sourceType: pageHelper?.detectPageTypeFromUrl ? pageHelper.detectPageTypeFromUrl(tab.url) : "webpage",
         });
@@ -182,7 +176,7 @@ class TabAction {
 
     if (!tabId) {
       if (!targetTabId || targetTabId === session.activeTabId) {
-        ui.captureUI?.setPageInfo?.({ title: _tabT("unknownPage") });
+        ui.captureUI?.setPageInfo?.({ title: t("unknownPage") });
       }
       return null;
     }
@@ -202,10 +196,10 @@ class TabAction {
       session.lastLoadWasLoading = false;
       session.extractionPending = true;
       ui.captureUI?.setRefreshDisabled?.(false);
-      ui.captureUI?.setLoading?.(_tabT("retrievingPageContent"));
+      ui.captureUI?.setLoading?.(t("retrievingPageContent"));
       const pageHelper = typeof helper !== "undefined" ? helper : globalThis.helper;
       ui.captureUI?.setPageInfo?.({
-        title: tabTitle || _tabT("retrieving"),
+        title: tabTitle || t("retrieving"),
         url: tabUrl || "",
         sourceType: pageHelper?.detectPageTypeFromUrl ? pageHelper.detectPageTypeFromUrl(tabUrl || "") : "webpage",
       });
@@ -283,8 +277,8 @@ class TabAction {
 
     if (session.activeTabId === tabId && tabStateManager.isExtractSeqCurrent(tabId, tabSeq)) {
       if (session.extractionFailed && !session.extractedContent) {
-        ui.captureUI?.setError?.(_tabT("couldNotExtractContent"));
-        ui.bannersUI?.showWarning?.(_tabT("couldNotExtractRestricted"));
+        ui.captureUI?.setError?.(t("couldNotExtractContent"));
+        ui.bannersUI?.showWarning?.(t("couldNotExtractRestricted"));
       }
       analyzeAction?.applyTranscriptBlock?.();
       analyzeAction?.updateAnalyzeButtonsState?.();
@@ -321,32 +315,32 @@ class TabAction {
       } else {
         this.showCaptureState();
         if (session.extractedContent) {
-          ui.captureUI?.setPreviewText?.(session.extractedContent.content || _tabT("noContentExtracted"));
+          ui.captureUI?.setPreviewText?.(session.extractedContent.content || t("noContentExtracted"));
         }
       }
       ui.bannersUI?.showError?.(cached.error, cached.errorCode);
     } else if (cached.status === "analyzing") {
       if (cached.analysisResult) {
         this.showResultsState(cached.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
-        ui.actionsUI?.setReanalyzingState?.(_tabT("analyzing"));
+        ui.actionsUI?.setReanalyzingState?.(t("analyzing"));
         ui.actionsUI?.setHistorySelectDisabled?.(true);
-        ui.actionsUI?.setAnalyzeButtonLoading?.(true, _tabT("analyzing"));
-        ui.actionsUI?.showProcessedNote?.(_tabT("analyzingContent"));
+        ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
+        ui.actionsUI?.showProcessedNote?.(t("analyzingContent"));
       } else {
         this.showCaptureState();
         if (session.extractedContent) {
-          ui.captureUI?.setPreviewText?.(session.extractedContent.content || _tabT("noContentExtracted"));
+          ui.captureUI?.setPreviewText?.(session.extractedContent.content || t("noContentExtracted"));
         }
-        ui.actionsUI?.setAnalyzeButtonLoading?.(true, _tabT("analyzing"));
+        ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
       }
     } else if (cached.status === "hatching") {
       if (session.analysisResult) {
         this.showResultsState(session.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
       }
       ui.actionsUI?.updateStage1ProceedBtn?.({ isProceeding: true, autoSave: true });
-      ui.actionsUI?.setReanalyzingState?.(_tabT("comparingKnowledge"));
+      ui.actionsUI?.setReanalyzingState?.(t("comparingKnowledge"));
       ui.actionsUI?.setHistorySelectDisabled?.(true);
-      ui.actionsUI?.setAnalyzeButtonLoading?.(true, _tabT("analyzing"));
+      ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
       if (settings?.analysisMode === "fast") {
         ui.verdictUI?.setComparing?.();
       }
@@ -364,12 +358,12 @@ class TabAction {
         const entry = (session.currentNutId != null && session.captureHistory.find((h) => String(h.nutId) === String(session.currentNutId))) || session.captureHistory[0];
         const when = new Date(entry.capturedAt).toLocaleString();
         const stateLabel = entry.saved === "saved"
-          ? _tabT("stateSaved") : entry.saved === "skip" ? _tabT("stateCollected") : _tabT("stateAnalyzed");
+          ? t("stateSaved") : entry.saved === "skip" ? t("stateCollected") : t("stateAnalyzed");
         if (cached.justReanalyzed) {
-          ui.actionsUI?.showProcessedNote?.(_tabT("reanalyzedFreshResult"));
+          ui.actionsUI?.showProcessedNote?.(t("reanalyzedFreshResult"));
           delete cached.justReanalyzed;
         } else {
-          ui.actionsUI?.showProcessedNote?.(_tabT("capturedWhenStored", { when, state: stateLabel }));
+          ui.actionsUI?.showProcessedNote?.(t("capturedWhenStored", { when, state: stateLabel }));
         }
         ui.actionsUI?.renderHistory?.(session.captureHistory, session.currentNutId);
       }
@@ -393,7 +387,7 @@ class TabAction {
     if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
       this.restoreFromTabCache(tabId, targetState);
     } else if (this.tabStateManager.isExtracting(tabId)) {
-      this.ui.captureUI?.setLoading?.(_tabT("retrievingPageContent"));
+      this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
       this.getAnalyzeAction()?.updateAnalyzeButtonsState?.();
     } else {
       this.refreshForCurrentTab();
@@ -411,7 +405,7 @@ class TabAction {
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.extractedContent)) {
           this.restoreFromTabCache(tab.id, targetState);
         } else if (this.tabStateManager.isExtracting(tab.id)) {
-          this.ui.captureUI?.setLoading?.(_tabT("retrievingPageContent"));
+          this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
           this.getAnalyzeAction()?.updateAnalyzeButtonsState?.();
         } else {
           this.refreshForCurrentTab();

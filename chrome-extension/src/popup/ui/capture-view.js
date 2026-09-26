@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Capture View Component
 // ============================================================
 
-const _captureT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 class CaptureViewComponent {
   constructor(root = document) {
     this.root = root;
@@ -32,15 +26,15 @@ class CaptureViewComponent {
     const isSessionLoading = isSession && Boolean(firstArg.currentTabLoading);
     const isSessionAnalyzing = isSession && Boolean(firstArg.isAnalyzing);
 
-    if (this.pageTitle) this.pageTitle.textContent = content?.title || options.defaultTitle || _captureT("untitled");
+    if (this.pageTitle) this.pageTitle.textContent = content?.title || options.defaultTitle || t("untitled");
     if (this.pageUrl) this.pageUrl.textContent = content?.url || options.defaultUrl || "";
     if (this.pageType) this.pageType.textContent = content?.sourceType || options.defaultType || "";
 
     if (isSessionLoading) {
-      if (this.contentPreview) this.contentPreview.textContent = _captureT("retrievingPageContent");
+      if (this.contentPreview) this.contentPreview.textContent = t("retrievingPageContent");
       this.clearAuthorAndPublished();
     } else {
-      if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || _captureT("noContentExtracted");
+      if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || t("noContentExtracted");
       this.showProvenance(content?.metadata || {});
     }
 
@@ -79,7 +73,7 @@ class CaptureViewComponent {
   }
 
   setLoading(text) {
-    if (this.contentPreview) this.contentPreview.textContent = text || _captureT("retrievingPageContent");
+    if (this.contentPreview) this.contentPreview.textContent = text || t("retrievingPageContent");
     this.clearAuthorAndPublished();
   }
 
@@ -89,10 +83,10 @@ class CaptureViewComponent {
   }
 
   clear() {
-    if (this.pageTitle) this.pageTitle.textContent = _captureT("untitled");
+    if (this.pageTitle) this.pageTitle.textContent = t("untitled");
     if (this.pageUrl) this.pageUrl.textContent = "";
     if (this.pageType) this.pageType.textContent = "";
-    if (this.contentPreview) this.contentPreview.textContent = _captureT("noContentExtracted");
+    if (this.contentPreview) this.contentPreview.textContent = t("noContentExtracted");
     this.clearAuthorAndPublished();
   }
 

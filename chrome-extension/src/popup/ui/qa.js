@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Q&A Component
 // ============================================================
 
-const _qaT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 function _qaEscapeHtml(str) {
   if (typeof escapeHtml === "function") return escapeHtml(str);
   if (typeof document !== "undefined" && document.createElement) {
@@ -61,7 +55,7 @@ function linkifyTimestamps(escapedText) {
     (match, open, time1, close, space, time2) => {
       const time = time1 || time2;
       const leading = space || "";
-      return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="${_qaEscapeHtml(_qaT("jumpToVideoTime", { time }))}"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
+      return `${leading}<button type="button" class="source-pill source-timestamp inline-timestamp" data-time="${time}" title="${_qaEscapeHtml(t("jumpToVideoTime", { time }))}"><span class="source-icon">⏱️</span><span class="source-ref">${time}</span></button>`;
     }
   );
 }
@@ -87,7 +81,7 @@ function renderQaSources(sources) {
       const quoteAttr = quoteText ? ` data-quote="${_qaEscapeHtml(quoteText)}"` : "";
       const quoteTitle = quoteText
         ? ` title="${_qaEscapeHtml(quoteText)}"`
-        : (isTime ? ` title="${_qaEscapeHtml(_qaT("jumpToVideoTime", { time: timestamp }))}"` : ` title="${_qaEscapeHtml(_qaT("scrollToSection", { ref }))}"`);
+        : (isTime ? ` title="${_qaEscapeHtml(t("jumpToVideoTime", { time: timestamp }))}"` : ` title="${_qaEscapeHtml(t("scrollToSection", { ref }))}"`);
 
       const quoteHtml = quoteText
         ? `<span class="source-quote" title="${_qaEscapeHtml(quoteText)}">“${_qaEscapeHtml(quoteText)}”</span>`
@@ -106,7 +100,7 @@ function renderQaSources(sources) {
     })
     .join("");
 
-  return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 ${_qaEscapeHtml(_qaT("qaSourcesLabel"))}:</div>${items}</div>` : "";
+  return items ? `<div class="qa-sources"><div class="qa-sources-label">📍 ${_qaEscapeHtml(t("qaSourcesLabel"))}:</div>${items}</div>` : "";
 }
 
 /** Render the "Your Questions" section: initial answers + follow-ups. */
@@ -128,12 +122,12 @@ function _renderCustomQuestions(options = {}) {
     sectionEl.classList.remove("hidden");
     const labelEl = sectionEl.querySelector(".section-label");
     if (labelEl) {
-      labelEl.textContent = all.length > 0 ? _qaT("questionsAndAnswers") : _qaT("askAQuestion");
+      labelEl.textContent = all.length > 0 ? t("questionsAndAnswers") : t("askAQuestion");
     }
   }
 
   if (inputEl) {
-    inputEl.placeholder = _qaT("askQuestionPlaceholder");
+    inputEl.placeholder = t("askQuestionPlaceholder");
   }
 
   if (listEl) {

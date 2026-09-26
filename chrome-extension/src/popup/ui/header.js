@@ -2,12 +2,6 @@
 // NutEgg Popup UI — Header & Status Component
 // ============================================================
 
-const _headerT = (key, params) => {
-  if (typeof t === "function") return t(key, params);
-  if (typeof window !== "undefined" && window.NutEggI18n) return window.NutEggI18n.t(key, params);
-  return key;
-};
-
 class HeaderComponent {
   constructor(root = document) {
     this.root = root;
@@ -31,7 +25,7 @@ class HeaderComponent {
 
     if (pluginVersion && pluginVersion !== extVersion) {
       this.versionTag.textContent = `NutEgg v${extVersion} (Obsidian v${pluginVersion})`;
-      this.versionTag.title = _headerT("versionMismatchFull", { extVersion, pluginVersion });
+      this.versionTag.title = t("versionMismatchFull", { extVersion, pluginVersion });
       this.versionTag.style.color = "#d97706";
     } else {
       this.versionTag.textContent = `NutEgg v${extVersion}`;
@@ -82,44 +76,44 @@ class HeaderComponent {
 
     if (state === "obsidian-online") {
       this.tooltip.className = "status-tooltip online";
-      this.tooltipTitle.textContent = _headerT("obsidianOnline");
-      this.tooltipSub.textContent = version ? _headerT("pluginVersionFull", { version }) : _headerT("readyToCapture");
-      this.serverStatus?.setAttribute("aria-label", _headerT("obsidianOnlineAria", { version: version ? ` (v${version})` : "" }));
+      this.tooltipTitle.textContent = t("obsidianOnline");
+      this.tooltipSub.textContent = version ? t("pluginVersionFull", { version }) : t("readyToCapture");
+      this.serverStatus?.setAttribute("aria-label", t("obsidianOnlineAria", { version: version ? ` (v${version})` : "" }));
     } else if (state === "obsidian-no-key") {
       this.tooltip.className = "status-tooltip warning";
-      this.tooltipTitle.textContent = _headerT("obsidianOnlineNoKey");
-      this.tooltipSub.textContent = _headerT("addKeyInObsidian");
-      this.serverStatus?.setAttribute("aria-label", _headerT("obsidianNoKeyConfig"));
+      this.tooltipTitle.textContent = t("obsidianOnlineNoKey");
+      this.tooltipSub.textContent = t("addKeyInObsidian");
+      this.serverStatus?.setAttribute("aria-label", t("obsidianNoKeyConfig"));
     } else if (state === "obsidian-mismatch") {
       this.tooltip.className = "status-tooltip warning";
-      this.tooltipTitle.textContent = _headerT("versionMismatch");
-      this.tooltipSub.textContent = extra || _headerT("updateNutEggPlugin");
-      this.serverStatus?.setAttribute("aria-label", extra || _headerT("versionMismatch"));
+      this.tooltipTitle.textContent = t("versionMismatch");
+      this.tooltipSub.textContent = extra || t("updateNutEggPlugin");
+      this.serverStatus?.setAttribute("aria-label", extra || t("versionMismatch"));
     } else if (state === "chrome-ai") {
       this.tooltip.className = "status-tooltip chrome-ai";
-      this.tooltipTitle.textContent = _headerT("usingChromeAi");
-      this.tooltipSub.textContent = _headerT("usingChromeAiSub", { extra: extra || _headerT("standalone") });
-      this.serverStatus?.setAttribute("aria-label", `${_headerT("usingChromeAi")} (${extra || _headerT("standalone")})`);
+      this.tooltipTitle.textContent = t("usingChromeAi");
+      this.tooltipSub.textContent = t("usingChromeAiSub", { extra: extra || t("standalone") });
+      this.serverStatus?.setAttribute("aria-label", `${t("usingChromeAi")} (${extra || t("standalone")})`);
     } else if (state === "chrome-no-key") {
       this.tooltip.className = "status-tooltip warning";
-      this.tooltipTitle.textContent = _headerT("chromeAiNoKey");
-      this.tooltipSub.textContent = _headerT("addKeyInChrome");
-      this.serverStatus?.setAttribute("aria-label", _headerT("chromeAiNoKeyConfig"));
+      this.tooltipTitle.textContent = t("chromeAiNoKey");
+      this.tooltipSub.textContent = t("addKeyInChrome");
+      this.serverStatus?.setAttribute("aria-label", t("chromeAiNoKeyConfig"));
     } else {
       this.tooltip.className = "status-tooltip offline";
-      this.tooltipTitle.textContent = _headerT("obsidianOffline");
-      this.tooltipSub.textContent = _headerT("startObsidianOrChromeAi");
-      this.serverStatus?.setAttribute("aria-label", _headerT("obsidianOfflineStart"));
+      this.tooltipTitle.textContent = t("obsidianOffline");
+      this.tooltipSub.textContent = t("startObsidianOrChromeAi");
+      this.serverStatus?.setAttribute("aria-label", t("obsidianOfflineStart"));
     }
   }
 
   setCheckingServer() {
-    if (this.tooltipTitle) this.tooltipTitle.textContent = _headerT("checking");
-    if (this.tooltipSub) this.tooltipSub.textContent = _headerT("connectingToObsidian");
+    if (this.tooltipTitle) this.tooltipTitle.textContent = t("checking");
+    if (this.tooltipSub) this.tooltipSub.textContent = t("connectingToObsidian");
   }
 
   setCheckingCredit() {
-    if (this.aiCreditText) this.aiCreditText.textContent = _headerT("checking");
+    if (this.aiCreditText) this.aiCreditText.textContent = t("checking");
   }
 
   renderCredit(credit, serverOnline) {
@@ -149,11 +143,11 @@ class HeaderComponent {
 
     if (credit.hasBalance && credit.balanceFormatted) {
       this.aiCreditText.textContent = `${providerName}: ${credit.balanceFormatted}`;
-      this.aiCreditPill.title = _headerT("aiCreditTooltip");
+      this.aiCreditPill.title = t("aiCreditTooltip");
       this.aiCreditPill.classList.remove("has-warning");
     } else {
       this.aiCreditText.textContent = providerName;
-      this.aiCreditPill.title = credit.statusText || _headerT("aiCreditTooltip");
+      this.aiCreditPill.title = credit.statusText || t("aiCreditTooltip");
       if (credit.hasBalance === false && !credit.isUnlimited) {
         this.aiCreditPill.classList.add("has-warning");
       } else {
