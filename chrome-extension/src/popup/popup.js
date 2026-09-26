@@ -4,6 +4,7 @@ if (typeof require !== "undefined") {
     const tabState = require("./state/tab-state.js");
     const settingsState = require("./state/settings-state.js");
     const sessionState = require("./state/session-state.js");
+    const pageExtractorService = require("./services/page-extractor.js");
     const collapsibleUI = require("./ui/collapsible.js");
     const mindmapUI = require("./ui/mindmap.js");
     const chaptersUI = require("./ui/chapters.js");
@@ -22,6 +23,7 @@ if (typeof require !== "undefined") {
       tabState,
       settingsState,
       sessionState,
+      pageExtractorService,
       collapsibleUI,
       mindmapUI,
       chaptersUI,
@@ -40,6 +42,11 @@ if (typeof require !== "undefined") {
 }
 
 const t = (key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
+
+// ============================================================
+// Services
+// ============================================================
+const pageExtractor = new (globalThis.NutEggServices?.PageExtractor || (typeof PageExtractor !== "undefined" ? PageExtractor : class {}))();
 
 // ============================================================
 // Modular UI Components
@@ -69,7 +76,6 @@ const tabsExtracting = tabStateManager.extracting || new Set();
 
 /** Persisted user preferences and environment/connection status. */
 const settings = new (globalThis.NutEggState?.SettingsState || (typeof SettingsState !== "undefined" ? SettingsState : class {}))();
-const DEFAULT_ANALYSIS_SECTIONS = settings.DEFAULT_ANALYSIS_SECTIONS;
 
 /** Active tab runtime session state (extracted content, analysis, egg selections). */
 const session = new (globalThis.NutEggState?.SessionState || (typeof SessionState !== "undefined" ? SessionState : class {}))();
@@ -1368,14 +1374,16 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
     updateAnalyzeButtonsState();
   }
 
+  const isCancelled = () => !tabStateManager.isExtractSeqCurrent(tabId, tabSeq);
+
   try {
     // If active tab is still loading, wait for it to complete or settle
     if (tabStatus === "loading" && isTargetActive) {
       session.lastLoadWasLoading = true;
       session.currentTabLoading = true;
       updateAnalyzeButtonsState();
-      await waitForTabComplete(tabId, 6000);
-      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
+      await pageExtractor.waitForTabComplete(tabId, 6000);
+      if (isCancelled()) return null;
       try {
         const refreshedTab = await chrome.tabs.get(tabId);
         tabTitle = refreshedTab.title || tabTitle;
@@ -1387,59 +1395,42 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
           });
         }
       } catch {}
-      await waitForPageSettle(tabId, tabSeq);
-      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
+      await pageExtractor.waitForPageSettle(tabId, isCancelled);
+      if (isCancelled()) return null;
+      if (session.activeTabId === tabId) {
+        session.currentTabLoading = false;
+      }
     }
 
-    // Extract content (loaded pages jump straight here for instant retrieval)
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await tryExtract(tabId);
-      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
+    const content = await pageExtractor.extractPage(tabId, { isCancelled });
+    if (isCancelled()) return null;
 
-      if (!response?.success) {
-        if (attempt === 0) {
-          await new Promise((r) => setTimeout(r, 400));
-          if (tabExtractSeq.get(tabId) !== tabSeq) return null;
-          continue;
-        }
-        if (session.activeTabId === tabId) session.extractionFailed = true;
-        break;
-      }
-
-      const after = await requestPageIdentity(tabId);
-      if (tabExtractSeq.get(tabId) !== tabSeq) return null;
-      if (
-        after?.url &&
-        response.content?.url &&
-        after.url !== response.content.url
-      ) {
-        console.warn("[NutEgg] Page navigated during extraction — retrying");
-        continue;
-      }
-
+    if (!content) {
+      if (session.activeTabId === tabId) session.extractionFailed = true;
+    } else {
       // Cache extracted content for the tab
       const cached = tabResultCache.get(tabId) || {};
       tabResultCache.set(tabId, {
         ...cached,
-        url: response.content?.url || tabUrl || cached.url,
-        extractedContent: response.content,
+        url: content.url || tabUrl || cached.url,
+        extractedContent: content,
       });
 
       // Update UI only if this tab is currently the active tab
       if (session.activeTabId === tabId) {
-        session.extractedContent = response.content;
+        session.extractedContent = content;
         session.currentTabLoading = false;
         captureUI.setPageInfo({
-          title: response.content.title || tabTitle || "Untitled",
-          sourceType: response.content.sourceType || captureUI.getPageType(),
+          title: content.title || tabTitle || "Untitled",
+          sourceType: content.sourceType || captureUI.getPageType(),
         });
-        captureUI.setPreviewText(response.content.content || "(No content extracted)");
-        showProvenance(response.content.metadata || {});
+        captureUI.setPreviewText(content.content || "(No content extracted)");
+        showProvenance(content.metadata || {});
         applyTranscriptBlock();
         updateAnalyzeButtonsState();
       }
 
-      return response.content;
+      return content;
     }
   } catch (err) {
     if (session.activeTabId === tabId) {
@@ -1466,156 +1457,8 @@ async function extractPageContent(seq = session.refreshSeq, targetTabId = null) 
   return null;
 }
 
-/** Safe promise timeout wrapper. */
-function withTimeout(promise, ms, fallback = null) {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ]);
-}
-
-/**
- * Wait for a tab to finish loading (status === "complete").
- * Works for both active and background tabs via chrome.tabs.onUpdated.
- */
-async function waitForTabComplete(tabId, timeoutMs = 8000) {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (tab.status === "complete") return true;
-  } catch {
-    return false;
-  }
-
-  return new Promise((resolve) => {
-    let timer;
-    const listener = (updatedTabId, changeInfo) => {
-      if (updatedTabId === tabId && changeInfo.status === "complete") {
-        clearTimeout(timer);
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve(true);
-      }
-    };
-    timer = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      resolve(false);
-    }, timeoutMs);
-    chrome.tabs.onUpdated.addListener(listener);
-  });
-}
-
-/**
- * Extract via the content script, injecting it first when needed.
- * Returns the message response or null (restricted page / unreachable).
- */
-async function tryExtract(tabId) {
-  try {
-    const response = await withTimeout(
-      chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-      8000,
-      null
-    );
-    if (response?.success) return response;
-  } catch {
-    // Content script not injected yet (page mid-load, or never injected)
-  }
-  try {
-    await withTimeout(
-      chrome.scripting.executeScript({
-        target: { tabId },
-        files: [
-          "src/content/utils.js",
-          "src/content/extractors/youtube.js",
-          "src/content/extractors/twitter.js",
-          "src/content/extractors/article.js",
-          "src/content/extractors/generic.js",
-          "src/content/content-script.js",
-        ],
-      }),
-      4000,
-      null
-    );
-  } catch {
-    return null; // Restricted page (chrome://, Web Store, PDF viewer)
-  }
-  try {
-    return await withTimeout(
-      chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-      8000,
-      null
-    );
-  } catch {
-    return null;
-  }
-}
-
-/** Cheap page-state check (no transcript fetching). Null when unreachable. */
-async function requestPageIdentity(tabId) {
-  try {
-    const resp = await withTimeout(
-      chrome.tabs.sendMessage(tabId, { action: "page-identity" }),
-      2500,
-      null
-    );
-    if (resp?.success) return resp;
-  } catch {}
-  try {
-    await withTimeout(
-      chrome.scripting.executeScript({
-        target: { tabId },
-        files: [
-          "src/content/utils.js",
-          "src/content/extractors/youtube.js",
-          "src/content/extractors/twitter.js",
-          "src/content/extractors/article.js",
-          "src/content/extractors/generic.js",
-          "src/content/content-script.js",
-        ],
-      }),
-      3000,
-      null
-    );
-    const resp = await withTimeout(
-      chrome.tabs.sendMessage(tabId, { action: "page-identity" }),
-      2500,
-      null
-    );
-    return resp?.success ? resp : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Poll page-identity until the page settles (document complete, and for
- * YouTube the watch shell rendered), bounded to ~8s. Returns null when the
- * content script is unreachable — extraction proceeds and reports failure itself.
- */
-async function waitForPageSettle(tabId, seq) {
-  const deadline = Date.now() + 4000;
-  while (Date.now() < deadline) {
-    if (tabExtractSeq.get(tabId) !== seq) return null;
-    const identity = await requestPageIdentity(tabId);
-    if (
-      identity &&
-      identity.readyState === "complete" &&
-      identity.youtubeReady !== false &&
-      identity.twitterReady !== false
-    ) {
-      if (tabId === session.activeTabId) {
-        session.currentTabLoading = false;
-      }
-      return identity;
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  return null; // timed out — extract anyway (the failure path will report)
-}
-
 function detectPageTypeFromUrl(url) {
-  if (url.includes("twitter.com") || url.includes("x.com")) return "🐦 Twitter/X";
-  if (url.includes("youtube.com/watch")) return "📺 YouTube";
-  if (url.includes("youtube.com")) return "📺 YouTube";
-  return "🌐 Webpage";
+  return pageExtractor.detectPageTypeFromUrl(url);
 }
 
 /** Show the author + published date extracted from the page itself. */
@@ -1625,21 +1468,12 @@ function showProvenance(metadata) {
 
 /** ISO/date string → short locale date (e.g. "Aug 10, 2026"); raw on failure. */
 function formatPublishedDate(raw) {
-  const d = new Date(raw);
-  return isNaN(d.getTime())
-    ? raw
-    : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return pageExtractor.formatPublishedDate(raw);
 }
 
 /** Provenance of the extracted page (fresh analyses). */
 function provenanceFromExtraction(content = session.extractedContent) {
-  if (!content) return null;
-  const m = content.metadata || {};
-  return {
-    title: content.title || "",
-    author: m.author || m.channel || m.handle || "",
-    publishedAt: m.published || "",
-  };
+  return pageExtractor.provenanceFromExtraction(content);
 }
 
 /** Title/author/publish-time card at the top of the results view. */
@@ -2378,27 +2212,7 @@ async function seekToChapter(seconds) {
       tabId = tab?.id;
     } catch { /* ignore */ }
   }
-  if (tabId == null) return;
-  const secs = typeof seconds === "number" ? seconds : timeToSeconds(seconds);
-  try {
-    await chrome.tabs.sendMessage(tabId, { action: "nutegg-seek", seconds: secs });
-  } catch {
-    // Content script not injected — inject and retry
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        files: [
-          "src/content/utils.js",
-          "src/content/extractors/youtube.js",
-          "src/content/extractors/twitter.js",
-          "src/content/extractors/article.js",
-          "src/content/extractors/generic.js",
-          "src/content/content-script.js",
-        ],
-      });
-      await chrome.tabs.sendMessage(tabId, { action: "nutegg-seek", seconds: secs });
-    } catch { /* page doesn't allow injection */ }
-  }
+  return pageExtractor.seekToChapter(tabId, seconds);
 }
 
 /** Scroll the active tab to a section heading or quote text. */
@@ -2410,26 +2224,7 @@ async function scrollToSection(heading, quote) {
       tabId = tab?.id;
     } catch { /* ignore */ }
   }
-  if (tabId == null) return;
-  try {
-    await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
-  } catch {
-    // Content script not injected — inject and retry
-    try {
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        files: [
-          "src/content/utils.js",
-          "src/content/extractors/youtube.js",
-          "src/content/extractors/twitter.js",
-          "src/content/extractors/article.js",
-          "src/content/extractors/generic.js",
-          "src/content/content-script.js",
-        ],
-      });
-      await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
-    } catch { /* page doesn't allow injection */ }
-  }
+  return pageExtractor.scrollToSection(tabId, heading, quote);
 }
 
 /** Handle click on source pills (timestamp seek or section scroll). */
