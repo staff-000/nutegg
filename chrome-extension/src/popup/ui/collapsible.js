@@ -61,8 +61,6 @@ const _collapsibleScope = typeof window !== "undefined" ? window : (typeof globa
 _collapsibleScope.NutEggUI = _collapsibleScope.NutEggUI || {};
 _collapsibleScope.NutEggUI.initCollapsibleSections = initCollapsibleSections;
 _collapsibleScope.NutEggUI.resetCollapsibleSections = resetCollapsibleSections;
-_collapsibleScope.initCollapsibleSections = initCollapsibleSections;
-_collapsibleScope.resetCollapsibleSections = resetCollapsibleSections;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {

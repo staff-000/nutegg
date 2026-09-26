@@ -679,26 +679,10 @@ class EggsComponent {
 const _eggScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _eggScope.NutEggUI = _eggScope.NutEggUI || {};
 _eggScope.NutEggUI.EggsComponent = EggsComponent;
-_eggScope.NutEggUI.cleanEggName = cleanEggName;
-_eggScope.NutEggUI.renderCaptureEggsList = _renderCaptureEggsList;
-_eggScope.NutEggUI.updateCaptureEggsLabel = _updateCaptureEggsLabel;
-_eggScope.NutEggUI.renderEggsSection = _renderEggsSection;
-_eggScope.NutEggUI.renderEggKnowledge = _renderEggKnowledge;
-_eggScope.EggsComponent = EggsComponent;
-_eggScope.cleanEggName = cleanEggName;
-_eggScope.renderCaptureEggsList = _renderCaptureEggsList;
-_eggScope.updateCaptureEggsLabel = _updateCaptureEggsLabel;
-_eggScope.renderEggsSection = _renderEggsSection;
-_eggScope.renderEggKnowledge = _renderEggKnowledge;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     EggsComponent,
-    cleanEggName,
-    renderCaptureEggsList: _renderCaptureEggsList,
-    updateCaptureEggsLabel: _updateCaptureEggsLabel,
-    renderEggsSection: _renderEggsSection,
-    renderEggKnowledge: _renderEggKnowledge,
   };
 }
 

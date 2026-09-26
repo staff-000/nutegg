@@ -15,7 +15,6 @@ const config = new (globalThis.NutEggServices?.ConfigService || (typeof ConfigSe
 const settings = new (globalThis.NutEggState?.SettingsState || (typeof SettingsState !== "undefined" ? SettingsState : class {}))();
 const session = new (globalThis.NutEggState?.SessionState || (typeof SessionState !== "undefined" ? SessionState : class {}))();
 const tabStateManager = new (globalThis.NutEggState?.TabStateManager || (typeof TabStateManager !== "undefined" ? TabStateManager : class {}))();
-const tabResultCache = tabStateManager;
 
 const pageExtractor = new (globalThis.NutEggServices?.PageExtractor || (typeof PageExtractor !== "undefined" ? PageExtractor : class {}))();
 const analysisService = new (globalThis.NutEggServices?.AnalysisService || (typeof AnalysisService !== "undefined" ? AnalysisService : class {}))();
@@ -70,9 +69,7 @@ const SaveActionClass = globalThis.NutEggActions?.SaveAction || (typeof SaveActi
 const HistoryActionClass = globalThis.NutEggActions?.HistoryAction || (typeof HistoryAction !== "undefined" ? HistoryAction : class {});
 const InteractionActionClass = globalThis.NutEggActions?.InteractionAction || (typeof InteractionAction !== "undefined" ? InteractionAction : class {});
 
-let tabAction, analyzeAction, saveAction, historyAction, interactionAction;
-
-tabAction = new TabActionClass({
+const tabAction = new TabActionClass({
   session,
   settings,
   tabStateManager,
@@ -86,7 +83,7 @@ tabAction = new TabActionClass({
   renderApp: () => renderApp(),
 });
 
-analyzeAction = new AnalyzeActionClass({
+const analyzeAction = new AnalyzeActionClass({
   session,
   settings,
   tabStateManager,
@@ -98,7 +95,7 @@ analyzeAction = new AnalyzeActionClass({
   renderApp: () => renderApp(),
 });
 
-saveAction = new SaveActionClass({
+const saveAction = new SaveActionClass({
   session,
   settings,
   tabStateManager,
@@ -109,7 +106,7 @@ saveAction = new SaveActionClass({
   getAnalyzeAction: () => analyzeAction,
 });
 
-historyAction = new HistoryActionClass({
+const historyAction = new HistoryActionClass({
   session,
   settings,
   tabStateManager,
@@ -119,7 +116,7 @@ historyAction = new HistoryActionClass({
   getSaveAction: () => saveAction,
 });
 
-interactionAction = new InteractionActionClass({
+const interactionAction = new InteractionActionClass({
   session,
   settings,
   tabStateManager,
@@ -141,11 +138,6 @@ function renderApp(sessionState = session, settingsState = settings) {
   verdictUI.render(sessionState, settingsState);
   actionsUI.render(sessionState, settingsState);
   eggsUI.render(sessionState, settingsState);
-}
-
-if (typeof globalThis !== "undefined") {
-  globalThis.NutEggUI = globalThis.NutEggUI || {};
-  globalThis.NutEggUI.renderApp = renderApp;
 }
 
 function showResultsState(result, provenance = null) {
@@ -442,49 +434,11 @@ if (typeof module === "undefined" || !module.exports) {
   }
 }
 
-// Expose exports for backward compatibility & tests
-const _popupScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
-_popupScope.initPopup = initPopup;
-_popupScope.showResultsState = showResultsState;
-_popupScope.showCaptureState = showCaptureState;
-_popupScope.renderApp = renderApp;
-_popupScope.tabAction = tabAction;
-_popupScope.analyzeAction = analyzeAction;
-_popupScope.saveAction = saveAction;
-_popupScope.historyAction = historyAction;
-_popupScope.interactionAction = interactionAction;
-
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    helper,
-    extractTimestamp: helper.extractTimestamp,
-    linkifyTimestamps: helper.linkifyTimestamps,
-    timeToSeconds: helper.timeToSeconds,
-    unwrapMindMapRoots: helper.unwrapMindMapRoots,
-    initCollapsibleSections: () => globalThis.NutEggUI?.initCollapsibleSections?.(),
-    resetCollapsibleSections: () => globalThis.NutEggUI?.resetCollapsibleSections?.(),
-    buildPriorQa: helper.buildPriorQa,
-    handleSourcePillClick: (e) => interactionAction.handleSourcePillClick(e),
-    cleanEggName: helper.cleanEggName,
-    tabStateManager,
-    tabResultCache,
-    settings,
-    session,
-    analysisService,
-    escapeHtml: helper.escapeHtml,
-    slugify: helper.slugify,
-    openGitHubBugReport: (ctx) => interactionAction.openGitHubBugReport(ctx),
-    getVersionMismatchIssue: helper.getVersionMismatchIssue,
-    isTranscriptBlocked: () => analyzeAction.isTranscriptBlocked(),
-    getAnalyzeNotReadyReason: () => analyzeAction.getAnalyzeNotReadyReason(),
-    tabAction,
-    analyzeAction,
-    saveAction,
-    historyAction,
-    interactionAction,
     initPopup,
+    renderApp,
     showResultsState,
     showCaptureState,
-    renderApp,
   };
 }

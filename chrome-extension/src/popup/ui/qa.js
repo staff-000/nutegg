@@ -252,26 +252,13 @@ class QaComponent {
 const _qaScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _qaScope.NutEggUI = _qaScope.NutEggUI || {};
 _qaScope.NutEggUI.QaComponent = QaComponent;
-_qaScope.NutEggUI.linkifyTimestamps = linkifyTimestamps;
 _qaScope.NutEggUI.renderQaSources = renderQaSources;
-_qaScope.NutEggUI.renderCustomQuestions = _renderCustomQuestions;
-_qaScope.NutEggUI.buildPriorQa = buildPriorQa;
 _qaScope.NutEggUI.handleSourcePillClick = handleSourcePillClick;
-_qaScope.QaComponent = QaComponent;
-_qaScope.linkifyTimestamps = linkifyTimestamps;
-_qaScope.renderQaSources = renderQaSources;
-_qaScope.renderCustomQuestions = _renderCustomQuestions;
-_qaScope.buildPriorQa = buildPriorQa;
-_qaScope.handleSourcePillClick = handleSourcePillClick;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     QaComponent,
-    linkifyTimestamps,
     renderQaSources,
-    renderCustomQuestions: _renderCustomQuestions,
-    buildPriorQa,
-    handleSourcePillClick,
   };
 }
 

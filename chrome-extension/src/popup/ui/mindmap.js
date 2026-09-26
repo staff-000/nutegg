@@ -131,17 +131,10 @@ class MindmapComponent {
 const _mindmapScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
 _mindmapScope.NutEggUI = _mindmapScope.NutEggUI || {};
 _mindmapScope.NutEggUI.MindmapComponent = MindmapComponent;
-_mindmapScope.NutEggUI.unwrapMindMapRoots = unwrapMindMapRoots;
-_mindmapScope.NutEggUI.renderMindMap = renderMindMap;
-_mindmapScope.MindmapComponent = MindmapComponent;
-_mindmapScope.unwrapMindMapRoots = unwrapMindMapRoots;
-_mindmapScope.renderMindMap = renderMindMap;
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     MindmapComponent,
-    unwrapMindMapRoots,
-    renderMindMap,
   };
 }
 

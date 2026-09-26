@@ -234,9 +234,8 @@ class TabStateManager {
 }
 
 const _tabStateScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
-_tabStateScope.NutEggTabState = {
-  TabStateManager,
-};
+_tabStateScope.NutEggState = _tabStateScope.NutEggState || {};
+_tabStateScope.NutEggState.TabStateManager = TabStateManager;
 _tabStateScope.TabStateManager = TabStateManager;
 
 if (typeof module !== "undefined" && module.exports) {
