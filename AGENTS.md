@@ -17,7 +17,7 @@
 
 ## Critical Invariants
 
-1. **Rebuild Shared Core**: After editing `shared/`, run `node build.js` in `chrome-extension/` (or `npm run build`).
+1. **Rebuild Shared Core**: After editing `shared/`, run `node build.js` in `chrome-extension/` (or `npm run build`). `chrome-extension/dist/ai-core.js` and `obsidian-plugin/main.js` are generated build outputs ignored by git. NEVER edit them directly.
 2. **Tab State Isolation**: All popup tab state, errors, and warnings must be managed through `tabStateManager`.
 3. **Optional Chaining on Session**: Use `session.isStage1?.()` and `session.captureHistory?.length`.
 4. **QuestionScope**: `"within"` (strict grounding) vs `"beyond"` (grounding stripped for open reasoning/fact-checking).

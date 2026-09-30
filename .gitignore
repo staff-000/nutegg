@@ -1,5 +1,7 @@
 node_modules/
 obsidian-plugin/main.js
+chrome-extension/dist/
+dist/
 *.js.map
 .DS_Store
 .claude/

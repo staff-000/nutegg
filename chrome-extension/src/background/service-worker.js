@@ -1,6 +1,6 @@
 // NutEgg Background Service Worker
 
-importScripts("../ai/ai-core.js");
+importScripts("../../dist/ai-core.js");
 
 const {
   PROVIDER_CATALOG,

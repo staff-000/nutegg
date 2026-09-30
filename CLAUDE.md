@@ -14,7 +14,7 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
 | **AI Analysis & Prompts** | `shared/src/ai-processor.ts`, `shared/workflow/*.md` | Single source of truth for prompts, chunking, and evaluation |
 | **AI Providers & Models** | `shared/src/catalog.ts`, `shared/src/client.ts` | `PROVIDER_CATALOG`, OpenAI, Gemini, Claude, DeepSeek, Ollama |
 | **Shared Types** | `shared/src/types.ts` | `QuestionScope`, `CapturePayload`, `AnalysisResult`, `KeyAnswer` |
-| **Rebuilding Shared AI for Chrome** | `chrome-extension/build.js` | Bundles `shared/` into `chrome-extension/src/ai/ai-core.js` |
+| **Rebuilding Shared AI for Chrome** | `chrome-extension/build.js` | Bundles `shared/` into `chrome-extension/dist/ai-core.js` |
 | **Popup State Management** | `chrome-extension/src/popup/state/` | `session-state.js`, `tab-state.js`, `settings-state.js` |
 | **Popup Action Controllers** | `chrome-extension/src/popup/action/` | `analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js` |
 | **Popup Background Services** | `chrome-extension/src/popup/services/` | `analysis-service.js`, `env-service.js`, `page-extractor.js` |
@@ -38,7 +38,7 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
    - Do NOT use "topic" or "raw content" interchangeably with nut/egg.
 2. **Shared AI as Single Source of Truth**:
    - Any change to prompts, chunking, AI parsing, or types MUST be made in `shared/src/` (or `shared/workflow/`).
-   - After modifying `shared/src/`, always run `npm run build` (or `node build.js` in `chrome-extension/`) to update `chrome-extension/src/ai/ai-core.js`.
+   - After modifying `shared/src/`, always run `npm run build` (or `node build.js` in `chrome-extension/`) to update `chrome-extension/dist/ai-core.js`. Never edit `dist/ai-core.js`.
 3. **Tab State Isolation**:
    - Chrome extension side-panel shares one popup instance while the user switches active browser tabs.
    - All tab-specific data (analysis results, warnings, errors, extraction state, questions scope) MUST be saved and restored via `tabStateManager`.

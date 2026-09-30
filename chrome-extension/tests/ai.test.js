@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const bundlePath = path.join(__dirname, "../src/ai/ai-core.js");
+const bundlePath = path.join(__dirname, "../dist/ai-core.js");
 const bundleCode = fs.readFileSync(bundlePath, "utf8");
 const NutEggAI = new Function(bundleCode + "\nreturn NutEggAI;")();
 

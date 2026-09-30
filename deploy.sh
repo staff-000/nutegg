@@ -161,10 +161,10 @@ if [[ "$REMOTE_MODE" == true ]]; then
       else
         echo "   ⚠️  Warning: manifest.json not found inside $ZIP_FILE"
       fi
-      if unzip -l "$ZIP_FILE" 2>/dev/null | grep -F "src/ai/ai-core.js" >/dev/null 2>&1; then
-        echo "   ✅ Chrome AI core verified (src/ai/ai-core.js included)"
+      if unzip -l "$ZIP_FILE" 2>/dev/null | grep -E "(dist|src/ai)/ai-core.js" >/dev/null 2>&1; then
+        echo "   ✅ Chrome AI core verified (ai-core.js included)"
       else
-        echo "   ⚠️  Warning: src/ai/ai-core.js not found inside $ZIP_FILE"
+        echo "   ⚠️  Warning: ai-core.js not found inside $ZIP_FILE"
       fi
     fi
   else
@@ -190,7 +190,7 @@ else
 
   echo "🌐 Building Chrome extension AI engine..."
   (cd "$EXTENSION_DIR" && npm run build 2>&1 | sed 's/^/   /')
-  echo "   ✅ AI engine compiled to $EXTENSION_DIR/src/ai/ai-core.js"
+  echo "   ✅ AI engine compiled to $EXTENSION_DIR/dist/ai-core.js"
   echo ""
 
   echo "📋 Copying plugin files to Obsidian vault..."

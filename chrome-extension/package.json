@@ -5,6 +5,8 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
+    "clean": "rm -rf dist",
+    "pretest": "node build.js",
     "test": "node --test \"tests/*.test.js\""
   }
 }

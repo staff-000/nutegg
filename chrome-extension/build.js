@@ -31,7 +31,7 @@ const mdAsTextPlugin = {
 };
 
 async function build() {
-  const outfile = path.join(__dirname, "src/ai/ai-core.js");
+  const outfile = path.join(__dirname, "dist/ai-core.js");
   const entryPoint = path.join(__dirname, "../shared/src/index.ts");
   console.log("[NutEgg Build] Bundling shared AI engine into:", outfile);
 
@@ -51,10 +51,13 @@ async function build() {
     outfile,
     plugins: [mdAsTextPlugin],
     sourcemap: false,
+    banner: {
+      js: "// ============================================================\n// AUTO-GENERATED BUNDLE FROM shared/src/index.ts — DO NOT EDIT DIRECTLY\n// Edit source files in shared/ and run 'node build.js' or 'npm run build'.\n// ============================================================",
+    },
     logLevel: "info",
   });
 
-  console.log("[NutEgg Build] Successfully generated src/ai/ai-core.js");
+  console.log("[NutEgg Build] Successfully generated dist/ai-core.js");
 }
 
 build().catch((err) => {
