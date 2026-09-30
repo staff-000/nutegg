@@ -19,6 +19,8 @@ class TabAction {
   getActiveTabSnapshot() {
     return this.session.snapshot({
       customQuestions: this.ui.captureUI?.getCustomQuestions?.() || "",
+      customQuestionsScope: this.ui.captureUI?.getQuestionsScope?.() || this.session.customQuestionsScope || "within",
+      followupScope: this.ui.qaUI?.getScope?.() || this.session.followupScope || "within",
       analysisMode: this.settings?.analysisMode,
       warning: this.ui.bannersUI?.getWarning?.() || null,
       error: this.ui.bannersUI?.getError?.() || null,
@@ -323,6 +325,8 @@ class TabAction {
     ui.bannersUI?.hideAll?.();
     ui.eggsUI?.updateCaptureLabel?.(session.preSelectedEggs);
     ui.captureUI?.setCustomQuestions?.(restored.customQuestions || "");
+    ui.captureUI?.setQuestionsScope?.(restored.customQuestionsScope || "within");
+    ui.qaUI?.setScope?.(restored.followupScope || "within");
     ui.qaUI?.clearFollowup?.();
     session.currentTabLoading = false;
 
@@ -380,12 +384,12 @@ class TabAction {
         ui.bannersUI?.showDuplicate?.(cached.duplicate);
       }
       ui.actionsUI?.setHistorySelectDisabled?.(false);
-      if (session.isStage1() && settings?.analysisMode === "confirm") {
+      if (session.isStage1?.() && settings?.analysisMode === "confirm") {
         ui.actionsUI?.showStage1Confirm?.();
         ui.verdictUI?.hide?.();
         analyzeAction?.updateStage1ProceedBtn?.();
       }
-      if (session.captureHistory.length > 0) {
+      if (session.captureHistory?.length > 0) {
         const entry = (session.currentNutId != null && session.captureHistory.find((h) => String(h.nutId) === String(session.currentNutId))) || session.captureHistory[0];
         const when = new Date(entry.capturedAt).toLocaleString();
         const stateLabel = entry.saved === "saved"

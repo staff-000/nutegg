@@ -24,6 +24,8 @@ class InteractionAction {
     const pinnedTabId = session.activeTabId;
     const q = ui.qaUI?.getFollowupText?.();
     if (!q || ui.qaUI?.followupBtn?.disabled) return;
+    const scope = ui.qaUI?.getScope ? ui.qaUI.getScope() : (session.followupScope || "within");
+    session.followupScope = scope;
     ui.qaUI?.clearFollowup?.();
     ui.qaUI?.setFollowupLoading?.(true);
     ui.qaUI?.render?.(session.analysisResult, session.followUpQa);
@@ -33,9 +35,17 @@ class InteractionAction {
       settings,
       tabStateManager,
       question: q,
+      scope,
       pinnedTabId,
-      extractFallback: (id) => tabAction ? tabAction.extractPageContent(session.refreshSeq, id) : null,
-      buildPriorQa: (res, qaList) => pageHelper?.buildPriorQa ? pageHelper.buildPriorQa(res, qaList) : [],
+      buildPriorQa: (res, qaList) => {
+        if (typeof ui.qaUI?.buildPriorQa === "function") {
+          return ui.qaUI.buildPriorQa(res, qaList);
+        }
+        const eggQa = (res?.eggResults || []).flatMap((r) => r.keyQuestionAnswers || []);
+        const customQa = res?.customQuestionAnswers || [];
+        const followUps = (qaList || []).filter((qa) => qa && qa.answer !== "…");
+        return [...eggQa, ...customQa, ...followUps];
+      },
     });
 
     if (session.activeTabId === pinnedTabId) {

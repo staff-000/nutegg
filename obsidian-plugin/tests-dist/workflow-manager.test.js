@@ -159,9 +159,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // ../shared/workflow/follow-up.md
-var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions about this content.
+var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions.
 
-## Content to Analyze
+## Context / Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
@@ -169,7 +169,7 @@ var follow_up_default = `You are a knowledge curator. Answer the user's follow-u
 
 {{content}}
 
-## New Questions (answer each directly and concisely)
+## New Questions
 {{questions}}
 
 ## Output Format

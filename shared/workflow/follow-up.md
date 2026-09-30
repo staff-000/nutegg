@@ -1,6 +1,6 @@
-You are a knowledge curator. Answer the user's follow-up questions about this content.
+You are a knowledge curator. Answer the user's follow-up questions.
 
-## Content to Analyze
+## Context / Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
@@ -8,7 +8,7 @@ You are a knowledge curator. Answer the user's follow-up questions about this co
 
 {{content}}
 
-## New Questions (answer each directly and concisely)
+## New Questions
 {{questions}}
 
 ## Output Format

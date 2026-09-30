@@ -35,6 +35,9 @@ class SessionState {
     this.preSelectedEggs = new Set();
     /** Active tab in the egg selection UI ("existing" | "new") */
     this.activeEggTab = null;
+    /** Question scopes: "within" | "beyond" */
+    this.customQuestionsScope = "within";
+    this.followupScope = "within";
 
     // Operation sequence and transient flags
     this.refreshSeq = 0;
@@ -59,6 +62,8 @@ class SessionState {
     this.stage1Payload = null;
     this.stage1ContentAnalysis = null;
     this.activeEggTab = null;
+    this.customQuestionsScope = "within";
+    this.followupScope = "within";
     this.selectedEggs.clear();
     this.preSelectedEggs.clear();
     this.lastLoadWasLoading = false;
@@ -85,6 +90,8 @@ class SessionState {
       selectedEggs: new Set(this.selectedEggs),
       preSelectedEggs: new Set(this.preSelectedEggs),
       activeEggTab: this.activeEggTab,
+      customQuestionsScope: this.customQuestionsScope || "within",
+      followupScope: this.followupScope || "within",
       extractionFailed: !!this.extractionFailed,
       ...extra,
     };
@@ -105,6 +112,8 @@ class SessionState {
     this.nutCollected = !!restored.nutCollected;
     this.cachedProcessedSaved = restored.cachedProcessedSaved || null;
     this.activeEggTab = restored.activeEggTab || null;
+    this.customQuestionsScope = restored.customQuestionsScope || "within";
+    this.followupScope = restored.followupScope || "within";
     this.extractionFailed = !!restored.extractionFailed;
 
     if (restored.selectedEggs instanceof Set) {

@@ -128,7 +128,7 @@ class TabStateManager {
       delete existing.error;
       delete existing.errorCode;
       if (existing.status === "error") {
-        existing.status = existing.analysisResult ? "done" : (existing.extractedContent ? "idle" : null);
+        existing.status = existing.analysisResult ? "done" : "idle";
       }
     }
   }
@@ -214,6 +214,8 @@ class TabStateManager {
       followUpQa: state.followUpQa
         ? [...state.followUpQa]
         : (prev.followUpQa || []),
+      customQuestionsScope: state.customQuestionsScope || prev.customQuestionsScope || "within",
+      followupScope: state.followupScope || prev.followupScope || "within",
     };
 
     this.cache.set(tabId, entry);
@@ -234,6 +236,8 @@ class TabStateManager {
       errorCode: cached.errorCode || null,
       duplicate: cached.duplicate || null,
       extractionFailed: !!cached.extractionFailed,
+      customQuestionsScope: cached.customQuestionsScope || "within",
+      followupScope: cached.followupScope || "within",
       selectedEggs: new Set(cached.selectedEggs || (cached.analysisResult?.matchedEggs || [])),
       preSelectedEggs: new Set(cached.preSelectedEggs || []),
       captureHistory: cached.captureHistory ? [...cached.captureHistory] : [],

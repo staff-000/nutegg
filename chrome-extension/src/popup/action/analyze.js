@@ -97,6 +97,7 @@ class AnalyzeAction {
       contentForProvenance,
       callbacks: {
         getQuestions: () => ui.captureUI?.getParsedQuestions?.(),
+        getQuestionsScope: () => ui.captureUI?.getQuestionsScope?.() || session.customQuestionsScope || "within",
         onNoEggsSelected: () => {
           if (isPinnedActive()) {
             ui.eggsUI?.expandEggsList?.(true);
@@ -201,6 +202,7 @@ class AnalyzeAction {
       pinnedTabId,
       callbacks: {
         getQuestions: () => ui.captureUI?.getParsedQuestions?.(),
+        getQuestionsScope: () => ui.captureUI?.getQuestionsScope?.() || session.customQuestionsScope || "within",
         onWarning: (msg) => {
           if (isPinnedActive()) ui.bannersUI?.showWarning?.(msg);
         },

@@ -127,20 +127,31 @@ function _renderCustomQuestions(options = {}) {
   }
 
   if (inputEl) {
-    inputEl.placeholder = t("askQuestionPlaceholder");
+    const activeScope = options.scope || "within";
+    inputEl.placeholder = activeScope === "beyond"
+      ? (t("followupBeyondPlaceholder") || t("askQuestionPlaceholder"))
+      : t("askQuestionPlaceholder");
   }
 
   if (listEl) {
     if (all.length > 0) {
       listEl.innerHTML = all
-        .map((qa) => `
+        .map((qa) => {
+          const isBeyond = qa.scope === "beyond";
+          const badgeClass = isBeyond ? "qa-scope-badge qa-scope-beyond" : "qa-scope-badge qa-scope-within";
+          const badgeIcon = isBeyond ? "🌐" : "📄";
+          const badgeText = isBeyond ? t("scopeBeyond") : t("scopeWithin");
+          const badgeTitle = isBeyond ? t("scopeBeyondTooltip") : t("scopeWithinTooltip");
+          const scopeBadge = `<span class="${badgeClass}" title="${_qaEscapeHtml(badgeTitle)}">${badgeIcon} ${_qaEscapeHtml(badgeText)}</span>`;
+          return `
           <div class="egg-group">
             <div class="qa-item">
-              <div class="qa-question">Q: ${_qaEscapeHtml(qa.question)}</div>
+              <div class="qa-question">Q: ${_qaEscapeHtml(qa.question)}${scopeBadge}</div>
               <div class="qa-answer">${linkifyTimestamps(_qaEscapeHtml(qa.answer))}</div>
               ${renderQaSources(qa.sources)}
             </div>
-          </div>`)
+          </div>`;
+        })
         .join("");
     } else {
       listEl.innerHTML = "";
@@ -183,6 +194,59 @@ class QaComponent {
     this.customQuestionsList = root.getElementById("custom-questions-list");
     this.followupInput = root.getElementById("followup-input");
     this.followupBtn = root.getElementById("followup-btn");
+    this.followupScopeContainer = root.getElementById("followup-scope");
+    this.followupScope = "within";
+    this._bindScopeChips();
+  }
+
+  _bindScopeChips() {
+    if (!this.followupScopeContainer) return;
+    if (this.followupScopeContainer.tagName === "SELECT") {
+      this.followupScopeContainer.addEventListener("change", (e) => {
+        this.setScope(e.target.value);
+        if (typeof this.onScopeChange === "function") {
+          this.onScopeChange(e.target.value);
+        }
+      });
+    } else {
+      this.followupScopeContainer.addEventListener("click", (e) => {
+        const chip = e.target.closest(".scope-chip");
+        if (!chip || !chip.dataset.scope) return;
+        this.setScope(chip.dataset.scope);
+        if (typeof this.onScopeChange === "function") {
+          this.onScopeChange(chip.dataset.scope);
+        }
+      });
+    }
+  }
+
+  getScope() {
+    if (this.followupScopeContainer && this.followupScopeContainer.tagName === "SELECT") {
+      return this.followupScopeContainer.value || this.followupScope || "within";
+    }
+    return this.followupScope || "within";
+  }
+
+  setScope(scope) {
+    this.followupScope = scope === "beyond" ? "beyond" : "within";
+    if (this.followupScopeContainer) {
+      if (this.followupScopeContainer.tagName === "SELECT") {
+        this.followupScopeContainer.value = this.followupScope;
+      }
+      const chips = this.followupScopeContainer.querySelectorAll(".scope-chip");
+      chips.forEach((c) => {
+        c.classList.toggle("active", c.dataset.scope === this.followupScope);
+      });
+    }
+    if (this.followupInput) {
+      this.followupInput.placeholder = this.followupScope === "beyond"
+        ? (t("followupBeyondPlaceholder") || t("askQuestionPlaceholder"))
+        : t("askQuestionPlaceholder");
+    }
+  }
+
+  buildPriorQa(res, qaList) {
+    return buildPriorQa(res, qaList);
   }
 
   render(firstArg, secondArg) {
@@ -191,6 +255,7 @@ class QaComponent {
         customQuestionsSection: this.customQuestionsSection,
         customQuestionsList: this.customQuestionsList,
         followupInput: this.followupInput,
+        scope: this.followupScope,
         ...firstArg,
       });
     }
@@ -216,6 +281,7 @@ class QaComponent {
       customQuestionsSection: this.customQuestionsSection,
       customQuestionsList: this.customQuestionsList,
       followupInput: this.followupInput,
+      scope: this.followupScope,
       questions,
       followUps,
     });

@@ -1291,9 +1291,9 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // ../shared/workflow/follow-up.md
-var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions about this content.
+var follow_up_default = `You are a knowledge curator. Answer the user's follow-up questions.
 
-## Content to Analyze
+## Context / Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
 **Type:** {{source_type}}
@@ -1301,7 +1301,7 @@ var follow_up_default = `You are a knowledge curator. Answer the user's follow-u
 
 {{content}}
 
-## New Questions (answer each directly and concisely)
+## New Questions
 {{questions}}
 
 ## Output Format
@@ -1706,12 +1706,32 @@ var AIProcessor = class {
     return this.host?.workflowManager?.getPrompt(key) || PROMPTS[key] || "";
   }
   /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
-  getContentOutputRules(capture2) {
+  getContentOutputRules(capture2, scope = "within") {
     const langSetting = capture2?.outputLanguage || this.host?.settings?.outputLanguage || "same-as-content";
     const isSame = !langSetting || langSetting === "same-as-content";
     const outputLanguage = isSame ? "the same language as the captured content" : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
     const tpl = this.getPrompt("sharedOutputRules");
-    return renderPrompt(tpl, { output_language: outputLanguage }).trim();
+    let rendered = renderPrompt(tpl, { output_language: outputLanguage }).trim();
+    if (scope === "beyond") {
+      const globalModeRule = "- Mode: Global Mode (Open / External Knowledge). You are in Global Mode and are NOT restricted to the provided content. You MUST use your full external world knowledge, independent reasoning, and fact-checking capabilities to answer questions. The provided content is only reference context or the subject of inquiry, NOT an exclusive boundary or sole source of truth. Freely fact-check, verify, refute, critique, supplement, or answer open-ended questions using general world knowledge. Do NOT limit your answer to only what is stated in the content.";
+      const globalSourceRule = '- Source References: In Global Mode, source references to the content are optional. If an answer draws on external knowledge, set "sources": []. Only include sources if you are directly citing or quoting a specific passage from the provided content.';
+      if (/^[ \t]*- Grounding:.*(?:\r?\n|$)/m.test(rendered)) {
+        rendered = rendered.replace(/^[ \t]*- Grounding:.*(?:\r?\n|$)/m, `${globalModeRule}
+`);
+      } else {
+        rendered = `${globalModeRule}
+${rendered}`;
+      }
+      if (/^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m.test(rendered)) {
+        rendered = rendered.replace(
+          /^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m,
+          `${globalSourceRule}
+`
+        );
+      }
+      rendered = rendered.trim();
+    }
+    return rendered;
   }
   /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
   getEggOutputRules(eggOrLanguage = "", fallbackDescription = "", capture2) {
@@ -1758,7 +1778,8 @@ var AIProcessor = class {
         chapterMap: [],
         customQuestionAnswers: (capture2.questions || []).map((q) => ({
           question: q,
-          answer: "No API key configured \u2014 cannot answer."
+          answer: "No API key configured \u2014 cannot answer.",
+          scope: capture2.questionsScope || "within"
         })),
         mindMap: []
       };
@@ -1904,10 +1925,10 @@ var AIProcessor = class {
       sections: sections.chapterMap ? this.sectionsBlock(capture2.sections) : "",
       questions: this.questionsBlock(
         capture2.questions,
-        "User Questions (answer each directly and concisely)"
+        capture2.questionsScope === "beyond" ? "User Questions \u2014 Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)" : "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture2.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules(capture2)
+      shared_output_rules: this.getContentOutputRules(capture2, capture2.questionsScope || "within")
     });
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
     const response = await this.callAI(prompt, configuredMax);
@@ -1925,7 +1946,10 @@ var AIProcessor = class {
         })) : [],
         capture2.sections
       ),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers)
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        ...a,
+        scope: a.scope || capture2.questionsScope || "within"
+      }))
     };
   }
   /**
@@ -2143,10 +2167,10 @@ ${bullets || "- (no summary)"}${mmStr}`;
       }).join("\n\n"),
       questions: this.questionsBlock(
         capture2.questions,
-        "User Questions (answer each directly and concisely)"
+        capture2.questionsScope === "beyond" ? "User Questions \u2014 Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)" : "User Questions (answer each directly and concisely)"
       ),
       content_task_default: prunedTask,
-      shared_output_rules: this.getContentOutputRules(capture2)
+      shared_output_rules: this.getContentOutputRules(capture2, capture2.questionsScope || "within")
     });
     const defaultMax = sections.mindMap ? 4096 : 1500;
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
@@ -2155,7 +2179,10 @@ ${bullets || "- (no summary)"}${mmStr}`;
     return {
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
       coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        ...a,
+        scope: a.scope || capture2.questionsScope || "within"
+      })),
       mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : []
     };
   }
@@ -2278,7 +2305,7 @@ ${delta || "- (no novel delta)"}`;
    * call, grounded in the same content. Previous Q&A pairs are included as
    * context so the model can refer back instead of repeating answers.
    */
-  async askFollowUp(capture2, questions, priorQa = []) {
+  async askFollowUp(capture2, questions, priorQa = [], scope = "within") {
     if (questions.length === 0)
       return [];
     if (!isAIConfigured(this.host?.settings)) {
@@ -2286,12 +2313,19 @@ ${delta || "- (no novel delta)"}`;
       const msg = aiProvider === "local" ? "Local LLM not configured \u2014 cannot answer." : "No API key configured \u2014 cannot answer.";
       return questions.map((q) => ({
         question: q,
-        answer: msg
+        answer: msg,
+        scope
       }));
     }
-    const priorBlock = priorQa.length > 0 ? `## Previous Questions & Answers (context \u2014 refer back instead of repeating)
-${priorQa.map((qa) => `Q: ${qa.question}
-A: ${qa.answer}`).join("\n")}` : "";
+    let priorBlock = "";
+    if (Array.isArray(priorQa) && priorQa.length > 0) {
+      priorBlock = `## Previous Questions & Answers (context \u2014 refer back instead of repeating)
+${priorQa.map((qa) => typeof qa === "string" ? qa : `Q: ${qa.question}
+A: ${qa.answer}`).join("\n")}`;
+    } else if (typeof priorQa === "string" && priorQa.trim().length > 0) {
+      priorBlock = `## Previous Questions & Answers (context \u2014 refer back instead of repeating)
+${priorQa.trim()}`;
+    }
     const prompt = renderPrompt(this.getPrompt("followUp"), {
       title: capture2.title,
       url: capture2.url,
@@ -2299,7 +2333,7 @@ A: ${qa.answer}`).join("\n")}` : "";
       prior_qa: priorBlock,
       content: this.truncate(capture2.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getContentOutputRules(capture2)
+      shared_output_rules: this.getContentOutputRules(capture2, scope)
     });
     try {
       const response = await this.callAI(prompt, 2e3);
@@ -2310,7 +2344,8 @@ A: ${qa.answer}`).join("\n")}` : "";
         const found = byQuestion.get(q);
         const item = {
           question: q,
-          answer: found?.answer || "No answer returned \u2014 please try again."
+          answer: found?.answer || "No answer returned \u2014 please try again.",
+          scope: found?.scope || scope
         };
         if (found?.sources && found.sources.length > 0) {
           item.sources = found.sources;
@@ -2323,7 +2358,8 @@ A: ${qa.answer}`).join("\n")}` : "";
       console.error("[NutEgg] Follow-up question failed:", err);
       return questions.map((q) => ({
         question: q,
-        answer: "Failed to answer \u2014 please try again."
+        answer: "Failed to answer \u2014 please try again.",
+        scope
       }));
     }
   }
@@ -2456,6 +2492,9 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
         question: String(qa.question),
         answer: String(qa.answer)
       };
+      if (qa.scope === "within" || qa.scope === "beyond") {
+        entry.scope = qa.scope;
+      }
       if (Array.isArray(qa.sources)) {
         const sources = qa.sources.filter((s) => s && (s.ref || s.timestamp || s.section)).map((s) => {
           const item = {
@@ -3355,6 +3394,68 @@ var capture = {
     const out = await new AIProcessor(plugin).askFollowUp(capture, [], []);
     import_strict.default.deepEqual(out, []);
     import_strict.default.equal(calls, 0);
+  });
+  (0, import_node_test.it)("passes scope 'within' by default and retains grounding rule", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Q1?", answer: "A1" }] });
+        }
+      }
+    });
+    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Q1?"]);
+    import_strict.default.equal(out[0].scope, "within");
+    import_strict.default.ok(capturedPrompt.includes("- Grounding:"));
+  });
+  (0, import_node_test.it)("passes scope 'beyond' and completely removes grounding rule", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Fact check?", answer: "Verified" }] });
+        }
+      }
+    });
+    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Fact check?"], [], "beyond");
+    import_strict.default.equal(out[0].scope, "beyond");
+    import_strict.default.equal(capturedPrompt.includes("- Grounding:"), false);
+    import_strict.default.ok(capturedPrompt.includes("Global Mode"));
+    import_strict.default.ok(capturedPrompt.includes("- Output Language:"));
+  });
+  (0, import_node_test.it)("handles priorQa as a formatted string without throwing priorQa.map is not a function", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Next question?", answer: "Answer" }] });
+        }
+      }
+    });
+    const stringPriorQa = "Q: Earlier question?\nA: Earlier answer.";
+    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Next question?"], stringPriorQa);
+    import_strict.default.equal(out[0].answer, "Answer");
+    import_strict.default.ok(capturedPrompt.includes("Q: Earlier question?"));
+    import_strict.default.ok(capturedPrompt.includes("A: Earlier answer."));
+  });
+  (0, import_node_test.it)("handles priorQa as an array of objects correctly", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Followup?", answer: "Followup Ans" }] });
+        }
+      }
+    });
+    const arrayPriorQa = [{ question: "What is X?", answer: "X is Y." }];
+    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Followup?"], arrayPriorQa);
+    import_strict.default.equal(out[0].answer, "Followup Ans");
+    import_strict.default.ok(capturedPrompt.includes("Q: What is X?"));
+    import_strict.default.ok(capturedPrompt.includes("A: X is Y."));
   });
 });
 (0, import_node_test.describe)("AIProcessor.chunkContent", () => {

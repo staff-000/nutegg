@@ -374,9 +374,10 @@ async function handleAsk(payload) {
 
   try {
     const question = (payload.questions && payload.questions[0]) || "";
-    const answer = await askFollowUpStandalone(payload, question, payload.priorQa || [], aiSettings);
+    const scope = payload.scope || "within";
+    const answer = await askFollowUpStandalone(payload, question, payload.priorQa || [], aiSettings, scope);
     return {
-      answers: [{ question, answer }],
+      answers: [{ question, answer, scope }],
     };
   } catch (err) {
     return {

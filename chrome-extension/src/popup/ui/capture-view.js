@@ -15,6 +15,50 @@ class CaptureViewComponent {
     this.questionsToggle = root.getElementById("questions-toggle");
     this.questionsArea = root.getElementById("questions-area");
     this.customQuestionsEl = root.getElementById("custom-questions");
+    this.captureScopeContainer = root.getElementById("capture-questions-scope");
+    this.questionsScope = "within";
+    this._bindScopeChips();
+  }
+
+  _bindScopeChips() {
+    if (!this.captureScopeContainer) return;
+    if (this.captureScopeContainer.tagName === "SELECT") {
+      this.captureScopeContainer.addEventListener("change", (e) => {
+        this.setQuestionsScope(e.target.value);
+        if (typeof this.onScopeChange === "function") {
+          this.onScopeChange(e.target.value);
+        }
+      });
+    } else {
+      this.captureScopeContainer.addEventListener("click", (e) => {
+        const chip = e.target.closest(".scope-chip");
+        if (!chip || !chip.dataset.scope) return;
+        this.setQuestionsScope(chip.dataset.scope);
+        if (typeof this.onScopeChange === "function") {
+          this.onScopeChange(chip.dataset.scope);
+        }
+      });
+    }
+  }
+
+  getQuestionsScope() {
+    if (this.captureScopeContainer && this.captureScopeContainer.tagName === "SELECT") {
+      return this.captureScopeContainer.value || this.questionsScope || "within";
+    }
+    return this.questionsScope || "within";
+  }
+
+  setQuestionsScope(scope) {
+    this.questionsScope = scope === "beyond" ? "beyond" : "within";
+    if (this.captureScopeContainer) {
+      if (this.captureScopeContainer.tagName === "SELECT") {
+        this.captureScopeContainer.value = this.questionsScope;
+      }
+      const chips = this.captureScopeContainer.querySelectorAll(".scope-chip");
+      chips.forEach((c) => {
+        c.classList.toggle("active", c.dataset.scope === this.questionsScope);
+      });
+    }
   }
 
   render(firstArg, options = {}) {

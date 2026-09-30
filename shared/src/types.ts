@@ -98,11 +98,15 @@ export interface SourceRef {
   quote?: string;
 }
 
+export type QuestionScope = "within" | "beyond";
+
 export interface KeyAnswer {
   question: string;
   answer: string;
   /** Citations pointing to where in the content this answer comes from. */
   sources?: SourceRef[];
+  /** Scope of the question: strictly within content vs unconstrained beyond content. */
+  scope?: QuestionScope;
 }
 
 /** A node in the concept mind map / outline tree. */
@@ -148,8 +152,25 @@ export interface CapturePayload {
   sourceType: string;
   chapters?: Array<{ time: string; title: string }>;
   questions?: string[];
+  /** Scope for custom questions: strictly within content vs unconstrained beyond content. */
+  questionsScope?: QuestionScope;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   outputLanguage?: string;
+}
+
+export interface AskRequest {
+  url: string;
+  title: string;
+  content: string;
+  sourceType: string;
+  /** New follow-up questions to answer. */
+  questions: string[];
+  /** Previously answered Q&A (egg key questions + custom + earlier follow-ups). */
+  priorQa?: Array<{ question: string; answer: string; scope?: QuestionScope }> | string;
+  /** Output language for follow-up answers (sent from Chrome). */
+  outputLanguage?: string;
+  /** Scope of the question: strictly within content vs unconstrained beyond content. */
+  scope?: QuestionScope;
 }
 
 /** In-memory representation of a parsed Egg note file. */

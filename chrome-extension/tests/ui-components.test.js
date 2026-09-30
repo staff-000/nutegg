@@ -40,6 +40,7 @@ function createMockElement(id = "") {
     getAttribute(k) { return this[k]; },
     addEventListener() {},
     scrollIntoView() {},
+    querySelector() { return null; },
     querySelectorAll() { return []; },
   };
 }
@@ -708,6 +709,93 @@ describe("Modular UI Components", () => {
     // In "all" tab, neither egg is hidden
     assert.ok(!eggs.eggKnowledgeContent.innerHTML.includes('hidden" data-egg="egg1.md"'));
     assert.ok(!eggs.eggKnowledgeContent.innerHTML.includes('hidden" data-egg="egg2.md"'));
+  });
+
+  it("CaptureViewComponent manages questions scope ('within' | 'beyond')", () => {
+    const root = createMockRoot();
+    const beyondChip = createMockElement();
+    beyondChip.dataset = { scope: "beyond" };
+    const withinChip = createMockElement();
+    withinChip.dataset = { scope: "within" };
+    withinChip.classList.add("active");
+
+    const scopeContainer = root.getElementById("capture-questions-scope");
+    scopeContainer.querySelectorAll = () => [withinChip, beyondChip];
+
+    const capture = new CaptureViewComponent(root);
+    assert.strictEqual(capture.getQuestionsScope(), "within");
+
+    capture.setQuestionsScope("beyond");
+    assert.strictEqual(capture.getQuestionsScope(), "beyond");
+    assert.strictEqual(beyondChip.classList.contains("active"), true);
+    assert.strictEqual(withinChip.classList.contains("active"), false);
+
+    capture.setQuestionsScope("within");
+    assert.strictEqual(capture.getQuestionsScope(), "within");
+    assert.strictEqual(withinChip.classList.contains("active"), true);
+    assert.strictEqual(beyondChip.classList.contains("active"), false);
+  });
+
+  it("QaComponent manages followup scope and renders scope badges", () => {
+    const root = createMockRoot();
+    const beyondChip = createMockElement();
+    beyondChip.dataset = { scope: "beyond" };
+    const withinChip = createMockElement();
+    withinChip.dataset = { scope: "within" };
+    withinChip.classList.add("active");
+
+    const scopeContainer = root.getElementById("followup-scope");
+    scopeContainer.querySelectorAll = () => [withinChip, beyondChip];
+
+    const qa = new QaComponent(root);
+    assert.strictEqual(qa.getScope(), "within");
+
+    qa.setScope("beyond");
+    assert.strictEqual(qa.getScope(), "beyond");
+    assert.strictEqual(beyondChip.classList.contains("active"), true);
+    assert.strictEqual(withinChip.classList.contains("active"), false);
+    assert.ok(qa.followupInput.placeholder.length > 0);
+
+    // Test render with mixed scopes
+    qa.render({
+      questions: [
+        { question: "Strict fact question", answer: "Fact", scope: "within" },
+        { question: "Beyond content question", answer: "Expanded insight", scope: "beyond" },
+      ],
+      followUps: [],
+    });
+
+    const renderedHtml = qa.customQuestionsList.innerHTML;
+    assert.ok(renderedHtml.includes("qa-scope-badge qa-scope-within"));
+    assert.ok(renderedHtml.includes("qa-scope-badge qa-scope-beyond"));
+    assert.ok(renderedHtml.includes("Content only"));
+    assert.ok(renderedHtml.includes("Global Mode"));
+  });
+
+  it("QaComponent supports select element dropdown selector", () => {
+    const root = createMockRoot();
+    const selectElem = createMockElement();
+    selectElem.tagName = "SELECT";
+    selectElem.value = "within";
+
+    root.getElementById = (id) => {
+      if (id === "followup-scope") return selectElem;
+      return createMockElement(id);
+    };
+
+    let changedScope = null;
+    const qa = new QaComponent(root);
+    qa.onScopeChange = (s) => { changedScope = s; };
+
+    assert.strictEqual(qa.getScope(), "within");
+
+    qa.setScope("beyond");
+    assert.strictEqual(qa.getScope(), "beyond");
+    assert.strictEqual(selectElem.value, "beyond");
+
+    qa.setScope("within");
+    assert.strictEqual(qa.getScope(), "within");
+    assert.strictEqual(selectElem.value, "within");
   });
 });
 

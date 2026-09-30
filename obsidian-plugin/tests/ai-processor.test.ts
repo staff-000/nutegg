@@ -450,6 +450,72 @@ describe("AIProcessor.askFollowUp", () => {
     assert.deepEqual(out, []);
     assert.equal(calls, 0);
   });
+
+  it("passes scope 'within' by default and retains grounding rule", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Q1?", answer: "A1" }] });
+        },
+      },
+    });
+    const out = await new AIProcessor(plugin as any).askFollowUp(capture, ["Q1?"]);
+    assert.equal(out[0].scope, "within");
+    assert.ok(capturedPrompt.includes("- Grounding:"));
+  });
+
+  it("passes scope 'beyond' and completely removes grounding rule", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Fact check?", answer: "Verified" }] });
+        },
+      },
+    });
+    const out = await new AIProcessor(plugin as any).askFollowUp(capture, ["Fact check?"], [], "beyond");
+    assert.equal(out[0].scope, "beyond");
+    assert.equal(capturedPrompt.includes("- Grounding:"), false);
+    assert.ok(capturedPrompt.includes("Global Mode"));
+    assert.ok(capturedPrompt.includes("- Output Language:"));
+  });
+
+  it("handles priorQa as a formatted string without throwing priorQa.map is not a function", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Next question?", answer: "Answer" }] });
+        },
+      },
+    });
+    const stringPriorQa = "Q: Earlier question?\nA: Earlier answer.";
+    const out = await new AIProcessor(plugin as any).askFollowUp(capture, ["Next question?"], stringPriorQa as any);
+    assert.equal(out[0].answer, "Answer");
+    assert.ok(capturedPrompt.includes("Q: Earlier question?"));
+    assert.ok(capturedPrompt.includes("A: Earlier answer."));
+  });
+
+  it("handles priorQa as an array of objects correctly", async () => {
+    let capturedPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          capturedPrompt = prompt;
+          return JSON.stringify({ answers: [{ question: "Followup?", answer: "Followup Ans" }] });
+        },
+      },
+    });
+    const arrayPriorQa = [{ question: "What is X?", answer: "X is Y." }];
+    const out = await new AIProcessor(plugin as any).askFollowUp(capture, ["Followup?"], arrayPriorQa);
+    assert.equal(out[0].answer, "Followup Ans");
+    assert.ok(capturedPrompt.includes("Q: What is X?"));
+    assert.ok(capturedPrompt.includes("A: X is Y."));
+  });
 });
 
 describe("AIProcessor.chunkContent", () => {

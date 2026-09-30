@@ -394,4 +394,89 @@ Some preamble.
   assert.ok(!pruned.includes('"mindMap"'));
 });
 
+test("AI Processor - getContentOutputRules removes grounding for scope 'beyond'", () => {
+  const processor = new AIProcessor({
+    settings: {
+      chromeAiProvider: "openai",
+      chromeAiApiKey: "test-key",
+    },
+  });
+
+  const withinRules = processor.getContentOutputRules({ sourceType: "webpage" }, "within");
+  assert.ok(withinRules.includes("- Grounding:"));
+  assert.ok(withinRules.includes("- Source References:"));
+
+  const beyondRules = processor.getContentOutputRules({ sourceType: "webpage" }, "beyond");
+  assert.equal(beyondRules.includes("- Grounding:"), false);
+  assert.ok(beyondRules.includes("- Source References:"));
+});
+
+test("AI Processor - analyzeContent passes scope to custom question answers", async () => {
+  const processor = new AIProcessor({
+    settings: {
+      chromeAiProvider: "openai",
+      chromeAiApiKey: "test-key",
+    },
+  });
+
+  processor.callAI = async () => JSON.stringify({
+    titleVerdict: "Direct answer.",
+    coreSummary: ["Point 1"],
+    customQuestionAnswers: [{ question: "Is this true?", answer: "Yes." }],
+  });
+
+  const resWithin = await processor.analyzeContent({
+    url: "https://example.com/test",
+    title: "Test Page",
+    content: "Short content.",
+    sourceType: "webpage",
+    questions: ["Is this true?"],
+    questionsScope: "within",
+  });
+  assert.equal(resWithin.customQuestionAnswers[0].scope, "within");
+
+  const resBeyond = await processor.analyzeContent({
+    url: "https://example.com/test",
+    title: "Test Page",
+    content: "Short content.",
+    sourceType: "webpage",
+    questions: ["Is this true?"],
+    questionsScope: "beyond",
+  });
+  assert.equal(resBeyond.customQuestionAnswers[0].scope, "beyond");
+});
+
+test("AI Processor - askFollowUp attaches scope and modifies grounding rule", async () => {
+  let capturedPrompt = "";
+  const processor = new AIProcessor({
+    settings: {
+      chromeAiProvider: "openai",
+      chromeAiApiKey: "test-key",
+    },
+  });
+
+  processor.callAI = async (prompt) => {
+    capturedPrompt = prompt;
+    return JSON.stringify({
+      answers: [{ question: "Fact check?", answer: "External fact." }],
+    });
+  };
+
+  const capture = {
+    url: "https://example.com/test",
+    title: "Test",
+    content: "Content",
+    sourceType: "webpage",
+  };
+
+  const outWithin = await processor.askFollowUp(capture, ["Fact check?"], [], "within");
+  assert.equal(outWithin[0].scope, "within");
+  assert.ok(capturedPrompt.includes("- Grounding:"));
+
+  const outBeyond = await processor.askFollowUp(capture, ["Fact check?"], [], "beyond");
+  assert.equal(outBeyond[0].scope, "beyond");
+  assert.equal(capturedPrompt.includes("- Grounding:"), false);
+  assert.ok(capturedPrompt.includes("Global Mode"));
+});
+
 

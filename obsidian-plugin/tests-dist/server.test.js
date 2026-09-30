@@ -624,10 +624,15 @@ var NutEggServer = class {
         res.end(JSON.stringify({ error: "Missing required fields: title, content, questions" }));
         return;
       }
+      let normalizedPriorQa = ask.priorQa;
+      if (typeof normalizedPriorQa !== "string" && !Array.isArray(normalizedPriorQa)) {
+        normalizedPriorQa = [];
+      }
       const answers = await this.plugin.aiProcessor.askFollowUp(
         ask,
         ask.questions,
-        ask.priorQa || []
+        normalizedPriorQa,
+        ask.scope || "within"
       );
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ answers }));

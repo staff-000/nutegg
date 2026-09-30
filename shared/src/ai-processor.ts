@@ -44,6 +44,7 @@ import {
   type MergeResult,
   type NewKnowledgeItem,
   type NovelDelta,
+  type QuestionScope,
   type RedundantEntry,
   type WorkflowPromptKey,
 } from "./types";
@@ -324,7 +325,10 @@ export class AIProcessor {
   }
 
   /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
-  private getContentOutputRules(capture?: { outputLanguage?: string; [key: string]: any }): string {
+  private getContentOutputRules(
+    capture?: { outputLanguage?: string; [key: string]: any },
+    scope: QuestionScope = "within"
+  ): string {
     const langSetting =
       capture?.outputLanguage ||
       this.host?.settings?.outputLanguage ||
@@ -335,7 +339,30 @@ export class AIProcessor {
       : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
 
     const tpl = this.getPrompt("sharedOutputRules");
-    return renderPrompt(tpl, { output_language: outputLanguage }).trim();
+    let rendered = renderPrompt(tpl, { output_language: outputLanguage }).trim();
+
+    if (scope === "beyond") {
+      const globalModeRule =
+        "- Mode: Global Mode (Open / External Knowledge). You are in Global Mode and are NOT restricted to the provided content. You MUST use your full external world knowledge, independent reasoning, and fact-checking capabilities to answer questions. The provided content is only reference context or the subject of inquiry, NOT an exclusive boundary or sole source of truth. Freely fact-check, verify, refute, critique, supplement, or answer open-ended questions using general world knowledge. Do NOT limit your answer to only what is stated in the content.";
+
+      const globalSourceRule =
+        "- Source References: In Global Mode, source references to the content are optional. If an answer draws on external knowledge, set \"sources\": []. Only include sources if you are directly citing or quoting a specific passage from the provided content.";
+
+      if (/^[ \t]*- Grounding:.*(?:\r?\n|$)/m.test(rendered)) {
+        rendered = rendered.replace(/^[ \t]*- Grounding:.*(?:\r?\n|$)/m, `${globalModeRule}\n`);
+      } else {
+        rendered = `${globalModeRule}\n${rendered}`;
+      }
+
+      if (/^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m.test(rendered)) {
+        rendered = rendered.replace(
+          /^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m,
+          `${globalSourceRule}\n`
+        );
+      }
+      rendered = rendered.trim();
+    }
+    return rendered;
   }
 
   /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
@@ -385,6 +412,7 @@ export class AIProcessor {
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
+      questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
     },
     eggs: EggContent[]
@@ -392,7 +420,6 @@ export class AIProcessor {
     if (!isAIConfigured(this.host?.settings)) {
       return this.fallbackAnalysis(capture, eggs);
     }
-
     const contentAnalysis = await this.analyzeContent(capture);
     return this.analyzeEggs(capture, eggs, contentAnalysis);
   }
@@ -410,6 +437,7 @@ export class AIProcessor {
       chapters?: Array<{ time: string; title: string }>;
       sections?: string[];
       questions?: string[];
+      questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
     }
   ): Promise<ContentAnalysis> {
@@ -427,6 +455,7 @@ export class AIProcessor {
         customQuestionAnswers: (capture.questions || []).map((q) => ({
           question: q,
           answer: "No API key configured — cannot answer.",
+          scope: capture.questionsScope || "within",
         })),
         mindMap: [],
       };
@@ -595,6 +624,7 @@ export class AIProcessor {
       chapters?: Array<{ time: string; title: string }>;
       sections?: string[];
       questions?: string[];
+      questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
     },
     partNoteStr = ""
@@ -618,10 +648,12 @@ export class AIProcessor {
       sections: sections.chapterMap ? this.sectionsBlock(capture.sections) : "",
       questions: this.questionsBlock(
         capture.questions,
-        "User Questions (answer each directly and concisely)"
+        capture.questionsScope === "beyond"
+          ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
+          : "User Questions (answer each directly and concisely)"
       ),
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules(capture as any),
+      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
 
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
@@ -653,7 +685,10 @@ export class AIProcessor {
               : [],
             capture.sections
           ),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        ...a,
+        scope: a.scope || capture.questionsScope || "within",
+      })),
     };
   }
 
@@ -908,6 +943,7 @@ export class AIProcessor {
       url: string;
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
+      questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
     },
     chunkSummaries: Array<{
@@ -955,10 +991,12 @@ export class AIProcessor {
         .join("\n\n"),
       questions: this.questionsBlock(
         capture.questions,
-        "User Questions (answer each directly and concisely)"
+        capture.questionsScope === "beyond"
+          ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
+          : "User Questions (answer each directly and concisely)"
       ),
       content_task_default: prunedTask,
-      shared_output_rules: this.getContentOutputRules(capture),
+      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
 
     const defaultMax = sections.mindMap ? 4096 : 1500;
@@ -973,7 +1011,10 @@ export class AIProcessor {
         sections.coreSummary && Array.isArray(parsed.coreSummary)
           ? parsed.coreSummary.map(String).slice(0, 3)
           : [],
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers),
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        ...a,
+        scope: a.scope || capture.questionsScope || "within",
+      })),
       mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
     };
   }
@@ -1155,7 +1196,8 @@ export class AIProcessor {
       sourceType: string;
     },
     questions: string[],
-    priorQa: KeyAnswer[] = []
+    priorQa: KeyAnswer[] | string = [],
+    scope: QuestionScope = "within"
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
@@ -1168,15 +1210,18 @@ export class AIProcessor {
       return questions.map((q) => ({
         question: q,
         answer: msg,
+        scope,
       }));
     }
 
-    const priorBlock =
-      priorQa.length > 0
-        ? `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
-            .map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`)
-            .join("\n")}`
-        : "";
+    let priorBlock = "";
+    if (Array.isArray(priorQa) && priorQa.length > 0) {
+      priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
+        .map((qa: any) => (typeof qa === "string" ? qa : `Q: ${qa.question}\nA: ${qa.answer}`))
+        .join("\n")}`;
+    } else if (typeof priorQa === "string" && priorQa.trim().length > 0) {
+      priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa.trim()}`;
+    }
 
     const prompt = renderPrompt(this.getPrompt("followUp"), {
       title: capture.title,
@@ -1185,7 +1230,7 @@ export class AIProcessor {
       prior_qa: priorBlock,
       content: this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
-      shared_output_rules: this.getContentOutputRules(capture),
+      shared_output_rules: this.getContentOutputRules(capture, scope),
     });
 
     try {
@@ -1198,6 +1243,7 @@ export class AIProcessor {
         const item: KeyAnswer = {
           question: q,
           answer: found?.answer || "No answer returned — please try again.",
+          scope: found?.scope || scope,
         };
         if (found?.sources && found.sources.length > 0) {
           item.sources = found.sources;
@@ -1210,6 +1256,7 @@ export class AIProcessor {
       return questions.map((q) => ({
         question: q,
         answer: "Failed to answer — please try again.",
+        scope,
       }));
     }
   }
@@ -1370,6 +1417,9 @@ export class AIProcessor {
               question: String(qa.question),
               answer: String(qa.answer),
             };
+            if (qa.scope === "within" || qa.scope === "beyond") {
+              entry.scope = qa.scope;
+            }
             if (Array.isArray(qa.sources)) {
               const sources = qa.sources
                 .filter((s: any) => s && (s.ref || s.timestamp || s.section))

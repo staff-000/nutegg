@@ -230,6 +230,7 @@ function showResultsState(result, provenance = null) {
     onSeek: (seconds) => interactionAction.seekToChapter(seconds),
   });
 
+  qaUI.setScope(session.followupScope || "within");
   qaUI.render(result, session.followUpQa);
 
   eggsUI.renderKnowledge(session.isStage1() ? [] : (result.eggResults || []), {
@@ -252,6 +253,7 @@ function showCaptureState() {
   globalThis.NutEggUI?.resetCollapsibleSections?.();
   bannersUI.hideAll();
   sectionsUI.updateUI(settings.enabledSections);
+  captureUI.setQuestionsScope(session.customQuestionsScope || "within");
   renderApp();
 }
 
@@ -410,11 +412,19 @@ async function initPopup() {
 
   qaUI.followupBtn?.addEventListener("click", () => interactionAction.handleFollowUp());
   qaUI.followupInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Avoid plain Enter to prevent accidental submissions (e.g. IME confirmation or typing mistakes).
+    // Require Cmd+Enter, Ctrl+Enter, or Shift+Enter.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey || e.shiftKey)) {
       e.preventDefault();
       interactionAction.handleFollowUp();
     }
   });
+  qaUI.onScopeChange = (scope) => {
+    session.followupScope = scope;
+  };
+  captureUI.onScopeChange = (scope) => {
+    session.customQuestionsScope = scope;
+  };
 
   headerUI.serverStatus?.addEventListener("click", () => {
     if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();

@@ -6,6 +6,7 @@ import type {
   AnalysisSectionsConfig,
   ContentAnalysis,
   MergeResult,
+  QuestionScope,
 } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
@@ -20,6 +21,8 @@ interface AnalyzeRequest {
   chapters?: Array<{ time: string; title: string }>;
   /** Custom questions from the popup — answered alongside the eggs' key questions. */
   questions?: string[];
+  /** Question scope: "within" (default) or "beyond" */
+  questionsScope?: QuestionScope;
   /** Force a fresh analysis even when cached captures exist for this URL. */
   force?: boolean;
   /** Manual egg selection from the popup — skips AI routing when non-empty. */
@@ -47,6 +50,8 @@ interface AskRequest {
   priorQa?: Array<{ question: string; answer: string }>;
   /** Output language for follow-up answers (sent from Chrome). */
   outputLanguage?: string;
+  /** Question scope: "within" (default) or "beyond" */
+  scope?: QuestionScope;
 }
 
 interface CreateEggRequest {
@@ -429,10 +434,16 @@ export class NutEggServer {
         return;
       }
 
+      let normalizedPriorQa: any = ask.priorQa;
+      if (typeof normalizedPriorQa !== "string" && !Array.isArray(normalizedPriorQa)) {
+        normalizedPriorQa = [];
+      }
+
       const answers = await this.plugin.aiProcessor.askFollowUp(
         ask,
         ask.questions,
-        ask.priorQa || []
+        normalizedPriorQa,
+        ask.scope || "within"
       );
 
       res.writeHead(200, { "Content-Type": "application/json" });

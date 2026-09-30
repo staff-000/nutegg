@@ -104,6 +104,7 @@ class AnalysisService {
 
     try {
       const questions = callbacks.getQuestions ? callbacks.getQuestions() : [];
+      const questionsScope = callbacks.getQuestionsScope ? callbacks.getQuestionsScope() : "within";
 
       // Check which eggs are selected on the page or pre-selected
       let targetEggs;
@@ -127,6 +128,7 @@ class AnalysisService {
         metadata: contentToAnalyze.metadata,
         chapters: contentToAnalyze.chapters || undefined,
         questions,
+        questionsScope,
         force: true,
         stage: 1,
         enabledSections: { ...settings.enabledSections },
@@ -606,6 +608,7 @@ class AnalysisService {
     settings,
     tabStateManager,
     question,
+    scope = "within",
     pinnedTabId = null,
     extractFallback = null,
     buildPriorQa = null,
@@ -617,7 +620,7 @@ class AnalysisService {
     let content = session.extractedContent || cached?.extractedContent;
     const result = session.analysisResult || cached?.analysisResult;
 
-    const inFlightEntry = { question, answer: "…" };
+    const inFlightEntry = { question, answer: "…", scope };
     session.followUpQa.push(inFlightEntry);
 
     if (targetPinnedId && tabStateManager) {
@@ -641,6 +644,7 @@ class AnalysisService {
         sourceType: content?.sourceType || result?.sourceType || "generic",
         questions: [question],
         priorQa,
+        scope,
         outputLanguage: settings.outputLanguage,
       };
 
@@ -651,6 +655,7 @@ class AnalysisService {
       const answeredEntry = {
         question,
         answer,
+        scope: ansObj?.scope || scope,
         sources: ansObj?.sources,
       };
 
@@ -675,6 +680,7 @@ class AnalysisService {
       const errorEntry = {
         question,
         answer: `Failed to get answer: ${err instanceof Error ? err.message : "unknown error"}`,
+        scope,
       };
       if (targetPinnedId && tabStateManager) {
         const c = tabStateManager.get(targetPinnedId) || {};

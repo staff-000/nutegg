@@ -74,6 +74,13 @@
 
       <button id="questions-toggle" class="questions-toggle"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
       <div id="questions-area" class="questions-area hidden">
+        <div class="questions-scope-row">
+          <label for="capture-questions-scope" class="questions-scope-label" data-i18n="scopeLabel">Scope:</label>
+          <select id="capture-questions-scope" class="scope-select" aria-label="Question Scope" title="Question Scope">
+            <option value="within" data-i18n="scopeWithin">Content only</option>
+            <option value="beyond" data-i18n="scopeBeyond">Global Mode</option>
+          </select>
+        </div>
         <textarea id="custom-questions" rows="3"
           data-i18n-placeholder="customQuestionsPlaceholder"
           placeholder="One question per line — answered along with the egg's key questions."></textarea>
@@ -328,8 +335,14 @@
         <div class="section-content">
           <div id="custom-questions-list" class="keyquestions-list"></div>
           <div class="followup-area">
-            <input id="followup-input" type="text" data-i18n-placeholder="followupPlaceholder" placeholder="Ask a follow-up question about this content…" />
-            <button id="followup-btn" class="followup-btn" data-i18n="askBtn">Ask</button>
+            <div class="followup-input-row">
+              <input id="followup-input" type="text" data-i18n-placeholder="askQuestionPlaceholder" placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)" />
+              <select id="followup-scope" class="scope-select" aria-label="Question Scope" title="Question Scope">
+                <option value="within" data-i18n="scopeWithin">Content only</option>
+                <option value="beyond" data-i18n="scopeBeyond">Global Mode</option>
+              </select>
+              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" title="Ask (⌘/Ctrl+Enter)">Ask</button>
+            </div>
           </div>
         </div>
       </div>

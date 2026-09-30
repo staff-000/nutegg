@@ -27,4 +27,5 @@ export type {
   AnalysisResult,
   EggContent,
   WorkflowPromptKey,
+  QuestionScope,
 } from "../../shared/src/types";

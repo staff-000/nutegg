@@ -21,6 +21,7 @@ import type {
   ContentAnalysis,
   KeyAnswer,
   NutEggAISettings,
+  QuestionScope,
 } from "./types";
 
 /**
@@ -55,7 +56,8 @@ export async function askFollowUpStandalone(
   payload: CapturePayload,
   question: string,
   priorQa: KeyAnswer[] = [],
-  settings: NutEggAISettings
+  settings: NutEggAISettings,
+  scope: QuestionScope = "within"
 ): Promise<string> {
   const config = resolveConfig(settings);
   const language =
@@ -72,7 +74,7 @@ export async function askFollowUpStandalone(
     },
   };
   const processor = new AIProcessor(host);
-  const answers = await processor.askFollowUp(payload, [question], priorQa);
+  const answers = await processor.askFollowUp(payload, [question], priorQa, scope);
   return answers[0]?.answer || "No answer returned.";
 }
 
