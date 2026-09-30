@@ -165,7 +165,7 @@ class AnalysisService {
       }
 
       // Merge newly discovered allEggs
-      if (Array.isArray(response.allEggs) && response.allEggs.length > 0) {
+      if (isPinnedActive() && Array.isArray(response.allEggs) && response.allEggs.length > 0) {
         const currentEggs = session.allEggs || [];
         const normalized = response.allEggs.map((name) => ({
           fileName: typeof name === "string" ? name : name?.fileName,
@@ -525,13 +525,13 @@ class AnalysisService {
     extractFallback = null,
     callbacks = {},
   }) {
-    const isTargetActive = !targetPinnedId || (session.activeTabId === targetPinnedId);
-    let content = overrideContent || (isTargetActive ? session.extractedContent : null);
-    const result = overrideResult || (isTargetActive ? session.analysisResult : null);
-    const nutId = overrideNutId ?? (isTargetActive ? session.currentNutId : null);
+    const isTargetActive = () => !targetPinnedId || (session.activeTabId === targetPinnedId);
+    let content = overrideContent || (isTargetActive() ? session.extractedContent : null);
+    const result = overrideResult || (isTargetActive() ? session.analysisResult : null);
+    const nutId = overrideNutId ?? (isTargetActive() ? session.currentNutId : null);
 
     try {
-      if (!content && isTargetActive && typeof extractFallback === "function") {
+      if (!content && isTargetActive() && typeof extractFallback === "function") {
         content = await extractFallback(targetPinnedId || session.activeTabId);
       }
 
@@ -548,8 +548,8 @@ class AnalysisService {
         nutId: nutId ?? undefined,
         skipRaw: (() => {
           const cachedForSave = targetPinnedId && tabStateManager ? tabStateManager.get(targetPinnedId) : null;
-          const isTargetNutCollected = isTargetActive ? session.nutCollected : !!cachedForSave?.nutCollected;
-          const isTargetCachedSaved = isTargetActive ? session.cachedProcessedSaved : (cachedForSave?.cachedProcessedSaved ?? null);
+          const isTargetNutCollected = isTargetActive() ? session.nutCollected : !!cachedForSave?.nutCollected;
+          const isTargetCachedSaved = isTargetActive() ? session.cachedProcessedSaved : (cachedForSave?.cachedProcessedSaved ?? null);
           return (newKnowledge.length > 0 || isHatch) &&
             (isTargetNutCollected || (isTargetCachedSaved !== null && isTargetCachedSaved !== "analyzed"));
         })(),
@@ -569,7 +569,7 @@ class AnalysisService {
           tabStateManager.set(targetPinnedId, existing);
         }
 
-        if (isTargetActive) {
+        if (isTargetActive()) {
           if (newKnowledge.length > 0 || isHatch) {
             session.eggHatched = true;
             session.nutCollected = true;
@@ -587,13 +587,13 @@ class AnalysisService {
         return { success: true, response };
       }
 
-      if (isTargetActive && callbacks.onSaveError) {
+      if (isTargetActive() && callbacks.onSaveError) {
         callbacks.onSaveError(response?.error || "Failed to save");
       }
       return { error: response?.error || "Failed to save" };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save";
-      if (isTargetActive && callbacks.onSaveError) {
+      if (isTargetActive() && callbacks.onSaveError) {
         callbacks.onSaveError(msg);
       }
       return { error: msg };

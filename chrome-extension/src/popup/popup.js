@@ -137,6 +137,7 @@ function renderApp(sessionState = session, settingsState = settings) {
 }
 
 function showResultsState(result, provenance = null) {
+  const pinnedTabId = session.activeTabId;
   session.analysisResult = result;
   if (provenance) session.provenance = provenance;
 
@@ -202,6 +203,7 @@ function showResultsState(result, provenance = null) {
 
   if (!settings.isChromeMode()) {
     tabAction.fetchEggs().then(() => {
+      if (pinnedTabId && session.activeTabId !== pinnedTabId) return;
       eggsUI.renderSection(allRejected ? [] : (result.matchedEggs || []), {
         allEggs: session.allEggs,
         selectedEggs: session.selectedEggs,

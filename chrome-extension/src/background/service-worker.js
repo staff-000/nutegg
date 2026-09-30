@@ -44,10 +44,15 @@ async function loadChromeAiSettings() {
     "chromeAiModelFamily",
     "chromeAiLocalEndpoint",
     "outputLanguage",
+    "contentOutputLanguage",
+    "chromeAiOutputLanguage",
     "chromeAiMaxTokens",
     "chromeAiPromptOverrides",
   ]);
-  stored.outputLanguage = stored.outputLanguage || "same-as-content";
+  const lang = stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
+  stored.outputLanguage = lang;
+  stored.contentOutputLanguage = lang;
+  stored.chromeAiOutputLanguage = lang;
   if (stored.chromeAiPromptOverrides) {
     stored.promptOverrides = stored.chromeAiPromptOverrides;
   }

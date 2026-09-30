@@ -322,56 +322,64 @@ class AnalyzeAction {
 
   async handleReanalyzeEggs() {
     if (this.ui.eggsUI?.reanalyzeEggsBtn?.disabled) return;
+    if (this.ui.eggsUI?.reanalyzeEggsBtn) {
+      this.ui.eggsUI.reanalyzeEggsBtn.disabled = true;
+    }
     const pinnedTabId = this.session?.activeTabId;
     const pinnedEggs = Array.from(this.session?.selectedEggs || []);
 
-    const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
-    if (!hasContent) {
-      this.ui.eggsUI?.setReanalyzeLoading?.(true, t("loadingContent"));
-      this.ui.bannersUI?.hideMessages?.();
-      this.ui.bannersUI?.hideWarning?.();
+    try {
+      const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
+      if (!hasContent) {
+        this.ui.eggsUI?.setReanalyzeLoading?.(true, t("loadingContent"));
+        this.ui.bannersUI?.hideMessages?.();
+        this.ui.bannersUI?.hideWarning?.();
 
-      try {
-        const tabAction = this.getTabAction?.();
-        if (tabAction?.extractPageContent) {
-          await tabAction.extractPageContent(this.session?.refreshSeq, pinnedTabId);
+        try {
+          const tabAction = this.getTabAction?.();
+          if (tabAction?.extractPageContent) {
+            await tabAction.extractPageContent(this.session?.refreshSeq, pinnedTabId);
+          }
+        } catch (err) {
+          console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
         }
-      } catch (err) {
-        console.error("[NutEgg] Error extracting content on re-analyze eggs:", err);
+
+        if (this.session?.activeTabId !== pinnedTabId) return;
+
+        this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
+
+        const nowHasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
+        if (!nowHasContent) {
+          this.ui.bannersUI?.showError?.(t("couldNotRetrieveContent"));
+          return;
+        }
       }
 
       if (this.session?.activeTabId !== pinnedTabId) return;
 
-      this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
-
-      const nowHasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
-      if (!nowHasContent) {
-        this.ui.bannersUI?.showError?.(t("couldNotRetrieveContent"));
+      const notReady = this.getAnalyzeNotReadyReason();
+      if (notReady) {
+        this.ui.bannersUI?.showWarning?.(notReady);
         return;
       }
-    }
 
-    if (this.session?.activeTabId !== pinnedTabId) return;
+      this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${t("analyzing")}`);
+      this.ui.eggsUI?.clearError?.();
 
-    const notReady = this.getAnalyzeNotReadyReason();
-    if (notReady) {
-      this.ui.bannersUI?.showWarning?.(notReady);
-      return;
-    }
-
-    this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${t("analyzing")}`);
-    this.ui.eggsUI?.clearError?.();
-
-    if (this.session?.analysisResult?.stage === "stage1") {
-      await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
-    } else {
-      const error = await this.handleAnalyze(true, pinnedEggs, true);
-      if (error && this.session?.activeTabId === pinnedTabId) {
-        this.ui.eggsUI?.showError?.(`❌ ${error}`);
+      if (this.session?.analysisResult?.stage === "stage1") {
+        await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
+      } else {
+        const error = await this.handleAnalyze(true, pinnedEggs, true);
+        if (error && this.session?.activeTabId === pinnedTabId) {
+          this.ui.eggsUI?.showError?.(`❌ ${error}`);
+        }
       }
-    }
-    if (this.session?.activeTabId === pinnedTabId) {
-      this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
+    } finally {
+      if (this.session?.activeTabId === pinnedTabId) {
+        this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
+      } else if (this.ui.eggsUI?.reanalyzeEggsBtn) {
+        this.ui.eggsUI.reanalyzeEggsBtn.disabled = false;
+      }
     }
   }
 }

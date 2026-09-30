@@ -118,7 +118,7 @@ class TabAction {
           this.envService.checkConfigStatus(),
           this.envService.fetchMetrics(),
           this.fetchEggs(),
-        ])
+        ]).catch(() => {})
       : null;
 
     if (!forceExtract && settings?.serverOnline && tabUrl && historyAction) {
@@ -321,7 +321,9 @@ class TabAction {
           warning: warningMsg,
         });
       }
-      analyzeAction?.applyTranscriptBlock?.();
+      if (session.extractedContent) {
+        analyzeAction?.applyTranscriptBlock?.();
+      }
       analyzeAction?.updateAnalyzeButtonsState?.();
     }
     return null;
@@ -449,12 +451,12 @@ class TabAction {
     this.session.activeTabId = tabId;
     this.ui.bannersUI?.hideAll?.();
     if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {
-      this.restoreFromTabCache(tabId, targetState);
+      await this.restoreFromTabCache(tabId, targetState);
     } else if (this.tabStateManager.isExtracting(tabId)) {
       this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
       this.getAnalyzeAction()?.updateAnalyzeButtonsState?.();
     } else {
-      this.refreshForCurrentTab();
+      await this.refreshForCurrentTab();
     }
   }
 
@@ -468,12 +470,12 @@ class TabAction {
         this.session.activeTabId = tab.id;
         this.ui.bannersUI?.hideAll?.();
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {
-          this.restoreFromTabCache(tab.id, targetState);
+          await this.restoreFromTabCache(tab.id, targetState);
         } else if (this.tabStateManager.isExtracting(tab.id)) {
           this.ui.captureUI?.setLoading?.(t("retrievingPageContent"));
           this.getAnalyzeAction()?.updateAnalyzeButtonsState?.();
         } else {
-          this.refreshForCurrentTab();
+          await this.refreshForCurrentTab();
         }
       }
     } catch {}
@@ -494,7 +496,7 @@ class TabAction {
     if ((newUrl && cached?.url && newUrl !== cached.url) || changeInfo.url) {
       this.tabStateManager.invalidateTab(tabId);
       if (isActiveTab) {
-        this.refreshForCurrentTab();
+        await this.refreshForCurrentTab();
         return;
       }
     }
@@ -511,7 +513,7 @@ class TabAction {
       if (isActiveTab) {
         this.session.currentTabLoading = false;
         if (!this.session.extractedContent || this.session.lastLoadWasLoading || this.session.extractionFailed) {
-          this.refreshForCurrentTab();
+          await this.refreshForCurrentTab();
         } else {
           this.getAnalyzeAction()?.updateAnalyzeButtonsState?.();
         }
