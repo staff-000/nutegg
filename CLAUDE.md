@@ -1,102 +1,161 @@
 # CLAUDE.md
 
-## Rules
+> Single source of truth for AI coding agents & developers working on NutEgg.
+> Optimized for token efficiency: concise rules, direct file navigation, and targeted test commands.
 
-- **Existence checks** — Use `await this.app.vault.adapter.exists(path)`, not `getAbstractFileByPath()`.
-- **Terminology** — "nut" = raw content, "egg" = processed knowledge file. Don't use "topic" or "raw content".
-- **Database** — Persistence goes through `node:sqlite` (`DatabaseSync`, built into Node ≥ 22.13 / Obsidian desktop ≥ 1.9). Schema lives in `db.ts` only. Node's bundled SQLite has **no FTS5** — keyword retrieval is JS BM25 over the corpus. `db.available` gates graceful degradation.
-- **No dynamic `import()` of node builtins or `obsidian`** — Obsidian's renderer blocks them (CORS fetch). Use CommonJS `require` for node builtins (see `db.ts`) and static imports for `obsidian`.
+---
 
-## Build & Deploy
+## ⚡ Fast Reference: Where Does Code Live? (Token-Saving File Map)
+
+Do **NOT** read entire large files or recursively grep across the repo. Navigate directly to the responsible module:
+
+| Task / Feature | Exact File Path | Notes |
+|:---|:---|:---|
+| **AI Analysis & Prompts** | `shared/src/ai-processor.ts`, `shared/workflow/*.md` | Single source of truth for prompts, chunking, and evaluation |
+| **AI Providers & Models** | `shared/src/catalog.ts`, `shared/src/client.ts` | `PROVIDER_CATALOG`, OpenAI, Gemini, Claude, DeepSeek, Ollama |
+| **Shared Types** | `shared/src/types.ts` | `QuestionScope`, `CapturePayload`, `AnalysisResult`, `KeyAnswer` |
+| **Rebuilding Shared AI for Chrome** | `chrome-extension/build.js` | Bundles `shared/` into `chrome-extension/src/ai/ai-core.js` |
+| **Popup State Management** | `chrome-extension/src/popup/state/` | `session-state.js`, `tab-state.js`, `settings-state.js` |
+| **Popup Action Controllers** | `chrome-extension/src/popup/action/` | `analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js` |
+| **Popup Background Services** | `chrome-extension/src/popup/services/` | `analysis-service.js`, `env-service.js`, `page-extractor.js` |
+| **Popup UI Components** | `chrome-extension/src/popup/ui/` | `banners.js`, `capture-view.js`, `verdict.js`, `mindmap.js`, `chapters.js`, `qa.js`, `eggs.js`, `actions.js`, `results-view.js`, `metrics.js`, `sections.js` |
+| **Popup Entry & Event Wiring** | `chrome-extension/src/popup/popup.js` | Slim coordinator wiring UI, Actions, and State |
+| **Chrome i18n & Helpers** | `chrome-extension/src/i18n.js`, `src/helpers.js` | `t(key, params)` in 10 languages; date/time formatting |
+| **Content Extractors** | `chrome-extension/src/content/extractors/` | `youtube.js` (transcripts/chapters), `twitter.js`, `article.js`, `generic.js` |
+| **Extension Background Worker** | `chrome-extension/src/background/service-worker.js` | Standalone AI handling, long-lived ports, keep-alive |
+| **Obsidian Local Server** | `obsidian-plugin/src/server.ts` | Local HTTP API (`127.0.0.1:27123`) for `/analyze`, `/confirm`, `/ask` |
+| **Obsidian SQLite & Search** | `obsidian-plugin/src/db.ts` | `node:sqlite` DB, BM25 keyword search, schema definitions |
+| **Obsidian Vault & Egg Parser** | `obsidian-plugin/src/knowledge-base.ts`, `egg-parser.ts` | Egg instructions, `# Knowledge` tree, `# Unprocessed` queue |
+| **Obsidian Workflows & Sync** | `obsidian-plugin/src/workflow-manager.ts`, `index-sync.ts` | Auto-seeds `nutegg/_workflow/`, keeps `_index.md` consistent |
+
+---
+
+## 🚨 Critical Invariants & Rules
+
+1. **Terminology**:
+   - **Nut** = raw captured content (markdown archived under `nutegg/_raw/`).
+   - **Egg** = curated knowledge topic note with a hierarchical `# Knowledge` tree.
+   - Do NOT use "topic" or "raw content" interchangeably with nut/egg.
+2. **Shared AI as Single Source of Truth**:
+   - Any change to prompts, chunking, AI parsing, or types MUST be made in `shared/src/` (or `shared/workflow/`).
+   - After modifying `shared/src/`, always run `npm run build` (or `node build.js` in `chrome-extension/`) to update `chrome-extension/src/ai/ai-core.js`.
+3. **Tab State Isolation**:
+   - Chrome extension side-panel shares one popup instance while the user switches active browser tabs.
+   - All tab-specific data (analysis results, warnings, errors, extraction state, questions scope) MUST be saved and restored via `tabStateManager`.
+   - Never leave transient warnings or errors pinned across tab switches.
+4. **Defensive Stage & Session Checks**:
+   - Always call stage checks using optional chaining: `session.isStage1?.()`.
+   - Guard history and list lengths: `session.captureHistory?.length > 0`.
+5. **QuestionScope (`within` vs `beyond`)**:
+   - `"within"`: Grounded strictly to content (`- Grounding:` rule included in prompt).
+   - `"beyond"`: Grounding prompt is stripped via `getContentOutputRules(capture, "beyond")` to allow unconstrained justification, fact-checking, or external reasoning.
+6. **i18n & Localization**:
+   - Use `t("key")` (from `src/i18n.js` / `src/helpers.js`).
+   - Supported across 10 languages: `en`, `zh-CN`, `zh-TW`, `ja`, `ko`, `es`, `de`, `fr`, `ru`, `pt-BR`.
+   - **Never translate the brand name "NutEgg"** in any language.
+7. **Obsidian Vault Rules**:
+   - Existence checks: Use `await this.app.vault.adapter.exists(path)`, NEVER `getAbstractFileByPath()`.
+   - Database: Persistence uses `node:sqlite` (`DatabaseSync`). Schema lives strictly in `db.ts`. Node SQLite has **no FTS5**; keyword retrieval uses JS BM25.
+   - No dynamic `import()` of node builtins or `obsidian` in renderer context; use CommonJS `require` for node builtins.
+
+---
+
+## 🛠️ Build & Development Commands
 
 ```bash
-# From workspace root:
-npm run build                       # build all packages with build script
-npm run dev:plugin                  # watch mode for obsidian plugin
+# Workspace root
+npm run build                       # Build all packages (@nutegg/shared -> extension & plugin & website)
+npm run build:extension             # Build chrome extension bundle (ai-core.js)
+npm run build:plugin                # Compile obsidian-plugin (tsc + esbuild)
+npm run dev:plugin                  # Watch mode for obsidian plugin
 
-# Deploy to Obsidian vault:
-./deploy.sh                         # local build + copy to vault
-./deploy.sh --remote [version]      # download from remote release repo & sanity check
+# Deploy to local Obsidian vault
+./deploy.sh                         # Build + copy to active vault
+./deploy.sh --remote [version]      # Verify remote release deploy
 
-# Release (tags, triggers GitHub Actions, and optionally deploys):
-./release.sh 0.0.4                  # publish release 0.0.4
-./release.sh 0.0.4 --deploy         # publish and run remote deploy sanity check
-
-# Or within obsidian-plugin/:
-cd obsidian-plugin && npm run build # tsc + esbuild
-npm run dev                         # watch mode
+# Chrome extension development
+# Load unpacked from `chrome-extension/` at chrome://extensions (no dev server needed).
+# Re-run `node build.js` inside `chrome-extension/` whenever editing `shared/`.
 ```
-Chrome extension: no build — load unpacked from `chrome-extension/` at `chrome://extensions`.
 
-## Testing
+---
+
+## 🧪 Targeted Testing (Save Tokens: Don't Run Whole Test Suites Blindly)
+
+When testing a specific change, run ONLY the target test file to avoid massive output tokens:
 
 ```bash
-# From workspace root:
-npm test                            # run tests across all workspace packages
-npm run test:plugin                 # run obsidian-plugin tests
+# Workspace root (all packages)
+npm test                            # Runs test suites across all workspaces
 
-# Or within obsidian-plugin/:
-cd obsidian-plugin && npm test      # esbuild-bundle tests/*.test.ts → tests-dist/, run node --test
-node --test "tests-dist/*.test.js"  # re-run without rebundling
+# Chrome Extension (Fast & Targeted)
+cd chrome-extension
+node --test "tests/actions.test.js"        # Action handlers (TabAction, AnalyzeAction, etc.)
+node --test "tests/tab-state.test.js"      # TabStateManager & tab isolation
+node --test "tests/ui-components.test.js"  # Modular UI components
+node --test "tests/ai.test.js"             # Extension AI core & scopes
+node --test "tests/*.test.js"              # All chrome-extension tests
+
+# Obsidian Plugin (Fast & Targeted)
+cd obsidian-plugin
+node esbuild.test.mjs                      # Rebundle TS tests if test files changed
+node --test "tests-dist/server.test.js"        # HTTP server & endpoints
+node --test "tests-dist/ai-processor.test.js"  # AI pipeline & prompts
+node --test "tests-dist/workflow.test.js"      # Workflow templates & hashes
+node --test "tests-dist/*.test.js"             # All obsidian-plugin tests
 ```
 
-- Tests use Node's built-in test runner (`node:test`) — no test framework deps.
-- One file per module under `obsidian-plugin/tests/`: prompt-templates, index-reader, egg-parser, knowledge-base, db (skips when `node:sqlite` is unavailable), ai-processor, server.
-- `tests/helpers.ts` provides an in-memory fake vault + plugin stub — no Obsidian runtime needed.
-- Add a new test as `tests/<module>.test.ts` next to the module it covers; it's picked up automatically.
-- `.md` prompt/template files are bundled as text in tests too (see `esbuild.test.mjs`).
+---
 
-## Architecture
+## 🏗️ Architecture & Data Pipeline
 
-Two-part system: **Obsidian plugin** ↔ local HTTP (`127.0.0.1:*`) ↔ **Chrome extension**.
+NutEgg operates in two flexible modes:
+1. **📱 Chrome Standalone Mode**: Extension calls cloud AI providers (or local Ollama/OpenAI endpoint) directly using keys in `chrome.storage.local`. Runs Stage 1 content analysis without Obsidian.
+2. **💎 Obsidian Connected Mode**: Extension pairs with local Obsidian server on `127.0.0.1:27123`. Runs Stage 1 & Stage 2, matching against existing vault knowledge trees.
 
-### Composition
-
-`NutEggPlugin` ([main.ts](obsidian-plugin/src/main.ts)) is the service locator. Subsystems: `aiClient`, `server`, `aiProcessor`, `knowledgeBase`, `indexReader`, `eggParser`, `indexSync`.
-
-### Data flow
+### Two-Stage Pipeline
 
 ```
-popup → content-script → POST /analyze (AI) → popup (results) → POST /confirm (save)
-                              ↑ reads _index.md + egg files
+Captured Content
+       │
+       ▼
+[ Stage 1: Content Analysis & Summary Routing ]
+       ├── >30k chars? -> Chunks + aggregate-content.md
+       ├── Produces: Title Verdict, Core Summary, Mind Map, Chapter Map, Custom Q&A
+       └── egg-routing.md matches relevant eggs using the Stage 1 summary
+       │
+       ├── Fast Mode: Auto-proceeds immediately to Stage 2 with matched eggs
+       └── Confirm Mode: User reviews/selects eggs in side panel before proceeding
+       │
+       ▼
+[ Stage 2: Knowledge Extraction & Comparison ]
+       ├── Compares content against selected egg files
+       ├── Highlights novel insights vs existing knowledge in egg tree
+       └── Hatch Egg (updates egg + archives nut) or Collect Nut (archives raw nut)
 ```
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /health` | Server check + port sync |
-| `GET /config-status` | `{status, issues[]}` — missing API key, missing index |
-| `POST /analyze` | AI analysis, returns `{titleVerdict, coreSummary[], chapterMap[], customQuestionAnswers[], shouldRead, eggResults[], newKnowledge[], nutId}`. If the URL has cached captures (and no `force`/`questions`), returns `{history[], latest}` instead — each capture is its own versioned DB row |
-| `POST /confirm` | Saves to `nutegg/_raw/YYYY-MM-DD-HH-MM-source-title.md` + appends new entries (insight + examples + mechanical `_author`/`_source` lines) to each egg's `# Unprocessed` + upserts into SQLite. Eggs with ≥20 unprocessed entries are auto-merged into their `# Knowledge` tree by an AI call; response carries `merged` |
-| `POST /create-egg` | Creates `nutegg/<name>.md` from the template (topic/scope seeded from `description`) + appends the `_index.md` entry. Used by the popup's "no egg matched" flow; `/analyze` also returns `suggestedEgg` for unmatched content |
-| `GET /eggs` | All eggs from `_index.md` (`{fileName, description, topic}`) — feeds the popup's manual egg picker. `/analyze` accepts an `eggs: string[]` override that skips AI routing and analyzes against exactly those eggs |
-| `GET /search?q=` | BM25 keyword retrieval over saved nuts (RAG foundation) |
-| `GET /history?url=` | Cached captures for a URL, newest first — popup auto-loads the latest result on open |
+### Local HTTP Server Endpoints (`127.0.0.1:27123`)
 
-### Vault structure (all under `nutegg/`)
+| Method & Path | Purpose |
+|:---|:---|
+| `GET /health` | Port discovery & heartbeat check |
+| `GET /config-status` | Readiness check: AI API keys configured, index file present |
+| `GET /credit` | Balance / credit status for AI providers |
+| `POST /analyze` | Stage 1 (summary & routing) or Stage 2 (egg comparison). If history exists and no force/questions, returns cached history |
+| `POST /confirm` | Archives nut to `nutegg/_raw/` + appends entries to `# Unprocessed` (auto-merges at 20+ entries) |
+| `POST /ask` | Standalone follow-up Q&A (`questions`, `priorQa`, `scope: "within" \| "beyond"`) |
+| `GET /eggs` | Lists all eggs from `_index.md` for the manual egg picker |
+| `POST /create-egg` | Creates `nutegg/<name>.md` from template and appends to `_index.md` |
+| `GET /history?url=` | Versioned capture history for a URL, newest first |
+| `GET /search?q=` | BM25 keyword search over saved nuts in SQLite |
 
-- `nutegg/_raw/*` — collected nuts (raw web content)
-- `nutegg/_index.md` — egg routing: `* path/to/egg.md: description` (one per line, `#`/`>` lines skipped)
-- `nutegg/<egg-name>.md` — egg file: YAML frontmatter + `> [!abstract]- Instructions:` callout (Scope, Action Guide, Key Questions, Rejection Criteria, Formatting Rules) + `# Knowledge` tree (h1; tree branches nest at `##`) + `# Unprocessed` (new entries land here first and are auto-merged into the tree at 20+; entries keep `_author`/`_source` provenance lines). Entry structure is concept → explanation → example: `- [tag] **Concept**: short phrases` + indented + `[EXPLAIN]: explanation` + indented `- 🎯 Example:` bullets — the Concept is the dedup/novelty key for analysis and merge prompts
-- `nutegg/.nutegg.db` — SQLite: `nuts` table (dedup + replay + RAG corpus, JSON columns for results).
+---
 
-### Source files
+## 📂 Vault Structure (`nutegg/`)
 
-| File | Role |
-|------|------|
-| [server.ts](obsidian-plugin/src/server.ts) | HTTP server, `/analyze` + `/confirm` + `/search`, metrics aggregation |
-| [db.ts](obsidian-plugin/src/db.ts) | SQLite via `node:sqlite`: nuts table, BM25 search |
-| [ai-client.ts](obsidian-plugin/src/ai-client.ts) | `PROVIDER_CATALOG`: 7 providers × 2 sources (official/OpenRouter). Two formats. `AIError` with typed codes. |
-| [ai-processor.ts](obsidian-plugin/src/ai-processor.ts) | Two-phase AI pipeline: content analysis (verdict/summary/chapters) + per-egg delta (key questions, novel delta, reject, verdict). 1 egg = 1 combined call; N eggs = 1 + N parallel calls. Content >30k chars is **chunked** (chapter-aware for timestamped transcripts, paragraph-based otherwise) — one call per part + `aggregate-content.md`/`aggregate-egg.md` calls. `maybeMergeEgg()`: merge 20+ `# Unprocessed` entries into the knowledge tree (`MERGE_THRESHOLD = 20`). `suggestEgg()`: name/description suggestion for unmatched content |
-| [prompt-templates.ts](obsidian-plugin/src/prompt-templates.ts) | Loads `src/prompts/*.md` (user-editable, translatable) + `renderPrompt()` for `{{placeholder}}` substitution |
-| [index-reader.ts](obsidian-plugin/src/index-reader.ts) | Parses `_index.md`, `matchEggs()` to route content to egg files |
-| [index-sync.ts](obsidian-plugin/src/index-sync.ts) | Consistency check (on load + every 5 min): egg without index entry → append `* path: topic`; index entry without egg → create from template seeded with the description; relative index paths upgraded to full vault paths |
-| [egg-parser.ts](obsidian-plugin/src/egg-parser.ts) | Parses egg callout instructions (scope/action guide/key questions/formatting rules) + `# Knowledge`/`# Unprocessed` sections (h1; the tree nests `##` branches under `# Knowledge`). `appendUnprocessed()` adds entries with author/source, `countUnprocessed()`, `applyMerge()` rewrites both sections from the merge AI output |
-| [knowledge-base.ts](obsidian-plugin/src/knowledge-base.ts) | `saveRaw()` (frontmatter with published/saved/author/verdict/etc.) + `appendKnowledge()` |
-| [settings.ts](obsidian-plugin/src/settings.ts) | Settings tab, developer mode toggle |
-| [content-script.js](chrome-extension/src/content/content-script.js) | Slim entry point: `EXTRACTORS` registry, `extractContent()`, and `chrome.runtime.onMessage` listener. Extractors live in separate files under `extractors/`. |
-| [utils.js](chrome-extension/src/content/utils.js) | Shared utilities: `extractText`, `getMeta`, `truncate`, `estimateTime`, `readingTime`, `waitFor`, `extractBalanced`, `formatTime`, `parseTimestamp` |
-| [extractors/youtube.js](chrome-extension/src/content/extractors/youtube.js) | YouTube: captions via timedtext/script-tag/panel with dedup, chapters from `multiMarkersPlayerBarRenderer` |
-| [extractors/twitter.js](chrome-extension/src/content/extractors/twitter.js) | Twitter/X: tweet text, threads, author info |
-| [extractors/article.js](chrome-extension/src/content/extractors/article.js) | Article: Medium, Substack, blogs, news (og:type, schema.org) |
-| [extractors/generic.js](chrome-extension/src/content/extractors/generic.js) | Generic fallback for any webpage |
-| [options.html/js/css](chrome-extension/src/options/) | Standalone settings page (port config, test connection) |
+- `nutegg/_raw/` — Captured nuts: `YYYY-MM-DD-HH-MM-<sourceType>-<author>-<title>.md`
+- `nutegg/_index.md` — Routing guide: `* path/to/egg.md: description` (one per line)
+- `nutegg/_workflow/` — User-customizable prompt templates (auto-seeded & managed by `WorkflowManager`)
+- `nutegg/<egg>.md` — Structured egg note: YAML frontmatter + Instructions callout + `# Knowledge` tree + `# Unprocessed` queue
+- `nutegg/.nutegg.db` — SQLite database: `nuts` table (history, dedup, replay, RAG corpus)
+

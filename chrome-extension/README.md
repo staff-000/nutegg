@@ -25,9 +25,15 @@ It is a two-part system that helps you stop mindless browsing and start building
   - Gives a concrete recommendation on whether the content is worth your time based on your existing knowledge.
 - **Title Verdict (Anti-Clickbait)**:
   - Directly answers the headline's question or hook in one sentence to save you time.
+- **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**:
+  - **Within Content**: Strict grounding to the text/video with exact citation references and clickable YouTube timestamps.
+  - **Beyond Content**: Allows unconstrained reasoning for fact-checking, content justification, or broader background context.
 - **Novelty Highlighting**:
   - Compares extracted entries against your existing Obsidian knowledge trees ("Eggs").
   - Highlights **✨ New Insights** in one view and identifies **✅ Already in Tree** items so you don't waste time re-learning known concepts.
+- **⚡ Dual Modes**:
+  - **Standalone Chrome Mode**: Configure API keys in extension options to summarize, mind-map, and chat without Obsidian running.
+  - **Obsidian Connected Mode**: Automatically syncs knowledge to your local vault.
 - **Quick Capture Actions**:
   - **🥚 Hatch Egg**: Extracts fresh insights and attaches them hierarchically into your structured knowledge trees in Obsidian.
   - **🌰 Collect Nut**: Saves a clean, raw markdown copy of the web page or video transcript into your vault archive (`nutegg/_raw/`).

@@ -32,6 +32,7 @@ Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Sk
 4. **Review Results & Navigate**:
    - **🎯 Anti-Clickbait Verdict**: Instant 1-sentence verdict answering what the video actually delivers.
    - **⏱️ Video Q&A & Timestamps**: Ask questions about video content and click timestamp citations to jump directly to that exact moment in YouTube playback.
+   - **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**: Choose whether your questions are strictly grounded within the page content or expand beyond it for fact-checking, justification, and external reasoning.
    - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures.
    - **⚡ Novelty-First Evaluation**: Highlights new insights vs. concepts already documented in your vault.
 5. **Take Action**:
