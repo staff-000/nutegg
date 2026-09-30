@@ -10,6 +10,7 @@ class CaptureViewComponent {
     this.pageType = root.getElementById("page-type");
     this.pageAuthorEl = root.getElementById("page-author");
     this.pagePublishedEl = root.getElementById("page-published");
+    this.pageWordCountEl = root.getElementById("page-word-count");
     this.contentPreview = root.getElementById("content-preview");
     this.refreshBtn = root.getElementById("refresh-btn");
     this.questionsToggle = root.getElementById("questions-toggle");
@@ -79,7 +80,7 @@ class CaptureViewComponent {
       this.clearAuthorAndPublished();
     } else {
       if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || t("noContentExtracted");
-      this.showProvenance(content?.metadata || {});
+      this.showProvenance(content?.metadata || {}, content?.content);
     }
 
     if (isSession) {
@@ -87,7 +88,7 @@ class CaptureViewComponent {
     }
   }
 
-  showProvenance(metadata = {}) {
+  showProvenance(metadata = {}, rawContent = "") {
     const author = metadata.author || metadata.channel || metadata.handle || "";
     if (this.pageAuthorEl) {
       this.pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
@@ -103,6 +104,21 @@ class CaptureViewComponent {
         this.pagePublishedEl.textContent = "";
       }
     }
+    if (this.pageWordCountEl) {
+      const text = rawContent || metadata?.content || "";
+      if (text) {
+        const countWordsFn = typeof helper !== "undefined" && helper.countWords
+          ? helper.countWords
+          : (typeof globalThis !== "undefined" && globalThis.helper?.countWords) ||
+            ((t) => (t ? t.trim().split(/\s+/).filter(Boolean).length : 0));
+        const count = countWordsFn(text);
+        this.pageWordCountEl.textContent = `📝 ${t("wordCount", { count: count.toLocaleString() })}`;
+        this.pageWordCountEl.classList.remove("hidden");
+      } else {
+        this.pageWordCountEl.textContent = "";
+        this.pageWordCountEl.classList.add("hidden");
+      }
+    }
   }
 
   setPreviewText(text) {
@@ -111,9 +127,17 @@ class CaptureViewComponent {
     }
   }
 
-  clearAuthorAndPublished() {
+  clearProvenance() {
     if (this.pageAuthorEl) this.pageAuthorEl.textContent = "";
     if (this.pagePublishedEl) this.pagePublishedEl.textContent = "";
+    if (this.pageWordCountEl) {
+      this.pageWordCountEl.textContent = "";
+      this.pageWordCountEl.classList.add("hidden");
+    }
+  }
+
+  clearAuthorAndPublished() {
+    this.clearProvenance();
   }
 
   setLoading(text) {

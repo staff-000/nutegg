@@ -14,6 +14,8 @@ const {
   formatPublishedDate,
   detectPageTypeFromUrl,
   provenanceFromExtraction,
+  countWords,
+  isContentSuspiciouslyLow,
   getVersionMismatchIssue,
   isVideoMediaSource,
   isTranscriptBlocked,
@@ -210,3 +212,60 @@ test("buildGitHubBugReportUrl & openGitHubBugReport - builds correct issue url",
   assert.ok(url.includes("https%3A%2F%2Fexample.com%2Ftest"));
   assert.ok(url.includes("1.0.5"));
 });
+
+test("countWords - accurately counts words across Latin, CJK, and mixed languages", () => {
+  assert.equal(countWords(""), 0);
+  assert.equal(countWords(null), 0);
+  assert.equal(countWords(undefined), 0);
+  assert.equal(countWords("   \n\t  "), 0);
+
+  // Latin text
+  assert.equal(countWords("Hello world"), 2);
+  assert.equal(countWords("  This   is   a   test  sentence. "), 5);
+
+  // CJK ideographs
+  assert.equal(countWords("你好世界"), 4);
+  assert.equal(countWords("自然语言处理与机器学习"), 11);
+
+  // Mixed CJK and Latin
+  assert.equal(countWords("Hello 世界! 123"), 4); // "Hello", "世", "界", "123"
+  assert.equal(countWords("NutEgg 插件很好用"), 6); // "NutEgg", "插", "件", "很", "好", "用"
+});
+
+test("isContentSuspiciouslyLow - correctly detects suspiciously short extractions", () => {
+  // Twitter: threshold 5
+  assert.equal(isContentSuspiciouslyLow(0, "twitter"), true);
+  assert.equal(isContentSuspiciouslyLow(4, "twitter"), true);
+  assert.equal(isContentSuspiciouslyLow(5, "twitter"), false);
+  assert.equal(isContentSuspiciouslyLow(20, "twitter"), false);
+
+  // YouTube / Bilibili / Video: threshold 30
+  assert.equal(isContentSuspiciouslyLow(10, "youtube"), true);
+  assert.equal(isContentSuspiciouslyLow(29, "youtube"), true);
+  assert.equal(isContentSuspiciouslyLow(30, "youtube"), false);
+  assert.equal(isContentSuspiciouslyLow(25, "video"), true);
+  assert.equal(isContentSuspiciouslyLow(50, "video"), false);
+
+  // Article / Webpage / Generic: threshold 50
+  assert.equal(isContentSuspiciouslyLow(15, "article"), true);
+  assert.equal(isContentSuspiciouslyLow(49, "article"), true);
+  assert.equal(isContentSuspiciouslyLow(50, "article"), false);
+  assert.equal(isContentSuspiciouslyLow(40, "webpage"), true);
+  assert.equal(isContentSuspiciouslyLow(100, "generic"), false);
+});
+
+test("provenanceFromExtraction - includes accurate wordCount", () => {
+  const extraction = {
+    title: "Test Page",
+    url: "https://example.com/article",
+    sourceType: "article",
+    content: "One two three four five.",
+    metadata: { author: "Bob", published: "2026-03-01" },
+  };
+  const prov = provenanceFromExtraction(extraction);
+  assert.equal(prov.title, "Test Page");
+  assert.equal(prov.url, "https://example.com/article");
+  assert.equal(prov.author, "Bob");
+  assert.equal(prov.wordCount, 5);
+});
+

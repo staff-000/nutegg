@@ -191,17 +191,52 @@ function detectPageTypeFromUrl(url) {
 }
 
 /**
- * Standardize title, author, formatted published date, and url from extracted content.
+ * Accurately count words across Latin and CJK (Chinese, Japanese, Korean) languages.
+ * CJK characters are counted individually (each ideograph carries semantic weight of a word),
+ * while Latin/other alphanumeric words are counted by whitespace-separated tokens.
+ */
+function countWords(text) {
+  if (!text || typeof text !== "string") return 0;
+  const cjkMatches = text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g);
+  const cjkCount = cjkMatches ? cjkMatches.length : 0;
+  const nonCjk = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/g, " ");
+  const latinWords = nonCjk.trim().split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  return cjkCount + latinWords.length;
+}
+
+/**
+ * Detects if extracted content has an unexpectedly low word count,
+ * typically caused by extracting before client-side hydration or rendering finished.
+ */
+function isContentSuspiciouslyLow(wordCount, sourceType = "webpage") {
+  if (typeof wordCount !== "number" || wordCount < 0) return false;
+  const type = String(sourceType || "").toLowerCase();
+  if (type === "twitter") {
+    // Single tweets can be concise, but fewer than 5 words is suspicious
+    return wordCount < 5;
+  }
+  if (type === "youtube" || type === "bilibili" || type === "video") {
+    // Video descriptions/transcripts are normally 30+ words; fewer than 30 indicates missing transcript/description
+    return wordCount < 30;
+  }
+  // Standard articles, documentation, blog posts, news, generic pages
+  // Under 50 words usually means only headers/navigation or placeholders were extracted
+  return wordCount < 50;
+}
+
+/**
+ * Standardize title, author, formatted published date, url, and word count from extracted content.
  */
 function provenanceFromExtraction(content) {
   const target = content || (typeof session !== "undefined" ? session.extractedContent : null);
-  if (!target) return { title: "", author: "", published: "", url: "" };
+  if (!target) return { title: "", author: "", published: "", url: "", wordCount: 0 };
   const m = target.metadata || {};
   return {
     title: target.title || m.title || "",
     author: m.author || m.authorHandle || m.channelName || "",
     published: formatPublishedDate(m.publishedTime || m.date || ""),
     url: target.url || "",
+    wordCount: countWords(target.content || ""),
   };
 }
 
@@ -330,6 +365,8 @@ const NutEggHelpers = {
   formatPublishedDate,
   detectPageTypeFromUrl,
   provenanceFromExtraction,
+  countWords,
+  isContentSuspiciouslyLow,
   getVersionMismatchIssue,
   isVideoMediaSource,
   isTranscriptBlocked,

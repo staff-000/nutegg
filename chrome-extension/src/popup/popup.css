@@ -370,11 +370,19 @@ body {
   color: #6b7280;
 }
 
-/* Author + published date, extracted with the content */
+/* Author + published date + word count, extracted with the content */
 .page-provenance {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
   margin-top: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+#page-word-count,
+#result-page-word-count {
   font-size: 11px;
   color: #6b7280;
 }

@@ -136,6 +136,12 @@ describe("Modular UI Components", () => {
     assert.strictEqual(captureView.pageUrl.textContent, "https://example.com");
     assert.strictEqual(captureView.contentPreview.textContent, "Hello world content");
     assert.ok(captureView.pageAuthorEl.textContent.includes("Alice"));
+    assert.ok(captureView.pageWordCountEl.textContent.includes("3 words"));
+    assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), false);
+
+    captureView.clearProvenance();
+    assert.strictEqual(captureView.pageWordCountEl.textContent, "");
+    assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), true);
   });
 
   it("SectionChipsComponent binds capture and re-analyze section chips", () => {
@@ -462,6 +468,14 @@ describe("Modular UI Components", () => {
     assert.strictEqual(results.captureState.classList.contains("hidden"), true);
     assert.strictEqual(results.resultPageTitle.textContent, "My Result");
     assert.ok(results.coreSummaryEl.innerHTML.includes("Key takeaway 1"));
+
+    results.renderProvenance({ title: "My Result", wordCount: 1200 });
+    assert.ok(results.resultPageWordCount.textContent.includes("1,200 words"));
+    assert.strictEqual(results.resultPageWordCount.classList.contains("hidden"), false);
+
+    results.renderProvenance({ title: "My Result", wordCount: 0 });
+    assert.strictEqual(results.resultPageWordCount.textContent, "");
+    assert.strictEqual(results.resultPageWordCount.classList.contains("hidden"), true);
   });
 
   it("CaptureViewComponent.render supports polymorphic session input and loading state", () => {

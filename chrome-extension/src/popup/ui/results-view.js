@@ -26,6 +26,7 @@ class ResultsViewComponent {
     this.resultPageTitle = root.getElementById("result-page-title");
     this.resultPageAuthor = root.getElementById("result-page-author");
     this.resultPagePublished = root.getElementById("result-page-published");
+    this.resultPageWordCount = root.getElementById("result-page-word-count");
     this.coreSummarySection = root.getElementById("core-summary-section");
     this.coreSummaryEl = root.getElementById("core-summary");
   }
@@ -45,6 +46,7 @@ class ResultsViewComponent {
     if (!this.resultPageInfo) return;
     if (!prov || !prov.title) {
       this.resultPageInfo.classList.add("hidden");
+      if (this.resultPageWordCount) this.resultPageWordCount.textContent = "";
       return;
     }
     this.resultPageInfo.classList.remove("hidden");
@@ -56,6 +58,15 @@ class ResultsViewComponent {
       this.resultPagePublished.textContent = prov.publishedAt
         ? `📅 ${new Date(prov.publishedAt).toLocaleDateString()}`
         : "";
+    }
+    if (this.resultPageWordCount) {
+      if (prov.wordCount != null && prov.wordCount > 0) {
+        this.resultPageWordCount.textContent = `📝 ${t("wordCount", { count: prov.wordCount.toLocaleString() })}`;
+        this.resultPageWordCount.classList.remove("hidden");
+      } else {
+        this.resultPageWordCount.textContent = "";
+        this.resultPageWordCount.classList.add("hidden");
+      }
     }
   }
 

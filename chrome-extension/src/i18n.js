@@ -72,6 +72,7 @@ const translations = {
     "couldNotExtractRestricted": "Could not extract content from this page — it may be restricted (chrome://, Web Store) or still loading. Click 🔄 to try again.",
 
     "couldNotRetrieveContent": "Could not retrieve content for this page. Please make sure the page is loaded and try again.",
+    "contentLowWarning": "Only {count} words extracted — page may still be loading or incomplete. Click 🔄 to refresh.",
 
     "checking": "Checking...",
     "connectingToObsidian": "Connecting to Obsidian...",
@@ -280,6 +281,7 @@ const translations = {
     "jumpToVideoTime": "Jump to {time} in video",
     "scrollToSection": "Scroll to section: {ref}",
     "qaSourcesLabel": "Sources",
+    "wordCount": "{count} words",
     "toggleBranch": "Toggle branch",
     "loadAndReanalyze": "🔄 Load & Re-analyze",
     "loadAndReanalyzeTitle": "Page content is not loaded yet. Click to load content and re-analyze.",
@@ -380,6 +382,7 @@ const translations = {
     "couldNotExtractRestricted": "无法从此页面提取内容 — 页面可能受限（如 chrome://、应用商店）或仍在加载。点击 🔄 重试。",
 
     "couldNotRetrieveContent": "未能获取当前页面的内容。请确保页面加载完成后重试。",
+    "contentLowWarning": "仅提取到 {count} 字/词 — 页面可能仍在加载或内容不完整。点击 🔄 重新提取。",
 
     "checking": "检查中...",
     "connectingToObsidian": "正在连接 Obsidian...",
@@ -588,6 +591,7 @@ const translations = {
     "jumpToVideoTime": "跳转至视频 {time}",
     "scrollToSection": "滚动至章节：{ref}",
     "qaSourcesLabel": "参考出处",
+    "wordCount": "{count} 字/词",
     "toggleBranch": "折叠/展开分支",
     "loadAndReanalyze": "🔄 加载并重新分析",
     "loadAndReanalyzeTitle": "页面内容尚未提取。点击以加载内容并重新分析。",
@@ -688,6 +692,7 @@ const translations = {
     "couldNotExtractRestricted": "No se pudo extraer contenido de esta página: puede estar restringida (chrome://, Web Store) o aún cargándose. Haz clic en 🔄 para reintentar.",
 
     "couldNotRetrieveContent": "No se pudo recuperar el contenido de esta página. Asegúrate de que la página esté cargada e inténtalo de nuevo.",
+    "contentLowWarning": "Solo se extrajeron {count} palabras: la página aún puede estar cargando o incompleta. Haz clic en 🔄 para actualizar.",
 
     "checking": "Comprobando...",
     "connectingToObsidian": "Conectando a Obsidian...",
@@ -896,6 +901,7 @@ const translations = {
     "jumpToVideoTime": "Saltar a {time} en el vídeo",
     "scrollToSection": "Desplazarse a la sección: {ref}",
     "qaSourcesLabel": "Fuentes",
+    "wordCount": "{count} palabras",
     "toggleBranch": "Alternar rama",
     "loadAndReanalyze": "🔄 Cargar y reanalizar",
     "loadAndReanalyzeTitle": "El contenido aún no está cargado. Haz clic para cargar y reanalizar.",
@@ -996,6 +1002,7 @@ const translations = {
     "couldNotExtractRestricted": "このページからコンテンツを抽出できませんでした — 制限されている（chrome://、Webストアなど）か、まだ読み込み中の可能性があります。🔄 をクリックして再試行してください。",
 
     "couldNotRetrieveContent": "このページのコンテンツを取得できませんでした。ページが読み込まれていることを確認して再試行してください。",
+    "contentLowWarning": "抽出されたのは {count} 語のみです — ページの読み込みが完了していない可能性があります。🔄 をクリックして再試行してください。",
 
     "checking": "確認中...",
     "connectingToObsidian": "Obsidianに接続中...",
@@ -1204,6 +1211,7 @@ const translations = {
     "jumpToVideoTime": "動画の {time} へジャンプ",
     "scrollToSection": "セクションへスクロール: {ref}",
     "qaSourcesLabel": "参考箇所",
+    "wordCount": "{count} 語",
     "toggleBranch": "ブランチを開閉",
     "loadAndReanalyze": "🔄 読み込んで再分析",
     "loadAndReanalyzeTitle": "ページ内容がまだ読み込まれていません。クリックして再分析を実行します。",
@@ -1304,6 +1312,7 @@ const translations = {
     "couldNotExtractRestricted": "이 페이지에서 콘텐츠를 추출할 수 없습니다. 제한된 페이지(chrome://, 웹스토어 등)이거나 아직 로드 중일 수 있습니다. 🔄를 클릭하여 다시 시도하세요.",
 
     "couldNotRetrieveContent": "이 페이지의 콘텐츠를 가져올 수 없습니다. 페이지가 로드되었는지 확인하고 다시 시도하세요.",
+    "contentLowWarning": "{count}개 단어만 추출되었습니다. 페이지가 아직 로드 중이거나 불완전할 수 있습니다. 🔄를 클릭하여 다시 시도하세요.",
 
     "checking": "확인 중...",
     "connectingToObsidian": "Obsidian 연결 중...",
@@ -1512,6 +1521,7 @@ const translations = {
     "jumpToVideoTime": "영상 {time} 위치로 이동",
     "scrollToSection": "섹션으로 스크롤: {ref}",
     "qaSourcesLabel": "출처",
+    "wordCount": "{count} 단어",
     "toggleBranch": "가지 접기/펼치기",
     "loadAndReanalyze": "🔄 불러와서 재분석",
     "loadAndReanalyzeTitle": "페이지 내용이 아직 로드되지 않았습니다. 클릭하여 로드 후 재분석하세요.",
@@ -1612,6 +1622,7 @@ const translations = {
     "couldNotExtractRestricted": "تعذر استخراج المحتوى من هذه الصفحة — قد تكون مقيدة (chrome://، سوق Chrome الإلكتروني) أو لا تزال قيد التحميل. انقر على 🔄 للمحاولة مرة أخرى.",
 
     "couldNotRetrieveContent": "تعذر استرداد محتوى هذه الصفحة. يرجى التأكد من اكتمال تحميل الصفحة والمحاولة مرة أخرى.",
+    "contentLowWarning": "تم استخراج {count} كلمة فقط — قد لا تزال الصفحة قيد التحميل أو غير مكتملة. انقر على 🔄 للتحديث.",
 
     "checking": "جارٍ التحقق...",
     "connectingToObsidian": "جارٍ الاتصال بـ Obsidian...",
@@ -1820,6 +1831,7 @@ const translations = {
     "jumpToVideoTime": "انتقال إلى {time} في الفيديو",
     "scrollToSection": "انتقال للقسم: {ref}",
     "qaSourcesLabel": "المصادر",
+    "wordCount": "{count} كلمة",
     "toggleBranch": "تبديل الفرع",
     "loadAndReanalyze": "🔄 تحميل وإعادة التحليل",
     "loadAndReanalyzeTitle": "محتوى الصفحة غير محمل بعد. انقر لتحميله وإعادة تحليله.",
@@ -1920,6 +1932,7 @@ const translations = {
     "couldNotExtractRestricted": "Impossible d'extraire le contenu de cette page — elle est peut-être restreinte (chrome://, Web Store) ou en cours de chargement. Cliquez sur 🔄 pour réessayer.",
 
     "couldNotRetrieveContent": "Impossible de récupérer le contenu de cette page. Veuillez vérifier que la page est chargée et réessayer.",
+    "contentLowWarning": "Seulement {count} mots extraits — la page est peut-être encore en cours de chargement. Cliquez sur 🔄 pour actualiser.",
 
     "checking": "Vérification...",
     "connectingToObsidian": "Connexion à Obsidian...",
@@ -2128,6 +2141,7 @@ const translations = {
     "jumpToVideoTime": "Sauter à {time} dans la vidéo",
     "scrollToSection": "Faire défiler vers la section : {ref}",
     "qaSourcesLabel": "Sources",
+    "wordCount": "{count} mots",
     "toggleBranch": "Déplier/replier la branche",
     "loadAndReanalyze": "🔄 Charger & réanalyser",
     "loadAndReanalyzeTitle": "Le contenu n'est pas encore extrait. Cliquez pour charger et réanalyser.",
@@ -2228,6 +2242,7 @@ const translations = {
     "couldNotExtractRestricted": "Inhalt konnte nicht extrahiert werden — die Seite ist möglicherweise eingeschränkt (chrome://, Web Store) oder lädt noch. Klicken Sie auf 🔄, um es erneut zu versuchen.",
 
     "couldNotRetrieveContent": "Konnte den Inhalt dieser Seite nicht abrufen. Bitte stellen Sie sicher, dass die Seite geladen ist, und versuchen Sie es erneut.",
+    "contentLowWarning": "Nur {count} Wörter extrahiert — die Seite lädt möglicherweise noch. Klicken Sie auf 🔄 zum Aktualisieren.",
 
     "checking": "Prüfen...",
     "connectingToObsidian": "Verbinde mit Obsidian...",
@@ -2436,6 +2451,7 @@ const translations = {
     "jumpToVideoTime": "Zu {time} im Video springen",
     "scrollToSection": "Zu Abschnitt scrollen: {ref}",
     "qaSourcesLabel": "Quellen",
+    "wordCount": "{count} Wörter",
     "toggleBranch": "Zweig umschalten",
     "loadAndReanalyze": "🔄 Laden & neu analysieren",
     "loadAndReanalyzeTitle": "Inhalt ist noch nicht geladen. Klicken zum Laden und Neuanalysieren.",
@@ -2536,6 +2552,7 @@ const translations = {
     "couldNotExtractRestricted": "Não foi possível extrair conteúdo desta página — ela pode estar restrita (chrome://, Web Store) ou ainda carregando. Clique em 🔄 para tentar novamente.",
 
     "couldNotRetrieveContent": "Não foi possível recuperar o conteúdo desta página. Verifique se a página foi carregada e tente novamente.",
+    "contentLowWarning": "Apenas {count} palavras extraídas — a página ainda pode estar carregando ou incompleta. Clique em 🔄 para atualizar.",
 
     "checking": "Verificando...",
     "connectingToObsidian": "Conectando ao Obsidian...",
@@ -2744,6 +2761,7 @@ const translations = {
     "jumpToVideoTime": "Pular para {time} no vídeo",
     "scrollToSection": "Rolar até a seção: {ref}",
     "qaSourcesLabel": "Fontes",
+    "wordCount": "{count} palavras",
     "toggleBranch": "Alternar ramificação",
     "loadAndReanalyze": "🔄 Carregar e reanalisar",
     "loadAndReanalyzeTitle": "O conteúdo ainda não foi carregado. Clique para carregar e reanalisar.",
@@ -2844,6 +2862,7 @@ const translations = {
     "couldNotExtractRestricted": "Не удалось извлечь содержимое этой страницы — она может быть защищена (chrome://, Интернет-магазин) или все еще загружается. Нажмите 🔄, чтобы повторить попытку.",
 
     "couldNotRetrieveContent": "Не удалось получить содержимое этой страницы. Убедитесь, что страница загружена, и повторите попытку.",
+    "contentLowWarning": "Извлечено только {count} слов — страница может еще загружаться. Нажмите 🔄, чтобы обновить.",
 
     "checking": "Проверка...",
     "connectingToObsidian": "Подключение к Obsidian...",
@@ -3052,6 +3071,7 @@ const translations = {
     "jumpToVideoTime": "Перейти к {time} в видео",
     "scrollToSection": "Перейти к разделу: {ref}",
     "qaSourcesLabel": "Источники",
+    "wordCount": "{count} слов",
     "toggleBranch": "Свернуть/развернуть ветку",
     "loadAndReanalyze": "🔄 Загрузить и переанализировать",
     "loadAndReanalyzeTitle": "Содержимое страницы еще не загружено. Нажмите для загрузки и анализа.",

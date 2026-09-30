@@ -246,10 +246,27 @@ class TabAction {
       if (!content) {
         if (session.activeTabId === tabId) session.extractionFailed = true;
       } else {
-        tabStateManager.clearWarning(tabId);
+        const pageHelper = typeof helper !== "undefined" ? helper : globalThis.helper;
+        const countWordsFn = pageHelper?.countWords || ((txt) => (txt ? txt.trim().split(/\s+/).filter(Boolean).length : 0));
+        const words = countWordsFn(content.content);
+        const isSuspicious = pageHelper?.isContentSuspiciouslyLow
+          ? pageHelper.isContentSuspiciouslyLow(words, content.sourceType)
+          : false;
+
+        let warningMsg = null;
+        if (isSuspicious) {
+          warningMsg = t("contentLowWarning", { count: words.toLocaleString() });
+          tabStateManager.setWarning(tabId, warningMsg);
+        } else {
+          tabStateManager.clearWarning(tabId);
+        }
         tabStateManager.clearError(tabId);
+
         if (session.activeTabId === tabId) {
           ui.bannersUI?.hideAll?.();
+          if (warningMsg) {
+            ui.bannersUI?.showWarning?.(warningMsg);
+          }
         }
         const cached = tabStateManager.get(tabId) || {};
         tabStateManager.set(tabId, {
@@ -257,7 +274,7 @@ class TabAction {
           url: content.url || tabUrl || cached.url,
           extractedContent: content,
           extractionFailed: false,
-          warning: null,
+          warning: warningMsg,
           error: null,
         });
 
@@ -269,7 +286,7 @@ class TabAction {
             sourceType: content.sourceType || ui.captureUI.getPageType(),
           });
           ui.captureUI?.setPreviewText?.(content.content || "(No content extracted)");
-          ui.captureUI?.showProvenance?.(content.metadata || {});
+          ui.captureUI?.showProvenance?.(content.metadata || {}, content.content);
           analyzeAction?.applyTranscriptBlock?.();
           analyzeAction?.updateAnalyzeButtonsState?.();
         }
