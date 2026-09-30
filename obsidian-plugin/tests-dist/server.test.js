@@ -482,7 +482,7 @@ var NutEggServer = class {
       console.log("[NutEgg] Server is already running");
       return;
     }
-    this.server = http.createServer((req, res) => {
+    this.server = http.createServer(async (req, res) => {
       const origin = req.headers.origin;
       const isAllowedOrigin = !origin || origin.startsWith("chrome-extension://") || origin.startsWith("http://127.0.0.1:") || origin.startsWith("http://localhost:") || origin.startsWith("app://obsidian.md");
       if (origin && isAllowedOrigin) {
@@ -502,58 +502,66 @@ var NutEggServer = class {
         res.end();
         return;
       }
-      if (req.method === "GET" && req.url === "/health") {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          status: "ok",
-          port: this.port,
-          version: this.plugin.manifest?.version || "",
-          timestamp: Date.now()
-        }));
-        return;
+      try {
+        if (req.method === "GET" && req.url === "/health") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            status: "ok",
+            port: this.port,
+            version: this.plugin.manifest?.version || "",
+            timestamp: Date.now()
+          }));
+          return;
+        }
+        if (req.method === "GET" && req.url === "/config-status") {
+          await this.handleConfigStatus(res);
+          return;
+        }
+        if (req.method === "GET" && req.url === "/credit") {
+          await this.handleCredit(res);
+          return;
+        }
+        if (req.method === "GET" && req.url === "/metrics") {
+          this.handleMetrics(req, res);
+          return;
+        }
+        if (req.method === "GET" && req.url?.startsWith("/search")) {
+          this.handleSearch(req, res);
+          return;
+        }
+        if (req.method === "GET" && req.url?.startsWith("/history")) {
+          this.handleHistory(req, res);
+          return;
+        }
+        if (req.method === "GET" && req.url === "/eggs") {
+          await this.handleGetEggs(req, res);
+          return;
+        }
+        if (req.method === "POST" && req.url === "/ask") {
+          await this.handleAsk(req, res);
+          return;
+        }
+        if (req.method === "POST" && req.url === "/analyze") {
+          await this.handleAnalyze(req, res);
+          return;
+        }
+        if (req.method === "POST" && req.url === "/confirm") {
+          await this.handleConfirm(req, res);
+          return;
+        }
+        if (req.method === "POST" && req.url === "/create-egg") {
+          await this.handleCreateEgg(req, res);
+          return;
+        }
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found" }));
+      } catch (err) {
+        console.error("[NutEgg] Unhandled server error:", err);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+        }
       }
-      if (req.method === "GET" && req.url === "/config-status") {
-        this.handleConfigStatus(res);
-        return;
-      }
-      if (req.method === "GET" && req.url === "/credit") {
-        this.handleCredit(res);
-        return;
-      }
-      if (req.method === "GET" && req.url === "/metrics") {
-        this.handleMetrics(req, res);
-        return;
-      }
-      if (req.method === "GET" && req.url?.startsWith("/search")) {
-        this.handleSearch(req, res);
-        return;
-      }
-      if (req.method === "GET" && req.url?.startsWith("/history")) {
-        this.handleHistory(req, res);
-        return;
-      }
-      if (req.method === "GET" && req.url === "/eggs") {
-        this.handleGetEggs(req, res);
-        return;
-      }
-      if (req.method === "POST" && req.url === "/ask") {
-        this.handleAsk(req, res);
-        return;
-      }
-      if (req.method === "POST" && req.url === "/analyze") {
-        this.handleAnalyze(req, res);
-        return;
-      }
-      if (req.method === "POST" && req.url === "/confirm") {
-        this.handleConfirm(req, res);
-        return;
-      }
-      if (req.method === "POST" && req.url === "/create-egg") {
-        this.handleCreateEgg(req, res);
-        return;
-      }
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Not found" }));
     });
     return new Promise((resolve, reject) => {
       this.server.listen(this.port, "127.0.0.1", () => {
@@ -570,33 +578,41 @@ var NutEggServer = class {
    * GET /config-status — Returns AI configuration status for the popup to show warnings and credit info.
    */
   async handleConfigStatus(res) {
-    const settings = this.plugin.settings;
-    const issues = [];
-    let status = "ok";
-    if (!isAIConfigured(settings)) {
-      issues.push(
-        settings.aiProvider === "local" ? "Local LLM endpoint or model not configured. Open Obsidian Settings \u2192 NutEgg to configure it." : "No API key configured. Open Obsidian Settings \u2192 NutEgg, enable Developer Mode, and add your API key."
-      );
-      status = "error";
-    }
-    const indexExists = await this.plugin.app.vault.adapter.exists(settings.indexFile);
-    if (!indexExists) {
-      issues.push(`Index file "${settings.indexFile}" not found. Click the egg icon in Obsidian to create it.`);
-      status = status === "error" ? "error" : "warning";
-    }
-    let credit = null;
     try {
-      credit = await this.plugin.aiClient.checkCredit(settings);
-    } catch {
+      const settings = this.plugin.settings;
+      const issues = [];
+      let status = "ok";
+      if (!isAIConfigured(settings)) {
+        issues.push(
+          settings.aiProvider === "local" ? "Local LLM endpoint or model not configured. Open Obsidian Settings \u2192 NutEgg to configure it." : "No API key configured. Open Obsidian Settings \u2192 NutEgg, enable Developer Mode, and add your API key."
+        );
+        status = "error";
+      }
+      const indexExists = await this.plugin.app.vault.adapter.exists(settings.indexFile);
+      if (!indexExists) {
+        issues.push(`Index file "${settings.indexFile}" not found. Click the egg icon in Obsidian to create it.`);
+        status = status === "error" ? "error" : "warning";
+      }
+      let credit = null;
+      try {
+        credit = await this.plugin.aiClient.checkCredit(settings);
+      } catch {
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        status,
+        issues,
+        port: this.port,
+        version: this.plugin.manifest?.version || "",
+        credit
+      }));
+    } catch (err) {
+      console.error("[NutEgg] Config status error:", err);
+      if (!res.headersSent) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: "error", issues: ["Failed to check configuration"] }));
+      }
     }
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({
-      status,
-      issues,
-      port: this.port,
-      version: this.plugin.manifest?.version || "",
-      credit
-    }));
   }
   /**
    * GET /credit — Returns live balance and credit status for the current AI provider.

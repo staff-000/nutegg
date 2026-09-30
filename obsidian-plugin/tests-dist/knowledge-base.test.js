@@ -5,13 +5,6 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __esm = (fn, res) => function __init() {
-  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
-};
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
 var __copyProps = (to, from, except, desc) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
@@ -29,53 +22,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../shared/src/egg-format.ts
-function sanitizeEggName(name) {
-  return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-}
-function extractEggLanguage(content) {
-  if (!content)
-    return "";
-  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (fmMatch) {
-    for (const line of fmMatch[1].split(/\r?\n/)) {
-      const kv = line.match(/^(\w+):\s*(.*)$/);
-      if (kv && kv[1].toLowerCase() === "language") {
-        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
-      }
-    }
-  }
-  const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
-  return directMatch ? directMatch[1].trim() : "";
-}
-function insertEggLanguage(content, language, options) {
-  if (!content || !language)
-    return content;
-  const existing = extractEggLanguage(content);
-  if (existing && !options?.overwrite)
-    return content;
-  if (existing && options?.overwrite) {
-    return content.replace(/^language:\s*["']?[^"'\r\n]*["']?/im, `language: "${language}"`);
-  }
-  if (/^language:\s*["']?["']?\s*$/m.test(content)) {
-    return content.replace(/^language:\s*["']?["']?\s*$/m, `language: "${language}"`);
-  }
-  const fmRegex = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
-  const match = content.match(fmRegex);
-  if (match) {
-    const opening = match[1];
-    const body = match[2];
-    const closing = match[3];
-    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
-    const newBody = `${body}${separator}language: "${language}"`;
-    return content.replace(fmRegex, `${opening}${newBody}${closing}`);
-  }
-  return `---
-language: "${language}"
----
+// tests/knowledge-base.test.ts
+var import_node_test = require("node:test");
+var import_strict = __toESM(require("node:assert/strict"));
 
-${content}`;
-}
+// ../shared/src/egg-format.ts
 function formatEggInstructionsForPrompt(egg) {
   const parts = [];
   parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
@@ -121,12 +72,10 @@ function countUnprocessed(egg) {
   const base = Math.min(...bullets.map(indentOf));
   return bullets.filter((l) => indentOf(l) === base).length;
 }
-var init_egg_format = __esm({
-  "../shared/src/egg-format.ts"() {
-  }
-});
 
 // ../shared/src/egg-parser.ts
+var KNOWLEDGE_HEADING = "# Knowledge";
+var UNPROCESSED_HEADING = "# Unprocessed";
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
     return false;
@@ -148,17 +97,6 @@ function isEggPath(path, vaultFolder = "nutegg") {
       return false;
     return true;
   }
-}
-function matchesEggFormat(content) {
-  if (!content || typeof content !== "string")
-    return false;
-  if (/^---\r?\n[\s\S]*?\btopic:\s*["']?.+["']?[\s\S]*?\r?\n---/m.test(content)) {
-    return true;
-  }
-  if (content.includes("# Knowledge") || content.includes("# Unprocessed") || content.includes("[!abstract]")) {
-    return true;
-  }
-  return false;
 }
 function parseEggFile(fileName, content) {
   const result = {
@@ -285,208 +223,165 @@ function splitLabeledSections(text) {
 function parseListItems(text) {
   return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l)).map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
 }
-var KNOWLEDGE_HEADING, UNPROCESSED_HEADING;
-var init_egg_parser = __esm({
-  "../shared/src/egg-parser.ts"() {
-    init_egg_format();
-    KNOWLEDGE_HEADING = "# Knowledge";
-    UNPROCESSED_HEADING = "# Unprocessed";
-  }
-});
 
 // src/egg-parser.ts
-var egg_parser_exports = {};
-__export(egg_parser_exports, {
-  EggParser: () => EggParser,
-  KNOWLEDGE_HEADING: () => KNOWLEDGE_HEADING,
-  UNPROCESSED_HEADING: () => UNPROCESSED_HEADING,
-  countUnprocessed: () => countUnprocessed,
-  extractCallout: () => extractCallout,
-  extractEggLanguage: () => extractEggLanguage,
-  findSection: () => findSection,
-  formatEggForPrompt: () => formatEggForPrompt,
-  formatEggInstructionsForPrompt: () => formatEggInstructionsForPrompt,
-  formatEggKnowledgeForPrompt: () => formatEggKnowledgeForPrompt,
-  headingName: () => headingName,
-  insertEggLanguage: () => insertEggLanguage,
-  isEggPath: () => isEggPath,
-  matchesEggFormat: () => matchesEggFormat,
-  parseEggFile: () => parseEggFile,
-  parseListItems: () => parseListItems,
-  sanitizeEggName: () => sanitizeEggName,
-  sectionBody: () => sectionBody,
-  splitLabeledSections: () => splitLabeledSections,
-  stripSectionHeading: () => stripSectionHeading
-});
-var EggParser;
-var init_egg_parser2 = __esm({
-  "src/egg-parser.ts"() {
-    "use strict";
-    init_egg_parser();
-    init_egg_parser();
-    EggParser = class {
-      plugin;
-      constructor(plugin) {
-        this.plugin = plugin;
-      }
-      async readEgg(fileName, fallbackDescription) {
-        let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
-        if (!file && !fileName.includes("/")) {
-          const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-          file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
-        }
-        if (!file) {
-          const folder = this.plugin.vaultFolder || "nutegg";
-          const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-            (f) => isEggPath(f.path, folder)
-          );
-          const base = fileName.split("/").pop().toLowerCase();
-          const match = allFiles.find(
-            (f) => f.path.split("/").pop().toLowerCase() === base
-          );
-          if (match)
-            file = match;
-        }
-        if (!file) {
-          console.warn(`[NutEgg] Egg file not found: ${fileName}`);
-          return null;
-        }
-        const content = await this.plugin.app.vault.read(file);
-        const parsed = this.parseEggFile(file.path || fileName, content);
-        if (fallbackDescription && !parsed.indexDescription) {
-          parsed.indexDescription = fallbackDescription;
-        }
-        return parsed;
-      }
-      async readEggs(entries) {
-        const eggs = [];
-        for (const entry of entries) {
-          const egg = await this.readEgg(entry.fileName, entry.description);
-          if (egg) {
-            egg.indexDescription = entry.description;
-            eggs.push(egg);
-          }
-        }
-        return eggs;
-      }
-      parseEggFile(fileName, content) {
-        return parseEggFile(fileName, content);
-      }
-      formatEggInstructionsForPrompt(egg) {
-        return formatEggInstructionsForPrompt(egg);
-      }
-      formatEggKnowledgeForPrompt(egg) {
-        return formatEggKnowledgeForPrompt(egg);
-      }
-      formatEggForPrompt = (egg) => {
-        return formatEggForPrompt(egg);
-      };
-      countUnprocessed(egg) {
-        return countUnprocessed(egg);
-      }
-      /**
-       * Append one new knowledge entry to the egg's Unprocessed section.
-       *
-       * Entries land here first and are merged into the Knowledge tree later,
-       * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
-       * its insight + examples (AI-generated `content`), plus mechanical
-       * `_author` / `_source` lines for provenance.
-       */
-      async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-        const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
-        if (!file) {
-          console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
-          return;
-        }
-        const existing = await this.plugin.app.vault.read(file);
-        const lines = existing.replace(/\n+$/, "").split("\n");
-        const section = findSection(lines, "unprocessed");
-        const trimmed = content.trim();
-        const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
-        const meta = [];
-        if (author)
-          meta.push(`_author: ${author}_`);
-        const safeTitle = sourceTitle.replace(/[[\]]/g, "");
-        meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
-        const block = [withBullet, ...meta].join("\n");
-        if (section) {
-          lines.splice(section.end, 0, "", block);
-        } else {
-          lines.push("", UNPROCESSED_HEADING, "", block);
-        }
-        await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
-        console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
-      }
-      /**
-       * Replace the Knowledge and Unprocessed sections with the merged output
-       * from the merge AI call. Missing sections are created as needed.
-       */
-      async applyMerge(fileName, knowledge, unprocessed) {
-        const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
-        if (!file) {
-          console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
-          return;
-        }
-        knowledge = stripSectionHeading(knowledge, "knowledge");
-        unprocessed = stripSectionHeading(unprocessed, "unprocessed");
-        const kLines = knowledge.split("\n");
-        const uIdx = kLines.findIndex((l) => headingName(l) === "unprocessed");
-        if (uIdx !== -1) {
-          const rest = stripSectionHeading(
-            kLines.slice(uIdx).join("\n"),
-            "unprocessed"
-          );
-          knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
-          if (!unprocessed)
-            unprocessed = rest;
-        }
-        const existing = await this.plugin.app.vault.read(file);
-        let lines = existing.replace(/\n+$/, "").split("\n");
-        const knowledgeSection = findSection(lines, "knowledge");
-        if (knowledgeSection) {
-          lines = [
-            ...lines.slice(0, knowledgeSection.start + 1),
-            "",
-            ...knowledge.trim().split("\n"),
-            ...lines.slice(knowledgeSection.end)
-          ];
-        } else {
-          const unprocessedSection2 = findSection(lines, "unprocessed");
-          if (unprocessedSection2) {
-            lines = [
-              ...lines.slice(0, unprocessedSection2.start),
-              "",
-              KNOWLEDGE_HEADING,
-              "",
-              ...knowledge.trim().split("\n"),
-              "",
-              ...lines.slice(unprocessedSection2.start)
-            ];
-          } else {
-            lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
-          }
-        }
-        const unprocessedSection = findSection(lines, "unprocessed");
-        const remainder = unprocessed.trim();
-        if (unprocessedSection) {
-          lines = [
-            ...lines.slice(0, unprocessedSection.start + 1),
-            ...remainder ? ["", ...remainder.split("\n")] : [],
-            ...lines.slice(unprocessedSection.end)
-          ];
-        } else if (remainder) {
-          lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
-        }
-        await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
-        console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
-      }
-    };
+var EggParser = class {
+  plugin;
+  constructor(plugin) {
+    this.plugin = plugin;
   }
-});
-
-// tests/knowledge-base.test.ts
-var import_node_test = require("node:test");
-var import_strict = __toESM(require("node:assert/strict"));
+  async readEgg(fileName, fallbackDescription) {
+    let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file && !fileName.includes("/")) {
+      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
+      file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
+    }
+    if (!file) {
+      const folder = this.plugin.vaultFolder || "nutegg";
+      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
+        (f) => isEggPath(f.path, folder)
+      );
+      const base = fileName.split("/").pop().toLowerCase();
+      const match = allFiles.find(
+        (f) => f.path.split("/").pop().toLowerCase() === base
+      );
+      if (match)
+        file = match;
+    }
+    if (!file) {
+      console.warn(`[NutEgg] Egg file not found: ${fileName}`);
+      return null;
+    }
+    const content = await this.plugin.app.vault.read(file);
+    const parsed = this.parseEggFile(file.path || fileName, content);
+    if (fallbackDescription && !parsed.indexDescription) {
+      parsed.indexDescription = fallbackDescription;
+    }
+    return parsed;
+  }
+  async readEggs(entries) {
+    const eggs = [];
+    for (const entry of entries) {
+      const egg = await this.readEgg(entry.fileName, entry.description);
+      if (egg) {
+        egg.indexDescription = entry.description;
+        eggs.push(egg);
+      }
+    }
+    return eggs;
+  }
+  parseEggFile(fileName, content) {
+    return parseEggFile(fileName, content);
+  }
+  formatEggInstructionsForPrompt(egg) {
+    return formatEggInstructionsForPrompt(egg);
+  }
+  formatEggKnowledgeForPrompt(egg) {
+    return formatEggKnowledgeForPrompt(egg);
+  }
+  formatEggForPrompt = (egg) => {
+    return formatEggForPrompt(egg);
+  };
+  countUnprocessed(egg) {
+    return countUnprocessed(egg);
+  }
+  /**
+   * Append one new knowledge entry to the egg's Unprocessed section.
+   *
+   * Entries land here first and are merged into the Knowledge tree later,
+   * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
+   * its insight + examples (AI-generated `content`), plus mechanical
+   * `_author` / `_source` lines for provenance.
+   */
+  async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
+      return;
+    }
+    const existing = await this.plugin.app.vault.read(file);
+    const lines = existing.replace(/\n+$/, "").split("\n");
+    const section = findSection(lines, "unprocessed");
+    const trimmed = content.trim();
+    const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+    const meta = [];
+    if (author)
+      meta.push(`_author: ${author}_`);
+    const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+    meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+    const block = [withBullet, ...meta].join("\n");
+    if (section) {
+      lines.splice(section.end, 0, "", block);
+    } else {
+      lines.push("", UNPROCESSED_HEADING, "", block);
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
+  }
+  /**
+   * Replace the Knowledge and Unprocessed sections with the merged output
+   * from the merge AI call. Missing sections are created as needed.
+   */
+  async applyMerge(fileName, knowledge, unprocessed) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
+      return;
+    }
+    knowledge = stripSectionHeading(knowledge, "knowledge");
+    unprocessed = stripSectionHeading(unprocessed, "unprocessed");
+    const kLines = knowledge.split("\n");
+    const uIdx = kLines.findIndex((l) => headingName(l) === "unprocessed");
+    if (uIdx !== -1) {
+      const rest = stripSectionHeading(
+        kLines.slice(uIdx).join("\n"),
+        "unprocessed"
+      );
+      knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
+      if (!unprocessed)
+        unprocessed = rest;
+    }
+    const existing = await this.plugin.app.vault.read(file);
+    let lines = existing.replace(/\n+$/, "").split("\n");
+    const knowledgeSection = findSection(lines, "knowledge");
+    if (knowledgeSection) {
+      lines = [
+        ...lines.slice(0, knowledgeSection.start + 1),
+        "",
+        ...knowledge.trim().split("\n"),
+        ...lines.slice(knowledgeSection.end)
+      ];
+    } else {
+      const unprocessedSection2 = findSection(lines, "unprocessed");
+      if (unprocessedSection2) {
+        lines = [
+          ...lines.slice(0, unprocessedSection2.start),
+          "",
+          KNOWLEDGE_HEADING,
+          "",
+          ...knowledge.trim().split("\n"),
+          "",
+          ...lines.slice(unprocessedSection2.start)
+        ];
+      } else {
+        lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+      }
+    }
+    const unprocessedSection = findSection(lines, "unprocessed");
+    const remainder = unprocessed.trim();
+    if (unprocessedSection) {
+      lines = [
+        ...lines.slice(0, unprocessedSection.start + 1),
+        ...remainder ? ["", ...remainder.split("\n")] : [],
+        ...lines.slice(unprocessedSection.end)
+      ];
+    } else if (remainder) {
+      lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
+    }
+    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
+  }
+};
 
 // src/knowledge-base.ts
 var KnowledgeBase = class {
@@ -569,8 +464,7 @@ var KnowledgeBase = class {
    * merged into the Knowledge tree later, once 20+ accumulate per egg.
    */
   async appendKnowledge(newKnowledge, sourceTitle, sourceUrl, author) {
-    const { EggParser: EggParser2 } = await Promise.resolve().then(() => (init_egg_parser2(), egg_parser_exports));
-    const eggParser = new EggParser2(this.plugin);
+    const eggParser = this.plugin.eggParser || new EggParser(this.plugin);
     for (const item of newKnowledge) {
       await eggParser.appendUnprocessed(
         item.egg,

@@ -23,10 +23,18 @@ class PageExtractor {
 
   /** Safe promise timeout wrapper. */
   withTimeout(promise, ms, fallback = null) {
-    return Promise.race([
-      promise,
-      new Promise((resolve) => setTimeout(() => resolve(fallback), ms)),
-    ]);
+    let timer;
+    const timeoutPromise = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    });
+    // Suppress unhandled rejection if promise rejects after timeout has fired
+    if (promise && typeof promise.catch === "function") {
+      promise.catch(() => {});
+    }
+    const guardedPromise = Promise.resolve(promise).finally(() => {
+      clearTimeout(timer);
+    });
+    return Promise.race([guardedPromise, timeoutPromise]);
   }
 
   /**

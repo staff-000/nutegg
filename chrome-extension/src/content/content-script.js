@@ -34,12 +34,12 @@ window.EXTRACTORS = EXTRACTORS;
 // Main entry point
 // ============================================================
 
-function extractContent() {
+async function extractContent() {
   for (const ex of EXTRACTORS) {
     try {
       if (ex.detect()) {
         console.log(`[NutEgg] Using extractor: ${ex.name}`);
-        return ex.extract();
+        return await ex.extract();
       }
     } catch (e) {
       console.warn(`[NutEgg] Extractor "${ex.name}" failed:`, e);
@@ -47,7 +47,7 @@ function extractContent() {
   }
   // Ultimate fallback
   console.warn("[NutEgg] All extractors failed, using generic");
-  return extractGeneric();
+  return await extractGeneric();
 }
 
 // Listen for messages from popup/background (attached once per window)
@@ -140,29 +140,15 @@ if (!window.__nutegg_listener_attached) {
     }
 
     if (message.action === "extract-content") {
-      try {
-        const result = extractContent();
-        // If the result is a promise (e.g. YouTube with async caption fetch), await it
-        if (result instanceof Promise) {
-          result
-            .then((content) => sendResponse({ success: true, content }))
-            .catch((err) =>
-              sendResponse({
-                success: false,
-                error: err instanceof Error ? err.message : String(err),
-              })
-            );
-          return true; // Keep channel open for async
-        }
-        sendResponse({ success: true, content: result });
-        return false;
-      } catch (err) {
-        sendResponse({
-          success: false,
-          error: err instanceof Error ? err.message : "Extraction failed",
-        });
-        return false;
-      }
+      extractContent()
+        .then((content) => sendResponse({ success: true, content }))
+        .catch((err) =>
+          sendResponse({
+            success: false,
+            error: err instanceof Error ? err.message : "Extraction failed",
+          })
+        );
+      return true; // Keep channel open for async
     }
   });
 }

@@ -1,4 +1,5 @@
 import type NutEggPlugin from "./main";
+import { EggParser } from "./egg-parser";
 
 /**
  * Simplified knowledge base — saves raw content and appends to egg files.
@@ -139,8 +140,7 @@ export class KnowledgeBase {
     sourceUrl: string,
     author: string
   ): Promise<void> {
-    const { EggParser } = await import("./egg-parser");
-    const eggParser = new EggParser(this.plugin);
+    const eggParser = this.plugin.eggParser || new EggParser(this.plugin);
 
     for (const item of newKnowledge) {
       await eggParser.appendUnprocessed(

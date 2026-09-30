@@ -613,8 +613,12 @@ var WorkflowManager = class {
     }
     const filename = file.name;
     if (filename in BUILTIN_WORKFLOW_FILES) {
-      const content = await this.plugin.app.vault.read(file);
-      this.cache.set(filename, content);
+      try {
+        const content = await this.plugin.app.vault.read(file);
+        this.cache.set(filename, content);
+      } catch (err) {
+        console.warn(`[NutEgg] Error reading changed workflow file ${file.path}:`, err);
+      }
     }
   }
   onFileDeleted(file) {

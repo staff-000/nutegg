@@ -131,6 +131,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "get-credit") {
+    fetchCredit()
+      .then((r) => sendResponse(r))
+      .catch((err) => sendResponse({ error: String(err), hasBalance: false }));
+    return true;
+  }
+
   if (message.action === "config-status") {
     checkConfigStatus()
       .then((r) => sendResponse(r))
@@ -140,9 +147,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "set-port") {
     serverPort = message.port || DEFAULT_PORT;
-    chrome.storage.local.set({ serverPort });
-    sendResponse({ success: true, port: serverPort });
-    return false;
+    chrome.storage.local.set({ serverPort }).then(() => {
+      sendResponse({ success: true, port: serverPort });
+    }).catch((err) => {
+      sendResponse({ success: false, error: err?.message });
+    });
+    return true;
   }
 
   if (message.action === "metrics") {
@@ -404,6 +414,20 @@ async function checkConfigStatus() {
   } catch {
     clearTimeout(timeout);
     return { status: "error", issues: ["Cannot reach server"] };
+  }
+}
+
+async function fetchCredit() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/credit`, { signal: controller.signal });
+    clearTimeout(timeout);
+    return await response.json();
+  } catch {
+    clearTimeout(timeout);
+    return { hasBalance: false, statusText: "Credit check failed" };
   }
 }
 
