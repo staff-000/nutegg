@@ -564,6 +564,22 @@ describe("Modular UI Components", () => {
     eggs.render(session, settings);
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
 
+    // Obsidian mode, all eggs rejected in Stage 2 (user manually selected eggs)
+    session.analysisResult = {
+      stage: "stage2",
+      matchedEggs: ["Egg1.md", "Egg2.md"],
+      eggResults: [
+        { egg: "Egg1.md", rejected: true, rejectReason: "Out of scope A", novelDelta: [] },
+        { egg: "Egg2.md", rejected: true, rejectReason: "Out of scope B", novelDelta: [] },
+      ],
+    };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes("No egg matches this content"));
+    assert.strictEqual(eggs.eggsToggleLabel.textContent, "— none matched");
+    assert.strictEqual(eggs.eggKnowledgeHint.textContent, "(0 matched)");
+
     // Chrome mode: no eggs or knowledge shown
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: true });

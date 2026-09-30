@@ -134,9 +134,13 @@ function _renderEggsSection(firstArg = [], options = {}) {
   }
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
-    toggleLabelEl.textContent = matchedEggs.length > 0
-      ? t("countMatched", { count: matchedEggs.length })
-      : t("noneMatched");
+    if (opts.allRejected) {
+      toggleLabelEl.textContent = t("noneMatched");
+    } else {
+      toggleLabelEl.textContent = matchedEggs.length > 0
+        ? t("countMatched", { count: matchedEggs.length })
+        : t("noneMatched");
+    }
   }
 
   if (listEl) {
@@ -187,7 +191,24 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
 
   if (!sectionEl || !contentEl) return;
 
+  const allRejected = opts.allRejected !== undefined
+    ? opts.allRejected
+    : (Array.isArray(eggResults) && eggResults.length > 0 && eggResults.every((r) => r.rejected));
+
   if (!Array.isArray(eggResults) || eggResults.length === 0) {
+    if (opts.allRejected || opts.noEggMatched) {
+      sectionEl.classList.remove("hidden");
+      if (tabsBarEl) {
+        tabsBarEl.classList.add("hidden");
+        tabsBarEl.innerHTML = "";
+      }
+      if (hintEl) hintEl.textContent = t("allEggsRejectedHint");
+      contentEl.innerHTML = `
+        <div class="egg-status-banner banner-reject">
+          🚫 <strong>${t("allEggsRejectedTitle")}</strong> — ${t("allEggsRejectedDesc")}
+        </div>`;
+      return;
+    }
     sectionEl.classList.add("hidden");
     contentEl.innerHTML = "";
     if (tabsBarEl) tabsBarEl.innerHTML = "";
@@ -213,7 +234,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
   // Render Tabs (only if 2+ eggs)
   if (eggResults.length > 1 && tabsBarEl) {
     tabsBarEl.classList.remove("hidden");
-    if (hintEl) hintEl.textContent = t("eggsMatchedCount", { count: eggResults.length });
+    if (hintEl) hintEl.textContent = allRejected ? t("allEggsRejectedHint") : t("eggsMatchedCount", { count: eggResults.length });
 
     const totalNewCount = eggResults.reduce((acc, r) => acc + (r.novelDelta?.length || 0), 0);
 
@@ -240,8 +261,8 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
       .join("");
 
     const isAllActive = activeTab === "all" ? " active" : "";
-    const allBadgeText = totalNewCount > 0 ? `+${totalNewCount}` : "✓";
-    const allBadgeClass = totalNewCount > 0 ? "badge-tab-new" : "badge-tab-covered";
+    const allBadgeText = allRejected ? "✕" : (totalNewCount > 0 ? `+${totalNewCount}` : "✓");
+    const allBadgeClass = allRejected ? "badge-tab-reject" : (totalNewCount > 0 ? "badge-tab-new" : "badge-tab-covered");
 
     tabsBarEl.innerHTML =
       tabsHtml +
@@ -274,7 +295,11 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
   } else if (tabsBarEl) {
     tabsBarEl.classList.add("hidden");
     tabsBarEl.innerHTML = "";
-    if (hintEl) hintEl.textContent = `(${cleanEggName(eggResults[0]?.egg)})`;
+    if (hintEl) {
+      hintEl.textContent = allRejected
+        ? `(${cleanEggName(eggResults[0]?.egg)} — ${t("noneMatched")})`
+        : `(${cleanEggName(eggResults[0]?.egg)})`;
+    }
     if (typeof activeEggTab !== "undefined") {
       activeEggTab = eggResults[0]?.egg;
     }
@@ -283,8 +308,14 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
     }
   }
 
+  const allRejectedBanner = allRejected
+    ? `<div class="egg-status-banner banner-reject" style="margin-bottom: 12px;">
+        🚫 <strong>${t("allEggsRejectedTitle")}</strong> — ${t("allEggsRejectedDesc")}
+      </div>`
+    : "";
+
   // Render Egg Cards
-  contentEl.innerHTML = eggResults
+  contentEl.innerHTML = allRejectedBanner + eggResults
     .map((r) => {
       const isVisible = activeTab === "all" || activeTab === r.egg;
       const hideClass = isVisible ? "" : " hidden";
@@ -659,31 +690,39 @@ class EggsComponent {
       return;
     }
 
+    const eggResults = isStage1 ? [] : (result.eggResults || []);
+    const allRejected = !isStage1 && (
+      (eggResults.length > 0 && eggResults.every((r) => r.rejected)) ||
+      (eggResults.length === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0)
+    );
+
     // No egg matched banner
-    const noEgg = (result.matchedEggs || []).length === 0;
+    const noEgg = (result.matchedEggs || []).length === 0 || allRejected;
     this.setNoEggVisible(noEgg);
 
     // Egg knowledge section
-    const eggResults = isStage1 ? [] : (result.eggResults || []);
     this.renderKnowledge({
       eggResults,
       activeEggTab: session?.activeEggTab,
+      allRejected,
+      noEggMatched: allRejected,
       onTabChange: (tab) => {
         if (session) session.activeEggTab = tab;
       },
     });
 
     // Populate session.selectedEggs if empty and matched eggs exist
-    if (session?.selectedEggs && session.selectedEggs.size === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0) {
+    if (!allRejected && session?.selectedEggs && session.selectedEggs.size === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0) {
       result.matchedEggs.forEach((egg) => session.selectedEggs.add(egg));
     }
 
     // Checklist of eggs
     const allVaultEggs = session?.allEggs || settings?.allEggs || [];
     this.renderSection({
-      matchedEggs: result.matchedEggs || [],
+      matchedEggs: allRejected ? [] : (result.matchedEggs || []),
       allEggs: allVaultEggs,
       selectedEggs: session?.selectedEggs,
+      allRejected,
       onSelectChange: () => {
         if (typeof updateStage1ProceedBtn === "function") {
           updateStage1ProceedBtn();

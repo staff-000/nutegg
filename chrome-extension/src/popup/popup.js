@@ -194,14 +194,21 @@ function showResultsState(result, provenance = null) {
 
   renderApp();
 
+  const eggResults = session.isStage1() ? [] : (result.eggResults || []);
+  const allRejected = !session.isStage1() && (
+    (eggResults.length > 0 && eggResults.every((r) => r.rejected)) ||
+    (eggResults.length === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0)
+  );
+
   if (!settings.isChromeMode()) {
     tabAction.fetchEggs().then(() => {
-      eggsUI.renderSection(result.matchedEggs || [], {
+      eggsUI.renderSection(allRejected ? [] : (result.matchedEggs || []), {
         allEggs: session.allEggs,
         selectedEggs: session.selectedEggs,
+        allRejected,
         onSelectChange: () => analyzeAction.updateStage1ProceedBtn(),
       });
-      const matchedCount = (result?.matchedEggs || []).length;
+      const matchedCount = allRejected ? 0 : (result?.matchedEggs || []).length;
       if (session.isStage1() && (settings.analysisMode === "confirm" || matchedCount === 0)) {
         eggsUI.expandEggsList(true);
         analyzeAction.updateStage1ProceedBtn();
@@ -233,8 +240,10 @@ function showResultsState(result, provenance = null) {
   qaUI.setScope(session.followupScope || "within");
   qaUI.render(result, session.followUpQa);
 
-  eggsUI.renderKnowledge(session.isStage1() ? [] : (result.eggResults || []), {
+  eggsUI.renderKnowledge(eggResults, {
     activeEggTab: session.activeEggTab,
+    allRejected,
+    noEggMatched: allRejected,
     onTabChange: (newTab) => { session.activeEggTab = newTab; },
   });
 
