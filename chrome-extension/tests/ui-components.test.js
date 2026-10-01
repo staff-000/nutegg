@@ -576,23 +576,35 @@ describe("Modular UI Components", () => {
     const session = new SessionState();
     const settings = new SettingsState();
 
-    // Chrome mode: hidden
+    // Chrome mode: decision verdict hidden, but title verdict shown!
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: true });
-    session.analysisResult = { titleVerdict: "Title", shouldRead: true };
+    session.analysisResult = { titleVerdict: "Direct answer in Chrome AI", shouldRead: true };
     verdict.render(session, settings);
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+    assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
+    assert.strictEqual(verdict.verdictAnswer.textContent, "Direct answer in Chrome AI");
 
-    // Obsidian mode - Stage 1 confirm: hidden
+    // Obsidian mode - Stage 1 confirm: decision verdict hidden, title verdict shown!
     settings.setServerStatus({ online: true });
     settings.setAnalysisMode("confirm");
-    session.analysisResult = { stage: "stage1", titleVerdict: "Title" };
+    session.analysisResult = { stage: "stage1", titleVerdict: "Title verdict in confirm mode" };
     verdict.render(session, settings);
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
+    assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
+    assert.strictEqual(verdict.verdictAnswer.textContent, "Title verdict in confirm mode");
 
-    // Obsidian mode - Stage 2: shown
-    session.analysisResult = { stage: "stage2", shouldRead: true, shouldReadReason: "Must read" };
+    // Disabled in settings: title verdict hidden
+    settings.enabledSections.titleVerdict = false;
     verdict.render(session, settings);
+    assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), true);
+    settings.enabledSections.titleVerdict = true;
+
+    // Obsidian mode - Stage 2: both decision verdict and title verdict shown!
+    session.analysisResult = { stage: "stage2", titleVerdict: "Final verdict", shouldRead: true, shouldReadReason: "Must read" };
+    verdict.render(session, settings);
+    assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
+    assert.strictEqual(verdict.verdictAnswer.textContent, "Final verdict");
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
     assert.strictEqual(verdict.verdictIcon.textContent, "✅");
     assert.strictEqual(verdict.verdictReason.textContent, "Must read");

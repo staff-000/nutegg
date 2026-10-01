@@ -5,16 +5,26 @@
 class VerdictComponent {
   constructor(root = document) {
     this.root = root;
-    this.verdictSection = root.getElementById("verdict-section");
-    this.titleVerdictSection = root.getElementById("title-verdict-section");
-    this.verdictAnswer = root.getElementById("verdict-answer");
-    this.verdictBadge = root.getElementById("verdict-badge");
-    this.verdictIcon = root.getElementById("verdict-icon");
-    this.verdictText = root.getElementById("verdict-text");
-    this.verdictReason = root.getElementById("verdict-reason");
+    this.bindElements(root);
+  }
+
+  bindElements(root = this.root || (typeof document !== "undefined" ? document : null)) {
+    if (!root) return;
+    const getEl = (id) => (root.getElementById ? root.getElementById(id) : root.querySelector ? root.querySelector(`#${id}`) : null) || (typeof document !== "undefined" ? document.getElementById(id) : null);
+
+    this.verdictSection = getEl("verdict-section");
+    this.titleVerdictSection = getEl("title-verdict-section");
+    this.verdictAnswer = getEl("verdict-answer");
+    this.verdictBadge = getEl("verdict-badge");
+    this.verdictIcon = getEl("verdict-icon");
+    this.verdictText = getEl("verdict-text");
+    this.verdictReason = getEl("verdict-reason");
   }
 
   renderTitleVerdict(titleVerdict, enabled = true) {
+    if (!this.titleVerdictSection && (this.root || typeof document !== "undefined")) {
+      this.bindElements(this.root || document);
+    }
     if (!this.titleVerdictSection || !this.verdictAnswer) return;
     if (titleVerdict && enabled) {
       this.titleVerdictSection.classList.remove("hidden");
@@ -26,6 +36,9 @@ class VerdictComponent {
   }
 
   renderDecision(result) {
+    if (!this.verdictSection && (this.root || typeof document !== "undefined")) {
+      this.bindElements(this.root || document);
+    }
     if (!this.verdictSection) return;
     this.verdictSection.classList.remove("hidden");
 
@@ -47,6 +60,9 @@ class VerdictComponent {
   }
 
   setComparing(count = 0) {
+    if (!this.verdictSection && (this.root || typeof document !== "undefined")) {
+      this.bindElements(this.root || document);
+    }
     if (!this.verdictSection) return;
     this.verdictSection.classList.remove("hidden");
     if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
@@ -82,27 +98,22 @@ class VerdictComponent {
       return;
     }
 
-    const isChrome = settings ? settings.isChromeMode() : false;
+    // 1. Title Verdict: always rendered when present in result and enabled in settings
+    this.renderTitleVerdict(result.titleVerdict, settings?.enabledSections?.titleVerdict !== false);
+
+    // 2. Decision Verdict ("Should you read it?"):
+    // Only available when matching/comparing against eggs in vault (Obsidian mode).
+    // Not applicable in Chrome standalone mode or before eggs are confirmed in Stage 1 confirm mode.
+    const isChrome = settings ? settings.isChromeMode(result) : false;
     const isStage1 = session?.isStage1 ? session.isStage1(result) : (result.stage === "stage1" || result.mode === "chrome");
     const confirmMode = settings?.analysisMode === "confirm";
 
     if (isChrome || (isStage1 && confirmMode)) {
-      this.hide();
+      this.verdictSection?.classList.add("hidden");
       return;
     }
 
-    // Title Verdict
-    this.renderTitleVerdict(result.titleVerdict, settings?.enabledSections?.titleVerdict !== false);
-
-    // Decision Verdict
-    if (isStage1) {
-      if (settings?.analysisMode === "fast") {
-        this.show();
-      } else {
-        this.verdictSection?.classList.add("hidden");
-      }
-    } else if (result.shouldRead !== undefined) {
-      this.show();
+    if (result.shouldRead !== undefined) {
       this.renderDecision(result);
     } else {
       this.verdictSection?.classList.add("hidden");

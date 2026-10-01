@@ -224,6 +224,7 @@ function showResultsState(result, provenance = null) {
     });
   }
 
+  verdictUI.renderTitleVerdict(result.titleVerdict, settings.enabledSections?.titleVerdict !== false);
   mindmapUI.render(result.mindMap, settings.enabledSections.mindMap !== false);
 
   const hasAuthorChapters =
