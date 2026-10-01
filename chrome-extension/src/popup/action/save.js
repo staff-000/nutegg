@@ -57,6 +57,7 @@ class SaveAction {
       const response = await this.analysisService.createEgg(name, desc);
       if (response?.success) {
         if (session.activeTabId !== pinnedTabId) return;
+        ui.eggsUI?.resetCreateForm?.();
         if (inline) {
           await analyzeAction?.handleAnalyze?.(true);
         } else {
@@ -83,9 +84,10 @@ class SaveAction {
           ui.bannersUI?.showError?.(errText);
         }
       }
-    }
-    if (session.activeTabId === pinnedTabId) {
-      ui.eggsUI?.setCreateButtonLoading?.(false);
+    } finally {
+      if (session.activeTabId === pinnedTabId) {
+        ui.eggsUI?.setCreateButtonLoading?.(false);
+      }
     }
   }
 

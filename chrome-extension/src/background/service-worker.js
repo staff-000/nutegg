@@ -311,20 +311,28 @@ async function fetchHistory(url) {
 }
 
 async function handleCreateEgg({ name, description }) {
-  const serverUrl = await getServerUrl();
-  const response = await fetch(`${serverUrl}/create-egg`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, description }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const serverUrl = await getServerUrl();
+    const response = await fetch(`${serverUrl}/create-egg`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await response.json().catch(() => ({}));
 
-  const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { error: data.error || `Server error (${response.status})` };
+    }
 
-  if (!response.ok) {
-    return { error: data.error || `Server error (${response.status})` };
+    return data;
+  } catch (err) {
+    clearTimeout(timeout);
+    return { error: err.name === "AbortError" ? "Request timed out" : (err.message || "Failed to connect to Obsidian") };
   }
-
-  return data;
 }
 
 async function fetchEggs() {

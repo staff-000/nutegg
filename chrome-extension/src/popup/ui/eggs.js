@@ -98,6 +98,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
   const reanalyzeBtnEl = opts.reanalyzeEggsBtn || (typeof reanalyzeEggsBtn !== "undefined" ? reanalyzeEggsBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-btn") : null));
   const reanalyzeRefreshBtnEl = opts.reanalyzeEggsRefreshBtn || (typeof reanalyzeEggsRefreshBtn !== "undefined" ? reanalyzeEggsRefreshBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-refresh-btn") : null));
   const createFormEl = opts.eggsCreateForm || (typeof eggsCreateForm !== "undefined" ? eggsCreateForm : (typeof document !== "undefined" ? document.getElementById("eggs-create-form") : null));
+  const createToggleEl = opts.eggsCreateToggle || (typeof eggsCreateToggle !== "undefined" ? eggsCreateToggle : (typeof document !== "undefined" ? document.getElementById("eggs-create-toggle") : null));
 
   if (eggs.length === 0) {
     if (listEl) {
@@ -105,6 +106,10 @@ function _renderEggsSection(firstArg = [], options = {}) {
     }
     if (createFormEl) {
       createFormEl.classList.remove("hidden");
+    }
+    if (createToggleEl) {
+      createToggleEl.classList.add("hidden");
+      createToggleEl.textContent = t("createNewEgg");
     }
     if (sectionEl) sectionEl.classList.remove("hidden");
     if (expandedEl) expandedEl.classList.remove("hidden");
@@ -179,6 +184,10 @@ function _renderEggsSection(firstArg = [], options = {}) {
   if (reanalyzeBtnEl) reanalyzeBtnEl.classList.add("hidden");
   if (reanalyzeRefreshBtnEl) reanalyzeRefreshBtnEl.classList.add("hidden");
   if (createFormEl) createFormEl.classList.add("hidden");
+  if (createToggleEl) {
+    createToggleEl.classList.remove("hidden");
+    createToggleEl.textContent = t("createNewEgg");
+  }
 }
 
 function _renderEggKnowledge(firstArg = [], options = {}) {
@@ -472,33 +481,41 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
 class EggsComponent {
   constructor(root = document) {
     this.root = root;
-    this.eggKnowledgeSection = root.getElementById("egg-knowledge-section");
-    this.eggKnowledgeHint = root.getElementById("egg-knowledge-hint");
-    this.eggTabsBar = root.getElementById("egg-tabs-bar");
-    this.eggKnowledgeContent = root.getElementById("egg-knowledge-content");
-    this.noEggSection = root.getElementById("no-egg-section");
-    this.newEggName = root.getElementById("new-egg-name");
-    this.newEggDescription = root.getElementById("new-egg-description");
-    this.createEggBtn = root.getElementById("create-egg-btn");
-    this.eggsSection = root.getElementById("eggs-section");
-    this.eggsToggle = root.getElementById("eggs-toggle");
-    this.eggsToggleLabel = root.getElementById("eggs-toggle-label");
-    this.eggsToggleChevron = root.getElementById("eggs-toggle-chevron");
-    this.eggsExpanded = root.getElementById("eggs-expanded");
-    this.eggsList = root.getElementById("eggs-list");
-    this.reanalyzeEggsBtn = root.getElementById("reanalyze-eggs-btn");
-    this.reanalyzeEggsRefreshBtn = root.getElementById("reanalyze-eggs-refresh-btn");
-    this.eggsErrorEl = root.getElementById("eggs-error");
-    this.eggsCreateToggle = root.getElementById("eggs-create-toggle");
-    this.eggsCreateForm = root.getElementById("eggs-create-form");
-    this.eggsNewName = root.getElementById("eggs-new-name");
-    this.eggsNewDesc = root.getElementById("eggs-new-desc");
-    this.eggsCreateBtn = root.getElementById("eggs-create-btn");
-    this.captureEggsToggle = root.getElementById("capture-eggs-toggle");
-    this.captureEggsLabel = root.getElementById("capture-eggs-label");
-    this.captureEggsChevron = root.getElementById("capture-eggs-chevron");
-    this.captureEggsArea = root.getElementById("capture-eggs-area");
-    this.captureEggsList = root.getElementById("capture-eggs-list");
+    this.bindElements(root);
+  }
+
+  bindElements(root = this.root || (typeof document !== "undefined" ? document : null)) {
+    if (!root) return;
+    const getEl = (id) => (root.getElementById ? root.getElementById(id) : root.querySelector ? root.querySelector(`#${id}`) : null) || (typeof document !== "undefined" ? document.getElementById(id) : null);
+
+    this.eggKnowledgeSection = getEl("egg-knowledge-section");
+    this.eggKnowledgeHint = getEl("egg-knowledge-hint");
+    this.eggTabsBar = getEl("egg-tabs-bar");
+    this.eggKnowledgeContent = getEl("egg-knowledge-content");
+    this.noEggSection = getEl("no-egg-section");
+    this.newEggName = getEl("new-egg-name");
+    this.newEggDescription = getEl("new-egg-description");
+    this.createEggBtn = getEl("create-egg-btn");
+    this.eggsSection = getEl("eggs-section");
+    this.eggsToggle = getEl("eggs-toggle");
+    this.eggsToggleLabel = getEl("eggs-toggle-label");
+    this.eggsToggleChevron = getEl("eggs-toggle-chevron");
+    this.eggsExpanded = getEl("eggs-expanded");
+    this.eggsList = getEl("eggs-list");
+    this.reanalyzeEggsBtn = getEl("reanalyze-eggs-btn");
+    this.reanalyzeEggsRefreshBtn = getEl("reanalyze-eggs-refresh-btn");
+    this.eggsErrorEl = getEl("eggs-error");
+    this.eggsCreateToggle = getEl("eggs-create-toggle");
+    this.eggsCreateForm = getEl("eggs-create-form");
+    this.eggsNewName = getEl("eggs-new-name");
+    this.eggsNewDesc = getEl("eggs-new-desc");
+    this.eggsCreateBtn = getEl("eggs-create-btn");
+    this.eggsCreateCancelBtn = getEl("eggs-create-cancel-btn");
+    this.captureEggsToggle = getEl("capture-eggs-toggle");
+    this.captureEggsLabel = getEl("capture-eggs-label");
+    this.captureEggsChevron = getEl("capture-eggs-chevron");
+    this.captureEggsArea = getEl("capture-eggs-area");
+    this.captureEggsList = getEl("capture-eggs-list");
   }
 
   toggleCreateForm(open) {
@@ -506,11 +523,20 @@ class EggsComponent {
     const isHidden = open !== undefined ? !open : !this.eggsCreateForm.classList.contains("hidden");
     if (isHidden) {
       this.eggsCreateForm.classList.add("hidden");
-      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = t("createNewEgg");
+      if (this.eggsCreateToggle) {
+        this.eggsCreateToggle.classList.remove("hidden");
+        this.eggsCreateToggle.textContent = t("createNewEgg");
+      }
     } else {
       this.eggsCreateForm.classList.remove("hidden");
-      if (this.eggsCreateToggle) this.eggsCreateToggle.textContent = t("cancel");
-      this.eggsNewName?.focus();
+      if (this.eggsCreateToggle) {
+        this.eggsCreateToggle.classList.add("hidden");
+        this.eggsCreateToggle.textContent = t("createNewEgg");
+      }
+      this.clearError();
+      if (typeof this.eggsNewName?.focus === "function") {
+        this.eggsNewName.focus();
+      }
     }
   }
 
@@ -528,19 +554,22 @@ class EggsComponent {
   }
 
   setCreateButtonLoading(isLoading) {
+    const loadingText = t("creatingEgg") || t("creating") || "Creating…";
+    const normalText = t("createEggBtn") || "Create Egg";
     if (this.eggsCreateBtn) {
-      this.eggsCreateBtn.disabled = isLoading;
-      this.eggsCreateBtn.textContent = isLoading ? t("creating") : t("createEggBtn");
+      this.eggsCreateBtn.disabled = Boolean(isLoading);
+      this.eggsCreateBtn.textContent = isLoading ? loadingText : normalText;
     }
     if (this.createEggBtn) {
-      this.createEggBtn.disabled = isLoading;
-      this.createEggBtn.textContent = isLoading ? t("creating") : t("createEggBtn");
+      this.createEggBtn.disabled = Boolean(isLoading);
+      this.createEggBtn.textContent = isLoading ? loadingText : normalText;
     }
   }
 
   resetCreateForm() {
     this.toggleCreateForm(false);
     this.clearNewEggInput();
+    this.clearError();
     this.setCreateButtonLoading(false);
   }
 
@@ -644,6 +673,7 @@ class EggsComponent {
       reanalyzeEggsBtn: this.reanalyzeEggsBtn,
       reanalyzeEggsRefreshBtn: this.reanalyzeEggsRefreshBtn,
       eggsCreateForm: this.eggsCreateForm,
+      eggsCreateToggle: this.eggsCreateToggle,
       eggsErrorEl: this.eggsErrorEl,
       ...opts,
     });

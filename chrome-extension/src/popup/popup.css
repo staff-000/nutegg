@@ -1824,6 +1824,33 @@ body {
   font-size: 14px;
 }
 
+.create-egg-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.create-egg-actions .confirm-btn.create-egg-btn {
+  flex: 1;
+}
+
+.eggs-cancel-btn {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.eggs-cancel-btn:hover {
+  background: #e5e7eb;
+}
+
 /* Egg picker (manual egg selection in the results view) */
 .eggs-toggle-label {
   font-weight: 400;

@@ -279,6 +279,8 @@ function showCaptureState() {
 // ============================================================
 
 async function initPopup() {
+  eggsUI.bindElements();
+  eggsUI.resetCreateForm();
   const version = chrome.runtime?.getManifest?.()?.version;
   if (version) headerUI.updateVersion(version);
 
@@ -483,6 +485,9 @@ async function initPopup() {
   });
   eggsUI.eggsCreateToggle?.addEventListener("click", () => {
     eggsUI.toggleCreateForm();
+  });
+  eggsUI.eggsCreateCancelBtn?.addEventListener("click", () => {
+    eggsUI.toggleCreateForm(false);
   });
   eggsUI.createEggBtn?.addEventListener("click", () => saveAction.handleCreateEgg(false));
   eggsUI.eggsCreateBtn?.addEventListener("click", () => saveAction.handleCreateEgg(true));

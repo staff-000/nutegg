@@ -460,8 +460,40 @@ describe("Modular UI Components", () => {
     eggs.clearError();
     assert.strictEqual(eggs.eggsErrorEl.classList.contains("hidden"), true);
 
+    // Test toggleCreateForm open & close
+    eggs.toggleCreateForm(true);
+    assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsCreateToggle.classList.contains("hidden"), true);
+
+    eggs.toggleCreateForm(false);
+    assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), true);
+    assert.strictEqual(eggs.eggsCreateToggle.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsCreateToggle.textContent, t("createNewEgg"));
+
+    // Test setCreateButtonLoading
+    eggs.setCreateButtonLoading(true);
+    assert.strictEqual(eggs.eggsCreateBtn.disabled, true);
+    assert.strictEqual(eggs.eggsCreateBtn.textContent, t("creatingEgg"));
+    assert.strictEqual(eggs.createEggBtn.disabled, true);
+    assert.strictEqual(eggs.createEggBtn.textContent, t("creatingEgg"));
+
+    eggs.setCreateButtonLoading(false);
+    assert.strictEqual(eggs.eggsCreateBtn.disabled, false);
+    assert.strictEqual(eggs.eggsCreateBtn.textContent, t("createEggBtn"));
+    assert.strictEqual(eggs.createEggBtn.disabled, false);
+    assert.strictEqual(eggs.createEggBtn.textContent, t("createEggBtn"));
+
+    // Test resetCreateForm restores all states
+    eggs.toggleCreateForm(true);
+    eggs.eggsNewName.value = "NewTopic";
+    eggs.setCreateButtonLoading(true);
     eggs.resetCreateForm();
     assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), true);
+    assert.strictEqual(eggs.eggsCreateToggle.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.eggsCreateToggle.textContent, t("createNewEgg"));
+    assert.strictEqual(eggs.eggsNewName.value, "");
+    assert.strictEqual(eggs.eggsCreateBtn.disabled, false);
+    assert.strictEqual(eggs.eggsCreateBtn.textContent, t("createEggBtn"));
   });
 
   it("ResultsViewComponent renders bullet array and handles provenance", () => {
