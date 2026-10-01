@@ -473,9 +473,6 @@ async function initPopup() {
   headerUI.aiCreditPill?.addEventListener("click", () => {
     if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
   });
-  bannersUI.openSettingsKeyBtn?.addEventListener("click", () => {
-    if (chrome.runtime?.openOptionsPage) chrome.runtime.openOptionsPage();
-  });
 
   captureUI.questionsToggle?.addEventListener("click", () => {
     captureUI.toggleQuestionsArea();

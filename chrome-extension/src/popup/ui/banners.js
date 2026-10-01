@@ -20,21 +20,54 @@ function _bannersEscapeHtml(str) {
 class BannersComponent {
   constructor(root = document) {
     this.root = root;
-    this.warningBanner = root.getElementById("warning-banner");
-    this.warningMessage = root.getElementById("warning-message");
-    this.errorBanner = root.getElementById("error-banner");
-    this.errorMessage = root.getElementById("error-message");
-    this.errorHint = root.getElementById("error-hint");
-    this.duplicateBanner = root.getElementById("duplicate-banner");
-    this.duplicateMessage = root.getElementById("duplicate-message");
-    this.successBanner = root.getElementById("success-banner");
-    this.successMessage = root.getElementById("success-message");
-    this.aiKeyMissingBanner = root.getElementById("ai-key-missing-banner");
-    this.openSettingsKeyBtn = root.getElementById("open-settings-key-btn");
-    this.chromeModeTipBanner = root.getElementById("chrome-mode-tip-banner");
-    this.chromeResultBanner = root.getElementById("chrome-result-banner");
-    this.chromeActionsCard = root.getElementById("chrome-actions-card");
-    this.errorReportBug = root.getElementById("error-report-bug");
+    this.bindElements(root);
+    this.initEvents();
+  }
+
+  bindElements(root = this.root || (typeof document !== "undefined" ? document : null)) {
+    if (!root) return;
+    const getEl = (id) => (root.getElementById ? root.getElementById(id) : root.querySelector ? root.querySelector(`#${id}`) : null) || (typeof document !== "undefined" ? document.getElementById(id) : null);
+
+    this.warningBanner = getEl("warning-banner");
+    this.warningMessage = getEl("warning-message");
+    this.errorBanner = getEl("error-banner");
+    this.errorMessage = getEl("error-message");
+    this.errorHint = getEl("error-hint");
+    this.duplicateBanner = getEl("duplicate-banner");
+    this.duplicateMessage = getEl("duplicate-message");
+    this.successBanner = getEl("success-banner");
+    this.successMessage = getEl("success-message");
+    this.aiKeyMissingBanner = getEl("ai-key-missing-banner");
+    this.openSettingsKeyBtn = getEl("open-settings-key-btn");
+    this.chromeModeTipBanner = getEl("chrome-mode-tip-banner");
+    this.chromeResultBanner = getEl("chrome-result-banner");
+    this.chromeActionsCard = getEl("chrome-actions-card");
+    this.errorReportBug = getEl("error-report-bug");
+    this.initEvents();
+  }
+
+  initEvents() {
+    if (this.aiKeyMissingBanner && !this.aiKeyMissingBanner._hasBannerListener) {
+      this.aiKeyMissingBanner._hasBannerListener = true;
+      this.aiKeyMissingBanner.addEventListener("click", (e) => {
+        const target = e.target;
+        const isEnableBtn = target?.id === "open-settings-enable-ai-btn" || target?.closest?.("#open-settings-enable-ai-btn");
+        const isKeyBtn = target?.id === "open-settings-key-btn" || target?.closest?.("#open-settings-key-btn");
+        if (isEnableBtn || isKeyBtn) {
+          e.preventDefault();
+          const chromeObj = typeof chrome !== "undefined" ? chrome : (typeof globalThis !== "undefined" ? globalThis.chrome : null);
+          if (isEnableBtn && chromeObj?.storage?.local?.set) {
+            try {
+              const res = chromeObj.storage.local.set({ chromeAiEnabled: true });
+              if (res && typeof res.catch === "function") res.catch(() => {});
+            } catch {}
+          }
+          if (chromeObj?.runtime?.openOptionsPage) {
+            chromeObj.runtime.openOptionsPage();
+          }
+        }
+      });
+    }
   }
 
   showError(msg, errorCode = null) {

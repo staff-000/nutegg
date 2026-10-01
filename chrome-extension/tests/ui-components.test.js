@@ -132,6 +132,39 @@ describe("Modular UI Components", () => {
     assert.strictEqual(banners.successBanner.classList.contains("hidden"), true);
     assert.strictEqual(banners.warningBanner.classList.contains("hidden"), true);
     assert.strictEqual(banners.getWarning(), null);
+
+    // Test Enable Chrome AI button and Open Settings button clicks
+    let optionsPageOpened = false;
+    let storageSaved = null;
+    globalThis.chrome = globalThis.chrome || {};
+    globalThis.chrome.runtime = globalThis.chrome.runtime || {};
+    globalThis.chrome.runtime.openOptionsPage = () => { optionsPageOpened = true; };
+    globalThis.chrome.storage = globalThis.chrome.storage || {};
+    globalThis.chrome.storage.local = {
+      set: async (obj) => { storageSaved = obj; },
+    };
+
+    // When offline & Chrome AI off: renders enable Chrome AI button
+    banners.updateCaptureBanners({ serverOnline: false, chromeAiConfigured: false, chromeAiEnabled: false });
+    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), false);
+    assert.ok(banners.aiKeyMissingBanner.innerHTML.includes("open-settings-enable-ai-btn"));
+
+    // Simulate click on enable button inside aiKeyMissingBanner
+    optionsPageOpened = false;
+    storageSaved = null;
+    const enableBtnTarget = { id: "open-settings-enable-ai-btn" };
+    banners.aiKeyMissingBanner._listeners.click.forEach((fn) => fn({ target: enableBtnTarget, preventDefault() {} }));
+    assert.strictEqual(optionsPageOpened, true);
+    assert.deepStrictEqual(storageSaved, { chromeAiEnabled: true });
+
+    // When offline & Chrome AI on but unconfigured: renders open settings key button
+    banners.updateCaptureBanners({ serverOnline: false, chromeAiConfigured: false, chromeAiEnabled: true });
+    assert.ok(banners.aiKeyMissingBanner.innerHTML.includes("open-settings-key-btn"));
+
+    optionsPageOpened = false;
+    const keyBtnTarget = { id: "open-settings-key-btn" };
+    banners.aiKeyMissingBanner._listeners.click.forEach((fn) => fn({ target: keyBtnTarget, preventDefault() {} }));
+    assert.strictEqual(optionsPageOpened, true);
   });
 
   it("CaptureViewComponent renders extracted content and provenance", () => {
