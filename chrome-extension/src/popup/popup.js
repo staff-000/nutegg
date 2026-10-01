@@ -13,20 +13,6 @@ const tabStateManager = new (globalThis.NutEggState?.TabStateManager || (typeof 
 
 const pageExtractor = new (globalThis.NutEggServices?.PageExtractor || (typeof PageExtractor !== "undefined" ? PageExtractor : class {}))();
 const analysisService = new (globalThis.NutEggServices?.AnalysisService || (typeof AnalysisService !== "undefined" ? AnalysisService : class {}))();
-const envService = new (globalThis.NutEggServices?.EnvironmentService || (typeof EnvironmentService !== "undefined" ? EnvironmentService : class {}))({
-  config,
-  settings,
-  session,
-  t,
-  onServerOffline: () => {
-    headerUI.render(session, settings);
-    analyzeAction.updateAnalyzeButtonsState();
-  },
-  onServerOnline: (status) => {
-    headerUI.render(session, settings);
-    analyzeAction.updateAnalyzeButtonsState();
-  },
-});
 
 // --- UI Components ---
 const headerUI = new (globalThis.NutEggUI?.HeaderComponent || (typeof HeaderComponent !== "undefined" ? HeaderComponent : class {}))();
@@ -56,6 +42,25 @@ const uiComponents = {
   qaUI,
   eggsUI,
 };
+
+const envService = new (globalThis.NutEggServices?.EnvironmentService || (typeof EnvironmentService !== "undefined" ? EnvironmentService : class {}))({
+  config,
+  settings,
+  session,
+  headerUI,
+  bannersUI,
+  metricsUI,
+  helper,
+  t,
+  onServerOffline: () => {
+    headerUI.render(session, settings);
+    analyzeAction?.updateAnalyzeButtonsState?.();
+  },
+  onServerOnline: (status) => {
+    headerUI.render(session, settings);
+    analyzeAction?.updateAnalyzeButtonsState?.();
+  },
+});
 
 // --- Action Handlers ---
 const TabActionClass = globalThis.NutEggActions?.TabAction || (typeof TabAction !== "undefined" ? TabAction : class {});
@@ -275,6 +280,8 @@ function showCaptureState() {
 async function initPopup() {
   const version = chrome.runtime?.getManifest?.()?.version;
   if (version) headerUI.updateVersion(version);
+
+  envService?.setUI?.({ headerUI, bannersUI, metricsUI });
 
   const i18n = typeof window !== "undefined" ? window.NutEggI18n : null;
   i18n?.initI18n();

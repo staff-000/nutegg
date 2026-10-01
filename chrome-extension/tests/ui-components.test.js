@@ -17,6 +17,7 @@ const { QaComponent } = require("../src/popup/ui/qa.js");
 const { EggsComponent } = require("../src/popup/ui/eggs.js");
 const { SettingsState } = require("../src/popup/state/settings-state.js");
 const { SessionState } = require("../src/popup/state/session-state.js");
+const { EnvironmentService } = require("../src/popup/services/environment-service.js");
 
 function createMockElement(id = "") {
   return {
@@ -826,6 +827,87 @@ describe("Modular UI Components", () => {
     qa.setScope("within");
     assert.strictEqual(qa.getScope(), "within");
     assert.strictEqual(selectElem.value, "within");
+  });
+
+  it("HeaderComponent.renderCredit renders Obsidian AI credit and Chrome AI credit properly", () => {
+    const root = createMockRoot();
+    const header = new HeaderComponent(root);
+
+    // 1. Obsidian online with balance
+    header.renderCredit({
+      source: "openrouter",
+      hasBalance: true,
+      balanceFormatted: "$4.50",
+      statusText: "$4.50 left",
+    }, true);
+
+    assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), false);
+    assert.strictEqual(header.aiCreditText.textContent, "OpenRouter: $4.50");
+
+    // 2. Obsidian online with pay-as-you-go / direct (e.g. OpenAI, Gemini)
+    header.renderCredit({
+      provider: "gemini",
+      hasBalance: false,
+      statusText: "Gemini (Pay-as-you-go / Direct)",
+    }, true);
+
+    assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), false);
+    assert.strictEqual(header.aiCreditText.textContent, "Gemini");
+
+    // 3. Chrome AI credit when Obsidian is offline
+    header.renderCredit({
+      provider: "deepseek",
+      isChromeAi: true,
+      hasBalance: true,
+      balanceFormatted: "¥18.50",
+    }, false);
+
+    assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), false);
+    assert.strictEqual(header.aiCreditText.textContent, "DeepSeek: ¥18.50");
+
+    // 4. Hidden when error or no active mode
+    header.renderCredit({ error: "Failed" }, true);
+    assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), true);
+  });
+
+  it("EnvironmentService synchronizes with UI components and renders metrics and credits", async () => {
+    const root = createMockRoot();
+    const headerUI = new HeaderComponent(root);
+    const metricsUI = new MetricsComponent(root);
+    const bannersUI = new BannersComponent(root);
+    const settings = new SettingsState();
+
+    // Mock chrome.runtime.sendMessage
+    globalThis.chrome = globalThis.chrome || {};
+    globalThis.chrome.runtime = {
+      sendMessage: async (msg) => {
+        if (msg.action === "metrics") {
+          return { nuts: 15, eggs: 4, timeSaved: "1h 15m" };
+        }
+        if (msg.action === "get-credit") {
+          return { provider: "deepseek", hasBalance: true, balanceFormatted: "¥25.00" };
+        }
+        return {};
+      },
+    };
+
+    const env = new EnvironmentService({
+      settings,
+      headerUI,
+      metricsUI,
+      bannersUI,
+    });
+
+    settings.setServerStatus({ online: true, version: "0.2.3", aiConfigured: true });
+
+    await env.fetchMetrics();
+    assert.strictEqual(metricsUI.metricNuts.textContent, 15);
+    assert.strictEqual(metricsUI.metricEggs.textContent, 4);
+    assert.strictEqual(metricsUI.metricTime.textContent, "1h 15m");
+
+    await env.checkCreditStatus();
+    assert.strictEqual(headerUI.aiCreditPill.classList.contains("hidden"), false);
+    assert.strictEqual(headerUI.aiCreditText.textContent, "DeepSeek: ¥25.00");
   });
 });
 

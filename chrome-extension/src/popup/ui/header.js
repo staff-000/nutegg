@@ -131,6 +131,8 @@ class HeaderComponent {
         ? "OpenRouter"
         : credit.provider === "anthropic"
         ? "Claude"
+        : credit.provider === "deepseek"
+        ? "DeepSeek"
         : credit.provider === "kimi"
         ? "Kimi"
         : credit.provider === "gemini"

@@ -9,11 +9,38 @@
 class EnvironmentService {
   constructor(options = {}) {
     this.settings = options.settings;
-    this.headerUI = options.headerUI;
-    this.bannersUI = options.bannersUI;
-    this.metricsUI = options.metricsUI;
+    this._headerUI = options.headerUI || null;
+    this._bannersUI = options.bannersUI || null;
+    this._metricsUI = options.metricsUI || null;
     this.helper = options.helper || globalThis.helper || {};
     this.t = options.t || ((key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key));
+  }
+
+  get headerUI() {
+    return this._headerUI || (typeof headerUI !== "undefined" ? headerUI : null) || globalThis.headerUI;
+  }
+  set headerUI(val) {
+    this._headerUI = val;
+  }
+
+  get bannersUI() {
+    return this._bannersUI || (typeof bannersUI !== "undefined" ? bannersUI : null) || globalThis.bannersUI;
+  }
+  set bannersUI(val) {
+    this._bannersUI = val;
+  }
+
+  get metricsUI() {
+    return this._metricsUI || (typeof metricsUI !== "undefined" ? metricsUI : null) || globalThis.metricsUI;
+  }
+  set metricsUI(val) {
+    this._metricsUI = val;
+  }
+
+  setUI(ui = {}) {
+    if (ui.headerUI) this._headerUI = ui.headerUI;
+    if (ui.bannersUI) this._bannersUI = ui.bannersUI;
+    if (ui.metricsUI) this._metricsUI = ui.metricsUI;
   }
 
   /**
@@ -23,6 +50,9 @@ class EnvironmentService {
     try {
       const response = await chrome.runtime.sendMessage({ action: "metrics" });
       if (response && (response.nuts != null || response.eggs != null)) {
+        if (!this.settings?.serverOnline && response.nuts === 0 && response.eggs === 0) {
+          return;
+        }
         this.metricsUI?.render(response);
         chrome.storage?.local?.set?.({ cachedMetrics: response });
       }
