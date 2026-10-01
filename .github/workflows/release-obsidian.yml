@@ -91,16 +91,25 @@ jobs:
             git push origin HEAD:"$DEFAULT_BRANCH"
           fi
 
+          # If release already exists in target repo, delete it first to unlock the tag
+          if command -v gh >/dev/null 2>&1 && [ -n "$GH_TOKEN" ]; then
+            echo "Checking if GitHub Release $RELEASE_TAG already exists in $TARGET_REPO..."
+            gh release view "$RELEASE_TAG" --repo "$TARGET_REPO" >/dev/null 2>&1 && \
+              gh release delete "$RELEASE_TAG" --repo "$TARGET_REPO" --yes || true
+          fi
+
           # Tag the release in the destination repository
           git tag -fa "$RELEASE_TAG" -m "Release $RELEASE_TAG from $TAG"
-          git push origin "$RELEASE_TAG" --force
+          git push origin --delete "$RELEASE_TAG" 2>/dev/null || true
+          git push origin "$RELEASE_TAG" --force || true
 
-          # Create or update GitHub Release with release assets attached
+          # Create GitHub Release with release assets attached
           if command -v gh >/dev/null 2>&1 && [ -n "$GH_TOKEN" ]; then
             echo "Publishing GitHub Release $RELEASE_TAG..."
-            gh release view "$RELEASE_TAG" >/dev/null 2>&1 && gh release delete "$RELEASE_TAG" --yes || true
             gh release create "$RELEASE_TAG" \
               main.js manifest.json styles.css \
+              --repo "$TARGET_REPO" \
+              --target "$DEFAULT_BRANCH" \
               --title "NutEgg Obsidian Plugin $RELEASE_TAG" \
               --notes "Automated release triggered by tag \`$TAG\` in [${{ github.repository }}](https://github.com/${{ github.repository }})." || echo "gh release create skipped or failed"
           fi
