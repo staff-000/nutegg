@@ -186,6 +186,18 @@ describe("Modular UI Components", () => {
     assert.strictEqual(chips.sectionsBody.classList.contains("hidden"), true);
     assert.strictEqual(chips.sectionsChevron.textContent, "▸");
 
+    // Test re-analysis accordion toggling (should toggle reanalyzeSectionsBody, not the outer container)
+    chips.reanalyzeSectionsBody.classList.add("hidden");
+    chips.reanalyzeSectionsToggle.click();
+    assert.strictEqual(chips.reanalyzeSectionsBody.classList.contains("hidden"), false);
+    assert.strictEqual(chips.reanalyzeSectionsChevron.textContent, "▾");
+    assert.strictEqual(chips.reanalyzeSectionsAccordion.classList.contains("hidden"), false);
+
+    chips.reanalyzeSectionsToggle.click();
+    assert.strictEqual(chips.reanalyzeSectionsBody.classList.contains("hidden"), true);
+    assert.strictEqual(chips.reanalyzeSectionsChevron.textContent, "▸");
+    assert.strictEqual(chips.reanalyzeSectionsAccordion.classList.contains("hidden"), false);
+
     // Test chip click
     chips.chipVerdict.click();
     assert.strictEqual(toggledKey, "titleVerdict");

@@ -307,6 +307,7 @@ async function initPopup() {
     chipReChapters: document.getElementById("reanalyze-chip-chapters"),
     reanalyzeAccordion: document.getElementById("reanalyze-sections-accordion"),
     reanalyzeToggleBtn: document.getElementById("reanalyze-sections-toggle"),
+    reanalyzeSectionsBody: document.getElementById("reanalyze-sections-body"),
     onToggle: async (key) => {
       const ok = await settings.toggleSection(key);
       if (!ok) {

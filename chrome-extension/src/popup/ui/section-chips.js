@@ -17,11 +17,13 @@ class SectionChipsComponent {
       return typeof document !== "undefined" ? document.getElementById(id) : null;
     };
 
+    this.sectionsAccordion = getEl("sections-accordion");
     this.sectionsToggle = getEl("sections-toggle");
     this.sectionsChevron = getEl("sections-chevron");
     this.sectionsBody = getEl("sections-body");
     this.sectionsBadge = getEl("sections-badge");
 
+    this.reanalyzeSectionsAccordion = getEl("reanalyze-sections-accordion");
     this.reanalyzeSectionsToggle = getEl("reanalyze-sections-toggle");
     this.reanalyzeSectionsChevron = getEl("reanalyze-sections-chevron");
     this.reanalyzeSectionsBody = getEl("reanalyze-sections-body");
@@ -41,16 +43,20 @@ class SectionChipsComponent {
   init(options = {}) {
     this.bindElements(options.root || this.root);
 
+    if (options.sectionsAccordion) this.sectionsAccordion = options.sectionsAccordion;
     if (options.sectionsToggle) this.sectionsToggle = options.sectionsToggle;
     if (options.sectionsBody) this.sectionsBody = options.sectionsBody;
     if (options.sectionsChevron) this.sectionsChevron = options.sectionsChevron;
     if (options.sectionsBadge) this.sectionsBadge = options.sectionsBadge;
 
+    if (options.reanalyzeAccordion || options.reanalyzeSectionsAccordion) {
+      this.reanalyzeSectionsAccordion = options.reanalyzeSectionsAccordion || options.reanalyzeAccordion;
+    }
     if (options.reanalyzeToggleBtn || options.reanalyzeSectionsToggle) {
       this.reanalyzeSectionsToggle = options.reanalyzeToggleBtn || options.reanalyzeSectionsToggle;
     }
-    if (options.reanalyzeAccordion || options.reanalyzeSectionsBody) {
-      this.reanalyzeSectionsBody = options.reanalyzeSectionsBody || options.reanalyzeAccordion;
+    if (options.reanalyzeSectionsBody || options.reanalyzeBody) {
+      this.reanalyzeSectionsBody = options.reanalyzeSectionsBody || options.reanalyzeBody;
     }
     if (options.reanalyzeSectionsChevron) {
       this.reanalyzeSectionsChevron = options.reanalyzeSectionsChevron;
