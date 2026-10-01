@@ -740,6 +740,18 @@ describe("Modular UI Components", () => {
     eggs.render(session, settings);
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
+
+    // Re-analyzing with selected eggs hides existing eggs
+    settings.setServerStatus({ online: true });
+    session.isReanalyzing = true;
+    session.analysisResult = {
+      stage: "stage2",
+      matchedEggs: ["Egg1.md"],
+      eggResults: [{ egg: "Egg1.md", novelDelta: ["Knowledge 1"] }],
+    };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
   });
 
   it("Stage 1 egg selection: expands eggs list in confirm mode and in fast mode with 0 matches", () => {

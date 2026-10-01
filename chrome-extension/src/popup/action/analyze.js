@@ -109,6 +109,8 @@ class AnalyzeAction {
           if (isPinnedActive()) {
             ui.actionsUI?.updateStage1ProceedBtn?.({ isProceeding: true, autoSave: as });
             ui.bannersUI?.hideMessages?.();
+            ui.eggsUI?.setKnowledgeVisible?.(false);
+            ui.eggsUI?.setNoEggVisible?.(false);
           }
         },
         onProceedError: (error, code) => {
@@ -215,6 +217,8 @@ class AnalyzeAction {
             if (ir) {
               ui.actionsUI?.showProcessedNote?.(t("analyzingContent"));
               ui.actionsUI?.setReanalyzingState?.(t("analyzing"));
+              ui.eggsUI?.setKnowledgeVisible?.(false);
+              ui.eggsUI?.setNoEggVisible?.(false);
             }
             ui.actionsUI?.setHistorySelectDisabled?.(true);
             ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
@@ -365,6 +369,18 @@ class AnalyzeAction {
 
       this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${t("analyzing")}`);
       this.ui.eggsUI?.clearError?.();
+      this.ui.eggsUI?.setKnowledgeVisible?.(false);
+      this.ui.eggsUI?.setNoEggVisible?.(false);
+
+      if (this.session) {
+        this.session.isReanalyzing = true;
+        this.session.eggHatched = false;
+        this.session.activeEggTab = null;
+        if (this.session.analysisResult) {
+          delete this.session.analysisResult.eggResults;
+        }
+      }
+      this.getSaveAction()?.updateActionButtons?.();
 
       if (this.session?.analysisResult?.stage === "stage1") {
         await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
@@ -375,6 +391,9 @@ class AnalyzeAction {
         }
       }
     } finally {
+      if (this.session) {
+        this.session.isReanalyzing = false;
+      }
       if (this.session?.activeTabId === pinnedTabId) {
         this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
       } else if (this.ui.eggsUI?.reanalyzeEggsBtn) {
