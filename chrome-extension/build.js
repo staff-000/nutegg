@@ -9,15 +9,21 @@ const path = require("path");
 const fs = require("fs");
 
 let esbuild;
-try {
-  esbuild = require("esbuild");
-} catch {
+const esbuildCandidates = [
+  "esbuild",
+  path.join(__dirname, "node_modules/esbuild"),
+  path.join(__dirname, "../node_modules/esbuild"),
+  path.join(__dirname, "../obsidian-plugin/node_modules/esbuild"),
+];
+for (const cand of esbuildCandidates) {
   try {
-    esbuild = require("../obsidian-plugin/node_modules/esbuild");
-  } catch (e) {
-    console.error("esbuild could not be loaded:", e);
-    process.exit(1);
-  }
+    esbuild = require(cand);
+    if (esbuild) break;
+  } catch {}
+}
+if (!esbuild) {
+  console.error("esbuild could not be loaded from any of:", esbuildCandidates);
+  process.exit(1);
 }
 
 const mdAsTextPlugin = {
