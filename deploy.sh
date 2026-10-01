@@ -166,6 +166,11 @@ if [[ "$REMOTE_MODE" == true ]]; then
       else
         echo "   ⚠️  Warning: ai-core.js not found inside $ZIP_FILE"
       fi
+      if unzip -l "$ZIP_FILE" 2>/dev/null | grep -F "_locales" >/dev/null 2>&1; then
+        echo "   ✅ Chrome locales verified (_locales included)"
+      else
+        echo "   ⚠️  Warning: _locales not found inside $ZIP_FILE"
+      fi
     fi
   else
     echo "   ℹ️  Note: Chrome extension release $TAG download skipped or not found"

@@ -59,11 +59,15 @@ jobs:
             echo "❌ Error: Missing $EXT_DIR/src directory"
             exit 1
           fi
+          if [ ! -d "$EXT_DIR/_locales" ]; then
+            echo "❌ Error: Missing $EXT_DIR/_locales directory"
+            exit 1
+          fi
           if [ ! -f "$EXT_DIR/dist/ai-core.js" ]; then
             echo "❌ Error: Missing $EXT_DIR/dist/ai-core.js build artifact"
             exit 1
           fi
-          echo "✅ Validated manifest.json, src directory, and dist/ai-core.js."
+          echo "✅ Validated manifest.json, src directory, _locales, and dist/ai-core.js."
 
       - name: Checkout release repository
         uses: actions/checkout@v4
@@ -87,17 +91,20 @@ jobs:
           echo "Preparing Chrome extension release for $TAG ($RELEASE_TAG)..."
 
           # 1. Build standalone zip distribution artifact
-          (cd "$EXT_DIR" && zip -r "$ZIP_PATH" manifest.json icons src $([ -d dist ] && echo dist) $([ -f README.md ] && echo README.md) -x "*.DS_Store*")
+          (cd "$EXT_DIR" && zip -r "$ZIP_PATH" manifest.json icons src $([ -d _locales ] && echo _locales) $([ -d dist ] && echo dist) $([ -f README.md ] && echo README.md) $([ -f LICENSE ] && echo LICENSE) $([ -f PRIVACY.md ] && echo PRIVACY.md) -x "*.DS_Store*")
           echo "✅ Created $ZIP_NAME ($(wc -c < "$ZIP_PATH") bytes)"
 
           # 2. Sync source files to release repository
-          rm -rf release-repo/src release-repo/icons release-repo/dist
+          rm -rf release-repo/src release-repo/icons release-repo/dist release-repo/_locales
           cp -r "$EXT_DIR/src" release-repo/
           cp -r "$EXT_DIR/icons" release-repo/
+          [ -d "$EXT_DIR/_locales" ] && cp -r "$EXT_DIR/_locales" release-repo/
           [ -d "$EXT_DIR/dist" ] && cp -r "$EXT_DIR/dist" release-repo/
           cp "$EXT_DIR/manifest.json" release-repo/
           [ -f "$EXT_DIR/package.json" ] && cp "$EXT_DIR/package.json" release-repo/
           [ -f "$EXT_DIR/README.md" ] && cp "$EXT_DIR/README.md" release-repo/
+          [ -f "$EXT_DIR/LICENSE" ] && cp "$EXT_DIR/LICENSE" release-repo/
+          [ -f "$EXT_DIR/PRIVACY.md" ] && cp "$EXT_DIR/PRIVACY.md" release-repo/
 
           # 3. Commit and push to release repo
           cd release-repo
@@ -105,9 +112,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add manifest.json src icons
+          [ -d _locales ] && git add _locales
           [ -d dist ] && git add dist
           [ -f package.json ] && git add package.json
           [ -f README.md ] && git add README.md
+          [ -f LICENSE ] && git add LICENSE
+          [ -f PRIVACY.md ] && git add PRIVACY.md
           
           DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
           DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
