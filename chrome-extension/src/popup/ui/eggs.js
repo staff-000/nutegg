@@ -705,6 +705,8 @@ class EggsComponent {
       this.eggKnowledgeSection?.classList.remove("hidden");
     } else {
       this.eggKnowledgeSection?.classList.add("hidden");
+      if (this.eggKnowledgeContent) this.eggKnowledgeContent.innerHTML = "";
+      if (this.eggTabsBar) this.eggTabsBar.innerHTML = "";
     }
   }
 
@@ -726,20 +728,25 @@ class EggsComponent {
       (eggResults.length === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0)
     );
 
-    // No egg matched banner
-    const noEgg = (result.matchedEggs || []).length === 0 || allRejected;
-    this.setNoEggVisible(noEgg);
+    if (session?.isReanalyzing) {
+      this.setNoEggVisible(false);
+      this.setKnowledgeVisible(false);
+    } else {
+      // No egg matched banner
+      const noEgg = (result.matchedEggs || []).length === 0 || allRejected;
+      this.setNoEggVisible(noEgg);
 
-    // Egg knowledge section
-    this.renderKnowledge({
-      eggResults,
-      activeEggTab: session?.activeEggTab,
-      allRejected,
-      noEggMatched: allRejected,
-      onTabChange: (tab) => {
-        if (session) session.activeEggTab = tab;
-      },
-    });
+      // Egg knowledge section
+      this.renderKnowledge({
+        eggResults,
+        activeEggTab: session?.activeEggTab,
+        allRejected,
+        noEggMatched: allRejected,
+        onTabChange: (tab) => {
+          if (session) session.activeEggTab = tab;
+        },
+      });
+    }
 
     // Populate session.selectedEggs if empty and matched eggs exist
     if (!allRejected && session?.selectedEggs && session.selectedEggs.size === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0) {
