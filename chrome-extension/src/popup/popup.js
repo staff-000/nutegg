@@ -306,8 +306,23 @@ async function initPopup() {
     chipReChapters: document.getElementById("reanalyze-chip-chapters"),
     reanalyzeAccordion: document.getElementById("reanalyze-sections-accordion"),
     reanalyzeToggleBtn: document.getElementById("reanalyze-sections-toggle"),
-    onSectionToggle: (section, enabled, newSections) => {
-      settings.setEnabledSections(newSections);
+    onToggle: async (key) => {
+      const ok = await settings.toggleSection(key);
+      if (!ok) {
+        bannersUI.showWarning(t("atLeastOneSection"));
+        return;
+      }
+      sectionsUI.updateUI(settings.enabledSections);
+      if (session.analysisResult) {
+        showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
+      }
+    },
+    onSectionToggle: async (section) => {
+      const ok = await settings.toggleSection(section);
+      if (!ok) {
+        bannersUI.showWarning(t("atLeastOneSection"));
+        return;
+      }
       sectionsUI.updateUI(settings.enabledSections);
       if (session.analysisResult) {
         showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));

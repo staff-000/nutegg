@@ -5,44 +5,97 @@
 class SectionChipsComponent {
   constructor(root = document) {
     this.root = root;
-    this.sectionsToggle = root.getElementById("sections-toggle");
-    this.sectionsChevron = root.getElementById("sections-chevron");
-    this.sectionsBody = root.getElementById("sections-body");
-    this.sectionsBadge = root.getElementById("sections-badge");
+    this.enabledSections = {};
+    this.bindElements(root);
+  }
 
-    this.reanalyzeSectionsToggle = root.getElementById("reanalyze-sections-toggle");
-    this.reanalyzeSectionsChevron = root.getElementById("reanalyze-sections-chevron");
-    this.reanalyzeSectionsBody = root.getElementById("reanalyze-sections-body");
-    this.reanalyzeSectionsBadge = root.getElementById("reanalyze-sections-badge");
+  bindElements(root = this.root || (typeof document !== "undefined" ? document : null)) {
+    if (!root) return;
+    const getEl = (id) => {
+      if (root.getElementById) return root.getElementById(id);
+      if (root.querySelector) return root.querySelector(`#${id}`);
+      return typeof document !== "undefined" ? document.getElementById(id) : null;
+    };
 
-    this.chipVerdict = root.getElementById("chip-verdict");
-    this.chipSummary = root.getElementById("chip-summary");
-    this.chipMindmap = root.getElementById("chip-mindmap");
-    this.chipChapters = root.getElementById("chip-chapters");
+    this.sectionsToggle = getEl("sections-toggle");
+    this.sectionsChevron = getEl("sections-chevron");
+    this.sectionsBody = getEl("sections-body");
+    this.sectionsBadge = getEl("sections-badge");
 
-    this.reanalyzeChipVerdict = root.getElementById("reanalyze-chip-verdict");
-    this.reanalyzeChipSummary = root.getElementById("reanalyze-chip-summary");
-    this.reanalyzeChipMindmap = root.getElementById("reanalyze-chip-mindmap");
-    this.reanalyzeChipChapters = root.getElementById("reanalyze-chip-chapters");
+    this.reanalyzeSectionsToggle = getEl("reanalyze-sections-toggle");
+    this.reanalyzeSectionsChevron = getEl("reanalyze-sections-chevron");
+    this.reanalyzeSectionsBody = getEl("reanalyze-sections-body");
+    this.reanalyzeSectionsBadge = getEl("reanalyze-sections-badge");
+
+    this.chipVerdict = getEl("chip-verdict");
+    this.chipSummary = getEl("chip-summary");
+    this.chipMindmap = getEl("chip-mindmap");
+    this.chipChapters = getEl("chip-chapters");
+
+    this.reanalyzeChipVerdict = getEl("reanalyze-chip-verdict");
+    this.reanalyzeChipSummary = getEl("reanalyze-chip-summary");
+    this.reanalyzeChipMindmap = getEl("reanalyze-chip-mindmap");
+    this.reanalyzeChipChapters = getEl("reanalyze-chip-chapters");
   }
 
   init(options = {}) {
-    const onToggle = options.onToggle || (() => {});
-    const onWarning = options.onWarning || (() => {});
+    this.bindElements(options.root || this.root);
+
+    if (options.sectionsToggle) this.sectionsToggle = options.sectionsToggle;
+    if (options.sectionsBody) this.sectionsBody = options.sectionsBody;
+    if (options.sectionsChevron) this.sectionsChevron = options.sectionsChevron;
+    if (options.sectionsBadge) this.sectionsBadge = options.sectionsBadge;
+
+    if (options.reanalyzeToggleBtn || options.reanalyzeSectionsToggle) {
+      this.reanalyzeSectionsToggle = options.reanalyzeToggleBtn || options.reanalyzeSectionsToggle;
+    }
+    if (options.reanalyzeAccordion || options.reanalyzeSectionsBody) {
+      this.reanalyzeSectionsBody = options.reanalyzeSectionsBody || options.reanalyzeAccordion;
+    }
+    if (options.reanalyzeSectionsChevron) {
+      this.reanalyzeSectionsChevron = options.reanalyzeSectionsChevron;
+    }
+    if (options.reanalyzeSectionsBadge) {
+      this.reanalyzeSectionsBadge = options.reanalyzeSectionsBadge;
+    }
+
+    if (options.chipVerdict) this.chipVerdict = options.chipVerdict;
+    if (options.chipSummary) this.chipSummary = options.chipSummary;
+    if (options.chipMindmap) this.chipMindmap = options.chipMindmap;
+    if (options.chipChapters) this.chipChapters = options.chipChapters;
+
+    if (options.chipReVerdict || options.reanalyzeChipVerdict) {
+      this.reanalyzeChipVerdict = options.chipReVerdict || options.reanalyzeChipVerdict;
+    }
+    if (options.chipReSummary || options.reanalyzeChipSummary) {
+      this.reanalyzeChipSummary = options.chipReSummary || options.reanalyzeChipSummary;
+    }
+    if (options.chipReMindmap || options.reanalyzeChipMindmap) {
+      this.reanalyzeChipMindmap = options.chipReMindmap || options.reanalyzeChipMindmap;
+    }
+    if (options.chipReChapters || options.reanalyzeChipChapters) {
+      this.reanalyzeChipChapters = options.chipReChapters || options.reanalyzeChipChapters;
+    }
 
     // Capture accordion toggle
-    this.sectionsToggle?.addEventListener("click", () => {
-      const isHidden = this.sectionsBody?.classList.toggle("hidden");
-      if (this.sectionsChevron) this.sectionsChevron.textContent = isHidden ? "▸" : "▾";
-      this.sectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
-    });
+    if (this.sectionsToggle && !this.sectionsToggle._hasAccordionListener) {
+      this.sectionsToggle._hasAccordionListener = true;
+      this.sectionsToggle.addEventListener("click", () => {
+        const isHidden = this.sectionsBody?.classList.toggle("hidden");
+        if (this.sectionsChevron) this.sectionsChevron.textContent = isHidden ? "▸" : "▾";
+        this.sectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
+      });
+    }
 
     // Re-analyze accordion toggle
-    this.reanalyzeSectionsToggle?.addEventListener("click", () => {
-      const isHidden = this.reanalyzeSectionsBody?.classList.toggle("hidden");
-      if (this.reanalyzeSectionsChevron) this.reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
-      this.reanalyzeSectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
-    });
+    if (this.reanalyzeSectionsToggle && !this.reanalyzeSectionsToggle._hasAccordionListener) {
+      this.reanalyzeSectionsToggle._hasAccordionListener = true;
+      this.reanalyzeSectionsToggle.addEventListener("click", () => {
+        const isHidden = this.reanalyzeSectionsBody?.classList.toggle("hidden");
+        if (this.reanalyzeSectionsChevron) this.reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
+        this.reanalyzeSectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
+      });
+    }
 
     const allChips = [
       { el: this.chipVerdict, key: "titleVerdict" },
@@ -57,13 +110,30 @@ class SectionChipsComponent {
 
     allChips.forEach(({ el, key }) => {
       if (!el) return;
-      el.addEventListener("click", () => {
-        onToggle(key);
-      });
+      if (el._chipClickListener) {
+        el.removeEventListener?.("click", el._chipClickListener);
+      }
+      el._chipClickListener = async () => {
+        if (options.onToggle) {
+          await options.onToggle(key);
+        } else if (options.onSectionToggle) {
+          const current = this.enabledSections || {};
+          const currentVal = current[key] !== false;
+          const nextVal = !currentVal;
+          const newSections = { ...current, [key]: nextVal };
+          await options.onSectionToggle(key, nextVal, newSections);
+        }
+      };
+      el.addEventListener("click", el._chipClickListener);
     });
   }
 
   updateUI(enabledSections = {}) {
+    this.enabledSections = enabledSections;
+    if (!this.chipVerdict && (this.root || typeof document !== "undefined")) {
+      this.bindElements(this.root || document);
+    }
+
     const map = [
       { el: this.chipVerdict, key: "titleVerdict" },
       { el: this.chipSummary, key: "coreSummary" },

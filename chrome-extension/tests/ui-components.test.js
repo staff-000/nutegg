@@ -39,7 +39,20 @@ function createMockElement(id = "") {
     },
     setAttribute(k, v) { this[k] = v; },
     getAttribute(k) { return this[k]; },
-    addEventListener() {},
+    addEventListener(event, fn) {
+      if (!this._listeners) this._listeners = {};
+      if (!this._listeners[event]) this._listeners[event] = [];
+      this._listeners[event].push(fn);
+    },
+    removeEventListener(event, fn) {
+      if (!this._listeners || !this._listeners[event]) return;
+      this._listeners[event] = this._listeners[event].filter((f) => f !== fn);
+    },
+    click() {
+      if (this._listeners?.click) {
+        this._listeners.click.forEach((fn) => fn({ target: this }));
+      }
+    },
     scrollIntoView() {},
     querySelector() { return null; },
     querySelectorAll() { return []; },
@@ -145,7 +158,7 @@ describe("Modular UI Components", () => {
     assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), true);
   });
 
-  it("SectionChipsComponent binds capture and re-analyze section chips", () => {
+  it("SectionChipsComponent binds capture and re-analyze section chips and handles clicks", async () => {
     const root = createMockRoot();
     const chips = new SectionChipsComponent(root);
 
@@ -155,6 +168,57 @@ describe("Modular UI Components", () => {
     assert.ok(chips.chipChapters);
     assert.ok(chips.reanalyzeChipVerdict);
     assert.ok(chips.sectionsToggle);
+
+    let toggledKey = null;
+    chips.init({
+      onToggle: (key) => {
+        toggledKey = key;
+      },
+    });
+
+    // Test accordion toggling
+    chips.sectionsBody.classList.add("hidden");
+    chips.sectionsToggle.click();
+    assert.strictEqual(chips.sectionsBody.classList.contains("hidden"), false);
+    assert.strictEqual(chips.sectionsChevron.textContent, "▾");
+
+    chips.sectionsToggle.click();
+    assert.strictEqual(chips.sectionsBody.classList.contains("hidden"), true);
+    assert.strictEqual(chips.sectionsChevron.textContent, "▸");
+
+    // Test chip click
+    chips.chipVerdict.click();
+    assert.strictEqual(toggledKey, "titleVerdict");
+
+    chips.chipMindmap.click();
+    assert.strictEqual(toggledKey, "mindMap");
+
+    chips.reanalyzeChipChapters.click();
+    assert.strictEqual(toggledKey, "chapterMap");
+
+    // Test updateUI visual classes & badges
+    chips.updateUI({
+      titleVerdict: true,
+      coreSummary: true,
+      mindMap: false,
+      chapterMap: true,
+    });
+    assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
+    assert.strictEqual(chips.chipVerdict.classList.contains("active"), true);
+    assert.strictEqual(chips.sectionsBadge.textContent, "3/4");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "3/4");
+
+    // Test onSectionToggle fallback
+    let fallbackResult = null;
+    chips.init({
+      onSectionToggle: (key, nextVal, newSections) => {
+        fallbackResult = { key, nextVal, newSections };
+      },
+    });
+    chips.chipSummary.click();
+    assert.strictEqual(fallbackResult.key, "coreSummary");
+    assert.strictEqual(fallbackResult.nextVal, false);
+    assert.strictEqual(fallbackResult.newSections.coreSummary, false);
   });
 
   it("VerdictComponent renders decision verdicts and title verdict", () => {
