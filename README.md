@@ -150,6 +150,10 @@ No build step required — all plain JavaScript.
 | **Medium** | Article body, author, reading time |
 | **Articles/Blogs** | Content, headings structure, author, published date |
 | **Generic webpages** | Main content area, metadata, description |
+| **Bilibili** | Video metadata, current part, chapters, timestamped subtitles; supports watch-later URLs |
+| **Douyin** | Video metadata and available subtitle tracks; text descriptions for image posts |
+| **Weibo** | Current post, full long-post text when accessible, author, repost context |
+| **Zhihu** | Question and loaded answers, individual answer permalinks, articles |
 
 To add a new site extractor:
 

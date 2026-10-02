@@ -1,6 +1,6 @@
 // NutEgg Background Service Worker
 
-importScripts("../../dist/ai-core.js");
+importScripts("../../dist/ai-core.js", "chinese-fetch.js");
 
 const {
   PROVIDER_CATALOG,

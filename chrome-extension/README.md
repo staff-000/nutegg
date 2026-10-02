@@ -20,9 +20,15 @@ It is a two-part system that helps you stop mindless browsing and start building
   - **YouTube**: Full timestamped transcripts (including auto-generated captions) and clickable chapter maps.
   - **Twitter / X**: Full threads, authors, media badges, and engagement metrics.
   - **Articles & Blogs**: Medium, Substack, and generic web articles with ads and sidebars stripped.
+  - **Bilibili**: Video pages and watch-later lists, current multipart selection, chapters, and timestamped subtitles (manual before AI).
+  - **Douyin**: Video descriptions and available subtitles (manual before AI), plus image-post descriptions. Videos require an accessible transcript for analysis.
+  - **Weibo**: Current post text, accessible full long posts, author, and repost context.
+  - **Zhihu**: Questions with loaded answers, single-answer permalinks, and articles.
+
 - **"Should You Read It?" Verdict**:
   - Delivers a 3-sentence executive summary.
   - Gives a concrete recommendation on whether the content is worth your time based on your existing knowledge.
+  
 - **Title Verdict (Anti-Clickbait)**:
   - Directly answers the headline's question or hook in one sentence to save you time.
 - **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**:

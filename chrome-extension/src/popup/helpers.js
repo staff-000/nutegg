@@ -176,14 +176,16 @@ function formatPublishedDate(raw) {
 }
 
 /**
- * Classify a page URL as "youtube", "bilibili", "tiktok", "twitter", or "webpage".
+ * Classify supported platform URLs; fall back to "webpage".
  */
 function detectPageTypeFromUrl(url) {
   if (!url) return "webpage";
   try {
     const host = new URL(url).hostname;
     if (host.includes("youtube.com") || host === "youtu.be") return "youtube";
-    if (host.includes("bilibili.com")) return "bilibili";
+    for (const [domain, type] of [["bilibili.com", "bilibili"], ["douyin.com", "douyin"], ["weibo.com", "weibo"], ["weibo.cn", "weibo"], ["zhihu.com", "zhihu"]]) {
+      if (host === domain || host.endsWith(`.${domain}`)) return type;
+    }
     if (host.includes("tiktok.com")) return "tiktok";
     if (host.includes("twitter.com") || host === "x.com") return "twitter";
   } catch {}
@@ -211,11 +213,11 @@ function countWords(text) {
 function isContentSuspiciouslyLow(wordCount, sourceType = "webpage") {
   if (typeof wordCount !== "number" || wordCount < 0) return false;
   const type = String(sourceType || "").toLowerCase();
-  if (type === "twitter") {
+  if (type === "twitter" || type === "weibo") {
     // Single tweets can be concise, but fewer than 5 words is suspicious
     return wordCount < 5;
   }
-  if (type === "youtube" || type === "bilibili" || type === "video") {
+  if (type === "youtube" || type === "bilibili" || type === "douyin" || type === "video") {
     // Video descriptions/transcripts are normally 30+ words; fewer than 30 indicates missing transcript/description
     return wordCount < 30;
   }
@@ -259,6 +261,7 @@ function isVideoMediaSource(contentOrType) {
   if (typeof contentOrType === "string") {
     return VIDEO_MEDIA_SOURCES.has(contentOrType.toLowerCase());
   }
+  if (contentOrType.mediaType === "article") return false;
   if (contentOrType.mediaType === "video" || contentOrType.isVideo) {
     return true;
   }

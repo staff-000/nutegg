@@ -24,6 +24,10 @@
 var EXTRACTORS = window.EXTRACTORS || [
   { name: "youtube", detect: detectYouTube, extract: extractYouTube },
   { name: "twitter", detect: detectTwitter, extract: extractTwitter },
+  { name: "bilibili", detect: detectBilibili, extract: extractBilibili },
+  { name: "douyin", detect: detectDouyin, extract: extractDouyin },
+  { name: "weibo", detect: detectWeibo, extract: extractWeibo },
+  { name: "zhihu", detect: detectZhihu, extract: extractZhihu },
   { name: "article", detect: detectArticle, extract: extractArticle },
   // Generic must be last — it always matches
   { name: "generic", detect: () => true, extract: extractGeneric },
@@ -43,6 +47,8 @@ async function extractContent() {
       }
     } catch (e) {
       console.warn(`[NutEgg] Extractor "${ex.name}" failed:`, e);
+      // Site-specific failure must not silently capture a login wall or feed.
+      if (["bilibili", "douyin", "weibo", "zhihu"].includes(ex.name)) throw e;
     }
   }
   // Ultimate fallback

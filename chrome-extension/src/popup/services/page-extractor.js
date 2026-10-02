@@ -6,6 +6,7 @@ const CONTENT_SCRIPT_FILES = [
   "src/content/utils.js",
   "src/content/extractors/youtube.js",
   "src/content/extractors/twitter.js",
+  "src/content/extractors/chinese.js",
   "src/content/extractors/article.js",
   "src/content/extractors/generic.js",
   "src/content/content-script.js",
@@ -64,7 +65,7 @@ class PageExtractor {
     try {
       const response = await this.withTimeout(
         chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-        8000,
+        20000,
         null
       );
       if (response?.success) return response;
@@ -78,7 +79,7 @@ class PageExtractor {
     try {
       return await this.withTimeout(
         chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-        8000,
+        20000,
         null
       );
     } catch {
@@ -215,6 +216,12 @@ class PageExtractor {
     if (!url) return "🌐 Webpage";
     if (url.includes("twitter.com") || url.includes("x.com")) return "🐦 Twitter/X";
     if (url.includes("youtube.com/watch") || url.includes("youtube.com")) return "📺 YouTube";
+    try {
+      const host = new URL(url).hostname;
+      for (const [domain, label] of [['bilibili.com', '📺 Bilibili'], ['douyin.com', '📺 Douyin'], ['weibo.com', '📝 Weibo'], ['weibo.cn', '📝 Weibo'], ['zhihu.com', '📝 Zhihu']]) {
+        if (host === domain || host.endsWith(`.${domain}`)) return label;
+      }
+    } catch {}
     return "🌐 Webpage";
   }
 

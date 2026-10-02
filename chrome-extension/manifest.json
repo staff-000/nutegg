@@ -21,7 +21,14 @@
     "https://api.deepseek.com/*",
     "https://api.moonshot.cn/*",
     "https://open.bigmodel.cn/*",
-    "https://dashscope.aliyuncs.com/*"
+    "https://dashscope.aliyuncs.com/*",
+    "https://api.bilibili.com/*",
+    "https://*.hdslb.com/*",
+    "https://*.douyin.com/*",
+    "https://*.douyinvod.com/*",
+    "https://*.bytecdn.cn/*",
+    "https://*.ibytedtos.com/*",
+    "https://*.bytedance.com/*"
   ],
   "action": {
     "default_title": "__MSG_extensionActionTitle__",
@@ -56,6 +63,7 @@
         "src/content/utils.js",
         "src/content/extractors/youtube.js",
         "src/content/extractors/twitter.js",
+        "src/content/extractors/chinese.js",
         "src/content/extractors/article.js",
         "src/content/extractors/generic.js",
         "src/content/content-script.js"
