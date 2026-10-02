@@ -47,7 +47,7 @@ NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, t
                                     │
             ┌───────────────────────┼───────────────────────┐
             ▼                       ▼                       ▼
-     [Standalone Mode]         [Fast Mode]         [Confirm Eggs Mode]
+     [Standalone Mode]         [🌞 Full Mode]      [🌛 Preview Summary]
      Obsidian is offline.      Auto-proceeds to    User reviews matched eggs:
      Runs Stage 1 in Chrome    Stage 2 with all    ├── "Collect Nut Only"
      with user's API key.      matched eggs.       └── Add/remove eggs ──► Proceed
@@ -87,8 +87,8 @@ NutEgg uses a **Two-Stage Analysis Architecture** designed for high precision, t
 | Mode | Behavior | Best Used For |
 |---|---|---|
 | **📱 Standalone Mode** | Runs Stage 1 content analysis directly in Chrome via the extension service worker and user's API key (when Obsidian is offline or closed). Produces verdicts, 3-sentence summaries, chapter maps, mind maps, and interactive video Q&A with clickable timestamp jumping. Skips Stage 2 vault comparison. | Fast web and video reading, quick comprehension, or users without Obsidian running. |
-| **⚡ Fast Mode** | Runs Stage 1 content analysis, routes eggs automatically via `_index.md`, and immediately executes Stage 2 knowledge comparison in one uninterrupted pass. | Everyday reading and quick captures when you trust automatic egg matching. |
-| **🥚 Confirm Eggs Mode** | Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click **Collect Nut Only** to save the note immediately without comparing against eggs. | Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees. |
+| **🌞 Full Mode** | Runs Stage 1 content analysis, routes eggs automatically via `_index.md`, and immediately executes Stage 2 knowledge comparison in one uninterrupted pass. | Everyday reading and quick captures when you trust automatic egg matching. |
+| **🌛 Preview Summary** | Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click **Collect Nut Only** to save the note immediately without comparing against eggs. | Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees. |
 
 ---
 
