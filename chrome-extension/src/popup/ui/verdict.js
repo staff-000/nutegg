@@ -99,7 +99,8 @@ class VerdictComponent {
     }
 
     // 1. Title Verdict: always rendered when present in result and enabled in settings
-    this.renderTitleVerdict(result.titleVerdict, settings?.enabledSections?.titleVerdict !== false);
+    const effectiveSections = session?.enabledSections || settings?.enabledSections;
+    this.renderTitleVerdict(result.titleVerdict, effectiveSections?.titleVerdict !== false);
 
     // 2. Decision Verdict ("Should you read it?"):
     // Only available when matching/comparing against eggs in vault (Obsidian mode).

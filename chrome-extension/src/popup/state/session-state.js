@@ -38,6 +38,8 @@ class SessionState {
     /** Question scopes: "within" | "beyond" */
     this.customQuestionsScope = "within";
     this.followupScope = "within";
+    /** Per-tab enabled analysis sections */
+    this.enabledSections = null;
 
     // Operation sequence and transient flags
     this.refreshSeq = 0;
@@ -92,6 +94,9 @@ class SessionState {
       activeEggTab: this.activeEggTab,
       customQuestionsScope: this.customQuestionsScope || "within",
       followupScope: this.followupScope || "within",
+      enabledSections: this.enabledSections
+        ? { ...this.enabledSections }
+        : (extra.enabledSections ? { ...extra.enabledSections } : null),
       extractionFailed: !!this.extractionFailed,
       ...extra,
     };
@@ -115,6 +120,7 @@ class SessionState {
     this.customQuestionsScope = restored.customQuestionsScope || "within";
     this.followupScope = restored.followupScope || "within";
     this.extractionFailed = !!restored.extractionFailed;
+    this.enabledSections = restored.enabledSections ? { ...restored.enabledSections } : null;
 
     if (restored.selectedEggs instanceof Set) {
       this.selectedEggs = new Set(restored.selectedEggs);

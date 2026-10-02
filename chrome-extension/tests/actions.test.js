@@ -11,8 +11,8 @@ globalThis.chrome = {
     openOptionsPage: () => {},
   },
   tabs: {
-    query: async () => [{ id: 1, title: "Test Page", url: "https://example.com" }],
-    get: async () => ({ id: 1, title: "Test Page", url: "https://example.com", status: "complete" }),
+    query: async () => [{ id: globalThis.__testActiveTabId || 1, title: "Test Page", url: "https://example.com" }],
+    get: async (id) => ({ id: id || globalThis.__testActiveTabId || 1, title: "Test Page", url: "https://example.com", status: "complete" }),
   },
 };
 
@@ -141,6 +141,176 @@ describe("Action Handlers", () => {
       assert.strictEqual(session.activeTabId, 2);
       // Tab 2 restores its warning banner
       assert.strictEqual(currentWarning, "Could not extract content from this page");
+    });
+
+    it("preserves per-tab section selection and defaults new tabs to last active sections", async () => {
+      let uiUpdatedSections = null;
+      const sectionsUI = {
+        updateUI: (sec) => { uiUpdatedSections = { ...sec }; },
+      };
+      const captureUI = {
+        render: () => {},
+        setPageInfo: () => {},
+        setLoading: () => {},
+        setRefreshDisabled: () => {},
+      };
+      const bannersUI = {
+        hideAll: () => {},
+      };
+
+      const settings = {
+        enabledSections: {
+          titleVerdict: true,
+          coreSummary: true,
+          mindMap: true,
+          chapterMap: true,
+        },
+        setEnabledSections: (s) => { settings.enabledSections = { ...s }; },
+      };
+
+      const session = {
+        activeTabId: 1,
+        enabledSections: null,
+        customQuestionsScope: "within",
+        followupScope: "within",
+        nextRefreshSeq: () => 1,
+        reset: () => { session.enabledSections = null; },
+        snapshot: (extra = {}) => ({
+          activeTabId: session.activeTabId,
+          enabledSections: session.enabledSections ? { ...session.enabledSections } : null,
+          ...extra,
+        }),
+        restore: (st = {}) => {
+          session.activeTabId = st.activeTabId;
+          session.enabledSections = st.enabledSections ? { ...st.enabledSections } : null;
+        },
+      };
+
+      const tabCache = new Map();
+      const tabStateManager = {
+        get: (id) => tabCache.get(id),
+        set: (id, val) => tabCache.set(id, val),
+        saveActiveTabState: (id, state) => {
+          const prev = tabCache.get(id) || {};
+          const merged = { ...prev, ...state };
+          tabCache.set(id, merged);
+          return merged;
+        },
+        restoreTabState: (id) => tabCache.get(id) || null,
+        switchActiveTab: (toTabId, departingState) => {
+          if (departingState) {
+            tabStateManager.saveActiveTabState(session.activeTabId, departingState);
+          }
+          session.activeTabId = toTabId;
+          return { targetState: tabStateManager.restoreTabState(toTabId) };
+        },
+        setActiveTabId: (id) => { session.activeTabId = id; },
+        setCurrentTabLoading: () => {},
+        isExtracting: () => false,
+      };
+
+      const tabAction = new TabAction({
+        session,
+        settings,
+        tabStateManager,
+        ui: { sectionsUI, captureUI, bannersUI },
+        pageExtractor: {
+          waitForTabComplete: async () => {},
+          waitForPageSettle: async () => {},
+          extractPage: async () => ({ title: "Page", content: "Content", url: "https://example.com" }),
+        },
+        getAnalyzeAction: () => ({ updateAnalyzeButtonsState: () => {} }),
+      });
+
+      // 1. Tab A (id=1): User selects sections x, y (titleVerdict, coreSummary)
+      globalThis.__testActiveTabId = 1;
+      session.activeTabId = 1;
+      session.enabledSections = {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      };
+      settings.setEnabledSections(session.enabledSections, true);
+      tabStateManager.saveActiveTabState(1, { enabledSections: session.enabledSections });
+
+      // 2. Switch to Tab B (id=2), which is a new tab
+      globalThis.__testActiveTabId = 2;
+      await tabAction.handleTabActivated({ tabId: 2 });
+
+      // Tab B should inherit Tab A's sections as default
+      assert.strictEqual(session.activeTabId, 2);
+      assert.deepEqual(session.enabledSections, {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      });
+      assert.deepEqual(uiUpdatedSections, {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      });
+
+      // 3. On Tab B, user changes to section x only (titleVerdict only)
+      session.enabledSections = {
+        titleVerdict: true,
+        coreSummary: false,
+        mindMap: false,
+        chapterMap: false,
+      };
+      settings.setEnabledSections(session.enabledSections, true);
+      tabStateManager.saveActiveTabState(2, { enabledSections: session.enabledSections });
+
+      // 4. Switch back to Tab A (id=1)
+      globalThis.__testActiveTabId = 1;
+      await tabAction.handleTabActivated({ tabId: 1 });
+
+      // Tab A should restore its own sections (both x and y: titleVerdict and coreSummary)
+      assert.strictEqual(session.activeTabId, 1);
+      assert.deepEqual(session.enabledSections, {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      });
+      assert.deepEqual(uiUpdatedSections, {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      });
+
+      // 5. Open/switch to a new Tab C (id=3)
+      // Since Tab A was last active with (x, y), Tab C must default to Tab A's (x, y)
+      globalThis.__testActiveTabId = 3;
+      await tabAction.handleTabActivated({ tabId: 3 });
+      assert.strictEqual(session.activeTabId, 3);
+      assert.deepEqual(session.enabledSections, {
+        titleVerdict: true,
+        coreSummary: true,
+        mindMap: false,
+        chapterMap: false,
+      });
+
+      // 6. Switch to Tab B (id=2)
+      // Tab B should restore its own x-only configuration
+      globalThis.__testActiveTabId = 2;
+      await tabAction.handleTabActivated({ tabId: 2 });
+      assert.strictEqual(session.activeTabId, 2);
+      assert.deepEqual(session.enabledSections, {
+        titleVerdict: true,
+        coreSummary: false,
+        mindMap: false,
+        chapterMap: false,
+      });
+      assert.deepEqual(uiUpdatedSections, {
+        titleVerdict: true,
+        coreSummary: false,
+        mindMap: false,
+        chapterMap: false,
+      });
     });
   });
 

@@ -81,12 +81,15 @@ class SettingsState {
     }
   }
 
-  setEnabledSections(sections) {
+  setEnabledSections(sections, persist = false) {
     if (sections && typeof sections === "object") {
       this.enabledSections = {
         ...DEFAULT_ANALYSIS_SECTIONS,
         ...sections,
       };
+      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+        chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
+      }
     }
   }
 

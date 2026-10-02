@@ -100,7 +100,8 @@ class ResultsViewComponent {
         publishedAt: session.extractedContent?.metadata?.published || result.publishedAt,
       };
       this.renderProvenance(prov);
-      this.renderCoreSummary(result.coreSummary, settings?.enabledSections?.coreSummary !== false);
+      const effectiveSections = session?.enabledSections || settings?.enabledSections;
+      this.renderCoreSummary(result.coreSummary, effectiveSections?.coreSummary !== false);
     } else {
       this.showCapture();
     }

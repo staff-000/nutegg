@@ -131,7 +131,7 @@ class AnalysisService {
         questionsScope,
         force: true,
         stage: 1,
-        enabledSections: { ...settings.enabledSections },
+        enabledSections: { ...(session?.enabledSections || settings.enabledSections) },
         outputLanguage: settings.outputLanguage,
         ...(Array.isArray(targetEggs) ? { eggs: targetEggs } : {}),
       };

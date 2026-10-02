@@ -187,6 +187,9 @@ class TabStateManager {
     const errorCode = state.errorCode !== undefined ? state.errorCode : prev.errorCode;
     const duplicate = state.duplicate !== undefined ? state.duplicate : prev.duplicate;
     const extractionFailed = state.extractionFailed !== undefined ? state.extractionFailed : prev.extractionFailed;
+    const enabledSections = state.enabledSections != null
+      ? (typeof state.enabledSections === "object" ? { ...state.enabledSections } : state.enabledSections)
+      : (prev.enabledSections ? { ...prev.enabledSections } : null);
 
     const entry = {
       ...prev,
@@ -202,6 +205,7 @@ class TabStateManager {
       errorCode: errorCode || null,
       duplicate: duplicate || null,
       extractionFailed: !!extractionFailed,
+      enabledSections,
       selectedEggs: state.selectedEggs instanceof Set
         ? Array.from(state.selectedEggs)
         : (state.selectedEggs || prev.selectedEggs || []),
@@ -236,6 +240,7 @@ class TabStateManager {
       errorCode: cached.errorCode || null,
       duplicate: cached.duplicate || null,
       extractionFailed: !!cached.extractionFailed,
+      enabledSections: cached.enabledSections ? { ...cached.enabledSections } : null,
       customQuestionsScope: cached.customQuestionsScope || "within",
       followupScope: cached.followupScope || "within",
       selectedEggs: new Set(cached.selectedEggs || (cached.analysisResult?.matchedEggs || [])),
