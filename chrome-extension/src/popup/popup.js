@@ -188,7 +188,8 @@ function showResultsState(result, provenance = null) {
   } else {
     actionsUI.showProcessedNote(actionsUI.getProcessedMessage());
   }
-  sectionsUI.updateUI(settings.enabledSections);
+  const effectiveSections = session.enabledSections || settings.enabledSections;
+  sectionsUI.updateUI(effectiveSections);
   if (!session.isReanalyzing) {
     analyzeAction.updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
@@ -224,8 +225,8 @@ function showResultsState(result, provenance = null) {
     });
   }
 
-  verdictUI.renderTitleVerdict(result.titleVerdict, settings.enabledSections?.titleVerdict !== false);
-  mindmapUI.render(result.mindMap, settings.enabledSections.mindMap !== false);
+  verdictUI.renderTitleVerdict(result.titleVerdict, effectiveSections?.titleVerdict !== false);
+  mindmapUI.render(result.mindMap, effectiveSections?.mindMap !== false);
 
   const hasAuthorChapters =
     (Array.isArray(session.extractedContent?.chapters) && session.extractedContent.chapters.length > 0) ||
@@ -239,7 +240,7 @@ function showResultsState(result, provenance = null) {
 
   chaptersUI.render({
     chapterMap: result.chapterMap,
-    enabled: settings.enabledSections.chapterMap !== false,
+    enabled: effectiveSections?.chapterMap !== false,
     isShortWithoutChapters,
     activeTabId: session.activeTabId,
     onSeek: (seconds) => interactionAction.seekToChapter(seconds),
@@ -269,7 +270,8 @@ function showCaptureState() {
   session.activeEggTab = null;
   globalThis.NutEggUI?.resetCollapsibleSections?.();
   bannersUI.hideAll();
-  sectionsUI.updateUI(settings.enabledSections);
+  const effectiveSections = session.enabledSections || settings.enabledSections;
+  sectionsUI.updateUI(effectiveSections);
   captureUI.setQuestionsScope(session.customQuestionsScope || "within");
   renderApp();
 }
@@ -300,40 +302,46 @@ async function initPopup() {
     }
   } catch {}
 
+  const toggleActiveTabSection = async (key) => {
+    if (!session.enabledSections) {
+      session.enabledSections = { ...(settings.enabledSections || globalThis.NutEggState?.DEFAULT_ANALYSIS_SECTIONS || {}) };
+    }
+    const currentVal = session.enabledSections[key] !== false;
+    const activeCount = Object.values(session.enabledSections).filter(Boolean).length;
+    if (currentVal && activeCount <= 1) {
+      bannersUI.showWarning(t("atLeastOneSection"));
+      return false;
+    }
+    session.enabledSections[key] = !currentVal;
+    settings.setEnabledSections(session.enabledSections, true);
+    if (session.activeTabId) {
+      tabStateManager.saveActiveTabState(session.activeTabId, {
+        enabledSections: { ...session.enabledSections },
+      });
+    }
+    sectionsUI.updateUI(session.enabledSections);
+    if (session.analysisResult) {
+      showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
+    }
+    return true;
+  };
+
   sectionsUI.init({
+    chipVerdict: document.getElementById("chip-verdict"),
     chipSummary: document.getElementById("chip-summary"),
     chipMindmap: document.getElementById("chip-mindmap"),
     chipChapters: document.getElementById("chip-chapters"),
+    chipReVerdict: document.getElementById("reanalyze-chip-verdict"),
     chipReSummary: document.getElementById("reanalyze-chip-summary"),
     chipReMindmap: document.getElementById("reanalyze-chip-mindmap"),
     chipReChapters: document.getElementById("reanalyze-chip-chapters"),
     reanalyzeAccordion: document.getElementById("reanalyze-sections-accordion"),
     reanalyzeToggleBtn: document.getElementById("reanalyze-sections-toggle"),
     reanalyzeSectionsBody: document.getElementById("reanalyze-sections-body"),
-    onToggle: async (key) => {
-      const ok = await settings.toggleSection(key);
-      if (!ok) {
-        bannersUI.showWarning(t("atLeastOneSection"));
-        return;
-      }
-      sectionsUI.updateUI(settings.enabledSections);
-      if (session.analysisResult) {
-        showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
-      }
-    },
-    onSectionToggle: async (section) => {
-      const ok = await settings.toggleSection(section);
-      if (!ok) {
-        bannersUI.showWarning(t("atLeastOneSection"));
-        return;
-      }
-      sectionsUI.updateUI(settings.enabledSections);
-      if (session.analysisResult) {
-        showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
-      }
-    },
+    onToggle: toggleActiveTabSection,
+    onSectionToggle: toggleActiveTabSection,
   });
-  sectionsUI.updateUI(settings.enabledSections);
+  sectionsUI.updateUI(session.enabledSections || settings.enabledSections);
 
   envService.fetchMetrics();
 
@@ -350,7 +358,11 @@ async function initPopup() {
       }
       if (changes.enabledSections && changes.enabledSections.newValue) {
         settings.setEnabledSections(changes.enabledSections.newValue);
-        sectionsUI.updateUI(settings.enabledSections);
+        if (!session.enabledSections) {
+          session.enabledSections = { ...settings.enabledSections };
+        }
+        const effectiveSections = session.enabledSections || settings.enabledSections;
+        sectionsUI.updateUI(effectiveSections);
         if (session.analysisResult) {
           showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
         }

@@ -70,6 +70,22 @@ class TabAction {
     ui.captureUI?.setCustomQuestions?.("");
     ui.qaUI?.clearFollowup?.();
     session.reset();
+
+    // Restore per-tab enabledSections or inherit last active/opened sections
+    const currentTargetId = session.activeTabId;
+    const existingTabState = currentTargetId ? tabStateManager.get(currentTargetId) : null;
+    const initialSections = existingTabState?.enabledSections
+      ? { ...existingTabState.enabledSections }
+      : (settings?.enabledSections ? { ...settings.enabledSections } : null);
+    if (initialSections) {
+      session.enabledSections = { ...initialSections };
+      settings?.setEnabledSections?.(initialSections, true);
+      ui.sectionsUI?.updateUI?.(session.enabledSections);
+      if (currentTargetId) {
+        tabStateManager.saveActiveTabState(currentTargetId, { enabledSections: session.enabledSections });
+      }
+    }
+
     ui.eggsUI?.updateCaptureLabel?.(session.preSelectedEggs);
     ui.actionsUI?.hideProcessedNote?.();
     ui.actionsUI?.renderHistory?.([]);
@@ -107,13 +123,13 @@ class TabAction {
       }
 
       // Restore per-tab enabledSections or inherit last active/opened sections
-      const existingTabState = targetTabId ? tabStateManager.get(targetTabId) : null;
-      const initialSections = existingTabState?.enabledSections
-        ? { ...existingTabState.enabledSections }
-        : (settings?.enabledSections ? { ...settings.enabledSections } : null);
-      if (initialSections) {
-        session.enabledSections = { ...initialSections };
-        settings?.setEnabledSections?.(initialSections, true);
+      const confirmedTabState = targetTabId ? tabStateManager.get(targetTabId) : null;
+      const effectiveSections = confirmedTabState?.enabledSections
+        ? { ...confirmedTabState.enabledSections }
+        : (session.enabledSections || (settings?.enabledSections ? { ...settings.enabledSections } : null));
+      if (effectiveSections) {
+        session.enabledSections = { ...effectiveSections };
+        settings?.setEnabledSections?.(effectiveSections, true);
         ui.sectionsUI?.updateUI?.(session.enabledSections);
         if (targetTabId) {
           tabStateManager.saveActiveTabState(targetTabId, { enabledSections: session.enabledSections });

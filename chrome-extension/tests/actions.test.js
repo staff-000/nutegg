@@ -312,6 +312,135 @@ describe("Action Handlers", () => {
         chapterMap: false,
       });
     });
+
+    it("preserves x on Tab A and x+y on Tab B without overriding each other", async () => {
+      let uiUpdatedSections = null;
+      const sectionsUI = {
+        updateUI: (sections) => { uiUpdatedSections = { ...sections }; },
+      };
+      const captureUI = {
+        render: () => {},
+        setPageInfo: () => {},
+        setLoading: () => {},
+        setRefreshDisabled: () => {},
+      };
+      const bannersUI = { hideAll: () => {} };
+
+      const settings = {
+        enabledSections: {
+          titleVerdict: true,
+          coreSummary: false,
+          mindMap: false,
+          chapterMap: false,
+        },
+        setEnabledSections: (s) => { settings.enabledSections = { ...s }; },
+      };
+
+      const session = {
+        activeTabId: 10,
+        enabledSections: {
+          titleVerdict: true,
+          coreSummary: false,
+          mindMap: false,
+          chapterMap: false,
+        },
+        customQuestionsScope: "within",
+        followupScope: "within",
+        nextRefreshSeq: () => 1,
+        reset: () => {},
+        snapshot: (extra = {}) => ({
+          activeTabId: session.activeTabId,
+          enabledSections: session.enabledSections ? { ...session.enabledSections } : null,
+          ...extra,
+        }),
+        restore: (st = {}) => {
+          session.activeTabId = st.activeTabId;
+          session.enabledSections = st.enabledSections ? { ...st.enabledSections } : null;
+        },
+      };
+
+      const tabCache = new Map();
+      const tabStateManager = {
+        get: (id) => tabCache.get(id),
+        set: (id, val) => tabCache.set(id, val),
+        saveActiveTabState: (id, state) => {
+          const prev = tabCache.get(id) || {};
+          const merged = { ...prev, ...state };
+          tabCache.set(id, merged);
+          return merged;
+        },
+        restoreTabState: (id) => tabCache.get(id) || null,
+        switchActiveTab: (toTabId, departingState) => {
+          if (departingState) {
+            tabStateManager.saveActiveTabState(session.activeTabId, departingState);
+          }
+          session.activeTabId = toTabId;
+          return { targetState: tabStateManager.restoreTabState(toTabId) };
+        },
+        setActiveTabId: (id) => { session.activeTabId = id; },
+        setCurrentTabLoading: () => {},
+        isExtracting: () => false,
+      };
+
+      const tabAction = new TabAction({
+        session,
+        settings,
+        tabStateManager,
+        ui: { sectionsUI, captureUI, bannersUI },
+        pageExtractor: {
+          waitForTabComplete: async () => {},
+          waitForPageSettle: async () => {},
+          extractPage: async () => ({ title: "Page", content: "Content", url: "https://example.com" }),
+        },
+        getAnalyzeAction: () => ({ updateAnalyzeButtonsState: () => {} }),
+      });
+
+      // 1. Initial: Tab A (id=10) has section x only
+      globalThis.__testActiveTabId = 10;
+      tabStateManager.saveActiveTabState(10, { enabledSections: session.enabledSections });
+
+      // 2. Switch to Tab B (id=20), new tab
+      globalThis.__testActiveTabId = 20;
+      await tabAction.handleTabActivated({ tabId: 20 });
+      assert.strictEqual(session.activeTabId, 20);
+      assert.strictEqual(session.enabledSections.titleVerdict, true);
+      assert.strictEqual(session.enabledSections.coreSummary, false);
+
+      // 3. User on Tab B selects x + y (enables coreSummary)
+      session.enabledSections = {
+        ...session.enabledSections,
+        coreSummary: true,
+      };
+      settings.setEnabledSections(session.enabledSections, true);
+      tabStateManager.saveActiveTabState(20, { enabledSections: session.enabledSections });
+      sectionsUI.updateUI(session.enabledSections);
+
+      // Verify Tab B now shows and has x + y
+      assert.strictEqual(session.enabledSections.titleVerdict, true);
+      assert.strictEqual(session.enabledSections.coreSummary, true);
+      assert.strictEqual(uiUpdatedSections.titleVerdict, true);
+      assert.strictEqual(uiUpdatedSections.coreSummary, true);
+
+      // 4. Switch back to Tab A (id=10)
+      globalThis.__testActiveTabId = 10;
+      await tabAction.handleTabActivated({ tabId: 10 });
+      assert.strictEqual(session.activeTabId, 10);
+      // Tab A must still only have x
+      assert.strictEqual(session.enabledSections.titleVerdict, true);
+      assert.strictEqual(session.enabledSections.coreSummary, false);
+      assert.strictEqual(uiUpdatedSections.titleVerdict, true);
+      assert.strictEqual(uiUpdatedSections.coreSummary, false);
+
+      // 5. Switch back to Tab B (id=20)
+      globalThis.__testActiveTabId = 20;
+      await tabAction.handleTabActivated({ tabId: 20 });
+      assert.strictEqual(session.activeTabId, 20);
+      // Tab B must still have x + y
+      assert.strictEqual(session.enabledSections.titleVerdict, true);
+      assert.strictEqual(session.enabledSections.coreSummary, true);
+      assert.strictEqual(uiUpdatedSections.titleVerdict, true);
+      assert.strictEqual(uiUpdatedSections.coreSummary, true);
+    });
   });
 
   describe("AnalyzeAction", () => {
