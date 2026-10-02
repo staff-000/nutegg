@@ -181,6 +181,30 @@ describe("PageExtractor", () => {
     });
   });
 
+  describe("tryExtract timeout budgets", () => {
+    it("uses the longer budget only for Bilibili and Douyin, including reinjection", async () => {
+      for (const [url, expected] of [
+        ["https://example.com/article", 8000],
+        ["https://www.youtube.com/watch?v=123", 8000],
+        ["https://www.bilibili.com/list/watchlater/?bvid=BV123", 20000],
+        ["https://www.douyin.com/video/123", 20000],
+        ["https://douyin.com.evil.test/video/123", 8000],
+      ]) {
+        const timeouts = [];
+        let attempt = 0;
+        globalThis.chrome = { tabs: {
+          get: async () => ({ url }),
+          sendMessage: async () => ++attempt === 1 ? null : { success: true },
+        } };
+        const instance = new PageExtractor();
+        instance.withTimeout = (promise, ms) => { timeouts.push(ms); return promise; };
+        instance.injectContentScript = async () => true;
+        assert.equal((await instance.tryExtract(1)).success, true);
+        assert.deepEqual(timeouts, [expected, expected]);
+      }
+    });
+  });
+
   describe("extractPage", () => {
     it("extracts page content successfully", async () => {
       globalThis.chrome = {

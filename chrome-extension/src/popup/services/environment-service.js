@@ -198,7 +198,6 @@ class EnvironmentService {
         this.settings.setServerStatus({ online: true, version, aiConfigured: true });
       }
 
-      await this.checkCreditStatus();
       this.metricsUI?.showPluginLink(false);
 
       const mismatch = this.helper.getVersionMismatchIssue
@@ -222,11 +221,7 @@ class EnvironmentService {
         this.settings.setChromeAiStatus({ enabled: false, configured: false });
       }
 
-      if (this.settings.chromeAiConfigured) {
-        await this.checkChromeCreditStatus();
-      } else {
-        this.headerUI?.hideCredit();
-      }
+      if (!this.settings.chromeAiConfigured) this.headerUI?.hideCredit();
 
       this.metricsUI?.showPluginLink(true);
       this.updateServerStatusIndicator();
@@ -235,6 +230,14 @@ class EnvironmentService {
     this.updateCaptureBanners();
     if (typeof onStatusUpdated === "function") {
       onStatusUpdated();
+    }
+
+    // Balance is supplementary UI, not readiness. Some providers' credit
+    // endpoints have no timeout; never hold page extraction behind them.
+    if (this.settings.serverOnline) {
+      void this.checkCreditStatus();
+    } else if (this.settings.chromeAiConfigured) {
+      void this.checkChromeCreditStatus();
     }
   }
 }

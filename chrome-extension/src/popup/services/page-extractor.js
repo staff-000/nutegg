@@ -62,10 +62,20 @@ class PageExtractor {
    * Returns response object or null if unreachable / restricted.
    */
   async tryExtract(tabId) {
+    let extractionTimeout = 8000;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const host = new URL(tab.url).hostname;
+      // Chinese video extraction can require several API/subtitle requests.
+      // Keep the ordinary-page failure budget at 8s rather than slowing all sites.
+      if (["bilibili.com", "douyin.com"].some(domain => host === domain || host.endsWith(`.${domain}`))) {
+        extractionTimeout = 20000;
+      }
+    } catch {}
     try {
       const response = await this.withTimeout(
         chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-        20000,
+        extractionTimeout,
         null
       );
       if (response?.success) return response;
@@ -79,7 +89,7 @@ class PageExtractor {
     try {
       return await this.withTimeout(
         chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
-        20000,
+        extractionTimeout,
         null
       );
     } catch {
