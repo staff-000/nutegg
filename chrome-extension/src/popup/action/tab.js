@@ -14,6 +14,7 @@ class TabAction {
     this.getAnalyzeAction = deps.getAnalyzeAction || (() => null);
     this.showCaptureState = deps.showCaptureState || (() => {});
     this.showResultsState = deps.showResultsState || (() => {});
+    this.eggListRevision = 0;
   }
 
   getActiveTabSnapshot() {
@@ -36,9 +37,31 @@ class TabAction {
     this.tabStateManager.saveActiveTabState(tabId, this.getActiveTabSnapshot());
   }
 
+  addCreatedEgg(egg) {
+    if (!this.session || !egg?.fileName) return;
+    const eggs = this.session.allEggs || [];
+    if (!eggs.some(existing => existing.fileName === egg.fileName)) {
+      this.session.allEggs = [...eggs, egg];
+    }
+    this.eggListRevision++;
+    this.ui.eggsUI?.renderCaptureList?.({
+      allEggs: this.session.allEggs,
+      preSelectedEggs: this.session.preSelectedEggs,
+    });
+    this.ui.eggsUI?.renderSection?.(this.session.analysisResult?.matchedEggs || [], {
+      allEggs: this.session.allEggs,
+      selectedEggs: this.session.selectedEggs,
+      expand: true,
+      onSelectChange: () => this.getAnalyzeAction()?.updateStage1ProceedBtn?.(),
+    });
+  }
+
   async fetchEggs() {
+    const revision = this.eggListRevision;
     try {
       const response = await chrome.runtime.sendMessage({ action: "get-eggs" });
+      // A request started before creation may still contain the old list.
+      if (revision !== this.eggListRevision) return this.session?.allEggs || [];
       const eggs = response?.eggs || [];
       if (this.session) this.session.allEggs = eggs;
       if (this.ui.eggsUI) {
@@ -589,4 +612,3 @@ _tabActionScope.NutEggActions.TabAction = TabAction;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { TabAction };
 }
-

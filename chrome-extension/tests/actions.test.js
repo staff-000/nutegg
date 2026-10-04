@@ -47,6 +47,31 @@ describe("Action Handlers", () => {
       assert.ok(renderedList);
     });
 
+    it("keeps newly created eggs when an older list request finishes", async () => {
+      const oldSender = chrome.runtime.sendMessage;
+      let finishFetch;
+      chrome.runtime.sendMessage = () => new Promise(resolve => { finishFetch = resolve; });
+      try {
+        const session = { allEggs: [{ fileName: "old.md" }], preSelectedEggs: new Set(["old.md"]), selectedEggs: new Set(["old.md"]) };
+        let captureList, resultList;
+        const action = new TabAction({ session, ui: { eggsUI: {
+          renderCaptureList: options => { captureList = options; },
+          renderSection: (_, options) => { resultList = options; },
+        } } });
+        const pending = action.fetchEggs();
+        action.addCreatedEgg({ fileName: "new.md", description: "New egg" });
+        action.addCreatedEgg({ fileName: "new.md", description: "Duplicate" });
+        assert.deepStrictEqual(captureList.allEggs.map(egg => egg.fileName), ["old.md", "new.md"]);
+        assert.strictEqual(captureList.preSelectedEggs, session.preSelectedEggs);
+        assert.strictEqual(resultList.selectedEggs, session.selectedEggs);
+        finishFetch({ eggs: [{ fileName: "old.md" }] });
+        await pending;
+        assert.strictEqual(session.allEggs.length, 2);
+      } finally {
+        chrome.runtime.sendMessage = oldSender;
+      }
+    });
+
     it("invalidates tab on tab removal", () => {
       let invalidated = null;
       const tabStateManager = {
@@ -552,6 +577,52 @@ describe("Action Handlers", () => {
   });
 
   describe("SaveAction", () => {
+    it("shows a created egg immediately while re-analysis is still pending", async () => {
+      for (const inline of [true, false]) {
+        const session = { activeTabId: 1, allEggs: [], selectedEggs: new Set(), preSelectedEggs: new Set() };
+        let shown = false, finishAnalysis, markStarted;
+        const started = new Promise(resolve => { markStarted = resolve; });
+        const eggsUI = {
+          getNewEggInput: () => ({ name: "My Egg", desc: "Useful ideas" }),
+          setCreateButtonLoading: () => {}, resetCreateForm: () => {},
+          renderCaptureList: options => { shown = options.allEggs.some(egg => egg.fileName === "My Egg.md"); },
+          renderSection: () => {},
+        };
+        const tabAction = new TabAction({ session, ui: { eggsUI } });
+        const action = new SaveAction({ session, ui: { eggsUI }, getTabAction: () => tabAction,
+          analysisService: { createEgg: async () => ({ success: true, path: "nutegg/My Egg.md" }) },
+          getAnalyzeAction: () => ({ handleAnalyze: (force, eggs) => {
+            assert.strictEqual(shown, true);
+            assert.strictEqual(force, true);
+            if (!inline) assert.deepStrictEqual(eggs, ["My Egg.md"]);
+            markStarted();
+            return new Promise(resolve => { finishAnalysis = resolve; });
+          } }),
+        });
+        const pending = action.handleCreateEgg(inline);
+        await started;
+        assert.deepStrictEqual(session.allEggs, [{ fileName: "My Egg.md", description: "Useful ideas" }]);
+        finishAnalysis();
+        await pending;
+      }
+    });
+
+    it("does not add an egg after failed creation or update another tab", async () => {
+      for (const switchTab of [false, true]) {
+        const session = { activeTabId: 1 };
+        let added = false;
+        const action = new SaveAction({ session, ui: { eggsUI: { getNewEggInput: () => ({ name: "Egg" }) } },
+          getTabAction: () => ({ addCreatedEgg: () => { added = true; } }),
+          analysisService: { createEgg: async () => {
+            if (switchTab) session.activeTabId = 2;
+            return { success: switchTab, path: "nutegg/Egg.md" };
+          } },
+        });
+        await action.handleCreateEgg(true);
+        assert.strictEqual(added, false);
+      }
+    });
+
     it("handles save success notification and triggers metrics fetch", () => {
       let successBanner = null;
       let metricsFetched = false;

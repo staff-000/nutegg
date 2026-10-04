@@ -57,12 +57,13 @@ class SaveAction {
       const response = await this.analysisService.createEgg(name, desc);
       if (response?.success) {
         if (session.activeTabId !== pinnedTabId) return;
+        const pageHelper = typeof helper !== "undefined" ? helper : globalThis.helper;
+        const eggFile = response.path ? response.path.split("/").pop() : (pageHelper?.slugify ? pageHelper.slugify(name) : name) + ".md";
+        this.getTabAction()?.addCreatedEgg?.({ fileName: eggFile, description: desc || name });
         ui.eggsUI?.resetCreateForm?.();
         if (inline) {
           await analyzeAction?.handleAnalyze?.(true);
         } else {
-          const pageHelper = typeof helper !== "undefined" ? helper : globalThis.helper;
-          const eggFile = response.path ? response.path.split("/").pop() : (pageHelper?.slugify ? pageHelper.slugify(name) : name) + ".md";
           await analyzeAction?.handleAnalyze?.(true, [eggFile]);
         }
         return;
@@ -198,4 +199,3 @@ _saveActionScope.NutEggActions.SaveAction = SaveAction;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { SaveAction };
 }
-
