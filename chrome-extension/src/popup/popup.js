@@ -286,6 +286,7 @@ async function initPopup() {
 
   try {
     const stored = await settings.loadFromStorage();
+    session.generateKnowledgeEntries = settings.generateKnowledgeEntries !== false;
     if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
       analyzeAction.setAnalysisMode(stored.analysisMode);
     }
@@ -345,6 +346,13 @@ async function initPopup() {
         const newMode = changes.analysisMode.newValue;
         if (newMode === "confirm" || newMode === "fast") {
           analyzeAction.setAnalysisMode(newMode);
+        }
+      }
+      if (changes.generateKnowledgeEntries) {
+        settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
+        if (!session.analysisResult) {
+          session.generateKnowledgeEntries = settings.generateKnowledgeEntries;
+          renderApp();
         }
       }
       if (changes.outputLanguage && changes.outputLanguage.newValue) {

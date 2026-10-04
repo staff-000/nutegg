@@ -27,6 +27,25 @@ const { InteractionAction } = require("../src/popup/action/interaction.js");
 
 describe("Action Handlers", () => {
   describe("TabAction", () => {
+    it("unprocessed tabs inherit the last Knowledge choice while processed tabs retain results and their own choice", async () => {
+      const { SessionState } = require("../src/popup/state/session-state.js");
+      const { TabStateManager } = require("../src/popup/state/tab-state.js");
+      const { SettingsState } = require("../src/popup/state/settings-state.js");
+      const session = new SessionState(), tabs = new TabStateManager(), settings = new SettingsState();
+      settings.setGenerateKnowledgeEntries(false, false);
+      tabs.set(2, { generateKnowledgeEntries: true, extractedContent: { content: "Unprocessed" } });
+      const result = { eggResults: [{ extractedEntries: [{ content: "Keep me" }] }] };
+      tabs.set(3, { generateKnowledgeEntries: true, analysisResult: result });
+      const action = new TabAction({ session, tabStateManager: tabs, settings });
+      await action.restoreFromTabCache(2, tabs.get(2));
+      assert.equal(session.generateKnowledgeEntries, false);
+      await action.restoreFromTabCache(3, tabs.get(3));
+      assert.equal(session.generateKnowledgeEntries, true);
+      assert.equal(session.analysisResult, result);
+      settings.setGenerateKnowledgeEntries(true, false);
+      await action.restoreFromTabCache(2, tabs.get(2));
+      assert.equal(session.generateKnowledgeEntries, true);
+    });
     it("instantiates and fetches eggs via chrome.runtime", async () => {
       const session = { allEggs: [], preSelectedEggs: new Set(), reset: () => {}, nextRefreshSeq: () => 1 };
       let updatedLabel = null;
@@ -467,7 +486,7 @@ describe("Action Handlers", () => {
       assert.deepEqual(modes, [false, true]);
     });
 
-    it("toggles cached entries and Hatch data without losing answers or another tab's preference", () => {
+    it("changes future generation without hiding existing entries or changing another tab's preference", () => {
       const fs = require("node:fs");
       globalThis.NutEggAI = new Function(fs.readFileSync(require.resolve("../dist/ai-core.js"), "utf8") + "\nreturn NutEggAI;")();
       const { SessionState } = require("../src/popup/state/session-state.js");
@@ -481,8 +500,8 @@ describe("Action Handlers", () => {
       tabs.set(2, { generateKnowledgeEntries: true });
       const action = new AnalyzeAction({ session, tabStateManager: tabs });
       action.setGenerateKnowledgeEntries(false);
-      assert.deepEqual(session.analysisResult.newKnowledge, []);
-      assert.deepEqual(session.analysisResult.eggResults[0].extractedEntries, []);
+      assert.equal(session.analysisResult.newKnowledge.length, 2);
+      assert.deepEqual(session.analysisResult.eggResults[0].extractedEntries, egg.extractedEntries);
       assert.equal(session.analysisResult.eggResults[0].keyQuestionAnswers[0].answer, "Evidence");
       assert.equal(session.analysisResult.shouldRead, true);
       assert.equal(tabs.get(1).generateKnowledgeEntries, false);

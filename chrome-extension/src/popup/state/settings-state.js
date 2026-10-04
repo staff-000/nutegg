@@ -20,6 +20,7 @@ class SettingsState {
     this.analysisMode = "fast"; // "fast" | "confirm"
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
+    this.generateKnowledgeEntries = true;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -40,13 +41,14 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage"],
+          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries"],
           resolve
         );
       });
       if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
         this.analysisMode = stored.analysisMode;
       }
+      this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       if (stored?.enabledSections) {
         this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, stored.enabledSections[key] !== false]));
       }
@@ -74,6 +76,13 @@ class SettingsState {
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ outputLanguage: lang });
       }
+    }
+  }
+
+  setGenerateKnowledgeEntries(enabled, persist = true) {
+    this.generateKnowledgeEntries = enabled !== false;
+    if (persist && typeof chrome !== "undefined") {
+      chrome.storage?.local?.set?.({ generateKnowledgeEntries: this.generateKnowledgeEntries });
     }
   }
 

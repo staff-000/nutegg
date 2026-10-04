@@ -1199,9 +1199,9 @@ var NutEggServer = class {
           result = composeEggResults(
             contentAnalysis2,
             capture.selectedEggs.flatMap((egg) => allResults.has(egg) ? [allResults.get(egg)] : []),
-            [...allResults.values()],
-            capture.generateKnowledgeEntries !== false
+            [...allResults.values()]
           );
+          result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
         }
         delete result.stage;
         let nutId2 = capture.nutId;

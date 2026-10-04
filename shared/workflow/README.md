@@ -30,13 +30,13 @@ Knowledge-entry generation follows these rules:
 
 | UI setting | Egg instructions | Result |
 |---|---|---|
-| Off / Analysis only | Any | No knowledge entries |
+| Off / Analysis only | Any | No new knowledge entries; existing entries stay visible |
 | On / Include knowledge | Explicit `no`, or Action Guide opts out | No entries for that egg |
 | On / Include knowledge | `yes` or unspecified | Generate entries according to the egg instructions |
 
-Either an off UI setting or an egg opt-out disables generation; an on setting never overrides an opt-out. The UI defaults to **Include knowledge** and is saved per browser tab and restored with its analysis. Key-question answers and reading recommendations are produced regardless. Generation does not save to egg files: **🐣 Hatch Egg** is the separate save action, enabled when generated entries are available.
+Either an off UI setting or an egg opt-out disables generation; an on setting never overrides an opt-out. The initial default is **Include knowledge**. Your last choice is saved as the default for tabs without analysis, including after reopening the panel. Processed tabs retain their own choice. Key-question answers and reading recommendations are produced regardless. Generation does not save to egg files: **🐣 Hatch Egg** is the separate save action, enabled when generated entries are available.
 
-Cached entries can be hidden and restored without AI. Turning generation on after an answers-only analysis requires Stage 2 for eggs without previously generated entries; eggs that explicitly opt out are not rerun just to request entries.
+Changing the generation setting does not hide or remove entries already generated, and those entries remain available to Hatch. Turning generation on after an answers-only analysis requires Stage 2 for eggs without previously generated entries; eggs that explicitly opt out are not rerun just to request entries.
 
 
 ## Egg structure

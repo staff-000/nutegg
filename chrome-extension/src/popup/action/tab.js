@@ -98,6 +98,9 @@ class TabAction {
     // Restore per-tab enabledSections or inherit last active/opened sections
     const currentTargetId = session.activeTabId;
     const existingTabState = currentTargetId ? tabStateManager.get(currentTargetId) : null;
+    session.generateKnowledgeEntries = (existingTabState?.analysisResult
+      ? existingTabState.generateKnowledgeEntries ?? existingTabState.analysisResult.generateKnowledgeEntries ?? settings?.generateKnowledgeEntries
+      : settings?.generateKnowledgeEntries) !== false;
     const initialSections = existingTabState?.enabledSections
       ? { ...existingTabState.enabledSections }
       : (settings?.enabledSections ? { ...settings.enabledSections } : null);
@@ -148,6 +151,9 @@ class TabAction {
 
       // Restore per-tab enabledSections or inherit last active/opened sections
       const confirmedTabState = targetTabId ? tabStateManager.get(targetTabId) : null;
+      session.generateKnowledgeEntries = (confirmedTabState?.analysisResult
+        ? confirmedTabState.generateKnowledgeEntries ?? confirmedTabState.analysisResult.generateKnowledgeEntries ?? settings?.generateKnowledgeEntries
+        : settings?.generateKnowledgeEntries) !== false;
       const effectiveSections = confirmedTabState?.enabledSections
         ? { ...confirmedTabState.enabledSections }
         : (session.enabledSections || (settings?.enabledSections ? { ...settings.enabledSections } : null));
@@ -397,6 +403,7 @@ class TabAction {
     session.activeTabId = tabId;
     const restored = tabStateManager.restoreTabState(tabId) || cached;
     session.restore(restored);
+    if (!restored.analysisResult) session.generateKnowledgeEntries = settings?.generateKnowledgeEntries !== false;
     ui.bannersUI?.hideAll?.();
     ui.eggsUI?.updateCaptureLabel?.(session.preSelectedEggs);
     ui.captureUI?.setCustomQuestions?.(restored.customQuestions || "");

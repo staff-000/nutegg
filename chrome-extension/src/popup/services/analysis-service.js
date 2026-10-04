@@ -455,7 +455,7 @@ class AnalysisService {
         const core = typeof NutEggAI !== "undefined" ? NutEggAI : globalThis.NutEggAI;
         response = { ...response, ...core.composeEggResults(payload.contentAnalysis,
           targetEggs.flatMap(egg => resultCache.has(egg) ? [resultCache.get(egg)] : []),
-          [...resultCache.values()], generateKnowledgeEntries) };
+          [...resultCache.values()]), generateKnowledgeEntries };
       }
 
       response.stage = "stage2";

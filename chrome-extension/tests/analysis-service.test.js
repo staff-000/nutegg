@@ -322,8 +322,8 @@ describe("AnalysisService", () => {
     const run = () => service.proceedStage2({ session, settings: new SettingsState(), tabStateManager: new TabStateManager(), eggsToCompare: ["A.md"] });
     session.generateKnowledgeEntries = false;
     await run();
-    assert.equal(session.analysisResult.newKnowledge.length, 0);
-    assert.equal(session.analysisResult.eggResults[0].extractedEntries.length, 0);
+    assert.equal(session.analysisResult.newKnowledge.length, 2);
+    assert.equal(session.analysisResult.eggResults[0].extractedEntries.length, 1);
     assert.equal(session.analysisResult.eggResults[0].keyQuestionAnswers.length, 1);
     assert.equal(session.analysisResult.eggAnalysisCache[0].extractedEntries.length, 1);
     session.generateKnowledgeEntries = true;

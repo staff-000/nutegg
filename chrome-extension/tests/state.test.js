@@ -42,6 +42,15 @@ function setupMockStorage(initial = {}) {
 }
 
 describe("SettingsState", () => {
+  it("persists the last Knowledge choice as the default after reopening", async () => {
+    const store = setupMockStorage();
+    const settings = new SettingsState();
+    settings.setGenerateKnowledgeEntries(false);
+    assert.equal(store.generateKnowledgeEntries, false);
+    const restored = new SettingsState();
+    await restored.loadFromStorage();
+    assert.equal(restored.generateKnowledgeEntries, false);
+  });
   beforeEach(() => {
     setupMockStorage();
   });

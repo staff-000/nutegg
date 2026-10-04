@@ -49,15 +49,9 @@ class AnalyzeAction {
 
   setGenerateKnowledgeEntries(enabled) {
     this.session.generateKnowledgeEntries = enabled;
+    this.settings?.setGenerateKnowledgeEntries?.(enabled);
     this.ui.sectionsUI?.updateUI?.(this.session.enabledSections || this.settings?.enabledSections, enabled);
     this.ui.actionsUI?.updateEggAnalysisLabel?.(enabled);
-    const result = this.session.analysisResult;
-    if (result?.eggResults?.length || result?.eggAnalysisCache?.length) {
-      const cached = result.eggAnalysisCache || result.eggResults;
-      const selected = (result.eggResults || []).map(egg => cached.find(item => item.egg === egg.egg) || egg);
-      this.session.analysisResult = { ...result, ...globalThis.NutEggAI.composeEggResults(
-        this.session.stage1ContentAnalysis || result, selected, cached, enabled) };
-    }
     this.persistNavigationState();
     this.renderApp();
   }
