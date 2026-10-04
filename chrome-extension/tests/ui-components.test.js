@@ -357,6 +357,17 @@ describe("Modular UI Components", () => {
     assert.ok(eggs.eggKnowledgeContent);
   });
 
+  it("ActionControlsComponent offers existing analysis independently of AI readiness", () => {
+    const actions = new ActionControlsComponent(createMockRoot());
+    actions.updateAnalyzeState({ hasAnalysisResult: false });
+    assert.equal(actions.viewAnalysisBtn.classList.contains("hidden"), true);
+    actions.updateAnalyzeState({ hasAnalysisResult: true, notReadyReason: "AI offline" });
+    assert.equal(actions.viewAnalysisBtn.classList.contains("hidden"), false);
+    assert.equal(actions.viewAnalysisBtn.disabled, false);
+    actions.updateAnalyzeState({ hasAnalysisResult: false });
+    assert.equal(actions.viewAnalysisBtn.classList.contains("hidden"), true);
+  });
+
   it("ActionControlsComponent encapsulated helper methods work correctly", () => {
     const root = createMockRoot();
     const actions = new ActionControlsComponent(root);
@@ -632,6 +643,15 @@ describe("Modular UI Components", () => {
     assert.strictEqual(results.captureState.classList.contains("hidden"), true);
     assert.strictEqual(results.resultPageTitle.textContent, "My Result");
     assert.ok(results.coreSummaryEl.innerHTML.includes("Key takeaway 1"));
+
+    session.viewingContent = true;
+    results.render(session, settings);
+    assert.equal(results.captureState.classList.contains("hidden"), false);
+    assert.equal(results.resultsState.classList.contains("hidden"), true);
+    assert.ok(session.analysisResult);
+    session.viewingContent = false;
+    results.render(session, settings);
+    assert.equal(results.resultsState.classList.contains("hidden"), false);
 
     results.renderProvenance({ title: "My Result", wordCount: 1200 });
     assert.ok(results.resultPageWordCount.textContent.includes("1,200 words"));

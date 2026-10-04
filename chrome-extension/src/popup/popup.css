@@ -2248,3 +2248,16 @@ body {
 .chrome-actions-card strong {
   color: #0f172a;
 }
+
+.view-analysis-btn {
+  width: 100%;
+  margin-bottom: 8px;
+  background: #fff4e8;
+  border-color: var(--primary-border, #ebd6b7);
+  color: var(--primary, #a8561e);
+}
+
+.view-analysis-btn:hover {
+  background: #fbe7d1;
+  border-color: var(--primary, #a8561e);
+}

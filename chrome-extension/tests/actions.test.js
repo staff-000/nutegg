@@ -444,6 +444,50 @@ describe("Action Handlers", () => {
   });
 
   describe("AnalyzeAction", () => {
+    it("navigates between content and existing analysis without AI calls or losing tab-specific save state", () => {
+      const { SessionState } = require("../src/popup/state/session-state.js");
+      const { TabStateManager } = require("../src/popup/state/tab-state.js");
+      const session = new SessionState();
+      const tabs = new TabStateManager();
+      session.activeTabId = 1;
+      session.analysisResult = { coreSummary: ["Saved answer"] };
+      session.currentNutId = 42;
+      session.eggHatched = true;
+      session.nutCollected = true;
+      session.followUpQa = [{ question: "Q", answer: "A" }];
+      tabs.set(1, { status: "done" });
+      tabs.set(2, { analysisResult: { coreSummary: ["Other tab"] }, viewingContent: false });
+      const original = session.analysisResult;
+      let shown = null;
+      const action = new AnalyzeAction({ session, tabStateManager: tabs,
+        analysisService: { analyze: () => assert.fail("Navigation must not call AI") },
+        renderApp: () => {}, showResultsState: result => { shown = result; },
+      });
+      action.handleBackToContent();
+      assert.equal(session.viewingContent, true);
+      assert.equal(session.analysisResult, original);
+      assert.equal(tabs.get(1).status, "done");
+      assert.equal(tabs.get(1).viewingContent, true);
+      session.restore(tabs.get(2));
+      assert.equal(session.viewingContent, false);
+      assert.deepEqual(session.analysisResult.coreSummary, ["Other tab"]);
+      session.restore(tabs.get(1));
+      assert.equal(session.viewingContent, true);
+      action.handleViewAnalysis();
+      assert.equal(shown, original);
+      assert.equal(session.viewingContent, false);
+      assert.equal(tabs.get(1).viewingContent, false);
+      assert.equal(session.currentNutId, 42);
+      assert.equal(session.eggHatched, true);
+      assert.equal(session.nutCollected, true);
+      assert.deepEqual(session.followUpQa, [{ question: "Q", answer: "A" }]);
+      session.reset();
+      assert.equal(session.viewingContent, false);
+      shown = null;
+      action.handleViewAnalysis();
+      assert.equal(shown, null);
+    });
+
     it("sets analysis mode and updates UI", () => {
       let modeSet = null;
       let appRendered = false;

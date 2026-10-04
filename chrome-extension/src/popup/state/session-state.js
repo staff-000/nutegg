@@ -13,6 +13,7 @@ class SessionState {
     this.currentTabLoading = false;
     this.extractedContent = null;
     this.analysisResult = null;
+    this.viewingContent = false;
     this.currentNutId = null;
     this.isReanalyzing = false;
     /** How the shown result was saved previously: "saved" | "skip" | "analyzed" | null */
@@ -54,6 +55,7 @@ class SessionState {
   reset() {
     this.extractedContent = null;
     this.analysisResult = null;
+    this.viewingContent = false;
     this.currentNutId = null;
     this.isReanalyzing = false;
     this.cachedProcessedSaved = null;
@@ -81,6 +83,7 @@ class SessionState {
     return {
       extractedContent: this.extractedContent,
       analysisResult: this.analysisResult,
+      viewingContent: this.viewingContent,
       captureHistory: [...this.captureHistory],
       currentNutId: this.currentNutId,
       stage1Payload: this.stage1Payload,
@@ -108,6 +111,7 @@ class SessionState {
   restore(restored = {}) {
     this.extractedContent = restored.extractedContent || null;
     this.analysisResult = restored.analysisResult || null;
+    this.viewingContent = Boolean(this.analysisResult && restored.viewingContent);
     this.captureHistory = Array.isArray(restored.captureHistory) ? [...restored.captureHistory] : [];
     this.currentNutId = restored.currentNutId || (this.captureHistory[0]?.nutId ?? null);
     this.stage1Payload = restored.stage1Payload || null;

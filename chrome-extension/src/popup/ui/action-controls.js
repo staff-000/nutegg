@@ -8,6 +8,7 @@ class ActionControlsComponent {
     this.modeFastBtn = root.getElementById("mode-fast-btn");
     this.modeConfirmBtn = root.getElementById("mode-confirm-btn");
     this.analyzeBtn = root.getElementById("analyze-btn");
+    this.viewAnalysisBtn = root.getElementById("view-analysis-btn");
     this.analyzeBtnText = root.getElementById("analyze-btn-text");
     this.reanalyzeBtn = root.getElementById("reanalyze-btn");
     this.reanalyzeRefreshBtn = root.getElementById("reanalyze-refresh-btn");
@@ -46,6 +47,8 @@ class ActionControlsComponent {
     hasContent = false,
     hasAnalysisResult = false,
   } = {}) {
+    if (hasAnalysisResult) this.viewAnalysisBtn?.classList.remove("hidden");
+    else this.viewAnalysisBtn?.classList.add("hidden");
     if (!this.analyzeBtn) return;
 
     if (isAnalyzing) {

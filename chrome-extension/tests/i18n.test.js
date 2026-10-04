@@ -72,6 +72,7 @@ describe("Chrome Extension i18n", () => {
       "analyze",
       "analyzeBtn",
       "analyzeAgain",
+      "viewAnalysis",
       "analyzingEggs",
       "reanalyze",
       "loadAndReanalyze",

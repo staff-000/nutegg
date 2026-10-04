@@ -16,6 +16,32 @@ class AnalyzeAction {
     this.renderApp = deps.renderApp || (() => {});
   }
 
+  handleBackToContent() {
+    if (!this.session?.analysisResult) return;
+    this.session.viewingContent = true;
+    this.ui.bannersUI?.hideAll?.();
+    this.renderApp();
+    this.persistNavigationState();
+  }
+
+  handleViewAnalysis() {
+    const result = this.session?.analysisResult;
+    if (!result) return;
+    this.session.viewingContent = false;
+    const pageHelper = globalThis.NutEggHelpers || globalThis.helper;
+    this.showResultsState(result, pageHelper?.provenanceFromExtraction?.(this.session.extractedContent));
+    this.persistNavigationState();
+  }
+
+  persistNavigationState() {
+    const tabId = this.session?.activeTabId;
+    if (tabId == null || !this.tabStateManager || !this.session?.snapshot) return;
+    this.tabStateManager.set(tabId, {
+      ...(this.tabStateManager.get(tabId) || {}),
+      ...this.session.snapshot(),
+    });
+  }
+
   setAnalysisMode(mode) {
     if (!this.settings) return;
     this.settings.setAnalysisMode(mode);

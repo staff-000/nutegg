@@ -92,7 +92,7 @@ class ResultsViewComponent {
   render(session, settings) {
     if (!session) return;
     const result = session.analysisResult;
-    if (result) {
+    if (result && !session.viewingContent) {
       this.showResults();
       const prov = session.provenance || {
         title: session.extractedContent?.title || result.title,

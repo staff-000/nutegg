@@ -436,7 +436,8 @@ class TabAction {
     } else if (session.analysisResult) {
       session.eggHatched = !!cached.eggHatched;
       session.nutCollected = !!cached.nutCollected;
-      this.showResultsState(session.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
+      if (session.viewingContent) this.renderApp();
+      else this.showResultsState(session.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
       if (cached.warning) {
         ui.bannersUI?.showWarning?.(cached.warning);
       }

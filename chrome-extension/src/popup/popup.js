@@ -144,6 +144,7 @@ function renderApp(sessionState = session, settingsState = settings) {
 function showResultsState(result, provenance = null) {
   const pinnedTabId = session.activeTabId;
   session.analysisResult = result;
+  session.viewingContent = false;
   if (provenance) session.provenance = provenance;
 
   // Populate allEggs from result if session has none
@@ -254,6 +255,7 @@ function showResultsState(result, provenance = null) {
 }
 
 function showCaptureState() {
+  session.viewingContent = false;
   session.analysisResult = null;
   session.cachedProcessedSaved = null;
   session.followUpQa = [];
@@ -314,7 +316,7 @@ async function initPopup() {
       });
     }
     sectionsUI.updateUI(session.enabledSections);
-    if (session.analysisResult) {
+    if (session.analysisResult && !session.viewingContent) {
       showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
     }
     return true;
@@ -357,7 +359,7 @@ async function initPopup() {
         }
         const effectiveSections = session.enabledSections || settings.enabledSections;
         sectionsUI.updateUI(effectiveSections);
-        if (session.analysisResult) {
+        if (session.analysisResult && !session.viewingContent) {
           showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
         }
       }
@@ -393,17 +395,8 @@ async function initPopup() {
   actionsUI.collectNutBtn?.addEventListener("click", () => saveAction.handleSaveRaw());
   actionsUI.discardBtn?.addEventListener("click", () => window.close());
   globalThis.NutEggUI?.initCollapsibleSections?.();
-  actionsUI.backBtn?.addEventListener("click", async () => {
-    showCaptureState();
-    let currentTabUrl = "";
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.url) currentTabUrl = tab.url;
-    } catch {}
-    const pageUrl = currentTabUrl || session.extractedContent?.url;
-    const pageTitle = (pageUrl === currentTabUrl ? null : session.extractedContent?.title) || t("capturedPage");
-    captureUI.setPageInfo({ title: pageTitle, url: pageUrl });
-  });
+  actionsUI.backBtn?.addEventListener("click", () => analyzeAction.handleBackToContent());
+  actionsUI.viewAnalysisBtn?.addEventListener("click", () => analyzeAction.handleViewAnalysis());
 
   actionsUI.reanalyzeBtn?.addEventListener("click", async () => {
     const hasContent = !!(session.extractedContent && session.extractedContent.content);
