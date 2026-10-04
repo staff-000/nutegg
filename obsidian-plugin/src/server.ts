@@ -69,7 +69,6 @@ interface ConfirmRequest {
   matchedEggs?: string[];
   newKnowledge: Array<{
     egg: string;
-    parent?: string;
     content: string;
   }>;
   /** Full analysis result — stored in the dedup cache for replay. */
@@ -133,7 +132,7 @@ export class NutEggServer {
       }
     }
 
-    return rows.map((row) => ({
+    return rows.filter(row => (row.analysisResult as any)?.schemaVersion === 3).map((row) => ({
       nutId: row.id,
       capturedAt: row.savedAt,
       saved:
@@ -690,7 +689,8 @@ export class NutEggServer {
         matchedEggs,
         allEggs: index.map((e) => e.fileName),
         stage: "stage1" as const,
-        shouldRead: false,
+        schemaVersion: 3,
+        shouldRead: null,
         shouldReadReason: "",
         eggResults: [],
         newKnowledge: [],
@@ -722,7 +722,8 @@ export class NutEggServer {
             coreSummary: [],
             isLongForm: false,
             chapterMap: [],
-            shouldRead: false,
+            schemaVersion: 3,
+            shouldRead: null,
             shouldReadReason: "",
             matchedEggs: [],
             eggResults: [],
@@ -741,7 +742,8 @@ export class NutEggServer {
           coreSummary: [],
           isLongForm: false,
           chapterMap: [],
-          shouldRead: false,
+          schemaVersion: 3,
+          shouldRead: null,
           shouldReadReason: "",
           matchedEggs: [],
           eggResults: [],
@@ -770,6 +772,12 @@ export class NutEggServer {
         return;
       }
 
+      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : null;
+      if (prior?.processingResult === "saved") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, fileName: prior.fileName, alreadySaved: true }));
+        return;
+      }
       const hasKnowledge = confirm.newKnowledge && confirm.newKnowledge.length > 0;
       const saved = hasKnowledge ? "saved" as const : "skip" as const;
 
@@ -801,7 +809,11 @@ export class NutEggServer {
           summary,
           matchedEggs: eggNames,
           processingResult: saved,
+          analysis: confirm.analysis,
         });
+      } else if (prior?.fileName && confirm.analysis) {
+        fileName = prior.fileName;
+        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
       }
 
       // Insert new knowledge into the eggs' Unprocessed sections. Entries
@@ -821,20 +833,20 @@ export class NutEggServer {
         );
 
         // Ensure confirmed eggs have language frontmatter set if known from analysis
-        const perEggList = (confirm as any).analysis?.perEggAnalysis;
+        const perEggList = confirm.analysis?.eggResults;
         if (Array.isArray(perEggList)) {
           for (const perEgg of perEggList) {
             if (perEgg?.egg && perEgg?.language) {
               try {
                 const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
                 if (egg && !egg.language) {
-                  const file = this.plugin.app.vault.getAbstractFileByPath(egg.fileName);
+                  const file = this.plugin.app.vault.getMarkdownFiles().find(file => file.path === egg.fileName);
                   if (file) {
-                    const content = await this.plugin.app.vault.read(file as any);
-                    const updated = insertEggLanguage(content, perEgg.language);
-                    if (updated !== content) {
-                      await this.plugin.app.vault.modify(file as any, updated);
-                    }
+                    const vault = this.plugin.app.vault;
+                    const language = perEgg.language;
+                    const transform = (content: string) => insertEggLanguage(content, language);
+                    if (vault.process) await vault.process(file, transform);
+                    else await vault.modify(file, transform(await vault.read(file)));
                   }
                 }
               } catch (err) {
@@ -854,6 +866,7 @@ export class NutEggServer {
       if (targetId != null) {
         db?.updateNut(targetId, {
           processingResult: saved,
+          ...(confirm.analysis ? { analysisResult: confirm.analysis } : {}),
           ...(fileName ? { fileName } : {}),
         });
       } else {
@@ -894,6 +907,10 @@ export class NutEggServer {
           merged: mergedEggs,
         })
       );
+      if (hasKnowledge) setTimeout(() => {
+        for (const egg of eggNames) void this.plugin.aiProcessor?.maybeMergeEgg?.(egg)
+          ?.catch(err => console.warn(`[NutEgg] Background merge failed for ${egg}`, err));
+      }, 0);
     } catch (err) {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });

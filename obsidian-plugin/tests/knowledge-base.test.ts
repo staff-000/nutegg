@@ -76,6 +76,26 @@ describe("KnowledgeBase.saveRaw", () => {
     assert.ok(content.includes('source_url: "https://x.com/?q=\\"a\\\\b\\""'));
   });
 
+  it("saves numeric platform metadata from Bilibili and other Chinese extractors", async () => {
+    const { kb, files } = makeKb();
+    const fileName = await kb.saveRaw({
+      ...base,
+      sourceType: "bilibili",
+      metadata: {
+        platform: "bilibili", author: "视频作者", video_id: "BV1eVgA64EbW",
+        cid: 117091965343752, part: 1, time_estimate_minutes: 12,
+        image_count: 0, answer_count: 2, has_subtitles: false,
+      },
+    });
+    const note = files.get(fileName)!;
+    assert.ok(note.includes('cid: "117091965343752"'));
+    assert.ok(note.includes('part: "1"'));
+    assert.ok(note.includes('image_count: "0"'));
+    assert.ok(note.includes('has_subtitles: "false"'));
+    assert.ok(note.includes('answer_count: "2"'));
+    assert.ok(note.includes('time_estimate_minutes: 12'));
+  });
+
   it("passthrough metadata not covered by known keys", async () => {
     const { kb, files } = makeKb();
     const fileName = await kb.saveRaw({ ...base });
@@ -158,5 +178,21 @@ describe("KnowledgeBase.appendKnowledge", () => {
     const a = files.get("a.md")!;
     assert.ok(!a.includes("_author:"));
     assert.ok(a.includes("_source: [Title](https://example.com/src)_"));
+  });
+});
+
+
+describe("KnowledgeBase preserves original analysis", () => {
+  it("stores and replaces results without changing captured content", async () => {
+    const { kb, files } = makeKb();
+    const original = { schemaVersion: 3, eggResults: [{ egg: "egg.md", extractedEntries: [{ content: "Distinct caveat", sources: [{ ref: "10:00" }] }] }] };
+    const fileName = await kb.saveRaw({ url: "https://example.com", title: "Original", content: "Source text", sourceType: "article", processingResult: "unprocessed", analysis: original });
+    assert.ok(files.get(fileName)!.includes(JSON.stringify(original, null, 2)));
+    const updated = { ...original, readAction: "skip" };
+    await kb.updateRawAnalysis(fileName, updated);
+    const note = files.get(fileName)!;
+    assert.ok(note.includes("Source text"));
+    assert.ok(note.includes(JSON.stringify(updated, null, 2)));
+    assert.equal(note.split("# NutEgg Analysis").length, 2);
   });
 });

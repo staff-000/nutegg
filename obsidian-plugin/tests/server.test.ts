@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { NutEggServer } from "../src/server";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
+import { KnowledgeBase } from "../src/knowledge-base";
+import { EggParser } from "../src/egg-parser";
 
 function makeServer(overrides: any = {}) {
   const plugin = makeFakePlugin(overrides);
@@ -79,19 +81,19 @@ describe("NutEggServer.getCaptureHistory", () => {
           id: 7,
           savedAt: "2026-08-16T10:00:00Z",
           processingResult: "saved",
-          analysisResult: { titleVerdict: "x" },
+          analysisResult: { schemaVersion: 3, titleVerdict: "x" },
         },
         {
           id: 3,
           savedAt: "2026-08-15T09:00:00Z",
           processingResult: "analyzed",
-          analysisResult: null,
+          analysisResult: { schemaVersion: 3 },
         },
         {
           id: 1,
           savedAt: "2026-08-14T08:00:00Z",
           processingResult: "skip",
-          analysisResult: null,
+          analysisResult: { schemaVersion: 3 },
         },
       ],
     };
@@ -102,7 +104,7 @@ describe("NutEggServer.getCaptureHistory", () => {
     assert.equal(history[0].saved, "saved");
     assert.equal(history[1].saved, "analyzed");
     assert.equal(history[2].saved, "skip");
-    assert.equal(history[1].result, null);
+    assert.equal(history[1].result.schemaVersion, 3);
   });
 
   it("returns empty when the DB is unavailable", () => {
@@ -303,6 +305,29 @@ describe("NutEggServer.handleConfirm", () => {
     skipRaw: true,
   };
 
+  it("hatches Bilibili captures with numeric metadata through the real save path", async () => {
+    const { vault, files } = makeFakeVault({ "nutegg/ai_ml.md": "# Knowledge\n\n# Unprocessed\n" });
+    let saved: any;
+    const plugin = makeFakePlugin({ vault,
+      db: { getNutById: () => null, getNutByUrl: () => null, insertNut: (row: any) => { saved = row; } },
+    });
+    plugin.eggParser = new EggParser(plugin as any);
+    plugin.knowledgeBase = new KnowledgeBase(plugin as any);
+    const s = new NutEggServer(plugin as any, 27123) as any;
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({
+      ...baseConfirm, skipRaw: false, sourceType: "bilibili",
+      url: "https://www.bilibili.com/video/BV1eVgA64EbW", metadata: { author: "作者", cid: 117091965343752, part: 1, time_estimate_minutes: 12 },
+      newKnowledge: [{ egg: "nutegg/ai_ml.md", content: "- Useful answer" }],
+      analysis: { schemaVersion: 3, eggResults: [] },
+    })), res);
+    assert.equal(res.statusCode, 200, res.body);
+    assert.equal(JSON.parse(res.body).success, true);
+    assert.equal(saved.processingResult, "saved");
+    assert.ok(files.get(saved.fileName)!.includes('cid: "117091965343752"'));
+    assert.ok(files.get("nutegg/ai_ml.md")!.includes("Useful answer"));
+  });
+
   it("appends entries with author/source upon confirmation", async () => {
     let appended: any = null;
     const s = makeServer({
@@ -330,6 +355,35 @@ describe("NutEggServer.handleConfirm", () => {
     assert.equal(appended[1], "Article Title");
     assert.equal(appended[2], "https://x.com/a");
     assert.equal(appended[3], "Jane Doe");
+  });
+
+  it("archives Stage 2 originals on an already-collected nut and schedules merge after acknowledgement", async () => {
+    const events: string[] = [];
+    const analysis = { schemaVersion: 3, readAction: "skip", eggResults: [{ egg: "egg.md", language: "English" }] };
+    const s = makeServer({
+      db: { getNutById: () => ({ id: 42, fileName: "nutegg/_raw/original.md", processingResult: "unprocessed" }), updateNut: () => events.push("db") },
+      knowledgeBase: {
+        updateRawAnalysis: async (path: string, value: any) => { assert.equal(path, "nutegg/_raw/original.md"); assert.deepEqual(value, analysis); events.push("archive"); },
+        appendKnowledge: async () => { events.push("append"); },
+      },
+      eggParser: { readEgg: async () => null },
+      aiProcessor: { maybeMergeEgg: async () => { events.push("merge"); return null; } },
+    });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, analysis, newKnowledge: [{ egg: "egg.md", content: "Useful answer" }] })), res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(events, ["archive", "append", "db"]);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    assert.deepEqual(events, ["archive", "append", "db", "merge"]);
+  });
+
+  it("does not append a second Hatch for a saved result", async () => {
+    const s = makeServer({ db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md" }) },
+      knowledgeBase: { appendKnowledge: async () => { assert.fail("duplicate append"); } } });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "one" }] })), res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(res.body).alreadySaved, true);
   });
 
   it("resolves the author from channel metadata when author is absent", async () => {
@@ -489,7 +543,7 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     assert.equal(routedWithContent.includes("Full content text here"), false);
   });
 
-  it("stage 2: compares knowledge for confirmed eggs", async () => {
+  it("stage 2: analyzes instructions for confirmed eggs", async () => {
     let analyzeEggsCalledWith: any = null;
     const s = makeServer({
       indexReader: {

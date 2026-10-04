@@ -10,7 +10,6 @@ import contentTaskDefaultTpl from "../workflow/content-task-default.md";
 import mergeUnprocessedTpl from "../workflow/merge-unprocessed.md";
 import aggregateContentTpl from "../workflow/aggregate-content.md";
 import aggregateEggTpl from "../workflow/aggregate-egg.md";
-import eggCompareTpl from "../workflow/egg-compare.md";
 import localizeEggTpl from "../workflow/localize-egg.md";
 import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
 
@@ -19,8 +18,6 @@ export const PROMPTS = {
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: eggAnalysisTpl,
-  /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
-  eggCompare: eggCompareTpl,
   /** Follow-up questions after the initial analysis. */
   followUp: followUpTpl,
   /** Egg routing — match content to egg files from _index.md. */
@@ -31,7 +28,7 @@ export const PROMPTS = {
   mergeUnprocessed: mergeUnprocessedTpl,
   /** Combine per-part results into one result for long content. */
   aggregateContent: aggregateContentTpl,
-  /** Per-egg verdict + key questions for long content (after per-part delta). */
+  /** Per-egg recommendation + key questions for long content (compact chunk drafts). */
   aggregateEgg: aggregateEggTpl,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localizeEggTpl,

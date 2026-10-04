@@ -42,24 +42,19 @@ class VerdictComponent {
     if (!this.verdictSection) return;
     this.verdictSection.classList.remove("hidden");
 
-    if (this.verdictIcon && this.verdictText && this.verdictBadge) {
-      if (result.shouldRead) {
-        this.verdictIcon.textContent = "✅";
-        this.verdictText.textContent = t("verdictWorthReading");
-        this.verdictBadge.className = "verdict-badge verdict-yes";
-      } else {
-        this.verdictIcon.textContent = "⏭️";
-        this.verdictText.textContent = t("verdictSkipIt");
-        this.verdictBadge.className = "verdict-badge verdict-no";
-      }
-    }
-
+    const actions = { full: ["📖", "readingFull"], highlights: ["⏱️", "readingHighlights"], summary: ["✅", "readingSummary"], skip: ["⏭️", "readingSkip"], uncertain: ["❔", "readingUncertain"] };
+    const [icon, label] = actions[result.readAction] || actions.uncertain;
+    if (this.verdictIcon) this.verdictIcon.textContent = icon;
+    if (this.verdictText) this.verdictText.textContent = t(label);
+    if (this.verdictBadge) this.verdictBadge.className = `verdict-badge verdict-${result.readAction || "uncertain"}`;
     if (this.verdictReason) {
-      this.verdictReason.textContent = result.shouldReadReason || "";
+      const sources = globalThis.NutEggUI?.renderQaSources || (() => "");
+      const escape = globalThis.NutEggHelpers?.escapeHtml || (text => String(text).replace(/[<>&"']/g, ""));
+      this.verdictReason.innerHTML = escape(result.shouldReadReason || "") + sources(result.readingSources);
     }
   }
 
-  setComparing(count = 0) {
+  setAnalyzing(count = 0) {
     if (!this.verdictSection && (this.root || typeof document !== "undefined")) {
       this.bindElements(this.root || document);
     }
@@ -67,9 +62,9 @@ class VerdictComponent {
     this.verdictSection.classList.remove("hidden");
     if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
     if (this.verdictIcon) this.verdictIcon.textContent = "⏳";
-    if (this.verdictText) this.verdictText.textContent = t("comparingKnowledge");
+    if (this.verdictText) this.verdictText.textContent = t("analyzingEggs");
     if (this.verdictReason) {
-      this.verdictReason.textContent = count > 0 ? t("comparingAgainstEggs", { count }) : "";
+      this.verdictReason.textContent = count > 0 ? t("analyzingEggsCount", { count }) : "";
     }
   }
 
@@ -114,7 +109,7 @@ class VerdictComponent {
       return;
     }
 
-    if (result.shouldRead !== undefined) {
+    if (result.readAction) {
       this.renderDecision(result);
     } else {
       this.verdictSection?.classList.add("hidden");

@@ -9,15 +9,18 @@ language: "English"
 > **Scope:** This file captures high-signal financial data, macro-economic shifts, asset allocation strategies, and deep fundamental analyses of target equities or protocols.
 >
 > **Action Guide:**
-> 1. Novel Delta: Extract only genuinely new, substantive insights or ideas not already captured in the existing knowledge files. State "None" if the content is entirely redundant.
-> 2. Decide: should the user spend time reading this fully? Consider the egg's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
+> 1. Extract substantive results according to this egg’s scope and formatting rules; preserve source evidence and qualifications.
+> 2. Answer Key Questions and recommend full reading, highlights, summary, skip, or uncertain using the two preference lists.
 >
 > **Key Questions:**
 > 1. Does this detail a structural shift in macro-economic policy (e.g., interest rates, inflation metrics, geopolitical supply chain impacts)?
 > 2. Is there a new, data-backed fundamental analysis or earnings breakdown for a company on my watchlist?
 > 3. Does this introduce a quantifiable framework for risk management or portfolio rebalancing?
 > 
-> **Rejection Criteria:**
+> **Worth Reading If:**
+> - Detailed evidence, examples, tradeoffs, or explanations directly address this egg’s questions.
+>
+> **Skip If:**
 > - Reject purely speculative price predictions or "day-trading" setups.
 > - Reject emotionally driven market commentary, panic narratives, or FOMO-inducing content.
 > - Reject basic financial definitions (e.g., "What is an ETF?").
@@ -31,10 +34,9 @@ language: "English"
 >   * [opinion] — a subjective market thesis, recommendation, or viewpoint from the author
 >   * [fact] — a verifiable data point, earnings figure, statistic, or historical event
 >   * [example] — a concrete case study, trade, or real-world market event that illustrates an idea
-> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
+> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight. Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For investments, examples are specific data points, numbers, earnings figures, or market events. Author and source are appended automatically.
 > - Structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete entry — the list's title as the Concept and EVERY item as an indented sub-bullet, in the source's own order. A partial list is worse than no entry.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
-> - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
 # Knowledge
 

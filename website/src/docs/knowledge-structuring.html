@@ -116,7 +116,9 @@ last_updated: "2026-09-10"
 > **Key Questions:**
 > 1. How are agent memory loops bounded to prevent context window overflow?
 > 2. What coordination mechanism is used between subagents?
-> **Rejection Criteria:**
+> **Worth Reading If:**
+&gt; - Practical examples and substantive explanations.
+&gt; **Skip If:**
 > - Ignore basic beginner tutorials or high-level sales pitches without technical substance.
 > - Discard speculative claims lacking empirical benchmarks or code evidence.
 > **Formatting Rules:**
@@ -134,7 +136,7 @@ last_updated: "2026-09-10"
 
       <h3>2. How to Write Egg Instructions</h3>
       <p>
-        The <code>&gt; [!abstract]- Instructions:</code> callout contains five specialized fields. Each one guides a specific stage of the AI pipeline:
+        The <code>&gt; [!abstract]- Instructions:</code> callout contains six specialized fields. Each one guides a specific stage of the AI pipeline:
       </p>
 
       <table>
@@ -154,7 +156,7 @@ last_updated: "2026-09-10"
           <tr>
             <td><code>**Action Guide:**</code></td>
             <td>1–5 step instructions for how the AI summarizes and evaluates content (e.g. asking for specific perspectives, depth, or tradeoffs). Falls back to default guide if omitted.</td>
-            <td>Injected into <code>egg-analysis.md</code> and <code>egg-compare.md</code> (Stage 2).</td>
+            <td>Injected into <code>egg-analysis.md</code> (Stage 2).</td>
           </tr>
           <tr>
             <td><code>**Key Questions:**</code></td>
@@ -162,9 +164,9 @@ last_updated: "2026-09-10"
             <td>Injected into <code>egg-analysis.md</code> (Stage 2). Answered in the Chrome extension popup and saved in your raw capture notes.</td>
           </tr>
           <tr>
-            <td><code>**Rejection Criteria:**</code></td>
-            <td>Bulleted list of low-signal filters (e.g. <em>"Ignore beginner tutorials", "Reject speculative price talk"</em>).</td>
-            <td>Injected into <code>egg-compare.md</code> (Stage 2). If matched, flags <code>rejected: true</code>, sets <code>readVerdict: false</code>, and provides a clear rejection reason.</td>
+            <td><code>**Worth Reading If:** / **Skip If:**</code></td>
+            <td>Two preference lists describing when the original deserves your time and when the summary is sufficient.</td>
+            <td>Guide the Stage 2 reading action: full, highlights, summary, skip, or uncertain. They never reject entries during merge.</td>
           </tr>
           <tr>
             <td><code>**Formatting Rules:**</code></td>
@@ -181,11 +183,11 @@ last_updated: "2026-09-10"
       <ul>
         <li>
           <strong><code># Knowledge</code> (Curated Tree):</strong>
-          Structured with markdown headings (<code>##</code>, <code>###</code>) and nested bullet points. During Stage 2, this entire tree is fed into <code>egg-compare.md</code>. The AI diffs freshly extracted candidates against your existing notes to isolate <strong>novel delta</strong> and automatically discard duplicate or already-known facts.
+          Structured with markdown headings and nested bullet points. Only merge reads this tree, consolidating equivalent claims while preserving distinct examples, caveats, disagreements, and sources. Stage 2 follows instructions without comparing against the tree.
         </li>
         <li>
           <strong><code># Unprocessed</code> (Staging Queue):</strong>
-          When you click <strong>🥚 Hatch Egg</strong> in the browser, confirmed novel entries are safely appended to <code># Unprocessed</code> rather than directly touching your curated hierarchy.
+          When you click <strong>🥚 Hatch Egg</strong> in the browser, approved entries and supported answers are safely appended to <code># Unprocessed</code> rather than directly touching your curated hierarchy.
         </li>
       </ul>
 
@@ -198,7 +200,7 @@ last_updated: "2026-09-10"
           │
 Stage 1   ▼   _index.md (Topic routing guide)
 ─────────────────────────────────────────────────────────────
-• Uses egg Action Guide (or action-guide-default.md)
+• Uses content-task-default.md
 • Generates Title Verdict, 3-Bullet Summary, Chapter Map
 • egg-routing.md matches target eggs via Stage 1 summary
           │
@@ -209,11 +211,11 @@ Stage 2   ▼   Target Egg File (nutegg/*.md)
 ─────────────────────────────────────────────────────────────
 • Scope, Key Questions, Formatting Rules ──► egg-analysis.md
   (Extracts candidate knowledge entries and answers questions)
-• Rejection Criteria, # Knowledge Tree ──► egg-compare.md
-  (Diffs candidates against existing tree, drops redundant entries)
+• Worth Reading If / Skip If guide the reading recommendation
+  (Full, highlights, summary, skip, or uncertain; no tree comparison)
           │
           ▼
-Hatch Egg: Confirmed novel entries appended to # Unprocessed
+Hatch Egg: Approved entries and supported answers appended to # Unprocessed
           │
 Merge Cycle (20+ entries or manual button)
 ─────────────────────────────────────────────────────────────

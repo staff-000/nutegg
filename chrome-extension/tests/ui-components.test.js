@@ -274,9 +274,9 @@ describe("Modular UI Components", () => {
     assert.strictEqual(verdict.verdictAnswer.textContent, "Yes, it's worth it");
     assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
 
-    verdict.renderDecision({ shouldRead: true, shouldReadReason: "Highly relevant" });
-    assert.strictEqual(verdict.verdictIcon.textContent, "✅");
-    assert.strictEqual(verdict.verdictReason.textContent, "Highly relevant");
+    verdict.renderDecision({ readAction: "full", shouldRead: true, shouldReadReason: "Highly relevant" });
+    assert.strictEqual(verdict.verdictIcon.textContent, "📖");
+    assert.strictEqual(verdict.verdictReason.innerHTML, "Highly relevant");
   });
 
   it("ActionControlsComponent handles fast/confirm mode and buttons", () => {
@@ -514,11 +514,11 @@ describe("Modular UI Components", () => {
     assert.strictEqual(results.resultPageInfo.classList.contains("hidden"), true);
   });
 
-  it("VerdictComponent show, hide, reset, and setComparing work correctly", () => {
+  it("VerdictComponent show, hide, reset, and setAnalyzing work correctly", () => {
     const root = createMockRoot();
     const verdict = new VerdictComponent(root);
 
-    verdict.setComparing(3);
+    verdict.setAnalyzing(3);
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
     assert.strictEqual(verdict.verdictIcon.textContent, "⏳");
 
@@ -656,7 +656,7 @@ describe("Modular UI Components", () => {
     // Chrome mode: decision verdict hidden, but title verdict shown!
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: true });
-    session.analysisResult = { titleVerdict: "Direct answer in Chrome AI", shouldRead: true };
+    session.analysisResult = { titleVerdict: "Direct answer in Chrome AI", readAction: "full", shouldRead: true };
     verdict.render(session, settings);
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
     assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
@@ -678,13 +678,13 @@ describe("Modular UI Components", () => {
     settings.enabledSections.titleVerdict = true;
 
     // Obsidian mode - Stage 2: both decision verdict and title verdict shown!
-    session.analysisResult = { stage: "stage2", titleVerdict: "Final verdict", shouldRead: true, shouldReadReason: "Must read" };
+    session.analysisResult = { stage: "stage2", titleVerdict: "Final verdict", readAction: "full", shouldRead: true, shouldReadReason: "Must read" };
     verdict.render(session, settings);
     assert.strictEqual(verdict.titleVerdictSection.classList.contains("hidden"), false);
     assert.strictEqual(verdict.verdictAnswer.textContent, "Final verdict");
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), false);
-    assert.strictEqual(verdict.verdictIcon.textContent, "✅");
-    assert.strictEqual(verdict.verdictReason.textContent, "Must read");
+    assert.strictEqual(verdict.verdictIcon.textContent, "📖");
+    assert.strictEqual(verdict.verdictReason.innerHTML, "Must read");
   });
 
   it("ActionControlsComponent.render updates buttons, modes, and analyze state", () => {
@@ -718,21 +718,13 @@ describe("Modular UI Components", () => {
     eggs.render(session, settings);
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
 
-    // Obsidian mode, all eggs rejected in Stage 2 (user manually selected eggs)
-    session.analysisResult = {
-      stage: "stage2",
-      matchedEggs: ["Egg1.md", "Egg2.md"],
-      eggResults: [
-        { egg: "Egg1.md", rejected: true, rejectReason: "Out of scope A", novelDelta: [] },
-        { egg: "Egg2.md", rejected: true, rejectReason: "Out of scope B", novelDelta: [] },
-      ],
-    };
+    // A skip recommendation leaves useful results visible and matched.
+    session.analysisResult = { matchedEggs: ["a.md"], eggResults: [{ egg: "a.md", readAction: "skip", readVerdict: false,
+      extractedEntries: [{ content: "Useful answer" }], keyQuestionAnswers: [] }] };
     eggs.render(session, settings);
-    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
-    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes("No egg matches this content"));
-    assert.strictEqual(eggs.eggsToggleLabel.textContent, "— none matched");
-    assert.strictEqual(eggs.eggKnowledgeHint.textContent, "(0 matched)");
+    assert.ok(eggs.eggKnowledgeContent.innerHTML.includes("Useful answer"));
 
     // Chrome mode: no eggs or knowledge shown
     settings.setServerStatus({ online: false });
@@ -747,7 +739,7 @@ describe("Modular UI Components", () => {
     session.analysisResult = {
       stage: "stage2",
       matchedEggs: ["Egg1.md"],
-      eggResults: [{ egg: "Egg1.md", novelDelta: ["Knowledge 1"] }],
+      eggResults: [{ egg: "Egg1.md", extractedEntries: ["Knowledge 1"] }],
     };
     eggs.render(session, settings);
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
@@ -804,7 +796,7 @@ describe("Modular UI Components", () => {
     // 1. Calling renderKnowledge with an options object (the previous bug pattern)
     assert.doesNotThrow(() => {
       eggs.renderKnowledge({
-        eggResults: [{ egg: "test.md", novelDelta: ["fact 1"] }],
+        eggResults: [{ egg: "test.md", extractedEntries: ["fact 1"] }],
         activeEggTab: "test.md",
       });
     });
@@ -827,7 +819,7 @@ describe("Modular UI Components", () => {
 
     // 4. Calling renderKnowledge with array directly
     assert.doesNotThrow(() => {
-      eggs.renderKnowledge([{ egg: "direct.md", novelDelta: [] }]);
+      eggs.renderKnowledge([{ egg: "direct.md", extractedEntries: [] }]);
     });
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
   });
@@ -837,8 +829,8 @@ describe("Modular UI Components", () => {
     const eggs = new EggsComponent(root);
 
     const eggResults = [
-      { egg: "egg1.md", novelDelta: [{ content: "delta 1" }] },
-      { egg: "egg2.md", novelDelta: [{ content: "delta 2" }] },
+      { egg: "egg1.md", extractedEntries: [{ content: "delta 1" }] },
+      { egg: "egg2.md", extractedEntries: [{ content: "delta 2" }] },
     ];
 
     function createTabButton(tab) {

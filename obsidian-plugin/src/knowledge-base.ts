@@ -20,8 +20,9 @@ export class KnowledgeBase {
     title: string;
     content: string;
     sourceType: string;
-    metadata?: Record<string, string>;
+    metadata?: Record<string, unknown>;
     summary?: string;
+    analysis?: unknown;
     matchedEggs?: string[];
     processingResult: "saved" | "skip" | "unprocessed";
   }): Promise<string> {
@@ -105,7 +106,7 @@ export class KnowledgeBase {
     if (capture.metadata) {
       const passthroughKeys = ["published", "author", "channel", "handle", "time_estimate_minutes"];
       for (const [key, value] of Object.entries(capture.metadata)) {
-        if (!passthroughKeys.includes(key) && value) {
+        if (!passthroughKeys.includes(key) && value !== null && value !== undefined && value !== "") {
           frontmatterLines.push(`${key}: "${this.escapeYaml(value)}"`);
         }
       }
@@ -119,10 +120,29 @@ export class KnowledgeBase {
     frontmatterLines.push("");
     frontmatterLines.push(capture.content);
 
+    if (capture.analysis) {
+      frontmatterLines.push("", "# NutEgg Analysis", "", "```json", JSON.stringify(capture.analysis, null, 2), "```");
+    }
     const noteContent = frontmatterLines.join("\n");
     await this.plugin.app.vault.create(fileName, noteContent);
     console.log(`[NutEgg] Saved raw: ${fileName}`);
     return fileName;
+  }
+
+  /** Keep the original per-egg results when an already-collected nut is hatched. */
+  async updateRawAnalysis(fileName: string, analysis: unknown): Promise<void> {
+    const vault = this.plugin.app.vault;
+    if (!(await vault.adapter.exists(fileName))) throw new Error(`Nut not found: ${fileName}`);
+    const file = vault.getMarkdownFiles().find((file) => file.path === fileName);
+    if (!file) throw new Error(`Nut not found: ${fileName}`);
+    const transform = (content: string) => {
+      const marker = "\n# NutEgg Analysis\n\n```json\n";
+      const offset = content.lastIndexOf(marker);
+      const original = offset < 0 ? content : content.slice(0, offset);
+      return `${original}${marker}${JSON.stringify(analysis, null, 2)}\n\`\`\`\n`;
+    };
+    if (vault.process) await vault.process(file, transform);
+    else await vault.modify(file, transform(await vault.read(file)));
   }
 
   /**
@@ -133,7 +153,6 @@ export class KnowledgeBase {
   async appendKnowledge(
     newKnowledge: Array<{
       egg: string;
-      parent?: string;
       content: string;
     }>,
     sourceTitle: string,
@@ -153,8 +172,11 @@ export class KnowledgeBase {
     }
   }
 
-  private escapeYaml(value: string): string {
-    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  private escapeYaml(value: unknown): string {
+    const text = typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value ?? "");
+    return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
 
   private async ensureFolder(folder: string): Promise<void> {
@@ -169,8 +191,8 @@ export class KnowledgeBase {
     }
   }
 
-  private sanitizeFileName(name: string): string {
-    return name
+  private sanitizeFileName(name: unknown): string {
+    return String(name ?? "")
       .replace(/[\\/:*?"<>|#^\[\]]/g, "")
       .replace(/\s+/g, "-")
       .substring(0, 80);

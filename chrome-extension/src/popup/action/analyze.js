@@ -229,11 +229,11 @@ class AnalyzeAction {
             this.showResultsState(response, pageHelper?.provenanceFromExtraction?.(cta));
             if (ir) {
               ui.actionsUI?.showProcessedNote?.(t("comparingAgainstSelected"));
-              ui.actionsUI?.setReanalyzingState?.(t("comparingKnowledge"));
+              ui.actionsUI?.setReanalyzingState?.(t("analyzingEggs"));
             }
             if (eggsForStage2.length > 0) {
               if (!ir) {
-                ui.verdictUI?.setComparing?.(eggsForStage2.length);
+                ui.verdictUI?.setAnalyzing?.(eggsForStage2.length);
               } else {
                 ui.verdictUI?.hide?.();
               }

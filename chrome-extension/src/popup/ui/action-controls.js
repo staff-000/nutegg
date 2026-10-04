@@ -351,7 +351,7 @@ class ActionControlsComponent {
         }
       }
 
-      const hasDelta = (result?.newKnowledge?.length || 0) > 0 || (result?.novelDelta?.length || 0) > 0;
+      const hasDelta = (result?.newKnowledge?.length || 0) > 0;
       this.updateActionButtons({
         isChromeMode: isChrome,
         isStage1,

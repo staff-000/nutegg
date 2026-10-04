@@ -427,11 +427,11 @@ class TabAction {
         this.showResultsState(session.analysisResult, pageHelper?.provenanceFromExtraction?.(session.extractedContent));
       }
       ui.actionsUI?.updateStage1ProceedBtn?.({ isProceeding: true, autoSave: true });
-      ui.actionsUI?.setReanalyzingState?.(t("comparingKnowledge"));
+      ui.actionsUI?.setReanalyzingState?.(t("analyzingEggs"));
       ui.actionsUI?.setHistorySelectDisabled?.(true);
       ui.actionsUI?.setAnalyzeButtonLoading?.(true, t("analyzing"));
       if (settings?.analysisMode === "fast") {
-        ui.verdictUI?.setComparing?.();
+        ui.verdictUI?.setAnalyzing?.();
       }
     } else if (session.analysisResult) {
       session.eggHatched = !!cached.eggHatched;

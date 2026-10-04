@@ -10,14 +10,14 @@ You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed sec
 {{unprocessed}}
 
 ## Task
-1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches — the user may have edited them by hand.
-2. Deduplicate the entries against EACH OTHER first, comparing their Concepts: entries with the same or equivalent concept are ONE entry, even when the explanations differ — keep the clearest explanation, fold the others' examples into it, and keep every distinct _author/_source line. A near-duplicate must never appear twice in the merged tree — dropping redundant rewordings is more valuable than preserving slight wording differences.
-3. Structured lists (entries holding a numbered enumeration / framework): entries with the same title are fragments of ONE list — union their items (drop exact-duplicate items), keep the source's item order. Never truncate a list: every item the source enumerated must survive the merge.
-4. Nest each deduplicated entry under the most relevant existing concept as sub-bullets.
-5. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
-6. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
-7. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
-8. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
+1. Preserve existing user-authored branches and structure. Do not delete or rename them.
+2. Consolidate genuinely equivalent claims across pending entries and the tree. Retain ALL distinct author/source lines, examples, caveats and qualifications. A familiar concept is not a reason to discard its new substantive details or attribution.
+3. Assemble supported complementary fragments (an early partial mention and a later explanation) into a complete entry. Do not invent missing relationships or items.
+4. For frameworks/lists from the same source/version, assemble fragments, preserve source order and every distinct item. Equal titles alone do not establish equivalence: different speakers, versions, dates or contexts remain distinguishable.
+5. Preserve disagreements, contradictions and counterexamples explicitly with their sources. Never silently choose a winner or average incompatible claims into agreement.
+6. Place consolidated entries under relevant parents; create minimal new branches only when needed. Unresolved fragments remain Unprocessed.
+7. Reading preferences/recommendations are NEVER merge rejection criteria.
+8. Return the COMPLETE tree and remaining Unprocessed. Never truncate either to fit the output.
 
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):

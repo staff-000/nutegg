@@ -42,10 +42,9 @@ import {
   type MindMapNode,
   type SourceRef,
   type MergeResult,
-  type NewKnowledgeItem,
-  type NovelDelta,
+  type EggSaveEntry,
+  type ReadAction,
   type QuestionScope,
-  type RedundantEntry,
   type WorkflowPromptKey,
 } from "./types";
 
@@ -63,11 +62,9 @@ export type {
   KeyAnswer,
   MindMapNode,
   SourceRef,
-  NovelDelta,
   ExtractedKnowledgeEntry,
-  RedundantEntry,
   EggAnalysis,
-  NewKnowledgeItem,
+  EggSaveEntry,
   MergeResult,
   AnalysisResult,
   EggContent,
@@ -288,7 +285,7 @@ export const MERGE_THRESHOLD = 20;
 /**
  * Two-phase AI pipeline driven by the eggs' Action Guides:
  *   Phase 1 — content analysis (title verdict, core summary, chapter map).
- *   Phase 2 — per-egg analysis (key questions, novel delta, reject, verdict).
+ *   Phase 2 — per-egg analysis (key answers, extracted entries, reading recommendation).
  * With exactly one matched egg, both phases are merged into a single call.
  *
  * All prompt text lives in shared/workflow/*.md (and user-editable templates in nutegg/_workflow/).
@@ -393,7 +390,7 @@ export class AIProcessor {
         : `${lang} (translate into ${lang} even if the source content is in a different language)`
       : hostLang
       ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)`
-      : "the same language as this egg note's existing knowledge (or the captured content if the egg has no existing knowledge)";
+      : "the same language as the captured content";
 
     const tpl = this.getPrompt("sharedOutputRules");
     return renderPrompt(tpl, {
@@ -514,104 +511,69 @@ export class AIProcessor {
   }
 
   /**
-   * Stage 2 — per-egg extraction, comparison against egg knowledge tree,
-   * and final read verdict synthesis. Works identically for 1 or N eggs.
+   * Stage 2 — follow egg instructions and synthesize reading recommendations.
+   * Existing notes are only read during merge.
    */
-  async analyzeEggs(
-    capture: {
-      url: string;
-      title: string;
-      content: string;
-      sourceType: string;
-      chapters?: Array<{ time: string; title: string }>;
-      questions?: string[];
-    },
-    eggs: EggContent[],
-    contentAnalysis: ContentAnalysis
-  ): Promise<AnalysisResult> {
-    if (!isAIConfigured(this.host?.settings) || eggs.length === 0) {
-      const aiProvider = this.host?.settings?.chromeAiProvider || this.host?.settings?.aiProvider;
-      return {
-        ...contentAnalysis,
-        shouldRead: eggs.length === 0 ? false : true,
-        shouldReadReason:
-          eggs.length === 0
-            ? "No matching egg found in vault."
-            : aiProvider === "local"
-            ? "Local LLM not configured."
-            : "No API key configured.",
-        matchedEggs: eggs.map((e) => e.fileName),
-        eggResults: [],
-        newKnowledge: [],
-      };
+  async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis): Promise<AnalysisResult> {
+    if (!isAIConfigured(this.host?.settings) || !eggs.length) {
+      return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
+        shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
+        eggResults: [], newKnowledge: [], ...(eggs.length ? { readAction: "uncertain" as const } : {}) };
     }
-
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
-    let eggResults: EggAnalysis[] = [];
-
-    if (chunks.length > 1) {
-      for (const egg of eggs) {
-        const partEggs = await Promise.all(
-          chunks.map((chunk) =>
-            this.analyzeAgainstEgg(
-              { ...capture, content: chunk.content },
-              egg,
-              partNote(chunk)
-            )
-          )
-        );
-        const aggregate = await this.aggregateEgg(
-          egg,
-          chunks.map((chunk, i) => ({
-            part: i + 1,
-            startTime: chunk.startTime,
-            delta: partEggs[i]?.novelDelta || [],
-          }))
-        );
-        const novelDelta =
-          aggregate.novelDelta && aggregate.novelDelta.length > 0
-            ? aggregate.novelDelta
-            : this.mergePerPartDeltas(partEggs.flatMap((r) => r?.novelDelta || []));
-        const redundantEntries = partEggs.flatMap((r) => r?.redundantEntries || []);
-        const existingKnowledge =
-          partEggs.find((r) => r?.existingKnowledge)?.existingKnowledge || egg.knowledge;
-
-        eggResults.push({
-          egg: egg.fileName,
-          keyQuestionAnswers: aggregate.keyQuestionAnswers,
-          novelDelta,
-          redundantEntries,
-          existingKnowledge,
-          rejected: aggregate.rejected,
-          rejectReason: aggregate.rejectReason,
-          readVerdict: aggregate.readVerdict,
-          readVerdictReason: aggregate.readVerdictReason,
-        });
+    const signals = this.eggStage1Signals(capture, contentAnalysis);
+    const eggResults = await Promise.all(eggs.map(async egg => {
+      if (chunks.length === 1) return await this.analyzeAgainstEgg(capture, egg, "", signals) || this.failedEgg(egg);
+      const parts = await Promise.all(chunks.map(chunk => this.analyzeAgainstEgg(
+        { ...capture, content: chunk.content }, egg, partNote(chunk), signals)));
+      const entries = parts.flatMap(part => part?.extractedEntries || []);
+      try {
+        const aggregate = await this.aggregateEgg(egg, chunks.map((chunk, i) => ({
+          part: i + 1, startTime: chunk.startTime, success: !!parts[i],
+          keyQuestionAnswers: parts[i]?.keyQuestionAnswers || [],
+          readAction: parts[i]?.readAction || "uncertain", readVerdictReason: parts[i]?.readVerdictReason || "Part failed to process.",
+          readingSources: parts[i]?.readingSources || [],
+        })), signals);
+        // Incomplete coverage must remain explicit, even if the model overlooks it.
+        if (parts.some(p => !p)) Object.assign(aggregate, { readAction: "uncertain", readVerdict: null,
+          readVerdictReason: "Some parts failed to process; coverage is incomplete." });
+        return { egg: egg.fileName, language: parts.find(p => p?.language)?.language, extractedEntries: entries, ...aggregate };
+      } catch (err) {
+        console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
+        return { ...this.failedEgg(egg), extractedEntries: entries,
+          readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
+          keyQuestionAnswers: parts.flatMap((part, i) => (part?.keyQuestionAnswers || []).map(answer => ({
+            ...answer, question: `[Part ${i + 1}] ${answer.question}`,
+          }))) };
       }
-    } else {
-      eggResults = (
-        await Promise.all(
-          eggs.map((egg) => this.analyzeAgainstEgg(capture, egg))
-        )
-      ).filter((r): r is EggAnalysis => r !== null);
-    }
+    }));
+    const newKnowledge: EggSaveEntry[] = eggResults.flatMap(result => {
+      const items = result.extractedEntries.map(entry => ({ egg: result.egg,
+        content: this.saveEntryBody(entry.content, entry.sources || []) }));
+      for (const answer of result.keyQuestionAnswers) {
+        if (answer.answered === false || /^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(answer.answer.trim())) continue;
+        const body = `**${answer.question}**\n${answer.answer}`;
+        items.push({ egg: result.egg, content: this.saveEntryBody(body, answer.sources || []) });
+      }
+      return items.filter((item, i) => items.findIndex(other => other.content === item.content) === i);
+    });
+    return { ...contentAnalysis, schemaVersion: 3, ...this.mergeVerdict(eggResults),
+      matchedEggs: eggs.map(e => e.fileName), eggResults, newKnowledge };
+  }
 
-    const verdict = this.mergeVerdict(eggResults);
-    const newKnowledge: NewKnowledgeItem[] = eggResults.flatMap((r) =>
-      r.novelDelta.map((d) => ({
-        egg: r.egg,
-        parent: d.parent,
-        content: d.content,
-      }))
-    );
+  private saveEntryBody(body: string, sources: SourceRef[]): string {
+    const refs = sources.map(s => `  - Source location: ${s.ref}${s.quote ? ` — ${s.quote}` : ""}`).join("\n");
+    return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `\n${refs}` : ""}`;
+  }
 
-    return {
-      ...contentAnalysis,
-      ...verdict,
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge,
-    };
+  private failedEgg(egg: EggContent): EggAnalysis {
+    return { egg: egg.fileName, keyQuestionAnswers: [], extractedEntries: [], readAction: "uncertain",
+      readVerdict: null, readVerdictReason: "Egg analysis unavailable or failed.", readingSources: [] };
+  }
+
+  private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
+    return [capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
+      capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : ""].filter(Boolean).join("\n\n");
   }
 
   /** Phase 1 — content-level summary + chapter map + custom question answers. */
@@ -692,248 +654,47 @@ export class AIProcessor {
     };
   }
 
-  /**
-   * Multiple eggs — per-egg analysis:
-   *   Step 1: Extract candidate knowledge entries + key question answers using ONLY the egg's instructions.
-   *   Step 2: Compare candidate entries against egg's Knowledge tree & Unprocessed entries to find novel delta and read verdict.
-   */
-  private async analyzeAgainstEgg(
-    capture: { title: string; url: string; content: string; sourceType: string },
-    egg: EggContent,
-    partNoteStr = ""
-  ): Promise<EggAnalysis | null> {
-    const formatInstructions = (e: EggContent) =>
-      this.host?.eggParser?.formatEggInstructionsForPrompt
-        ? this.host.eggParser.formatEggInstructionsForPrompt(e)
-        : formatEggInstructionsForPrompt(e);
-
+  /** One instruction-driven call per egg/part, without existing knowledge. */
+  private async analyzeAgainstEgg(capture: CapturePayload, egg: EggContent, partNoteStr = "", signals = ""): Promise<EggAnalysis | null> {
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
-      egg_file: egg.fileName,
-      egg_instructions: formatInstructions(egg),
-      title: capture.title,
-      url: capture.url,
-      source_type: capture.sourceType,
-      part_note: partNoteStr,
-      content: this.truncate(capture.content, this.chunkWindowChars),
+      egg_file: egg.fileName, egg_instructions: formatEggInstructionsForPrompt(egg),
+      stage1_signals: signals, title: capture.title, url: capture.url, source_type: capture.sourceType,
+      part_note: partNoteStr, content: capture.content,
       shared_output_rules: this.getEggOutputRules(egg, "", capture),
     });
-
     try {
-      const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
-      const response = await this.callAI(prompt, tokenBudget);
-      const parsed = this.parseJson(response, "egg-analysis");
-      const keyQuestionAnswers = this.parseKeyAnswers(parsed.keyQuestionAnswers);
-      const extractedEntries = this.parseExtractedEntries(parsed.extractedEntries);
-      const detectedLanguage = typeof parsed.language === "string" ? parsed.language.trim() : "";
-
-      // If the egg had no language property, persist the LLM-detected language
-      if (!egg.language && detectedLanguage) {
-        egg.language = detectedLanguage;
-        try {
-          const vault = this.host?.app?.vault;
-          const file = vault?.getAbstractFileByPath?.(egg.fileName);
-          if (file && vault?.read && vault?.modify) {
-            const content = await vault.read(file);
-            const updated = insertEggLanguage(content, detectedLanguage);
-            if (updated !== content) {
-              await vault.modify(file, updated);
-            }
-          }
-        } catch (err) {
-          console.warn(`[NutEgg] Failed to persist LLM-detected language to ${egg.fileName}:`, err);
-        }
-      }
-
-      // Step 2: Compare candidate entries with knowledge entries in the egg file
-      const diff = await this.compareEggKnowledge(capture, egg, extractedEntries);
-
-      return {
-        egg: egg.fileName,
-        language: detectedLanguage || egg.language || undefined,
-        keyQuestionAnswers,
-        extractedEntries,
-        novelDelta: diff.novelDelta,
-        redundantEntries: diff.redundantEntries,
-        existingKnowledge: diff.existingKnowledge,
-        rejected: diff.rejected,
-        rejectReason: diff.rejectReason,
-        readVerdict: diff.readVerdict,
-        readVerdictReason: diff.readVerdictReason,
-      };
+      const parsed = this.parseJson(await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384), "egg-analysis");
+      return { egg: egg.fileName, language: typeof parsed.language === "string" ? parsed.language : egg.language,
+        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), extractedEntries: this.parseExtractedEntries(parsed.extractedEntries),
+        ...this.parseRecommendation(parsed) };
     } catch (err) {
-      if (err instanceof AIError) throw err;
-      console.error(`[NutEgg] Egg analysis failed for ${egg.fileName}:`, err);
+      console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);
       return null;
     }
   }
 
-  /**
-   * Step 2 — Compare extracted candidate knowledge entries against the egg's
-   * existing Knowledge tree and Unprocessed entries to find novel delta and read verdict.
-   */
-  private async compareEggKnowledge(
-    capture: { title: string; url: string },
-    egg: EggContent,
-    extractedEntries: ExtractedKnowledgeEntry[]
-  ): Promise<{
-    novelDelta: NovelDelta[];
-    redundantEntries: RedundantEntry[];
-    existingKnowledge: string;
-    rejected: boolean;
-    rejectReason: string;
-    readVerdict: boolean;
-    readVerdictReason: string;
-  }> {
-    const existingKnowledge = egg.knowledge || "";
-    if (extractedEntries.length === 0) {
-      return {
-        novelDelta: [],
-        redundantEntries: [],
-        existingKnowledge,
-        rejected: false,
-        rejectReason: "",
-        readVerdict: false,
-        readVerdictReason: "No knowledge entries extracted matching this egg's scope.",
-      };
-    }
-
-    const prompt = renderPrompt(this.getPrompt("eggCompare"), {
-      egg_file: egg.fileName,
-      title: capture.title,
-      url: capture.url,
-      current_knowledge: existingKnowledge || "(empty)",
-      unprocessed: egg.unprocessed || "(empty)",
-      rejection_criteria:
-        egg.rejectionCriteria && egg.rejectionCriteria.length > 0
-          ? egg.rejectionCriteria.map((c) => `- ${c}`).join("\n")
-          : "(none)",
-      extracted_entries: extractedEntries
-        .map((e, i) => `### Entry ${i + 1} (${e.kind || "insight"})\n${e.content}`)
-        .join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg, "", capture),
-    });
-
-    try {
-      const tokenBudget = this.host?.settings?.contentAnalysisMaxTokens || 16384;
-      const response = await this.callAI(prompt, tokenBudget);
-      const parsed = this.parseJson(response, "egg-compare");
-      const novelDelta = Array.isArray(parsed.novelDelta)
-        ? parsed.novelDelta
-            .filter((d: any) => d && d.content)
-            .map((d: any) => ({
-              parent: String(d.parent || ""),
-              content: String(d.content),
-            }))
-        : [];
-      const rawRedundant = Array.isArray(parsed.redundantEntries)
-        ? parsed.redundantEntries
-        : Array.isArray(parsed.duplicateEntries)
-        ? parsed.duplicateEntries
-        : Array.isArray(parsed.duplicates)
-        ? parsed.duplicates
-        : [];
-
-      const redundantEntries: RedundantEntry[] = rawRedundant
-        .filter((r: any) => r && r.content)
-        .map((r: any) => ({
-          existingParent: String(r.existingParent || r.parent || ""),
-          content: String(r.content),
-        }));
-
-      // Reconcile: ensure any candidate entry not in novelDelta is preserved in redundantEntries
-      for (const ext of extractedEntries) {
-        const extClean = ext.content.trim().toLowerCase();
-        const isInDelta = novelDelta.some((n) => {
-          const nClean = n.content.trim().toLowerCase();
-          return nClean === extClean || nClean.includes(extClean) || extClean.includes(nClean);
-        });
-        const isInRedundant = redundantEntries.some((r) => {
-          const rClean = r.content.trim().toLowerCase();
-          return rClean === extClean || rClean.includes(extClean) || extClean.includes(rClean);
-        });
-        if (!isInDelta && !isInRedundant) {
-          redundantEntries.push({
-            existingParent: "Existing Knowledge Tree",
-            content: ext.content,
-          });
-        }
-      }
-
-      return {
-        novelDelta,
-        redundantEntries,
-        existingKnowledge,
-        rejected: parsed.rejected === true,
-        rejectReason: String(parsed.rejectReason || ""),
-        readVerdict: parsed.readVerdict !== false,
-        readVerdictReason: String(parsed.readVerdictReason || ""),
-      };
-    } catch (err) {
-      if (err instanceof AIError) throw err;
-      console.error(`[NutEgg] Knowledge comparison failed for ${egg.fileName}:`, err);
-      // Fallback: preserve extracted entries as delta if comparison call failed
-      return {
-        novelDelta: extractedEntries.map((e) => ({ parent: "", content: e.content })),
-        redundantEntries: [],
-        existingKnowledge,
-        rejected: false,
-        rejectReason: "",
-        readVerdict: true,
-        readVerdictReason: "Extracted novel knowledge entries.",
-      };
-    }
+  private parseRecommendation(parsed: any): Pick<EggAnalysis, "readAction" | "readVerdict" | "readVerdictReason" | "readingSources"> {
+    const actions = ["full", "highlights", "summary", "skip", "uncertain"];
+    const readAction: ReadAction = actions.includes(parsed.readAction) ? parsed.readAction : "uncertain";
+    return { readAction, readVerdict: this.actionVerdict(readAction),
+      readVerdictReason: typeof parsed.readVerdictReason === "string" ? parsed.readVerdictReason : "Recommendation unavailable.",
+      readingSources: this.parseSources(parsed.readingSources) };
   }
 
-  /** Normalize a candidate knowledge entries array from the AI response. */
+  private actionVerdict(action: ReadAction): boolean | null {
+    return action === "uncertain" ? null : action === "full" || action === "highlights";
+  }
+
+  private parseSources(raw: any): SourceRef[] {
+    return Array.isArray(raw) ? raw.filter(s => s && typeof s.ref === "string" && s.ref.trim()).map(s => ({
+      ref: s.ref.trim(), ...(typeof s.quote === "string" ? { quote: s.quote } : {}),
+    })) : [];
+  }
+
   private parseExtractedEntries(raw: any): ExtractedKnowledgeEntry[] {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .filter((e: any) => e && (typeof e === "string" || e.content))
-      .map((e: any) => {
-        if (typeof e === "string") {
-          return { kind: "insight" as const, content: e.trim() };
-        }
-        return {
-          kind: e.kind === "list" ? ("list" as const) : ("insight" as const),
-          content: String(e.content).trim(),
-        };
-      })
-      .filter((e) => e.content.length > 0);
-  }
-
-  /**
-   * Deduplicate and merge per-part deltas. When multiple parts report on the same concept,
-   * prefer the fuller, more comprehensive entry over a partial or stub mention.
-   */
-  private mergePerPartDeltas(deltas: NovelDelta[]): NovelDelta[] {
-    const conceptMap = new Map<string, NovelDelta>();
-    const result: NovelDelta[] = [];
-
-    for (const d of deltas) {
-      const match = d.content.match(/\*\*([^*]+)\*\*/);
-      const conceptKey = match ? match[1].trim().toLowerCase() : "";
-
-      if (!conceptKey) {
-        if (!result.some((r) => r.parent === d.parent && r.content === d.content)) {
-          result.push(d);
-        }
-        continue;
-      }
-
-      const existing = conceptMap.get(conceptKey);
-      if (!existing) {
-        conceptMap.set(conceptKey, d);
-        result.push(d);
-      } else if (d.content.length > existing.content.length) {
-        const idx = result.indexOf(existing);
-        if (idx !== -1) {
-          result[idx] = d;
-        }
-        conceptMap.set(conceptKey, d);
-      }
-    }
-
-    return result;
+    return Array.isArray(raw) ? raw.filter(e => e && typeof e.content === "string" && e.content.trim()).map(e => ({
+      kind: e.kind === "list" || e.kind === "answer" ? e.kind : "insight", content: e.content.trim(), sources: this.parseSources(e.sources),
+    })) : [];
   }
 
   /** Aggregate the per-part content summaries into one result. */
@@ -1019,54 +780,16 @@ export class AIProcessor {
     };
   }
 
-  /** Aggregate per-part delta findings into the egg's key answers + verdict. */
-  private async aggregateEgg(
-    egg: EggContent,
-    chunkFindings: Array<{ part: number; startTime: string; delta: NovelDelta[] }>
-  ): Promise<{
-    novelDelta?: NovelDelta[];
-    keyQuestionAnswers: KeyAnswer[];
-    rejected: boolean;
-    rejectReason: string;
-    readVerdict: boolean;
-    readVerdictReason: string;
-  }> {
-    const formatEgg = (e: EggContent) =>
-      this.host?.eggParser?.formatEggForPrompt
-        ? this.host.eggParser.formatEggForPrompt(e)
-        : formatEggForPrompt(e);
+  /** Whole-source answers/recommendation; no raw content or entry bodies. */
+  private async aggregateEgg(egg: EggContent, findings: Array<{ part: number; startTime: string; success: boolean;
+    keyQuestionAnswers: KeyAnswer[]; readAction: string; readVerdictReason: string; readingSources: SourceRef[] }>, signals = "") {
     const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
-      egg_file: egg.fileName,
-      egg_instructions: formatEgg(egg),
-      chunk_findings: chunkFindings
-        .map((f) => {
-          const at = f.startTime ? ` (${f.startTime})` : "";
-          const delta = f.delta.map((d) => d.content).join("\n");
-          return `## Part ${f.part} of ${chunkFindings.length}${at}\n${delta || "- (no novel delta)"}`;
-        })
-        .join("\n\n"),
-      shared_output_rules: this.getEggOutputRules(egg),
+      egg_file: egg.fileName, scope: egg.scope, key_questions: egg.keyQuestions.join("\n"),
+      worth_reading_if: egg.worthReadingIf.join("\n"), skip_if: egg.skipIf.join("\n"), stage1_signals: signals,
+      chunk_findings: JSON.stringify(findings), shared_output_rules: this.getEggOutputRules(egg),
     });
-
-    const response = await this.callAI(prompt, 1500);
-    const parsed = this.parseJson(response, "aggregate-egg");
-    const novelDelta = Array.isArray(parsed.novelDelta)
-      ? parsed.novelDelta
-          .filter((d: any) => d && d.content)
-          .map((d: any) => ({
-            parent: String(d.parent || ""),
-            content: String(d.content),
-          }))
-      : undefined;
-
-    return {
-      novelDelta,
-      keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-      rejected: parsed.rejected === true,
-      rejectReason: String(parsed.rejectReason || ""),
-      readVerdict: parsed.readVerdict !== false,
-      readVerdictReason: String(parsed.readVerdictReason || ""),
-    };
+    const parsed = this.parseJson(await this.callAI(prompt, Math.max(4096, egg.keyQuestions.length * 512)), "aggregate-egg");
+    return { keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), ...this.parseRecommendation(parsed) };
   }
 
   /**
@@ -1122,37 +845,12 @@ export class AIProcessor {
     );
   }
 
-  /** Combine per-egg verdicts into one global read recommendation. */
-  private mergeVerdict(
-    eggResults: EggAnalysis[]
-  ): { shouldRead: boolean; shouldReadReason: string } {
-    if (eggResults.length === 0) {
-      return {
-        shouldRead: true,
-        shouldReadReason: "No matching egg found — review the summary above.",
-      };
-    }
-
-    const rejectedAll = eggResults.every((r) => r.rejected);
-    if (rejectedAll) {
-      return {
-        shouldRead: false,
-        shouldReadReason:
-          eggResults.map((r) => r.rejectReason).filter(Boolean).join(" ") ||
-          "Rejected by all matched eggs.",
-      };
-    }
-
-    const forReading = eggResults.filter((r) => r.readVerdict);
-    const reasons = forReading.map((r) => r.readVerdictReason).filter(Boolean);
-    return {
-      shouldRead: forReading.length > 0,
-      shouldReadReason:
-        reasons.join(" ") ||
-        (forReading.length > 0
-          ? "See key question answers and novel delta below."
-          : "No new knowledge found — the summary above likely covers it."),
-    };
+  private mergeVerdict(results: EggAnalysis[]): Pick<AnalysisResult, "readAction" | "shouldRead" | "shouldReadReason" | "readingSources"> {
+    const order: ReadAction[] = ["full", "highlights", "uncertain", "summary", "skip"];
+    const readAction = order.find(action => results.some(r => r.readAction === action)) || "uncertain";
+    return { readAction, shouldRead: this.actionVerdict(readAction),
+      shouldReadReason: results.filter(r => r.readAction === readAction).map(r => `${r.egg}: ${r.readVerdictReason}`).join(" "),
+      readingSources: results.filter(r => r.readAction === "full" || r.readAction === "highlights").flatMap(r => r.readingSources) };
   }
 
   /** No-API-key fallback: naive content summary, no egg analysis. */
@@ -1175,7 +873,9 @@ export class AIProcessor {
         answer: "No API key configured — cannot answer.",
       })),
       mindMap: [],
-      shouldRead: true,
+      shouldRead: null,
+      readAction: "uncertain",
+      schemaVersion: 3,
       shouldReadReason: "No API key configured — cannot analyze.",
       matchedEggs: eggs.map((e) => e.fileName),
       eggResults: [],
@@ -1265,7 +965,17 @@ export class AIProcessor {
    * Merge an egg's Unprocessed entries into its Knowledge tree on demand.
    * Merges whenever there is at least 1 unprocessed entry.
    */
+  private mergeJobs = new Map<string, Promise<MergeResult | null>>();
+
   async mergeEgg(fileName: string): Promise<MergeResult | null> {
+    const existing = this.mergeJobs.get(fileName);
+    if (existing) return existing;
+    const job = this.performMergeEgg(fileName).finally(() => this.mergeJobs.delete(fileName));
+    this.mergeJobs.set(fileName, job);
+    return job;
+  }
+
+  private async performMergeEgg(fileName: string, retried = false): Promise<MergeResult | null> {
     const egg = await this.host?.eggParser?.readEgg?.(fileName);
     if (!egg) return null;
 
@@ -1320,19 +1030,25 @@ export class AIProcessor {
     });
 
     try {
-      const response = await this.callAI(prompt, 2000);
-      const parsed = this.parseJson(response, "merge-unprocessed");
-      const knowledge =
-        typeof parsed.knowledge === "string" ? parsed.knowledge.trim() : "";
-      if (!knowledge) {
-        console.warn(
-          `[NutEgg] Merge for ${fileName} returned no knowledge — egg untouched`
-        );
+      const needed = Math.max(4096, Math.ceil((egg.knowledge.length + egg.unprocessed.length) / 1.5) + 1024);
+      const cap = Number(this.host?.settings?.mergeMaxTokens || this.host?.settings?.contentAnalysisMaxTokens || 16384);
+      if (needed > cap) {
+        console.warn(`[NutEgg] Merge deferred for ${fileName}: full tree exceeds output budget.`);
         return null;
       }
-      const unprocessed =
-        typeof parsed.unprocessed === "string" ? parsed.unprocessed.trim() : "";
-      await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed);
+      const response = await this.callAI(prompt, needed);
+      // Never repair truncated merge JSON: a repaired tree could delete notes.
+      const raw = response.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.knowledge !== "string" || !parsed.knowledge.trim() || typeof parsed.unprocessed !== "string") return null;
+      const knowledge = parsed.knowledge.trim();
+      const unprocessed = parsed.unprocessed.trim();
+      const current = await this.host?.eggParser?.readEgg?.(fileName);
+      const changed = current && (egg.sourceText ? current.sourceText !== egg.sourceText :
+        current.knowledge !== egg.knowledge || current.unprocessed !== egg.unprocessed);
+      if (changed) return retried ? null : this.performMergeEgg(fileName, true);
+      const applied = await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed, egg);
+      if (applied === false) return retried ? null : this.performMergeEgg(fileName, true);
       console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
       return { egg: fileName, entries };
     } catch (err) {
@@ -1342,7 +1058,7 @@ export class AIProcessor {
   }
 
   /**
-   * Threshold-based merge helper (kept for backward compatibility and testing).
+   * Threshold-based merge helper scheduled after durable Hatch saving.
    */
   async maybeMergeEgg(fileName: string): Promise<MergeResult | null> {
     const egg = await this.host?.eggParser?.readEgg?.(fileName);
@@ -1417,6 +1133,7 @@ export class AIProcessor {
               question: String(qa.question),
               answer: String(qa.answer),
             };
+            if (typeof qa.answered === "boolean") entry.answered = qa.answered;
             if (qa.scope === "within" || qa.scope === "beyond") {
               entry.scope = qa.scope;
             }

@@ -100,47 +100,49 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 `;
 
 // ../shared/workflow/egg-analysis.md
-var egg_analysis_default = `You are a knowledge curator for the egg file "{{egg_file}}". Extract knowledge entries from the content below according to this egg's instructions.
+var egg_analysis_default = `Analyze this source according to the instructions for egg "{{egg_file}}". Produce the requested answers and results, not a comparison with saved knowledge.
 
 ## Egg Instructions
 {{egg_instructions}}
 
-## Content to Analyze
-**Title:** {{title}}
-**Source:** {{url}}
-**Type:** {{source_type}}
+## Stage 1 Context (not an endorsement or quality score)
+{{stage1_signals}}
+
+## Source
+Title: {{title}}
+URL: {{url}}
+Type: {{source_type}}
 {{part_note}}
 
 {{content}}
 
 ## Task
-1. Follow action guide in Egg Instructions
-2. Answer each Key Question (if any) directly and concisely based on the content.
-3. Extract Knowledge Entries: extract all substantive insights, concepts, frameworks, and findings from the content that fall within this egg's Scope, formatted strictly per the Formatting Rules:
-   - Follow the concept \u2192 explanation \u2192 example structure: one top-level bullet "- [tag] **Concept**: short phrases" (without "[tag] " when the egg defines no tags), with the explanation as one indented sub-bullet and concrete examples from the content as further indented sub-bullets ("  - \u{1F3AF} Example: ...") when present. Name each Concept clearly.
-   - Structured enumerations / frameworks (numbered lists, step-by-step methods, named frameworks): capture as ONE complete entry preserving EVERY item in order. Never summarize items away, never truncate.
-   - Do NOT include author or source \u2014 they are appended automatically.
+1. Follow the Action Guide and Formatting Rules. Preserve useful AMA question\u2013answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
+2. Answer the exact Key Questions directly with supporting source locations/brief quotes. Use "Not addressed in this content" (or "Not addressed in this part" for chunks) when there is no supported answer. Do not mistake missing coverage for an absent answer.
+3. Extract concise, substantive results as markdown entries. Lists/frameworks retain all supported items and order; a chunk may contain a partial framework for later assembly. Do not invent missing fragments. Avoid repeating the same answer in both keyQuestionAnswers and extractedEntries.
+4. Recommend what the user gains by opening the original AFTER reading the condensed analysis:
+   - full: useful depth spans the source.
+   - highlights: specific worthwhile passages; identify their source locations.
+   - summary: the condensed result covers the useful substance.
+   - skip: poor fit, low substance, or dominated by Skip If.
+   - uncertain: insufficient evidence or coverage.
+   Apply Scope, Key Questions, Worth Reading If and Skip If to the evidence. Mixed content may warrant highlights rather than skipping it all. Empty preference lists use this rubric, never an automatic yes. Explain the benefit/limitation in one concise reason. For chunks this is provisional evidence for a whole-source decision.
+5. Do not claim novelty relative to the user's notes, unfamiliarity to the user, external factual verification, or unseen visual demonstrations. Preferences never prevent extracting useful results. Never include author/source URL metadata in entry bodies; it is appended mechanically.
 
 ## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+JSON only:
 {
   "language": "English",
-  "keyQuestionAnswers": [
-    {
-      "question": "exact question text",
-      "answer": "direct answer",
-      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]
-    }
-  ],
-  "extractedEntries": [
-    {"kind": "insight", "content": "- [tag] **Concept**: short phrases\\n  - explanation\\n  - \u{1F3AF} Example: ..."}
-  ]
+  "keyQuestionAnswers": [{"question": "exact question", "answered": true, "answer": "supported answer", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
+  "extractedEntries": [{"kind": "insight", "content": "instruction-formatted markdown", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
+  "readAction": "highlights",
+  "readVerdictReason": "What remains to gain from opening the source",
+  "readingSources": [{"ref": "12:34", "quote": "evidence for the recommendation"}]
 }
-
-## Output Rules:
-- language: the primary natural language of the egg note or extracted entries (e.g. "English", "Chinese", "Japanese", etc.).
-- extractedEntries: empty array if the content contains no substantive knowledge matching this egg's scope. "kind" is "insight" (default) or "list" (for structured enumerations).
+Entry kind is insight, list, or answer. Empty arrays are valid. Source ref is an available timestamp or section heading; never invent one. Keep answers and recommendation notes concise.
 {{shared_output_rules}}
+
+Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
 `;
 
 // ../shared/workflow/follow-up.md
@@ -194,14 +196,14 @@ var merge_unprocessed_default = `You are a knowledge curator for the egg file "{
 {{unprocessed}}
 
 ## Task
-1. PRESERVE the existing tree structure as much as possible: do not rename, restructure, or delete existing branches \u2014 the user may have edited them by hand.
-2. Deduplicate the entries against EACH OTHER first, comparing their Concepts: entries with the same or equivalent concept are ONE entry, even when the explanations differ \u2014 keep the clearest explanation, fold the others' examples into it, and keep every distinct _author/_source line. A near-duplicate must never appear twice in the merged tree \u2014 dropping redundant rewordings is more valuable than preserving slight wording differences.
-3. Structured lists (entries holding a numbered enumeration / framework): entries with the same title are fragments of ONE list \u2014 union their items (drop exact-duplicate items), keep the source's item order. Never truncate a list: every item the source enumerated must survive the merge.
-4. Nest each deduplicated entry under the most relevant existing concept as sub-bullets.
-5. Only when an entry matches no existing concept, create a new minimal top-level branch for it.
-6. Keep each entry's insight, concrete examples, and its _author/_source lines intact when moving it into the tree.
-7. If an entry's concept duplicates existing knowledge in the tree, drop it entirely.
-8. If an entry cannot be merged meaningfully, leave it in the "unprocessed" output.
+1. Preserve existing user-authored branches and structure. Do not delete or rename them.
+2. Consolidate genuinely equivalent claims across pending entries and the tree. Retain ALL distinct author/source lines, examples, caveats and qualifications. A familiar concept is not a reason to discard its new substantive details or attribution.
+3. Assemble supported complementary fragments (an early partial mention and a later explanation) into a complete entry. Do not invent missing relationships or items.
+4. For frameworks/lists from the same source/version, assemble fragments, preserve source order and every distinct item. Equal titles alone do not establish equivalence: different speakers, versions, dates or contexts remain distinguishable.
+5. Preserve disagreements, contradictions and counterexamples explicitly with their sources. Never silently choose a winner or average incompatible claims into agreement.
+6. Place consolidated entries under relevant parents; create minimal new branches only when needed. Unresolved fragments remain Unprocessed.
+7. Reading preferences/recommendations are NEVER merge rejection criteria.
+8. Return the COMPLETE tree and remaining Unprocessed. Never truncate either to fit the output.
 
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
@@ -273,65 +275,42 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // ../shared/workflow/aggregate-egg.md
-var aggregate_egg_default = 'You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.\n\n## Egg Instructions\n{{egg_instructions}}\n\n## Per-Part Findings\n{{chunk_findings}}\n\n## Task\n1. Synthesize Knowledge Entries across parts into "novelDelta":\n   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.\n   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.\n   - For standalone insights from individual parts, preserve them as formatted entries.\n   - Determine "parent" in the Knowledge Tree for each entry.\n2. Answer each Key Question (if any) for the whole content, directly and concisely.\n3. Apply the Rejection Criteria to the whole content \u2014 set rejected to true with a one-line reason when it is noise for this egg.\n4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.\n\n## Output Format\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\n{\n  "novelDelta": [\n    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}\n  ],\n  "keyQuestionAnswers": [\n    {\n      "question": "exact question text",\n      "answer": "direct answer",\n      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]\n    }\n  ],\n  "rejected": false,\n  "rejectReason": "",\n  "readVerdict": true,\n  "readVerdictReason": "one-line reason"\n}\n\n## Output Rules:\n{{shared_output_rules}}\n';
+var aggregate_egg_default = `Consolidate answers and a whole-source reading recommendation for egg "{{egg_file}}". You have compact per-part drafts, not the original source. Do not extract or assemble entries here.
 
-// ../shared/workflow/egg-compare.md
-var egg_compare_default = `You are a knowledge curator for the egg file "{{egg_file}}".
-Your task is to compare newly extracted candidate knowledge entries from a source against this egg's existing Knowledge tree and Unprocessed entries to identify genuinely NEW insights and decide if the source is worth reading.
-
-## Existing Knowledge in Egg
-### Current Knowledge Tree
-{{current_knowledge}}
-
-### Unprocessed Entries (pending merge)
-{{unprocessed}}
-
-## Rejection Criteria
-{{rejection_criteria}}
-
-## Candidate Knowledge Entries Extracted from Source
-**Source Title:** {{title}}
-**Source URL:** {{url}}
-
-{{extracted_entries}}
+## Scope
+{{scope}}
+## Exact Key Questions
+{{key_questions}}
+## Worth Reading If
+{{worth_reading_if}}
+## Skip If
+{{skip_if}}
+## Stage 1 Context (not an endorsement)
+{{stage1_signals}}
+## Ordered Per-Part Drafts and Coverage
+{{chunk_findings}}
 
 ## Task
-1. Novel Delta: compare each candidate knowledge entry against the Current Knowledge Tree AND the Unprocessed entries.
-   - Compare by CONCEPT: an insight is new only when its core concept is not already covered in the existing knowledge. The same concept with different wording or a different minor example is a DUPLICATE, not new.
-   - Classify EVERY candidate entry into either "novelDelta" (genuinely new) or "redundantEntries" (already covered/known in the existing knowledge tree).
-   - EXCEPTION \u2014 structured content: when an entry is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), preserve the COMPLETE list intact in novelDelta unless the entire framework already exists in the tree.
-   - For each kept novel entry: determine "parent" \u2014 the EXACT text of the existing bullet or heading in the Current Knowledge tree that best fits as a parent topic to nest under (use "" if no suitable parent exists in the tree).
-   - For each redundant entry: determine "existingParent" \u2014 the existing concept or heading it was already covered under.
-2. Rejection Criteria:
-   - If the content violates the Rejection Criteria or has NO new/novel knowledge for this egg, set "rejected": true and give a one-line "rejectReason".
-3. Read Verdict:
-   - Decide if the user should spend time reading/watching this source fully ("readVerdict": true/false).
-   - If novel, valuable insights were found, set "readVerdict": true with a one-line "readVerdictReason".
-   - If redundant, superficial, or noise, set "readVerdict": false with a one-line "readVerdictReason".
+1. Give one concise supported answer per Key Question. Combine complementary drafts, retain disagreements and their references. A part's "not addressed" cannot override a supported answer elsewhere. Missing/failed parts are incomplete coverage, not negative evidence.
+2. Decide for the WHOLE source: full (depth throughout), highlights (specific valuable passages), summary (condensed results suffice), skip (poor fit/low substance), uncertain (insufficient evidence/coverage). Use scope/questions and the two lists. Empty lists do not mean automatic yes. Never infer novelty relative to saved knowledge or unseen demonstrations.
+3. Identify worthwhile source locations using only supplied references. A timestamp without evidence is insufficient. Explain what remains to gain from opening the source. Failed coverage requires uncertainty.
+4. Do not produce entry bodies, compare existing knowledge, or invent links between unsupported drafts.
 
 ## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+JSON only:
 {
-  "novelDelta": [
-    {"parent": "exact parent bullet text from knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\\n  - sub bullets"}
-  ],
-  "redundantEntries": [
-    {"existingParent": "matched concept or heading in knowledge tree", "content": "- candidate entry text that was already known"}
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line explanation"
+  "keyQuestionAnswers": [{"question": "exact question", "answered": true, "answer": "whole-source answer", "sources": [{"ref": "12:34", "quote": "supplied evidence"}]}],
+  "readAction": "highlights",
+  "readVerdictReason": "one concise reason",
+  "readingSources": [{"ref": "12:34", "quote": "supplied evidence"}]
 }
-
-## Output Rules:
-- "parent" must match the exact text of a heading or bullet in Current Knowledge ("" if none).
-- "kind" is "insight" or "list".
 {{shared_output_rules}}
+
+Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
 `;
 
 // ../shared/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If, Skip If:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.\n  - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.\n  - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.\n  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.\n  - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
@@ -342,8 +321,6 @@ var PROMPTS = {
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
-  /** Step 2 comparison — candidate knowledge entries vs egg knowledge tree. */
-  eggCompare: egg_compare_default,
   /** Follow-up questions after the initial analysis. */
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
@@ -354,7 +331,7 @@ var PROMPTS = {
   mergeUnprocessed: merge_unprocessed_default,
   /** Combine per-part results into one result for long content. */
   aggregateContent: aggregate_content_default,
-  /** Per-egg verdict + key questions for long content (after per-part delta). */
+  /** Per-egg recommendation + key questions for long content (compact chunk drafts). */
   aggregateEgg: aggregate_egg_default,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localize_egg_default,

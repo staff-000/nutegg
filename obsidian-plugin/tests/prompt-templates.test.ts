@@ -48,7 +48,7 @@ describe("PROMPTS", () => {
       "content_task_default", "shared_output_rules",
       // merge-unprocessed.md & egg-compare.md
       "formatting_rules", "knowledge_tree", "unprocessed", "unprocessed_count",
-      "current_knowledge", "extracted_entries", "rejection_criteria",
+      "stage1_signals", "scope", "key_questions", "worth_reading_if", "skip_if",
       // chunked analysis (per-part labels + aggregates)
       "part_note", "chunk_summaries", "chunk_findings", "sections",
       // multi-lingual output language (from _index.md entry description or settings)

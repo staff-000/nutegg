@@ -323,8 +323,43 @@ language: "${language}"
 
 ${content}`;
 }
+function formatEggInstructionsForPrompt(egg) {
+  const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  if (egg.actionGuide)
+    parts.push(`**Action Guide:**
+${egg.actionGuide}`);
+  for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]]) {
+    if (items?.length)
+      parts.push(`**${label}:**
+${items.map((item) => `- ${item}`).join("\n")}`);
+  }
+  if (egg.formattingRules)
+    parts.push(`**Formatting Rules:**
+${egg.formattingRules}`);
+  return parts.join("\n\n");
+}
+function formatEggKnowledgeForPrompt(egg) {
+  return `**Current Knowledge:**
+${egg.knowledge || "(empty)"}
+
+**Unprocessed:**
+${egg.unprocessed || "(empty)"}`;
+}
+function formatEggForPrompt(egg) {
+  return formatEggInstructionsForPrompt(egg);
+}
+function countUnprocessed(egg) {
+  const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
+  const bullets = (egg.unprocessed || "").split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
+  if (bullets.length === 0)
+    return 0;
+  const base = Math.min(...bullets.map(indentOf));
+  return bullets.filter((l) => indentOf(l) === base).length;
+}
 
 // ../shared/src/egg-parser.ts
+var KNOWLEDGE_HEADING = "# Knowledge";
+var UNPROCESSED_HEADING = "# Unprocessed";
 function isEggPath(path, vaultFolder = "nutegg") {
   if (!path || typeof path !== "string")
     return false;
@@ -347,6 +382,315 @@ function isEggPath(path, vaultFolder = "nutegg") {
     return true;
   }
 }
+function parseEggFile(fileName, content) {
+  const result = {
+    fileName,
+    topic: "Unknown",
+    language: "",
+    scope: "",
+    actionGuide: "",
+    keyQuestions: [],
+    worthReadingIf: [],
+    skipIf: [],
+    sourceText: content,
+    formattingRules: "",
+    knowledge: "",
+    unprocessed: "",
+    indexDescription: ""
+  };
+  const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (fmMatch) {
+    for (const line of fmMatch[1].split(/\r?\n/)) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (!kv)
+        continue;
+      const key = kv[1].toLowerCase();
+      const value = kv[2].trim().replace(/^"(.*)"$/, "$1");
+      if (key === "topic")
+        result.topic = value;
+      if (key === "language")
+        result.language = value;
+    }
+  }
+  const callout = extractCallout(content);
+  const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+  result.scope = (sections.get("scope") || "").trim();
+  result.actionGuide = (sections.get("action guide") || "").trim();
+  result.keyQuestions = parseListItems(sections.get("key questions") || "");
+  result.worthReadingIf = parseListItems(sections.get("worth reading if") || "");
+  result.skipIf = parseListItems(sections.get("skip if") || "");
+  result.formattingRules = (sections.get("formatting rules") || "").trim();
+  const lines = content.split(/\r?\n/);
+  const knowledgeSection = findSection(lines, "knowledge");
+  if (knowledgeSection) {
+    result.knowledge = sectionBody(lines, knowledgeSection, "knowledge");
+  }
+  const unprocessedSection = findSection(lines, "unprocessed");
+  if (unprocessedSection) {
+    result.unprocessed = sectionBody(lines, unprocessedSection, "unprocessed");
+  }
+  return result;
+}
+function findSection(lines, name) {
+  const wanted = name.toLowerCase();
+  const start = lines.findIndex((l) => headingName(l) === wanted);
+  if (start === -1)
+    return null;
+  let end = -1;
+  if (wanted === "knowledge") {
+    end = lines.findIndex(
+      (l, i) => i > start && headingName(l) === "unprocessed"
+    );
+  }
+  if (end === -1) {
+    end = lines.findIndex((l, i) => {
+      if (i <= start)
+        return false;
+      const head = headingName(l);
+      return head !== null && head !== wanted;
+    });
+  }
+  return { start, end: end === -1 ? lines.length : end };
+}
+function headingName(line) {
+  const m = line.trim().match(/^#\s+(.+?)\s*#*\s*$/);
+  if (!m)
+    return null;
+  return m[1].trim().toLowerCase();
+}
+function sectionBody(lines, section, name) {
+  const body = lines.slice(section.start + 1, section.end);
+  while (body.length > 0 && (body[0].trim() === "" || headingName(body[0]) === name.toLowerCase())) {
+    body.shift();
+  }
+  return body.join("\n").replace(/\n+$/g, "");
+}
+function stripSectionHeading(body, name) {
+  const lines = body.split("\n");
+  const wanted = name.toLowerCase();
+  while (lines.length > 0 && (lines[0].trim() === "" || headingName(lines[0]) === wanted)) {
+    lines.shift();
+  }
+  return lines.join("\n").replace(/\s+$/g, "");
+}
+function extractCallout(content) {
+  const calloutLines = [];
+  for (const line of content.split("\n")) {
+    if (line.startsWith(">")) {
+      calloutLines.push(line.replace(/^>\s?/, ""));
+    } else if (calloutLines.length > 0) {
+      break;
+    }
+  }
+  if (calloutLines.length === 0)
+    return null;
+  const marker = calloutLines.findIndex((l) => l.includes("[!abstract]"));
+  const body = marker >= 0 ? calloutLines.slice(marker + 1) : calloutLines.slice(1);
+  return body.join("\n");
+}
+function splitLabeledSections(text) {
+  const map = /* @__PURE__ */ new Map();
+  let current = null;
+  let buffer = [];
+  for (const line of text.split("\n")) {
+    const labelMatch = line.match(/^\*\*([^*]+?):\*\*\s*(.*)$/);
+    if (labelMatch) {
+      if (current)
+        map.set(current, buffer.join("\n"));
+      current = labelMatch[1].toLowerCase();
+      buffer = labelMatch[2] ? [labelMatch[2]] : [];
+    } else {
+      buffer.push(line);
+    }
+  }
+  if (current)
+    map.set(current, buffer.join("\n"));
+  return map;
+}
+function parseListItems(text) {
+  return text.split("\n").map((l) => l.trim()).filter((l) => /^(?:\d+[.)]|[-*])\s+/.test(l)).map((l) => l.replace(/^(?:\d+[.)]|[-*])\s+/, ""));
+}
+
+// src/egg-parser.ts
+var EggParser = class {
+  plugin;
+  constructor(plugin) {
+    this.plugin = plugin;
+  }
+  async findFile(path) {
+    const vault = this.plugin.app.vault;
+    if (!await vault.adapter.exists(path))
+      return null;
+    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+  }
+  async readEgg(fileName, fallbackDescription) {
+    let file = await this.findFile(fileName);
+    if (!file && !fileName.includes("/")) {
+      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
+      file = await this.findFile(`${parentDir}/${fileName}`);
+    }
+    if (!file) {
+      const folder = this.plugin.vaultFolder || "nutegg";
+      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
+        (f) => isEggPath(f.path, folder)
+      );
+      const base = fileName.split("/").pop().toLowerCase();
+      const match = allFiles.find(
+        (f) => f.path.split("/").pop().toLowerCase() === base
+      );
+      if (match)
+        file = match;
+    }
+    if (!file) {
+      console.warn(`[NutEgg] Egg file not found: ${fileName}`);
+      return null;
+    }
+    const content = await this.plugin.app.vault.read(file);
+    const parsed = this.parseEggFile(file.path || fileName, content);
+    if (fallbackDescription && !parsed.indexDescription) {
+      parsed.indexDescription = fallbackDescription;
+    }
+    return parsed;
+  }
+  async readEggs(entries) {
+    const eggs = [];
+    for (const entry of entries) {
+      const egg = await this.readEgg(entry.fileName, entry.description);
+      if (egg) {
+        egg.indexDescription = entry.description;
+        eggs.push(egg);
+      }
+    }
+    return eggs;
+  }
+  parseEggFile(fileName, content) {
+    return parseEggFile(fileName, content);
+  }
+  formatEggInstructionsForPrompt(egg) {
+    return formatEggInstructionsForPrompt(egg);
+  }
+  formatEggKnowledgeForPrompt(egg) {
+    return formatEggKnowledgeForPrompt(egg);
+  }
+  formatEggForPrompt = (egg) => {
+    return formatEggForPrompt(egg);
+  };
+  countUnprocessed(egg) {
+    return countUnprocessed(egg);
+  }
+  /**
+   * Append one new knowledge entry to the egg's Unprocessed section.
+   *
+   * Entries land here first and are merged into the Knowledge tree later,
+   * once 20+ accumulate (see ai-processor.maybeMergeEgg). Each entry keeps
+   * its insight + examples (AI-generated `content`), plus mechanical
+   * `_author` / `_source` lines for provenance.
+   */
+  async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
+    const file = await this.findFile(fileName);
+    if (!file) {
+      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
+    }
+    const transform = (existing) => {
+      const lines = existing.replace(/\n+$/, "").split("\n");
+      const section = findSection(lines, "unprocessed");
+      const trimmed = content.trim();
+      const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+      const meta = [];
+      if (author)
+        meta.push(`_author: ${author}_`);
+      const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+      meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+      const block = [withBullet, ...meta].join("\n");
+      if (section) {
+        lines.splice(section.end, 0, "", block);
+      } else {
+        lines.push("", UNPROCESSED_HEADING, "", block);
+      }
+      if (existing.includes(block))
+        return existing;
+      return lines.join("\n") + "\n";
+    };
+    if (this.plugin.app.vault.process)
+      await this.plugin.app.vault.process(file, transform);
+    else
+      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
+  }
+  /**
+   * Replace the Knowledge and Unprocessed sections with the merged output
+   * from the merge AI call. Missing sections are created as needed.
+   */
+  async applyMerge(fileName, knowledge, unprocessed, expected) {
+    const file = await this.findFile(fileName);
+    if (!file) {
+      console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
+      return false;
+    }
+    knowledge = stripSectionHeading(knowledge, "knowledge");
+    unprocessed = stripSectionHeading(unprocessed, "unprocessed");
+    const kLines = knowledge.split("\n");
+    const uIdx = kLines.findIndex((l) => headingName(l) === "unprocessed");
+    if (uIdx !== -1) {
+      const rest = stripSectionHeading(
+        kLines.slice(uIdx).join("\n"),
+        "unprocessed"
+      );
+      knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
+      if (!unprocessed)
+        unprocessed = rest;
+    }
+    let applied = true;
+    const transform = (existing) => {
+      if (expected && (expected.sourceText ? existing !== expected.sourceText : parseEggFile(fileName, existing).knowledge !== expected.knowledge || parseEggFile(fileName, existing).unprocessed !== expected.unprocessed)) {
+        applied = false;
+        return existing;
+      }
+      let lines = existing.replace(/\n+$/, "").split("\n");
+      const knowledgeSection = findSection(lines, "knowledge");
+      if (knowledgeSection) {
+        lines = [
+          ...lines.slice(0, knowledgeSection.start + 1),
+          "",
+          ...knowledge.trim().split("\n"),
+          ...lines.slice(knowledgeSection.end)
+        ];
+      } else {
+        const unprocessedSection2 = findSection(lines, "unprocessed");
+        if (unprocessedSection2) {
+          lines = [
+            ...lines.slice(0, unprocessedSection2.start),
+            "",
+            KNOWLEDGE_HEADING,
+            "",
+            ...knowledge.trim().split("\n"),
+            "",
+            ...lines.slice(unprocessedSection2.start)
+          ];
+        } else {
+          lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+        }
+      }
+      const unprocessedSection = findSection(lines, "unprocessed");
+      const remainder = unprocessed.trim();
+      if (unprocessedSection) {
+        lines = [
+          ...lines.slice(0, unprocessedSection.start + 1),
+          ...remainder ? ["", ...remainder.split("\n")] : [],
+          ...lines.slice(unprocessedSection.end)
+        ];
+      } else if (remainder) {
+        lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
+      }
+      return lines.join("\n") + "\n";
+    };
+    if (this.plugin.app.vault.process)
+      await this.plugin.app.vault.process(file, transform);
+    else
+      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    return applied;
+  }
+};
 
 // src/index-sync.ts
 function sanitizeEggName(name) {
@@ -385,7 +729,7 @@ var NutEggServer = class {
         }
       }
     }
-    return rows.map((row) => ({
+    return rows.filter((row) => row.analysisResult?.schemaVersion === 3).map((row) => ({
       nutId: row.id,
       capturedAt: row.savedAt,
       saved: row.processingResult === "saved" || row.processingResult === "skip" ? row.processingResult : "analyzed",
@@ -839,7 +1183,8 @@ var NutEggServer = class {
         matchedEggs,
         allEggs: index.map((e) => e.fileName),
         stage: "stage1",
-        shouldRead: false,
+        schemaVersion: 3,
+        shouldRead: null,
         shouldReadReason: "",
         eggResults: [],
         newKnowledge: []
@@ -868,7 +1213,8 @@ var NutEggServer = class {
             coreSummary: [],
             isLongForm: false,
             chapterMap: [],
-            shouldRead: false,
+            schemaVersion: 3,
+            shouldRead: null,
             shouldReadReason: "",
             matchedEggs: [],
             eggResults: [],
@@ -886,7 +1232,8 @@ var NutEggServer = class {
           coreSummary: [],
           isLongForm: false,
           chapterMap: [],
-          shouldRead: false,
+          schemaVersion: 3,
+          shouldRead: null,
           shouldReadReason: "",
           matchedEggs: [],
           eggResults: [],
@@ -909,6 +1256,12 @@ var NutEggServer = class {
         );
         return;
       }
+      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : null;
+      if (prior?.processingResult === "saved") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, fileName: prior.fileName, alreadySaved: true }));
+        return;
+      }
       const hasKnowledge = confirm.newKnowledge && confirm.newKnowledge.length > 0;
       const saved = hasKnowledge ? "saved" : "skip";
       const eggNames = hasKnowledge ? [...new Set(confirm.newKnowledge.map((k) => k.egg))] : confirm.matchedEggs || [];
@@ -924,8 +1277,12 @@ var NutEggServer = class {
           metadata: confirm.metadata,
           summary,
           matchedEggs: eggNames,
-          processingResult: saved
+          processingResult: saved,
+          analysis: confirm.analysis
         });
+      } else if (prior?.fileName && confirm.analysis) {
+        fileName = prior.fileName;
+        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
       }
       const mergedEggs = [];
       if (hasKnowledge) {
@@ -936,20 +1293,22 @@ var NutEggServer = class {
           confirm.url,
           author
         );
-        const perEggList = confirm.analysis?.perEggAnalysis;
+        const perEggList = confirm.analysis?.eggResults;
         if (Array.isArray(perEggList)) {
           for (const perEgg of perEggList) {
             if (perEgg?.egg && perEgg?.language) {
               try {
                 const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
                 if (egg && !egg.language) {
-                  const file = this.plugin.app.vault.getAbstractFileByPath(egg.fileName);
+                  const file = this.plugin.app.vault.getMarkdownFiles().find((file2) => file2.path === egg.fileName);
                   if (file) {
-                    const content = await this.plugin.app.vault.read(file);
-                    const updated = insertEggLanguage(content, perEgg.language);
-                    if (updated !== content) {
-                      await this.plugin.app.vault.modify(file, updated);
-                    }
+                    const vault = this.plugin.app.vault;
+                    const language = perEgg.language;
+                    const transform = (content) => insertEggLanguage(content, language);
+                    if (vault.process)
+                      await vault.process(file, transform);
+                    else
+                      await vault.modify(file, transform(await vault.read(file)));
                   }
                 }
               } catch (err) {
@@ -965,6 +1324,7 @@ var NutEggServer = class {
       if (targetId != null) {
         db?.updateNut(targetId, {
           processingResult: saved,
+          ...confirm.analysis ? { analysisResult: confirm.analysis } : {},
           ...fileName ? { fileName } : {}
         });
       } else {
@@ -996,6 +1356,11 @@ var NutEggServer = class {
           merged: mergedEggs
         })
       );
+      if (hasKnowledge)
+        setTimeout(() => {
+          for (const egg of eggNames)
+            void this.plugin.aiProcessor?.maybeMergeEgg?.(egg)?.catch((err) => console.warn(`[NutEgg] Background merge failed for ${egg}`, err));
+        }, 0);
     } catch (err) {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -1191,6 +1556,142 @@ function makeFakePlugin(overrides = {}) {
   };
 }
 
+// src/knowledge-base.ts
+var KnowledgeBase = class {
+  plugin;
+  constructor(plugin) {
+    this.plugin = plugin;
+  }
+  /**
+   * Save the captured content to the raw folder.
+   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title.md
+   */
+  async saveRaw(capture) {
+    const folder = this.plugin.settings.rawFolder;
+    await this.ensureFolder(folder);
+    const safeTitle = this.sanitizeFileName(capture.title);
+    const now = /* @__PURE__ */ new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const timestamp = [
+      now.getFullYear(),
+      pad(now.getMonth() + 1),
+      pad(now.getDate()),
+      pad(now.getHours()),
+      pad(now.getMinutes())
+    ].join("-");
+    const source = this.sanitizeFileName(capture.sourceType);
+    const publishedAt = capture.metadata?.published || "unknown";
+    const savedAt = (/* @__PURE__ */ new Date()).toISOString();
+    const author = capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "unknown";
+    const safeAuthor = this.sanitizeFileName(author);
+    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}.md`;
+    const sourceUrl = capture.url;
+    const processingResult = capture.processingResult;
+    const timeEstimate = capture.metadata?.time_estimate_minutes || String(Math.max(1, Math.ceil((capture.content?.split(/\s+/)?.length || 0) / 200)));
+    const summary = capture.summary || "";
+    const eggFiles = capture.matchedEggs || [];
+    const frontmatterLines = [
+      "---",
+      `source_url: "${this.escapeYaml(capture.url)}"`,
+      `source_type: ${capture.sourceType}`,
+      `published_at: "${publishedAt === "unknown" ? "unknown" : this.escapeYaml(publishedAt)}"`,
+      `saved_at: "${savedAt}"`,
+      `author: "${author === "unknown" ? "unknown" : this.escapeYaml(author)}"`,
+      `processing_result: ${processingResult}`,
+      `time_estimate_minutes: ${timeEstimate}`
+    ];
+    if (summary) {
+      const escapedSummary = summary.replace(/"/g, '\\"').replace(/\n/g, "\\n");
+      frontmatterLines.push(`summary: "${escapedSummary}"`);
+    }
+    if (eggFiles.length > 0) {
+      frontmatterLines.push(`egg_files:`);
+      for (const egg of eggFiles) {
+        frontmatterLines.push(`  - ${egg}`);
+      }
+    }
+    frontmatterLines.push(`tags: []`);
+    if (capture.metadata) {
+      const passthroughKeys = ["published", "author", "channel", "handle", "time_estimate_minutes"];
+      for (const [key, value] of Object.entries(capture.metadata)) {
+        if (!passthroughKeys.includes(key) && value !== null && value !== void 0 && value !== "") {
+          frontmatterLines.push(`${key}: "${this.escapeYaml(value)}"`);
+        }
+      }
+    }
+    frontmatterLines.push("---");
+    frontmatterLines.push("");
+    frontmatterLines.push(`# ${capture.title}`);
+    frontmatterLines.push("");
+    frontmatterLines.push(`**Source:** ${capture.url}`);
+    frontmatterLines.push("");
+    frontmatterLines.push(capture.content);
+    if (capture.analysis) {
+      frontmatterLines.push("", "# NutEgg Analysis", "", "```json", JSON.stringify(capture.analysis, null, 2), "```");
+    }
+    const noteContent = frontmatterLines.join("\n");
+    await this.plugin.app.vault.create(fileName, noteContent);
+    console.log(`[NutEgg] Saved raw: ${fileName}`);
+    return fileName;
+  }
+  /** Keep the original per-egg results when an already-collected nut is hatched. */
+  async updateRawAnalysis(fileName, analysis) {
+    const vault = this.plugin.app.vault;
+    if (!await vault.adapter.exists(fileName))
+      throw new Error(`Nut not found: ${fileName}`);
+    const file = vault.getMarkdownFiles().find((file2) => file2.path === fileName);
+    if (!file)
+      throw new Error(`Nut not found: ${fileName}`);
+    const transform = (content) => {
+      const marker = "\n# NutEgg Analysis\n\n```json\n";
+      const offset = content.lastIndexOf(marker);
+      const original = offset < 0 ? content : content.slice(0, offset);
+      return `${original}${marker}${JSON.stringify(analysis, null, 2)}
+\`\`\`
+`;
+    };
+    if (vault.process)
+      await vault.process(file, transform);
+    else
+      await vault.modify(file, transform(await vault.read(file)));
+  }
+  /**
+   * Append new knowledge entries to each egg's Unprocessed section (insight +
+   * examples from the AI, plus mechanical author/source lines). Entries are
+   * merged into the Knowledge tree later, once 20+ accumulate per egg.
+   */
+  async appendKnowledge(newKnowledge, sourceTitle, sourceUrl, author) {
+    const eggParser = this.plugin.eggParser || new EggParser(this.plugin);
+    for (const item of newKnowledge) {
+      await eggParser.appendUnprocessed(
+        item.egg,
+        item.content,
+        author,
+        sourceTitle,
+        sourceUrl
+      );
+    }
+  }
+  escapeYaml(value) {
+    const text = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "");
+    return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+  async ensureFolder(folder) {
+    const parts = folder.split("/");
+    let currentPath = "";
+    for (const part of parts) {
+      currentPath += (currentPath ? "/" : "") + part;
+      const exists = await this.plugin.app.vault.adapter.exists(currentPath);
+      if (!exists) {
+        await this.plugin.app.vault.createFolder(currentPath);
+      }
+    }
+  }
+  sanitizeFileName(name) {
+    return String(name ?? "").replace(/[\\/:*?"<>|#^\[\]]/g, "").replace(/\s+/g, "-").substring(0, 80);
+  }
+};
+
 // tests/server.test.ts
 function makeServer(overrides = {}) {
   const plugin = makeFakePlugin(overrides);
@@ -1260,19 +1761,19 @@ function makeServer(overrides = {}) {
           id: 7,
           savedAt: "2026-08-16T10:00:00Z",
           processingResult: "saved",
-          analysisResult: { titleVerdict: "x" }
+          analysisResult: { schemaVersion: 3, titleVerdict: "x" }
         },
         {
           id: 3,
           savedAt: "2026-08-15T09:00:00Z",
           processingResult: "analyzed",
-          analysisResult: null
+          analysisResult: { schemaVersion: 3 }
         },
         {
           id: 1,
           savedAt: "2026-08-14T08:00:00Z",
           processingResult: "skip",
-          analysisResult: null
+          analysisResult: { schemaVersion: 3 }
         }
       ]
     };
@@ -1283,7 +1784,7 @@ function makeServer(overrides = {}) {
     import_strict.default.equal(history[0].saved, "saved");
     import_strict.default.equal(history[1].saved, "analyzed");
     import_strict.default.equal(history[2].saved, "skip");
-    import_strict.default.equal(history[1].result, null);
+    import_strict.default.equal(history[1].result.schemaVersion, 3);
   });
   (0, import_node_test.it)("returns empty when the DB is unavailable", () => {
     const s = makeServer({ db: { available: false } });
@@ -1471,6 +1972,34 @@ function makeRes() {
     metadata: { author: "Jane Doe" },
     skipRaw: true
   };
+  (0, import_node_test.it)("hatches Bilibili captures with numeric metadata through the real save path", async () => {
+    const { vault, files } = makeFakeVault({ "nutegg/ai_ml.md": "# Knowledge\n\n# Unprocessed\n" });
+    let saved;
+    const plugin = makeFakePlugin({
+      vault,
+      db: { getNutById: () => null, getNutByUrl: () => null, insertNut: (row) => {
+        saved = row;
+      } }
+    });
+    plugin.eggParser = new EggParser(plugin);
+    plugin.knowledgeBase = new KnowledgeBase(plugin);
+    const s = new NutEggServer(plugin, 27123);
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({
+      ...baseConfirm,
+      skipRaw: false,
+      sourceType: "bilibili",
+      url: "https://www.bilibili.com/video/BV1eVgA64EbW",
+      metadata: { author: "\u4F5C\u8005", cid: 117091965343752, part: 1, time_estimate_minutes: 12 },
+      newKnowledge: [{ egg: "nutegg/ai_ml.md", content: "- Useful answer" }],
+      analysis: { schemaVersion: 3, eggResults: [] }
+    })), res);
+    import_strict.default.equal(res.statusCode, 200, res.body);
+    import_strict.default.equal(JSON.parse(res.body).success, true);
+    import_strict.default.equal(saved.processingResult, "saved");
+    import_strict.default.ok(files.get(saved.fileName).includes('cid: "117091965343752"'));
+    import_strict.default.ok(files.get("nutegg/ai_ml.md").includes("Useful answer"));
+  });
   (0, import_node_test.it)("appends entries with author/source upon confirmation", async () => {
     let appended = null;
     const s = makeServer({
@@ -1496,6 +2025,46 @@ function makeRes() {
     import_strict.default.equal(appended[1], "Article Title");
     import_strict.default.equal(appended[2], "https://x.com/a");
     import_strict.default.equal(appended[3], "Jane Doe");
+  });
+  (0, import_node_test.it)("archives Stage 2 originals on an already-collected nut and schedules merge after acknowledgement", async () => {
+    const events = [];
+    const analysis = { schemaVersion: 3, readAction: "skip", eggResults: [{ egg: "egg.md", language: "English" }] };
+    const s = makeServer({
+      db: { getNutById: () => ({ id: 42, fileName: "nutegg/_raw/original.md", processingResult: "unprocessed" }), updateNut: () => events.push("db") },
+      knowledgeBase: {
+        updateRawAnalysis: async (path, value) => {
+          import_strict.default.equal(path, "nutegg/_raw/original.md");
+          import_strict.default.deepEqual(value, analysis);
+          events.push("archive");
+        },
+        appendKnowledge: async () => {
+          events.push("append");
+        }
+      },
+      eggParser: { readEgg: async () => null },
+      aiProcessor: { maybeMergeEgg: async () => {
+        events.push("merge");
+        return null;
+      } }
+    });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, analysis, newKnowledge: [{ egg: "egg.md", content: "Useful answer" }] })), res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(events, ["archive", "append", "db"]);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    import_strict.default.deepEqual(events, ["archive", "append", "db", "merge"]);
+  });
+  (0, import_node_test.it)("does not append a second Hatch for a saved result", async () => {
+    const s = makeServer({
+      db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md" }) },
+      knowledgeBase: { appendKnowledge: async () => {
+        import_strict.default.fail("duplicate append");
+      } }
+    });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "one" }] })), res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.equal(JSON.parse(res.body).alreadySaved, true);
   });
   (0, import_node_test.it)("resolves the author from channel metadata when author is absent", async () => {
     let appended = null;
@@ -1646,7 +2215,7 @@ function makeRes() {
     import_strict.default.ok(routedWithContent.includes("Bullet 1"));
     import_strict.default.equal(routedWithContent.includes("Full content text here"), false);
   });
-  (0, import_node_test.it)("stage 2: compares knowledge for confirmed eggs", async () => {
+  (0, import_node_test.it)("stage 2: analyzes instructions for confirmed eggs", async () => {
     let analyzeEggsCalledWith = null;
     const s = makeServer({
       indexReader: {

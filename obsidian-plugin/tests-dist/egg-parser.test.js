@@ -71,41 +71,29 @@ language: "${language}"
 ${content}`;
 }
 function formatEggInstructionsForPrompt(egg) {
-  const parts = [];
-  parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
-  if (egg.keyQuestions && egg.keyQuestions.length > 0) {
-    parts.push(
-      `**Key Questions:**
-${egg.keyQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`
-    );
+  const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  if (egg.actionGuide)
+    parts.push(`**Action Guide:**
+${egg.actionGuide}`);
+  for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]]) {
+    if (items?.length)
+      parts.push(`**${label}:**
+${items.map((item) => `- ${item}`).join("\n")}`);
   }
-  if (egg.rejectionCriteria && egg.rejectionCriteria.length > 0) {
-    parts.push(
-      `**Rejection Criteria:**
-${egg.rejectionCriteria.map((c) => `- ${c}`).join("\n")}`
-    );
-  }
-  if (egg.formattingRules) {
+  if (egg.formattingRules)
     parts.push(`**Formatting Rules:**
 ${egg.formattingRules}`);
-  }
   return parts.join("\n\n");
 }
 function formatEggKnowledgeForPrompt(egg) {
-  const parts = [];
-  parts.push(`**Current Knowledge:**
-${egg.knowledge || "(empty)"}`);
-  if (egg.unprocessed && egg.unprocessed.trim()) {
-    parts.push(`**Unprocessed (pending merge):**
-${egg.unprocessed}`);
-  }
-  return parts.join("\n\n");
+  return `**Current Knowledge:**
+${egg.knowledge || "(empty)"}
+
+**Unprocessed:**
+${egg.unprocessed || "(empty)"}`;
 }
 function formatEggForPrompt(egg) {
-  return [
-    formatEggInstructionsForPrompt(egg),
-    formatEggKnowledgeForPrompt(egg)
-  ].join("\n\n");
+  return formatEggInstructionsForPrompt(egg);
 }
 function countUnprocessed(egg) {
   const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
@@ -149,7 +137,9 @@ function parseEggFile(fileName, content) {
     scope: "",
     actionGuide: "",
     keyQuestions: [],
-    rejectionCriteria: [],
+    worthReadingIf: [],
+    skipIf: [],
+    sourceText: content,
     formattingRules: "",
     knowledge: "",
     unprocessed: "",
@@ -174,7 +164,8 @@ function parseEggFile(fileName, content) {
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");
-  result.rejectionCriteria = parseListItems(sections.get("rejection criteria") || "");
+  result.worthReadingIf = parseListItems(sections.get("worth reading if") || "");
+  result.skipIf = parseListItems(sections.get("skip if") || "");
   result.formattingRules = (sections.get("formatting rules") || "").trim();
   const lines = content.split(/\r?\n/);
   const knowledgeSection = findSection(lines, "knowledge");
@@ -273,11 +264,17 @@ var EggParser = class {
   constructor(plugin) {
     this.plugin = plugin;
   }
+  async findFile(path) {
+    const vault = this.plugin.app.vault;
+    if (!await vault.adapter.exists(path))
+      return null;
+    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+  }
   async readEgg(fileName, fallbackDescription) {
-    let file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    let file = await this.findFile(fileName);
     if (!file && !fileName.includes("/")) {
       const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = this.plugin.app.vault.getAbstractFileByPath(`${parentDir}/${fileName}`);
+      file = await this.findFile(`${parentDir}/${fileName}`);
     }
     if (!file) {
       const folder = this.plugin.vaultFolder || "nutegg";
@@ -337,39 +334,45 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+    const file = await this.findFile(fileName);
     if (!file) {
-      console.warn(`[NutEgg] Cannot append \u2014 egg file not found: ${fileName}`);
-      return;
+      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
     }
-    const existing = await this.plugin.app.vault.read(file);
-    const lines = existing.replace(/\n+$/, "").split("\n");
-    const section = findSection(lines, "unprocessed");
-    const trimmed = content.trim();
-    const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
-    const meta = [];
-    if (author)
-      meta.push(`_author: ${author}_`);
-    const safeTitle = sourceTitle.replace(/[[\]]/g, "");
-    meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
-    const block = [withBullet, ...meta].join("\n");
-    if (section) {
-      lines.splice(section.end, 0, "", block);
-    } else {
-      lines.push("", UNPROCESSED_HEADING, "", block);
-    }
-    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
+    const transform = (existing) => {
+      const lines = existing.replace(/\n+$/, "").split("\n");
+      const section = findSection(lines, "unprocessed");
+      const trimmed = content.trim();
+      const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
+      const meta = [];
+      if (author)
+        meta.push(`_author: ${author}_`);
+      const safeTitle = sourceTitle.replace(/[[\]]/g, "");
+      meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
+      const block = [withBullet, ...meta].join("\n");
+      if (section) {
+        lines.splice(section.end, 0, "", block);
+      } else {
+        lines.push("", UNPROCESSED_HEADING, "", block);
+      }
+      if (existing.includes(block))
+        return existing;
+      return lines.join("\n") + "\n";
+    };
+    if (this.plugin.app.vault.process)
+      await this.plugin.app.vault.process(file, transform);
+    else
+      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
    * Replace the Knowledge and Unprocessed sections with the merged output
    * from the merge AI call. Missing sections are created as needed.
    */
-  async applyMerge(fileName, knowledge, unprocessed) {
-    const file = this.plugin.app.vault.getAbstractFileByPath(fileName);
+  async applyMerge(fileName, knowledge, unprocessed, expected) {
+    const file = await this.findFile(fileName);
     if (!file) {
       console.warn(`[NutEgg] Cannot merge \u2014 egg file not found: ${fileName}`);
-      return;
+      return false;
     }
     knowledge = stripSectionHeading(knowledge, "knowledge");
     unprocessed = stripSectionHeading(unprocessed, "unprocessed");
@@ -384,45 +387,55 @@ var EggParser = class {
       if (!unprocessed)
         unprocessed = rest;
     }
-    const existing = await this.plugin.app.vault.read(file);
-    let lines = existing.replace(/\n+$/, "").split("\n");
-    const knowledgeSection = findSection(lines, "knowledge");
-    if (knowledgeSection) {
-      lines = [
-        ...lines.slice(0, knowledgeSection.start + 1),
-        "",
-        ...knowledge.trim().split("\n"),
-        ...lines.slice(knowledgeSection.end)
-      ];
-    } else {
-      const unprocessedSection2 = findSection(lines, "unprocessed");
-      if (unprocessedSection2) {
+    let applied = true;
+    const transform = (existing) => {
+      if (expected && (expected.sourceText ? existing !== expected.sourceText : parseEggFile(fileName, existing).knowledge !== expected.knowledge || parseEggFile(fileName, existing).unprocessed !== expected.unprocessed)) {
+        applied = false;
+        return existing;
+      }
+      let lines = existing.replace(/\n+$/, "").split("\n");
+      const knowledgeSection = findSection(lines, "knowledge");
+      if (knowledgeSection) {
         lines = [
-          ...lines.slice(0, unprocessedSection2.start),
-          "",
-          KNOWLEDGE_HEADING,
+          ...lines.slice(0, knowledgeSection.start + 1),
           "",
           ...knowledge.trim().split("\n"),
-          "",
-          ...lines.slice(unprocessedSection2.start)
+          ...lines.slice(knowledgeSection.end)
         ];
       } else {
-        lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+        const unprocessedSection2 = findSection(lines, "unprocessed");
+        if (unprocessedSection2) {
+          lines = [
+            ...lines.slice(0, unprocessedSection2.start),
+            "",
+            KNOWLEDGE_HEADING,
+            "",
+            ...knowledge.trim().split("\n"),
+            "",
+            ...lines.slice(unprocessedSection2.start)
+          ];
+        } else {
+          lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+        }
       }
-    }
-    const unprocessedSection = findSection(lines, "unprocessed");
-    const remainder = unprocessed.trim();
-    if (unprocessedSection) {
-      lines = [
-        ...lines.slice(0, unprocessedSection.start + 1),
-        ...remainder ? ["", ...remainder.split("\n")] : [],
-        ...lines.slice(unprocessedSection.end)
-      ];
-    } else if (remainder) {
-      lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
-    }
-    await this.plugin.app.vault.modify(file, lines.join("\n") + "\n");
-    console.log(`[NutEgg] Merged knowledge tree in ${fileName}`);
+      const unprocessedSection = findSection(lines, "unprocessed");
+      const remainder = unprocessed.trim();
+      if (unprocessedSection) {
+        lines = [
+          ...lines.slice(0, unprocessedSection.start + 1),
+          ...remainder ? ["", ...remainder.split("\n")] : [],
+          ...lines.slice(unprocessedSection.end)
+        ];
+      } else if (remainder) {
+        lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
+      }
+      return lines.join("\n") + "\n";
+    };
+    if (this.plugin.app.vault.process)
+      await this.plugin.app.vault.process(file, transform);
+    else
+      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    return applied;
   }
 };
 
@@ -561,7 +574,10 @@ status: "active"
 > 1. Is this a structural shift?
 > 2. Is there new fundamental analysis?
 >
-> **Rejection Criteria:**
+> **Worth Reading If:**
+> - Concrete evidence and tradeoffs.
+>
+> **Skip If:**
 > - Reject price predictions.
 > - Reject FOMO content.
 >
@@ -611,9 +627,15 @@ language: "Chinese"
       "Is there new fundamental analysis?"
     ]);
   });
-  (0, import_node_test.it)("parses rejection criteria as a list", () => {
+  (0, import_node_test.it)("parses Worth Reading If without using legacy rejection criteria", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
-    import_strict.default.deepEqual(egg.rejectionCriteria, [
+    import_strict.default.deepEqual(egg.worthReadingIf, ["Concrete evidence and tradeoffs."]);
+    const legacy = parser.parseEggFile("old.md", "> **Rejection Criteria:**\n> - Old filter.\n\n# Knowledge\n");
+    import_strict.default.deepEqual(legacy.skipIf, []);
+  });
+  (0, import_node_test.it)("parses Skip If as a list", () => {
+    const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
+    import_strict.default.deepEqual(egg.skipIf, [
       "Reject price predictions.",
       "Reject FOMO content."
     ]);
@@ -643,24 +665,24 @@ language: "Chinese"
 });
 (0, import_node_test.describe)("EggParser.formatEggForPrompt", () => {
   const parser = new EggParser(makeFakePlugin());
-  (0, import_node_test.it)("includes scope, questions, criteria, rules and knowledge", () => {
+  (0, import_node_test.it)("includes instructions without existing knowledge", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     const out = parser.formatEggForPrompt(egg);
     import_strict.default.ok(out.includes("**Scope:** High-signal financial data."));
-    import_strict.default.ok(out.includes("1. Is this a structural shift?"));
+    import_strict.default.ok(out.includes("- Is this a structural shift?"));
     import_strict.default.ok(out.includes("- Reject price predictions."));
     import_strict.default.ok(out.includes("- Respect the existing knowledge tree."));
-    import_strict.default.ok(out.includes("**Current Knowledge:**\n- Risk Management"));
+    import_strict.default.ok(!out.includes("**Current Knowledge:**"));
   });
-  (0, import_node_test.it)("includes the Unprocessed section so the AI can avoid duplicates", () => {
+  (0, import_node_test.it)("excludes Unprocessed from extraction prompts", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     const out = parser.formatEggForPrompt(egg);
-    import_strict.default.ok(out.includes("**Unprocessed (pending merge):**"));
-    import_strict.default.ok(out.includes("- pending insight"));
+    import_strict.default.ok(!out.includes("**Unprocessed"));
+    import_strict.default.ok(!out.includes("- pending insight"));
   });
   (0, import_node_test.it)("marks empty knowledge as (empty)", () => {
     const egg = parser.parseEggFile("x.md", "# Knowledge\n");
-    import_strict.default.ok(parser.formatEggForPrompt(egg).includes("(empty)"));
+    import_strict.default.ok(!parser.formatEggForPrompt(egg).includes("Current Knowledge"));
   });
   (0, import_node_test.it)("works when formatEggForPrompt is invoked as a detached function reference", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
@@ -763,9 +785,8 @@ language: "Chinese"
       store.files.get("egg.md").includes("_source: [A bracket title](https://example.com/post)_")
     );
   });
-  (0, import_node_test.it)("does nothing when the egg file is missing", async () => {
-    const store = await append({}, "- bullet");
-    import_strict.default.equal(store.files.size, 0);
+  (0, import_node_test.it)("reports missing eggs so Hatch cannot silently lose entries", async () => {
+    await import_strict.default.rejects(append({}, "- bullet"), /egg file not found/);
   });
 });
 (0, import_node_test.describe)("EggParser.countUnprocessed", () => {

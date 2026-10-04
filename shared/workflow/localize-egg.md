@@ -14,7 +14,7 @@ Translate and adapt the concrete instructions, questions, criteria, and rule des
 2. Egg Parser Structure: The structure and these exact labels MUST remain in English:
    - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)
    - Callout: `> [!abstract]- Instructions:`
-   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Rejection Criteria:**`, `> **Formatting Rules:**`
+   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If, Skip If:**`, `> **Formatting Rules:**`
    - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`
    - Headings: `# Knowledge` and `# Unprocessed`
    - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`

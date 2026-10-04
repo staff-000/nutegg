@@ -9,13 +9,16 @@ language: "English"
 > **Scope:** Capture new knowledge and insights.
 > 
 > **Action Guide:**
-> 1. Novel Delta: Extract only genuinely new, substantive insights or ideas not already captured in the existing knowledge files. State "None" if the content is entirely redundant.
-> 2. Decide: should the user spend time reading this fully? Consider the egg's reject criteria if any are specified. If the content is repetitive, basic, or doesn't add new insight, answer false.
+> 1. Extract substantive results according to this egg’s scope and formatting rules; preserve source evidence and qualifications.
+> 2. Answer Key Questions and recommend full reading, highlights, summary, skip, or uncertain using the two preference lists.
 >
 > **Key Questions:**
 > 1. What geopolitical, social, or economic dynamic does this reveal?
 >
-> **Rejection Criteria:**
+> **Worth Reading If:**
+> - Detailed evidence, examples, tradeoffs, or explanations directly address this egg’s questions.
+>
+> **Skip If:**
 > - Reject superficial news recaps and transient event reporting lacking structural analysis.
 > - Reject partisan commentary, emotional narratives, or short-term noise that fails to indicate a broader systemic shift.
 >
@@ -28,10 +31,9 @@ language: "English"
 >   * [opinion] — a subjective analysis, prediction, or commentary from the author
 >   * [fact] — a verifiable data point, statistic, historical event, or demographic figure
 >   * [example] — a concrete event, country case, or policy outcome that illustrates a concept
-> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight (dedup and novelty checks compare concepts: the same insight under different wording is ONE concept). Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For geopolitics/society, examples are specific events, policies, or country cases. Author and source are appended automatically.
+> - Each new entry follows a concept → explanation → example structure: one top-level bullet "- [tag] **Concept Name**" — Concept Name is a short 2–5 word name that uniquely identifies the insight. Explanation is added as an indented bullet. Concrete examples from the content (if any) follow as indented sub-bullets ("  - 🎯 Example: ..."). For geopolitics/society, examples are specific events, policies, or country cases. Author and source are appended automatically.
 > - Structured content: when the source itself is a well-organized enumeration (a numbered list, a named framework like "Seven Principles of X", a step-by-step process), capture it as ONE complete entry — the list's title as the Concept and EVERY item as an indented sub-bullet, in the source's own order. A partial list is worse than no entry.
 > - New entries are added to the "# Unprocessed" section first and can be merged into the knowledge tree on demand.
-> - When merging: respect the existing knowledge tree. Locate the most relevant parent concept in the document and append the new information beneath it as nested sub-bullets. Do not break the existing hierarchy.
 
 # Knowledge
 

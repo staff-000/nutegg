@@ -1,14 +1,14 @@
 # 🌰/🥚 NutEgg Chrome Extension
 
 > **Read less, hatch more, save time.**  
-> Capture web pages, tweets, and YouTube videos, analyze novelty with AI, and curate knowledge directly into Obsidian.
+> Capture web pages, tweets, and YouTube videos, analyze content with AI, and curate knowledge directly into Obsidian.
 
 The NutEgg Chrome Extension works alongside your local [NutEgg Obsidian Plugin](https://github.com/staff-000/nutegg-obsidian-release) to capture what you browse and turn information overload into structured, personal knowledge.
 
 It is a two-part system that helps you stop mindless browsing and start building your knowledge base:
 
 - **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰. 
-- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+- **Obsidian Plugin** — Analyzes content with AI, answers your egg-specific questions and recommends what to read, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
 
 > 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 

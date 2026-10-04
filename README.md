@@ -5,7 +5,7 @@
 NutEgg captures web content and curates structured knowledge in Obsidian. It is a two-part system designed to help you stop mindless browsing and start building your personal knowledge base:
 
 - **Chrome Extension** ([Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol)) — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰.
-- **Obsidian Plugin** ([Obsidian Community Plugins](https://community.obsidian.md/plugins/nutegg)) — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+- **Obsidian Plugin** ([Obsidian Community Plugins](https://community.obsidian.md/plugins/nutegg)) — Analyzes content with AI, answers your egg-specific questions and recommends what to read, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
 
 ### 🚀 Quick Install
 
@@ -16,7 +16,7 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 
 ### ⚡ Flexible Modes: Standalone in Chrome or Paired with Obsidian
 - **📱 Chrome Standalone Mode (No Obsidian required)**: Run NutEgg completely inside Chrome. Enter your AI key in extension Options to get instant anti-clickbait verdicts, executive summaries, interactive YouTube chapter maps, collapsible mind maps, and timestamped video Q&A.
-- **💎 Obsidian Connected Mode**: Run the companion Obsidian plugin to automatically evaluate incoming content against your vault's existing knowledge trees, highlight novel insights, and archive notes into `nutegg/`.
+- **💎 Obsidian Connected Mode**: Run the companion Obsidian plugin to apply your egg instructions to incoming content, highlight useful answers, and archive notes into `nutegg/`.
 
 > 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 
@@ -86,7 +86,8 @@ nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
  *   > **Scope:** ...
  *   > **Action Guide:** ...
  *   > **Key Questions:** ...
- *   > **Rejection Criteria:** ...
+ *   > **Worth Reading If:** ...
+ *   > **Skip If:** ...
  *   > **Formatting Rules:** ...
  *   ## Knowledge
  *   (knowledge tree — new insights nest under existing concepts)

@@ -1,12 +1,12 @@
 # 🌰/🥚 NutEgg for Obsidian
 
 > **Read less, hatch more, save time.**  
-> Capture web content, evaluate novelty with AI, and grow structured knowledge trees inside your Obsidian vault.
+> Capture web content, analyze content with AI, and grow structured knowledge trees inside your Obsidian vault.
 
 **NutEgg** is a two-part system designed to turn mindless browsing into an active, structured knowledge base:
 
 - **Chrome Extension** — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰. 
-- **Obsidian Plugin** — Analyzes content with AI, evaluates novelty against your existing notes, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
+- **Obsidian Plugin** — Analyzes content with AI, answers your egg-specific questions and recommends what to read, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
 
 > 💬 Feedback and ideas are always welcome via [GitHub Issues](https://github.com/staff-000/nutegg/issues) or email at [staffhacker.000@gmail.com](mailto:staffhacker.000@gmail.com).
 

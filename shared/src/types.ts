@@ -101,6 +101,8 @@ export interface SourceRef {
 export type QuestionScope = "within" | "beyond";
 
 export interface KeyAnswer {
+  /** False when the source does not address this question (Stage 2). */
+  answered?: boolean;
   question: string;
   answer: string;
   /** Citations pointing to where in the content this answer comes from. */
@@ -180,7 +182,9 @@ export interface EggContent {
   scope: string;
   actionGuide: string;
   keyQuestions: string[];
-  rejectionCriteria: string[];
+  worthReadingIf: string[];
+  skipIf: string[];
+  sourceText?: string;
   formattingRules: string;
   knowledge: string;
   unprocessed: string;
@@ -188,44 +192,29 @@ export interface EggContent {
   indexDescription?: string;
 }
 
-/** New knowledge formatted per the egg's Formatting Rules. */
-export interface NovelDelta {
-  /** Anchor text from the existing knowledge tree to nest under ("" = append at end). */
-  parent: string;
-  content: string;
-}
+export type ReadAction = "full" | "highlights" | "summary" | "skip" | "uncertain";
 
-/** Candidate knowledge entry extracted from content per formatting rules. */
+/** Instruction-formatted result, not a claim of novelty. */
 export interface ExtractedKnowledgeEntry {
-  kind?: "insight" | "list";
+  kind?: "insight" | "list" | "answer";
   content: string;
+  sources?: SourceRef[];
 }
 
-/** Entry from content that was already covered in the existing knowledge tree. */
-export interface RedundantEntry {
-  existingParent?: string;
-  content: string;
-}
-
-/** Result of analyzing content against one egg. */
 export interface EggAnalysis {
   egg: string;
   language?: string;
   keyQuestionAnswers: KeyAnswer[];
-  extractedEntries?: ExtractedKnowledgeEntry[];
-  novelDelta: NovelDelta[];
-  redundantEntries?: RedundantEntry[];
-  existingKnowledge?: string;
-  rejected: boolean;
-  rejectReason: string;
-  readVerdict: boolean;
+  extractedEntries: ExtractedKnowledgeEntry[];
+  readAction: ReadAction;
+  readVerdict: boolean | null;
   readVerdictReason: string;
+  readingSources: SourceRef[];
 }
 
-/** Flattened delta item — exactly what /confirm accepts. */
-export interface NewKnowledgeItem {
+/** Pending saveable item accepted by /confirm. */
+export interface EggSaveEntry {
   egg: string;
-  parent: string;
   content: string;
 }
 
@@ -236,17 +225,19 @@ export interface MergeResult {
 }
 
 export interface AnalysisResult extends ContentAnalysis {
-  shouldRead: boolean;
+  shouldRead: boolean | null;
+  readAction?: ReadAction;
+  readingSources?: SourceRef[];
+  schemaVersion?: number;
   shouldReadReason: string;
   matchedEggs: string[];
   eggResults: EggAnalysis[];
-  newKnowledge: NewKnowledgeItem[];
+  newKnowledge: EggSaveEntry[];
 }
 
 export type WorkflowPromptKey =
   | "contentAnalysis"
   | "eggAnalysis"
-  | "eggCompare"
   | "followUp"
   | "eggRouting"
   | "contentTaskDefault"
@@ -270,7 +261,7 @@ export interface AIProcessorHost {
   };
   eggParser?: {
     readEgg?(fileName: string): Promise<EggContent | null>;
-    applyMerge?(fileName: string, knowledge: string, unprocessed: string): Promise<void>;
+    applyMerge?(fileName: string, knowledge: string, unprocessed: string, expected?: EggContent): Promise<void | boolean>;
     countUnprocessed?(egg: EggContent): number;
     formatEggInstructionsForPrompt?(egg: EggContent): string;
     formatEggForPrompt?(egg: EggContent): string;

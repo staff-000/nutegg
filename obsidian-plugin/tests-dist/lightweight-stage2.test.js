@@ -22,7 +22,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// tests/ai-processor.test.ts
+// tests/lightweight-stage2.test.ts
 var import_node_test = require("node:test");
 var import_strict = __toESM(require("node:assert/strict"));
 
@@ -486,34 +486,34 @@ function extractEggLanguage(content) {
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
   return directMatch ? directMatch[1].trim() : "";
 }
-function formatEggInstructionsForPrompt(egg) {
-  const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
-  if (egg.actionGuide)
+function formatEggInstructionsForPrompt(egg2) {
+  const parts = [`**Scope:** ${egg2.scope || "(not specified)"}`];
+  if (egg2.actionGuide)
     parts.push(`**Action Guide:**
-${egg.actionGuide}`);
-  for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]]) {
+${egg2.actionGuide}`);
+  for (const [label, items] of [["Key Questions", egg2.keyQuestions], ["Worth Reading If", egg2.worthReadingIf], ["Skip If", egg2.skipIf]]) {
     if (items?.length)
       parts.push(`**${label}:**
 ${items.map((item) => `- ${item}`).join("\n")}`);
   }
-  if (egg.formattingRules)
+  if (egg2.formattingRules)
     parts.push(`**Formatting Rules:**
-${egg.formattingRules}`);
+${egg2.formattingRules}`);
   return parts.join("\n\n");
 }
-function formatEggKnowledgeForPrompt(egg) {
+function formatEggKnowledgeForPrompt(egg2) {
   return `**Current Knowledge:**
-${egg.knowledge || "(empty)"}
+${egg2.knowledge || "(empty)"}
 
 **Unprocessed:**
-${egg.unprocessed || "(empty)"}`;
+${egg2.unprocessed || "(empty)"}`;
 }
-function formatEggForPrompt(egg) {
-  return formatEggInstructionsForPrompt(egg);
+function formatEggForPrompt(egg2) {
+  return formatEggInstructionsForPrompt(egg2);
 }
-function countUnprocessed(egg) {
+function countUnprocessed(egg2) {
   const indentOf = (l) => (l.match(/^\s*/) || [""])[0].length;
-  const bullets = (egg.unprocessed || "").split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
+  const bullets = (egg2.unprocessed || "").split("\n").map((l) => l.replace(/\s+$/, "")).filter((l) => /^\s*[-*]\s/.test(l));
   if (bullets.length === 0)
     return 0;
   const base = Math.min(...bullets.map(indentOf));
@@ -634,8 +634,8 @@ function sanitizeJsonString(str) {
   }
   return result.replace(/,\s*([}\]])/g, "$1");
 }
-function parseJson(response, context = "response") {
-  let jsonStr = (response || "").trim();
+function parseJson(response2, context = "response") {
+  let jsonStr = (response2 || "").trim();
   if (!jsonStr) {
     console.warn(`[NutEgg] Empty AI response received for (${context}).`);
     return {};
@@ -1333,18 +1333,18 @@ ${rendered}`;
     }
     const chunks = this.chunkContent(capture2.content, capture2.chapters || []);
     const signals = this.eggStage1Signals(capture2, contentAnalysis);
-    const eggResults = await Promise.all(eggs.map(async (egg) => {
+    const eggResults = await Promise.all(eggs.map(async (egg2) => {
       if (chunks.length === 1)
-        return await this.analyzeAgainstEgg(capture2, egg, "", signals) || this.failedEgg(egg);
+        return await this.analyzeAgainstEgg(capture2, egg2, "", signals) || this.failedEgg(egg2);
       const parts = await Promise.all(chunks.map((chunk) => this.analyzeAgainstEgg(
         { ...capture2, content: chunk.content },
-        egg,
+        egg2,
         partNote(chunk),
         signals
       )));
       const entries = parts.flatMap((part) => part?.extractedEntries || []);
       try {
-        const aggregate = await this.aggregateEgg(egg, chunks.map((chunk, i) => ({
+        const aggregate = await this.aggregateEgg(egg2, chunks.map((chunk, i) => ({
           part: i + 1,
           startTime: chunk.startTime,
           success: !!parts[i],
@@ -1359,11 +1359,11 @@ ${rendered}`;
             readVerdict: null,
             readVerdictReason: "Some parts failed to process; coverage is incomplete."
           });
-        return { egg: egg.fileName, language: parts.find((p) => p?.language)?.language, extractedEntries: entries, ...aggregate };
+        return { egg: egg2.fileName, language: parts.find((p) => p?.language)?.language, extractedEntries: entries, ...aggregate };
       } catch (err) {
-        console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
+        console.warn(`[NutEgg] Aggregate failed for ${egg2.fileName}`, err);
         return {
-          ...this.failedEgg(egg),
+          ...this.failedEgg(egg2),
           extractedEntries: entries,
           readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
           keyQuestionAnswers: parts.flatMap((part, i) => (part?.keyQuestionAnswers || []).map((answer) => ({
@@ -1401,9 +1401,9 @@ ${answer.answer}`;
     return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `
 ${refs}` : ""}`;
   }
-  failedEgg(egg) {
+  failedEgg(egg2) {
     return {
-      egg: egg.fileName,
+      egg: egg2.fileName,
       keyQuestionAnswers: [],
       extractedEntries: [],
       readAction: "uncertain",
@@ -1445,8 +1445,8 @@ ${analysis.coreSummary.join("\n")}` : ""
       shared_output_rules: this.getContentOutputRules(capture2, capture2.questionsScope || "within")
     });
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
-    const response = await this.callAI(prompt, configuredMax);
-    const parsed = this.parseJson(response, "content-analysis");
+    const response2 = await this.callAI(prompt, configuredMax);
+    const parsed = this.parseJson(response2, "content-analysis");
     return {
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
       coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
@@ -1467,29 +1467,29 @@ ${analysis.coreSummary.join("\n")}` : ""
     };
   }
   /** One instruction-driven call per egg/part, without existing knowledge. */
-  async analyzeAgainstEgg(capture2, egg, partNoteStr = "", signals = "") {
+  async analyzeAgainstEgg(capture2, egg2, partNoteStr = "", signals = "") {
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
-      egg_file: egg.fileName,
-      egg_instructions: formatEggInstructionsForPrompt(egg),
+      egg_file: egg2.fileName,
+      egg_instructions: formatEggInstructionsForPrompt(egg2),
       stage1_signals: signals,
       title: capture2.title,
       url: capture2.url,
       source_type: capture2.sourceType,
       part_note: partNoteStr,
       content: capture2.content,
-      shared_output_rules: this.getEggOutputRules(egg, "", capture2)
+      shared_output_rules: this.getEggOutputRules(egg2, "", capture2)
     });
     try {
       const parsed = this.parseJson(await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384), "egg-analysis");
       return {
-        egg: egg.fileName,
-        language: typeof parsed.language === "string" ? parsed.language : egg.language,
+        egg: egg2.fileName,
+        language: typeof parsed.language === "string" ? parsed.language : egg2.language,
         keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
         extractedEntries: this.parseExtractedEntries(parsed.extractedEntries),
         ...this.parseRecommendation(parsed)
       };
     } catch (err) {
-      console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);
+      console.warn(`[NutEgg] Egg analysis failed for ${egg2.fileName}`, err);
       return null;
     }
   }
@@ -1554,8 +1554,8 @@ ${bullets || "- (no summary)"}${mmStr}`;
     });
     const defaultMax = sections.mindMap ? 4096 : 1500;
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
-    const response = await this.callAI(prompt, budget);
-    const parsed = this.parseJson(response, "aggregate-content");
+    const response2 = await this.callAI(prompt, budget);
+    const parsed = this.parseJson(response2, "aggregate-content");
     return {
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
       coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
@@ -1567,18 +1567,18 @@ ${bullets || "- (no summary)"}${mmStr}`;
     };
   }
   /** Whole-source answers/recommendation; no raw content or entry bodies. */
-  async aggregateEgg(egg, findings, signals = "") {
+  async aggregateEgg(egg2, findings, signals = "") {
     const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
-      egg_file: egg.fileName,
-      scope: egg.scope,
-      key_questions: egg.keyQuestions.join("\n"),
-      worth_reading_if: egg.worthReadingIf.join("\n"),
-      skip_if: egg.skipIf.join("\n"),
+      egg_file: egg2.fileName,
+      scope: egg2.scope,
+      key_questions: egg2.keyQuestions.join("\n"),
+      worth_reading_if: egg2.worthReadingIf.join("\n"),
+      skip_if: egg2.skipIf.join("\n"),
       stage1_signals: signals,
       chunk_findings: JSON.stringify(findings),
-      shared_output_rules: this.getEggOutputRules(egg)
+      shared_output_rules: this.getEggOutputRules(egg2)
     });
-    const parsed = this.parseJson(await this.callAI(prompt, Math.max(4096, egg.keyQuestions.length * 512)), "aggregate-egg");
+    const parsed = this.parseJson(await this.callAI(prompt, Math.max(4096, egg2.keyQuestions.length * 512)), "aggregate-egg");
     return { keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), ...this.parseRecommendation(parsed) };
   }
   /**
@@ -1595,8 +1595,8 @@ ${bullets || "- (no summary)"}${mmStr}`;
         template: templateContent
       });
       const maxTokens = Math.max(8192, this.host?.settings?.contentAnalysisMaxTokens || 8192);
-      const response = await this.callAI(prompt, maxTokens);
-      let text = response.trim();
+      const response2 = await this.callAI(prompt, maxTokens);
+      let text = response2.trim();
       text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
       if (text.includes("[!abstract]") && text.includes("**Scope:**") && text.includes("**Action Guide:**") && text.includes("# Knowledge") && text.includes("# Unprocessed")) {
         const language = extractEggLanguage(text);
@@ -1692,8 +1692,8 @@ ${priorQa.trim()}`;
       shared_output_rules: this.getContentOutputRules(capture2, scope)
     });
     try {
-      const response = await this.callAI(prompt, 2e3);
-      const parsed = this.parseJson(response, "follow-up");
+      const response2 = await this.callAI(prompt, 2e3);
+      const parsed = this.parseJson(response2, "follow-up");
       const answers = this.parseKeyAnswers(parsed.answers);
       const byQuestion = new Map(answers.map((a) => [a.question, a]));
       return questions.map((q) => {
@@ -1733,11 +1733,11 @@ ${priorQa.trim()}`;
     return job;
   }
   async performMergeEgg(fileName, retried = false) {
-    const egg = await this.host?.eggParser?.readEgg?.(fileName);
-    if (!egg)
+    const egg2 = await this.host?.eggParser?.readEgg?.(fileName);
+    if (!egg2)
       return null;
     const countFn = (e) => this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
-    const entries = countFn(egg);
+    const entries = countFn(egg2);
     if (entries === 0) {
       console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
       return null;
@@ -1749,7 +1749,7 @@ ${priorQa.trim()}`;
       return null;
     }
     let fallbackDesc = "";
-    if (!egg.language && this.host?.indexReader) {
+    if (!egg2.language && this.host?.indexReader) {
       try {
         const indexContent = await this.host.indexReader.getIndexContent?.();
         if (indexContent) {
@@ -1764,35 +1764,35 @@ ${priorQa.trim()}`;
     }
     const hostSetting = this.host?.settings?.outputLanguage;
     const hostLang = hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
-    const outputLanguage = egg.language || (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
+    const outputLanguage = egg2.language || (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") || "the same language as this egg's existing knowledge";
     const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
       egg_file: fileName,
       output_language: outputLanguage,
-      egg_description: fallbackDesc || egg.scope || egg.topic || "",
-      formatting_rules: egg.formattingRules || "(none)",
-      knowledge_tree: egg.knowledge || "(empty)",
-      unprocessed: egg.unprocessed,
+      egg_description: fallbackDesc || egg2.scope || egg2.topic || "",
+      formatting_rules: egg2.formattingRules || "(none)",
+      knowledge_tree: egg2.knowledge || "(empty)",
+      unprocessed: egg2.unprocessed,
       unprocessed_count: entries
     });
     try {
-      const needed = Math.max(4096, Math.ceil((egg.knowledge.length + egg.unprocessed.length) / 1.5) + 1024);
+      const needed = Math.max(4096, Math.ceil((egg2.knowledge.length + egg2.unprocessed.length) / 1.5) + 1024);
       const cap = Number(this.host?.settings?.mergeMaxTokens || this.host?.settings?.contentAnalysisMaxTokens || 16384);
       if (needed > cap) {
         console.warn(`[NutEgg] Merge deferred for ${fileName}: full tree exceeds output budget.`);
         return null;
       }
-      const response = await this.callAI(prompt, needed);
-      const raw = response.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+      const response2 = await this.callAI(prompt, needed);
+      const raw = response2.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
       const parsed = JSON.parse(raw);
       if (typeof parsed.knowledge !== "string" || !parsed.knowledge.trim() || typeof parsed.unprocessed !== "string")
         return null;
       const knowledge = parsed.knowledge.trim();
       const unprocessed = parsed.unprocessed.trim();
       const current = await this.host?.eggParser?.readEgg?.(fileName);
-      const changed = current && (egg.sourceText ? current.sourceText !== egg.sourceText : current.knowledge !== egg.knowledge || current.unprocessed !== egg.unprocessed);
+      const changed = current && (egg2.sourceText ? current.sourceText !== egg2.sourceText : current.knowledge !== egg2.knowledge || current.unprocessed !== egg2.unprocessed);
       if (changed)
         return retried ? null : this.performMergeEgg(fileName, true);
-      const applied = await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed, egg);
+      const applied = await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed, egg2);
       if (applied === false)
         return retried ? null : this.performMergeEgg(fileName, true);
       console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
@@ -1806,11 +1806,11 @@ ${priorQa.trim()}`;
    * Threshold-based merge helper scheduled after durable Hatch saving.
    */
   async maybeMergeEgg(fileName) {
-    const egg = await this.host?.eggParser?.readEgg?.(fileName);
-    if (!egg)
+    const egg2 = await this.host?.eggParser?.readEgg?.(fileName);
+    if (!egg2)
       return null;
     const countFn = (e) => this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
-    const entries = countFn(egg);
+    const entries = countFn(egg2);
     if (entries < MERGE_THRESHOLD)
       return null;
     return this.mergeEgg(fileName);
@@ -1914,8 +1914,8 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
    * Sanitizes unescaped control characters (\n, \r, \t) in strings and
    * recovers partial/truncated JSON when responses are cut off mid-stream.
    */
-  parseJson(response, context = "response") {
-    return parseJson(response, context);
+  parseJson(response2, context = "response") {
+    return parseJson(response2, context);
   }
   truncate(text, maxChars) {
     if (text.length <= maxChars)
@@ -2128,10 +2128,10 @@ var EggParser = class {
   async readEggs(entries) {
     const eggs = [];
     for (const entry of entries) {
-      const egg = await this.readEgg(entry.fileName, entry.description);
-      if (egg) {
-        egg.indexDescription = entry.description;
-        eggs.push(egg);
+      const egg2 = await this.readEgg(entry.fileName, entry.description);
+      if (egg2) {
+        egg2.indexDescription = entry.description;
+        eggs.push(egg2);
       }
     }
     return eggs;
@@ -2139,17 +2139,17 @@ var EggParser = class {
   parseEggFile(fileName, content) {
     return parseEggFile(fileName, content);
   }
-  formatEggInstructionsForPrompt(egg) {
-    return formatEggInstructionsForPrompt(egg);
+  formatEggInstructionsForPrompt(egg2) {
+    return formatEggInstructionsForPrompt(egg2);
   }
-  formatEggKnowledgeForPrompt(egg) {
-    return formatEggKnowledgeForPrompt(egg);
+  formatEggKnowledgeForPrompt(egg2) {
+    return formatEggKnowledgeForPrompt(egg2);
   }
-  formatEggForPrompt = (egg) => {
-    return formatEggForPrompt(egg);
+  formatEggForPrompt = (egg2) => {
+    return formatEggForPrompt(egg2);
   };
-  countUnprocessed(egg) {
-    return countUnprocessed(egg);
+  countUnprocessed(egg2) {
+    return countUnprocessed(egg2);
   }
   /**
    * Append one new knowledge entry to the egg's Unprocessed section.
@@ -2383,801 +2383,220 @@ function makeFakePlugin(overrides = {}) {
   };
 }
 
-// tests/ai-processor.test.ts
-var capture = {
-  url: "https://example.com/post",
-  title: "Test Title",
-  content: "Some content.",
-  sourceType: "article"
-};
-(0, import_node_test.describe)("AIProcessor.parseJson", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("parses plain JSON", () => {
-    import_strict.default.deepEqual(p.parseJson('{"a": 1}'), { a: 1 });
-  });
-  (0, import_node_test.it)("strips markdown fences", () => {
-    import_strict.default.deepEqual(p.parseJson('```json\n{"b": 2}\n```'), { b: 2 });
-  });
-  (0, import_node_test.it)("extracts the outermost object from surrounding text", () => {
-    import_strict.default.deepEqual(p.parseJson('Here it is: {"c": 3} thanks'), { c: 3 });
-  });
-  (0, import_node_test.it)("returns {} for unparseable responses", () => {
-    import_strict.default.deepEqual(p.parseJson("no json here"), {});
-  });
-});
-(0, import_node_test.describe)("AIProcessor.parseKeyAnswers", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("filters to complete Q/A pairs and stringifies", () => {
-    const out = p.parseKeyAnswers([
-      { question: "q1", answer: "a1" },
-      { question: "", answer: "a2" },
-      { question: "q3" },
-      "garbage"
-    ]);
-    import_strict.default.deepEqual(out, [{ question: "q1", answer: "a1" }]);
-  });
-  (0, import_node_test.it)("handles non-arrays", () => {
-    import_strict.default.deepEqual(p.parseKeyAnswers(void 0), []);
-    import_strict.default.deepEqual(p.parseKeyAnswers({}), []);
-  });
-  (0, import_node_test.it)("extracts and normalizes sources citations", () => {
-    const out = p.parseKeyAnswers([
-      {
-        question: "How does it work?",
-        answer: "By using attention.",
-        sources: [
-          { ref: " 12:34 ", quote: " attention is all you need " },
-          { section: " Methodology ", quote: " we trained a transformer " },
-          { ref: "" },
-          null
-        ]
-      },
-      {
-        question: "Not covered?",
-        answer: "Not covered in this content",
-        sources: []
-      }
-    ]);
-    import_strict.default.deepEqual(out, [
-      {
-        question: "How does it work?",
-        answer: "By using attention.",
-        sources: [
-          { ref: "12:34", quote: "attention is all you need" },
-          { ref: "Methodology", quote: "we trained a transformer" }
-        ]
-      },
-      {
-        question: "Not covered?",
-        answer: "Not covered in this content"
-      }
-    ]);
-  });
-});
-(0, import_node_test.describe)("AIProcessor.parseMindMap", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("handles non-arrays or empty inputs", () => {
-    import_strict.default.deepEqual(p.parseMindMap(void 0), []);
-    import_strict.default.deepEqual(p.parseMindMap(null), []);
-    import_strict.default.deepEqual(p.parseMindMap({}), []);
-    import_strict.default.deepEqual(p.parseMindMap("invalid"), []);
-    import_strict.default.deepEqual(p.parseMindMap([]), []);
-  });
-  (0, import_node_test.it)("parses flat and hierarchical mind map nodes", () => {
-    const raw = [
-      {
-        name: " Core Problem ",
-        detail: " Batch latency is too high. "
-      },
-      {
-        title: " Architecture Design ",
-        description: " Event-driven microservices. ",
-        children: [
-          {
-            topic: " Ingestion Layer ",
-            summary: " Kafka cluster for stream buffering. "
-          },
-          {
-            name: " Processing Nodes ",
-            children: [
-              {
-                name: " Flink Workers ",
-                detail: " Real-time stateful computation. "
-              }
-            ]
-          }
-        ]
-      },
-      null,
-      {},
-      { invalid: "no name or title" }
-    ];
-    const out = p.parseMindMap(raw);
-    import_strict.default.deepEqual(out, [
-      {
-        name: "Core Problem",
-        detail: "Batch latency is too high."
-      },
-      {
-        name: "Architecture Design",
-        detail: "Event-driven microservices.",
-        children: [
-          {
-            name: "Ingestion Layer",
-            detail: "Kafka cluster for stream buffering."
-          },
-          {
-            name: "Processing Nodes",
-            children: [
-              {
-                name: "Flink Workers",
-                detail: "Real-time stateful computation."
-              }
-            ]
-          }
-        ]
-      }
-    ]);
-  });
-  (0, import_node_test.it)("parses flexible branch counts up to 3 levels deep per updated prompt", () => {
-    const raw = [
-      {
-        name: "Branch 1",
-        detail: "First main branch",
-        children: [
-          {
-            name: "Branch 1.1",
-            detail: "Second level detail",
-            children: [
-              {
-                name: "Branch 1.1.1",
-                detail: "Third level leaf node"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        name: "Branch 2",
-        detail: "Second main branch without sub-branches"
-      }
-    ];
-    const out = p.parseMindMap(raw);
-    import_strict.default.equal(out.length, 2);
-    import_strict.default.equal(out[0].name, "Branch 1");
-    import_strict.default.equal(out[0].children?.length, 1);
-    import_strict.default.equal(out[0].children?.[0].children?.length, 1);
-    import_strict.default.equal(out[0].children?.[0].children?.[0].name, "Branch 1.1.1");
-    import_strict.default.equal(out[1].name, "Branch 2");
-    import_strict.default.equal(out[1].children, void 0);
-  });
-  (0, import_node_test.it)("prevents runaway recursion depth", () => {
-    let deepNode = { name: "level 6" };
-    for (let i = 5; i >= 0; i--) {
-      deepNode = { name: `level ${i}`, children: [deepNode] };
-    }
-    const out = p.parseMindMap([deepNode]);
-    import_strict.default.equal(out.length, 1);
-    let current = out[0];
-    let depth = 0;
-    while (current.children && current.children.length > 0) {
-      depth++;
-      current = current.children[0];
-    }
-    import_strict.default.ok(depth <= 5);
-  });
-});
-(0, import_node_test.describe)("AIProcessor.askFollowUp", () => {
-  (0, import_node_test.it)("answers every question, filling in skipped ones", async () => {
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async () => JSON.stringify({ answers: [{ question: "Q1?", answer: "A1" }] })
-      }
-    });
-    const out = await new AIProcessor(plugin).askFollowUp(
-      capture,
-      ["Q1?", "Q2?"],
-      [{ question: "Prior?", answer: "Prior A" }]
-    );
-    import_strict.default.equal(out.length, 2);
-    import_strict.default.equal(out[0].answer, "A1");
-    import_strict.default.equal(out[1].answer, "No answer returned \u2014 please try again.");
-  });
-  (0, import_node_test.it)("no API key \u2192 placeholder answers", async () => {
-    const plugin = makeFakePlugin({ settings: { aiApiKey: "" } });
-    const out = await new AIProcessor(plugin).askFollowUp(
-      capture,
-      ["Q?"],
-      []
-    );
-    import_strict.default.equal(out[0].answer, "No API key configured \u2014 cannot answer.");
-  });
-  (0, import_node_test.it)("empty question list \u2192 empty result, no AI call", async () => {
-    let calls = 0;
-    const plugin = makeFakePlugin({
-      aiClient: { chat: async () => (calls++, "{}") }
-    });
-    const out = await new AIProcessor(plugin).askFollowUp(capture, [], []);
-    import_strict.default.deepEqual(out, []);
-    import_strict.default.equal(calls, 0);
-  });
-  (0, import_node_test.it)("passes scope 'within' by default and retains grounding rule", async () => {
-    let capturedPrompt = "";
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async (prompt) => {
-          capturedPrompt = prompt;
-          return JSON.stringify({ answers: [{ question: "Q1?", answer: "A1" }] });
-        }
-      }
-    });
-    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Q1?"]);
-    import_strict.default.equal(out[0].scope, "within");
-    import_strict.default.ok(capturedPrompt.includes("- Grounding:"));
-  });
-  (0, import_node_test.it)("passes scope 'beyond' and completely removes grounding rule", async () => {
-    let capturedPrompt = "";
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async (prompt) => {
-          capturedPrompt = prompt;
-          return JSON.stringify({ answers: [{ question: "Fact check?", answer: "Verified" }] });
-        }
-      }
-    });
-    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Fact check?"], [], "beyond");
-    import_strict.default.equal(out[0].scope, "beyond");
-    import_strict.default.equal(capturedPrompt.includes("- Grounding:"), false);
-    import_strict.default.ok(capturedPrompt.includes("Global Mode"));
-    import_strict.default.ok(capturedPrompt.includes("- Output Language:"));
-  });
-  (0, import_node_test.it)("handles priorQa as a formatted string without throwing priorQa.map is not a function", async () => {
-    let capturedPrompt = "";
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async (prompt) => {
-          capturedPrompt = prompt;
-          return JSON.stringify({ answers: [{ question: "Next question?", answer: "Answer" }] });
-        }
-      }
-    });
-    const stringPriorQa = "Q: Earlier question?\nA: Earlier answer.";
-    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Next question?"], stringPriorQa);
-    import_strict.default.equal(out[0].answer, "Answer");
-    import_strict.default.ok(capturedPrompt.includes("Q: Earlier question?"));
-    import_strict.default.ok(capturedPrompt.includes("A: Earlier answer."));
-  });
-  (0, import_node_test.it)("handles priorQa as an array of objects correctly", async () => {
-    let capturedPrompt = "";
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async (prompt) => {
-          capturedPrompt = prompt;
-          return JSON.stringify({ answers: [{ question: "Followup?", answer: "Followup Ans" }] });
-        }
-      }
-    });
-    const arrayPriorQa = [{ question: "What is X?", answer: "X is Y." }];
-    const out = await new AIProcessor(plugin).askFollowUp(capture, ["Followup?"], arrayPriorQa);
-    import_strict.default.equal(out[0].answer, "Followup Ans");
-    import_strict.default.ok(capturedPrompt.includes("Q: What is X?"));
-    import_strict.default.ok(capturedPrompt.includes("A: X is Y."));
-  });
-});
-(0, import_node_test.describe)("AIProcessor.chunkContent", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("returns one chunk for content under the limit", () => {
-    const chunks = p.chunkContent("short", [{ time: "00:01", title: "C1" }]);
-    import_strict.default.equal(chunks.length, 1);
-    import_strict.default.deepEqual(chunks[0].chapters, [{ time: "00:01", title: "C1" }]);
-  });
-  (0, import_node_test.it)("splits plain text at paragraph boundaries", () => {
-    const para = "x".repeat(1e4);
-    const content = [para, para, para, para].join("\n\n");
-    const chunks = p.chunkContent(content, []);
-    import_strict.default.ok(chunks.length >= 2);
-    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4));
-    import_strict.default.ok(chunks[0].content.includes(para));
-  });
-  (0, import_node_test.it)("hard-splits a single oversized paragraph", () => {
-    const chunks = p.chunkContent("y".repeat(65e3), []);
-    import_strict.default.ok(chunks.length >= 3);
-    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4));
-  });
-  (0, import_node_test.it)("splits timestamped transcripts and keeps the preamble in part 1", () => {
-    const lines = ["# Title", "", "**Channel:** X", ""];
-    for (let m = 0; m < 50; m++) {
-      for (let s = 0; s < 20; s++) {
-        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] caption text line with words`);
-      }
-    }
-    const content = lines.join("\n");
-    const chunks = p.chunkContent(content, []);
-    import_strict.default.ok(chunks.length >= 2, "long timestamped content must split");
-    import_strict.default.ok(chunks[0].content.includes("# Title"), "preamble in part 1");
-    import_strict.default.ok(chunks.every((c) => c.startTime !== ""));
-    import_strict.default.ok(chunks.every((c) => c.content.length <= 3e4 + 1e3));
-  });
-  (0, import_node_test.it)("attaches chapters to the chunk covering their start time", () => {
-    const lines = [];
-    for (let m = 0; m < 50; m++) {
-      for (let s = 0; s < 20; s++) {
-        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
-      }
-    }
-    const chapters = [
-      { time: "05:00", title: "Early" },
-      // The chunk boundary lands around minute 40 — pick a chapter clearly
-      // inside the second chunk's time range.
-      { time: "48:00", title: "Late" }
-    ];
-    const chunks = p.chunkContent(lines.join("\n"), chapters);
-    const early = chunks.find((c) => c.chapters.some((ch) => ch.title === "Early"));
-    const late = chunks.find((c) => c.chapters.some((ch) => ch.title === "Late"));
-    import_strict.default.ok(early, "Early chapter assigned to some chunk");
-    import_strict.default.ok(late, "Late chapter assigned to some chunk");
-    import_strict.default.notEqual(
-      early?.startTime,
-      late?.startTime,
-      "chapters in different time ranges land in different chunks"
-    );
-    import_strict.default.ok(chunks.every((c) => c.sections.length === 0));
-  });
-  (0, import_node_test.it)("gives videos WITHOUT chapters a 5-minute section grid per chunk", () => {
-    const lines = [];
-    for (let m = 0; m < 47; m++) {
-      for (let s = 0; s < 20; s++) {
-        lines.push(`[${String(m).padStart(2, "0")}:${String(s * 3).padStart(2, "0")}] some caption text with words`);
-      }
-    }
-    const chunks = p.chunkContent(lines.join("\n"), []);
-    const allSections = chunks.flatMap((c) => c.sections);
-    import_strict.default.ok(allSections.length >= 8, "grid covers the whole video");
-    import_strict.default.equal(allSections[0], "00:00");
-    import_strict.default.ok(
-      allSections.includes("40:00"),
-      "sections continue past the first chunk boundary"
-    );
-    for (let i = 1; i < allSections.length; i++) {
-      import_strict.default.equal(
-        p.toSeconds(allSections[i]) - p.toSeconds(allSections[i - 1]),
-        300,
-        `sections are a continuous 5-minute grid (${allSections[i - 1]} \u2192 ${allSections[i]})`
-      );
-    }
-  });
-  (0, import_node_test.it)("short timestamped videos get a grid too (single chunk)", () => {
-    const lines = [];
-    for (let m = 0; m < 8; m++) {
-      lines.push(`[0${m}:00] short caption line here`);
-    }
-    const chunks = p.chunkContent(lines.join("\n"), []);
-    import_strict.default.equal(chunks.length, 1);
-    import_strict.default.deepEqual(chunks[0].sections, ["00:00", "05:00"]);
-  });
-  (0, import_node_test.it)("respects custom chunkWindowChars setting", () => {
-    const customPlugin = makeFakePlugin({
-      settings: { chunkWindowChars: 1500 }
-    });
-    const customP = new AIProcessor(customPlugin);
-    const text = "a".repeat(1e3) + "\n\n" + "b".repeat(1e3);
-    const chunks = customP.chunkContent(text, []);
-    import_strict.default.equal(chunks.length, 2);
-  });
-  (0, import_node_test.it)("respects custom sectionGridSeconds setting", () => {
-    const customPlugin = makeFakePlugin({
-      settings: { sectionGridSeconds: 120 }
-    });
-    const customP = new AIProcessor(customPlugin);
-    const lines = [];
-    for (let m = 0; m < 6; m++) {
-      lines.push(`[0${m}:00] caption text line`);
-    }
-    const chunks = customP.chunkContent(lines.join("\n"), []);
-    import_strict.default.equal(chunks.length, 1);
-    import_strict.default.deepEqual(chunks[0].sections, ["00:00", "02:00", "04:00"]);
-  });
-});
-(0, import_node_test.describe)("AIProcessor.completeChapterMap", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("passes entries through when no section grid is provided", () => {
-    const parsed = [{ time: "00:12", title: "X", summary: "s" }];
-    import_strict.default.deepEqual(p.completeChapterMap(parsed, void 0), parsed);
-  });
-  (0, import_node_test.it)("keeps AI titles for matching sections and backfills the rest", () => {
-    const parsed = [
-      { time: "00:00", title: "Intro", summary: "a" },
-      { time: "10:00", title: "Middle", summary: "c" }
-    ];
-    const out = p.completeChapterMap(parsed, [
-      "00:00",
-      "05:00",
-      "10:00",
-      "15:00"
-    ]);
-    import_strict.default.equal(out.length, 4, "one entry per section, guaranteed");
-    import_strict.default.deepEqual(out[0], { time: "00:00", title: "Intro", summary: "a" });
-    import_strict.default.deepEqual(out[1], { time: "05:00", title: "", summary: "" });
-    import_strict.default.deepEqual(out[2], { time: "10:00", title: "Middle", summary: "c" });
-    import_strict.default.deepEqual(out[3], { time: "15:00", title: "", summary: "" });
-  });
-  (0, import_node_test.it)("drops AI entries whose time is not on the grid", () => {
-    const parsed = [
-      { time: "00:04", title: "Off-grid", summary: "x" },
-      { time: "05:00", title: "On-grid", summary: "y" }
-    ];
-    const out = p.completeChapterMap(parsed, ["00:00", "05:00"]);
-    import_strict.default.deepEqual(out, [
-      { time: "00:00", title: "", summary: "" },
-      { time: "05:00", title: "On-grid", summary: "y" }
-    ]);
-  });
-});
-(0, import_node_test.describe)("repairTruncatedJson", () => {
-  (0, import_node_test.it)("returns balanced json unchanged", () => {
-    const input = '{"titleVerdict": "Hello", "coreSummary": ["A", "B"]}';
-    import_strict.default.equal(repairTruncatedJson(input), input);
-  });
-  (0, import_node_test.it)("repairs JSON truncated inside an array string", () => {
-    const input = '{"titleVerdict": "Done", "coreSummary": ["First", "Seco';
-    const repaired = repairTruncatedJson(input);
-    import_strict.default.ok(repaired);
-    const parsed = JSON.parse(repaired);
-    import_strict.default.equal(parsed.titleVerdict, "Done");
-    import_strict.default.deepEqual(parsed.coreSummary, ["First", "Seco"]);
-  });
-  (0, import_node_test.it)("repairs JSON truncated inside an object within an array", () => {
-    const input = '{"titleVerdict": "V", "chapterMap": [{"time": "00:00", "title": "Intro", "summary": "One"}, {"time": "05:00", "title": "Part 2"';
-    const repaired = repairTruncatedJson(input);
-    import_strict.default.ok(repaired);
-    const parsed = JSON.parse(repaired);
-    import_strict.default.equal(parsed.titleVerdict, "V");
-    import_strict.default.equal(parsed.chapterMap.length, 2);
-    import_strict.default.equal(parsed.chapterMap[0].title, "Intro");
-    import_strict.default.equal(parsed.chapterMap[1].title, "Part 2");
-  });
-  (0, import_node_test.it)("repairs JSON truncated after a trailing comma", () => {
-    const input = '{"titleVerdict": "V", "coreSummary": ["One"], ';
-    const repaired = repairTruncatedJson(input);
-    import_strict.default.ok(repaired);
-    const parsed = JSON.parse(repaired);
-    import_strict.default.equal(parsed.titleVerdict, "V");
-    import_strict.default.deepEqual(parsed.coreSummary, ["One"]);
-  });
-  (0, import_node_test.it)("repairs JSON truncated mid-key", () => {
-    const input = '{"titleVerdict": "V", "coreSummary": ["One"], "chapter';
-    const repaired = repairTruncatedJson(input);
-    import_strict.default.ok(repaired);
-    const parsed = JSON.parse(repaired);
-    import_strict.default.equal(parsed.titleVerdict, "V");
-    import_strict.default.deepEqual(parsed.coreSummary, ["One"]);
-  });
-});
-(0, import_node_test.describe)("sanitizeJsonString", () => {
-  (0, import_node_test.it)("escapes raw newlines and tabs inside string literals", () => {
-    const raw = '{"content": "- **Concept**: first line\n  - second line	with tab\r\n  - third line"}';
-    const sanitized = sanitizeJsonString(raw);
-    const parsed = JSON.parse(sanitized);
-    import_strict.default.equal(
-      parsed.content,
-      "- **Concept**: first line\n  - second line	with tab\r\n  - third line"
-    );
-  });
-  (0, import_node_test.it)("removes trailing commas before closing braces and brackets", () => {
-    const raw = '{"a": 1, "b": [2, 3, ], }';
-    const sanitized = sanitizeJsonString(raw);
-    const parsed = JSON.parse(sanitized);
-    import_strict.default.equal(parsed.a, 1);
-    import_strict.default.deepEqual(parsed.b, [2, 3]);
-  });
-});
-(0, import_node_test.describe)("AIProcessor.localizeEggTemplate", () => {
-  (0, import_node_test.it)("returns stripped localized template and detected language when AI produces valid egg content", async () => {
-    let sentPrompt = "";
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async (prompt) => {
-          sentPrompt = prompt;
-          return '```markdown\n---\ntopic: "\u65B9\u6CD5\u8BBA"\nstatus: "active"\nlast_updated: "2026-09-12"\nlanguage: "Chinese"\n---\n\n> [!abstract]- Instructions:\n> **Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5\n>\n> **Action Guide:**\n> 1. Title Verdict: \u6838\u5FC3\u7ED3\u8BBA\n\n# Knowledge\n\n# Unprocessed\n```';
-        }
-      }
-    });
-    const templateInput = '---\ntopic: "Unknown"\nstatus: "active"\nlast_updated: "2026-08-14"\nlanguage: "English"\n---\n\n> [!abstract]- Instructions:\n> **Scope:** T\n>\n> **Action Guide:**\n> 1. Title Verdict: T\n\n# Knowledge\n\n# Unprocessed';
-    const out = await new AIProcessor(plugin).localizeEggTemplate(
-      templateInput,
-      "\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"
-    );
-    import_strict.default.ok(out);
-    import_strict.default.equal(out.language, "Chinese");
-    import_strict.default.ok(out.content.includes('language: "Chinese"'));
-    import_strict.default.ok(out.content.includes("**Scope:** \u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
-    import_strict.default.ok(out.content.includes("**Action Guide:**"));
-    import_strict.default.ok(out.content.includes("# Knowledge"));
-    import_strict.default.ok(out.content.includes("# Unprocessed"));
-    import_strict.default.ok(!out.content.includes("```"));
-    import_strict.default.ok(sentPrompt.includes("\u4ECB\u7ECD\u505A\u4E8B\u7684\u5177\u4F53\u65B9\u6CD5"));
-    import_strict.default.ok(sentPrompt.includes(templateInput));
-  });
-  (0, import_node_test.it)("returns null when AI output is invalid or missing required markers", async () => {
-    const plugin = makeFakePlugin({
-      aiClient: {
-        chat: async () => "Sorry, I cannot do that."
-      }
-    });
-    const out = await new AIProcessor(plugin).localizeEggTemplate(
-      "bad template",
-      "test"
-    );
-    import_strict.default.equal(out, null);
-  });
-  (0, import_node_test.it)("returns null when no API key is configured", async () => {
-    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
-    const out = await new AIProcessor(noKey).localizeEggTemplate(
-      "template",
-      "desc"
-    );
-    import_strict.default.equal(out, null);
-  });
-});
-(0, import_node_test.describe)("AIProcessor.maybeMergeEgg", () => {
-  function unprocessedEgg(n) {
-    const entries = Array.from(
-      { length: n },
-      (_, i) => `- entry ${i + 1}`
-    ).join("\n");
-    return `---
-language: "English"
----
+// tests/lightweight-stage2.test.ts
+var egg = () => parseEggFile("egg.md", `> [!abstract]- Instructions:
+> **Scope:** Engineering
+> **Action Guide:** Highlight failures.
+> **Key Questions:**
+> - When does it fail?
+> **Worth Reading If:**
+> - Detailed tradeoffs
+> **Skip If:**
+> - Promotion
+> **Formatting Rules:** Q&A blocks
 
 # Knowledge
-
-- existing
-
+SECRET_TREE
 # Unprocessed
-
-${entries}
-`;
+- SECRET_PENDING
+`);
+var capture = { title: "Video", url: "https://example.com", content: "source", sourceType: "video" };
+var stage1 = { titleVerdict: "TITLE_SIGNAL", coreSummary: ["SUMMARY_SIGNAL"], isLongForm: false, chapterMap: [], customQuestionAnswers: [] };
+var response = (action = "summary", entries = [{ content: "Useful result" }]) => JSON.stringify({
+  readAction: action,
+  readVerdictReason: "Reason",
+  extractedEntries: entries,
+  keyQuestionAnswers: [],
+  readingSources: [{ ref: "12:34", quote: "evidence" }]
+});
+(0, import_node_test.describe)("Lightweight Stage 2", () => {
+  (0, import_node_test.it)("makes one call, includes instructions/signals, never existing notes; summary output is hatchable", async () => {
+    const prompts = [];
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (prompt) => {
+      prompts.push(prompt);
+      return response();
+    } } }));
+    const result = await processor.analyzeEggs(capture, [egg()], stage1);
+    import_strict.default.equal(prompts.length, 1);
+    for (const text of ["Highlight failures.", "Detailed tradeoffs", "Promotion", "TITLE_SIGNAL", "SUMMARY_SIGNAL"])
+      import_strict.default.ok(prompts[0].includes(text));
+    import_strict.default.ok(!prompts[0].includes("SECRET_TREE"));
+    import_strict.default.ok(!prompts[0].includes("SECRET_PENDING"));
+    import_strict.default.equal(result.readAction, "summary");
+    import_strict.default.equal(result.shouldRead, false);
+    import_strict.default.equal(result.newKnowledge.length, 1);
+    import_strict.default.equal("parent" in result.newKnowledge[0], false);
+    import_strict.default.equal("novelDelta" in result.eggResults[0], false);
+    import_strict.default.equal(result.schemaVersion, 3);
+    import_strict.default.equal("eggCompare" in PROMPTS, false);
+  });
+  (0, import_node_test.it)("omits disabled Stage 1 signals", async () => {
+    let prompt = "";
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (p) => {
+      prompt = p;
+      return response();
+    } } }));
+    await processor.analyzeEggs({ ...capture, enabledSections: { titleVerdict: false, coreSummary: false } }, [egg()], stage1);
+    import_strict.default.ok(!prompt.includes("TITLE_SIGNAL"));
+    import_strict.default.ok(!prompt.includes("SUMMARY_SIGNAL"));
+  });
+  (0, import_node_test.it)("saves Q&A-only skip results but not unsupported translated answers", async () => {
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async () => JSON.stringify({
+      readAction: "skip",
+      extractedEntries: [],
+      keyQuestionAnswers: [
+        { question: "Q", answer: "Useful answer", answered: true, sources: [{ ref: "12:34" }] },
+        { question: "Other", answer: "\u672A\u63D0\u53CA", answered: false }
+      ]
+    }) } }));
+    const result = await processor.analyzeEggs(capture, [egg()], stage1);
+    import_strict.default.equal(result.shouldRead, false);
+    import_strict.default.equal(result.newKnowledge.length, 1);
+    import_strict.default.match(result.newKnowledge[0].content, /Useful answer/);
+    import_strict.default.match(result.newKnowledge[0].content, /12:34/);
+  });
+  for (const [action, verdict] of [["full", true], ["highlights", true], ["summary", false], ["skip", false], ["uncertain", null], ["invalid", null]]) {
+    (0, import_node_test.it)(`maps ${action} to ${verdict}`, async () => {
+      const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async () => response(action) } }));
+      const result = await processor.analyzeEggs(capture, [egg()], stage1);
+      import_strict.default.equal(result.shouldRead, verdict);
+    });
   }
-  function makeProcessor(files, overrides = {}) {
-    const store = makeFakeVault(files);
-    const plugin = makeFakePlugin({ vault: store.vault, ...overrides });
+  (0, import_node_test.it)("missing recommendations stay uncertain and no matches show no personalized recommendation", async () => {
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async () => "{}" } }));
+    import_strict.default.equal((await processor.analyzeEggs(capture, [egg()], stage1)).shouldRead, null);
+    const none = await processor.analyzeEggs(capture, [], stage1);
+    import_strict.default.equal(none.readAction, void 0);
+    import_strict.default.equal(none.shouldRead, null);
+  });
+  (0, import_node_test.it)("uses deterministic multi-egg precedence", async () => {
+    const processor = new AIProcessor(makeFakePlugin());
+    const results = (actions) => actions.map((readAction, i) => ({ egg: `${i}.md`, readAction, readVerdictReason: "reason", readingSources: [] }));
+    for (const [actions, expected] of [[["skip", "summary"], "summary"], [["summary", "uncertain"], "uncertain"], [["uncertain", "highlights"], "highlights"], [["highlights", "full"], "full"]]) {
+      import_strict.default.equal(processor.mergeVerdict(results([...actions])).readAction, expected);
+    }
+  });
+  (0, import_node_test.it)("slim aggregate sees drafts/coverage, not bodies/tree; same-label fragments survive", async () => {
+    const prompts = [];
+    const processor = new AIProcessor(makeFakePlugin({ settings: { aiApiKey: "test-key", chunkWindowChars: 100 }, aiClient: { chat: async (prompt) => {
+      prompts.push(prompt);
+      if (prompt.startsWith("Consolidate answers"))
+        return JSON.stringify({ readAction: "highlights", keyQuestionAnswers: [{ question: "When does it fail?", answer: "Combined answer", sources: [{ ref: "02:00" }] }] });
+      return JSON.stringify({ readAction: "summary", extractedEntries: [{ content: "- **Same concept** PART_BODY_MARKER " + prompts.length }], keyQuestionAnswers: [{ question: "When does it fail?", answer: "ANSWER_DRAFT", sources: [{ ref: "02:00" }] }] });
+    } } }));
+    const result = await processor.analyzeEggs({ ...capture, content: "word ".repeat(70) }, [egg()], stage1);
+    const aggregate = prompts.find((p) => p.startsWith("Consolidate answers"));
+    import_strict.default.ok(aggregate.includes("ANSWER_DRAFT"));
+    for (const secret of ["PART_BODY_MARKER", "SECRET_TREE", "SECRET_PENDING"])
+      import_strict.default.ok(!aggregate.includes(secret));
+    import_strict.default.equal(result.eggResults[0].extractedEntries.length, prompts.length - 1);
+    import_strict.default.equal(result.eggResults[0].keyQuestionAnswers[0].answer, "Combined answer");
+  });
+  (0, import_node_test.it)("partial chunk failure preserves successful entries and overrides a confident aggregate", async () => {
+    let part = 0;
+    const processor = new AIProcessor(makeFakePlugin({ settings: { aiApiKey: "test-key", chunkWindowChars: 1e3 }, aiClient: { chat: async (prompt) => {
+      if (prompt.startsWith("Consolidate answers"))
+        return JSON.stringify({ readAction: "full", keyQuestionAnswers: [] });
+      if (++part === 2)
+        throw new Error("Chunk unavailable");
+      return response("full");
+    } } }));
+    const result = await processor.analyzeEggs({ ...capture, content: "source ".repeat(400) }, [egg()], stage1);
+    import_strict.default.equal(result.readAction, "uncertain");
+    import_strict.default.equal(result.shouldRead, null);
+    import_strict.default.ok(result.newKnowledge.length > 0);
+    import_strict.default.match(result.shouldReadReason, /incomplete/);
+  });
+  (0, import_node_test.it)("aggregate failure retains labeled answers and fragments with uncertainty", async () => {
+    const processor = new AIProcessor(makeFakePlugin({ settings: { aiApiKey: "test-key", chunkWindowChars: 100 }, aiClient: { chat: async (prompt) => {
+      if (prompt.startsWith("Consolidate"))
+        throw new Error("Unavailable");
+      return JSON.stringify({ readAction: "full", extractedEntries: [{ content: "fragment" }], keyQuestionAnswers: [{ question: "Q", answer: "Answer" }] });
+    } } }));
+    const result = await processor.analyzeEggs({ ...capture, content: "word ".repeat(50) }, [egg()], stage1);
+    import_strict.default.equal(result.shouldRead, null);
+    import_strict.default.ok(result.eggResults[0].extractedEntries.length > 1);
+    import_strict.default.match(result.eggResults[0].keyQuestionAnswers[0].question, /Part 1/);
+  });
+});
+(0, import_node_test.describe)("Merge safety", () => {
+  const original = "# Knowledge\n- Existing\n# Unprocessed\n- New\n";
+  (0, import_node_test.it)("does not repair truncated JSON or modify notes", async () => {
+    const { vault } = makeFakeVault({ "egg.md": original });
+    const plugin = makeFakePlugin({ vault, aiClient: { chat: async () => '{"knowledge":"- partial' } });
+    plugin.app = { vault };
     plugin.eggParser = new EggParser(plugin);
-    return { p: new AIProcessor(plugin), files: store.files };
-  }
-  (0, import_node_test.it)("exports MERGE_THRESHOLD = 20", () => {
-    import_strict.default.equal(MERGE_THRESHOLD, 20);
+    import_strict.default.equal(await new AIProcessor(plugin).mergeEgg("egg.md"), null);
+    import_strict.default.equal(await vault.adapter.read("egg.md"), original);
   });
-  (0, import_node_test.it)("does nothing below the threshold (no AI call)", async () => {
-    let calls = 0;
-    const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(19) },
-      { aiClient: { chat: async () => (calls++, "{}") } }
-    );
-    const out = await p.maybeMergeEgg("egg.md");
-    import_strict.default.equal(out, null);
-    import_strict.default.equal(calls, 0);
-  });
-  (0, import_node_test.it)("merges 20 entries into the tree via one AI call", async () => {
-    let seenPrompt = "";
-    const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
-      {
-        aiClient: {
-          chat: async (prompt) => {
-            seenPrompt = prompt;
-            return JSON.stringify({
-              knowledge: "- existing\n  - merged 1\n  - merged 2",
-              unprocessed: ""
-            });
-          }
-        }
-      }
-    );
-    const out = await p.maybeMergeEgg("egg.md");
-    import_strict.default.deepEqual(out, { egg: "egg.md", entries: 20 });
-    const content = files.get("egg.md");
-    import_strict.default.ok(
-      content.includes("# Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
-      "Knowledge tree replaced with the merged output"
-    );
-    import_strict.default.ok(!content.includes("- entry 1"), "Unprocessed entries consumed");
-    import_strict.default.ok(seenPrompt.includes("- existing"));
-    import_strict.default.ok(seenPrompt.includes("- entry 20"));
-  });
-  (0, import_node_test.it)("leaves the egg untouched when the AI returns no knowledge", async () => {
-    const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
-      { aiClient: { chat: async () => JSON.stringify({ unprocessed: "x" }) } }
-    );
-    const before = files.get("egg.md");
-    const out = await p.maybeMergeEgg("egg.md");
-    import_strict.default.equal(out, null);
-    import_strict.default.equal(files.get("egg.md"), before);
-  });
-  (0, import_node_test.it)("skips the merge without an API key", async () => {
-    let calls = 0;
-    const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
-      {
-        settings: { aiApiKey: "" },
-        aiClient: { chat: async () => (calls++, "{}") }
-      }
-    );
-    import_strict.default.equal(await p.maybeMergeEgg("egg.md"), null);
-    import_strict.default.equal(calls, 0);
-  });
-  (0, import_node_test.it)("returns null for a missing egg file", async () => {
-    const { p } = makeProcessor({});
-    import_strict.default.equal(await p.maybeMergeEgg("nope.md"), null);
-  });
-  (0, import_node_test.it)("mergeEgg merges on demand even with few entries (e.g. 3 entries)", async () => {
-    const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(3) },
-      {
-        aiClient: {
-          chat: async () => JSON.stringify({
-            knowledge: "- existing\n  - merged item",
-            unprocessed: ""
-          })
-        }
-      }
-    );
-    const out = await p.mergeEgg("egg.md");
-    import_strict.default.deepEqual(out, { egg: "egg.md", entries: 3 });
-    const content = files.get("egg.md");
-    import_strict.default.ok(content.includes("- merged item"));
-    import_strict.default.ok(!content.includes("- entry 1"));
-  });
-  (0, import_node_test.it)("mergeEgg returns null when there are 0 unprocessed entries", async () => {
-    let calls = 0;
-    const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(0) },
-      { aiClient: { chat: async () => (calls++, "{}") } }
-    );
-    const out = await p.mergeEgg("egg.md");
-    import_strict.default.equal(out, null);
-    import_strict.default.equal(calls, 0);
-  });
-});
-(0, import_node_test.describe)("AIProcessor prompt building helpers", () => {
-  const p = new AIProcessor(makeFakePlugin());
-  (0, import_node_test.it)("chaptersBlock builds the timestamped list or empty", () => {
-    import_strict.default.equal(
-      p.chaptersBlock([{ time: "00:10", title: "Intro" }]),
-      "## Video Chapters (use these EXACT timestamps)\n- 00:10 \u2014 Intro"
-    );
-    import_strict.default.equal(p.chaptersBlock([]), "");
-    import_strict.default.equal(p.chaptersBlock(void 0), "");
-  });
-  (0, import_node_test.it)("questionsBlock numbers questions under a heading or empty", () => {
-    import_strict.default.equal(
-      p.questionsBlock(["a", "b"], "Custom"),
-      "## Custom\n1. a\n2. b"
-    );
-    import_strict.default.equal(p.questionsBlock([], "Custom"), "");
-  });
-});
-(0, import_node_test.describe)("AIProcessor Output Language Rules", () => {
-  (0, import_node_test.it)("content analysis follows outputLanguage setting or capture payload", () => {
-    const pluginSame = makeFakePlugin({
-      settings: { outputLanguage: "same-as-content" }
-    });
-    const pSame = new AIProcessor(pluginSame);
-    const ruleSame = pSame.getContentOutputRules();
-    import_strict.default.ok(
-      ruleSame.includes("the same language as the captured content"),
-      `expected rule to specify same language as captured content, got: ${ruleSame}`
-    );
-    const pluginZh = makeFakePlugin({
-      settings: { outputLanguage: "Chinese" }
-    });
-    const pZh = new AIProcessor(pluginZh);
-    const ruleZh = pZh.getContentOutputRules();
-    import_strict.default.ok(
-      ruleZh.includes("Chinese"),
-      `expected rule to specify Chinese, got: ${ruleZh}`
-    );
-    const rulePayload = pZh.getContentOutputRules({ outputLanguage: "Spanish" });
-    import_strict.default.ok(
-      rulePayload.includes("Spanish"),
-      `expected payload outputLanguage to override host settings, got: ${rulePayload}`
-    );
-  });
-  (0, import_node_test.it)("egg analysis follows the egg language property, falling back to outputLanguage setting or egg knowledge", () => {
-    const plugin = makeFakePlugin({
-      settings: { outputLanguage: "English" }
-    });
-    const p = new AIProcessor(plugin);
-    const eggWithLang = {
-      fileName: "ml.md",
-      language: "Chinese",
-      indexDescription: "machine learning notes"
-    };
-    const ruleWithLang = p.getEggOutputRules(eggWithLang);
-    import_strict.default.ok(
-      ruleWithLang.includes("Chinese"),
-      `expected egg rule to follow egg.language, got: ${ruleWithLang}`
-    );
-    const ruleWithStringLang = p.getEggOutputRules("Japanese");
-    import_strict.default.ok(
-      ruleWithStringLang.includes("Japanese"),
-      `expected rule to use language directly, got: ${ruleWithStringLang}`
-    );
-    const eggWithoutLang = {
-      fileName: "test.md",
-      language: "",
-      indexDescription: "machine learning notes"
-    };
-    const ruleWithSetting = p.getEggOutputRules(eggWithoutLang);
-    import_strict.default.ok(
-      ruleWithSetting.includes("English"),
-      `expected fallback to outputLanguage setting when language is empty, got: ${ruleWithSetting}`
-    );
-    const pluginNoSetting = makeFakePlugin({
-      settings: { outputLanguage: "same-as-content" }
-    });
-    const pNoSetting = new AIProcessor(pluginNoSetting);
-    const ruleNoSetting = pNoSetting.getEggOutputRules(eggWithoutLang);
-    import_strict.default.ok(
-      ruleNoSetting.includes("the same language as the captured content"),
-      `expected fallback to egg knowledge when setting is same-as-content, got: ${ruleNoSetting}`
-    );
-  });
-  (0, import_node_test.it)("analyzeAgainstEgg returns language without mutating the egg before Hatch", async () => {
-    const { vault } = makeFakeVault({
-      "nutegg/ml.md": `---
-topic: "ML"
----
+  (0, import_node_test.it)("persists consolidated claims with every source, caveat and distinct framework from a mock merge", async () => {
+    const existing = "- **Claim**\n  - Useful only with supervision.\n  _source: [A](https://a.example)_";
+    const pending = "- **Claim**\n  - Counterexample: unsupervised use fails.\n  _source: [B](https://b.example)_\n- **Framework v1**\n  - Step one\n- **Framework v2**\n  - Different step";
+    const merged = "- **Claim**\n  - Useful only with supervision.\n  - Counterexample: unsupervised use fails.\n  _source: [A](https://a.example)_\n  _source: [B](https://b.example)_\n- **Framework v1**\n  - Step one\n- **Framework v2**\n  - Different step";
+    const { vault } = makeFakeVault({ "egg.md": `> **Skip If:**
+> - Tutorials
 
 # Knowledge
-
+${existing}
 # Unprocessed
-`
-    });
-    const plugin = makeFakePlugin({
-      vault,
-      settings: { outputLanguage: "same-as-content" }
-    });
-    const p = new AIProcessor(plugin);
-    p.callAI = async (prompt) => {
-      if (prompt.includes("Analyze this source according to the instructions")) {
-        return JSON.stringify({
-          language: "Chinese",
-          keyQuestionAnswers: [],
-          extractedEntries: [
-            { kind: "insight", content: "- **\u6DF1\u5EA6\u5B66\u4E60**: \u795E\u7ECF\u7F51\u7EDC\u65B9\u6CD5" }
-          ]
-        });
-      }
-      return JSON.stringify({
-        extractedEntries: [{ parent: "", content: "- **\u6DF1\u5EA6\u5B66\u4E60**: \u795E\u7ECF\u7F51\u7EDC\u65B9\u6CD5" }],
-        redundantEntries: [],
-        rejected: false,
-        readVerdict: true
-      });
-    };
-    const egg = {
-      fileName: "nutegg/ml.md",
-      topic: "ML",
-      language: "",
-      scope: "",
-      actionGuide: "",
-      keyQuestions: [],
-      worthReadingIf: [],
-      skipIf: [],
-      formattingRules: "",
-      knowledge: "",
-      unprocessed: "",
-      indexDescription: ""
-    };
-    const result = await p.analyzeAgainstEgg(
-      { title: "Test", url: "https://example.com", content: "Test content", sourceType: "article" },
-      egg
-    );
-    import_strict.default.ok(result);
-    import_strict.default.equal(result.language, "Chinese");
-    import_strict.default.equal(egg.language, "");
-    const fileContent = await vault.adapter.read("nutegg/ml.md");
-    import_strict.default.ok(!fileContent.includes('language: "Chinese"'));
+${pending}
+` });
+    const plugin = makeFakePlugin({ vault, aiClient: { chat: async (prompt) => {
+      import_strict.default.ok(prompt.includes(existing));
+      import_strict.default.ok(prompt.includes(pending));
+      import_strict.default.ok(prompt.includes("Retain ALL distinct author/source"));
+      import_strict.default.ok(prompt.includes("different speakers, versions, dates or contexts"));
+      import_strict.default.ok(!prompt.includes("Tutorials"));
+      return JSON.stringify({ knowledge: merged, unprocessed: "" });
+    } } });
+    plugin.eggParser = new EggParser(plugin);
+    await new AIProcessor(plugin).mergeEgg("egg.md");
+    const note = await vault.adapter.read("egg.md");
+    import_strict.default.equal((note.match(/\*\*Claim\*\*/g) || []).length, 1);
+    for (const detail of ["https://a.example", "https://b.example", "Counterexample", "supervision", "Framework v1", "Framework v2"])
+      import_strict.default.ok(note.includes(detail));
+  });
+  (0, import_node_test.it)("scales output budget and serializes simultaneous merges of one egg", async () => {
+    const { vault } = makeFakeVault({ "egg.md": original });
+    let calls = 0, budget = 0;
+    const plugin = makeFakePlugin({ vault, aiClient: { chat: async (_, tokens) => {
+      calls++;
+      budget = tokens;
+      return JSON.stringify({ knowledge: "- Existing\n- New", unprocessed: "" });
+    } } });
+    plugin.app = { vault };
+    plugin.eggParser = new EggParser(plugin);
+    const processor = new AIProcessor(plugin);
+    await Promise.all([processor.mergeEgg("egg.md"), processor.mergeEgg("egg.md")]);
+    import_strict.default.equal(calls, 1);
+    import_strict.default.ok(budget >= 4096);
+  });
+  (0, import_node_test.it)("defers oversized output without an AI call or changes", async () => {
+    const { vault } = makeFakeVault({ "egg.md": "# Knowledge\n" + "\u6982\u5FF5".repeat(5e3) + "\n# Unprocessed\n- New\n" });
+    let calls = 0;
+    const plugin = makeFakePlugin({ vault, settings: { aiApiKey: "test-key", mergeMaxTokens: 4096 }, aiClient: { chat: async () => {
+      calls++;
+      return "{}";
+    } } });
+    const before = await vault.adapter.read("egg.md");
+    plugin.app = { vault };
+    plugin.eggParser = new EggParser(plugin);
+    import_strict.default.equal(await new AIProcessor(plugin).mergeEgg("egg.md"), null);
+    import_strict.default.equal(calls, 0);
+    import_strict.default.equal(await vault.adapter.read("egg.md"), before);
+  });
+  (0, import_node_test.it)("retries a stale snapshot and retains concurrently appended notes", async () => {
+    const { vault } = makeFakeVault({ "egg.md": original });
+    let calls = 0;
+    const plugin = makeFakePlugin({ vault, aiClient: { chat: async () => {
+      if (++calls === 1)
+        await vault.modify(vault.getAbstractFileByPath("egg.md"), original + "- Concurrent\n");
+      return JSON.stringify({ knowledge: "- Existing\n- New", unprocessed: "- Concurrent" });
+    } } });
+    plugin.app = { vault };
+    plugin.eggParser = new EggParser(plugin);
+    await new AIProcessor(plugin).mergeEgg("egg.md");
+    import_strict.default.equal(calls, 2);
+    import_strict.default.match(await vault.adapter.read("egg.md"), /Concurrent/);
   });
 });

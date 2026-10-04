@@ -23,7 +23,10 @@ status: "active"
 > 1. Is this a structural shift?
 > 2. Is there new fundamental analysis?
 >
-> **Rejection Criteria:**
+> **Worth Reading If:**
+> - Concrete evidence and tradeoffs.
+>
+> **Skip If:**
 > - Reject price predictions.
 > - Reject FOMO content.
 >
@@ -74,9 +77,16 @@ describe("EggParser.parseEggFile (new format)", () => {
     ]);
   });
 
-  it("parses rejection criteria as a list", () => {
+  it("parses Worth Reading If without using legacy rejection criteria", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
-    assert.deepEqual(egg.rejectionCriteria, [
+    assert.deepEqual(egg.worthReadingIf, ["Concrete evidence and tradeoffs."]);
+    const legacy = parser.parseEggFile("old.md", "> **Rejection Criteria:**\n> - Old filter.\n\n# Knowledge\n");
+    assert.deepEqual(legacy.skipIf, []);
+  });
+
+  it("parses Skip If as a list", () => {
+    const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
+    assert.deepEqual(egg.skipIf, [
       "Reject price predictions.",
       "Reject FOMO content.",
     ]);
@@ -112,26 +122,26 @@ describe("EggParser.parseEggFile (new format)", () => {
 describe("EggParser.formatEggForPrompt", () => {
   const parser = new EggParser(makeFakePlugin() as any);
 
-  it("includes scope, questions, criteria, rules and knowledge", () => {
+  it("includes instructions without existing knowledge", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     const out = parser.formatEggForPrompt(egg);
     assert.ok(out.includes("**Scope:** High-signal financial data."));
-    assert.ok(out.includes("1. Is this a structural shift?"));
+    assert.ok(out.includes("- Is this a structural shift?"));
     assert.ok(out.includes("- Reject price predictions."));
     assert.ok(out.includes("- Respect the existing knowledge tree."));
-    assert.ok(out.includes("**Current Knowledge:**\n- Risk Management"));
+    assert.ok(!out.includes("**Current Knowledge:**"));
   });
 
-  it("includes the Unprocessed section so the AI can avoid duplicates", () => {
+  it("excludes Unprocessed from extraction prompts", () => {
     const egg = parser.parseEggFile("inv.md", NEW_FORMAT_EGG);
     const out = parser.formatEggForPrompt(egg);
-    assert.ok(out.includes("**Unprocessed (pending merge):**"));
-    assert.ok(out.includes("- pending insight"));
+    assert.ok(!out.includes("**Unprocessed"));
+    assert.ok(!out.includes("- pending insight"));
   });
 
   it("marks empty knowledge as (empty)", () => {
     const egg = parser.parseEggFile("x.md", "# Knowledge\n");
-    assert.ok(parser.formatEggForPrompt(egg).includes("(empty)"));
+    assert.ok(!parser.formatEggForPrompt(egg).includes("Current Knowledge"));
   });
 
   it("works when formatEggForPrompt is invoked as a detached function reference", () => {
@@ -243,9 +253,8 @@ describe("EggParser.appendUnprocessed", () => {
     );
   });
 
-  it("does nothing when the egg file is missing", async () => {
-    const store = await append({}, "- bullet");
-    assert.equal(store.files.size, 0);
+  it("reports missing eggs so Hatch cannot silently lose entries", async () => {
+    await assert.rejects(append({}, "- bullet"), /egg file not found/);
   });
 });
 

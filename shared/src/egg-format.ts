@@ -71,46 +71,23 @@ export function insertEggLanguage(
   return `---\nlanguage: "${language}"\n---\n\n${content}`;
 }
 
-/** Format only the egg's instructions (Scope, Key Questions, Rejection Criteria, Formatting Rules) for Step 1 extraction. */
+/** Format instructions only: existing notes never enter Stage 2. */
 export function formatEggInstructionsForPrompt(egg: EggContent): string {
-  const parts: string[] = [];
-  parts.push(`**Scope:** ${egg.scope || "(not specified)"}`);
-  if (egg.keyQuestions && egg.keyQuestions.length > 0) {
-    parts.push(
-      `**Key Questions:**\n${egg.keyQuestions
-        .map((q, i) => `${i + 1}. ${q}`)
-        .join("\n")}`
-    );
+  const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  if (egg.actionGuide) parts.push(`**Action Guide:**\n${egg.actionGuide}`);
+  for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]] as const) {
+    if (items?.length) parts.push(`**${label}:**\n${items.map(item => `- ${item}`).join("\n")}`);
   }
-  if (egg.rejectionCriteria && egg.rejectionCriteria.length > 0) {
-    parts.push(
-      `**Rejection Criteria:**\n${egg.rejectionCriteria
-        .map((c) => `- ${c}`)
-        .join("\n")}`
-    );
-  }
-  if (egg.formattingRules) {
-    parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
-  }
+  if (egg.formattingRules) parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
   return parts.join("\n\n");
 }
 
-/** Format only the egg's existing Knowledge tree and Unprocessed entries for Step 2 comparison. */
 export function formatEggKnowledgeForPrompt(egg: EggContent): string {
-  const parts: string[] = [];
-  parts.push(`**Current Knowledge:**\n${egg.knowledge || "(empty)"}`);
-  if (egg.unprocessed && egg.unprocessed.trim()) {
-    parts.push(`**Unprocessed (pending merge):**\n${egg.unprocessed}`);
-  }
-  return parts.join("\n\n");
+  return `**Current Knowledge:**\n${egg.knowledge || "(empty)"}\n\n**Unprocessed:**\n${egg.unprocessed || "(empty)"}`;
 }
 
-/** Format one egg's instructions + knowledge for an AI prompt (backward compatibility). */
 export function formatEggForPrompt(egg: EggContent): string {
-  return [
-    formatEggInstructionsForPrompt(egg),
-    formatEggKnowledgeForPrompt(egg),
-  ].join("\n\n");
+  return formatEggInstructionsForPrompt(egg);
 }
 
 /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */

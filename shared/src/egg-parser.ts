@@ -65,7 +65,9 @@ export function parseEggFile(fileName: string, content: string): EggContent {
     scope: "",
     actionGuide: "",
     keyQuestions: [],
-    rejectionCriteria: [],
+    worthReadingIf: [],
+    skipIf: [],
+    sourceText: content,
     formattingRules: "",
     knowledge: "",
     unprocessed: "",
@@ -91,7 +93,8 @@ export function parseEggFile(fileName: string, content: string): EggContent {
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");
-  result.rejectionCriteria = parseListItems(sections.get("rejection criteria") || "");
+  result.worthReadingIf = parseListItems(sections.get("worth reading if") || "");
+  result.skipIf = parseListItems(sections.get("skip if") || "");
   result.formattingRules = (sections.get("formatting rules") || "").trim();
 
   // Knowledge ends at the `# Unprocessed` heading; Unprocessed at the next `#` heading

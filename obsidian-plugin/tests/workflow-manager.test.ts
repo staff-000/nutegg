@@ -202,11 +202,11 @@ describe("WorkflowManager", () => {
 
     const { manager, files, plugin } = makeManager(
       {
-        "nutegg/_workflow/deprecated.md": oldPromptContent,
+        "nutegg/_workflow/egg-compare.md": oldPromptContent,
       },
       {
         workflowHashes: {
-          "deprecated.md": oldHash,
+          "egg-compare.md": oldHash,
         },
       }
     );
@@ -215,7 +215,7 @@ describe("WorkflowManager", () => {
 
     // Because recordedHash === currentHash and 'deprecated.md' is not in BUILTIN_WORKFLOW_FILES,
     // ensureWorkflowFiles automatically cleans it up!
-    assert.equal(files.has("nutegg/_workflow/deprecated.md"), false);
-    assert.equal(plugin.settings.workflowHashes["deprecated.md"], undefined);
+    assert.equal(files.has("nutegg/_workflow/egg-compare.md"), false);
+    assert.equal(plugin.settings.workflowHashes["egg-compare.md"], undefined);
   });
 });

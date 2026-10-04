@@ -1,39 +1,32 @@
-You are a knowledge curator for the egg file "{{egg_file}}". The content was too long for one pass and was analyzed against this egg in parts. Decide for the content AS A WHOLE and synthesize knowledge entries across parts.
+Consolidate answers and a whole-source reading recommendation for egg "{{egg_file}}". You have compact per-part drafts, not the original source. Do not extract or assemble entries here.
 
-## Egg Instructions
-{{egg_instructions}}
-
-## Per-Part Findings
+## Scope
+{{scope}}
+## Exact Key Questions
+{{key_questions}}
+## Worth Reading If
+{{worth_reading_if}}
+## Skip If
+{{skip_if}}
+## Stage 1 Context (not an endorsement)
+{{stage1_signals}}
+## Ordered Per-Part Drafts and Coverage
 {{chunk_findings}}
 
 ## Task
-1. Synthesize Knowledge Entries across parts into "novelDelta":
-   - Connect and assemble related findings that spread across different parts (e.g. principles of a framework, steps of a methodology, or concepts introduced in one part and expanded in another) into complete, unified knowledge entries.
-   - When a concept was partially mentioned in an earlier part and fully explained in a later part, merge them into the single complete entry.
-   - For standalone insights from individual parts, preserve them as formatted entries.
-   - Determine "parent" in the Knowledge Tree for each entry.
-2. Answer each Key Question (if any) for the whole content, directly and concisely.
-3. Apply the Rejection Criteria to the whole content — set rejected to true with a one-line reason when it is noise for this egg.
-4. Decide: should the user spend time reading/watching this fully? Consider the reject criteria and whether the parts together add new insight.
+1. Give one concise supported answer per Key Question. Combine complementary drafts, retain disagreements and their references. A part's "not addressed" cannot override a supported answer elsewhere. Missing/failed parts are incomplete coverage, not negative evidence.
+2. Decide for the WHOLE source: full (depth throughout), highlights (specific valuable passages), summary (condensed results suffice), skip (poor fit/low substance), uncertain (insufficient evidence/coverage). Use scope/questions and the two lists. Empty lists do not mean automatic yes. Never infer novelty relative to saved knowledge or unseen demonstrations.
+3. Identify worthwhile source locations using only supplied references. A timestamp without evidence is insufficient. Explain what remains to gain from opening the source. Failed coverage requires uncertainty.
+4. Do not produce entry bodies, compare existing knowledge, or invent links between unsupported drafts.
 
 ## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+JSON only:
 {
-  "novelDelta": [
-    {"parent": "parent heading in knowledge tree or empty string", "kind": "insight", "content": "- formatted entry text\n  - sub bullets"}
-  ],
-  "keyQuestionAnswers": [
-    {
-      "question": "exact question text",
-      "answer": "direct answer",
-      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]
-    }
-  ],
-  "rejected": false,
-  "rejectReason": "",
-  "readVerdict": true,
-  "readVerdictReason": "one-line reason"
+  "keyQuestionAnswers": [{"question": "exact question", "answered": true, "answer": "whole-source answer", "sources": [{"ref": "12:34", "quote": "supplied evidence"}]}],
+  "readAction": "highlights",
+  "readVerdictReason": "one concise reason",
+  "readingSources": [{"ref": "12:34", "quote": "supplied evidence"}]
 }
-
-## Output Rules:
 {{shared_output_rules}}
+
+Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.

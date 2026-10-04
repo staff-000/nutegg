@@ -328,14 +328,13 @@ class AnalysisService {
   }
 
   /**
-   * Run Stage 2 knowledge comparison against target eggs.
+   * Run Stage 2 instruction-driven analysis for target eggs.
    */
   async proceedStage2({
     session,
     settings,
     tabStateManager,
     eggsToCompare = null,
-    autoSave = false,
     skipScroll = false,
     pinnedTabId = null,
     contentAnalysis = null,
@@ -343,6 +342,8 @@ class AnalysisService {
     contentForProvenance = null,
     callbacks = {},
   }) {
+    // Analysis never saves eggs; Hatch is an explicit user action.
+    const autoSave = false;
     const targetPinnedId = pinnedTabId || session.activeTabId;
     const isPinnedActive = () => session.activeTabId === targetPinnedId;
 
@@ -420,21 +421,6 @@ class AnalysisService {
       response.stage = "stage2";
       const newNutId = response.nutId || null;
 
-      if (autoSave) {
-        await this.saveKnowledge({
-          session,
-          settings,
-          tabStateManager,
-          newKnowledge: response.newKnowledge || [],
-          isHatch: true,
-          overrideContent: content,
-          overrideResult: response,
-          overrideNutId: newNutId,
-          targetPinnedId,
-          callbacks,
-        });
-      }
-
       let freshHistory = null;
       if (payload.url && settings.serverOnline) {
         freshHistory = await this.loadHistory(payload.url);
@@ -444,7 +430,7 @@ class AnalysisService {
         ? {
             nutId: newNutId,
             capturedAt: new Date().toISOString(),
-            saved: (autoSave || (response.newKnowledge && response.newKnowledge.length > 0)) ? "saved" : "analyzed",
+            saved: autoSave ? "saved" : "analyzed",
             result: response,
             url: payload.url || content?.url || "",
             title: payload.title || content?.title || "",
