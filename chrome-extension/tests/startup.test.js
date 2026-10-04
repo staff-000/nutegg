@@ -60,3 +60,35 @@ test('unconfigured standalone mode does not request credit', async t => {
   await new EnvironmentService({ settings: new SettingsState() }).checkServerStatus();
   assert.deepEqual(calls, ['check-server', 'check-chrome-ai']);
 });
+
+
+for (const cachedStyles of [false, true]) {
+  test(`startup frame remains available while ${cachedStyles ? 'cached' : 'pending'} styles initialize`, () => {
+    const fs = require('node:fs');
+    const vm = require('node:vm');
+    const stylesheet = {
+      sheet: cachedStyles ? {} : null, media: 'print',
+      addEventListener(type, listener) { if (type === 'load') this.onLoad = listener; else this.onError = listener; },
+    };
+    const app = { inert: true, busy: true, removeAttribute(name) { assert.equal(name, 'aria-busy'); this.busy = false; } };
+    const classes = new Set(['booting']);
+    const context = { document: {
+      getElementById: id => id === 'popup-styles' ? stylesheet : id === 'popup-app' ? app : null,
+      body: { classList: { remove: name => classes.delete(name) } },
+    } };
+    vm.runInNewContext(fs.readFileSync(require.resolve('../src/popup/startup-frame.js'), 'utf8'), context);
+    assert.equal(stylesheet.media, cachedStyles ? 'all' : 'print');
+    assert.equal(app.inert, true, 'Controls remain inactive until handlers are wired');
+    assert.equal(classes.has('booting'), true, 'Static frame stays visible during initialization');
+    context.NutEggStartup.finish();
+    if (!cachedStyles) {
+      assert.equal(app.inert, true, 'Keep the frame while styles are still pending');
+      assert.equal(classes.has('booting'), true);
+      stylesheet.onLoad();
+    }
+    assert.equal(stylesheet.media, 'all');
+    assert.equal(app.inert, false);
+    assert.equal(app.busy, false);
+    assert.equal(classes.has('booting'), false);
+  });
+}

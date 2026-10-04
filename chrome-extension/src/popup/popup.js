@@ -277,6 +277,10 @@ function showCaptureState() {
 // ============================================================
 
 async function initPopup() {
+  // Give the static frame a paint before settings and initialization work.
+  if (typeof requestAnimationFrame === "function") {
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
   eggsUI.bindElements();
   eggsUI.resetCreateForm();
   const version = chrome.runtime?.getManifest?.()?.version;
@@ -532,6 +536,8 @@ async function initPopup() {
   chrome.tabs?.onUpdated?.addListener((tabId, changeInfo) => tabAction.handleTabUpdated(tabId, changeInfo));
   chrome.tabs?.onRemoved?.addListener((tabId) => tabAction.handleTabRemoved(tabId));
 
+  // Controls are now wired; keep the frame visible during server checks/extraction.
+  globalThis.NutEggStartup?.finish();
   await tabAction.refreshForCurrentTab();
 }
 

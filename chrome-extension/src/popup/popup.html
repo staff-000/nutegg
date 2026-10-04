@@ -4,10 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NutEgg</title>
-  <link rel="stylesheet" href="popup.css">
+  <!-- Critical frame styles paint while the full stylesheet and scripts load. -->
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 280px; background: #fafafa; color: #1a1a2e;
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .popup-container { padding: 16px; }
+    .hidden { display: none !important; }
+    .header { margin-bottom: 12px; }
+    .header-top { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+    .logo-icon { width: 32px; height: 32px; }
+    .page-info { margin-bottom: 12px; }
+    .content-preview { height: 220px; overflow-y: auto; background: #fff;
+      border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px;
+      margin-bottom: 8px; color: #6b7280; font-size: 12px; white-space: pre-wrap; }
+    .booting .header-actions, .booting .metrics-bar, .booting .footer,
+    .booting #capture-state > :not(.page-info):not(.content-preview) { display: none; }
+  </style>
+  <link id="popup-styles" rel="stylesheet" href="popup.css" media="print">
 </head>
-<body>
-  <div class="popup-container">
+<body class="booting">
+  <div class="popup-container" id="popup-app" inert aria-busy="true">
     <!-- Header -->
     <header class="header">
       <div class="header-top">
@@ -410,6 +428,7 @@
     </footer>
   </div>
 
+  <script defer src="startup-frame.js"></script>
   <script defer src="../i18n.js"></script>
   <script defer src="helpers.js"></script>
   <script defer src="state/tab-state.js"></script>
