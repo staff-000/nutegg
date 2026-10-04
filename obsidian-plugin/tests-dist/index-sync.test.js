@@ -964,71 +964,7 @@ ${line}
 };
 
 // ../shared/workflow/content-analysis.md
-var content_analysis_default = `You are a knowledge curator. Analyze the content below following the Task.
-
-## Content to Analyze
-**Title:** {{title}}
-**Source:** {{url}}
-**Type:** {{source_type}}
-{{part_note}}{{chapters}}
-{{questions}}
-
-{{content}}
-
-## Task
-{{content_task_default}}
-
-## Output Format
-Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
-  "mindMap": [
-    {
-      "name": "First Main Topic / Theme",
-      "detail": "Core idea or thesis of this branch",
-      "children": [
-        {
-          "name": "Subtopic / Concept",
-          "time": "12:34",
-          "detail": "Key reasoning, mechanism, or explanation",
-          "children": [
-            {
-              "name": "Detail / Evidence",
-              "detail": "Concrete takeaway or example"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Second Main Topic / Theme",
-      "detail": "Core idea or thesis of this branch",
-      "children": [
-        {
-          "name": "Subtopic / Concept",
-          "detail": "Key reasoning, mechanism, or explanation"
-        }
-      ]
-    }
-  ],
-  "customQuestionAnswers": [
-    {
-      "question": "exact question text",
-      "answer": "direct answer",
-      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]
-    }
-  ]
-}
-
-## Output Rules
-- titleVerdict must be a single sentence.
-- coreSummary: at most 3 bullets, plain language.
-- mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
-- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
-{{shared_output_rules}}
-`;
+var content_analysis_default = 'You are a knowledge curator. Analyze the content below following the Task.\n\n## Content to Analyze\n**Title:** {{title}}\n**Source:** {{url}}\n**Type:** {{source_type}}\n{{part_note}}{{chapters}}\n{{questions}}\n\n{{content}}\n\n## Task\n{{content_task_default}}\n\n## Output Format\nRespond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):\nThe `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node.\n{\n  "titleVerdict": "direct answer to the title\'s question",\n  "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],\n  "mindMap": [\n    {\n      "name": "First Main Topic / Theme",\n      "detail": "Core idea or thesis of this branch",\n      "time": "12:34",\n      "children": [\n        {\n          "name": "Subtopic / Concept",\n          "time": "12:34",\n          "detail": "Key reasoning, mechanism, or explanation",\n          "children": [\n            {\n              "name": "Detail / Evidence",\n              "detail": "Concrete takeaway or example"\n            }\n          ]\n        }\n      ]\n    },\n    {\n      "name": "Second Main Topic / Theme",\n      "detail": "Core idea or thesis of this branch",\n      "children": [\n        {\n          "name": "Subtopic / Concept",\n          "detail": "Key reasoning, mechanism, or explanation"\n        }\n      ]\n    }\n  ],\n  "customQuestionAnswers": [\n    {\n      "question": "exact question text",\n      "answer": "direct answer",\n      "sources": [{"ref": "12:34", "quote": "brief supporting quote"}]\n    }\n  ]\n}\n\n## Output Rules\n- titleVerdict must be a single sentence.\n- coreSummary: at most 3 bullets, plain language.\n- mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author\'s ideas.\n- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.\n- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.\n{{shared_output_rules}}\n';
 
 // ../shared/workflow/egg-analysis.md
 var egg_analysis_default = `Analyze this source according to the instructions for egg "{{egg_file}}". Produce the requested answers and results, not a comparison with saved knowledge.
@@ -1148,63 +1084,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 `;
 
 // ../shared/workflow/aggregate-content.md
-var aggregate_content_default = `You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.
-
-## Content
-**Title:** {{title}}
-**Source:** {{url}}
-{{chapters}}
-
-## Per-Part Summaries
-{{chunk_summaries}}
-
-{{questions}}
-
-## Task
-{{content_task_default}}
-
-## Output Format
-Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
-{
-  "titleVerdict": "direct answer to the title's question",
-  "coreSummary": ["bullet 1", "bullet 2"],
-  "mindMap": [
-    {
-      "name": "First Main Topic",
-      "detail": "Core idea",
-      "children": [
-        {
-          "name": "Subtopic",
-          "detail": "Key reasoning"
-        }
-      ]
-    },
-    {
-      "name": "Second Main Topic",
-      "detail": "Core idea",
-      "children": [
-        {
-          "name": "Subtopic",
-          "detail": "Key reasoning"
-        }
-      ]
-    }
-  ],
-  "customQuestionAnswers": [
-    {
-      "question": "exact question text",
-      "answer": "direct answer",
-      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]
-    }
-  ]
-}
-
-## Output Rules
-- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
-- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
-{{shared_output_rules}}
-`;
+var aggregate_content_default = 'You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.\n\n## Content\n**Title:** {{title}}\n**Source:** {{url}}\n{{chapters}}\n\n## Per-Part Summaries\n{{chunk_summaries}}\n\n{{questions}}\n\n## Task\n{{content_task_default}}\n\n## Output Format\nRespond in this EXACT JSON format (no markdown, no code fence, just the JSON object):\nThe `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node.\n{\n  "titleVerdict": "direct answer to the title\'s question",\n  "coreSummary": ["bullet 1", "bullet 2"],\n  "mindMap": [\n    {\n      "name": "First Main Topic",\n      "detail": "Core idea",\n      "time": "12:34",\n      "children": [\n        {\n          "name": "Subtopic",\n          "detail": "Key reasoning",\n          "time": "12:45"\n        }\n      ]\n    },\n    {\n      "name": "Second Main Topic",\n      "detail": "Core idea",\n      "children": [\n        {\n          "name": "Subtopic",\n          "detail": "Key reasoning"\n        }\n      ]\n    }\n  ],\n  "customQuestionAnswers": [\n    {\n      "question": "exact question text",\n      "answer": "direct answer",\n      "sources": [{"ref": "00:00", "quote": "brief supporting quote"}]\n    }\n  ]\n}\n\n## Output Rules\n- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).\n- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.\n- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.\n{{shared_output_rules}}\n';
 
 // ../shared/workflow/aggregate-egg.md
 var aggregate_egg_default = `Consolidate answers and a whole-source reading recommendation for egg "{{egg_file}}". You have compact per-part drafts, not the original source. Do not extract or assemble entries here.

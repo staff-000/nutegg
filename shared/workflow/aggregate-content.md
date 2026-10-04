@@ -15,6 +15,7 @@ You are a knowledge curator. The content below was too long for one pass and was
 
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
+The `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node.
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2"],
@@ -22,10 +23,12 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
     {
       "name": "First Main Topic",
       "detail": "Core idea",
+      "time": "12:34",
       "children": [
         {
           "name": "Subtopic",
-          "detail": "Key reasoning"
+          "detail": "Key reasoning",
+          "time": "12:45"
         }
       ]
     },

@@ -14,6 +14,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
+The `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node.
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
@@ -21,6 +22,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
     {
       "name": "First Main Topic / Theme",
       "detail": "Core idea or thesis of this branch",
+      "time": "12:34",
       "children": [
         {
           "name": "Subtopic / Concept",

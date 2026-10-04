@@ -67,6 +67,11 @@ describe("PROMPTS", () => {
     assert.ok(PROMPTS.contentAnalysis.includes('"mindMap"'));
     assert.ok(PROMPTS.contentAnalysis.includes("up to 3 levels deep total"));
     assert.ok(PROMPTS.aggregateContent.includes('"mindMap"'));
+    for (const prompt of [PROMPTS.contentAnalysis, PROMPTS.aggregateContent]) {
+      const schema = prompt.split("## Output Format")[1].split("## Output Rules")[0];
+      assert.ok(schema.includes('"time": "12:34"'));
+      assert.ok(schema.includes("`time` field shown on mind-map nodes is optional"));
+    }
     assert.ok(PROMPTS.aggregateContent.includes("synthesized concept tree for the entire work, up to 3 levels deep"));
   });
 });
