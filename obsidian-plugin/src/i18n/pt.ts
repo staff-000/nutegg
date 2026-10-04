@@ -53,8 +53,6 @@ export const pt = {
   "processingHeader": "Processamento e divisão em partes",
   "chunkWindowChars": "Tamanho da janela de divisão",
   "chunkWindowCharsDesc": "Comprimento máximo de caracteres por bloco (~30.000 caracteres ≈ 8.000 tokens). Conteúdos longos são particionados.",
-  "sectionGridSeconds": "Intervalo de grade de seções",
-  "sectionGridSecondsDesc": "Intervalo de tempo em segundos (padrão: 300 s / 5 min) para gerar mapas de capítulos para vídeos sem capítulos originais.",
   "maxTokens": "Tokens máximos de conclusão",
   "maxTokensDesc": "Tokens máximos alocados para respostas de IA (padrão: 16384).",
   "serverHeader": "Servidor",

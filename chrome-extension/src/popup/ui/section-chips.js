@@ -32,12 +32,10 @@ class SectionChipsComponent {
     this.chipVerdict = getEl("chip-verdict");
     this.chipSummary = getEl("chip-summary");
     this.chipMindmap = getEl("chip-mindmap");
-    this.chipChapters = getEl("chip-chapters");
 
     this.reanalyzeChipVerdict = getEl("reanalyze-chip-verdict");
     this.reanalyzeChipSummary = getEl("reanalyze-chip-summary");
     this.reanalyzeChipMindmap = getEl("reanalyze-chip-mindmap");
-    this.reanalyzeChipChapters = getEl("reanalyze-chip-chapters");
   }
 
   init(options = {}) {
@@ -68,7 +66,6 @@ class SectionChipsComponent {
     if (options.chipVerdict) this.chipVerdict = options.chipVerdict;
     if (options.chipSummary) this.chipSummary = options.chipSummary;
     if (options.chipMindmap) this.chipMindmap = options.chipMindmap;
-    if (options.chipChapters) this.chipChapters = options.chipChapters;
 
     if (options.chipReVerdict || options.reanalyzeChipVerdict) {
       this.reanalyzeChipVerdict = options.chipReVerdict || options.reanalyzeChipVerdict;
@@ -78,9 +75,6 @@ class SectionChipsComponent {
     }
     if (options.chipReMindmap || options.reanalyzeChipMindmap) {
       this.reanalyzeChipMindmap = options.chipReMindmap || options.reanalyzeChipMindmap;
-    }
-    if (options.chipReChapters || options.reanalyzeChipChapters) {
-      this.reanalyzeChipChapters = options.chipReChapters || options.reanalyzeChipChapters;
     }
 
     // Capture accordion toggle
@@ -107,11 +101,9 @@ class SectionChipsComponent {
       { el: this.chipVerdict, key: "titleVerdict" },
       { el: this.chipSummary, key: "coreSummary" },
       { el: this.chipMindmap, key: "mindMap" },
-      { el: this.chipChapters, key: "chapterMap" },
       { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
       { el: this.reanalyzeChipSummary, key: "coreSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
-      { el: this.reanalyzeChipChapters, key: "chapterMap" },
     ];
 
     allChips.forEach(({ el, key }) => {
@@ -144,11 +136,9 @@ class SectionChipsComponent {
       { el: this.chipVerdict, key: "titleVerdict" },
       { el: this.chipSummary, key: "coreSummary" },
       { el: this.chipMindmap, key: "mindMap" },
-      { el: this.chipChapters, key: "chapterMap" },
       { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
       { el: this.reanalyzeChipSummary, key: "coreSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
-      { el: this.reanalyzeChipChapters, key: "chapterMap" },
     ];
 
     map.forEach(({ el, key }) => {
@@ -163,12 +153,11 @@ class SectionChipsComponent {
       }
     });
 
-    const total = 4;
+    const total = 3;
     const activeCount = [
       enabledSections.titleVerdict !== false,
       enabledSections.coreSummary !== false,
       enabledSections.mindMap !== false,
-      enabledSections.chapterMap !== false,
     ].filter(Boolean).length;
 
     const badgeText = `${activeCount}/${total}`;

@@ -34,7 +34,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{sections}}{{questions}}
+{{questions}}
 
 {{content}}
 
@@ -53,6 +53,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       "children": [
         {
           "name": "Subtopic / Concept",
+          "time": "12:34",
           "detail": "Key reasoning, mechanism, or explanation",
           "children": [
             {
@@ -74,10 +75,6 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       ]
     }
   ],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
   "customQuestionAnswers": [
     {
       "question": "exact question text",
@@ -91,11 +88,8 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
-- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
-- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
+- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 {{shared_output_rules}}
 `;
 
@@ -181,7 +175,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 var egg_routing_default = 'Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".\n\n## Content\nTitle: {{title}}\nURL: {{url}}\n{{content}}\n\n## Egg Index\n{{index}}\n\nReturn matching file names (one per line):\n';
 
 // ../shared/workflow/content-task-default.md
-var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n4. Mind Map: Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`.\n";
+var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Mind Map: Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`. Use an optional `time` per Mind Map node for an exact supporting timestamp in video transcripts. Omit it for untimestamped sources; never invent a time.\n";
 
 // ../shared/workflow/merge-unprocessed.md
 var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
@@ -271,6 +265,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 ## Output Rules
 - mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
+- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 {{shared_output_rules}}
 `;
 
@@ -310,14 +305,14 @@ Set answered=false for unsupported/unaddressed answers, regardless of output lan
 `;
 
 // ../shared/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If, Skip If:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.\n  - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.\n  - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.\n  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.\n  - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
 
 // ../shared/src/prompt-templates.ts
 var PROMPTS = {
-  /** Phase 1 — content summary + chapter map + custom question answers. */
+  /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
@@ -325,7 +320,7 @@ var PROMPTS = {
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: egg_routing_default,
-  /** Default content analysis task (Title Verdict, Core Summary, Chapter Map). */
+  /** Default content analysis task (Title Verdict, Core Summary, Mind Map). */
   contentTaskDefault: content_task_default_default.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: merge_unprocessed_default,

@@ -85,7 +85,7 @@
                                     │
                                     ▼
                     Produces: Title Verdict, 3-Bullet Summary,
-                    Mind Map, Chapter Map, & Timestamped Q&A
+                    Mind Map with Clickable Timestamps, & Timestamped Q&A
                                     │
                                     ▼
                            [egg-routing.md]
@@ -146,7 +146,7 @@
         <tbody>
           <tr style="border-bottom: 1px solid var(--border-subtle);">
             <td style="padding: 10px;"><strong>📱 Standalone Mode</strong></td>
-            <td style="padding: 10px;">Runs Stage 1 content analysis directly in Chrome (when Obsidian is offline or closed). Produces verdicts, 3-sentence summaries, chapter maps, mind maps, and interactive video Q&amp;A with timestamp jumping. Skips Stage 2 egg analysis.</td>
+            <td style="padding: 10px;">Runs Stage 1 content analysis directly in Chrome (when Obsidian is offline or closed). Produces verdicts, 3-sentence summaries, mind maps with clickable timestamps, and interactive video Q&amp;A with timestamp jumping. Skips Stage 2 egg analysis.</td>
             <td style="padding: 10px;">Fast web and video reading, quick comprehension, or when you don't need note archiving.</td>
           </tr>
           <tr style="border-bottom: 1px solid var(--border-subtle);">
@@ -170,12 +170,12 @@
       <h3>1. Shared Fragments (Injected into other prompts)</h3>
       <ul>
         <li><code>shared-output-rules.md</code>: Grounding directive (source content as sole truth) and multi-lingual output language reference rules. Injected as <code>{{shared_output_rules}}</code>.</li>
-        <li><code>content-task-default.md</code>: Core task instructions for title verdicts, 3-bullet summaries, and chapter maps. Injected as <code>{{content_task_default}}</code>.</li>
+        <li><code>content-task-default.md</code>: Core task instructions for title verdicts, 3-bullet summaries, and mind maps with clickable timestamps. Injected as <code>{{content_task_default}}</code>.</li>
       </ul>
 
       <h3>2. Content Capture &amp; Comparison Pipeline</h3>
       <ul>
-        <li><code>content-analysis.md</code>: Stage 1 content summary, anti-clickbait verdict, interactive mind map, chapter map, and custom question answers with timestamp citations.</li>
+        <li><code>content-analysis.md</code>: Stage 1 content summary, anti-clickbait verdict, interactive mind map with clickable timestamps, and custom question answers with timestamp citations.</li>
         <li><code>egg-routing.md</code>: Matches Stage 1 summaries against egg descriptions in <code>_index.md</code> to select candidate eggs.</li>
         <li><code>egg-analysis.md</code>: Stage 2 per-egg extraction of candidate knowledge entries and key question answers scoped to one egg's instructions.</li>
         <li>Worth Reading If and Skip If guide full reading, highlights, summary sufficient, skip, or uncertain. Useful answers remain saveable regardless of the recommendation.</li>

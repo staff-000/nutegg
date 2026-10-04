@@ -87,7 +87,6 @@ export function makeFakePlugin(overrides: any = {}) {
       indexFile: "nutegg/_index.md",
       serverPort: 27123,
       chunkWindowChars: 30000,
-      sectionGridSeconds: 300,
       ...(overrides.settings || {}),
     },
     app: { vault: overrides.vault ?? vault },

@@ -139,7 +139,7 @@ describe("SettingsState", () => {
     assert.equal(settings.analysisMode, "confirm");
     assert.equal(settings.outputLanguage, "ja");
     assert.equal(settings.enabledSections.coreSummary, true);
-    assert.equal(settings.enabledSections.chapterMap, false);
+    assert.equal("chapterMap" in settings.enabledSections, false);
     // Preserves defaults for unspecified sections
     assert.equal(settings.enabledSections.mindMap, true);
   });

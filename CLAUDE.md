@@ -18,7 +18,7 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
 | **Popup State Management** | `chrome-extension/src/popup/state/` | `session-state.js`, `tab-state.js`, `settings-state.js` |
 | **Popup Action Controllers** | `chrome-extension/src/popup/action/` | `analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js` |
 | **Popup Background Services** | `chrome-extension/src/popup/services/` | `analysis-service.js`, `env-service.js`, `page-extractor.js` |
-| **Popup UI Components** | `chrome-extension/src/popup/ui/` | `banners.js`, `capture-view.js`, `verdict.js`, `mindmap.js`, `chapters.js`, `qa.js`, `eggs.js`, `actions.js`, `results-view.js`, `metrics.js`, `sections.js` |
+| **Popup UI Components** | `chrome-extension/src/popup/ui/` | `banners.js`, `capture-view.js`, `verdict.js`, `mindmap.js`, `qa.js`, `eggs.js`, `actions.js`, `results-view.js`, `metrics.js`, `sections.js` |
 | **Popup Entry & Event Wiring** | `chrome-extension/src/popup/popup.js` | Slim coordinator wiring UI, Actions, and State |
 | **Chrome i18n & Helpers** | `chrome-extension/src/i18n.js`, `src/helpers.js` | `t(key, params)` in 10 languages; date/time formatting |
 | **Content Extractors** | `chrome-extension/src/content/extractors/` | `youtube.js` (transcripts/chapters), `twitter.js`, `article.js`, `generic.js` |
@@ -121,7 +121,7 @@ Captured Content
        ▼
 [ Stage 1: Content Analysis & Summary Routing ]
        ├── >30k chars? -> Chunks + aggregate-content.md
-       ├── Produces: Title Verdict, Core Summary, Mind Map, Chapter Map, Custom Q&A
+       ├── Produces: Title Verdict, Core Summary, Mind Map, Mind Map, Custom Q&A
        └── egg-routing.md matches relevant eggs using the Stage 1 summary
        │
        ├── Fast Mode: Auto-proceeds immediately to Stage 2 with matched eggs

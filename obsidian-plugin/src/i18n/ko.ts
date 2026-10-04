@@ -53,8 +53,6 @@ export const ko = {
   "processingHeader": "처리 및 청킹",
   "chunkWindowChars": "청크 윈도우 크기",
   "chunkWindowCharsDesc": "청크당 최대 글자 수 (~30,000자 ≈ 8,000토큰). 초과하는 긴 콘텐츠는 여러 부분으로 나뉩니다.",
-  "sectionGridSeconds": "섹션 그리드 간격",
-  "sectionGridSecondsDesc": "챕터 정보가 없는 영상의 챕터 맵 생성을 위한 시간 간격(초, 기본값: 300초 / 5분).",
   "maxTokens": "최대 완료 토큰 수",
   "maxTokensDesc": "AI 응답에 할당된 최대 토큰 수 (기본값: 16384).",
   "serverHeader": "서버",

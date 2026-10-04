@@ -5,7 +5,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{sections}}{{questions}}
+{{questions}}
 
 {{content}}
 
@@ -24,6 +24,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       "children": [
         {
           "name": "Subtopic / Concept",
+          "time": "12:34",
           "detail": "Key reasoning, mechanism, or explanation",
           "children": [
             {
@@ -45,10 +46,6 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       ]
     }
   ],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
   "customQuestionAnswers": [
     {
       "question": "exact question text",
@@ -62,9 +59,6 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
-- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" — give each a short title and a 1-sentence summary of what happens between that section and the next.
-- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.
+- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 {{shared_output_rules}}

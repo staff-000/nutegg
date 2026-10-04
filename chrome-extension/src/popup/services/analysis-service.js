@@ -400,8 +400,6 @@ class AnalysisService {
         contentAnalysis: analysis || {
           titleVerdict: title,
           coreSummary: [],
-          isLongForm: false,
-          chapterMap: [],
           mindMap: [],
           customQuestionAnswers: [],
         },

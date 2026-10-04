@@ -163,7 +163,6 @@ describe("Action Handlers", () => {
           titleVerdict: true,
           coreSummary: true,
           mindMap: true,
-          chapterMap: true,
         },
         setEnabledSections: (s) => { settings.enabledSections = { ...s }; },
       };
@@ -229,7 +228,6 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       };
       settings.setEnabledSections(session.enabledSections, true);
       tabStateManager.saveActiveTabState(1, { enabledSections: session.enabledSections });
@@ -244,13 +242,11 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       });
       assert.deepEqual(uiUpdatedSections, {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       });
 
       // 3. On Tab B, user changes to section x only (titleVerdict only)
@@ -258,7 +254,6 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: false,
         mindMap: false,
-        chapterMap: false,
       };
       settings.setEnabledSections(session.enabledSections, true);
       tabStateManager.saveActiveTabState(2, { enabledSections: session.enabledSections });
@@ -273,13 +268,11 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       });
       assert.deepEqual(uiUpdatedSections, {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       });
 
       // 5. Open/switch to a new Tab C (id=3)
@@ -291,7 +284,6 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: true,
         mindMap: false,
-        chapterMap: false,
       });
 
       // 6. Switch to Tab B (id=2)
@@ -303,13 +295,11 @@ describe("Action Handlers", () => {
         titleVerdict: true,
         coreSummary: false,
         mindMap: false,
-        chapterMap: false,
       });
       assert.deepEqual(uiUpdatedSections, {
         titleVerdict: true,
         coreSummary: false,
         mindMap: false,
-        chapterMap: false,
       });
     });
 
@@ -331,7 +321,6 @@ describe("Action Handlers", () => {
           titleVerdict: true,
           coreSummary: false,
           mindMap: false,
-          chapterMap: false,
         },
         setEnabledSections: (s) => { settings.enabledSections = { ...s }; },
       };
@@ -342,7 +331,6 @@ describe("Action Handlers", () => {
           titleVerdict: true,
           coreSummary: false,
           mindMap: false,
-          chapterMap: false,
         },
         customQuestionsScope: "within",
         followupScope: "within",

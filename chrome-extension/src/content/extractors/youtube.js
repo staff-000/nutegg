@@ -16,7 +16,7 @@ async function extractYouTube() {
   const url = window.location.href;
   const meta = extractYouTubeMetadata(url);
 
-  // Chapters (with timestamps, for the clickable Chapter Map)
+  // Chapters (with timestamps, for the clickable Mind Map)
   const chapters = await extractChapters();
 
   // Captions / transcript via YouTube timedtext API

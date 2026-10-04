@@ -54,8 +54,6 @@ export const en = {
   processingHeader: "Processing & Chunking",
   chunkWindowChars: "General chunk window size",
   chunkWindowCharsDesc: "Maximum character length per chunk (~30,000 chars ≈ 8,000 tokens). Long content exceeding this threshold is split into parts and processed with multi-stage map-reduce aggregation.",
-  sectionGridSeconds: "Section grid interval",
-  sectionGridSecondsDesc: "Time interval in seconds (default: 300s / 5 minutes) used to generate section lattice points and chapter maps for videos lacking native chapter markers.",
   maxTokens: "Max completion tokens",
   maxTokensDesc: "Maximum completion tokens allocated for AI calls (default: 16384). Cloud models (DeepSeek, OpenAI, Anthropic) support large output windows. Local LLM users can adjust this to match their model's context window.",
   serverHeader: "Server",

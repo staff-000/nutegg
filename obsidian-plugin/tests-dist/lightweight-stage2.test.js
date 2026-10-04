@@ -268,7 +268,6 @@ var AIError = class extends Error {
 
 // ../shared/src/chunker.ts
 var DEFAULT_CHUNK_WINDOW_CHARS = 3e4;
-var DEFAULT_SECTION_SECS = 300;
 function lineSeconds(line) {
   const m = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
   if (!m)
@@ -316,8 +315,7 @@ function paragraphChunks(content, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHA
       total: 0,
       content: buf.join("\n\n"),
       chapters: [],
-      startTime: "",
-      sections: []
+      startTime: ""
     });
     buf = [];
     bufChars = 0;
@@ -331,8 +329,7 @@ function paragraphChunks(content, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHA
           total: 0,
           content: p.slice(i, i + chunkSize),
           chapters: [],
-          startTime: "",
-          sections: []
+          startTime: ""
         });
       }
       continue;
@@ -344,7 +341,7 @@ function paragraphChunks(content, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHA
   }
   flush();
   if (chunks.length === 0) {
-    chunks.push({ index: 0, total: 1, content, chapters, startTime: "", sections: [] });
+    chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
   }
   chunks.forEach((c, i) => {
     c.index = i;
@@ -354,7 +351,7 @@ function paragraphChunks(content, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHA
     chunks[0].chapters = chapters;
   return chunks;
 }
-function timestampedChunks(lines, firstTsIdx, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHARS, sectionGridSecs = DEFAULT_SECTION_SECS) {
+function timestampedChunks(lines, firstTsIdx, chapters, chunkSize = DEFAULT_CHUNK_WINDOW_CHARS) {
   const preambleLines = lines.slice(0, firstTsIdx);
   const filteredPreamble = [];
   let inChaptersSection = false;
@@ -372,13 +369,11 @@ function timestampedChunks(lines, firstTsIdx, chapters, chunkSize = DEFAULT_CHUN
   }
   const cleanPreamble = filteredPreamble.join("\n").trim();
   const units = [];
-  let lastCaptionSec = 0;
   for (let i = firstTsIdx; i < lines.length; i++) {
     const sec = lineSeconds(lines[i]);
     if (sec === null)
       continue;
     units.push({ sec, line: lines[i] });
-    lastCaptionSec = Math.max(lastCaptionSec, sec);
   }
   const chunks = [];
   let buf = [];
@@ -392,8 +387,7 @@ function timestampedChunks(lines, firstTsIdx, chapters, chunkSize = DEFAULT_CHUN
       total: 0,
       content: buf.join("\n"),
       chapters: [],
-      startTime: formatSeconds(startSec),
-      sections: []
+      startTime: formatSeconds(startSec)
     });
     buf = [];
     bufChars = 0;
@@ -422,19 +416,6 @@ function timestampedChunks(lines, firstTsIdx, chapters, chunkSize = DEFAULT_CHUN
     }
     chunks[idx].chapters.push(ch);
   }
-  if (chapters.length === 0 && lastCaptionSec >= sectionGridSecs) {
-    const begins = chunks.map((c) => toSeconds(c.startTime));
-    for (let t = 0; t < lastCaptionSec + 1; t += sectionGridSecs) {
-      let idx = 0;
-      for (let i = begins.length - 1; i >= 0; i--) {
-        if (t >= begins[i]) {
-          idx = i;
-          break;
-        }
-      }
-      chunks[idx].sections.push(formatSeconds(t));
-    }
-  }
   chunks.forEach((c, i) => {
     c.index = i;
     c.total = chunks.length;
@@ -450,7 +431,7 @@ ${c.content}`;
   });
   return chunks;
 }
-function chunkContent(content, chapters = [], chunkWindowChars = DEFAULT_CHUNK_WINDOW_CHARS, sectionGridSeconds = DEFAULT_SECTION_SECS) {
+function chunkContent(content, chapters = [], chunkWindowChars = DEFAULT_CHUNK_WINDOW_CHARS) {
   const lines = (content || "").split("\n");
   const firstTsIdx = lines.findIndex((l) => lineSeconds(l) !== null);
   if (firstTsIdx !== -1) {
@@ -458,13 +439,12 @@ function chunkContent(content, chapters = [], chunkWindowChars = DEFAULT_CHUNK_W
       lines,
       firstTsIdx,
       chapters,
-      chunkWindowChars,
-      sectionGridSeconds
+      chunkWindowChars
     );
   }
   if (content.length <= chunkWindowChars) {
     return [
-      { index: 0, total: 1, content, chapters, startTime: "", sections: [] }
+      { index: 0, total: 1, content, chapters, startTime: "" }
     ];
   }
   return paragraphChunks(content, chapters, chunkWindowChars);
@@ -686,7 +666,7 @@ var content_analysis_default = `You are a knowledge curator. Analyze the content
 **Source:** {{url}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
-{{sections}}{{questions}}
+{{questions}}
 
 {{content}}
 
@@ -705,6 +685,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       "children": [
         {
           "name": "Subtopic / Concept",
+          "time": "12:34",
           "detail": "Key reasoning, mechanism, or explanation",
           "children": [
             {
@@ -726,10 +707,6 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
       ]
     }
   ],
-  "isLongForm": true,
-  "chapterMap": [
-    {"time": "00:12:34", "title": "chapter title", "summary": "one sentence"}
-  ],
   "customQuestionAnswers": [
     {
       "question": "exact question text",
@@ -743,11 +720,8 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
-- isLongForm: true only for long articles/videos that meaningfully benefit from a chapter map.
-- chapterMap: empty array when isLongForm is false. When video chapters are provided, keep their exact timestamps and titles, and only add your 1-sentence summary.
-- chapterMap when Video Sections are listed above: return EXACTLY one entry per listed section, using the section's start time as "time" \u2014 give each a short title and a 1-sentence summary of what happens between that section and the next.
-- chapterMap when NO chapters or sections were provided: empty array (the content is not a timestamped video).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question \u2014 answer it only once.
+- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 {{shared_output_rules}}
 `;
 
@@ -833,7 +807,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 var egg_routing_default = 'Given this content and egg index, which egg file(s) does this content belong to? Return ONLY the file names, one per line. If none match, return "none".\n\n## Content\nTitle: {{title}}\nURL: {{url}}\n{{content}}\n\n## Egg Index\n{{index}}\n\nReturn matching file names (one per line):\n';
 
 // ../shared/workflow/content-task-default.md
-var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Chapter Map (Long-form only): If the content is a long article or lengthy video, provide a brief 1-sentence summary for each major section or topic shift. If it is short, omit this step entirely.\n4. Mind Map: Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`.\n";
+var content_task_default_default = "1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.\n2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.\n3. Mind Map: Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`. Use an optional `time` per Mind Map node for an exact supporting timestamp in video transcripts. Omit it for untimestamped sources; never invent a time.\n";
 
 // ../shared/workflow/merge-unprocessed.md
 var merge_unprocessed_default = `You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries \u2014 merge them into the knowledge tree below.
@@ -923,6 +897,7 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 ## Output Rules
 - mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
+- mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 {{shared_output_rules}}
 `;
 
@@ -962,14 +937,14 @@ Set answered=false for unsupported/unaddressed answers, regardless of output lan
 `;
 
 // ../shared/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If, Skip If:**`, `> **Formatting Rules:**`\n   - Step labels in Action Guide: `1. Title Verdict:`, `2. Core Summary:`, `3. Chapter Map (Long-form only):`, `4. Novel Delta:`, `5. Decide:`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.\n  - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.\n  - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.\n  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.\n  - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
 
 // ../shared/src/prompt-templates.ts
 var PROMPTS = {
-  /** Phase 1 — content summary + chapter map + custom question answers. */
+  /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: content_analysis_default,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: egg_analysis_default,
@@ -977,7 +952,7 @@ var PROMPTS = {
   followUp: follow_up_default,
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: egg_routing_default,
-  /** Default content analysis task (Title Verdict, Core Summary, Chapter Map). */
+  /** Default content analysis task (Title Verdict, Core Summary, Mind Map). */
   contentTaskDefault: content_task_default_default.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: merge_unprocessed_default,
@@ -1003,8 +978,7 @@ function renderPrompt(template, vars = {}) {
 var DEFAULT_ANALYSIS_SECTIONS = {
   titleVerdict: true,
   coreSummary: true,
-  mindMap: true,
-  chapterMap: true
+  mindMap: true
 };
 
 // ../shared/src/ai-processor.ts
@@ -1019,8 +993,6 @@ function pruneTaskContent(taskText, sections) {
     if (!sections.titleVerdict && /title\s*verdict/i.test(line))
       return false;
     if (!sections.coreSummary && /core\s*summary/i.test(line))
-      return false;
-    if (!sections.chapterMap && /chapter\s*map/i.test(line))
       return false;
     if (!sections.mindMap && /mind\s*map/i.test(line))
       return false;
@@ -1047,10 +1019,6 @@ function pruneRulesFromTemplate(rulesBlock, sections) {
         continue;
       }
       if (!sections.mindMap && /^\s*[-*]\s*mindMap\b/i.test(line)) {
-        skippingCurrentBullet = true;
-        continue;
-      }
-      if (!sections.chapterMap && /^\s*[-*]\s*(chapterMap|isLongForm)\b/i.test(line)) {
         skippingCurrentBullet = true;
         continue;
       }
@@ -1121,14 +1089,12 @@ function pruneSchemaFromTemplate(schemaText, sections) {
       return false;
     if (!sections.mindMap && key === "mindMap")
       return false;
-    if (!sections.chapterMap && (key === "chapterMap" || key === "isLongForm"))
-      return false;
     return true;
   });
   return "{\n  " + filtered.map((p) => p.trim()).join(",\n  ") + "\n}";
 }
 function applyPrunedSections(tpl, sections, _isAggregate = false) {
-  const isDefault = sections.titleVerdict && sections.coreSummary && sections.mindMap && sections.chapterMap;
+  const isDefault = sections.titleVerdict && sections.coreSummary && sections.mindMap;
   if (isDefault)
     return tpl;
   let out = tpl;
@@ -1175,10 +1141,6 @@ var AIProcessor = class {
   get chunkWindowChars() {
     const val = this.host?.settings?.chunkWindowChars;
     return typeof val === "number" && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
-  }
-  get sectionGridSeconds() {
-    const val = this.host?.settings?.sectionGridSeconds;
-    return typeof val === "number" && val > 0 ? val : DEFAULT_SECTION_SECS;
   }
   getPrompt(key) {
     const overrides = this.host?.settings?.promptOverrides || this.host?.settings?.chromeAiPromptOverrides;
@@ -1244,7 +1206,7 @@ ${rendered}`;
     return this.analyzeEggs(capture2, eggs, contentAnalysis);
   }
   /**
-   * Stage 1 — content summary + chapter map + custom question answers.
+   * Stage 1 — content summary + mind map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
   async analyzeContent(capture2) {
@@ -1256,8 +1218,6 @@ ${rendered}`;
       return {
         titleVerdict: effectiveSections.titleVerdict ? capture2.title : "",
         coreSummary: effectiveSections.coreSummary ? [capture2.title] : [],
-        isLongForm: false,
-        chapterMap: [],
         customQuestionAnswers: (capture2.questions || []).map((q) => ({
           question: q,
           answer: "No API key configured \u2014 cannot answer.",
@@ -1275,7 +1235,6 @@ ${rendered}`;
               ...capture2,
               content: chunk.content,
               chapters: chunk.chapters,
-              sections: chunk.sections,
               questions: [],
               enabledSections: effectiveSections
             },
@@ -1295,12 +1254,9 @@ ${rendered}`;
           mindMap: effectiveSections.mindMap ? r.mindMap : void 0
         }))
       );
-      const chapterMap = effectiveSections.chapterMap ? partResults.flatMap((r) => r.chapterMap) : [];
       return {
         titleVerdict: summary.titleVerdict,
         coreSummary: summary.coreSummary,
-        isLongForm: true,
-        chapterMap,
         customQuestionAnswers: summary.customQuestionAnswers,
         mindMap: summary.mindMap
       };
@@ -1309,7 +1265,6 @@ ${rendered}`;
     const effective = {
       ...capture2,
       chapters: single?.chapters,
-      sections: single?.sections,
       enabledSections: effectiveSections
     };
     return this.callContentChunk(effective, "");
@@ -1419,7 +1374,7 @@ ${refs}` : ""}`;
 ${analysis.coreSummary.join("\n")}` : ""
     ].filter(Boolean).join("\n\n");
   }
-  /** Phase 1 — content-level summary + chapter map + custom question answers. */
+  /** Phase 1 — content-level summary + mind map + custom question answers. */
   async callContentChunk(capture2, partNoteStr = "") {
     const sections = {
       ...DEFAULT_ANALYSIS_SECTIONS,
@@ -1435,8 +1390,7 @@ ${analysis.coreSummary.join("\n")}` : ""
       url: capture2.url,
       source_type: capture2.sourceType,
       part_note: partNoteStr,
-      chapters: sections.chapterMap ? this.chaptersBlock(capture2.chapters) : "",
-      sections: sections.chapterMap ? this.sectionsBlock(capture2.sections) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture2.chapters) : "",
       questions: this.questionsBlock(
         capture2.questions,
         capture2.questionsScope === "beyond" ? "User Questions \u2014 Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)" : "User Questions (answer each directly and concisely)"
@@ -1451,15 +1405,6 @@ ${analysis.coreSummary.join("\n")}` : ""
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || "Could not generate a verdict.") : "",
       coreSummary: sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
-      isLongForm: sections.chapterMap ? parsed.isLongForm === true : false,
-      chapterMap: !sections.chapterMap ? [] : parsed.isLongForm === false && (!capture2.chapters || capture2.chapters.length === 0) ? [] : this.completeChapterMap(
-        Array.isArray(parsed.chapterMap) ? parsed.chapterMap.filter((c) => c && (c.time || c.title)).map((c) => ({
-          time: String(c.time || ""),
-          title: String(c.title || ""),
-          summary: String(c.summary || "")
-        })) : [],
-        capture2.sections
-      ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
         ...a,
         scope: a.scope || capture2.questionsScope || "within"
@@ -1532,15 +1477,13 @@ ${analysis.coreSummary.join("\n")}` : ""
     const prompt = renderPrompt(prunedTpl, {
       title: capture2.title,
       url: capture2.url,
-      chapters: sections.chapterMap ? this.chaptersBlock(capture2.chapters) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture2.chapters) : "",
       chunk_summaries: chunkSummaries.map((c) => {
         const at = c.startTime ? ` (${c.startTime})` : "";
         const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
         let mmStr = "";
         if (sections.mindMap && Array.isArray(c.mindMap) && c.mindMap.length > 0) {
-          mmStr = "\n### Key Concepts/Branches from this part:\n" + c.mindMap.map(
-            (n) => `- **${n.name}**${n.detail ? `: ${n.detail}` : ""}`
-          ).join("\n");
+          mmStr = "\n### Key Concepts/Branches from this part:\n" + JSON.stringify(c.mindMap);
         }
         return `## Part ${c.part} of ${chunkSummaries.length}${at}
 ${bullets || "- (no summary)"}${mmStr}`;
@@ -1617,8 +1560,7 @@ ${bullets || "- (no summary)"}${mmStr}`;
     return chunkContent(
       content,
       chapters,
-      this.chunkWindowChars,
-      this.sectionGridSeconds
+      this.chunkWindowChars
     );
   }
   mergeVerdict(results) {
@@ -1640,8 +1582,6 @@ ${bullets || "- (no summary)"}${mmStr}`;
         `Source: ${capture2.title}`,
         "(Configure an API key in NutEgg settings for AI analysis)"
       ],
-      isLongForm: false,
-      chapterMap: [],
       customQuestionAnswers: (capture2.questions || []).map((q) => ({
         question: q,
         answer: "No API key configured \u2014 cannot answer."
@@ -1823,29 +1763,6 @@ ${priorQa.trim()}`;
     return `## Video Chapters (use these EXACT timestamps)
 ${chapters.map((c) => `- ${c.time} \u2014 ${c.title}`).join("\n")}`;
   }
-  /** 5-minute section grid for videos without chapters, or "". */
-  sectionsBlock(sections) {
-    if (!sections?.length)
-      return "";
-    return `## Video Sections (one chapterMap entry per section, EXACT start time)
-${sections.map((s) => `- [${s}]`).join("\n")}`;
-  }
-  /**
-   * Guarantee the chapter map covers the whole video: when a section grid
-   * was provided, keep one entry per section (the AI's title/summary for
-   * matching times, blank for any section the model skipped).
-   */
-  completeChapterMap(parsed, sections) {
-    if (!sections?.length)
-      return parsed;
-    if (!parsed || parsed.length === 0)
-      return [];
-    const byTime = new Map(parsed.map((e) => [toSeconds(e.time), e]));
-    return sections.map((s) => {
-      const e = byTime.get(toSeconds(s));
-      return { time: s, title: e?.title || "", summary: e?.summary || "" };
-    });
-  }
   /** Numbered questions block with a heading, or "". */
   questionsBlock(questions, heading) {
     if (!questions?.length)
@@ -1896,6 +1813,9 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
       const node = {
         name: String(item.name || item.title || item.topic).trim()
       };
+      const time = typeof item.time === "string" ? item.time.trim().replace(/^\[|\]$/g, "") : "";
+      if (/^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(time))
+        node.time = time;
       const detail = item.detail || item.description || item.summary;
       if (detail && typeof detail === "string" && detail.trim().length > 0) {
         node.detail = detail.trim();
@@ -2349,7 +2269,6 @@ function makeFakePlugin(overrides = {}) {
       indexFile: "nutegg/_index.md",
       serverPort: 27123,
       chunkWindowChars: 3e4,
-      sectionGridSeconds: 300,
       ...overrides.settings || {}
     },
     app: { vault: overrides.vault ?? vault },
@@ -2401,7 +2320,7 @@ SECRET_TREE
 - SECRET_PENDING
 `);
 var capture = { title: "Video", url: "https://example.com", content: "source", sourceType: "video" };
-var stage1 = { titleVerdict: "TITLE_SIGNAL", coreSummary: ["SUMMARY_SIGNAL"], isLongForm: false, chapterMap: [], customQuestionAnswers: [] };
+var stage1 = { titleVerdict: "TITLE_SIGNAL", coreSummary: ["SUMMARY_SIGNAL"], customQuestionAnswers: [] };
 var response = (action = "summary", entries = [{ content: "Useful result" }]) => JSON.stringify({
   readAction: action,
   readVerdictReason: "Reason",

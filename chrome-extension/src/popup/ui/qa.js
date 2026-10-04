@@ -19,23 +19,13 @@ function _qaEscapeHtml(str) {
 
 function _qaExtractTimestamp(str) {
   if (typeof extractTimestamp === "function") return extractTimestamp(str);
-  if (typeof require !== "undefined") {
-    try {
-      return require("./chapters.js").extractTimestamp(str);
-    } catch { /* ignore */ }
-  }
   if (!str) return null;
-  const match = String(str).trim().match(/(?:^|[^\d:])(\d{1,2}(?::\d{2}){1,2})(?:[^\d:]|$)/);
+  const match = String(str).trim().match(/(?:^|[^\d:])(\d{1,3}(?::\d{2}){1,2})(?:[^\d:]|$)/);
   return match ? match[1] : null;
 }
 
 function _qaTimeToSeconds(time) {
   if (typeof timeToSeconds === "function") return timeToSeconds(time);
-  if (typeof require !== "undefined") {
-    try {
-      return require("./chapters.js").timeToSeconds(time);
-    } catch { /* ignore */ }
-  }
   if (typeof time === "number" && !isNaN(time)) return Math.floor(time);
   if (!time) return 0;
   const ts = _qaExtractTimestamp(time) || String(time).trim();
@@ -51,7 +41,7 @@ function _qaTimeToSeconds(time) {
 function linkifyTimestamps(escapedText) {
   if (!escapedText) return "";
   return escapedText.replace(
-    /(\[|\()(\d{1,2}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,2}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
+    /(\[|\()(\d{1,3}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,3}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
     (match, open, time1, close, space, time2) => {
       const time = time1 || time2;
       const leading = space || "";
@@ -87,7 +77,7 @@ function renderQaSources(sources) {
         ? `<span class="source-quote" title="${_qaEscapeHtml(quoteText)}">“${_qaEscapeHtml(quoteText)}”</span>`
         : "";
 
-      const displayRef = isTime && /^\[\d{1,2}(?::\d{2}){1,2}\]$/.test(ref) ? timestamp : ref;
+      const displayRef = isTime && /^\[\d{1,3}(?::\d{2}){1,2}\]$/.test(ref) ? timestamp : ref;
 
       return `
         <div class="qa-source-item">

@@ -154,7 +154,7 @@ test("Analysis Sections - DEFAULT_ANALYSIS_SECTIONS has all sections enabled", (
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.titleVerdict, true);
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.coreSummary, true);
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.mindMap, true);
-  assert.equal(DEFAULT_ANALYSIS_SECTIONS.chapterMap, true);
+  assert.equal(Object.keys(DEFAULT_ANALYSIS_SECTIONS).length, 3);
 });
 
 test("Analysis Sections - pruneTaskContent prunes disabled tasks and renumbers", () => {
@@ -162,21 +162,19 @@ test("Analysis Sections - pruneTaskContent prunes disabled tasks and renumbers",
   const defaultTask = PROMPTS.contentTaskDefault;
 
   // All enabled
-  const all = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: true, chapterMap: true });
+  const all = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: true });
   assert.ok(all.includes("1. Title Verdict:"));
   assert.ok(all.includes("2. Core Summary:"));
-  assert.ok(all.includes("3. Chapter Map"));
-  assert.ok(all.includes("4. Mind Map:"));
+  assert.ok(all.includes("3. Mind Map:"));
 
   // Mind map disabled
-  const noMm = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: false, chapterMap: true });
+  const noMm = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: false });
   assert.ok(noMm.includes("1. Title Verdict:"));
   assert.ok(noMm.includes("2. Core Summary:"));
-  assert.ok(noMm.includes("3. Chapter Map"));
   assert.ok(!noMm.includes("Mind Map"));
 
-  // Mind map and Chapter map disabled
-  const summaryOnly = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: false, chapterMap: false });
+  // Mind map disabled
+  const summaryOnly = pruneTaskContent(defaultTask, { titleVerdict: true, coreSummary: true, mindMap: false });
   assert.ok(summaryOnly.includes("1. Title Verdict:"));
   assert.ok(summaryOnly.includes("2. Core Summary:"));
   assert.ok(!summaryOnly.includes("Chapter Map"));
@@ -189,12 +187,10 @@ test("Analysis Sections - pruneSchemaFromTemplate prunes disabled schema keys", 
   "titleVerdict": "verdict",
   "coreSummary": ["point 1"],
   "mindMap": [{"name": "topic"}],
-  "isLongForm": true,
-  "chapterMap": [{"time": "00:00", "title": "intro"}],
   "customQuestionAnswers": []
 }`;
 
-  const noMm = { titleVerdict: true, coreSummary: true, mindMap: false, chapterMap: false };
+  const noMm = { titleVerdict: true, coreSummary: true, mindMap: false };
   const pruned = pruneSchemaFromTemplate(schemaText, noMm);
   assert.ok(pruned.includes('"titleVerdict"'));
   assert.ok(pruned.includes('"coreSummary"'));
@@ -211,10 +207,10 @@ test("Analysis Sections - applyPrunedSections leaves prompt untouched when all e
   assert.equal(pruned, tpl);
 });
 
-test("Analysis Sections - applyPrunedSections prunes prompt when mindMap & chapterMap are false", () => {
+test("Analysis Sections - applyPrunedSections prunes prompt when mindMap is false", () => {
   const { applyPrunedSections, PROMPTS } = NutEggAI;
   const tpl = PROMPTS.contentAnalysis;
-  const pruned = applyPrunedSections(tpl, { titleVerdict: true, coreSummary: true, mindMap: false, chapterMap: false }, false);
+  const pruned = applyPrunedSections(tpl, { titleVerdict: true, coreSummary: true, mindMap: false }, false);
 
   assert.ok(!pruned.includes('"mindMap"'));
   assert.ok(!pruned.includes('"chapterMap"'));
@@ -251,7 +247,6 @@ test("Analysis Sections - analyzeContent sends pruned prompt and handles respons
       titleVerdict: true,
       coreSummary: true,
       mindMap: false,
-      chapterMap: false,
     },
   });
 
@@ -264,8 +259,6 @@ test("Analysis Sections - analyzeContent sends pruned prompt and handles respons
   assert.equal(result.titleVerdict, "Direct answer.");
   assert.deepEqual(result.coreSummary, ["Point 1", "Point 2"]);
   assert.deepEqual(result.mindMap, []);
-  assert.deepEqual(result.chapterMap, []);
-  assert.equal(result.isLongForm, false);
 });
 
 test("Analysis Sections - preserves user-customized rules from template", () => {
@@ -283,7 +276,6 @@ test("Analysis Sections - preserves user-customized rules from template", () => 
     titleVerdict: true,
     coreSummary: true,
     mindMap: false,
-    chapterMap: false,
   });
 
   assert.ok(prunedRules.includes("- titleVerdict must be bold and decisive."));
@@ -316,7 +308,6 @@ test("Analysis Sections - preserves user-customized rules from template", () => 
     titleVerdict: true,
     coreSummary: true,
     mindMap: false,
-    chapterMap: false,
   });
 
   // User's custom coreSummary rule and extraRule are preserved
@@ -339,7 +330,6 @@ test("Analysis Sections - preserves user-customized task wording from template",
     titleVerdict: true,
     coreSummary: true,
     mindMap: false,
-    chapterMap: false,
   });
 
   assert.equal(
@@ -386,7 +376,6 @@ Some preamble.
     titleVerdict: true,
     coreSummary: false,
     mindMap: false,
-    chapterMap: false,
   });
 
   assert.ok(pruned.includes("1. Title Verdict: Say yes or no."));
@@ -480,3 +469,45 @@ test("AI Processor - askFollowUp attaches scope and modifies grounding rule", as
 });
 
 
+
+test('Stage 1 generates timestamped mind maps without chapter-map fields', async () => {
+  const processor = new AIProcessor({ settings: { chromeAiProvider: 'openai', chromeAiApiKey: 'test-key' } });
+  processor.callAI = async prompt => {
+    assert.ok(!prompt.includes('chapterMap'));
+    assert.ok(!prompt.includes('isLongForm'));
+    assert.ok(prompt.includes('never invent timestamps'));
+    return JSON.stringify({ titleVerdict: 'Verdict', coreSummary: [], mindMap: [
+      { name: 'Topic', time: '[12:34]', children: [{ name: 'Detail', time: '01:02:03' }] },
+      { name: 'Invalid', time: '12:99' },
+      { name: 'No timestamp' },
+    ] });
+  };
+  const result = await processor.analyzeContent({ url: 'https://example.com/video', title: 'Test', sourceType: 'video', content: '[12:34] Topic\n[01:02:03] Detail' });
+  assert.equal(result.mindMap[0].time, '12:34');
+  assert.equal(result.mindMap[0].children[0].time, '01:02:03');
+  assert.equal('time' in result.mindMap[1], false);
+  assert.equal('time' in result.mindMap[2], false);
+  assert.equal('chapterMap' in result, false);
+  assert.equal('isLongForm' in result, false);
+});
+
+test('Stage 1 preserves per-chunk mind-map citations in aggregation', async () => {
+  const processor = new AIProcessor({ settings: { chromeAiProvider: 'openai', chromeAiApiKey: 'test-key', chunkWindowChars: 1000 } });
+  let calls = 0;
+  processor.callAI = async prompt => {
+    calls++;
+    if (prompt.includes('## Per-Part Summaries')) {
+      assert.ok(prompt.includes('"time":"00:10"'));
+      assert.ok(prompt.includes('"time":"10:20"'));
+      assert.ok(prompt.includes('"name":"Nested evidence","time":"10:21"'));
+      return JSON.stringify({ titleVerdict: 'Whole video', coreSummary: [], mindMap: [{ name: 'Combined', time: '10:20' }] });
+    }
+    const time = prompt.includes('[10:20]') ? '10:20' : '00:10';
+    return JSON.stringify({ titleVerdict: 'Part', coreSummary: [], mindMap: [{ name: 'Topic', time, children: [{ name: 'Nested evidence', time: '10:21' }] }] });
+  };
+  const content = '[00:10] ' + 'a'.repeat(700) + '\n[10:20] ' + 'b'.repeat(700);
+  const result = await processor.analyzeContent({ url: 'https://example.com/video', title: 'Test', sourceType: 'video', content });
+  assert.equal(calls, 3);
+  assert.equal(result.mindMap[0].time, '10:20');
+  assert.equal('chapterMap' in result, false);
+});

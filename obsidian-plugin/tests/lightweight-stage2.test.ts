@@ -23,7 +23,7 @@ SECRET_TREE
 - SECRET_PENDING
 `);
 const capture = { title: 'Video', url: 'https://example.com', content: 'source', sourceType: 'video' };
-const stage1 = { titleVerdict: 'TITLE_SIGNAL', coreSummary: ['SUMMARY_SIGNAL'], isLongForm: false, chapterMap: [], customQuestionAnswers: [] };
+const stage1 = { titleVerdict: 'TITLE_SIGNAL', coreSummary: ['SUMMARY_SIGNAL'], customQuestionAnswers: [] };
 const response = (action = 'summary', entries = [{ content: 'Useful result' }]) => JSON.stringify({
   readAction: action, readVerdictReason: 'Reason', extractedEntries: entries, keyQuestionAnswers: [], readingSources: [{ ref: '12:34', quote: 'evidence' }],
 });

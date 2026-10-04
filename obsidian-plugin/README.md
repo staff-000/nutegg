@@ -15,7 +15,7 @@
 ## ✨ Features
 
 - **Smart Content Extraction**:
-  - **YouTube**: Full timestamped transcripts (including auto-generated captions) and clickable chapter maps.
+  - **YouTube**: Full timestamped transcripts (including auto-generated captions) and clickable mind maps with clickable timestamps.
   - **Twitter / X**: Full threads, authors, media badges, and engagement metrics.
   - **Articles & Blogs**: Medium, Substack, and generic web articles with ads and sidebars stripped.
 - **"Should You Read It?" Verdict**:

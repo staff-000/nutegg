@@ -691,7 +691,6 @@ var DEFAULT_SETTINGS = {
   workflowFolder: "nutegg/_workflow",
   workflowHashes: {},
   chunkWindowChars: 3e4,
-  sectionGridSeconds: 300,
   contentAnalysisMaxTokens: 16384
 };
 

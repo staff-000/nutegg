@@ -53,8 +53,6 @@ export const de = {
   "processingHeader": "Verarbeitung & Chunking",
   "chunkWindowChars": "Chunk-Fenstergröße",
   "chunkWindowCharsDesc": "Maximale Zeichenanzahl pro Block (~30.000 Zeichen ≈ 8.000 Tokens). Längere Inhalte werden in Teile zerlegt.",
-  "sectionGridSeconds": "Abschnittsgitter-Intervall",
-  "sectionGridSecondsDesc": "Zeitintervall in Sekunden (Standard: 300 s / 5 Min.) zur Erstellung von Kapitelkarten für Videos ohne Kapitel.",
   "maxTokens": "Max. Ausgabetokens",
   "maxTokensDesc": "Maximal zugewiesene Tokens für KI-Antworten (Standard: 16384).",
   "serverHeader": "Server",

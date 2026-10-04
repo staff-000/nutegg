@@ -14,7 +14,7 @@ import localizeEggTpl from "../workflow/localize-egg.md";
 import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
 
 export const PROMPTS = {
-  /** Phase 1 — content summary + chapter map + custom question answers. */
+  /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: eggAnalysisTpl,
@@ -22,7 +22,7 @@ export const PROMPTS = {
   followUp: followUpTpl,
   /** Egg routing — match content to egg files from _index.md. */
   eggRouting: eggRoutingTpl,
-  /** Default content analysis task (Title Verdict, Core Summary, Chapter Map). */
+  /** Default content analysis task (Title Verdict, Core Summary, Mind Map). */
   contentTaskDefault: contentTaskDefaultTpl.trim(),
   /** Merge 20+ Unprocessed entries into the Knowledge tree. */
   mergeUnprocessed: mergeUnprocessedTpl,

@@ -6,7 +6,7 @@ These shared prompts power the extension and Obsidian plugin. Customize the Acti
 
 ```text
 Captured content
-  → Stage 1: summary, title verdict, mind map, chapters, custom Q&A
+  → Stage 1: summary, title verdict, mind map, custom Q&A
   → Summary-based egg routing and egg selection
   → Stage 2: egg-analysis (one call per egg for short content)
   → Answers, extracted entries, and reading recommendation
@@ -43,7 +43,7 @@ Worth Reading If and Skip If only guide recommendations; they never remove entri
 
 | File | Purpose | Main output |
 |---|---|---|
-| `content-analysis.md` | Stage 1 source analysis | Title verdict, summary, mind map, chapters, Q&A |
+| `content-analysis.md` | Stage 1 source analysis | Title verdict, summary, mind map, Q&A |
 | `content-task-default.md` | Shared Stage 1 task fragment | Injected tasks |
 | `egg-routing.md` | Match eggs from the Stage 1 summary | Matched eggs |
 | `egg-analysis.md` | Follow one egg’s instructions | `keyQuestionAnswers`, `extractedEntries`, `readAction`, `readVerdictReason`, `readingSources`, `language` |

@@ -1164,50 +1164,6 @@ body {
   display: none;
 }
 
-/* Chapter Map */
-.chapter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.chapter-row {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #374151;
-}
-
-.chapter-clickable {
-  cursor: pointer;
-  border-color: var(--primary-border, #ebd6b7);
-}
-
-.chapter-clickable:hover {
-  background: var(--primary-light, #fdf6ed);
-}
-
-.chapter-time {
-  font-weight: 600;
-  color: var(--primary, #a8561e);
-  margin-right: 6px;
-}
-
-.chapter-title {
-  font-weight: 600;
-  color: #1a1a2e;
-  margin-right: 6px;
-}
-
-.chapter-summary {
-  display: block;
-  margin-top: 2px;
-  color: #6b7280;
-}
-
 /* Question Scope Selector & Badges */
 .qa-scope-selector {
   display: inline-flex;

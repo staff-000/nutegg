@@ -1133,8 +1133,6 @@ var NutEggServer = class {
         const contentAnalysis2 = capture.contentAnalysis || {
           titleVerdict: capture.title,
           coreSummary: [],
-          isLongForm: false,
-          chapterMap: [],
           mindMap: [],
           customQuestionAnswers: []
         };
@@ -1211,8 +1209,6 @@ var NutEggServer = class {
             statusCode: err.statusCode,
             titleVerdict: "",
             coreSummary: [],
-            isLongForm: false,
-            chapterMap: [],
             schemaVersion: 3,
             shouldRead: null,
             shouldReadReason: "",
@@ -1230,8 +1226,6 @@ var NutEggServer = class {
           errorCode: "unknown",
           titleVerdict: "",
           coreSummary: [],
-          isLongForm: false,
-          chapterMap: [],
           schemaVersion: 3,
           shouldRead: null,
           shouldReadReason: "",
@@ -1522,7 +1516,6 @@ function makeFakePlugin(overrides = {}) {
       indexFile: "nutegg/_index.md",
       serverPort: 27123,
       chunkWindowChars: 3e4,
-      sectionGridSeconds: 300,
       ...overrides.settings || {}
     },
     app: { vault: overrides.vault ?? vault },
@@ -2204,8 +2197,6 @@ function makeRes() {
         analyzeContent: async () => ({
           titleVerdict: "Core verdict answer.",
           coreSummary: ["Bullet 1", "Bullet 2"],
-          isLongForm: false,
-          chapterMap: [],
           customQuestionAnswers: []
         })
       },
@@ -2260,8 +2251,6 @@ function makeRes() {
     const contentAnalysis = {
       titleVerdict: "Core verdict answer.",
       coreSummary: ["Bullet 1"],
-      isLongForm: false,
-      chapterMap: [],
       customQuestionAnswers: []
     };
     const req = makeReq(
@@ -2290,8 +2279,6 @@ function makeRes() {
           return {
             titleVerdict: "Fresh stage 1 verdict.",
             coreSummary: ["New summary"],
-            isLongForm: false,
-            chapterMap: [],
             customQuestionAnswers: []
           };
         }
@@ -2335,8 +2322,6 @@ function makeRes() {
         analyzeContent: async () => ({
           titleVerdict: "Stage 1 summary verdict",
           coreSummary: ["Bullet A"],
-          isLongForm: false,
-          chapterMap: [],
           customQuestionAnswers: []
         })
       },

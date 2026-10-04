@@ -53,8 +53,6 @@ export const fr = {
   "processingHeader": "Traitement et découpage",
   "chunkWindowChars": "Taille de fenêtre de découpage",
   "chunkWindowCharsDesc": "Longueur maximale de caractères par bloc (~30 000 caractères ≈ 8 000 tokens). Les longs contenus sont fractionnés.",
-  "sectionGridSeconds": "Intervalle de grille de section",
-  "sectionGridSecondsDesc": "Intervalle en secondes (défaut : 300 s / 5 min) pour générer des cartes de chapitres pour les vidéos sans chapitrage.",
   "maxTokens": "Tokens de sortie max",
   "maxTokensDesc": "Tokens maximum alloués aux appels IA (défaut : 16384).",
   "serverHeader": "Serveur",

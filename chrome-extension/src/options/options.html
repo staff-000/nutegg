@@ -45,7 +45,7 @@
         </select>
         <div class="mode-descriptions">
           <p class="hint mode-desc" id="fast-desc">
-            <strong>🌞 Full Mode:</strong> <span data-i18n="fastDescText">NutEgg summarizes page content and chapter map, automatically matches relevant eggs from your vault, and immediately proceeds to knowledge comparison so you get your reading verdict without extra clicks.</span>
+            <strong>🌞 Full Mode:</strong> <span data-i18n="fastDescText">NutEgg summarizes page content, creates a mind map, automatically matches relevant eggs from your vault, and analyzes them to give you a reading recommendation.</span>
           </p>
           <p class="hint mode-desc" id="confirm-desc">
             <strong>🌛 Preview Summary:</strong> <span data-i18n="confirmDescText">NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.</span>
@@ -79,10 +79,6 @@
         </label>
       </div>
       <div class="option-row">
-        <label class="toggle-checkbox-label" for="section-chapters">
-          <input type="checkbox" id="section-chapters" checked>
-          <span><strong>⏱️ <span data-i18n="chipChapters">Chapters</span></strong> — <span data-i18n="sectionChaptersOpt">Timestamped breakdown for videos and long articles</span></span>
-        </label>
       </div>
       <div class="option-actions">
         <button id="sections-save-btn" class="primary-btn" data-i18n="saveSectionsBtn">Save Section Preferences</button>
@@ -184,7 +180,7 @@
         </div>
         <div class="ai-input-group">
           <select id="ai-prompt-select">
-            <option value="contentAnalysis" data-i18n="promptOptContentAnalysis">Content Analysis (Stage 1 Summary & Chapter Map)</option>
+            <option value="contentAnalysis" data-i18n="promptOptContentAnalysis">Content Analysis (Stage 1 Summary & Mind Map)</option>
             <option value="contentTaskDefault" data-i18n="promptOptContentTask">Default Content Task Instructions</option>
             <option value="followUp" data-i18n="promptOptFollowUp">Follow-up Q&A</option>
           </select>

@@ -82,7 +82,7 @@ if (!window.__nutegg_listener_attached) {
 
     if (message.action === "nutegg-seek") {
       // Seek the page's video to the given timestamp (seconds) — used by the
-      // clickable Chapter Map and Q&A timestamp pills in the popup.
+      // clickable Mind Map and Q&A timestamp pills in the popup.
       const video =
         document.querySelector(".html5-main-video") ||
         document.querySelector("video.video-stream") ||

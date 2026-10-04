@@ -510,8 +510,6 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
         analyzeContent: async () => ({
           titleVerdict: "Core verdict answer.",
           coreSummary: ["Bullet 1", "Bullet 2"],
-          isLongForm: false,
-          chapterMap: [],
           customQuestionAnswers: [],
         }),
       },
@@ -572,8 +570,6 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     const contentAnalysis = {
       titleVerdict: "Core verdict answer.",
       coreSummary: ["Bullet 1"],
-      isLongForm: false,
-      chapterMap: [],
       customQuestionAnswers: [],
     };
     const req = makeReq(
@@ -604,8 +600,6 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
           return {
             titleVerdict: "Fresh stage 1 verdict.",
             coreSummary: ["New summary"],
-            isLongForm: false,
-            chapterMap: [],
             customQuestionAnswers: [],
           };
         },
@@ -654,8 +648,6 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
         analyzeContent: async () => ({
           titleVerdict: "Stage 1 summary verdict",
           coreSummary: ["Bullet A"],
-          isLongForm: false,
-          chapterMap: [],
           customQuestionAnswers: [],
         }),
       },

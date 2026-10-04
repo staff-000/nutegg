@@ -53,8 +53,6 @@ export const es = {
   "processingHeader": "Procesamiento y fragmentación",
   "chunkWindowChars": "Tamaño de ventana de fragmento",
   "chunkWindowCharsDesc": "Longitud máxima de caracteres por fragmento (~30.000 caracteres ≈ 8.000 tokens). Contenido más largo se divide en partes.",
-  "sectionGridSeconds": "Intervalo de cuadrícula de sección",
-  "sectionGridSecondsDesc": "Intervalo de tiempo en segundos (por defecto: 300 s / 5 minutos) para generar puntos de sección en vídeos sin capítulos nativos.",
   "maxTokens": "Tokens máximos de finalización",
   "maxTokensDesc": "Tokens de salida máximos asignados a llamadas de IA (por defecto: 16384).",
   "serverHeader": "Servidor",

@@ -112,7 +112,7 @@ function timeToSeconds(time) {
 function linkifyTimestamps(escapedText) {
   if (!escapedText) return "";
   return escapedText.replace(
-    /(\[|\()(\d{1,2}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,2}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
+    /(\[|\()(\d{1,3}(?::\d{2}){1,2})(\]|\))|(?:^|(\s))(\d{1,3}(?::\d{2}){1,2})(?=[.,!?\s]|$)/g,
     (match, open, time1, close, space, time2) => {
       const time = time1 || time2;
       const leading = space || "";

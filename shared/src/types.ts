@@ -55,7 +55,6 @@ export interface NutEggAISettings {
   contentAnalysisMaxTokens?: number;
   outputLanguage?: string;
   chunkWindowChars?: number;
-  sectionGridSeconds?: number;
   // Chrome settings keys compatibility
   chromeAiProvider?: AIProviderId;
   chromeAiSource?: AISource;
@@ -72,22 +71,10 @@ export interface ContentChunk {
   index: number;
   total: number;
   content: string;
-  /** Chapters whose start time falls inside this chunk (for the Chapter Map). */
+  /** Chapters whose start time falls inside this chunk for timestamp grounding. */
   chapters: Array<{ time: string; title: string }>;
   /** Start timestamp of the chunk ("MM:SS" / "H:MM:SS"), "" for plain text. */
   startTime: string;
-  /**
-   * Time grid for videos WITHOUT chapter markers — the AI fills one
-   * chapterMap entry per section, guaranteeing whole-video coverage.
-   */
-  sections: string[];
-}
-
-/** One chapter in the Chapter Map. `time` is video timestamp ("MM:SS" or "HH:MM:SS") when available. */
-export interface ChapterEntry {
-  time: string;
-  title: string;
-  summary: string;
 }
 
 /** Positional reference and supporting quote for an answer. */
@@ -115,6 +102,8 @@ export interface KeyAnswer {
 export interface MindMapNode {
   name: string;
   detail?: string;
+  /** Exact timestamp from the source transcript, when available. */
+  time?: string;
   children?: MindMapNode[];
 }
 
@@ -123,14 +112,12 @@ export interface AnalysisSectionsConfig {
   titleVerdict: boolean;
   coreSummary: boolean;
   mindMap: boolean;
-  chapterMap: boolean;
 }
 
 export const DEFAULT_ANALYSIS_SECTIONS: AnalysisSectionsConfig = {
   titleVerdict: true,
   coreSummary: true,
   mindMap: true,
-  chapterMap: true,
 };
 
 /** Content-level analysis, independent of any egg. */
@@ -139,8 +126,6 @@ export interface ContentAnalysis {
   titleVerdict: string;
   /** Max 3 plain-language bullets. */
   coreSummary: string[];
-  isLongForm: boolean;
-  chapterMap: ChapterEntry[];
   /** Answers to custom user questions (egg key questions live in EggAnalysis). */
   customQuestionAnswers: KeyAnswer[];
   /** Hierarchical concept mind-map / outline tree. */

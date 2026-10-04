@@ -147,7 +147,7 @@
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon">🎯</span>
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-            <span class="sections-badge" id="sections-badge">4/4</span>
+            <span class="sections-badge" id="sections-badge">3/3</span>
           </div>
           <span class="sections-toggle-chevron" id="sections-chevron">▸</span>
         </button>
@@ -164,10 +164,6 @@
             <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
               <span class="chip-icon">🧠</span>
               <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
-            </button>
-            <button type="button" class="section-chip active" id="chip-chapters" data-section="chapterMap" title="Toggle Chapter Map" data-i18n-title="toggleChaptersTooltip">
-              <span class="chip-icon">⏱️</span>
-              <span class="chip-label" data-i18n="chipChapters">Chapters</span>
             </button>
           </div>
         </div>
@@ -217,7 +213,7 @@
               <div class="sections-toggle-left">
                 <span class="sections-toggle-icon">🎯</span>
                 <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-                <span class="sections-badge" id="reanalyze-sections-badge">4/4</span>
+                <span class="sections-badge" id="reanalyze-sections-badge">3/3</span>
               </div>
               <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
             </button>
@@ -234,10 +230,6 @@
                 <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
                   <span class="chip-icon">🧠</span>
                   <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
-                </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-chapters" data-section="chapterMap" title="Toggle Chapter Map" data-i18n-title="toggleChaptersTooltip">
-                  <span class="chip-icon">⏱️</span>
-                  <span class="chip-label" data-i18n="chipChapters">Chapters</span>
                 </button>
               </div>
             </div>
@@ -341,16 +333,6 @@
         </div>
       </div>
 
-      <div id="chapter-section" class="result-section hidden">
-        <div class="section-header">
-          <div class="section-label"><span data-i18n="chapterSection">🗺️ Chapter Map</span> <span class="section-hint" data-i18n="chapterJumpHint">(click to jump)</span></div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="chapter-list" class="chapter-list"></div>
-        </div>
-      </div>
-
       <div id="custom-questions-section" class="result-section hidden">
         <div class="section-header">
           <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
@@ -439,7 +421,6 @@
   <script defer src="services/environment-service.js"></script>
   <script defer src="ui/collapsible.js"></script>
   <script defer src="ui/mindmap.js"></script>
-  <script defer src="ui/chapters.js"></script>
   <script defer src="ui/qa.js"></script>
   <script defer src="ui/eggs.js"></script>
   <script defer src="ui/header.js"></script>

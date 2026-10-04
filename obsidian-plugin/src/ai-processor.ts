@@ -14,7 +14,6 @@ export {
 
 export type {
   AnalysisSectionsConfig,
-  ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
   MindMapNode,

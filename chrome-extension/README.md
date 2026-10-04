@@ -17,7 +17,7 @@ It is a two-part system that helps you stop mindless browsing and start building
 ## ✨ Features
 
 - **Smart Content Extraction**:
-  - **YouTube**: Full timestamped transcripts (including auto-generated captions) and clickable chapter maps.
+  - **YouTube**: Full timestamped transcripts (including auto-generated captions) and clickable mind maps with clickable timestamps.
   - **Twitter / X**: Full threads, authors, media badges, and engagement metrics.
   - **Articles & Blogs**: Medium, Substack, and generic web articles with ads and sidebars stripped.
   - **Bilibili**: Video pages and watch-later lists, current multipart selection, chapters, and timestamped subtitles (manual before AI).

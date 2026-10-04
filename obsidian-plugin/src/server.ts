@@ -17,7 +17,7 @@ interface AnalyzeRequest {
   content: string;
   sourceType: string;
   metadata?: Record<string, string>;
-  /** Video chapter markers with timestamps (YouTube) — used for the Chapter Map. */
+  /** Video chapter markers with timestamps (YouTube) — used for the Mind Map. */
   chapters?: Array<{ time: string; title: string }>;
   /** Custom questions from the popup — answered alongside the eggs' key questions. */
   questions?: string[];
@@ -629,8 +629,6 @@ export class NutEggServer {
         const contentAnalysis = capture.contentAnalysis || {
           titleVerdict: capture.title,
           coreSummary: [],
-          isLongForm: false,
-          chapterMap: [],
           mindMap: [],
           customQuestionAnswers: [],
         };
@@ -720,8 +718,6 @@ export class NutEggServer {
             statusCode: err.statusCode,
             titleVerdict: "",
             coreSummary: [],
-            isLongForm: false,
-            chapterMap: [],
             schemaVersion: 3,
             shouldRead: null,
             shouldReadReason: "",
@@ -740,8 +736,6 @@ export class NutEggServer {
           errorCode: "unknown",
           titleVerdict: "",
           coreSummary: [],
-          isLongForm: false,
-          chapterMap: [],
           schemaVersion: 3,
           shouldRead: null,
           shouldReadReason: "",

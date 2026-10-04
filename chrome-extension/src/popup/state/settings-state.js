@@ -6,7 +6,6 @@ const DEFAULT_ANALYSIS_SECTIONS = {
   titleVerdict: true,
   coreSummary: true,
   mindMap: true,
-  chapterMap: true,
 };
 
 /**
@@ -49,10 +48,7 @@ class SettingsState {
         this.analysisMode = stored.analysisMode;
       }
       if (stored?.enabledSections) {
-        this.enabledSections = {
-          ...DEFAULT_ANALYSIS_SECTIONS,
-          ...stored.enabledSections,
-        };
+        this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, stored.enabledSections[key] !== false]));
       }
       if (stored?.outputLanguage) {
         this.outputLanguage = stored.outputLanguage;
@@ -83,10 +79,7 @@ class SettingsState {
 
   setEnabledSections(sections, persist = false) {
     if (sections && typeof sections === "object") {
-      this.enabledSections = {
-        ...DEFAULT_ANALYSIS_SECTIONS,
-        ...sections,
-      };
+      this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, sections[key] !== false]));
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
       }
@@ -94,6 +87,7 @@ class SettingsState {
   }
 
   async toggleSection(key, persist = true) {
+    if (!(key in DEFAULT_ANALYSIS_SECTIONS)) return false;
     const currentVal = this.enabledSections[key] !== false;
     const activeCount = Object.values(this.enabledSections).filter(Boolean).length;
     // Don't allow disabling the last active section

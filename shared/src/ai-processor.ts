@@ -6,7 +6,6 @@ import { isAIConfigured } from "./catalog";
 import { AIError } from "./client";
 import {
   DEFAULT_CHUNK_WINDOW_CHARS,
-  DEFAULT_SECTION_SECS,
   chunkContent,
   formatSeconds,
   partNote,
@@ -32,7 +31,6 @@ import {
   type AnalysisResult,
   type AnalysisSectionsConfig,
   type CapturePayload,
-  type ChapterEntry,
   type ContentAnalysis,
   type ContentChunk,
   type EggAnalysis,
@@ -57,7 +55,6 @@ export {
 
 export type {
   AnalysisSectionsConfig,
-  ChapterEntry,
   ContentAnalysis,
   KeyAnswer,
   MindMapNode,
@@ -88,7 +85,6 @@ export function pruneTaskContent(
     if (!trimmed) return false;
     if (!sections.titleVerdict && /title\s*verdict/i.test(line)) return false;
     if (!sections.coreSummary && /core\s*summary/i.test(line)) return false;
-    if (!sections.chapterMap && /chapter\s*map/i.test(line)) return false;
     if (!sections.mindMap && /mind\s*map/i.test(line)) return false;
     return true;
   });
@@ -123,10 +119,6 @@ export function pruneRulesFromTemplate(
         continue;
       }
       if (!sections.mindMap && /^\s*[-*]\s*mindMap\b/i.test(line)) {
-        skippingCurrentBullet = true;
-        continue;
-      }
-      if (!sections.chapterMap && /^\s*[-*]\s*(chapterMap|isLongForm)\b/i.test(line)) {
         skippingCurrentBullet = true;
         continue;
       }
@@ -209,7 +201,6 @@ export function pruneSchemaFromTemplate(
     if (!sections.titleVerdict && key === "titleVerdict") return false;
     if (!sections.coreSummary && key === "coreSummary") return false;
     if (!sections.mindMap && key === "mindMap") return false;
-    if (!sections.chapterMap && (key === "chapterMap" || key === "isLongForm")) return false;
     return true;
   });
 
@@ -229,8 +220,7 @@ export function applyPrunedSections(
   const isDefault =
     sections.titleVerdict &&
     sections.coreSummary &&
-    sections.mindMap &&
-    sections.chapterMap;
+    sections.mindMap;
   if (isDefault) return tpl;
 
   let out = tpl;
@@ -284,7 +274,7 @@ export const MERGE_THRESHOLD = 20;
 
 /**
  * Two-phase AI pipeline driven by the eggs' Action Guides:
- *   Phase 1 — content analysis (title verdict, core summary, chapter map).
+ *   Phase 1 — content analysis (title verdict, core summary, mind map).
  *   Phase 2 — per-egg analysis (key answers, extracted entries, reading recommendation).
  * With exactly one matched egg, both phases are merged into a single call.
  *
@@ -300,11 +290,6 @@ export class AIProcessor {
   get chunkWindowChars(): number {
     const val = this.host?.settings?.chunkWindowChars;
     return typeof val === "number" && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
-  }
-
-  get sectionGridSeconds(): number {
-    const val = this.host?.settings?.sectionGridSeconds;
-    return typeof val === "number" && val > 0 ? val : DEFAULT_SECTION_SECS;
   }
 
   private getPrompt(key: WorkflowPromptKey): string {
@@ -422,7 +407,7 @@ export class AIProcessor {
   }
 
   /**
-   * Stage 1 — content summary + chapter map + custom question answers.
+   * Stage 1 — content summary + mind map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
   async analyzeContent(
@@ -432,7 +417,6 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
-      sections?: string[];
       questions?: string[];
       questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
@@ -447,8 +431,6 @@ export class AIProcessor {
       return {
         titleVerdict: effectiveSections.titleVerdict ? capture.title : "",
         coreSummary: effectiveSections.coreSummary ? [capture.title] : [],
-        isLongForm: false,
-        chapterMap: [],
         customQuestionAnswers: (capture.questions || []).map((q) => ({
           question: q,
           answer: "No API key configured — cannot answer.",
@@ -467,7 +449,6 @@ export class AIProcessor {
               ...capture,
               content: chunk.content,
               chapters: chunk.chapters,
-              sections: chunk.sections,
               questions: [],
               enabledSections: effectiveSections,
             },
@@ -487,14 +468,9 @@ export class AIProcessor {
           mindMap: effectiveSections.mindMap ? r.mindMap : undefined,
         }))
       );
-      const chapterMap = effectiveSections.chapterMap
-        ? partResults.flatMap((r) => r.chapterMap)
-        : [];
       return {
         titleVerdict: summary.titleVerdict,
         coreSummary: summary.coreSummary,
-        isLongForm: true,
-        chapterMap,
         customQuestionAnswers: summary.customQuestionAnswers,
         mindMap: summary.mindMap,
       };
@@ -504,7 +480,6 @@ export class AIProcessor {
     const effective = {
       ...capture,
       chapters: single?.chapters,
-      sections: single?.sections,
       enabledSections: effectiveSections,
     };
     return this.callContentChunk(effective, "");
@@ -576,7 +551,7 @@ export class AIProcessor {
       capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : ""].filter(Boolean).join("\n\n");
   }
 
-  /** Phase 1 — content-level summary + chapter map + custom question answers. */
+  /** Phase 1 — content-level summary + mind map + custom question answers. */
   private async callContentChunk(
     capture: {
       title: string;
@@ -584,7 +559,6 @@ export class AIProcessor {
       content: string;
       sourceType: string;
       chapters?: Array<{ time: string; title: string }>;
-      sections?: string[];
       questions?: string[];
       questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
@@ -606,8 +580,7 @@ export class AIProcessor {
       url: capture.url,
       source_type: capture.sourceType,
       part_note: partNoteStr,
-      chapters: sections.chapterMap ? this.chaptersBlock(capture.chapters) : "",
-      sections: sections.chapterMap ? this.sectionsBlock(capture.sections) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : "",
       questions: this.questionsBlock(
         capture.questions,
         capture.questionsScope === "beyond"
@@ -630,23 +603,6 @@ export class AIProcessor {
           ? parsed.coreSummary.map(String).slice(0, 3)
           : [],
       mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
-      isLongForm: sections.chapterMap ? parsed.isLongForm === true : false,
-      chapterMap: !sections.chapterMap
-        ? []
-        : parsed.isLongForm === false && (!capture.chapters || capture.chapters.length === 0)
-        ? []
-        : this.completeChapterMap(
-            Array.isArray(parsed.chapterMap)
-              ? parsed.chapterMap
-                  .filter((c: any) => c && (c.time || c.title))
-                  .map((c: any) => ({
-                    time: String(c.time || ""),
-                    title: String(c.title || ""),
-                    summary: String(c.summary || ""),
-                  }))
-              : [],
-            capture.sections
-          ),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
         ...a,
         scope: a.scope || capture.questionsScope || "within",
@@ -731,7 +687,7 @@ export class AIProcessor {
     const prompt = renderPrompt(prunedTpl, {
       title: capture.title,
       url: capture.url,
-      chapters: sections.chapterMap ? this.chaptersBlock(capture.chapters) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : "",
       chunk_summaries: chunkSummaries
         .map((c) => {
           const at = c.startTime ? ` (${c.startTime})` : "";
@@ -740,12 +696,7 @@ export class AIProcessor {
           if (sections.mindMap && Array.isArray(c.mindMap) && c.mindMap.length > 0) {
             mmStr =
               "\n### Key Concepts/Branches from this part:\n" +
-              c.mindMap
-                .map(
-                  (n) =>
-                    `- **${n.name}**${n.detail ? `: ${n.detail}` : ""}`
-                )
-                .join("\n");
+              JSON.stringify(c.mindMap);
           }
           return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || "- (no summary)"}${mmStr}`;
         })
@@ -840,8 +791,7 @@ export class AIProcessor {
     return chunkContent(
       content,
       chapters,
-      this.chunkWindowChars,
-      this.sectionGridSeconds
+      this.chunkWindowChars
     );
   }
 
@@ -866,8 +816,6 @@ export class AIProcessor {
         `Source: ${capture.title}`,
         "(Configure an API key in NutEgg settings for AI analysis)",
       ],
-      isLongForm: false,
-      chapterMap: [],
       customQuestionAnswers: (capture.questions || []).map((q) => ({
         question: q,
         answer: "No API key configured — cannot answer.",
@@ -1084,32 +1032,6 @@ export class AIProcessor {
       .join("\n")}`;
   }
 
-  /** 5-minute section grid for videos without chapters, or "". */
-  private sectionsBlock(sections?: string[]): string {
-    if (!sections?.length) return "";
-    return `## Video Sections (one chapterMap entry per section, EXACT start time)\n${sections
-      .map((s) => `- [${s}]`)
-      .join("\n")}`;
-  }
-
-  /**
-   * Guarantee the chapter map covers the whole video: when a section grid
-   * was provided, keep one entry per section (the AI's title/summary for
-   * matching times, blank for any section the model skipped).
-   */
-  private completeChapterMap(
-    parsed: ChapterEntry[],
-    sections?: string[]
-  ): ChapterEntry[] {
-    if (!sections?.length) return parsed;
-    if (!parsed || parsed.length === 0) return [];
-    const byTime = new Map(parsed.map((e) => [toSeconds(e.time), e]));
-    return sections.map((s) => {
-      const e = byTime.get(toSeconds(s));
-      return { time: s, title: e?.title || "", summary: e?.summary || "" };
-    });
-  }
-
   /** Numbered questions block with a heading, or "". */
   private questionsBlock(questions: string[] | undefined, heading: string): string {
     if (!questions?.length) return "";
@@ -1168,6 +1090,8 @@ export class AIProcessor {
         const node: MindMapNode = {
           name: String(item.name || item.title || item.topic).trim(),
         };
+        const time = typeof item.time === "string" ? item.time.trim().replace(/^\[|\]$/g, "") : "";
+        if (/^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(time)) node.time = time;
         const detail = item.detail || item.description || item.summary;
         if (detail && typeof detail === "string" && detail.trim().length > 0) {
           node.detail = detail.trim();

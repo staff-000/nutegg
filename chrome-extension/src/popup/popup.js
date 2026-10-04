@@ -24,7 +24,6 @@ const actionsUI = new (globalThis.NutEggUI?.ActionControlsComponent || (typeof A
 const resultsUI = new (globalThis.NutEggUI?.ResultsViewComponent || (typeof ResultsViewComponent !== "undefined" ? ResultsViewComponent : class {}))();
 const metricsUI = new (globalThis.NutEggUI?.MetricsComponent || (typeof MetricsComponent !== "undefined" ? MetricsComponent : class {}))();
 const mindmapUI = new (globalThis.NutEggUI?.MindmapComponent || (typeof MindmapComponent !== "undefined" ? MindmapComponent : class {}))();
-const chaptersUI = new (globalThis.NutEggUI?.ChaptersComponent || (typeof ChaptersComponent !== "undefined" ? ChaptersComponent : class {}))();
 const qaUI = new (globalThis.NutEggUI?.QaComponent || (typeof QaComponent !== "undefined" ? QaComponent : class {}))();
 const eggsUI = new (globalThis.NutEggUI?.EggsComponent || (typeof EggsComponent !== "undefined" ? EggsComponent : class {}))();
 
@@ -38,7 +37,6 @@ const uiComponents = {
   resultsUI,
   metricsUI,
   mindmapUI,
-  chaptersUI,
   qaUI,
   eggsUI,
 };
@@ -225,24 +223,6 @@ function showResultsState(result, provenance = null) {
   verdictUI.renderTitleVerdict(result.titleVerdict, effectiveSections?.titleVerdict !== false);
   mindmapUI.render(result.mindMap, effectiveSections?.mindMap !== false);
 
-  const hasAuthorChapters =
-    (Array.isArray(session.extractedContent?.chapters) && session.extractedContent.chapters.length > 0) ||
-    (Array.isArray(session.stage1Payload?.chapters) && session.stage1Payload.chapters.length > 0) ||
-    (Array.isArray(session.stage1Payload?.content?.chapters) && session.stage1Payload.content.chapters.length > 0) ||
-    (Array.isArray(result?.chapters) && result.chapters.length > 0);
-
-  const isShortWithoutChapters =
-    (result.isLongForm === false || !result.chapterMap || result.chapterMap.length <= 1) &&
-    !hasAuthorChapters;
-
-  chaptersUI.render({
-    chapterMap: result.chapterMap,
-    enabled: effectiveSections?.chapterMap !== false,
-    isShortWithoutChapters,
-    activeTabId: session.activeTabId,
-    onSeek: (seconds) => interactionAction.seekToChapter(seconds),
-  });
-
   qaUI.setScope(session.followupScope || "within");
   qaUI.render(result, session.followUpQa);
 
@@ -307,7 +287,7 @@ async function initPopup() {
       session.enabledSections = { ...(settings.enabledSections || globalThis.NutEggState?.DEFAULT_ANALYSIS_SECTIONS || {}) };
     }
     const currentVal = session.enabledSections[key] !== false;
-    const activeCount = Object.values(session.enabledSections).filter(Boolean).length;
+    const activeCount = Object.keys(settings.DEFAULT_ANALYSIS_SECTIONS).filter(key => session.enabledSections[key] !== false).length;
     if (currentVal && activeCount <= 1) {
       bannersUI.showWarning(t("atLeastOneSection"));
       return false;
@@ -330,11 +310,9 @@ async function initPopup() {
     chipVerdict: document.getElementById("chip-verdict"),
     chipSummary: document.getElementById("chip-summary"),
     chipMindmap: document.getElementById("chip-mindmap"),
-    chipChapters: document.getElementById("chip-chapters"),
     chipReVerdict: document.getElementById("reanalyze-chip-verdict"),
     chipReSummary: document.getElementById("reanalyze-chip-summary"),
     chipReMindmap: document.getElementById("reanalyze-chip-mindmap"),
-    chipReChapters: document.getElementById("reanalyze-chip-chapters"),
     reanalyzeAccordion: document.getElementById("reanalyze-sections-accordion"),
     reanalyzeToggleBtn: document.getElementById("reanalyze-sections-toggle"),
     reanalyzeSectionsBody: document.getElementById("reanalyze-sections-body"),

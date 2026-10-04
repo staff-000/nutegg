@@ -12,7 +12,6 @@ const { ActionControlsComponent } = require("../src/popup/ui/action-controls.js"
 const { ResultsViewComponent } = require("../src/popup/ui/results-view.js");
 const { MetricsComponent } = require("../src/popup/ui/metrics.js");
 const { MindmapComponent } = require("../src/popup/ui/mindmap.js");
-const { ChaptersComponent } = require("../src/popup/ui/chapters.js");
 const { QaComponent } = require("../src/popup/ui/qa.js");
 const { EggsComponent } = require("../src/popup/ui/eggs.js");
 const { SettingsState } = require("../src/popup/state/settings-state.js");
@@ -220,7 +219,7 @@ describe("Modular UI Components", () => {
     assert.ok(chips.chipVerdict);
     assert.ok(chips.chipSummary);
     assert.ok(chips.chipMindmap);
-    assert.ok(chips.chipChapters);
+    assert.ok(chips.chipMindmap);
     assert.ok(chips.reanalyzeChipVerdict);
     assert.ok(chips.sectionsToggle);
 
@@ -260,20 +259,19 @@ describe("Modular UI Components", () => {
     chips.chipMindmap.click();
     assert.strictEqual(toggledKey, "mindMap");
 
-    chips.reanalyzeChipChapters.click();
-    assert.strictEqual(toggledKey, "chapterMap");
+    chips.reanalyzeChipMindmap.click();
+    assert.strictEqual(toggledKey, "mindMap");
 
     // Test updateUI visual classes & badges
     chips.updateUI({
       titleVerdict: true,
       coreSummary: true,
       mindMap: false,
-      chapterMap: true,
     });
     assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
     assert.strictEqual(chips.chipVerdict.classList.contains("active"), true);
-    assert.strictEqual(chips.sectionsBadge.textContent, "3/4");
-    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "3/4");
+    assert.strictEqual(chips.sectionsBadge.textContent, "2/3");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/3");
 
     // Test onSectionToggle fallback
     let fallbackResult = null;
@@ -343,15 +341,13 @@ describe("Modular UI Components", () => {
     assert.strictEqual(metrics.obsidianPluginLink.classList.contains("hidden"), false);
   });
 
-  it("Mindmap, Chapters, Qa, and Eggs components bind their respective DOM elements", () => {
+  it("Mindmap, Qa, and Eggs components bind their respective DOM elements", () => {
     const root = createMockRoot();
     const mindmap = new MindmapComponent(root);
-    const chapters = new ChaptersComponent(root);
     const qa = new QaComponent(root);
     const eggs = new EggsComponent(root);
 
     assert.ok(mindmap.mindmapTree);
-    assert.ok(chapters.chapterList);
     assert.ok(qa.customQuestionsList);
     assert.ok(eggs.eggsList);
     assert.ok(eggs.eggKnowledgeContent);

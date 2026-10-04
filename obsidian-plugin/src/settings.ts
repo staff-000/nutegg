@@ -40,8 +40,7 @@ export interface NutEggSettings {
   /** General chunk window size in characters for splitting long content (default: 30000) */
   chunkWindowChars: number;
   /** Section grid interval in seconds for videos without chapters (default: 300) */
-  sectionGridSeconds: number;
-  /** Max completion tokens for Stage 1 content analysis and chapter map (default: 2500) */
+  /** Max completion tokens for Stage 1 content analysis and mind map (default: 2500) */
   contentAnalysisMaxTokens: number;
 }
 
@@ -58,7 +57,6 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   workflowFolder: "nutegg/_workflow",
   workflowHashes: {},
   chunkWindowChars: 30000,
-  sectionGridSeconds: 300,
   contentAnalysisMaxTokens: 16384,
 };
 
@@ -537,22 +535,6 @@ export class NutEggSettingTab extends PluginSettingTab {
             const num = parseInt(value, 10);
             if (!isNaN(num) && num >= 1000) {
               settings.chunkWindowChars = num;
-              await this.plugin.saveSettings();
-            }
-          })
-      );
-
-    new Setting(containerEl)
-      .setName(t("sectionGridSeconds"))
-      .setDesc(t("sectionGridSecondsDesc"))
-      .addText((text) =>
-        text
-          .setPlaceholder("300")
-          .setValue(String(settings.sectionGridSeconds || 300))
-          .onChange(async (value) => {
-            const num = parseInt(value, 10);
-            if (!isNaN(num) && num >= 10) {
-              settings.sectionGridSeconds = num;
               await this.plugin.saveSettings();
             }
           })

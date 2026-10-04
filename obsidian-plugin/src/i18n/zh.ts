@@ -56,8 +56,6 @@ export const zh: Record<TranslationKey, string> = {
   processingHeader: "处理与文本切分",
   chunkWindowChars: "分块窗口大小",
   chunkWindowCharsDesc: "超长内容切分字符大小（~30,000 字符 ≈ 8,000 tokens）。超出此阈值的内容将分块处理并通过 Map-Reduce 聚合。",
-  sectionGridSeconds: "视频时间网格间隔",
-  sectionGridSecondsDesc: "无章节标记视频的时间分段秒数（默认：300 秒 / 5 分钟），用于生成网格点与章节脉络。",
   maxTokens: "最大生成 Token 数",
   maxTokensDesc: "AI 调用分配的最大输出 Token 数（默认：16384）。云端大模型支持大窗口，本地模型可根据上下文窗口调整。",
   serverHeader: "本地服务",

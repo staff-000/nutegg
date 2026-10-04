@@ -5,7 +5,6 @@
 import type { ContentChunk } from "./types";
 
 export const DEFAULT_CHUNK_WINDOW_CHARS = 30000;
-export const DEFAULT_SECTION_SECS = 300;
 
 /** Seconds of a `[MM:SS]` / `[H:MM:SS]` caption line, or null. */
 export function lineSeconds(line: string): number | null {
@@ -64,7 +63,6 @@ export function paragraphChunks(
       content: buf.join("\n\n"),
       chapters: [],
       startTime: "",
-      sections: [],
     });
     buf = [];
     bufChars = 0;
@@ -81,7 +79,6 @@ export function paragraphChunks(
           content: p.slice(i, i + chunkSize),
           chapters: [],
           startTime: "",
-          sections: [],
         });
       }
       continue;
@@ -93,7 +90,7 @@ export function paragraphChunks(
   flush();
 
   if (chunks.length === 0) {
-    chunks.push({ index: 0, total: 1, content, chapters, startTime: "", sections: [] });
+    chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
   }
 
   chunks.forEach((c, i) => {
@@ -112,7 +109,6 @@ export function timestampedChunks(
   firstTsIdx: number,
   chapters: Array<{ time: string; title: string }>,
   chunkSize: number = DEFAULT_CHUNK_WINDOW_CHARS,
-  sectionGridSecs: number = DEFAULT_SECTION_SECS
 ): ContentChunk[] {
   // Title/meta/description lines before the first caption
   const preambleLines = lines.slice(0, firstTsIdx);
@@ -134,12 +130,10 @@ export function timestampedChunks(
   const cleanPreamble = filteredPreamble.join("\n").trim();
 
   const units: Array<{ sec: number; line: string }> = [];
-  let lastCaptionSec = 0;
   for (let i = firstTsIdx; i < lines.length; i++) {
     const sec = lineSeconds(lines[i]);
     if (sec === null) continue;
     units.push({ sec, line: lines[i] });
-    lastCaptionSec = Math.max(lastCaptionSec, sec);
   }
 
   const chunks: ContentChunk[] = [];
@@ -155,7 +149,6 @@ export function timestampedChunks(
       content: buf.join("\n"),
       chapters: [],
       startTime: formatSeconds(startSec),
-      sections: [],
     });
     buf = [];
     bufChars = 0;
@@ -187,21 +180,6 @@ export function timestampedChunks(
     chunks[idx].chapters.push(ch);
   }
 
-  // Videos WITHOUT chapter markers: build continuous section grid
-  if (chapters.length === 0 && lastCaptionSec >= sectionGridSecs) {
-    const begins = chunks.map((c) => toSeconds(c.startTime));
-    for (let t = 0; t < lastCaptionSec + 1; t += sectionGridSecs) {
-      let idx = 0;
-      for (let i = begins.length - 1; i >= 0; i--) {
-        if (t >= begins[i]) {
-          idx = i;
-          break;
-        }
-      }
-      chunks[idx].sections.push(formatSeconds(t));
-    }
-  }
-
   chunks.forEach((c, i) => {
     c.index = i;
     c.total = chunks.length;
@@ -223,8 +201,7 @@ export function timestampedChunks(
 export function chunkContent(
   content: string,
   chapters: Array<{ time: string; title: string }> = [],
-  chunkWindowChars: number = DEFAULT_CHUNK_WINDOW_CHARS,
-  sectionGridSeconds: number = DEFAULT_SECTION_SECS
+  chunkWindowChars: number = DEFAULT_CHUNK_WINDOW_CHARS
 ): ContentChunk[] {
   const lines = (content || "").split("\n");
   const firstTsIdx = lines.findIndex((l) => lineSeconds(l) !== null);
@@ -233,13 +210,12 @@ export function chunkContent(
       lines,
       firstTsIdx,
       chapters,
-      chunkWindowChars,
-      sectionGridSeconds
+      chunkWindowChars
     );
   }
   if (content.length <= chunkWindowChars) {
     return [
-      { index: 0, total: 1, content, chapters, startTime: "", sections: [] },
+      { index: 0, total: 1, content, chapters, startTime: "" },
     ];
   }
   return paragraphChunks(content, chapters, chunkWindowChars);

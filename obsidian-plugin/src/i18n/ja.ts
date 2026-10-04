@@ -53,8 +53,6 @@ export const ja = {
   "processingHeader": "処理とチャンク分割",
   "chunkWindowChars": "チャンクウィンドウサイズ",
   "chunkWindowCharsDesc": "チャンクあたりの最大文字数（約30,000文字 ≒ 8,000トークン）。これを超える長文は複数パートに分割処理されます。",
-  "sectionGridSeconds": "セクショングリッド間隔",
-  "sectionGridSecondsDesc": "標準チャプターのない動画にチャプターマップを生成する時間間隔（秒、デフォルト: 300秒 / 5分）。",
   "maxTokens": "最大出力トークン数",
   "maxTokensDesc": "AI呼び出しに割り当てる最大トークン数（デフォルト: 16384）。",
   "serverHeader": "サーバー",
