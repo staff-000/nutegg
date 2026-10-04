@@ -493,3 +493,39 @@ describe("AnalysisService", () => {
   });
 });
 
+
+it("Stage 1 completion preserves Verdict/Summary-only selection with Knowledge off across tab restoration", async () => {
+  for (const background of [false, true]) {
+  const session = new SessionState();
+  session.activeTabId = 101;
+  session.generateKnowledgeEntries = false;
+  session.enabledSections = { titleVerdict: true, coreSummary: true, mindMap: false };
+  session.extractedContent = { url: "https://example.com", title: "A", content: "Source" };
+  const settings = new SettingsState();
+  settings.analysisMode = "confirm";
+  settings.isChromeMode = () => false;
+  const tabs = new TabStateManager();
+  const service = new AnalysisService();
+  let finish;
+  service.sendAnalyzeViaPort = payload => {
+    assert.equal(payload.generateKnowledgeEntries, false);
+    assert.equal(payload.enabledSections.mindMap, false);
+    return new Promise(resolve => { finish = resolve; });
+  };
+  const pending = service.analyze({ session, settings, tabStateManager: tabs });
+  if (background) {
+    session.activeTabId = 202;
+    session.generateKnowledgeEntries = true;
+  }
+  finish({ matchedEggs: [], coreSummary: ["Summary"] });
+  await pending;
+  assert.equal(tabs.get(101).generateKnowledgeEntries, false);
+  assert.deepEqual(tabs.get(101).enabledSections, { titleVerdict: true, coreSummary: true, mindMap: false });
+  assert.equal(tabs.get(101).analysisResult.generateKnowledgeEntries, false);
+  const { TabAction } = require("../src/popup/action/tab.js");
+  const action = new TabAction({ session, settings, tabStateManager: tabs });
+  await action.restoreFromTabCache(101, tabs.get(101));
+  assert.equal(session.generateKnowledgeEntries, false);
+  assert.equal(session.enabledSections.mindMap, false);
+  }
+});

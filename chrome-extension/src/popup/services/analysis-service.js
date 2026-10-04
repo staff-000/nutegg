@@ -148,6 +148,8 @@ class AnalysisService {
           url: contentToAnalyze.url,
           extractedContent: contentToAnalyze,
           stage1Payload: payload,
+          generateKnowledgeEntries: payload.generateKnowledgeEntries,
+          enabledSections: { ...payload.enabledSections },
           isReanalyzing: isReanalyze,
           analysisResult: isReanalyze ? (session.analysisResult || existingCache.analysisResult) : null,
           captureHistory: isPinnedActive() ? [...session.captureHistory] : [...(existingCache.captureHistory || [])],
@@ -168,6 +170,8 @@ class AnalysisService {
         }
         return { error: response.error, errorCode: response.errorCode };
       }
+
+      response.generateKnowledgeEntries = payload.generateKnowledgeEntries;
 
       // Merge newly discovered allEggs
       if (isPinnedActive() && Array.isArray(response.allEggs) && response.allEggs.length > 0) {
@@ -286,6 +290,7 @@ class AnalysisService {
 
       if (tabStateManager) {
         tabStateManager.set(targetPinnedId, {
+          ...cachedBefore,
           status: "done",
           url: contentToAnalyze.url,
           extractedContent: contentToAnalyze,
