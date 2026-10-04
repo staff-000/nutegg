@@ -26,6 +26,48 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_node_test = require("node:test");
 var import_strict = __toESM(require("node:assert/strict"));
 
+// ../shared/src/analysis-results.ts
+function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults) {
+  const newKnowledge = eggResults.flatMap((result) => {
+    const items = (result.extractedEntries || []).map((entry) => ({
+      egg: result.egg,
+      content: saveEntryBody(entry.content, entry.sources || [])
+    }));
+    for (const answer of result.keyQuestionAnswers || []) {
+      if (answer.answered === false || /^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(answer.answer.trim()))
+        continue;
+      const body = `**${answer.question}**
+${answer.answer}`;
+      items.push({ egg: result.egg, content: saveEntryBody(body, answer.sources || []) });
+    }
+    return items.filter((item, i) => items.findIndex((other) => other.content === item.content) === i);
+  });
+  return {
+    ...contentAnalysis,
+    schemaVersion: 3,
+    ...mergeVerdict(eggResults),
+    matchedEggs: eggResults.map((e) => e.egg),
+    eggResults,
+    newKnowledge,
+    eggAnalysisCache
+  };
+}
+function saveEntryBody(body, sources) {
+  const refs = sources.map((s) => `  - Source location: ${s.ref}${s.quote ? ` \u2014 ${s.quote}` : ""}`).join("\n");
+  return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `
+${refs}` : ""}`;
+}
+function mergeVerdict(results) {
+  const order = ["full", "highlights", "uncertain", "summary", "skip"];
+  const readAction = order.find((action) => results.some((r) => r.readAction === action)) || "uncertain";
+  return {
+    readAction,
+    shouldRead: readAction === "full" || readAction === "highlights" ? true : readAction === "summary" || readAction === "skip" ? false : null,
+    shouldReadReason: results.filter((r) => r.readAction === readAction).map((r) => `${r.egg}: ${r.readVerdictReason}`).join(" "),
+    readingSources: results.filter((r) => r.readAction === "full" || r.readAction === "highlights").flatMap((r) => r.readingSources || [])
+  };
+}
+
 // ../shared/src/catalog.ts
 var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 var PROVIDER_CATALOG = {
@@ -1208,33 +1250,7 @@ ${rendered}`;
         };
       }
     }));
-    const newKnowledge = eggResults.flatMap((result) => {
-      const items = result.extractedEntries.map((entry) => ({
-        egg: result.egg,
-        content: this.saveEntryBody(entry.content, entry.sources || [])
-      }));
-      for (const answer of result.keyQuestionAnswers) {
-        if (answer.answered === false || /^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(answer.answer.trim()))
-          continue;
-        const body = `**${answer.question}**
-${answer.answer}`;
-        items.push({ egg: result.egg, content: this.saveEntryBody(body, answer.sources || []) });
-      }
-      return items.filter((item, i) => items.findIndex((other) => other.content === item.content) === i);
-    });
-    return {
-      ...contentAnalysis,
-      schemaVersion: 3,
-      ...this.mergeVerdict(eggResults),
-      matchedEggs: eggs.map((e) => e.fileName),
-      eggResults,
-      newKnowledge
-    };
-  }
-  saveEntryBody(body, sources) {
-    const refs = sources.map((s) => `  - Source location: ${s.ref}${s.quote ? ` \u2014 ${s.quote}` : ""}`).join("\n");
-    return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `
-${refs}` : ""}`;
+    return composeEggResults(contentAnalysis, eggResults);
   }
   failedEgg(egg) {
     return {
@@ -1442,16 +1458,6 @@ ${bullets || "- (no summary)"}${mmStr}`;
       chapters,
       this.chunkWindowChars
     );
-  }
-  mergeVerdict(results) {
-    const order = ["full", "highlights", "uncertain", "summary", "skip"];
-    const readAction = order.find((action) => results.some((r) => r.readAction === action)) || "uncertain";
-    return {
-      readAction,
-      shouldRead: this.actionVerdict(readAction),
-      shouldReadReason: results.filter((r) => r.readAction === readAction).map((r) => `${r.egg}: ${r.readVerdictReason}`).join(" "),
-      readingSources: results.filter((r) => r.readAction === "full" || r.readAction === "highlights").flatMap((r) => r.readingSources)
-    };
   }
   /** No-API-key fallback: naive content summary, no egg analysis. */
   fallbackAnalysis(capture2, eggs) {

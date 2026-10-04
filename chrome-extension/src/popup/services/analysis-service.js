@@ -4,7 +4,7 @@
 
 /**
  * Handles communication with the Obsidian backend / Chrome AI runtime
- * for Stage 1 analysis, Stage 2 knowledge comparison, knowledge hatching/saving,
+ * for Stage 1 analysis, Stage 2 egg analysis, knowledge hatching/saving,
  * history retrieval, and follow-up Q&A.
  *
  * Strict Tab-Safety:
@@ -348,7 +348,7 @@ class AnalysisService {
     const isPinnedActive = () => session.activeTabId === targetPinnedId;
 
     const isExplicitEggs = Array.isArray(eggsToCompare);
-    const targetEggs = isExplicitEggs ? eggsToCompare : [...session.selectedEggs];
+    const targetEggs = [...new Set(isExplicitEggs ? eggsToCompare : [...session.selectedEggs])];
     if (!isExplicitEggs && targetEggs.length === 0) {
       if (isPinnedActive() && callbacks.onNoEggsSelected) {
         callbacks.onNoEggsSelected();
@@ -365,6 +365,11 @@ class AnalysisService {
       const base = basePayload || session.stage1Payload || cached?.stage1Payload;
       const content = contentForProvenance || session.extractedContent || cached?.extractedContent;
       const analysis = contentAnalysis || session.stage1ContentAnalysis || cached?.stage1ContentAnalysis || session.analysisResult;
+      const priorResult = isPinnedActive() ? session.analysisResult : cached?.analysisResult;
+      // Explicit contentAnalysis is a fresh Stage 1 pass, which invalidates prior egg results.
+      const captured = contentAnalysis ? [] : [...(priorResult?.eggAnalysisCache || []), ...(priorResult?.eggResults || [])];
+      const resultCache = new Map(captured.filter(result => result?.egg).map(result => [result.egg, result]));
+      const pendingEggs = targetEggs.filter(egg => !resultCache.has(egg));
 
       if (tabStateManager) {
         const existing = tabStateManager.get(targetPinnedId) || {};
@@ -394,7 +399,8 @@ class AnalysisService {
         chapters,
         questions,
         stage: 2,
-        eggs: targetEggs,
+        eggs: pendingEggs,
+        ...(resultCache.size ? { cachedEggResults: [...resultCache.values()], selectedEggs: targetEggs } : {}),
         outputLanguage: settings.outputLanguage,
         nutId: base?.nutId || (isPinnedActive() ? session.currentNutId : cached?.currentNutId) || undefined,
         contentAnalysis: analysis || {
@@ -405,7 +411,12 @@ class AnalysisService {
         },
       };
 
-      const response = await this.sendAnalyzeViaPort(payload);
+      let response;
+      if (pendingEggs.length) {
+        response = await this.sendAnalyzeViaPort(payload);
+      } else {
+        response = { ...priorResult, nutId: payload.nutId, eggResults: [] };
+      }
       if (response?.error) {
         if (tabStateManager) {
           tabStateManager.setError(targetPinnedId, response.error, response.errorCode);
@@ -416,15 +427,23 @@ class AnalysisService {
         return { error: response.error, errorCode: response.errorCode };
       }
 
+      if (resultCache.size || !pendingEggs.length) {
+        for (const result of response.eggResults || []) resultCache.set(result.egg, result);
+        const core = typeof NutEggAI !== "undefined" ? NutEggAI : globalThis.NutEggAI;
+        response = { ...response, ...core.composeEggResults(payload.contentAnalysis,
+          targetEggs.flatMap(egg => resultCache.has(egg) ? [resultCache.get(egg)] : []),
+          [...resultCache.values()]) };
+      }
+
       response.stage = "stage2";
       const newNutId = response.nutId || null;
 
       let freshHistory = null;
-      if (payload.url && settings.serverOnline) {
+      if (pendingEggs.length && payload.url && settings.serverOnline) {
         freshHistory = await this.loadHistory(payload.url);
       }
 
-      const newHistoryEntry = newNutId
+      const newHistoryEntry = newNutId && pendingEggs.length
         ? {
             nutId: newNutId,
             capturedAt: new Date().toISOString(),
@@ -462,9 +481,10 @@ class AnalysisService {
 
       // Update active session ONLY if user is currently looking at this tab
       if (isPinnedActive()) {
+        session.analysisResult = response;
         if (newNutId) {
           session.currentNutId = newNutId;
-          session.cachedProcessedSaved = null;
+          if (pendingEggs.length) session.cachedProcessedSaved = null;
           session.captureHistory = freshHistory || (newHistoryEntry ? [newHistoryEntry, ...session.captureHistory] : session.captureHistory);
         } else if (freshHistory) {
           session.captureHistory = freshHistory;
@@ -730,4 +750,3 @@ if (typeof module !== "undefined" && module.exports) {
     AnalysisService,
   };
 }
-

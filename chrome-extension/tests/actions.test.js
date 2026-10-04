@@ -538,7 +538,7 @@ describe("Action Handlers", () => {
       assert.ok(warned.includes("still loading"));
     });
 
-    it("handleReanalyzeEggs triggers re-analysis with selected eggs", async () => {
+    it("handleReanalyzeEggs runs only Stage 2 with selected eggs", async () => {
       let analyzedWithEggs = null;
       const session = {
         activeTabId: 1,
@@ -558,8 +558,9 @@ describe("Action Handlers", () => {
         hideWarning: () => {},
       };
       const analysisService = {
-        analyze: async (opts) => {
-          analyzedWithEggs = opts.eggsOverride;
+        analyze: async () => assert.fail("Selected-egg re-analysis must not run Stage 1"),
+        proceedStage2: async (opts) => {
+          analyzedWithEggs = opts.eggsToCompare;
           return { result: { stage: "stage2" } };
         },
       };

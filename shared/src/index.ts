@@ -3,6 +3,7 @@
 // ============================================================
 
 export * from "./types";
+export * from "./analysis-results";
 export * from "./catalog";
 export * from "./client";
 export * from "./chunker";

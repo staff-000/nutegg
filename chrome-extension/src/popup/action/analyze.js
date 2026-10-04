@@ -357,10 +357,12 @@ class AnalyzeAction {
     }
     const pinnedTabId = this.session?.activeTabId;
     const pinnedEggs = Array.from(this.session?.selectedEggs || []);
+    const capturedResults = this.session?.analysisResult?.eggAnalysisCache || this.session?.analysisResult?.eggResults || [];
+    const allCaptured = pinnedEggs.every(egg => capturedResults.some(result => result.egg === egg));
 
     try {
       const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
-      if (!hasContent) {
+      if (!hasContent && !allCaptured) {
         this.ui.eggsUI?.setReanalyzeLoading?.(true, t("loadingContent"));
         this.ui.bannersUI?.hideMessages?.();
         this.ui.bannersUI?.hideWarning?.();
@@ -387,7 +389,7 @@ class AnalyzeAction {
 
       if (this.session?.activeTabId !== pinnedTabId) return;
 
-      const notReady = this.getAnalyzeNotReadyReason();
+      const notReady = allCaptured ? null : this.getAnalyzeNotReadyReason();
       if (notReady) {
         this.ui.bannersUI?.showWarning?.(notReady);
         return;
@@ -400,25 +402,29 @@ class AnalyzeAction {
 
       if (this.session) {
         this.session.isReanalyzing = true;
-        this.session.eggHatched = false;
+        if (!allCaptured) this.session.eggHatched = false;
         this.session.activeEggTab = null;
-        if (this.session.analysisResult) {
-          delete this.session.analysisResult.eggResults;
-        }
+      }
+      if (this.tabStateManager && pinnedTabId != null) {
+        this.tabStateManager.set(pinnedTabId, {
+          ...(this.tabStateManager.get(pinnedTabId) || {}),
+          isReanalyzing: true,
+          eggHatched: allCaptured ? this.session.eggHatched : false,
+          activeEggTab: null,
+        });
       }
       this.getSaveAction()?.updateActionButtons?.();
 
-      if (this.session?.analysisResult?.stage === "stage1") {
-        await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
-      } else {
-        const error = await this.handleAnalyze(true, pinnedEggs, true);
-        if (error && this.session?.activeTabId === pinnedTabId) {
-          this.ui.eggsUI?.showError?.(`❌ ${error}`);
-        }
-      }
+      // Changing eggs reuses the existing source analysis (including results
+      // restored from history); only Stage 2 needs to run again.
+      await this.handleProceedStage2(pinnedEggs, false, false, pinnedTabId);
     } finally {
-      if (this.session) {
+      if (this.session?.activeTabId === pinnedTabId) {
         this.session.isReanalyzing = false;
+      }
+      if (this.tabStateManager && pinnedTabId != null) {
+        const cached = this.tabStateManager.get(pinnedTabId);
+        if (cached) this.tabStateManager.set(pinnedTabId, { ...cached, isReanalyzing: false });
       }
       if (this.session?.activeTabId === pinnedTabId) {
         this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
@@ -436,4 +442,3 @@ _analyzeActionScope.NutEggActions.AnalyzeAction = AnalyzeAction;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { AnalyzeAction };
 }
-

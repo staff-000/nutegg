@@ -541,6 +541,37 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
     assert.equal(routedWithContent.includes("Full content text here"), false);
   });
 
+  it("stage 2: persists selected cached results alongside newly analyzed eggs", async () => {
+    const eggResult = (egg: string, readAction: string) => ({ egg, readAction, readVerdict: readAction === "full", readVerdictReason: egg,
+      readingSources: [], keyQuestionAnswers: [], extractedEntries: [{ content: `Insight ${egg}` }] });
+    const cachedA = eggResult("A.md", "full");
+    const cachedC = eggResult("C.md", "skip");
+    let processedEggs: any[] = [], stored: any;
+    const s = makeServer({
+      indexReader: { getIndexContent: async () => "index", parseIndexContent: () => [] },
+      eggParser: { readEggs: async (eggs: any[]) => eggs },
+      aiProcessor: { analyzeEggs: async (_capture: any, eggs: any[], contentAnalysis: any) => {
+        processedEggs = eggs;
+        return { ...contentAnalysis, eggResults: [eggResult("B.md", "summary")], newKnowledge: [] };
+      } },
+      db: { getNutById: () => ({ id: 42 }), updateNut: (_id: number, changes: any) => { stored = changes.analysisResult; } },
+    });
+    const req = makeReq(JSON.stringify({ ...baseCapture, stage: 2, nutId: 42,
+      eggs: ["B.md"], selectedEggs: ["A.md", "B.md"], cachedEggResults: [cachedA, cachedC],
+      contentAnalysis: { titleVerdict: "Existing verdict", coreSummary: [], customQuestionAnswers: [] },
+    }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(processedEggs.map(egg => egg.fileName), ["B.md"]);
+    assert.deepEqual(stored.matchedEggs, ["A.md", "B.md"]);
+    assert.deepEqual(stored.eggResults.map((egg: any) => egg.egg), ["A.md", "B.md"]);
+    assert.equal(stored.shouldRead, true);
+    assert.deepEqual(stored.newKnowledge.map((entry: any) => entry.egg), ["A.md", "B.md"]);
+    assert.deepEqual(stored.eggAnalysisCache.map((egg: any) => egg.egg), ["A.md", "C.md", "B.md"]);
+    assert.equal(JSON.parse(res.body).nutId, 42);
+  });
+
   it("stage 2: analyzes instructions for confirmed eggs", async () => {
     let analyzeEggsCalledWith: any = null;
     const s = makeServer({

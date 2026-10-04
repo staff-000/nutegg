@@ -1,3 +1,4 @@
+import { composeEggResults } from "../../shared/src/analysis-results";
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AIProcessor } from '../src/ai-processor';
@@ -83,7 +84,7 @@ describe('Lightweight Stage 2', () => {
     const processor = new AIProcessor(makeFakePlugin() as any) as any;
     const results = (actions: string[]) => actions.map((readAction, i) => ({ egg: `${i}.md`, readAction, readVerdictReason: 'reason', readingSources: [] }));
     for (const [actions, expected] of [[['skip','summary'], 'summary'], [['summary','uncertain'], 'uncertain'], [['uncertain','highlights'], 'highlights'], [['highlights','full'], 'full']] as const) {
-      assert.equal(processor.mergeVerdict(results([...actions])).readAction, expected);
+      assert.equal(composeEggResults(stage1, results([...actions]) as any).readAction, expected);
     }
   });
   it('slim aggregate sees drafts/coverage, not bodies/tree; same-label fragments survive', async () => {

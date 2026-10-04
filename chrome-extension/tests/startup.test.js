@@ -92,3 +92,31 @@ for (const cachedStyles of [false, true]) {
     assert.equal(classes.has('booting'), false);
   });
 }
+
+test('popup loads the shared core before cached selected-egg analysis', async () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const vm = require('node:vm');
+  const popupPath = require.resolve('../src/popup/popup.html');
+  const html = fs.readFileSync(popupPath, 'utf8');
+  const scripts = [...html.matchAll(/<script defer src="([^"]+)"/g)].map(match => match[1]);
+  const coreIndex = scripts.indexOf('../../dist/ai-core.js');
+  const serviceIndex = scripts.indexOf('services/analysis-service.js');
+  assert.ok(coreIndex >= 0 && coreIndex < serviceIndex, 'The popup must load the shared core before AnalysisService');
+  const context = vm.createContext({ console });
+  // Load the actual popup-declared scripts, without supplying a fake AI global.
+  for (const script of scripts.slice(coreIndex, serviceIndex + 1)) {
+    vm.runInContext(fs.readFileSync(path.resolve(path.dirname(popupPath), script), 'utf8'), context);
+  }
+  assert.equal(typeof context.NutEggAI.composeEggResults, 'function');
+  const service = new context.NutEggServices.AnalysisService();
+  service.sendAnalyzeViaPort = () => assert.fail('Cached eggs must not call AI');
+  const egg = { egg: 'cached.md', extractedEntries: [], keyQuestionAnswers: [], readingSources: [], readAction: 'full', readVerdictReason: 'Useful' };
+  const result = await service.proceedStage2({
+    session: { activeTabId: 1, analysisResult: { titleVerdict: 'Existing verdict', coreSummary: [], customQuestionAnswers: [], eggResults: [egg] }, captureHistory: [] },
+    settings: { serverOnline: false }, eggsToCompare: ['cached.md'],
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.result.eggResults[0].egg, 'cached.md');
+  assert.equal(result.result.titleVerdict, 'Existing verdict');
+});

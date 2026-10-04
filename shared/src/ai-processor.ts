@@ -2,6 +2,7 @@
 // NutEgg Unified AI Processor (Stage 1 + Stage 2 + Orchestration)
 // ============================================================
 
+import { composeEggResults } from "./analysis-results";
 import { isAIConfigured } from "./catalog";
 import { AIError } from "./client";
 import {
@@ -522,23 +523,7 @@ export class AIProcessor {
           }))) };
       }
     }));
-    const newKnowledge: EggSaveEntry[] = eggResults.flatMap(result => {
-      const items = result.extractedEntries.map(entry => ({ egg: result.egg,
-        content: this.saveEntryBody(entry.content, entry.sources || []) }));
-      for (const answer of result.keyQuestionAnswers) {
-        if (answer.answered === false || /^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(answer.answer.trim())) continue;
-        const body = `**${answer.question}**\n${answer.answer}`;
-        items.push({ egg: result.egg, content: this.saveEntryBody(body, answer.sources || []) });
-      }
-      return items.filter((item, i) => items.findIndex(other => other.content === item.content) === i);
-    });
-    return { ...contentAnalysis, schemaVersion: 3, ...this.mergeVerdict(eggResults),
-      matchedEggs: eggs.map(e => e.fileName), eggResults, newKnowledge };
-  }
-
-  private saveEntryBody(body: string, sources: SourceRef[]): string {
-    const refs = sources.map(s => `  - Source location: ${s.ref}${s.quote ? ` — ${s.quote}` : ""}`).join("\n");
-    return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `\n${refs}` : ""}`;
+    return composeEggResults(contentAnalysis, eggResults);
   }
 
   private failedEgg(egg: EggContent): EggAnalysis {
@@ -795,13 +780,6 @@ export class AIProcessor {
     );
   }
 
-  private mergeVerdict(results: EggAnalysis[]): Pick<AnalysisResult, "readAction" | "shouldRead" | "shouldReadReason" | "readingSources"> {
-    const order: ReadAction[] = ["full", "highlights", "uncertain", "summary", "skip"];
-    const readAction = order.find(action => results.some(r => r.readAction === action)) || "uncertain";
-    return { readAction, shouldRead: this.actionVerdict(readAction),
-      shouldReadReason: results.filter(r => r.readAction === readAction).map(r => `${r.egg}: ${r.readVerdictReason}`).join(" "),
-      readingSources: results.filter(r => r.readAction === "full" || r.readAction === "highlights").flatMap(r => r.readingSources) };
-  }
 
   /** No-API-key fallback: naive content summary, no egg analysis. */
   private fallbackAnalysis(

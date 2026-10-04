@@ -217,6 +217,8 @@ export interface AnalysisResult extends ContentAnalysis {
   shouldReadReason: string;
   matchedEggs: string[];
   eggResults: EggAnalysis[];
+  /** Results retained for this capture, including eggs currently deselected. */
+  eggAnalysisCache?: EggAnalysis[];
   newKnowledge: EggSaveEntry[];
 }
 

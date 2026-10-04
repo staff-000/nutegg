@@ -9,9 +9,14 @@ import type {
   QuestionScope,
 } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
+import { composeEggResults } from "../../shared/src/analysis-results";
+import type { EggAnalysis } from "../../shared/src/types";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
 
 interface AnalyzeRequest {
+  /** Captured results reused when only newly selected eggs need analysis. */
+  cachedEggResults?: EggAnalysis[];
+  selectedEggs?: string[];
   url: string;
   title: string;
   content: string;
@@ -632,11 +637,20 @@ export class NutEggServer {
           mindMap: [],
           customQuestionAnswers: [],
         };
-        const result = await this.plugin.aiProcessor.analyzeEggs(
+        let result = await this.plugin.aiProcessor.analyzeEggs(
           capture,
           eggs,
           contentAnalysis
         );
+        if (Array.isArray(capture.selectedEggs)) {
+          const allResults = new Map(
+            (capture.cachedEggResults || []).map(egg => [egg.egg, egg])
+          );
+          for (const egg of result.eggResults) allResults.set(egg.egg, egg);
+          result = composeEggResults(contentAnalysis,
+            capture.selectedEggs.flatMap(egg => allResults.has(egg) ? [allResults.get(egg)!] : []),
+            [...allResults.values()]);
+        }
         delete (result as any).stage;
 
         let nutId = capture.nutId;

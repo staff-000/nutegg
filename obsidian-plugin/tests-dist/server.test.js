@@ -697,6 +697,48 @@ function sanitizeEggName(name) {
   return String(name || "").trim().toLowerCase().replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
 }
 
+// ../shared/src/analysis-results.ts
+function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults) {
+  const newKnowledge = eggResults.flatMap((result) => {
+    const items = (result.extractedEntries || []).map((entry) => ({
+      egg: result.egg,
+      content: saveEntryBody(entry.content, entry.sources || [])
+    }));
+    for (const answer of result.keyQuestionAnswers || []) {
+      if (answer.answered === false || /^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(answer.answer.trim()))
+        continue;
+      const body = `**${answer.question}**
+${answer.answer}`;
+      items.push({ egg: result.egg, content: saveEntryBody(body, answer.sources || []) });
+    }
+    return items.filter((item, i) => items.findIndex((other) => other.content === item.content) === i);
+  });
+  return {
+    ...contentAnalysis,
+    schemaVersion: 3,
+    ...mergeVerdict(eggResults),
+    matchedEggs: eggResults.map((e) => e.egg),
+    eggResults,
+    newKnowledge,
+    eggAnalysisCache
+  };
+}
+function saveEntryBody(body, sources) {
+  const refs = sources.map((s) => `  - Source location: ${s.ref}${s.quote ? ` \u2014 ${s.quote}` : ""}`).join("\n");
+  return `${body.startsWith("- ") ? body : `- ${body.replace(/\n/g, "\n  ")}`}${refs ? `
+${refs}` : ""}`;
+}
+function mergeVerdict(results) {
+  const order = ["full", "highlights", "uncertain", "summary", "skip"];
+  const readAction = order.find((action) => results.some((r) => r.readAction === action)) || "uncertain";
+  return {
+    readAction,
+    shouldRead: readAction === "full" || readAction === "highlights" ? true : readAction === "summary" || readAction === "skip" ? false : null,
+    shouldReadReason: results.filter((r) => r.readAction === readAction).map((r) => `${r.egg}: ${r.readVerdictReason}`).join(" "),
+    readingSources: results.filter((r) => r.readAction === "full" || r.readAction === "highlights").flatMap((r) => r.readingSources || [])
+  };
+}
+
 // src/server.ts
 var NutEggServer = class {
   server = null;
@@ -1136,11 +1178,23 @@ var NutEggServer = class {
           mindMap: [],
           customQuestionAnswers: []
         };
-        const result = await this.plugin.aiProcessor.analyzeEggs(
+        let result = await this.plugin.aiProcessor.analyzeEggs(
           capture,
           eggs,
           contentAnalysis2
         );
+        if (Array.isArray(capture.selectedEggs)) {
+          const allResults = new Map(
+            (capture.cachedEggResults || []).map((egg) => [egg.egg, egg])
+          );
+          for (const egg of result.eggResults)
+            allResults.set(egg.egg, egg);
+          result = composeEggResults(
+            contentAnalysis2,
+            capture.selectedEggs.flatMap((egg) => allResults.has(egg) ? [allResults.get(egg)] : []),
+            [...allResults.values()]
+          );
+        }
         delete result.stage;
         let nutId2 = capture.nutId;
         if (nutId2 && this.plugin.db?.getNutById(nutId2)) {
@@ -2223,6 +2277,50 @@ function makeRes() {
     import_strict.default.ok(routedWithContent.includes("Core verdict answer."));
     import_strict.default.ok(routedWithContent.includes("Bullet 1"));
     import_strict.default.equal(routedWithContent.includes("Full content text here"), false);
+  });
+  (0, import_node_test.it)("stage 2: persists selected cached results alongside newly analyzed eggs", async () => {
+    const eggResult = (egg, readAction) => ({
+      egg,
+      readAction,
+      readVerdict: readAction === "full",
+      readVerdictReason: egg,
+      readingSources: [],
+      keyQuestionAnswers: [],
+      extractedEntries: [{ content: `Insight ${egg}` }]
+    });
+    const cachedA = eggResult("A.md", "full");
+    const cachedC = eggResult("C.md", "skip");
+    let processedEggs = [], stored;
+    const s = makeServer({
+      indexReader: { getIndexContent: async () => "index", parseIndexContent: () => [] },
+      eggParser: { readEggs: async (eggs) => eggs },
+      aiProcessor: { analyzeEggs: async (_capture, eggs, contentAnalysis) => {
+        processedEggs = eggs;
+        return { ...contentAnalysis, eggResults: [eggResult("B.md", "summary")], newKnowledge: [] };
+      } },
+      db: { getNutById: () => ({ id: 42 }), updateNut: (_id, changes) => {
+        stored = changes.analysisResult;
+      } }
+    });
+    const req = makeReq(JSON.stringify({
+      ...baseCapture,
+      stage: 2,
+      nutId: 42,
+      eggs: ["B.md"],
+      selectedEggs: ["A.md", "B.md"],
+      cachedEggResults: [cachedA, cachedC],
+      contentAnalysis: { titleVerdict: "Existing verdict", coreSummary: [], customQuestionAnswers: [] }
+    }));
+    const res = makeRes();
+    await s.handleAnalyze(req, res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(processedEggs.map((egg) => egg.fileName), ["B.md"]);
+    import_strict.default.deepEqual(stored.matchedEggs, ["A.md", "B.md"]);
+    import_strict.default.deepEqual(stored.eggResults.map((egg) => egg.egg), ["A.md", "B.md"]);
+    import_strict.default.equal(stored.shouldRead, true);
+    import_strict.default.deepEqual(stored.newKnowledge.map((entry) => entry.egg), ["A.md", "B.md"]);
+    import_strict.default.deepEqual(stored.eggAnalysisCache.map((egg) => egg.egg), ["A.md", "C.md", "B.md"]);
+    import_strict.default.equal(JSON.parse(res.body).nutId, 42);
   });
   (0, import_node_test.it)("stage 2: analyzes instructions for confirmed eggs", async () => {
     let analyzeEggsCalledWith = null;
