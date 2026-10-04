@@ -1594,10 +1594,12 @@ body {
 }
 
 .qa-source-item {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  line-height: 1.6;
+}
+
+.qa-source-item > .source-pill {
+  vertical-align: baseline;
+  margin-inline-end: 6px;
 }
 
 .source-pill {
@@ -1658,10 +1660,8 @@ body {
   font-size: 11px;
   color: #6b7280;
   font-style: italic;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .knowledge-subsection {
