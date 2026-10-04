@@ -163,6 +163,23 @@ describe("KnowledgeBase.appendKnowledge", () => {
     assert.ok(!a.split("# Unprocessed")[0].includes("- one"));
   });
 
+  it("removes playback timestamps and source quotes from hatched entries without changing originals or attribution", async () => {
+    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n\n# Unprocessed\n" });
+    const kb = new KnowledgeBase({ app: { vault } } as any);
+    const item = { egg: "a.md", content: "- **Advice** [12:34]\n  - Important answer (01:02:03–01:02:30).\n  - Another example 02:15.\n  - Linked example [03:20](https://example.com/video?t=200).\n  - Source location: 12:34 — Supporting evidence.\n  - Source location: 01:02:03\n  - Source location: paragraph 2 — Paragraph evidence.\n  - Source quote: Standalone evidence.\n  - Aspect ratio 16:9; wait 30 seconds.\n  - https://example.com/video?t=12:34" };
+    const original = item.content;
+    await kb.appendKnowledge([item], "Video", "https://example.com/video", "Author");
+    const note = files.get("a.md")!;
+    assert.ok(!note.includes("[12:34]"));
+    assert.ok(!note.includes("01:02:03"));
+    assert.ok(!note.includes("02:15"));
+    assert.ok(!note.includes("?t=200"));
+    assert.ok(!note.includes("Source location: 12:34"));
+    for (const quote of ["Supporting evidence.", "Paragraph evidence.", "Standalone evidence.", "Source quote:"]) assert.ok(!note.includes(quote), quote);
+    for (const text of ["Important answer", "Source location: paragraph 2", "16:9", "30 seconds", "https://example.com/video?t=12:34", "_author: Author_", "_source: [Video](https://example.com/video)_"]) assert.ok(note.includes(text), text);
+    assert.equal(item.content, original);
+  });
+
   it("omits the author line when unknown", async () => {
     const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
     const kb = new KnowledgeBase({

@@ -1665,12 +1665,30 @@ var KnowledgeBase = class {
     for (const item of newKnowledge) {
       await eggParser.appendUnprocessed(
         item.egg,
-        item.content,
+        this.withoutPlaybackCitations(item.content),
         author,
         sourceTitle,
         sourceUrl
       );
     }
+  }
+  /** Strip playback timestamps and source quotes from the copy appended to an egg. */
+  withoutPlaybackCitations(content) {
+    const time = "\\d{1,3}:[0-5]\\d(?::[0-5]\\d)?";
+    const location = `${time}(?:\\s*[-\u2013\u2014]\\s*${time})?`;
+    const timestampOnly = new RegExp(`^\\[?${location}\\]?$`);
+    const wrapped = new RegExp(`\\[${location}\\]|\\(${location}\\)`, "g");
+    const linked = new RegExp(`\\[${location}\\]\\(https?://[^\\s)]+\\)`, "g");
+    const bare = new RegExp(`(?<![\\w/:?=])${location}(?![\\w/:])`, "g");
+    return content.split("\n").map((line) => {
+      const source = line.match(/^(\s*[-*]\s+)Source location: (.*?)(?: — (.*))?$/);
+      if (/^\s*[-*]\s+Source quote:/.test(line))
+        return "";
+      if (source) {
+        line = timestampOnly.test(source[2].trim()) ? "" : `${source[1]}Source location: ${source[2]}`;
+      }
+      return line.replace(linked, "").replace(wrapped, "").replace(bare, "").replace(/[ \t]+$/, "");
+    }).filter((line) => !/^\s*[-*]\s*$/.test(line)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }
   escapeYaml(value) {
     const text = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "");

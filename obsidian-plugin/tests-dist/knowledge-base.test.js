@@ -505,12 +505,30 @@ var KnowledgeBase = class {
     for (const item of newKnowledge) {
       await eggParser.appendUnprocessed(
         item.egg,
-        item.content,
+        this.withoutPlaybackCitations(item.content),
         author,
         sourceTitle,
         sourceUrl
       );
     }
+  }
+  /** Strip playback timestamps and source quotes from the copy appended to an egg. */
+  withoutPlaybackCitations(content) {
+    const time = "\\d{1,3}:[0-5]\\d(?::[0-5]\\d)?";
+    const location = `${time}(?:\\s*[-\u2013\u2014]\\s*${time})?`;
+    const timestampOnly = new RegExp(`^\\[?${location}\\]?$`);
+    const wrapped = new RegExp(`\\[${location}\\]|\\(${location}\\)`, "g");
+    const linked = new RegExp(`\\[${location}\\]\\(https?://[^\\s)]+\\)`, "g");
+    const bare = new RegExp(`(?<![\\w/:?=])${location}(?![\\w/:])`, "g");
+    return content.split("\n").map((line) => {
+      const source = line.match(/^(\s*[-*]\s+)Source location: (.*?)(?: — (.*))?$/);
+      if (/^\s*[-*]\s+Source quote:/.test(line))
+        return "";
+      if (source) {
+        line = timestampOnly.test(source[2].trim()) ? "" : `${source[1]}Source location: ${source[2]}`;
+      }
+      return line.replace(linked, "").replace(wrapped, "").replace(bare, "").replace(/[ \t]+$/, "");
+    }).filter((line) => !/^\s*[-*]\s*$/.test(line)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }
   escapeYaml(value) {
     const text = typeof value === "object" && value !== null ? JSON.stringify(value) : String(value ?? "");
@@ -761,6 +779,24 @@ function makeKb() {
     import_strict.default.ok(a.includes("_source: [Article Title](https://example.com/src)_"));
     import_strict.default.ok(b.includes("- two"));
     import_strict.default.ok(!a.split("# Unprocessed")[0].includes("- one"));
+  });
+  (0, import_node_test.it)("removes playback timestamps and source quotes from hatched entries without changing originals or attribution", async () => {
+    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n\n# Unprocessed\n" });
+    const kb = new KnowledgeBase({ app: { vault } });
+    const item = { egg: "a.md", content: "- **Advice** [12:34]\n  - Important answer (01:02:03\u201301:02:30).\n  - Another example 02:15.\n  - Linked example [03:20](https://example.com/video?t=200).\n  - Source location: 12:34 \u2014 Supporting evidence.\n  - Source location: 01:02:03\n  - Source location: paragraph 2 \u2014 Paragraph evidence.\n  - Source quote: Standalone evidence.\n  - Aspect ratio 16:9; wait 30 seconds.\n  - https://example.com/video?t=12:34" };
+    const original = item.content;
+    await kb.appendKnowledge([item], "Video", "https://example.com/video", "Author");
+    const note = files.get("a.md");
+    import_strict.default.ok(!note.includes("[12:34]"));
+    import_strict.default.ok(!note.includes("01:02:03"));
+    import_strict.default.ok(!note.includes("02:15"));
+    import_strict.default.ok(!note.includes("?t=200"));
+    import_strict.default.ok(!note.includes("Source location: 12:34"));
+    for (const quote of ["Supporting evidence.", "Paragraph evidence.", "Standalone evidence.", "Source quote:"])
+      import_strict.default.ok(!note.includes(quote), quote);
+    for (const text of ["Important answer", "Source location: paragraph 2", "16:9", "30 seconds", "https://example.com/video?t=12:34", "_author: Author_", "_source: [Video](https://example.com/video)_"])
+      import_strict.default.ok(note.includes(text), text);
+    import_strict.default.equal(item.content, original);
   });
   (0, import_node_test.it)("omits the author line when unknown", async () => {
     const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
