@@ -95,8 +95,6 @@ function _renderEggsSection(firstArg = [], options = {}) {
   const chevronEl = opts.eggsToggleChevron || (typeof eggsToggleChevron !== "undefined" ? eggsToggleChevron : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-chevron") : null));
   const errorEl = opts.eggsErrorEl || (typeof eggsErrorEl !== "undefined" ? eggsErrorEl : (typeof document !== "undefined" ? document.getElementById("eggs-error") : null));
   const toggleLabelEl = opts.eggsToggleLabel || (typeof eggsToggleLabel !== "undefined" ? eggsToggleLabel : (typeof document !== "undefined" ? document.getElementById("eggs-toggle-label") : null));
-  const reanalyzeBtnEl = opts.reanalyzeEggsBtn || (typeof reanalyzeEggsBtn !== "undefined" ? reanalyzeEggsBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-btn") : null));
-  const reanalyzeRefreshBtnEl = opts.reanalyzeEggsRefreshBtn || (typeof reanalyzeEggsRefreshBtn !== "undefined" ? reanalyzeEggsRefreshBtn : (typeof document !== "undefined" ? document.getElementById("reanalyze-eggs-refresh-btn") : null));
   const createFormEl = opts.eggsCreateForm || (typeof eggsCreateForm !== "undefined" ? eggsCreateForm : (typeof document !== "undefined" ? document.getElementById("eggs-create-form") : null));
   const createToggleEl = opts.eggsCreateToggle || (typeof eggsCreateToggle !== "undefined" ? eggsCreateToggle : (typeof document !== "undefined" ? document.getElementById("eggs-create-toggle") : null));
 
@@ -158,14 +156,6 @@ function _renderEggsSection(firstArg = [], options = {}) {
         const name = ev.target.dataset.egg;
         if (ev.target.checked) currentSelected.add(name);
         else currentSelected.delete(name);
-        const stage = typeof analysisResult !== "undefined" ? analysisResult?.stage : null;
-        if (stage === "stage1") {
-          reanalyzeBtnEl?.classList.add("hidden");
-          reanalyzeRefreshBtnEl?.classList.add("hidden");
-        } else {
-          reanalyzeBtnEl?.classList.remove("hidden");
-          reanalyzeRefreshBtnEl?.classList.remove("hidden");
-        }
         if (opts.onSelectChange) {
           opts.onSelectChange(name, ev.target.checked);
         } else if (typeof updateStage1ProceedBtn === "function") {
@@ -175,8 +165,6 @@ function _renderEggsSection(firstArg = [], options = {}) {
     });
   }
 
-  if (reanalyzeBtnEl) reanalyzeBtnEl.classList.add("hidden");
-  if (reanalyzeRefreshBtnEl) reanalyzeRefreshBtnEl.classList.add("hidden");
   if (createFormEl) createFormEl.classList.add("hidden");
   if (createToggleEl) {
     createToggleEl.classList.remove("hidden");
@@ -254,8 +242,6 @@ class EggsComponent {
     this.eggsToggleChevron = getEl("eggs-toggle-chevron");
     this.eggsExpanded = getEl("eggs-expanded");
     this.eggsList = getEl("eggs-list");
-    this.reanalyzeEggsBtn = getEl("reanalyze-eggs-btn");
-    this.reanalyzeEggsRefreshBtn = getEl("reanalyze-eggs-refresh-btn");
     this.eggsErrorEl = getEl("eggs-error");
     this.eggsCreateToggle = getEl("eggs-create-toggle");
     this.eggsCreateForm = getEl("eggs-create-form");
@@ -323,26 +309,6 @@ class EggsComponent {
     this.clearNewEggInput();
     this.clearError();
     this.setCreateButtonLoading(false);
-  }
-
-  setReanalyzeLoading(isLoading, text = "") {
-    if (this.reanalyzeEggsBtn) {
-      this.reanalyzeEggsBtn.disabled = Boolean(isLoading);
-      if (text) this.reanalyzeEggsBtn.textContent = text;
-    }
-    if (this.reanalyzeEggsRefreshBtn) {
-      this.reanalyzeEggsRefreshBtn.disabled = Boolean(isLoading);
-    }
-  }
-
-  setReanalyzeEggsRefreshLoading(isLoading) {
-    if (!this.reanalyzeEggsRefreshBtn) return;
-    this.reanalyzeEggsRefreshBtn.disabled = Boolean(isLoading);
-    if (isLoading) {
-      this.reanalyzeEggsRefreshBtn.classList.add("rotating");
-    } else {
-      this.reanalyzeEggsRefreshBtn.classList.remove("rotating");
-    }
   }
 
   showError(msg) {
@@ -422,8 +388,6 @@ class EggsComponent {
       eggsExpanded: this.eggsExpanded,
       eggsToggleChevron: this.eggsToggleChevron,
       eggsToggleLabel: this.eggsToggleLabel,
-      reanalyzeEggsBtn: this.reanalyzeEggsBtn,
-      reanalyzeEggsRefreshBtn: this.reanalyzeEggsRefreshBtn,
       eggsCreateForm: this.eggsCreateForm,
       eggsCreateToggle: this.eggsCreateToggle,
       eggsErrorEl: this.eggsErrorEl,

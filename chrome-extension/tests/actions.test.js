@@ -457,6 +457,42 @@ describe("Action Handlers", () => {
   });
 
   describe("AnalyzeAction", () => {
+    it("analysis menu choices set entry generation and analyze without saving", async () => {
+      const session = { generateKnowledgeEntries: true, activeTabId: 1 };
+      const action = new AnalyzeAction({ session, getSaveAction: () => ({ handleConfirm: () => assert.fail("Analysis must not save") }) });
+      const modes = [];
+      action.handleReanalyzeEggs = async () => { modes.push(session.generateKnowledgeEntries); };
+      await action.handleEggAnalysis(false);
+      await action.handleEggAnalysis(true);
+      assert.deepEqual(modes, [false, true]);
+    });
+
+    it("toggles cached entries and Hatch data without losing answers or another tab's preference", () => {
+      const fs = require("node:fs");
+      globalThis.NutEggAI = new Function(fs.readFileSync(require.resolve("../dist/ai-core.js"), "utf8") + "\nreturn NutEggAI;")();
+      const { SessionState } = require("../src/popup/state/session-state.js");
+      const { TabStateManager } = require("../src/popup/state/tab-state.js");
+      const session = new SessionState();
+      const tabs = new TabStateManager();
+      const egg = { egg: "a.md", readAction: "full", extractedEntries: [{ content: "Insight" }],
+        keyQuestionAnswers: [{ question: "Why?", answer: "Evidence" }] };
+      session.activeTabId = 1;
+      session.analysisResult = NutEggAI.composeEggResults({ coreSummary: ["Summary"] }, [egg]);
+      tabs.set(2, { generateKnowledgeEntries: true });
+      const action = new AnalyzeAction({ session, tabStateManager: tabs });
+      action.setGenerateKnowledgeEntries(false);
+      assert.deepEqual(session.analysisResult.newKnowledge, []);
+      assert.deepEqual(session.analysisResult.eggResults[0].extractedEntries, []);
+      assert.equal(session.analysisResult.eggResults[0].keyQuestionAnswers[0].answer, "Evidence");
+      assert.equal(session.analysisResult.shouldRead, true);
+      assert.equal(tabs.get(1).generateKnowledgeEntries, false);
+      assert.equal(tabs.get(2).generateKnowledgeEntries, true);
+      session.restore(tabs.get(1));
+      assert.equal(session.generateKnowledgeEntries, false);
+      action.setGenerateKnowledgeEntries(true);
+      assert.equal(session.analysisResult.newKnowledge.length, 2);
+      assert.deepEqual(session.analysisResult.eggResults[0].extractedEntries, egg.extractedEntries);
+    });
     it("navigates between content and existing analysis without AI calls or losing tab-specific save state", () => {
       const { SessionState } = require("../src/popup/state/session-state.js");
       const { TabStateManager } = require("../src/popup/state/tab-state.js");
@@ -548,8 +584,7 @@ describe("Action Handlers", () => {
       };
       let loadingState = null;
       const eggsUI = {
-        reanalyzeEggsBtn: { disabled: false },
-        setReanalyzeLoading: (loading, text) => { loadingState = { loading, text }; },
+
         clearError: () => {},
         showError: () => {},
       };
@@ -568,7 +603,10 @@ describe("Action Handlers", () => {
       const analyzeAction = new AnalyzeAction({
         session,
         analysisService,
-        ui: { eggsUI, bannersUI },
+        ui: { eggsUI, bannersUI, actionsUI: {
+          stage1ProceedBtn: { disabled: false },
+          setEggAnalysisLoading: (loading, text) => { loadingState = { loading, text }; },
+        } },
       });
 
       await analyzeAction.handleReanalyzeEggs();
@@ -578,6 +616,26 @@ describe("Action Handlers", () => {
   });
 
   describe("SaveAction", () => {
+    it("Hatch saves generated entries with answers and refuses answers-only results", async () => {
+      const fs = require("node:fs");
+      globalThis.NutEggAI = new Function(fs.readFileSync(require.resolve("../dist/ai-core.js"), "utf8") + "\nreturn NutEggAI;")();
+      const egg = { egg: "a.md", readAction: "full", extractedEntries: [{ content: "Extracted insight" }],
+        keyQuestionAnswers: [{ question: "Q", answer: "Answer" }] };
+      const result = NutEggAI.composeEggResults({}, [egg]);
+      const session = { activeTabId: 1, analysisResult: result, extractedContent: { content: "Source" } };
+      const action = new SaveAction({ session });
+      let saved;
+      action.doSave = async entries => { saved = entries; };
+      action.updateActionButtons = () => {};
+      await action.handleConfirm();
+      assert.equal(saved.length, 2);
+      saved = null;
+      session.analysisResult = NutEggAI.composeEggResults({}, [{ ...egg, extractedEntries: [] }]);
+      await action.handleConfirm();
+      assert.equal(saved, null);
+      assert.equal(result.eggResults[0].extractedEntries.length, 1);
+    });
+
     it("shows a created egg immediately while re-analysis is still pending", async () => {
       for (const inline of [true, false]) {
         const session = { activeTabId: 1, allEggs: [], selectedEggs: new Set(), preSelectedEggs: new Set() };

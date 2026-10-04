@@ -8,6 +8,8 @@ language: "English"
 > [!abstract]- Instructions:
 > **Scope:** Capture high-signal, paradigm-shifting concepts, universally applicable frameworks, and substantive data that hold significant strategic value but fall strictly outside established domain-specific routing.
 >
+> **Generate Knowledge Entries:** yes
+>
 > **Action Guide:**
 > 1. Extract substantive results according to this egg’s scope and formatting rules; preserve source evidence and qualifications.
 > 2. Answer Key Questions and recommend full reading, highlights, summary, skip, or uncertain using the two preference lists.

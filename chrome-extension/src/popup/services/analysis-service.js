@@ -131,6 +131,7 @@ class AnalysisService {
         questionsScope,
         force: true,
         stage: 1,
+        generateKnowledgeEntries: session.generateKnowledgeEntries !== false,
         enabledSections: { ...(session?.enabledSections || settings.enabledSections) },
         outputLanguage: settings.outputLanguage,
         ...(Array.isArray(targetEggs) ? { eggs: targetEggs } : {}),
@@ -367,9 +368,13 @@ class AnalysisService {
       const analysis = contentAnalysis || session.stage1ContentAnalysis || cached?.stage1ContentAnalysis || session.analysisResult;
       const priorResult = isPinnedActive() ? session.analysisResult : cached?.analysisResult;
       // Explicit contentAnalysis is a fresh Stage 1 pass, which invalidates prior egg results.
-      const captured = contentAnalysis ? [] : [...(priorResult?.eggAnalysisCache || []), ...(priorResult?.eggResults || [])];
+      const captured = contentAnalysis ? [] : [...(priorResult?.eggResults || []), ...(priorResult?.eggAnalysisCache || [])];
+      const generateKnowledgeEntries = (isPinnedActive() ? session.generateKnowledgeEntries : cached?.generateKnowledgeEntries) !== false;
       const resultCache = new Map(captured.filter(result => result?.egg).map(result => [result.egg, result]));
-      const pendingEggs = targetEggs.filter(egg => !resultCache.has(egg));
+      const pendingEggs = targetEggs.filter(egg => {
+        const result = resultCache.get(egg);
+        return !result || (generateKnowledgeEntries && result.generateKnowledgeEntries === false && !result.entryGenerationDisabledByEgg);
+      });
 
       if (tabStateManager) {
         const existing = tabStateManager.get(targetPinnedId) || {};
@@ -400,6 +405,7 @@ class AnalysisService {
         questions,
         stage: 2,
         eggs: pendingEggs,
+        generateKnowledgeEntries,
         ...(resultCache.size ? { cachedEggResults: [...resultCache.values()], selectedEggs: targetEggs } : {}),
         outputLanguage: settings.outputLanguage,
         nutId: base?.nutId || (isPinnedActive() ? session.currentNutId : cached?.currentNutId) || undefined,
@@ -428,11 +434,11 @@ class AnalysisService {
       }
 
       if (resultCache.size || !pendingEggs.length) {
-        for (const result of response.eggResults || []) resultCache.set(result.egg, result);
+        for (const result of response.eggAnalysisCache || response.eggResults || []) resultCache.set(result.egg, result);
         const core = typeof NutEggAI !== "undefined" ? NutEggAI : globalThis.NutEggAI;
         response = { ...response, ...core.composeEggResults(payload.contentAnalysis,
           targetEggs.flatMap(egg => resultCache.has(egg) ? [resultCache.get(egg)] : []),
-          [...resultCache.values()]) };
+          [...resultCache.values()], generateKnowledgeEntries) };
       }
 
       response.stage = "stage2";

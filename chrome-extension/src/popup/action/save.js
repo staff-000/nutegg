@@ -102,7 +102,9 @@ class SaveAction {
     let targetContent = session.extractedContent || cached?.extractedContent;
     const targetNutId = session.currentNutId || cached?.currentNutId;
 
-    if (!targetResult || session.eggHatched || !(targetResult.newKnowledge?.length)) return;
+    if (!targetResult || session.eggHatched) return;
+    const entries = targetResult.newKnowledge || [];
+    if (!entries.length || (targetResult.eggResults && !targetResult.eggResults.some(egg => egg.extractedEntries?.length))) return;
     if (!targetContent) {
       if (session.activeTabId === pinnedTabId) {
         ui.actionsUI?.setConfirmButtonLoading?.(true, t("retrieving"));
@@ -112,7 +114,7 @@ class SaveAction {
     if (session.activeTabId === pinnedTabId) {
       ui.actionsUI?.setConfirmButtonLoading?.(true, t("hatching"));
     }
-    await this.doSave(targetResult.newKnowledge || [], true, targetContent, targetResult, targetNutId, pinnedTabId);
+    await this.doSave(entries, true, targetContent, targetResult, targetNutId, pinnedTabId);
     if (session.activeTabId === pinnedTabId) {
       this.updateActionButtons();
     }

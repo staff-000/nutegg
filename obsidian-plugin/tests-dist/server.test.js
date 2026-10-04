@@ -325,6 +325,7 @@ ${content}`;
 }
 function formatEggInstructionsForPrompt(egg) {
   const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg.generateKnowledgeEntries === false ? "no" : "yes"}`);
   if (egg.actionGuide)
     parts.push(`**Action Guide:**
 ${egg.actionGuide}`);
@@ -414,6 +415,8 @@ function parseEggFile(fileName, content) {
   }
   const callout = extractCallout(content);
   const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+  const generation = (sections.get("generate knowledge entries") || "").trim().toLowerCase();
+  result.generateKnowledgeEntries = !/^(?:no|false|off|disabled)\b/.test(generation);
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");
@@ -698,8 +701,11 @@ function sanitizeEggName(name) {
 }
 
 // ../shared/src/analysis-results.ts
-function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults) {
+function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults, generateKnowledgeEntries = true) {
+  eggResults = eggResults.map((result) => generateKnowledgeEntries && result.generateKnowledgeEntries !== false ? result : { ...result, generateKnowledgeEntries: false, extractedEntries: [] });
   const newKnowledge = eggResults.flatMap((result) => {
+    if (!generateKnowledgeEntries || result.generateKnowledgeEntries === false)
+      return [];
     const items = (result.extractedEntries || []).map((entry) => ({
       egg: result.egg,
       content: saveEntryBody(entry.content, entry.sources || [])
@@ -720,7 +726,8 @@ ${answer.answer}`;
     matchedEggs: eggResults.map((e) => e.egg),
     eggResults,
     newKnowledge,
-    eggAnalysisCache
+    eggAnalysisCache,
+    generateKnowledgeEntries
   };
 }
 function saveEntryBody(body, sources) {
@@ -1192,7 +1199,8 @@ var NutEggServer = class {
           result = composeEggResults(
             contentAnalysis2,
             capture.selectedEggs.flatMap((egg) => allResults.has(egg) ? [allResults.get(egg)] : []),
-            [...allResults.values()]
+            [...allResults.values()],
+            capture.generateKnowledgeEntries !== false
           );
         }
         delete result.stage;

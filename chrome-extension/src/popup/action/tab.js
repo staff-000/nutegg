@@ -103,7 +103,7 @@ class TabAction {
     if (initialSections) {
       session.enabledSections = { ...initialSections };
       settings?.setEnabledSections?.(initialSections, true);
-      ui.sectionsUI?.updateUI?.(session.enabledSections);
+      ui.sectionsUI?.updateUI?.(session.enabledSections, session.generateKnowledgeEntries !== false);
       if (currentTargetId) {
         tabStateManager.saveActiveTabState(currentTargetId, { enabledSections: session.enabledSections });
       }
@@ -153,7 +153,7 @@ class TabAction {
       if (effectiveSections) {
         session.enabledSections = { ...effectiveSections };
         settings?.setEnabledSections?.(effectiveSections, true);
-        ui.sectionsUI?.updateUI?.(session.enabledSections);
+        ui.sectionsUI?.updateUI?.(session.enabledSections, session.generateKnowledgeEntries !== false);
         if (targetTabId) {
           tabStateManager.saveActiveTabState(targetTabId, { enabledSections: session.enabledSections });
         }
@@ -414,7 +414,7 @@ class TabAction {
     if (activeSections) {
       session.enabledSections = { ...activeSections };
       settings?.setEnabledSections?.(activeSections, true);
-      ui.sectionsUI?.updateUI?.(session.enabledSections);
+      ui.sectionsUI?.updateUI?.(session.enabledSections, session.generateKnowledgeEntries !== false);
     }
 
     ui.captureUI?.render?.(session, settings);
@@ -519,7 +519,7 @@ class TabAction {
     if (targetState?.enabledSections) {
       this.session.enabledSections = { ...targetState.enabledSections };
       this.settings?.setEnabledSections?.(this.session.enabledSections, true);
-      this.ui.sectionsUI?.updateUI?.(this.session.enabledSections);
+      this.ui.sectionsUI?.updateUI?.(this.session.enabledSections, this.session.generateKnowledgeEntries !== false);
     }
 
     if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {
@@ -545,7 +545,7 @@ class TabAction {
         if (targetState?.enabledSections) {
           this.session.enabledSections = { ...targetState.enabledSections };
           this.settings?.setEnabledSections?.(this.session.enabledSections, true);
-          this.ui.sectionsUI?.updateUI?.(this.session.enabledSections);
+          this.ui.sectionsUI?.updateUI?.(this.session.enabledSections, this.session.generateKnowledgeEntries !== false);
         }
 
         if (targetState && (targetState.analysisResult || targetState.status === "analyzing" || targetState.status === "hatching" || targetState.status === "error" || targetState.error || targetState.extractedContent || targetState.warning || targetState.duplicate || targetState.extractionFailed)) {

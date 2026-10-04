@@ -90,6 +90,8 @@ export function parseEggFile(fileName: string, content: string): EggContent {
   // Instructions callout (new format)
   const callout = extractCallout(content);
   const sections = callout ? splitLabeledSections(callout) : new Map<string, string>();
+  const generation = (sections.get("generate knowledge entries") || "").trim().toLowerCase();
+  result.generateKnowledgeEntries = !/^(?:no|false|off|disabled)\b/.test(generation);
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");

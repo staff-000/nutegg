@@ -30,6 +30,47 @@ const response = (action = 'summary', entries = [{ content: 'Useful result' }]) 
 });
 
 describe('Lightweight Stage 2', () => {
+  it('uses the mind map as grounded navigation while egg instructions specify extraction', async () => {
+    let prompt = '';
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (text: string) => { prompt = text; return response(); } } }) as any);
+    await processor.analyzeEggs(capture, [egg()], { ...stage1, mindMap: [{ name: 'MAP_SIGNAL', detail: 'Supporting mechanism', time: '12:34' }] });
+    assert.ok(prompt.includes('MAP_SIGNAL'));
+    assert.ok(prompt.includes('"time":"12:34"'));
+    assert.ok(prompt.includes('primary specification'));
+    assert.ok(prompt.includes('Highlight failures.'));
+    assert.ok(prompt.includes('verify all claims and timestamps against the raw source'));
+  });
+  it('parses the egg generation opt-out and defaults to enabled', () => {
+    for (const value of ['no', 'false', 'off', 'disabled']) {
+      const parsed = parseEggFile('egg.md', `> [!abstract]- Instructions:\n> **Generate Knowledge Entries:** ${value}\n> **Action Guide:** Answer questions.`);
+      assert.equal(parsed.generateKnowledgeEntries, false);
+    }
+    assert.equal(egg().generateKnowledgeEntries, true);
+  });
+  it('enforces UI and egg opt-outs even when AI returns entries, while preserving answers and verdicts', async () => {
+    for (const mode of ['ui', 'egg', 'natural']) {
+      const configuredEgg = egg();
+      if (mode === 'egg') configuredEgg.generateKnowledgeEntries = false;
+      if (mode === 'natural') configuredEgg.actionGuide = 'Answer questions only. Do not generate knowledge entries.';
+      const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (prompt: string) => {
+        if (mode !== 'natural') assert.ok(prompt.includes('generation is DISABLED'));
+        return JSON.stringify({ readAction: 'full', readVerdictReason: 'Useful', generateKnowledgeEntries: mode !== 'natural',
+          extractedEntries: [{ content: 'Must not be saved' }], keyQuestionAnswers: [{ question: 'Q', answer: 'Supported answer' }] });
+      } } }) as any);
+      const result = await processor.analyzeEggs({ ...capture, generateKnowledgeEntries: mode !== 'ui' }, [configuredEgg], stage1);
+      assert.deepEqual(result.eggResults[0].extractedEntries, []);
+      assert.equal(result.eggResults[0].keyQuestionAnswers[0].answer, 'Supported answer');
+      assert.equal(result.shouldRead, true);
+      assert.deepEqual(result.newKnowledge, []);
+      assert.equal(result.eggResults[0].entryGenerationDisabledByEgg, mode !== 'ui');
+    }
+  });
+  it('keeps entry opt-outs effective through chunk aggregation', async () => {
+    const processor = new AIProcessor(makeFakePlugin({ settings: { aiApiKey: "test-key", chunkWindowChars: 5 }, aiClient: { chat: async () => response('full') } }) as any);
+    const result = await processor.analyzeEggs({ ...capture, content: 'long content in several parts', generateKnowledgeEntries: false }, [egg()], stage1);
+    assert.deepEqual(result.eggResults[0].extractedEntries, []);
+    assert.deepEqual(result.newKnowledge, []);
+  });
   it('makes one call, includes instructions/signals, never existing notes; summary output is hatchable', async () => {
     const prompts: string[] = [];
     const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (prompt: string) => { prompts.push(prompt); return response(); } } }) as any);

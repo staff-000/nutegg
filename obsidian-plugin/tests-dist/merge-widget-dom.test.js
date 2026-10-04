@@ -1629,6 +1629,7 @@ function makeFakePlugin(overrides = {}) {
 // ../shared/src/egg-format.ts
 function formatEggInstructionsForPrompt(egg) {
   const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg.generateKnowledgeEntries === false ? "no" : "yes"}`);
   if (egg.actionGuide)
     parts.push(`**Action Guide:**
 ${egg.actionGuide}`);
@@ -1718,6 +1719,8 @@ function parseEggFile(fileName, content) {
   }
   const callout = extractCallout(content);
   const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+  const generation = (sections.get("generate knowledge entries") || "").trim().toLowerCase();
+  result.generateKnowledgeEntries = !/^(?:no|false|off|disabled)\b/.test(generation);
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");

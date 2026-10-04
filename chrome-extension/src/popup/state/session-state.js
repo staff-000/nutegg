@@ -41,6 +41,7 @@ class SessionState {
     this.followupScope = "within";
     /** Per-tab enabled analysis sections */
     this.enabledSections = null;
+    this.generateKnowledgeEntries = true;
 
     // Operation sequence and transient flags
     this.refreshSeq = 0;
@@ -53,6 +54,7 @@ class SessionState {
    * Reset active tab session to empty initial values.
    */
   reset() {
+    this.generateKnowledgeEntries = true;
     this.extractedContent = null;
     this.analysisResult = null;
     this.viewingContent = false;
@@ -81,6 +83,7 @@ class SessionState {
    */
   snapshot(extra = {}) {
     return {
+      generateKnowledgeEntries: this.generateKnowledgeEntries,
       extractedContent: this.extractedContent,
       analysisResult: this.analysisResult,
       viewingContent: this.viewingContent,
@@ -111,6 +114,7 @@ class SessionState {
   restore(restored = {}) {
     this.extractedContent = restored.extractedContent || null;
     this.analysisResult = restored.analysisResult || null;
+    this.generateKnowledgeEntries = (restored.generateKnowledgeEntries ?? restored.analysisResult?.generateKnowledgeEntries) !== false;
     this.viewingContent = Boolean(this.analysisResult && restored.viewingContent);
     this.captureHistory = Array.isArray(restored.captureHistory) ? [...restored.captureHistory] : [];
     this.currentNutId = restored.currentNutId || (this.captureHistory[0]?.nutId ?? null);

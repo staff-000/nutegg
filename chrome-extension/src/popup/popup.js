@@ -130,6 +130,8 @@ const interactionAction = new InteractionActionClass({
 // ============================================================
 
 function renderApp(sessionState = session, settingsState = settings) {
+  sectionsUI.updateUI(sessionState.enabledSections || settingsState.enabledSections, sessionState.generateKnowledgeEntries !== false);
+  actionsUI.toggleEggAnalysisMenu(false);
   headerUI.render(sessionState, settingsState);
   bannersUI.render(sessionState, settingsState);
   resultsUI.render(sessionState, settingsState);
@@ -188,7 +190,7 @@ function showResultsState(result, provenance = null) {
     actionsUI.showProcessedNote(actionsUI.getProcessedMessage());
   }
   const effectiveSections = session.enabledSections || settings.enabledSections;
-  sectionsUI.updateUI(effectiveSections);
+  sectionsUI.updateUI(effectiveSections, session.generateKnowledgeEntries !== false);
   if (!session.isReanalyzing) {
     analyzeAction.updateAnalyzeButtonsState();
     actionsUI.setHistorySelectDisabled(false);
@@ -247,7 +249,7 @@ function showCaptureState() {
   globalThis.NutEggUI?.resetCollapsibleSections?.();
   bannersUI.hideAll();
   const effectiveSections = session.enabledSections || settings.enabledSections;
-  sectionsUI.updateUI(effectiveSections);
+  sectionsUI.updateUI(effectiveSections, session.generateKnowledgeEntries !== false);
   captureUI.setQuestionsScope(session.customQuestionsScope || "within");
   renderApp();
 }
@@ -283,6 +285,10 @@ async function initPopup() {
   } catch {}
 
   const toggleActiveTabSection = async (key) => {
+    if (key === "generateKnowledgeEntries") {
+      analyzeAction.setGenerateKnowledgeEntries(session.generateKnowledgeEntries === false);
+      return true;
+    }
     if (!session.enabledSections) {
       session.enabledSections = { ...(settings.enabledSections || globalThis.NutEggState?.DEFAULT_ANALYSIS_SECTIONS || {}) };
     }
@@ -299,7 +305,7 @@ async function initPopup() {
         enabledSections: { ...session.enabledSections },
       });
     }
-    sectionsUI.updateUI(session.enabledSections);
+    sectionsUI.updateUI(session.enabledSections, session.generateKnowledgeEntries !== false);
     if (session.analysisResult && !session.viewingContent) {
       showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
     }
@@ -319,7 +325,7 @@ async function initPopup() {
     onToggle: toggleActiveTabSection,
     onSectionToggle: toggleActiveTabSection,
   });
-  sectionsUI.updateUI(session.enabledSections || settings.enabledSections);
+  sectionsUI.updateUI(session.enabledSections || settings.enabledSections, session.generateKnowledgeEntries !== false);
 
   envService.fetchMetrics();
 
@@ -340,7 +346,7 @@ async function initPopup() {
           session.enabledSections = { ...settings.enabledSections };
         }
         const effectiveSections = session.enabledSections || settings.enabledSections;
-        sectionsUI.updateUI(effectiveSections);
+        sectionsUI.updateUI(effectiveSections, session.generateKnowledgeEntries !== false);
         if (session.analysisResult && !session.viewingContent) {
           showResultsState(session.analysisResult, helper.provenanceFromExtraction(session.extractedContent));
         }
@@ -361,7 +367,7 @@ async function initPopup() {
 
   actionsUI.modeFastBtn?.addEventListener("click", () => analyzeAction.setAnalysisMode("fast"));
   actionsUI.modeConfirmBtn?.addEventListener("click", () => analyzeAction.setAnalysisMode("confirm"));
-  actionsUI.stage1ProceedBtn?.addEventListener("click", () => analyzeAction.handleProceedStage2(null, true, false, session.activeTabId));
+  actionsUI.stage1ProceedBtn?.addEventListener("click", event => actionsUI.handleEggAnalysisClick(event, mode => analyzeAction.handleEggAnalysis(mode)));
   actionsUI.stage1SkipBtn?.addEventListener("click", () => saveAction.handleSaveRaw());
 
   actionsUI.analyzeBtn?.addEventListener("click", () => {
@@ -374,6 +380,12 @@ async function initPopup() {
     analyzeAction.handleAnalyze(true);
   });
   actionsUI.confirmBtn?.addEventListener("click", () => saveAction.handleConfirm());
+  document.addEventListener("click", event => {
+    if (!event.target.closest?.(".egg-analysis-selector")) actionsUI.toggleEggAnalysisMenu(false);
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") actionsUI.toggleEggAnalysisMenu(false);
+  });
   actionsUI.collectNutBtn?.addEventListener("click", () => saveAction.handleSaveRaw());
   actionsUI.discardBtn?.addEventListener("click", () => window.close());
   globalThis.NutEggUI?.initCollapsibleSections?.();
@@ -472,22 +484,14 @@ async function initPopup() {
   });
   eggsUI.createEggBtn?.addEventListener("click", () => saveAction.handleCreateEgg(false));
   eggsUI.eggsCreateBtn?.addEventListener("click", () => saveAction.handleCreateEgg(true));
-  eggsUI.reanalyzeEggsBtn?.addEventListener("click", () => {
-    analyzeAction.handleReanalyzeEggs();
+  actionsUI.eggAnalysisOnlyBtn?.addEventListener("click", () => {
+    actionsUI.toggleEggAnalysisMenu(false);
+    analyzeAction.handleEggAnalysis(false);
   });
-  eggsUI.reanalyzeEggsRefreshBtn?.addEventListener("click", async () => {
-    eggsUI.setReanalyzeEggsRefreshLoading(true);
-    try {
-      await tabAction.refreshForCurrentTab(true);
-      bannersUI.hideWarning();
-      bannersUI.hideMessages();
-    } catch (err) {
-      bannersUI.showError(err instanceof Error ? err.message : t("couldNotRetrieveContent"));
-    } finally {
-      eggsUI.setReanalyzeEggsRefreshLoading(false);
-    }
+  actionsUI.eggAnalysisWithKnowledgeBtn?.addEventListener("click", () => {
+    actionsUI.toggleEggAnalysisMenu(false);
+    analyzeAction.handleEggAnalysis(true);
   });
-
   const reportBugLink = document.getElementById("report-bug-link");
   reportBugLink?.addEventListener("click", (e) => {
     e.preventDefault();

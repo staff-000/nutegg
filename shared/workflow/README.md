@@ -18,6 +18,27 @@ Changing selected eggs reuses the existing Stage 1 result. Stage 2 runs only for
 
 Stage 2 reads the source and egg instructions, never the Knowledge tree or Unprocessed queue. Reading recommendations assess usefulness for your preferences rather than novelty against your notes. Hatch is independent of the recommendation: useful answers can be saved even when the original is skippable. There is no automatic Hatch.
 
+## Knowledge-entry generation
+
+Stage 2 uses the Stage 1 mind map to navigate relevant concepts and source locations, while the egg’s Scope, Action Guide and Formatting Rules decide what becomes an entry. Raw source evidence remains authoritative.
+
+Set `> **Generate Knowledge Entries:** no` in an egg’s Instructions callout to disable entries for that egg. Omitting the setting or using `yes` permits generation. An opt-out in the Action Guide is also honored by the prompt.
+
+The **🍃 Knowledge** option in **Analysis Sections** and the Egg Analysis dropdown share one per-tab setting. Choosing **🥚 Analysis only** turns Knowledge off on both pages; choosing **🍃 Include knowledge** turns it on. Toggling Knowledge updates the dropdown’s checkmark as well. Clicking a dropdown choice also runs analysis; toggling the section option alone does not start an AI call.
+
+Knowledge-entry generation follows these rules:
+
+| UI setting | Egg instructions | Result |
+|---|---|---|
+| Off / Analysis only | Any | No knowledge entries |
+| On / Include knowledge | Explicit `no`, or Action Guide opts out | No entries for that egg |
+| On / Include knowledge | `yes` or unspecified | Generate entries according to the egg instructions |
+
+Either an off UI setting or an egg opt-out disables generation; an on setting never overrides an opt-out. The UI defaults to **Include knowledge** and is saved per browser tab and restored with its analysis. Key-question answers and reading recommendations are produced regardless. Generation does not save to egg files: **🐣 Hatch Egg** is the separate save action, enabled when generated entries are available.
+
+Cached entries can be hidden and restored without AI. Turning generation on after an answers-only analysis requires Stage 2 for eggs without previously generated entries; eggs that explicitly opt out are not rerun just to request entries.
+
+
 ## Egg structure
 
 Keep structural labels in English, including in localized eggs:
@@ -67,3 +88,7 @@ Hatch archives original analyses and source references in the nut and history, t
 ## Customization and updates
 
 Preserve `{{placeholders}}`, exact JSON schema keys, and English structural labels such as `# Knowledge` and `# Unprocessed`. Edited workflow files remain untouched during updates; new defaults are supplied as `.new.md` for review. Unmodified obsolete prompts are removed. Missing new recommendation fields in customized prompts display uncertain. Use Defaults backs up customized files before restoring built-in prompts.
+
+The Chrome extension offers a per-tab **Knowledge** option in **Analysis Sections** on both the content and analysis pages. The egg selector offers **🥚 Egg Analysis** (answers and verdicts only) and **🥚 Egg Analysis with knowledge entry** (also generate entries). Neither saves to the egg file. The separate bottom **🐣 Hatch Egg** button saves generated entries and supported key answers to egg files; it is available only when entries have been generated. The **🍃 Knowledge** analysis-section option controls entry generation on both pages.
+
+On the top Egg Analysis button beside Collect Nut Only, clicking the analysis label runs the current mode; clicking its separate arrow opens the two analysis choices. Selecting a choice runs it immediately. Egg selection changes do not open the menu. The top Egg Analysis and Collect Nut Only controls remain visible throughout connected-mode results.

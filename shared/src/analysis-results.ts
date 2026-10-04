@@ -1,8 +1,10 @@
 import type { AnalysisResult, ContentAnalysis, EggAnalysis, EggSaveEntry, ReadAction, SourceRef } from "./types";
 
 /** Assemble selected egg results using the same verdict and Hatch rules for fresh and cached analysis. */
-export function composeEggResults(contentAnalysis: ContentAnalysis, eggResults: EggAnalysis[], eggAnalysisCache: EggAnalysis[] = eggResults): AnalysisResult {
+export function composeEggResults(contentAnalysis: ContentAnalysis, eggResults: EggAnalysis[], eggAnalysisCache: EggAnalysis[] = eggResults, generateKnowledgeEntries = true): AnalysisResult {
+  eggResults = eggResults.map(result => generateKnowledgeEntries && result.generateKnowledgeEntries !== false ? result : { ...result, generateKnowledgeEntries: false, extractedEntries: [] });
   const newKnowledge: EggSaveEntry[] = eggResults.flatMap(result => {
+    if (!generateKnowledgeEntries || result.generateKnowledgeEntries === false) return [];
     const items = (result.extractedEntries || []).map(entry => ({ egg: result.egg,
       content: saveEntryBody(entry.content, entry.sources || []) }));
     for (const answer of result.keyQuestionAnswers || []) {
@@ -13,7 +15,7 @@ export function composeEggResults(contentAnalysis: ContentAnalysis, eggResults: 
     return items.filter((item, i) => items.findIndex(other => other.content === item.content) === i);
   });
   return { ...contentAnalysis, schemaVersion: 3, ...mergeVerdict(eggResults),
-    matchedEggs: eggResults.map(e => e.egg), eggResults, newKnowledge, eggAnalysisCache };
+    matchedEggs: eggResults.map(e => e.egg), eggResults, newKnowledge, eggAnalysisCache, generateKnowledgeEntries };
 }
 
 function saveEntryBody(body: string, sources: SourceRef[]): string {

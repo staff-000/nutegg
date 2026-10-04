@@ -32,10 +32,12 @@ class SectionChipsComponent {
     this.chipVerdict = getEl("chip-verdict");
     this.chipSummary = getEl("chip-summary");
     this.chipMindmap = getEl("chip-mindmap");
+    this.chipKnowledge = getEl("chip-knowledge");
 
     this.reanalyzeChipVerdict = getEl("reanalyze-chip-verdict");
     this.reanalyzeChipSummary = getEl("reanalyze-chip-summary");
     this.reanalyzeChipMindmap = getEl("reanalyze-chip-mindmap");
+    this.reanalyzeChipKnowledge = getEl("reanalyze-chip-knowledge");
   }
 
   init(options = {}) {
@@ -101,9 +103,11 @@ class SectionChipsComponent {
       { el: this.chipVerdict, key: "titleVerdict" },
       { el: this.chipSummary, key: "coreSummary" },
       { el: this.chipMindmap, key: "mindMap" },
+      { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
       { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
       { el: this.reanalyzeChipSummary, key: "coreSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
+      { el: this.reanalyzeChipKnowledge, key: "generateKnowledgeEntries" },
     ];
 
     allChips.forEach(({ el, key }) => {
@@ -126,7 +130,8 @@ class SectionChipsComponent {
     });
   }
 
-  updateUI(enabledSections = {}) {
+  updateUI(enabledSections = {}, generateKnowledgeEntries = true) {
+    enabledSections = { ...enabledSections, generateKnowledgeEntries };
     this.enabledSections = enabledSections;
     if (!this.chipVerdict && (this.root || typeof document !== "undefined")) {
       this.bindElements(this.root || document);
@@ -136,14 +141,17 @@ class SectionChipsComponent {
       { el: this.chipVerdict, key: "titleVerdict" },
       { el: this.chipSummary, key: "coreSummary" },
       { el: this.chipMindmap, key: "mindMap" },
+      { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
       { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
       { el: this.reanalyzeChipSummary, key: "coreSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
+      { el: this.reanalyzeChipKnowledge, key: "generateKnowledgeEntries" },
     ];
 
     map.forEach(({ el, key }) => {
       if (!el) return;
       const active = enabledSections[key] !== false;
+      el.setAttribute?.("aria-pressed", String(active));
       if (active) {
         el.classList.add("active");
         el.classList.remove("inactive");
@@ -153,11 +161,13 @@ class SectionChipsComponent {
       }
     });
 
-    const total = 3;
+    const hasKnowledgeChip = Boolean(this.chipKnowledge || this.reanalyzeChipKnowledge);
+    const total = hasKnowledgeChip ? 4 : 3;
     const activeCount = [
       enabledSections.titleVerdict !== false,
       enabledSections.coreSummary !== false,
       enabledSections.mindMap !== false,
+      ...(hasKnowledgeChip ? [generateKnowledgeEntries] : []),
     ].filter(Boolean).length;
 
     const badgeText = `${activeCount}/${total}`;

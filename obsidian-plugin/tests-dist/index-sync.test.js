@@ -52,6 +52,8 @@ language: "English"
 > [!abstract]- Instructions:
 > **Scope:** Capture high-signal, paradigm-shifting concepts, universally applicable frameworks, and substantive data that hold significant strategic value but fall strictly outside established domain-specific routing.
 >
+> **Generate Knowledge Entries:** yes
+>
 > **Action Guide:**
 > 1. Extract substantive results according to this egg\u2019s scope and formatting rules; preserve source evidence and qualifications.
 > 2. Answer Key Questions and recommend full reading, highlights, summary, skip, or uncertain using the two preference lists.
@@ -135,6 +137,7 @@ ${content}`;
 }
 function formatEggInstructionsForPrompt(egg2) {
   const parts = [`**Scope:** ${egg2.scope || "(not specified)"}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg2.generateKnowledgeEntries === false ? "no" : "yes"}`);
   if (egg2.actionGuide)
     parts.push(`**Action Guide:**
 ${egg2.actionGuide}`);
@@ -235,6 +238,8 @@ function parseEggFile(fileName, content) {
   }
   const callout = extractCallout(content);
   const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+  const generation = (sections.get("generate knowledge entries") || "").trim().toLowerCase();
+  result.generateKnowledgeEntries = !/^(?:no|false|off|disabled)\b/.test(generation);
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");
@@ -983,10 +988,13 @@ Type: {{source_type}}
 
 {{content}}
 
+## Entry Generation
+{{entry_generation}}
+
 ## Task
-1. Follow the Action Guide and Formatting Rules. Preserve useful AMA question\u2013answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
+1. Treat the egg\u2019s Scope, Action Guide and Formatting Rules as the primary specification for which insights to capture and how to present them. Use the Stage 1 mind map to locate relevant concepts, relationships and evidence; verify all claims and timestamps against the raw source. Do not convert every mind-map branch into an entry. The mind map may cover the whole work; in a chunk, use only evidence present in that part. Preserve useful AMA question\u2013answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
 2. Answer the exact Key Questions directly with supporting source locations/brief quotes. Use "Not addressed in this content" (or "Not addressed in this part" for chunks) when there is no supported answer. Do not mistake missing coverage for an absent answer.
-3. Extract concise, substantive results as markdown entries. Lists/frameworks retain all supported items and order; a chunk may contain a partial framework for later assembly. Do not invent missing fragments. Avoid repeating the same answer in both keyQuestionAnswers and extractedEntries.
+3. When entry generation is enabled, extract concise, substantive results as markdown entries specifically serving this egg\u2019s instructions. If the egg instructions ask for no knowledge entries, return extractedEntries: [] even when the UI enables generation. Lists/frameworks retain all supported items and order; a chunk may contain a partial framework for later assembly. Do not invent missing fragments. Avoid repeating the same answer in both keyQuestionAnswers and extractedEntries.
 4. Recommend what the user gains by opening the original AFTER reading the condensed analysis:
    - full: useful depth spans the source.
    - highlights: specific worthwhile passages; identify their source locations.
@@ -994,19 +1002,20 @@ Type: {{source_type}}
    - skip: poor fit, low substance, or dominated by Skip If.
    - uncertain: insufficient evidence or coverage.
    Apply Scope, Key Questions, Worth Reading If and Skip If to the evidence. Mixed content may warrant highlights rather than skipping it all. Empty preference lists use this rubric, never an automatic yes. Explain the benefit/limitation in one concise reason. For chunks this is provisional evidence for a whole-source decision.
-5. Do not claim novelty relative to the user's notes, unfamiliarity to the user, external factual verification, or unseen visual demonstrations. Preferences never prevent extracting useful results. Never include author/source URL metadata in entry bodies; it is appended mechanically.
+5. Do not claim novelty relative to the user's notes, unfamiliarity to the user, external factual verification, or unseen visual demonstrations. Worth Reading If and Skip If affect only the recommendation. Entry-generation opt-outs take priority over extraction tasks. Never include author/source URL metadata in entry bodies; it is appended mechanically.
 
 ## Output Format
 JSON only:
 {
   "language": "English",
+  "generateKnowledgeEntries": true,
   "keyQuestionAnswers": [{"question": "exact question", "answered": true, "answer": "supported answer", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
   "extractedEntries": [{"kind": "insight", "content": "instruction-formatted markdown", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
   "readAction": "highlights",
   "readVerdictReason": "What remains to gain from opening the source",
   "readingSources": [{"ref": "12:34", "quote": "evidence for the recommendation"}]
 }
-Entry kind is insight, list, or answer. Empty arrays are valid. Source ref is an available timestamp or section heading; never invent one. Keep answers and recommendation notes concise.
+Set generateKnowledgeEntries=false when entry generation is disabled by the UI or the egg instructions (including an opt-out written in the Action Guide). In that case extractedEntries must be []. Otherwise set it to true. Entry kind is insight, list, or answer. Empty arrays are valid. Source ref is an available timestamp or section heading; never invent one. Keep answers and recommendation notes concise.
 {{shared_output_rules}}
 
 Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
@@ -1122,7 +1131,7 @@ Set answered=false for unsupported/unaddressed answers, regardless of output lan
 `;
 
 // ../shared/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Generate Knowledge Entries:**` (keep its value `yes` or `no`), `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.\n  - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.\n  - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.\n  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.\n  - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';

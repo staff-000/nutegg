@@ -305,6 +305,40 @@ describe("AnalysisService", () => {
     assert.strictEqual(tabs.get(101).analysisResult.eggResults[0], eggA);
   });
 
+  it("entry-generation preferences preserve cached entries and refresh answers-only results when enabled", async () => {
+    const session = new SessionState();
+    session.activeTabId = 101;
+    session.extractedContent = { content: "Original content" };
+    const analysis = { titleVerdict: "Verdict", coreSummary: [], customQuestionAnswers: [] };
+    const complete = { egg: "A.md", generateKnowledgeEntries: true, extractedEntries: [{ content: "Insight" }], keyQuestionAnswers: [{ question: "Q", answer: "Answer" }], readAction: "full", readVerdictReason: "Useful", readingSources: [] };
+    session.analysisResult = NutEggAI.composeEggResults(analysis, [complete]);
+    const service = new AnalysisService();
+    let calls = 0;
+    service.sendAnalyzeViaPort = async payload => {
+      calls++;
+      assert.equal(payload.generateKnowledgeEntries, true);
+      return NutEggAI.composeEggResults(analysis, [{ ...complete }]);
+    };
+    const run = () => service.proceedStage2({ session, settings: new SettingsState(), tabStateManager: new TabStateManager(), eggsToCompare: ["A.md"] });
+    session.generateKnowledgeEntries = false;
+    await run();
+    assert.equal(session.analysisResult.newKnowledge.length, 0);
+    assert.equal(session.analysisResult.eggResults[0].extractedEntries.length, 0);
+    assert.equal(session.analysisResult.eggResults[0].keyQuestionAnswers.length, 1);
+    assert.equal(session.analysisResult.eggAnalysisCache[0].extractedEntries.length, 1);
+    session.generateKnowledgeEntries = true;
+    await run();
+    assert.equal(calls, 0);
+    assert.ok(session.analysisResult.newKnowledge.length > 0);
+    session.analysisResult = NutEggAI.composeEggResults(analysis, [{ ...complete, generateKnowledgeEntries: false, extractedEntries: [] }]);
+    await run();
+    assert.equal(calls, 1);
+    session.analysisResult = NutEggAI.composeEggResults(analysis, [{ ...complete, generateKnowledgeEntries: false, entryGenerationDisabledByEgg: true, extractedEntries: [] }]);
+    await run();
+    assert.equal(calls, 1, 'An egg-level opt-out must not cause repeated analyses');
+    assert.equal(session.analysisResult.newKnowledge.length, 0);
+  });
+
   it("cached-only egg selection renders without an API key or source extraction", async () => {
     const { AnalyzeAction } = require("../src/popup/action/analyze.js");
     const session = new SessionState();

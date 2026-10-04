@@ -8,6 +8,8 @@ language: "English"
 > [!abstract]- Instructions:
 > **Scope:** Capture new knowledge and insights.
 > 
+> **Generate Knowledge Entries:** no
+>
 > **Action Guide:**
 > 1. Extract substantive results according to this egg’s scope and formatting rules; preserve source evidence and qualifications.
 > 2. Answer Key Questions and recommend full reading, highlights, summary, skip, or uncertain using the two preference lists.

@@ -133,6 +133,7 @@ export interface ContentAnalysis {
 }
 
 export interface CapturePayload {
+  generateKnowledgeEntries?: boolean;
   url: string;
   title: string;
   content: string;
@@ -162,6 +163,8 @@ export interface AskRequest {
 
 /** In-memory representation of a parsed Egg note file. */
 export interface EggContent {
+  /** False disables extraction and Hatch entries; answers and recommendations remain available. */
+  generateKnowledgeEntries?: boolean;
   fileName: string;
   topic: string;
   scope: string;
@@ -187,6 +190,8 @@ export interface ExtractedKnowledgeEntry {
 }
 
 export interface EggAnalysis {
+  generateKnowledgeEntries?: boolean;
+  entryGenerationDisabledByEgg?: boolean;
   egg: string;
   language?: string;
   keyQuestionAnswers: KeyAnswer[];
@@ -210,6 +215,7 @@ export interface MergeResult {
 }
 
 export interface AnalysisResult extends ContentAnalysis {
+  generateKnowledgeEntries?: boolean;
   shouldRead: boolean | null;
   readAction?: ReadAction;
   readingSources?: SourceRef[];

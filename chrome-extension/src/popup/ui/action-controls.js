@@ -19,12 +19,58 @@ class ActionControlsComponent {
     this.stage1ConfirmBox = root.getElementById("stage1-confirm-box");
     this.stage1ConfirmText = root.getElementById("stage1-confirm-text");
     this.stage1ProceedBtn = root.getElementById("stage1-proceed-btn");
+    this.eggAnalysisLabel = root.getElementById("egg-analysis-label");
+    this.eggAnalysisMenu = root.getElementById("egg-analysis-menu");
+    this.eggAnalysisOnlyBtn = root.getElementById("egg-analysis-only");
+    this.eggAnalysisWithKnowledgeBtn = root.getElementById("egg-analysis-with-knowledge");
+    this.generateKnowledgeEntries = true;
     this.stage1SkipBtn = root.getElementById("stage1-skip-btn");
 
     this.confirmBtn = root.getElementById("confirm-btn");
     this.collectNutBtn = root.getElementById("collect-nut-btn");
     this.discardBtn = root.getElementById("discard-btn");
     this.backBtn = root.getElementById("back-btn");
+  }
+
+  async handleEggAnalysisClick(event, onAnalyze) {
+    if (event.target.closest?.("[data-egg-analysis-arrow]")) {
+      this.toggleEggAnalysisMenu();
+      return;
+    }
+    this.toggleEggAnalysisMenu(false);
+    return onAnalyze(this.generateKnowledgeEntries);
+  }
+
+  updateEggAnalysisLabel(generateKnowledgeEntries = this.generateKnowledgeEntries) {
+    this.generateKnowledgeEntries = generateKnowledgeEntries;
+    if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("eggAnalysis");
+    for (const [button, key, selected] of [
+      [this.eggAnalysisOnlyBtn, "eggAnalysisOnly", !generateKnowledgeEntries],
+      [this.eggAnalysisWithKnowledgeBtn, "eggAnalysisWithKnowledge", generateKnowledgeEntries],
+    ]) {
+      if (!button) continue;
+      button.textContent = `${selected ? "✓ " : ""}${t(key)}`;
+      button.setAttribute?.("aria-checked", String(selected));
+    }
+  }
+
+  toggleEggAnalysisMenu(open) {
+    const visible = open ?? this.eggAnalysisMenu?.classList.contains("hidden");
+    if (visible) this.eggAnalysisMenu?.classList.remove("hidden");
+    else this.eggAnalysisMenu?.classList.add("hidden");
+    this.stage1ProceedBtn?.setAttribute?.("aria-expanded", String(Boolean(visible)));
+  }
+
+  setEggAnalysisLoading(isLoading, text = "") {
+    this.toggleEggAnalysisMenu(false);
+    if (this.eggAnalysisOnlyBtn) this.eggAnalysisOnlyBtn.disabled = Boolean(isLoading);
+    if (this.eggAnalysisWithKnowledgeBtn) this.eggAnalysisWithKnowledgeBtn.disabled = Boolean(isLoading);
+    if (this.stage1ProceedBtn) {
+      this.stage1ProceedBtn.disabled = Boolean(isLoading);
+      if (text && this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = text;
+      else this.updateEggAnalysisLabel();
+    }
+
   }
 
   setMode(mode) {
@@ -135,12 +181,12 @@ class ActionControlsComponent {
     if (!this.stage1ProceedBtn) return;
     if (isProceeding) {
       this.stage1ProceedBtn.disabled = true;
-      this.stage1ProceedBtn.textContent = autoSave ? t("hatchingEggWaiting") : t("analyzing");
+      if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("analyzingEggs");
       return;
     }
     if (selectedCount === 0) {
       this.stage1ProceedBtn.disabled = true;
-      this.stage1ProceedBtn.textContent = t("hatchEggSelectEgg");
+      if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("eggAnalysisSelectEgg");
       if (this.stage1ConfirmText) {
         this.stage1ConfirmText.innerHTML = totalEggsCount === 0
           ? t("stage1NoEggsNotice")
@@ -148,7 +194,7 @@ class ActionControlsComponent {
       }
     } else {
       this.stage1ProceedBtn.disabled = false;
-      this.stage1ProceedBtn.textContent = selectedCount === 1 ? t("hatchEgg") : t("hatchEggCount", { count: selectedCount });
+      this.updateEggAnalysisLabel();
       if (this.stage1ConfirmText) {
         this.stage1ConfirmText.innerHTML = t("stage1SelectedNotice", { count: selectedCount });
       }
@@ -323,6 +369,7 @@ class ActionControlsComponent {
   }
 
   render(session, settings) {
+    this.updateEggAnalysisLabel(session?.generateKnowledgeEntries !== false);
     if (!settings && !session) return;
     if (settings?.analysisMode) {
       this.setMode(settings.analysisMode);
@@ -339,38 +386,28 @@ class ActionControlsComponent {
         this.setCollectNutButtonVisible(false);
       } else {
         this.setCollectNutButtonVisible(true);
-        if (isStage1) {
-          const matchedCount = (result?.matchedEggs || []).length;
-          const shouldShowConfirm = settings?.analysisMode === "confirm" || matchedCount === 0;
-          if (shouldShowConfirm) {
-            this.showStage1Confirm();
-          } else {
-            this.hideStage1Confirm();
-          }
-          this.setConfirmButtonVisible(false);
-        } else {
-          this.hideStage1Confirm();
-          this.setConfirmButtonVisible(true);
-        }
+        this.showStage1Confirm();
+        this.setConfirmButtonVisible(!isStage1);
       }
 
-      const hasDelta = (result?.newKnowledge?.length || 0) > 0;
       this.updateActionButtons({
         isChromeMode: isChrome,
         isStage1,
         nutCollected: Boolean(session?.nutCollected),
         eggHatched: Boolean(session?.eggHatched),
-        hasDelta,
+        hasDelta: Boolean(result?.eggResults?.some(egg => egg.extractedEntries?.length)),
       });
 
-      const matchedCount = (result?.matchedEggs || []).length;
-      const shouldShowConfirm = isStage1 && (settings?.analysisMode === "confirm" || matchedCount === 0);
-      if (shouldShowConfirm) {
+      if (!isChrome) {
         this.updateStage1ProceedBtn({
           selectedCount: session?.selectedEggs?.size || 0,
           totalEggsCount: session?.allEggs?.length || 0,
-          isProceeding: Boolean(session?.isAnalyzing),
+          isProceeding: Boolean(session?.isAnalyzing || session?.isReanalyzing),
         });
+        if (this.stage1SkipBtn) {
+          this.stage1SkipBtn.disabled = Boolean(session?.nutCollected);
+          this.stage1SkipBtn.textContent = t(session?.nutCollected ? "nutCollected" : "collectNutOnly");
+        }
       }
     } else {
       this.hideStage1Confirm();

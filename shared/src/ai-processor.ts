@@ -502,7 +502,9 @@ export class AIProcessor {
       if (chunks.length === 1) return await this.analyzeAgainstEgg(capture, egg, "", signals) || this.failedEgg(egg);
       const parts = await Promise.all(chunks.map(chunk => this.analyzeAgainstEgg(
         { ...capture, content: chunk.content }, egg, partNote(chunk), signals)));
-      const entries = parts.flatMap(part => part?.extractedEntries || []);
+      const disabledByEgg = egg.generateKnowledgeEntries === false || parts.some(part => part?.entryGenerationDisabledByEgg);
+      const generateEntries = capture.generateKnowledgeEntries !== false && !disabledByEgg;
+      const entries = generateEntries ? parts.flatMap(part => part?.extractedEntries || []) : [];
       try {
         const aggregate = await this.aggregateEgg(egg, chunks.map((chunk, i) => ({
           part: i + 1, startTime: chunk.startTime, success: !!parts[i],
@@ -513,17 +515,17 @@ export class AIProcessor {
         // Incomplete coverage must remain explicit, even if the model overlooks it.
         if (parts.some(p => !p)) Object.assign(aggregate, { readAction: "uncertain", readVerdict: null,
           readVerdictReason: "Some parts failed to process; coverage is incomplete." });
-        return { egg: egg.fileName, language: parts.find(p => p?.language)?.language, extractedEntries: entries, ...aggregate };
+        return { egg: egg.fileName, generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, language: parts.find(p => p?.language)?.language, extractedEntries: entries, ...aggregate };
       } catch (err) {
         console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
-        return { ...this.failedEgg(egg), extractedEntries: entries,
+        return { ...this.failedEgg(egg), generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, extractedEntries: entries,
           readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
           keyQuestionAnswers: parts.flatMap((part, i) => (part?.keyQuestionAnswers || []).map(answer => ({
             ...answer, question: `[Part ${i + 1}] ${answer.question}`,
           }))) };
       }
     }));
-    return composeEggResults(contentAnalysis, eggResults);
+    return composeEggResults(contentAnalysis, eggResults, eggResults, capture.generateKnowledgeEntries !== false);
   }
 
   private failedEgg(egg: EggContent): EggAnalysis {
@@ -533,7 +535,8 @@ export class AIProcessor {
 
   private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
     return [capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
-      capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : ""].filter(Boolean).join("\n\n");
+      capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : "",
+      capture.enabledSections?.mindMap !== false && analysis.mindMap?.length ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}` : ""].filter(Boolean).join("\n\n");
   }
 
   /** Phase 1 — content-level summary + mind map + custom question answers. */
@@ -597,7 +600,9 @@ export class AIProcessor {
 
   /** One instruction-driven call per egg/part, without existing knowledge. */
   private async analyzeAgainstEgg(capture: CapturePayload, egg: EggContent, partNoteStr = "", signals = ""): Promise<EggAnalysis | null> {
+    const generateEntries = capture.generateKnowledgeEntries !== false && egg.generateKnowledgeEntries !== false;
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
+      entry_generation: generateEntries ? "Knowledge entry generation is enabled. Follow the egg instructions to decide what to extract." : "Knowledge entry generation is DISABLED. Return extractedEntries: []; still answer Key Questions and give the reading recommendation.",
       egg_file: egg.fileName, egg_instructions: formatEggInstructionsForPrompt(egg),
       stage1_signals: signals, title: capture.title, url: capture.url, source_type: capture.sourceType,
       part_note: partNoteStr, content: capture.content,
@@ -605,8 +610,9 @@ export class AIProcessor {
     });
     try {
       const parsed = this.parseJson(await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384), "egg-analysis");
-      return { egg: egg.fileName, language: typeof parsed.language === "string" ? parsed.language : egg.language,
-        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), extractedEntries: this.parseExtractedEntries(parsed.extractedEntries),
+      const effectiveGeneration = generateEntries && parsed.generateKnowledgeEntries !== false;
+      return { egg: egg.fileName, generateKnowledgeEntries: effectiveGeneration, entryGenerationDisabledByEgg: egg.generateKnowledgeEntries === false || (generateEntries && parsed.generateKnowledgeEntries === false), language: typeof parsed.language === "string" ? parsed.language : egg.language,
+        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), extractedEntries: effectiveGeneration ? this.parseExtractedEntries(parsed.extractedEntries) : [],
         ...this.parseRecommendation(parsed) };
     } catch (err) {
       console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);

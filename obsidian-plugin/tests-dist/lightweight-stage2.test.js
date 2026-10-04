@@ -23,8 +23,11 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 
 // ../shared/src/analysis-results.ts
-function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults) {
+function composeEggResults(contentAnalysis, eggResults, eggAnalysisCache = eggResults, generateKnowledgeEntries = true) {
+  eggResults = eggResults.map((result) => generateKnowledgeEntries && result.generateKnowledgeEntries !== false ? result : { ...result, generateKnowledgeEntries: false, extractedEntries: [] });
   const newKnowledge = eggResults.flatMap((result) => {
+    if (!generateKnowledgeEntries || result.generateKnowledgeEntries === false)
+      return [];
     const items = (result.extractedEntries || []).map((entry) => ({
       egg: result.egg,
       content: saveEntryBody(entry.content, entry.sources || [])
@@ -45,7 +48,8 @@ ${answer.answer}`;
     matchedEggs: eggResults.map((e) => e.egg),
     eggResults,
     newKnowledge,
-    eggAnalysisCache
+    eggAnalysisCache,
+    generateKnowledgeEntries
   };
 }
 function saveEntryBody(body, sources) {
@@ -510,6 +514,7 @@ function extractEggLanguage(content) {
 }
 function formatEggInstructionsForPrompt(egg2) {
   const parts = [`**Scope:** ${egg2.scope || "(not specified)"}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg2.generateKnowledgeEntries === false ? "no" : "yes"}`);
   if (egg2.actionGuide)
     parts.push(`**Action Guide:**
 ${egg2.actionGuide}`);
@@ -720,10 +725,13 @@ Type: {{source_type}}
 
 {{content}}
 
+## Entry Generation
+{{entry_generation}}
+
 ## Task
-1. Follow the Action Guide and Formatting Rules. Preserve useful AMA question\u2013answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
+1. Treat the egg\u2019s Scope, Action Guide and Formatting Rules as the primary specification for which insights to capture and how to present them. Use the Stage 1 mind map to locate relevant concepts, relationships and evidence; verify all claims and timestamps against the raw source. Do not convert every mind-map branch into an entry. The mind map may cover the whole work; in a chunk, use only evidence present in that part. Preserve useful AMA question\u2013answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
 2. Answer the exact Key Questions directly with supporting source locations/brief quotes. Use "Not addressed in this content" (or "Not addressed in this part" for chunks) when there is no supported answer. Do not mistake missing coverage for an absent answer.
-3. Extract concise, substantive results as markdown entries. Lists/frameworks retain all supported items and order; a chunk may contain a partial framework for later assembly. Do not invent missing fragments. Avoid repeating the same answer in both keyQuestionAnswers and extractedEntries.
+3. When entry generation is enabled, extract concise, substantive results as markdown entries specifically serving this egg\u2019s instructions. If the egg instructions ask for no knowledge entries, return extractedEntries: [] even when the UI enables generation. Lists/frameworks retain all supported items and order; a chunk may contain a partial framework for later assembly. Do not invent missing fragments. Avoid repeating the same answer in both keyQuestionAnswers and extractedEntries.
 4. Recommend what the user gains by opening the original AFTER reading the condensed analysis:
    - full: useful depth spans the source.
    - highlights: specific worthwhile passages; identify their source locations.
@@ -731,19 +739,20 @@ Type: {{source_type}}
    - skip: poor fit, low substance, or dominated by Skip If.
    - uncertain: insufficient evidence or coverage.
    Apply Scope, Key Questions, Worth Reading If and Skip If to the evidence. Mixed content may warrant highlights rather than skipping it all. Empty preference lists use this rubric, never an automatic yes. Explain the benefit/limitation in one concise reason. For chunks this is provisional evidence for a whole-source decision.
-5. Do not claim novelty relative to the user's notes, unfamiliarity to the user, external factual verification, or unseen visual demonstrations. Preferences never prevent extracting useful results. Never include author/source URL metadata in entry bodies; it is appended mechanically.
+5. Do not claim novelty relative to the user's notes, unfamiliarity to the user, external factual verification, or unseen visual demonstrations. Worth Reading If and Skip If affect only the recommendation. Entry-generation opt-outs take priority over extraction tasks. Never include author/source URL metadata in entry bodies; it is appended mechanically.
 
 ## Output Format
 JSON only:
 {
   "language": "English",
+  "generateKnowledgeEntries": true,
   "keyQuestionAnswers": [{"question": "exact question", "answered": true, "answer": "supported answer", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
   "extractedEntries": [{"kind": "insight", "content": "instruction-formatted markdown", "sources": [{"ref": "12:34", "quote": "supporting quote"}]}],
   "readAction": "highlights",
   "readVerdictReason": "What remains to gain from opening the source",
   "readingSources": [{"ref": "12:34", "quote": "evidence for the recommendation"}]
 }
-Entry kind is insight, list, or answer. Empty arrays are valid. Source ref is an available timestamp or section heading; never invent one. Keep answers and recommendation notes concise.
+Set generateKnowledgeEntries=false when entry generation is disabled by the UI or the egg instructions (including an opt-out written in the Action Guide). In that case extractedEntries must be []. Otherwise set it to true. Entry kind is insight, list, or answer. Empty arrays are valid. Source ref is an available timestamp or section heading; never invent one. Keep answers and recommendation notes concise.
 {{shared_output_rules}}
 
 Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
@@ -859,7 +868,7 @@ Set answered=false for unsupported/unaddressed answers, regardless of output lan
 `;
 
 // ../shared/workflow/localize-egg.md
-var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
+var localize_egg_default = 'You are a knowledge curator for NutEgg.\n\n## Egg Description\n{{description}}\n\n## Egg Template\n{{template}}\n\n## Task\nTranslate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above so they use the SAME LANGUAGE as the egg description: "{{description}}".\n\n## Output Rules:\n1. Language: All explanations, questions, criteria, and rule guidance must be written in the same language as the egg description: "{{description}}".\n2. Egg Parser Structure: The structure and these exact labels MUST remain in English:\n   - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)\n   - Callout: `> [!abstract]- Instructions:`\n   - Bold section labels: `> **Scope:**`, `> **Generate Knowledge Entries:**` (keep its value `yes` or `no`), `> **Action Guide:**`, `> **Key Questions:**`, `> **Worth Reading If:**`, `> **Skip If:**`, `> **Formatting Rules:**`\n   - Headings: `# Knowledge` and `# Unprocessed`\n   - Tag names in Formatting Rules: `[concept]`, `[architecture]`, `[method]`, `[benchmark]`, `[explain]`, `[fact]`, `[example]`\n\nOutput ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.\n\n';
 
 // ../shared/workflow/shared-output-rules.md
 var shared_output_rules_default = '- Grounding: The content is the ONLY source of truth for every answer and summary you produce. Report what the content actually says even when it contradicts common sense or well-known facts \u2014 never correct, refute, or supplement it with outside knowledge. If the content does not address a question, say "Not covered in this content".\n- Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.\n  - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.\n  - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.\n  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.\n  - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.\n- Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.';
@@ -1219,7 +1228,9 @@ ${rendered}`;
         partNote(chunk),
         signals
       )));
-      const entries = parts.flatMap((part) => part?.extractedEntries || []);
+      const disabledByEgg = egg2.generateKnowledgeEntries === false || parts.some((part) => part?.entryGenerationDisabledByEgg);
+      const generateEntries = capture2.generateKnowledgeEntries !== false && !disabledByEgg;
+      const entries = generateEntries ? parts.flatMap((part) => part?.extractedEntries || []) : [];
       try {
         const aggregate = await this.aggregateEgg(egg2, chunks.map((chunk, i) => ({
           part: i + 1,
@@ -1236,11 +1247,13 @@ ${rendered}`;
             readVerdict: null,
             readVerdictReason: "Some parts failed to process; coverage is incomplete."
           });
-        return { egg: egg2.fileName, language: parts.find((p) => p?.language)?.language, extractedEntries: entries, ...aggregate };
+        return { egg: egg2.fileName, generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, language: parts.find((p) => p?.language)?.language, extractedEntries: entries, ...aggregate };
       } catch (err) {
         console.warn(`[NutEgg] Aggregate failed for ${egg2.fileName}`, err);
         return {
           ...this.failedEgg(egg2),
+          generateKnowledgeEntries: generateEntries,
+          entryGenerationDisabledByEgg: disabledByEgg,
           extractedEntries: entries,
           readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
           keyQuestionAnswers: parts.flatMap((part, i) => (part?.keyQuestionAnswers || []).map((answer) => ({
@@ -1250,7 +1263,7 @@ ${rendered}`;
         };
       }
     }));
-    return composeEggResults(contentAnalysis, eggResults);
+    return composeEggResults(contentAnalysis, eggResults, eggResults, capture2.generateKnowledgeEntries !== false);
   }
   failedEgg(egg2) {
     return {
@@ -1267,7 +1280,9 @@ ${rendered}`;
     return [
       capture2.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
       capture2.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:
-${analysis.coreSummary.join("\n")}` : ""
+${analysis.coreSummary.join("\n")}` : "",
+      capture2.enabledSections?.mindMap !== false && analysis.mindMap?.length ? `Stage 1 mind map (navigation aid; verify against the source):
+${JSON.stringify(analysis.mindMap)}` : ""
     ].filter(Boolean).join("\n\n");
   }
   /** Phase 1 — content-level summary + mind map + custom question answers. */
@@ -1309,7 +1324,9 @@ ${analysis.coreSummary.join("\n")}` : ""
   }
   /** One instruction-driven call per egg/part, without existing knowledge. */
   async analyzeAgainstEgg(capture2, egg2, partNoteStr = "", signals = "") {
+    const generateEntries = capture2.generateKnowledgeEntries !== false && egg2.generateKnowledgeEntries !== false;
     const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
+      entry_generation: generateEntries ? "Knowledge entry generation is enabled. Follow the egg instructions to decide what to extract." : "Knowledge entry generation is DISABLED. Return extractedEntries: []; still answer Key Questions and give the reading recommendation.",
       egg_file: egg2.fileName,
       egg_instructions: formatEggInstructionsForPrompt(egg2),
       stage1_signals: signals,
@@ -1322,11 +1339,14 @@ ${analysis.coreSummary.join("\n")}` : ""
     });
     try {
       const parsed = this.parseJson(await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384), "egg-analysis");
+      const effectiveGeneration = generateEntries && parsed.generateKnowledgeEntries !== false;
       return {
         egg: egg2.fileName,
+        generateKnowledgeEntries: effectiveGeneration,
+        entryGenerationDisabledByEgg: egg2.generateKnowledgeEntries === false || generateEntries && parsed.generateKnowledgeEntries === false,
         language: typeof parsed.language === "string" ? parsed.language : egg2.language,
         keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
-        extractedEntries: this.parseExtractedEntries(parsed.extractedEntries),
+        extractedEntries: effectiveGeneration ? this.parseExtractedEntries(parsed.extractedEntries) : [],
         ...this.parseRecommendation(parsed)
       };
     } catch (err) {
@@ -1793,6 +1813,8 @@ function parseEggFile(fileName, content) {
   }
   const callout = extractCallout(content);
   const sections = callout ? splitLabeledSections(callout) : /* @__PURE__ */ new Map();
+  const generation = (sections.get("generate knowledge entries") || "").trim().toLowerCase();
+  result.generateKnowledgeEntries = !/^(?:no|false|off|disabled)\b/.test(generation);
   result.scope = (sections.get("scope") || "").trim();
   result.actionGuide = (sections.get("action guide") || "").trim();
   result.keyQuestions = parseListItems(sections.get("key questions") || "");
@@ -2215,6 +2237,60 @@ var response = (action = "summary", entries = [{ content: "Useful result" }]) =>
   readingSources: [{ ref: "12:34", quote: "evidence" }]
 });
 (0, import_node_test.describe)("Lightweight Stage 2", () => {
+  (0, import_node_test.it)("uses the mind map as grounded navigation while egg instructions specify extraction", async () => {
+    let prompt = "";
+    const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (text) => {
+      prompt = text;
+      return response();
+    } } }));
+    await processor.analyzeEggs(capture, [egg()], { ...stage1, mindMap: [{ name: "MAP_SIGNAL", detail: "Supporting mechanism", time: "12:34" }] });
+    import_strict.default.ok(prompt.includes("MAP_SIGNAL"));
+    import_strict.default.ok(prompt.includes('"time":"12:34"'));
+    import_strict.default.ok(prompt.includes("primary specification"));
+    import_strict.default.ok(prompt.includes("Highlight failures."));
+    import_strict.default.ok(prompt.includes("verify all claims and timestamps against the raw source"));
+  });
+  (0, import_node_test.it)("parses the egg generation opt-out and defaults to enabled", () => {
+    for (const value of ["no", "false", "off", "disabled"]) {
+      const parsed = parseEggFile("egg.md", `> [!abstract]- Instructions:
+> **Generate Knowledge Entries:** ${value}
+> **Action Guide:** Answer questions.`);
+      import_strict.default.equal(parsed.generateKnowledgeEntries, false);
+    }
+    import_strict.default.equal(egg().generateKnowledgeEntries, true);
+  });
+  (0, import_node_test.it)("enforces UI and egg opt-outs even when AI returns entries, while preserving answers and verdicts", async () => {
+    for (const mode of ["ui", "egg", "natural"]) {
+      const configuredEgg = egg();
+      if (mode === "egg")
+        configuredEgg.generateKnowledgeEntries = false;
+      if (mode === "natural")
+        configuredEgg.actionGuide = "Answer questions only. Do not generate knowledge entries.";
+      const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (prompt) => {
+        if (mode !== "natural")
+          import_strict.default.ok(prompt.includes("generation is DISABLED"));
+        return JSON.stringify({
+          readAction: "full",
+          readVerdictReason: "Useful",
+          generateKnowledgeEntries: mode !== "natural",
+          extractedEntries: [{ content: "Must not be saved" }],
+          keyQuestionAnswers: [{ question: "Q", answer: "Supported answer" }]
+        });
+      } } }));
+      const result = await processor.analyzeEggs({ ...capture, generateKnowledgeEntries: mode !== "ui" }, [configuredEgg], stage1);
+      import_strict.default.deepEqual(result.eggResults[0].extractedEntries, []);
+      import_strict.default.equal(result.eggResults[0].keyQuestionAnswers[0].answer, "Supported answer");
+      import_strict.default.equal(result.shouldRead, true);
+      import_strict.default.deepEqual(result.newKnowledge, []);
+      import_strict.default.equal(result.eggResults[0].entryGenerationDisabledByEgg, mode !== "ui");
+    }
+  });
+  (0, import_node_test.it)("keeps entry opt-outs effective through chunk aggregation", async () => {
+    const processor = new AIProcessor(makeFakePlugin({ settings: { aiApiKey: "test-key", chunkWindowChars: 5 }, aiClient: { chat: async () => response("full") } }));
+    const result = await processor.analyzeEggs({ ...capture, content: "long content in several parts", generateKnowledgeEntries: false }, [egg()], stage1);
+    import_strict.default.deepEqual(result.eggResults[0].extractedEntries, []);
+    import_strict.default.deepEqual(result.newKnowledge, []);
+  });
   (0, import_node_test.it)("makes one call, includes instructions/signals, never existing notes; summary output is hatchable", async () => {
     const prompts = [];
     const processor = new AIProcessor(makeFakePlugin({ aiClient: { chat: async (prompt) => {

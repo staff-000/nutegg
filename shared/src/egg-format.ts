@@ -74,6 +74,7 @@ export function insertEggLanguage(
 /** Format instructions only: existing notes never enter Stage 2. */
 export function formatEggInstructionsForPrompt(egg: EggContent): string {
   const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg.generateKnowledgeEntries === false ? "no" : "yes"}`);
   if (egg.actionGuide) parts.push(`**Action Guide:**\n${egg.actionGuide}`);
   for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]] as const) {
     if (items?.length) parts.push(`**${label}:**\n${items.map(item => `- ${item}`).join("\n")}`);

@@ -1871,34 +1871,6 @@ body {
   color: #6b7280;
 }
 
-.eggs-reanalyze-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-}
-
-.eggs-reanalyze-wrap .reanalyze-eggs-btn {
-  flex: 1;
-  margin-top: 6px;
-  padding: 8px 10px;
-  font-size: 12px;
-}
-
-.eggs-reanalyze-wrap .reanalyze-eggs-refresh-btn {
-  margin-top: 6px;
-  padding: 8px 10px;
-  height: 35px;
-  border: 1px solid #d1d5db;
-}
-
-.reanalyze-eggs-btn {
-  width: 100%;
-  margin-top: 6px;
-  padding: 8px 10px;
-  font-size: 12px;
-}
-
 .eggs-error {
   margin-top: 6px;
   padding: 8px 10px;
@@ -2225,3 +2197,17 @@ body {
   background: #fbe7d1;
   border-color: var(--primary, #a8561e);
 }
+
+
+
+.egg-analysis-selector { position: relative; flex: 3; min-width: 0; }
+.stage1-confirm-actions > .collect-nut-btn { flex: 2; }
+.egg-analysis-menu { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 20; min-width: 180px; padding: 4px; background: var(--bg, #fff); border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 4px 14px #0002; }
+.egg-analysis-menu button { display: block; width: 100%; text-align: left; padding: 9px 12px; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; }
+.egg-analysis-menu button:hover { background: #fff3e6; }
+.egg-analysis-menu button:disabled { opacity: .45; cursor: default; }
+
+.egg-analysis-selector > .stage1-proceed-btn { width: 100%; min-height: 38px; height: auto; display: flex; align-items: center; padding: 6px 0 6px 8px; }
+#egg-analysis-label { flex: 1; min-width: 0; padding: 0 8px; white-space: normal; }
+.egg-analysis-arrow { align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 32px; margin-left: 6px; border-left: 1px solid currentColor; }
+.egg-analysis-arrow:hover { background: #ffffff25; }

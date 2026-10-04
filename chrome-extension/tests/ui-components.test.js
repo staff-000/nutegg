@@ -71,6 +71,111 @@ function createMockRoot() {
 }
 
 describe("Modular UI Components", () => {
+  it("synchronizes Knowledge on both pages with analysis-mode selection in both directions", async () => {
+    const { AnalyzeAction } = require("../src/popup/action/analyze.js");
+    const root = createMockRoot();
+    const sections = new SectionChipsComponent(root);
+    const controls = new ActionControlsComponent(root);
+    const session = { generateKnowledgeEntries: true, enabledSections: { mindMap: true } };
+    const action = new AnalyzeAction({ session, ui: { sectionsUI: sections, actionsUI: controls } });
+    let analyses = 0;
+    action.handleReanalyzeEggs = async () => { analyses++; };
+    await action.handleEggAnalysis(false);
+    assert.equal(sections.chipKnowledge.classList.contains("inactive"), true);
+    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("inactive"), true);
+    assert.equal(controls.eggAnalysisOnlyBtn.getAttribute("aria-checked"), "true");
+    sections.init({ onToggle: key => {
+      if (key === "generateKnowledgeEntries") action.setGenerateKnowledgeEntries(session.generateKnowledgeEntries === false);
+    } });
+    sections.chipKnowledge.click();
+    assert.equal(session.generateKnowledgeEntries, true);
+    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("active"), true);
+    assert.equal(controls.eggAnalysisWithKnowledgeBtn.getAttribute("aria-checked"), "true");
+    assert.equal(analyses, 1, "Section toggling must not start another analysis");
+    sections.reanalyzeChipKnowledge.click();
+    assert.equal(sections.chipKnowledge.classList.contains("inactive"), true);
+    await action.handleEggAnalysis(true);
+    assert.equal(sections.chipKnowledge.classList.contains("active"), true);
+    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("active"), true);
+    assert.equal(analyses, 2);
+  });
+
+  it("runs the current analysis mode from the label and opens choices only from the arrow", async () => {
+    const eggs = new ActionControlsComponent(createMockRoot());
+    const calls = [];
+    eggs.updateEggAnalysisLabel(false);
+    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.equal(eggs.eggAnalysisOnlyBtn.getAttribute("aria-checked"), "true");
+    assert.equal(eggs.eggAnalysisOnlyBtn.textContent, `✓ ${t("eggAnalysisOnly")}`);
+    await eggs.handleEggAnalysisClick({ target: { closest: () => null } }, mode => calls.push(mode));
+    assert.deepEqual(calls, [false]);
+    eggs.updateEggAnalysisLabel(true);
+    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.equal(eggs.eggAnalysisWithKnowledgeBtn.getAttribute("aria-checked"), "true");
+    assert.equal(eggs.eggAnalysisWithKnowledgeBtn.textContent, `✓ ${t("eggAnalysisWithKnowledge")}`);
+    await eggs.handleEggAnalysisClick({ target: { closest: () => null } }, mode => calls.push(mode));
+    assert.deepEqual(calls, [false, true]);
+    eggs.toggleEggAnalysisMenu(false);
+    await eggs.handleEggAnalysisClick({ target: { closest: () => ({}) } }, mode => calls.push(mode));
+    assert.deepEqual(calls, [false, true]);
+    assert.equal(eggs.eggAnalysisMenu.classList.contains("hidden"), false);
+  });
+
+  it("keeps the top analysis and collect controls visible through stages and modes", () => {
+    const controls = new ActionControlsComponent(createMockRoot());
+    for (const mode of ["fast", "confirm"]) {
+      for (const stage of ["stage1", "stage2"]) {
+        const session = { analysisResult: { stage, matchedEggs: ["a.md"] }, selectedEggs: new Set(["a.md"]),
+          isStage1: () => stage === "stage1" };
+        controls.render(session, { analysisMode: mode, isChromeMode: () => false });
+        assert.equal(controls.stage1ConfirmBox.classList.contains("hidden"), false);
+        assert.equal(controls.stage1ProceedBtn.disabled, false);
+        assert.equal(controls.stage1SkipBtn.disabled, false);
+      }
+    }
+  });
+
+  it("does not reveal the analysis menu when egg selection changes", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
+    const checkbox = createMockElement();
+    checkbox.dataset = { egg: "a.md" };
+    checkbox.checked = true;
+    eggs.eggsList.querySelectorAll = () => [checkbox];
+    const controls = new ActionControlsComponent(root);
+    controls.toggleEggAnalysisMenu(false);
+    const selected = new Set();
+    eggs.renderSection([], { allEggs: [{ fileName: "a.md" }], selectedEggs: selected });
+    checkbox._listeners.change[0]({ target: checkbox });
+    assert.equal(selected.has("a.md"), true);
+    assert.equal(controls.eggAnalysisMenu.classList.contains("hidden"), true);
+  });
+
+  it("keeps Hatch as a direct save button and expands analysis choices in the egg selector", () => {
+    const root = createMockRoot();
+    const controls = new ActionControlsComponent(root);
+    controls.updateActionButtons({ hasDelta: false });
+    assert.equal(controls.confirmBtn.textContent, t("hatchEgg"));
+    assert.equal(controls.confirmBtn.disabled, true);
+    controls.updateActionButtons({ hasDelta: true });
+    assert.equal(controls.confirmBtn.disabled, false);
+    controls.updateActionButtons({ hasDelta: true, eggHatched: true });
+    assert.equal(controls.confirmBtn.disabled, true);
+    controls.updateStage1ProceedBtn({ selectedCount: 1 });
+    assert.equal(controls.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.ok(controls.eggAnalysisLabel.textContent.startsWith("🥚"));
+    const eggs = controls;
+    eggs.toggleEggAnalysisMenu(true);
+    assert.equal(eggs.eggAnalysisMenu.classList.contains("hidden"), false);
+    assert.equal(eggs.stage1ProceedBtn.getAttribute("aria-expanded"), "true");
+    eggs.setEggAnalysisLoading(true);
+    assert.equal(controls.eggAnalysisMenu.classList.contains("hidden"), true);
+    assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, true);
+    eggs.setEggAnalysisLoading(false);
+    assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, false);
+    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
+  });
+
   it("HeaderComponent binds DOM and updates version & server status", () => {
     const root = createMockRoot();
     const header = new HeaderComponent(root);
@@ -288,8 +393,17 @@ describe("Modular UI Components", () => {
     });
     assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
     assert.strictEqual(chips.chipVerdict.classList.contains("active"), true);
-    assert.strictEqual(chips.sectionsBadge.textContent, "2/3");
-    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/3");
+    assert.strictEqual(chips.sectionsBadge.textContent, "3/4");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "3/4");
+
+    chips.chipKnowledge.click();
+    assert.equal(toggledKey, "generateKnowledgeEntries");
+    chips.reanalyzeChipKnowledge.click();
+    assert.equal(toggledKey, "generateKnowledgeEntries");
+    chips.updateUI({ titleVerdict: true, coreSummary: true, mindMap: false }, false);
+    assert.equal(chips.chipKnowledge.classList.contains("inactive"), true);
+    assert.equal(chips.reanalyzeChipKnowledge.classList.contains("inactive"), true);
+    assert.equal(chips.sectionsBadge.textContent, "2/4");
 
     // Test onSectionToggle fallback
     let fallbackResult = null;
@@ -425,7 +539,7 @@ describe("Modular UI Components", () => {
 
     actions.updateStage1ProceedBtn({ selectedCount: 2 });
     assert.strictEqual(actions.stage1ProceedBtn.disabled, false);
-    assert.ok(actions.stage1ProceedBtn.textContent);
+    assert.ok(actions.eggAnalysisLabel.textContent);
 
     actions.updateStage1ProceedBtn({ isProceeding: true, autoSave: true });
     assert.strictEqual(actions.stage1ProceedBtn.disabled, true);
@@ -490,17 +604,6 @@ describe("Modular UI Components", () => {
 
     eggs.toggleCaptureEggs();
     assert.strictEqual(eggs.captureEggsArea.classList.contains("hidden"), true);
-
-    eggs.setReanalyzeLoading(true, "Comparing");
-    assert.strictEqual(eggs.reanalyzeEggsBtn.disabled, true);
-    assert.strictEqual(eggs.reanalyzeEggsBtn.textContent, "Comparing");
-
-    eggs.setReanalyzeEggsRefreshLoading(true);
-    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.disabled, true);
-    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.classList.contains("rotating"), true);
-    eggs.setReanalyzeEggsRefreshLoading(false);
-    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.disabled, false);
-    assert.strictEqual(eggs.reanalyzeEggsRefreshBtn.classList.contains("rotating"), false);
 
     eggs.showError("Failed to match");
     assert.strictEqual(eggs.eggsErrorEl.textContent, "Failed to match");

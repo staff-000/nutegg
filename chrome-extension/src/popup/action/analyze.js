@@ -42,6 +42,26 @@ class AnalyzeAction {
     });
   }
 
+  async handleEggAnalysis(generateKnowledgeEntries) {
+    this.setGenerateKnowledgeEntries(generateKnowledgeEntries);
+    return this.handleReanalyzeEggs();
+  }
+
+  setGenerateKnowledgeEntries(enabled) {
+    this.session.generateKnowledgeEntries = enabled;
+    this.ui.sectionsUI?.updateUI?.(this.session.enabledSections || this.settings?.enabledSections, enabled);
+    this.ui.actionsUI?.updateEggAnalysisLabel?.(enabled);
+    const result = this.session.analysisResult;
+    if (result?.eggResults?.length || result?.eggAnalysisCache?.length) {
+      const cached = result.eggAnalysisCache || result.eggResults;
+      const selected = (result.eggResults || []).map(egg => cached.find(item => item.egg === egg.egg) || egg);
+      this.session.analysisResult = { ...result, ...globalThis.NutEggAI.composeEggResults(
+        this.session.stage1ContentAnalysis || result, selected, cached, enabled) };
+    }
+    this.persistNavigationState();
+    this.renderApp();
+  }
+
   setAnalysisMode(mode) {
     if (!this.settings) return;
     this.settings.setAnalysisMode(mode);
@@ -351,19 +371,19 @@ class AnalyzeAction {
   }
 
   async handleReanalyzeEggs() {
-    if (this.ui.eggsUI?.reanalyzeEggsBtn?.disabled) return;
-    if (this.ui.eggsUI?.reanalyzeEggsBtn) {
-      this.ui.eggsUI.reanalyzeEggsBtn.disabled = true;
+    if (this.ui.actionsUI?.stage1ProceedBtn?.disabled) return;
+    if (this.ui.actionsUI?.stage1ProceedBtn) {
+      this.ui.actionsUI.stage1ProceedBtn.disabled = true;
     }
     const pinnedTabId = this.session?.activeTabId;
     const pinnedEggs = Array.from(this.session?.selectedEggs || []);
     const capturedResults = this.session?.analysisResult?.eggAnalysisCache || this.session?.analysisResult?.eggResults || [];
-    const allCaptured = pinnedEggs.every(egg => capturedResults.some(result => result.egg === egg));
+    const allCaptured = pinnedEggs.every(egg => capturedResults.some(result => result.egg === egg && (this.session.generateKnowledgeEntries === false || result.generateKnowledgeEntries !== false || result.entryGenerationDisabledByEgg)));
 
     try {
       const hasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
       if (!hasContent && !allCaptured) {
-        this.ui.eggsUI?.setReanalyzeLoading?.(true, t("loadingContent"));
+        this.ui.actionsUI?.setEggAnalysisLoading?.(true, t("loadingContent"));
         this.ui.bannersUI?.hideMessages?.();
         this.ui.bannersUI?.hideWarning?.();
 
@@ -378,7 +398,7 @@ class AnalyzeAction {
 
         if (this.session?.activeTabId !== pinnedTabId) return;
 
-        this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
+        this.ui.actionsUI?.setEggAnalysisLoading?.(false);
 
         const nowHasContent = !!(this.session?.extractedContent && this.session.extractedContent.content);
         if (!nowHasContent) {
@@ -395,7 +415,7 @@ class AnalyzeAction {
         return;
       }
 
-      this.ui.eggsUI?.setReanalyzeLoading?.(true, `⏳ ${t("analyzing")}`);
+      this.ui.actionsUI?.setEggAnalysisLoading?.(true, `⏳ ${t("analyzing")}`);
       this.ui.eggsUI?.clearError?.();
       this.ui.eggsUI?.setKnowledgeVisible?.(false);
       this.ui.eggsUI?.setNoEggVisible?.(false);
@@ -427,9 +447,9 @@ class AnalyzeAction {
         if (cached) this.tabStateManager.set(pinnedTabId, { ...cached, isReanalyzing: false });
       }
       if (this.session?.activeTabId === pinnedTabId) {
-        this.ui.eggsUI?.setReanalyzeLoading?.(false, t("reanalyzeEggsBtn"));
-      } else if (this.ui.eggsUI?.reanalyzeEggsBtn) {
-        this.ui.eggsUI.reanalyzeEggsBtn.disabled = false;
+        this.ui.actionsUI?.setEggAnalysisLoading?.(false);
+      } else if (this.ui.actionsUI?.stage1ProceedBtn) {
+        this.ui.actionsUI.stage1ProceedBtn.disabled = false;
       }
     }
   }

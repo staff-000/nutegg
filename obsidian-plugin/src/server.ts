@@ -14,6 +14,7 @@ import type { EggAnalysis } from "../../shared/src/types";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
 
 interface AnalyzeRequest {
+  generateKnowledgeEntries?: boolean;
   /** Captured results reused when only newly selected eggs need analysis. */
   cachedEggResults?: EggAnalysis[];
   selectedEggs?: string[];
@@ -649,7 +650,7 @@ export class NutEggServer {
           for (const egg of result.eggResults) allResults.set(egg.egg, egg);
           result = composeEggResults(contentAnalysis,
             capture.selectedEggs.flatMap(egg => allResults.has(egg) ? [allResults.get(egg)!] : []),
-            [...allResults.values()]);
+            [...allResults.values()], capture.generateKnowledgeEntries !== false);
         }
         delete (result as any).stage;
 
