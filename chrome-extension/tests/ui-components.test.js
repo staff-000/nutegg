@@ -190,6 +190,24 @@ describe("Modular UI Components", () => {
     assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), true);
   });
 
+  it("CaptureViewComponent shows the caption route and clears it across refreshes and pages", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const labels = {
+      page_tracks: "Page tracks", watch_page: "Watch page", innertube: "Player API",
+      player_tracks: "Live player", transcript_panel: "Transcript panel",
+    };
+    for (const [source, label] of Object.entries(labels)) {
+      capture.render({ sourceType: "youtube", content: "Transcript", metadata: { caption_source: source } });
+      assert.strictEqual(capture.pageCaptionSourceEl.textContent, `Captions · ${label}`);
+      assert.strictEqual(capture.pageCaptionSourceEl.classList.contains("hidden"), false);
+    }
+    capture.setLoading();
+    assert.strictEqual(capture.pageCaptionSourceEl.textContent, "");
+    assert.strictEqual(capture.pageCaptionSourceEl.classList.contains("hidden"), true);
+    capture.render({ sourceType: "article", content: "Article", metadata: {} });
+    assert.strictEqual(capture.pageCaptionSourceEl.classList.contains("hidden"), true);
+  });
+
   it("CaptureViewComponent renders safe clickable timestamps in fetched content and restored previews", () => {
     const capture = new CaptureViewComponent(createMockRoot());
     const content = { title: "Video", sourceType: "bilibili", content: '[00:15] Intro\n01:02:03 Answer <img src=x onerror="bad()">' };

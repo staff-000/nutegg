@@ -21,8 +21,9 @@ async function extractYouTube() {
 
   // Captions / transcript via YouTube timedtext API
   let transcript = "";
+  const captionMetadata = {};
   try {
-    transcript = await fetchYouTubeCaptions();
+    transcript = await fetchYouTubeCaptions(captionMetadata);
   } catch {
     // Captions not available — that's fine
   }
@@ -62,6 +63,7 @@ async function extractYouTube() {
     transcriptAvailable: !!transcript,
     metadata: {
       platform: "YouTube",
+      ...captionMetadata,
       ...(meta.channelName && { channel: meta.channelName }),
       ...(meta.date && { published: meta.date }),
       ...(meta.videoId && { video_id: meta.videoId }),
@@ -236,15 +238,17 @@ async function queryPlayerCaptionTracks() {
  *
  * Five layers, in order:
  *   1. `captionTracks` scanned from the page's `<script>` tags & player response
- *   2. Live player tracks from `#movie_player` (including auto-generated ASR)
- *   3. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
- *   4. YouTube Innertube player API (`/youtubei/v1/player`)
+ *   2. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
+ *   3. YouTube Innertube player API (`/youtubei/v1/player`)
+ *   4. Live player tracks from `#movie_player` (including auto-generated ASR)
  *   5. The on-page transcript panel ("Show transcript" → segments)
  *
+ * Records the successful route in metadata.caption_source.
  * Every network layer has a timeout — a stalled request must never hang
  * extraction. Each layer logs its outcome for debugging.
  */
-async function fetchYouTubeCaptions() {
+async function fetchYouTubeCaptions(metadata = {}) {
+  delete metadata.caption_source;
   const videoId = new URL(window.location.href).searchParams.get("v");
   if (!videoId) return "";
 
@@ -259,6 +263,7 @@ async function fetchYouTubeCaptions() {
     const transcript = await fetchTimedtext(tracks);
     if (transcript) {
       console.log(`[NutEgg] Captions: page tracks in ${Date.now() - started}ms`);
+      metadata.caption_source = "page_tracks";
       return transcript;
     }
   }
@@ -283,6 +288,7 @@ async function fetchYouTubeCaptions() {
           const transcript = await fetchTimedtext(tracks);
           if (transcript) {
             console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
+            metadata.caption_source = "watch_page";
             return transcript;
           }
         }
@@ -302,6 +308,7 @@ async function fetchYouTubeCaptions() {
       const transcript = await fetchTimedtext(innertubeTracks);
       if (transcript) {
         console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
+        metadata.caption_source = "innertube";
         return transcript;
       }
     }
@@ -327,6 +334,7 @@ async function fetchYouTubeCaptions() {
       const transcript = await fetchTimedtext(playerTracks);
       if (transcript) {
         console.log(`[NutEgg] Captions: player tracks in ${Date.now() - started}ms`);
+        metadata.caption_source = "player_tracks";
         return transcript;
       }
     }
@@ -340,6 +348,7 @@ async function fetchYouTubeCaptions() {
       ? `[NutEgg] Captions: transcript panel in ${Date.now() - started}ms`
       : `[NutEgg] Captions: all layers failed in ${Date.now() - started}ms (player response parsed: ${pr !== null})`
   );
+  if (panel) metadata.caption_source = "transcript_panel";
   return panel;
 }
 

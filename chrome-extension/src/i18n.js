@@ -16,6 +16,12 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "captionSourceTag": "Captions · {source}",
+    "captionSourcePageTracks": "Page tracks",
+    "captionSourceWatchPage": "Watch page",
+    "captionSourcePlayerApi": "Player API",
+    "captionSourceLivePlayer": "Live player",
+    "captionSourceTranscriptPanel": "Transcript panel",
     "analyzingEggs": "Analyzing eggs…",
     "analyzingEggsCount": "Analyzing {count} egg(s)…",
     "readingFull": "Read/watch fully",
@@ -322,6 +328,12 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "captionSourceTag": "字幕 · {source}",
+    "captionSourcePageTracks": "页面字幕轨",
+    "captionSourceWatchPage": "视频页面",
+    "captionSourcePlayerApi": "播放器 API",
+    "captionSourceLivePlayer": "实时播放器",
+    "captionSourceTranscriptPanel": "字幕面板",
     "analyzingEggs": "分析 Egg 中…",
     "analyzingEggsCount": "正在分析 {count} 个 Egg…",
     "readingFull": "完整阅读／观看",
@@ -628,6 +640,12 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "captionSourceTag": "Subtítulos · {source}",
+    "captionSourcePageTracks": "Pistas de la página",
+    "captionSourceWatchPage": "Página del vídeo",
+    "captionSourcePlayerApi": "API del reproductor",
+    "captionSourceLivePlayer": "Reproductor activo",
+    "captionSourceTranscriptPanel": "Panel de transcripción",
     "analyzingEggs": "Analizando eggs…",
     "analyzingEggsCount": "Analizando {count} egg(s)…",
     "readingFull": "Leer/ver completo",
@@ -934,6 +952,12 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "captionSourceTag": "字幕 · {source}",
+    "captionSourcePageTracks": "ページの字幕トラック",
+    "captionSourceWatchPage": "動画ページ",
+    "captionSourcePlayerApi": "プレーヤー API",
+    "captionSourceLivePlayer": "再生中のプレーヤー",
+    "captionSourceTranscriptPanel": "文字起こしパネル",
     "analyzingEggs": "Egg を分析中…",
     "analyzingEggsCount": "{count} 個の Egg を分析中…",
     "readingFull": "全文を読む／全編を見る",
@@ -1240,6 +1264,12 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "captionSourceTag": "자막 · {source}",
+    "captionSourcePageTracks": "페이지 자막 트랙",
+    "captionSourceWatchPage": "동영상 페이지",
+    "captionSourcePlayerApi": "플레이어 API",
+    "captionSourceLivePlayer": "활성 플레이어",
+    "captionSourceTranscriptPanel": "스크립트 패널",
     "analyzingEggs": "Egg 분석 중…",
     "analyzingEggsCount": "Egg {count}개 분석 중…",
     "readingFull": "전체 읽기／시청",
@@ -1546,6 +1576,12 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "captionSourceTag": "الترجمة · {source}",
+    "captionSourcePageTracks": "مسارات الصفحة",
+    "captionSourceWatchPage": "صفحة الفيديو",
+    "captionSourcePlayerApi": "واجهة المشغل",
+    "captionSourceLivePlayer": "المشغل النشط",
+    "captionSourceTranscriptPanel": "لوحة النص",
     "analyzingEggs": "جارٍ تحليل eggs…",
     "analyzingEggsCount": "جارٍ تحليل {count} egg…",
     "readingFull": "اقرأ أو شاهد بالكامل",
@@ -1852,6 +1888,12 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "captionSourceTag": "Sous-titres · {source}",
+    "captionSourcePageTracks": "Pistes de la page",
+    "captionSourceWatchPage": "Page vidéo",
+    "captionSourcePlayerApi": "API du lecteur",
+    "captionSourceLivePlayer": "Lecteur actif",
+    "captionSourceTranscriptPanel": "Panneau de transcription",
     "analyzingEggs": "Analyse des eggs…",
     "analyzingEggsCount": "Analyse de {count} egg(s)…",
     "readingFull": "Lire/regarder en entier",
@@ -2158,6 +2200,12 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "captionSourceTag": "Untertitel · {source}",
+    "captionSourcePageTracks": "Seitenspuren",
+    "captionSourceWatchPage": "Videoseite",
+    "captionSourcePlayerApi": "Player-API",
+    "captionSourceLivePlayer": "Aktiver Player",
+    "captionSourceTranscriptPanel": "Transkriptbereich",
     "analyzingEggs": "Eggs werden analysiert…",
     "analyzingEggsCount": "{count} Egg(s) werden analysiert…",
     "readingFull": "Vollständig lesen/ansehen",
@@ -2464,6 +2512,12 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "captionSourceTag": "Legendas · {source}",
+    "captionSourcePageTracks": "Faixas da página",
+    "captionSourceWatchPage": "Página do vídeo",
+    "captionSourcePlayerApi": "API do player",
+    "captionSourceLivePlayer": "Player ativo",
+    "captionSourceTranscriptPanel": "Painel de transcrição",
     "analyzingEggs": "Analisando eggs…",
     "analyzingEggsCount": "Analisando {count} egg(s)…",
     "readingFull": "Ler/assistir por completo",
@@ -2770,6 +2824,12 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "captionSourceTag": "Субтитры · {source}",
+    "captionSourcePageTracks": "Дорожки страницы",
+    "captionSourceWatchPage": "Страница видео",
+    "captionSourcePlayerApi": "API плеера",
+    "captionSourceLivePlayer": "Активный плеер",
+    "captionSourceTranscriptPanel": "Панель транскрипта",
     "analyzingEggs": "Анализ eggs…",
     "analyzingEggsCount": "Анализ {count} egg…",
     "readingFull": "Прочитать/посмотреть полностью",

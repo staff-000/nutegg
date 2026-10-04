@@ -11,6 +11,7 @@ class CaptureViewComponent {
     this.pageAuthorEl = root.getElementById("page-author");
     this.pagePublishedEl = root.getElementById("page-published");
     this.pageWordCountEl = root.getElementById("page-word-count");
+    this.pageCaptionSourceEl = root.getElementById("page-caption-source");
     this.contentPreview = root.getElementById("content-preview");
     this.refreshBtn = root.getElementById("refresh-btn");
     this.questionsToggle = root.getElementById("questions-toggle");
@@ -89,6 +90,19 @@ class CaptureViewComponent {
   }
 
   showProvenance(metadata = {}, rawContent = "") {
+    if (this.pageCaptionSourceEl) {
+      const sourceKeys = {
+        page_tracks: "captionSourcePageTracks",
+        watch_page: "captionSourceWatchPage",
+        innertube: "captionSourcePlayerApi",
+        player_tracks: "captionSourceLivePlayer",
+        transcript_panel: "captionSourceTranscriptPanel",
+      };
+      const key = Object.hasOwn(sourceKeys, metadata.caption_source) ? sourceKeys[metadata.caption_source] : null;
+      this.pageCaptionSourceEl.textContent = key ? t("captionSourceTag", { source: t(key) }) : "";
+      if (key) this.pageCaptionSourceEl.classList.remove("hidden");
+      else this.pageCaptionSourceEl.classList.add("hidden");
+    }
     const author = metadata.author || metadata.channel || metadata.handle || "";
     if (this.pageAuthorEl) {
       this.pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
@@ -136,6 +150,10 @@ class CaptureViewComponent {
   }
 
   clearProvenance() {
+    if (this.pageCaptionSourceEl) {
+      this.pageCaptionSourceEl.textContent = "";
+      this.pageCaptionSourceEl.classList.add("hidden");
+    }
     if (this.pageAuthorEl) this.pageAuthorEl.textContent = "";
     if (this.pagePublishedEl) this.pagePublishedEl.textContent = "";
     if (this.pageWordCountEl) {
