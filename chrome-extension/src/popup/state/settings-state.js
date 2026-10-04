@@ -95,15 +95,18 @@ class SettingsState {
     }
   }
 
+  getToggledSections(key, sections = this.enabledSections) {
+    const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
+    if (keys.some(k => !(k in DEFAULT_ANALYSIS_SECTIONS))) return null;
+    const nextVal = !keys.every(k => sections[k] !== false);
+    const next = { ...sections, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
+    return Object.keys(DEFAULT_ANALYSIS_SECTIONS).some(k => next[k] !== false) ? next : null;
+  }
+
   async toggleSection(key, persist = true) {
-    if (!(key in DEFAULT_ANALYSIS_SECTIONS)) return false;
-    const currentVal = this.enabledSections[key] !== false;
-    const activeCount = Object.values(this.enabledSections).filter(Boolean).length;
-    // Don't allow disabling the last active section
-    if (currentVal && activeCount <= 1) {
-      return false;
-    }
-    this.enabledSections[key] = !currentVal;
+    const next = this.getToggledSections(key);
+    if (!next) return false;
+    this.enabledSections = next;
     if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
       await chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
     }

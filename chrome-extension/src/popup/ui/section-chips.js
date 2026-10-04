@@ -29,13 +29,11 @@ class SectionChipsComponent {
     this.reanalyzeSectionsBody = getEl("reanalyze-sections-body");
     this.reanalyzeSectionsBadge = getEl("reanalyze-sections-badge");
 
-    this.chipVerdict = getEl("chip-verdict");
-    this.chipSummary = getEl("chip-summary");
+    this.chipVerdictSummary = getEl("chip-verdict-summary");
     this.chipMindmap = getEl("chip-mindmap");
     this.chipKnowledge = getEl("chip-knowledge");
 
-    this.reanalyzeChipVerdict = getEl("reanalyze-chip-verdict");
-    this.reanalyzeChipSummary = getEl("reanalyze-chip-summary");
+    this.reanalyzeChipVerdictSummary = getEl("reanalyze-chip-verdict-summary");
     this.reanalyzeChipMindmap = getEl("reanalyze-chip-mindmap");
     this.reanalyzeChipKnowledge = getEl("reanalyze-chip-knowledge");
   }
@@ -65,16 +63,10 @@ class SectionChipsComponent {
       this.reanalyzeSectionsBadge = options.reanalyzeSectionsBadge;
     }
 
-    if (options.chipVerdict) this.chipVerdict = options.chipVerdict;
-    if (options.chipSummary) this.chipSummary = options.chipSummary;
+    if (options.chipVerdictSummary) this.chipVerdictSummary = options.chipVerdictSummary;
+    if (options.reanalyzeChipVerdictSummary) this.reanalyzeChipVerdictSummary = options.reanalyzeChipVerdictSummary;
     if (options.chipMindmap) this.chipMindmap = options.chipMindmap;
 
-    if (options.chipReVerdict || options.reanalyzeChipVerdict) {
-      this.reanalyzeChipVerdict = options.chipReVerdict || options.reanalyzeChipVerdict;
-    }
-    if (options.chipReSummary || options.reanalyzeChipSummary) {
-      this.reanalyzeChipSummary = options.chipReSummary || options.reanalyzeChipSummary;
-    }
     if (options.chipReMindmap || options.reanalyzeChipMindmap) {
       this.reanalyzeChipMindmap = options.chipReMindmap || options.reanalyzeChipMindmap;
     }
@@ -100,12 +92,10 @@ class SectionChipsComponent {
     }
 
     const allChips = [
-      { el: this.chipVerdict, key: "titleVerdict" },
-      { el: this.chipSummary, key: "coreSummary" },
+      { el: this.chipVerdictSummary, key: "verdictSummary" },
       { el: this.chipMindmap, key: "mindMap" },
       { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
-      { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
-      { el: this.reanalyzeChipSummary, key: "coreSummary" },
+      { el: this.reanalyzeChipVerdictSummary, key: "verdictSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
       { el: this.reanalyzeChipKnowledge, key: "generateKnowledgeEntries" },
     ];
@@ -122,7 +112,8 @@ class SectionChipsComponent {
           const current = this.enabledSections || {};
           const currentVal = current[key] !== false;
           const nextVal = !currentVal;
-          const newSections = { ...current, [key]: nextVal };
+          const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
+          const newSections = { ...current, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
           await options.onSectionToggle(key, nextVal, newSections);
         }
       };
@@ -131,19 +122,17 @@ class SectionChipsComponent {
   }
 
   updateUI(enabledSections = {}, generateKnowledgeEntries = true) {
-    enabledSections = { ...enabledSections, generateKnowledgeEntries };
+    enabledSections = { ...enabledSections, generateKnowledgeEntries, verdictSummary: enabledSections.titleVerdict !== false && enabledSections.coreSummary !== false };
     this.enabledSections = enabledSections;
-    if (!this.chipVerdict && (this.root || typeof document !== "undefined")) {
+    if (!this.chipVerdictSummary && (this.root || typeof document !== "undefined")) {
       this.bindElements(this.root || document);
     }
 
     const map = [
-      { el: this.chipVerdict, key: "titleVerdict" },
-      { el: this.chipSummary, key: "coreSummary" },
+      { el: this.chipVerdictSummary, key: "verdictSummary" },
       { el: this.chipMindmap, key: "mindMap" },
       { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
-      { el: this.reanalyzeChipVerdict, key: "titleVerdict" },
-      { el: this.reanalyzeChipSummary, key: "coreSummary" },
+      { el: this.reanalyzeChipVerdictSummary, key: "verdictSummary" },
       { el: this.reanalyzeChipMindmap, key: "mindMap" },
       { el: this.reanalyzeChipKnowledge, key: "generateKnowledgeEntries" },
     ];
@@ -162,10 +151,9 @@ class SectionChipsComponent {
     });
 
     const hasKnowledgeChip = Boolean(this.chipKnowledge || this.reanalyzeChipKnowledge);
-    const total = hasKnowledgeChip ? 4 : 3;
+    const total = hasKnowledgeChip ? 3 : 2;
     const activeCount = [
-      enabledSections.titleVerdict !== false,
-      enabledSections.coreSummary !== false,
+      enabledSections.verdictSummary,
       enabledSections.mindMap !== false,
       ...(hasKnowledgeChip ? [generateKnowledgeEntries] : []),
     ].filter(Boolean).length;

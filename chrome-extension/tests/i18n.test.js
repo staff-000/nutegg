@@ -53,6 +53,7 @@ describe("Chrome Extension i18n", () => {
     const requiredKeys = [
       "hatchEgg",
       "hatchEggSelectEgg",
+      "chipVerdictSummary", "toggleVerdictSummaryTooltip",
       "activityRunningCount", "activityUnreadCount", "activityUnread", "activityRunning", "activityUntitled",
       "collectNutOnly",
       "collectNut",

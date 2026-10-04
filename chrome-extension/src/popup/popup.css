@@ -783,7 +783,7 @@ body {
   display: none;
 }
 
-/* 2x2 Grid Layout for Section Selector */
+/* Combined verdict/summary above mind map and knowledge. */
 .sections-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2218,3 +2218,5 @@ body {
 .activity-group-title { padding: 5px 8px; font-size: 11px; font-weight: 600; color: #6b7280; }
 .analysis-activity-list button { display: block; width: 100%; text-align: left; border: 0; border-radius: 5px; padding: 8px; font-size: 12px; background: transparent; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .analysis-activity-list button:hover { background: #fff3e6; }
+
+.section-chip[data-section="verdictSummary"] { grid-column: 1 / -1; }

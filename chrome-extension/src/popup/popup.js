@@ -303,13 +303,12 @@ async function initPopup() {
     if (!session.enabledSections) {
       session.enabledSections = { ...(settings.enabledSections || globalThis.NutEggState?.DEFAULT_ANALYSIS_SECTIONS || {}) };
     }
-    const currentVal = session.enabledSections[key] !== false;
-    const activeCount = Object.keys(settings.DEFAULT_ANALYSIS_SECTIONS).filter(key => session.enabledSections[key] !== false).length;
-    if (currentVal && activeCount <= 1) {
+    const next = settings.getToggledSections(key, session.enabledSections);
+    if (!next) {
       bannersUI.showWarning(t("atLeastOneSection"));
       return false;
     }
-    session.enabledSections[key] = !currentVal;
+    session.enabledSections = next;
     settings.setEnabledSections(session.enabledSections, true);
     if (session.activeTabId) {
       tabStateManager.saveActiveTabState(session.activeTabId, {
@@ -324,11 +323,9 @@ async function initPopup() {
   };
 
   sectionsUI.init({
-    chipVerdict: document.getElementById("chip-verdict"),
-    chipSummary: document.getElementById("chip-summary"),
+    chipVerdictSummary: document.getElementById("chip-verdict-summary"),
     chipMindmap: document.getElementById("chip-mindmap"),
-    chipReVerdict: document.getElementById("reanalyze-chip-verdict"),
-    chipReSummary: document.getElementById("reanalyze-chip-summary"),
+    reanalyzeChipVerdictSummary: document.getElementById("reanalyze-chip-verdict-summary"),
     chipReMindmap: document.getElementById("reanalyze-chip-mindmap"),
     reanalyzeAccordion: document.getElementById("reanalyze-sections-accordion"),
     reanalyzeToggleBtn: document.getElementById("reanalyze-sections-toggle"),

@@ -42,6 +42,19 @@ function setupMockStorage(initial = {}) {
 }
 
 describe("SettingsState", () => {
+  it("toggles Verdict and Summary together while retaining a Stage 1 section", async () => {
+    setupMockStorage();
+    const settings = new SettingsState();
+    assert.equal(await settings.toggleSection("verdictSummary"), true);
+    assert.equal(settings.enabledSections.titleVerdict, false);
+    assert.equal(settings.enabledSections.coreSummary, false);
+    assert.equal(await settings.toggleSection("mindMap"), false);
+    assert.equal(await settings.toggleSection("verdictSummary"), true);
+    assert.equal(settings.enabledSections.titleVerdict, true);
+    assert.equal(settings.enabledSections.coreSummary, true);
+    assert.equal(await settings.toggleSection("mindMap"), true);
+    assert.equal(await settings.toggleSection("verdictSummary"), false);
+  });
   it("persists the last Knowledge choice as the default after reopening", async () => {
     const store = setupMockStorage();
     const settings = new SettingsState();
@@ -289,4 +302,18 @@ describe("SessionState", () => {
     assert.equal(session.isStage1({ stage: "stage1" }), true);
     assert.equal(session.isStage1({ stage: "done" }), false);
   });
+});
+
+it("Settings page saves the combined Verdict and Summary checkbox as both output flags", async () => {
+  const source = require("node:fs").readFileSync(require.resolve("../src/options/options.js"), "utf8");
+  const code = source.slice(source.indexOf("function initSectionsSettings("), source.indexOf("function showSectionStatus("));
+  const checkbox = () => ({ checked: true, handlers: {}, addEventListener(event, handler) { this.handlers[event] = handler; } });
+  const combined = checkbox(), mindmap = checkbox(), save = checkbox();
+  let stored;
+  const init = new Function("DEFAULT_SECTIONS", "sectionVerdictSummary", "sectionMindmap", "sectionsSaveBtn", "chrome", "showSectionStatus", "t", "setTimeout", "sectionsStatus", code + "\nreturn initSectionsSettings;")(
+    DEFAULT_ANALYSIS_SECTIONS, combined, mindmap, save, { storage: { local: { set: async data => { stored = data; } } } }, () => {}, key => key, () => {}, null);
+  init({ titleVerdict: true, coreSummary: true, mindMap: true });
+  combined.checked = false;
+  await save.handlers.click();
+  assert.deepEqual(stored.enabledSections, { titleVerdict: false, coreSummary: false, mindMap: true });
 });

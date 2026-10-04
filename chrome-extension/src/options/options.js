@@ -41,8 +41,7 @@ const aiPromptTextarea = document.getElementById("ai-prompt-textarea");
 const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
 
 // Content Analysis sections elements
-const sectionVerdict = document.getElementById("section-verdict");
-const sectionSummary = document.getElementById("section-summary");
+const sectionVerdictSummary = document.getElementById("section-verdict-summary");
 const sectionMindmap = document.getElementById("section-mindmap");
 const sectionsSaveBtn = document.getElementById("sections-save-btn");
 const sectionsStatus = document.getElementById("sections-status");
@@ -527,13 +526,11 @@ function showResult(msg, type) {
 
 function initSectionsSettings(savedSections) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
-  if (sectionVerdict) sectionVerdict.checked = sections.titleVerdict !== false;
-  if (sectionSummary) sectionSummary.checked = sections.coreSummary !== false;
+  if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
 
   const checkboxes = [
-    sectionVerdict,
-    sectionSummary,
+    sectionVerdictSummary,
     sectionMindmap,
   ].filter(Boolean);
 
@@ -559,8 +556,8 @@ function initSectionsSettings(savedSections) {
       return;
     }
     const newConfig = {
-      titleVerdict: sectionVerdict ? sectionVerdict.checked : true,
-      coreSummary: sectionSummary ? sectionSummary.checked : true,
+      titleVerdict: sectionVerdictSummary ? sectionVerdictSummary.checked : true,
+      coreSummary: sectionVerdictSummary ? sectionVerdictSummary.checked : true,
       mindMap: sectionMindmap ? sectionMindmap.checked : true,
     };
     await chrome.storage.local.set({ enabledSections: newConfig });

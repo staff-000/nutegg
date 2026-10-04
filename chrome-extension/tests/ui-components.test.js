@@ -339,11 +339,10 @@ describe("Modular UI Components", () => {
     const root = createMockRoot();
     const chips = new SectionChipsComponent(root);
 
-    assert.ok(chips.chipVerdict);
-    assert.ok(chips.chipSummary);
+    assert.ok(chips.chipVerdictSummary);
     assert.ok(chips.chipMindmap);
     assert.ok(chips.chipMindmap);
-    assert.ok(chips.reanalyzeChipVerdict);
+    assert.ok(chips.reanalyzeChipVerdictSummary);
     assert.ok(chips.sectionsToggle);
 
     let toggledKey = null;
@@ -376,8 +375,8 @@ describe("Modular UI Components", () => {
     assert.strictEqual(chips.reanalyzeSectionsAccordion.classList.contains("hidden"), false);
 
     // Test chip click
-    chips.chipVerdict.click();
-    assert.strictEqual(toggledKey, "titleVerdict");
+    chips.chipVerdictSummary.click();
+    assert.strictEqual(toggledKey, "verdictSummary");
 
     chips.chipMindmap.click();
     assert.strictEqual(toggledKey, "mindMap");
@@ -392,9 +391,9 @@ describe("Modular UI Components", () => {
       mindMap: false,
     });
     assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
-    assert.strictEqual(chips.chipVerdict.classList.contains("active"), true);
-    assert.strictEqual(chips.sectionsBadge.textContent, "3/4");
-    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "3/4");
+    assert.strictEqual(chips.chipVerdictSummary.classList.contains("active"), true);
+    assert.strictEqual(chips.sectionsBadge.textContent, "2/3");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/3");
 
     chips.chipKnowledge.click();
     assert.equal(toggledKey, "generateKnowledgeEntries");
@@ -403,7 +402,7 @@ describe("Modular UI Components", () => {
     chips.updateUI({ titleVerdict: true, coreSummary: true, mindMap: false }, false);
     assert.equal(chips.chipKnowledge.classList.contains("inactive"), true);
     assert.equal(chips.reanalyzeChipKnowledge.classList.contains("inactive"), true);
-    assert.equal(chips.sectionsBadge.textContent, "2/4");
+    assert.equal(chips.sectionsBadge.textContent, "1/3");
 
     // Test onSectionToggle fallback
     let fallbackResult = null;
@@ -412,10 +411,11 @@ describe("Modular UI Components", () => {
         fallbackResult = { key, nextVal, newSections };
       },
     });
-    chips.chipSummary.click();
-    assert.strictEqual(fallbackResult.key, "coreSummary");
+    chips.chipVerdictSummary.click();
+    assert.strictEqual(fallbackResult.key, "verdictSummary");
     assert.strictEqual(fallbackResult.nextVal, false);
     assert.strictEqual(fallbackResult.newSections.coreSummary, false);
+    assert.strictEqual(fallbackResult.newSections.titleVerdict, false);
   });
 
   it("VerdictComponent renders decision verdicts and title verdict", () => {
