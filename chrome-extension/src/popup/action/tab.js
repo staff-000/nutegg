@@ -15,6 +15,7 @@ class TabAction {
     this.showCaptureState = deps.showCaptureState || (() => {});
     this.showResultsState = deps.showResultsState || (() => {});
     this.eggListRevision = 0;
+    this.activationTasks = new Map();
   }
 
   getActiveTabSnapshot() {
@@ -510,7 +511,33 @@ class TabAction {
     }
   }
 
-  async handleTabActivated({ tabId }) {
+  async openAnalysisActivity(tabId) {
+    const activity = this.tabStateManager.activity.get(tabId);
+    if (!activity) return;
+    try {
+      await chrome.tabs.get(tabId);
+      await chrome.tabs.update(tabId, { active: true });
+    } catch {
+      this.tabStateManager.invalidateTab(tabId);
+      return;
+    }
+    if (!this.tabStateManager.isActivityCurrent(activity)) return;
+    await this.handleTabActivated({ tabId });
+    if (this.session.activeTabId !== tabId) return;
+    const current = this.tabStateManager.activity.get(tabId);
+    if (current && !current.running && this.session.analysisResult) {
+      this.getAnalyzeAction()?.handleViewAnalysis?.();
+    }
+  }
+
+  handleTabActivated(info) {
+    if (this.activationTasks.has(info.tabId)) return this.activationTasks.get(info.tabId);
+    const task = this.restoreActivatedTab(info).finally(() => this.activationTasks.delete(info.tabId));
+    this.activationTasks.set(info.tabId, task);
+    return task;
+  }
+
+  async restoreActivatedTab({ tabId }) {
     const snapshot = this.getActiveTabSnapshot();
     const { targetState } = this.tabStateManager.switchActiveTab(tabId, snapshot);
     this.session.activeTabId = tabId;
@@ -561,6 +588,8 @@ class TabAction {
   }
 
   async handleTabUpdated(tabId, changeInfo) {
+    // Invalidate before awaiting Chrome so a late response cannot revive the old page.
+    if (changeInfo.url) this.tabStateManager.invalidateTab(tabId);
     let isActiveTab = false;
     let activeUrl = null;
     try {
@@ -573,7 +602,7 @@ class TabAction {
     const cached = this.tabStateManager.get(tabId);
 
     if ((newUrl && cached?.url && newUrl !== cached.url) || changeInfo.url) {
-      this.tabStateManager.invalidateTab(tabId);
+      if (!changeInfo.url) this.tabStateManager.invalidateTab(tabId);
       if (isActiveTab) {
         await this.refreshForCurrentTab();
         return;

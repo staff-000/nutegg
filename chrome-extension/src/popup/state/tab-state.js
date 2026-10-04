@@ -10,6 +10,9 @@ class TabStateManager {
   constructor() {
     /** @type {Map<number, any>} Per-tab cache of extraction/analysis results. */
     this.cache = new Map();
+    this.activity = new Map();
+    this.activityListeners = new Set();
+    this.activityRevision = 0;
     /** @type {Map<number, number>} Per-tab extraction sequence numbers. */
     this.extractSeq = new Map();
     /** @type {Set<number>} Tab IDs currently executing an extraction. */
@@ -18,6 +21,49 @@ class TabStateManager {
     this.activeTabId = null;
     /** @type {boolean} True when the current active tab is loading. */
     this.currentTabLoading = false;
+  }
+
+  subscribeActivity(listener) {
+    this.activityListeners.add(listener);
+    return () => this.activityListeners.delete(listener);
+  }
+
+  notifyActivity() {
+    for (const listener of this.activityListeners) listener();
+  }
+
+  beginAnalysis(tabId, metadata = {}) {
+    const token = { tabId, revision: ++this.activityRevision };
+    this.activity.set(tabId, { ...metadata, ...token, running: true, startedAt: Date.now(), viewedRevision: 0 });
+    this.notifyActivity();
+    return token;
+  }
+
+  isActivityCurrent(token) {
+    return !!token && this.activity.get(token.tabId)?.revision === token.revision;
+  }
+
+  finishAnalysis(token, success = true) {
+    if (!this.isActivityCurrent(token)) return;
+    if (!success) Object.assign(this.activity.get(token.tabId), { running: false, viewedRevision: token.revision });
+    else Object.assign(this.activity.get(token.tabId), { running: false, completedAt: Date.now() });
+    this.notifyActivity();
+  }
+
+  markAnalysisViewed(tabId) {
+    const entry = this.activity.get(tabId);
+    if (!entry || entry.running || entry.viewedRevision === entry.revision) return;
+    entry.viewedRevision = entry.revision;
+    this.notifyActivity();
+  }
+
+  markVisibleAnalysis(tabId, { result, visible, viewingContent }) {
+    if (!visible || viewingContent || !result || this.get(tabId)?.analysisResult !== result) return;
+    this.markAnalysisViewed(tabId);
+  }
+
+  getAnalysisActivity() {
+    return [...this.activity.values()].filter(entry => entry.running || entry.viewedRevision !== entry.revision);
   }
 
   // --- Map-compatible interface for backward compatibility ---
@@ -42,6 +88,8 @@ class TabStateManager {
 
   clear() {
     this.cache.clear();
+    this.activity.clear();
+    this.notifyActivity();
     this.extractSeq.clear();
     this.extracting.clear();
     this.activeTabId = null;
@@ -273,6 +321,8 @@ class TabStateManager {
   invalidateTab(tabId) {
     if (!tabId) return;
     this.cache.delete(tabId);
+    this.activity.delete(tabId);
+    this.notifyActivity();
     this.extractSeq.delete(tabId);
     this.extracting.delete(tabId);
   }

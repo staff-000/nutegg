@@ -15,6 +15,7 @@ const pageExtractor = new (globalThis.NutEggServices?.PageExtractor || (typeof P
 const analysisService = new (globalThis.NutEggServices?.AnalysisService || (typeof AnalysisService !== "undefined" ? AnalysisService : class {}))();
 
 // --- UI Components ---
+const activityUI = new globalThis.NutEggUI.AnalysisActivityComponent();
 const headerUI = new (globalThis.NutEggUI?.HeaderComponent || (typeof HeaderComponent !== "undefined" ? HeaderComponent : class {}))();
 const bannersUI = new (globalThis.NutEggUI?.BannersComponent || (typeof BannersComponent !== "undefined" ? BannersComponent : class {}))();
 const captureUI = new (globalThis.NutEggUI?.CaptureViewComponent || (typeof CaptureViewComponent !== "undefined" ? CaptureViewComponent : class {}))();
@@ -129,6 +130,14 @@ const interactionAction = new InteractionActionClass({
 // UI Render Coordinator
 // ============================================================
 
+function markVisibleAnalysisRead() {
+  tabStateManager.markVisibleAnalysis(session.activeTabId, {
+    result: session.analysisResult,
+    visible: document.visibilityState === "visible",
+    viewingContent: session.viewingContent,
+  });
+}
+
 function renderApp(sessionState = session, settingsState = settings) {
   sectionsUI.updateUI(sessionState.enabledSections || settingsState.enabledSections, sessionState.generateKnowledgeEntries !== false);
   actionsUI.toggleEggAnalysisMenu(false);
@@ -139,6 +148,7 @@ function renderApp(sessionState = session, settingsState = settings) {
   verdictUI.render(sessionState, settingsState);
   actionsUI.render(sessionState, settingsState);
   eggsUI.render(sessionState, settingsState);
+  markVisibleAnalysisRead();
 }
 
 function showResultsState(result, provenance = null) {
@@ -512,11 +522,24 @@ async function initPopup() {
     }
   });
 
+  activityUI.init({ manager: tabStateManager,
+    onChange: markVisibleAnalysisRead,
+    onSelect: tabId => tabAction.openAnalysisActivity(tabId),
+  }).catch(() => {});
+
   // Tab Events
-  chrome.tabs?.onActivated?.addListener((info) => tabAction.handleTabActivated(info));
-  document.addEventListener("visibilitychange", () => tabAction.handleVisibilityChange());
+  chrome.tabs?.onActivated?.addListener((info) => {
+    if (activityUI.windowId != null && info.windowId !== activityUI.windowId) return;
+    tabAction.handleTabActivated(info);
+  });
+  document.addEventListener("visibilitychange", async () => {
+    await tabAction.handleVisibilityChange();
+    markVisibleAnalysisRead();
+  });
   chrome.tabs?.onUpdated?.addListener((tabId, changeInfo) => tabAction.handleTabUpdated(tabId, changeInfo));
   chrome.tabs?.onRemoved?.addListener((tabId) => tabAction.handleTabRemoved(tabId));
+  chrome.tabs?.onAttached?.addListener(() => activityUI.refresh());
+  chrome.tabs?.onDetached?.addListener(() => activityUI.refresh());
 
   // Controls are now wired; keep the frame visible during server checks/extraction.
   globalThis.NutEggStartup?.finish();

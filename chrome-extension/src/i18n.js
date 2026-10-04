@@ -16,6 +16,11 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "activityRunningCount": "{count} running",
+    "activityUnreadCount": "{count} unread",
+    "activityUnread": "Completed, unread",
+    "activityRunning": "Running",
+    "activityUntitled": "Untitled tab",
     "knowledgePanel": "Knowledge",
     "eggAnalysis": "🥚 Egg Analysis",
     "eggAnalysisOnly": "🥚 Analysis only",
@@ -336,6 +341,11 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "activityRunningCount": "{count} 个运行中",
+    "activityUnreadCount": "{count} 个未读",
+    "activityUnread": "已完成，未读",
+    "activityRunning": "运行中",
+    "activityUntitled": "无标题标签页",
     "knowledgePanel": "知识",
     "eggAnalysis": "🥚 Egg 分析",
     "eggAnalysisOnly": "🥚 仅分析",
@@ -656,6 +666,11 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "activityRunningCount": "{count} en curso",
+    "activityUnreadCount": "{count} sin leer",
+    "activityUnread": "Completados, sin leer",
+    "activityRunning": "En curso",
+    "activityUntitled": "Pestaña sin título",
     "knowledgePanel": "Conocimiento",
     "eggAnalysis": "🥚 Análisis de Egg",
     "eggAnalysisOnly": "🥚 Solo análisis",
@@ -976,6 +991,11 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "activityRunningCount": "{count}件実行中",
+    "activityUnreadCount": "{count}件未読",
+    "activityUnread": "完了・未読",
+    "activityRunning": "実行中",
+    "activityUntitled": "無題のタブ",
     "knowledgePanel": "知識",
     "eggAnalysis": "🥚 Egg 分析",
     "eggAnalysisOnly": "🥚 分析のみ",
@@ -1296,6 +1316,11 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "activityRunningCount": "{count}개 실행 중",
+    "activityUnreadCount": "{count}개 읽지 않음",
+    "activityUnread": "완료, 읽지 않음",
+    "activityRunning": "실행 중",
+    "activityUntitled": "제목 없는 탭",
     "knowledgePanel": "지식",
     "eggAnalysis": "🥚 Egg 분석",
     "eggAnalysisOnly": "🥚 분석만",
@@ -1616,6 +1641,11 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "activityRunningCount": "{count} قيد التشغيل",
+    "activityUnreadCount": "{count} غير مقروء",
+    "activityUnread": "مكتمل، غير مقروء",
+    "activityRunning": "قيد التشغيل",
+    "activityUntitled": "علامة تبويب بلا عنوان",
     "knowledgePanel": "المعرفة",
     "eggAnalysis": "🥚 تحليل Egg",
     "eggAnalysisOnly": "🥚 تحليل فقط",
@@ -1936,6 +1966,11 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "activityRunningCount": "{count} en cours",
+    "activityUnreadCount": "{count} non lus",
+    "activityUnread": "Terminés, non lus",
+    "activityRunning": "En cours",
+    "activityUntitled": "Onglet sans titre",
     "knowledgePanel": "Connaissances",
     "eggAnalysis": "🥚 Analyse Egg",
     "eggAnalysisOnly": "🥚 Analyse seule",
@@ -2256,6 +2291,11 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "activityRunningCount": "{count} laufen",
+    "activityUnreadCount": "{count} ungelesen",
+    "activityUnread": "Abgeschlossen, ungelesen",
+    "activityRunning": "Läuft",
+    "activityUntitled": "Tab ohne Titel",
     "knowledgePanel": "Wissen",
     "eggAnalysis": "🥚 Egg-Analyse",
     "eggAnalysisOnly": "🥚 Nur Analyse",
@@ -2576,6 +2616,11 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "activityRunningCount": "{count} em execução",
+    "activityUnreadCount": "{count} não lidos",
+    "activityUnread": "Concluídos, não lidos",
+    "activityRunning": "Em execução",
+    "activityUntitled": "Aba sem título",
     "knowledgePanel": "Conhecimento",
     "eggAnalysis": "🥚 Análise de Egg",
     "eggAnalysisOnly": "🥚 Somente análise",
@@ -2896,6 +2941,11 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "activityRunningCount": "{count} выполняются",
+    "activityUnreadCount": "{count} не прочитаны",
+    "activityUnread": "Завершены, не прочитаны",
+    "activityRunning": "Выполняются",
+    "activityUntitled": "Вкладка без названия",
     "knowledgePanel": "Знания",
     "eggAnalysis": "🥚 Анализ Egg",
     "eggAnalysisOnly": "🥚 Только анализ",

@@ -102,6 +102,8 @@ class AnalysisService {
       if (callbacks.onStart) callbacks.onStart({ isReanalyze });
     }
 
+    const activityToken = tabStateManager?.beginAnalysis?.(targetPinnedId, { title: contentToAnalyze.title, url: contentToAnalyze.url });
+    const isCurrent = () => !activityToken || tabStateManager.isActivityCurrent(activityToken);
     try {
       const questions = callbacks.getQuestions ? callbacks.getQuestions() : [];
       const questionsScope = callbacks.getQuestionsScope ? callbacks.getQuestionsScope() : "within";
@@ -154,8 +156,10 @@ class AnalysisService {
       }
 
       const response = await this.sendAnalyzeViaPort(payload);
+      if (!isCurrent()) return { stale: true };
 
       if (response?.error) {
+        tabStateManager?.finishAnalysis?.(activityToken, false);
         if (tabStateManager) {
           tabStateManager.setError(targetPinnedId, response.error, response.errorCode);
         }
@@ -236,10 +240,12 @@ class AnalysisService {
             contentAnalysis: response,
             basePayload: payload,
             contentForProvenance: contentToAnalyze,
+            activityToken,
             callbacks,
           });
         }
 
+        if (!eggsForStage2.length) tabStateManager?.finishAnalysis?.(activityToken);
         return { success: true, result: response, stage: "stage2" };
       }
 
@@ -273,6 +279,7 @@ class AnalysisService {
           }
         : null;
 
+      if (!isCurrent()) return { stale: true };
       const cachedBefore = tabStateManager ? (tabStateManager.get(targetPinnedId) || {}) : {};
       const priorHistory = isPinnedActive() ? session.captureHistory : (cachedBefore.captureHistory || []);
       const updatedHistory = freshHistory || (stage1Entry ? [stage1Entry, ...priorHistory] : priorHistory);
@@ -291,6 +298,7 @@ class AnalysisService {
         });
       }
 
+      tabStateManager?.finishAnalysis?.(activityToken);
       if (isPinnedActive()) {
         session.stage1Payload = { ...payload, nutId: stage1NutId };
         session.stage1ContentAnalysis = response;
@@ -312,6 +320,8 @@ class AnalysisService {
 
       return { success: true, result: response, stage: "stage1" };
     } catch (err) {
+      if (!isCurrent()) return { stale: true };
+      tabStateManager?.finishAnalysis?.(activityToken, false);
       const message = err instanceof Error ? err.message : "Analysis failed";
       if (tabStateManager) {
         tabStateManager.setError(targetPinnedId, message);
@@ -321,7 +331,7 @@ class AnalysisService {
       }
       return { error: message };
     } finally {
-      if (isPinnedActive()) {
+      if (isCurrent() && isPinnedActive()) {
         session.isReanalyzing = false;
         if (callbacks.onFinally) callbacks.onFinally();
       }
@@ -342,6 +352,7 @@ class AnalysisService {
     basePayload = null,
     contentForProvenance = null,
     callbacks = {},
+    activityToken = null,
   }) {
     // Analysis never saves eggs; Hatch is an explicit user action.
     const autoSave = false;
@@ -361,6 +372,9 @@ class AnalysisService {
       callbacks.onProceedStart({ autoSave });
     }
 
+    let trackedToken = activityToken;
+    const isCurrent = () => !trackedToken || tabStateManager.isActivityCurrent(trackedToken);
+    if (!isCurrent()) return { stale: true };
     try {
       const cached = tabStateManager ? tabStateManager.get(targetPinnedId) : null;
       const base = basePayload || session.stage1Payload || cached?.stage1Payload;
@@ -419,11 +433,14 @@ class AnalysisService {
 
       let response;
       if (pendingEggs.length) {
+        trackedToken ||= tabStateManager?.beginAnalysis?.(targetPinnedId, { title, url });
         response = await this.sendAnalyzeViaPort(payload);
+        if (!isCurrent()) return { stale: true };
       } else {
         response = { ...priorResult, nutId: payload.nutId, eggResults: [] };
       }
       if (response?.error) {
+        tabStateManager?.finishAnalysis?.(trackedToken, false);
         if (tabStateManager) {
           tabStateManager.setError(targetPinnedId, response.error, response.errorCode);
         }
@@ -449,6 +466,7 @@ class AnalysisService {
         freshHistory = await this.loadHistory(payload.url);
       }
 
+      if (!isCurrent()) return { stale: true };
       const newHistoryEntry = newNutId && pendingEggs.length
         ? {
             nutId: newNutId,
@@ -485,6 +503,8 @@ class AnalysisService {
         });
       }
 
+      if (trackedToken) tabStateManager?.finishAnalysis?.(trackedToken);
+
       // Update active session ONLY if user is currently looking at this tab
       if (isPinnedActive()) {
         session.analysisResult = response;
@@ -508,6 +528,8 @@ class AnalysisService {
 
       return { success: true, result: response };
     } catch (err) {
+      if (!isCurrent()) return { stale: true };
+      tabStateManager?.finishAnalysis?.(trackedToken, false);
       const errorMsg = err instanceof Error ? err.message : "Hatching failed";
       if (tabStateManager) {
         tabStateManager.setError(targetPinnedId, errorMsg);
