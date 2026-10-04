@@ -79,7 +79,7 @@ class CaptureViewComponent {
       if (this.contentPreview) this.contentPreview.textContent = t("retrievingPageContent");
       this.clearAuthorAndPublished();
     } else {
-      if (this.contentPreview) this.contentPreview.textContent = content?.content || options.previewPlaceholder || t("noContentExtracted");
+      this.setPreviewText(content?.content || options.previewPlaceholder || t("noContentExtracted"));
       this.showProvenance(content?.metadata || {}, content?.content);
     }
 
@@ -122,9 +122,17 @@ class CaptureViewComponent {
   }
 
   setPreviewText(text) {
-    if (this.contentPreview) {
-      this.contentPreview.textContent = text;
+    if (!this.contentPreview) return;
+    const helpers = globalThis.NutEggHelpers;
+    if (helpers?.escapeHtml && helpers?.linkifyTimestamps) {
+      const escaped = helpers.escapeHtml(String(text ?? ""));
+      const html = helpers.linkifyTimestamps(escaped);
+      if (html !== escaped) {
+        this.contentPreview.innerHTML = html;
+        return;
+      }
     }
+    this.contentPreview.textContent = text;
   }
 
   clearProvenance() {

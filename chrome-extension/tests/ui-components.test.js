@@ -191,6 +191,28 @@ describe("Modular UI Components", () => {
     assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), true);
   });
 
+  it("CaptureViewComponent renders safe clickable timestamps in fetched content and restored previews", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const content = { title: "Video", sourceType: "bilibili", content: '[00:15] Intro\n01:02:03 Answer <img src=x onerror="bad()">' };
+    const original = content.content;
+    capture.render(content);
+    assert.ok(capture.contentPreview.innerHTML.includes('data-time="00:15"'));
+    assert.ok(capture.contentPreview.innerHTML.includes('data-time="01:02:03"'));
+    assert.ok(capture.contentPreview.innerHTML.includes("&lt;img"));
+    assert.ok(!capture.contentPreview.innerHTML.includes("<img"));
+    assert.equal(content.content, original);
+    capture.setPreviewText("[12:34] Restored transcript");
+    assert.ok(capture.contentPreview.innerHTML.includes('data-time="12:34"'));
+    assert.ok(capture.contentPreview.innerHTML.includes("source-pill"));
+
+    let sought = null;
+    globalThis.NutEggUI.handleSourcePillClick({
+      target: { closest: () => ({ dataset: { time: "12:34" } }) },
+      preventDefault() {}, stopPropagation() {},
+    }, { onSeek: seconds => { sought = seconds; } });
+    assert.equal(sought, 754);
+  });
+
   it("SectionChipsComponent binds capture and re-analyze section chips and handles clicks", async () => {
     const root = createMockRoot();
     const chips = new SectionChipsComponent(root);
