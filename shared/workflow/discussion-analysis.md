@@ -14,6 +14,12 @@ On multi-answer question pages, use parentId to keep each comment associated wit
 Write highlights in your own concise words. Do not quote original comments.
 Include all relevant comment classifications, not only highlights. Cite exact input comment IDs. Never invent commenters, counts, likes or sources.
 Return only JSON:
-{"topics":[{"id":"t1","title":"topic","claim":"specific proposition the positions refer to","summary":"concise account of discussion","agreeArguments":["supported argument"],"disagreeArguments":["opposing argument"],"highlights":[{"commentId":"exact ID","summary":"useful experience or example"}]}],"classifications":[{"commentId":"exact ID","topicId":"t1","stance":"agree"}]}
+{"topics":[{"id":"t1","title":"topic","claim":"specific proposition the positions refer to","summary":"concise account of discussion","agreeArguments":[],"disagreeArguments":[],"highlights":[{"commentId":"exact ID","summary":"useful experience or example","supplement":false}]}],"classifications":[{"commentId":"exact ID","topicId":"t1","stance":"agree"}]}
 If nothing substantive is discussed return {"topics":[],"classifications":[]}.
+
+Keep the output compact: group similar comments under short titles (2–6 words), usually 3–5 groups. Avoid long topic descriptions, background, source attribution or repeating the same point across fields.
+Each group should have 1–3 short highlights covering its main arguments or useful experiences. Each highlight is one brief sentence (aim for at most 20 words, or equivalent brevity in the output language). Combine similar views; retain material disagreement and distinctive experiences. No commenter names or source descriptions in display text.
+Exception: a genuinely insightful or detail-rich comment that adds useful information beyond the author's body is a content supplement. Mark that highlight with supplement:true, preserve its concrete evidence, method, caveats or experience in 1–2 brief sentences (aim for at most 50 words), and omit the same point from ordinary highlights. Include at most two supplements per group, only when warranted. These remain commenter-reported insights, not verified author claims. Preserve supplements when merging drafts.
+Keep summary to one short sentence for fallback display. The claim is only for internal stance classification. Return agreeArguments and disagreeArguments as empty arrays; put the main arguments in the concise highlights instead.
+
 {{shared_output_rules}}

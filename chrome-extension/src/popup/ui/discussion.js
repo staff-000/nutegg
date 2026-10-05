@@ -26,13 +26,18 @@ class DiscussionComponent {
     }
     const escape = value => globalThis.NutEggHelpers.escapeHtml(String(value || ''));
     const metric = (stance, m) => {
-      const hasReactions = m.reactionsKnown > 0;
       const reactions = [m.likesKnown ? t('discussionLikes', { count: m.likes }) : '', m.scoresKnown ? t('discussionScore', { count: m.score }) : ''].filter(Boolean).join(' · ');
-      return `<div class="discussion-metric"><strong>${escape(t('discussionStance_' + stance))}</strong><span>${escape(t('discussionComments', { count: m.comments }))}${m.commenters != null ? ' · ' + escape(t('discussionPeople', { count: m.commenters })) : ''}</span>${hasReactions ? `<span>${m.approximate ? '≈ ' : ''}${escape(reactions || t('discussionLikes', { count: 0 }))}</span>` : ''}${m.reactionsMissing ? `<small>${escape(t('discussionReactionsMissing', { count: m.reactionsMissing }))}</small>` : ''}</div>`;
+      return `<span class="discussion-metric"><strong>${escape(t('discussionStance_' + stance))}</strong> ${escape(t('discussionComments', { count: m.comments }))}${reactions ? ' · ' + (m.approximate ? '≈ ' : '') + escape(reactions) : ''}</span>`;
     };
-    const args = (label, values) => values?.length ? `<p><strong>${escape(t(label))}</strong></p><ul>${values.map(value => `<li>${escape(value)}</li>`).join('')}</ul>` : '';
-    result.innerHTML = `<p class="discussion-coverage">${escape(t('discussionSample', { analyzed: analysis.analyzedCount, captured: analysis.capturedCount }))}${analysis.totalCount != null ? ' ' + escape(t('discussionTotal', { count: analysis.totalCount })) : ''} ${escape(t('discussionSampleNote'))}${analysis.truncated ? ' ' + escape(t('discussionTruncated')) : ''}</p>`
-      + analysis.topics.map(topic => `<article class="discussion-topic"><h4>${escape(topic.title)}</h4>${topic.claim ? `<p class="discussion-claim">${escape(topic.claim)}</p>` : ''}<p>${escape(topic.summary)}</p><div class="discussion-metrics">${Object.entries(topic.metrics).filter(([, m]) => m.comments || m.commenters).map(([stance, m]) => metric(stance, m)).join('')}</div>${args('discussionArgumentsAgree', topic.agreeArguments)}${args('discussionArgumentsDisagree', topic.disagreeArguments)}${topic.highlights.length ? `<ul class="discussion-highlights">${topic.highlights.map(h => `<li>${escape(h.summary)}</li>`).join('')}</ul>` : ''}</article>`).join('');
+    result.innerHTML = `<p class="discussion-coverage">${escape(t('discussionSample', { analyzed: analysis.analyzedCount, captured: analysis.capturedCount }))}</p>`
+      + analysis.topics.map(topic => {
+        const highlights = [...new Set((topic.highlights || []).filter(h => !h.supplement).map(h => h.summary).filter(Boolean))].slice(0, 3);
+        const supplements = [...new Set((topic.highlights || []).filter(h => h.supplement).map(h => h.summary).filter(Boolean))].slice(0, 2);
+        const supplementDetails = supplements.length ? `<div class="discussion-supplements"><strong>${escape(t('discussionSupplement'))}</strong>${supplements.map(value => `<p>${escape(value)}</p>`).join('')}</div>` : '';
+        const details = highlights.length ? `<ul class="discussion-highlights">${highlights.map(value => `<li>${escape(value)}</li>`).join('')}</ul>`
+          : !supplements.length && topic.summary ? `<p>${escape(topic.summary)}</p>` : '';
+        return `<article class="discussion-topic"><h4>${escape(topic.title)}</h4>${details}${supplementDetails}<div class="discussion-metrics">${Object.entries(topic.metrics).filter(([, m]) => m.comments > 0).map(([stance, m]) => metric(stance, m)).join('')}</div></article>`;
+      }).join('');
   }
 }
 globalThis.NutEggUI = globalThis.NutEggUI || {};

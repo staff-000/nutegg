@@ -115,7 +115,7 @@ export function buildDiscussionResult(capture: DiscussionCapture, parts: any[], 
     if (!identitiesComplete) for (const m of Object.values(metrics)) m.commenters = null;
     const highlighted = new Set<string>();
     const highlights = list(raw.highlights).filter(h => assignments.has(h?.commentId) && clean(h.summary) && !highlighted.has(h.commentId) && !!highlighted.add(h.commentId)).slice(0, 8)
-      .map(h => ({ commentId: h.commentId, summary: clean(h.summary, 600), source: byId.get(h.commentId)! }));
+      .map(h => ({ commentId: h.commentId, summary: clean(h.summary, 600), supplement: h.supplement === true, source: byId.get(h.commentId)! }));
     topics.push({ id: `topic-${topics.length + 1}`, title: clean(raw.title, 200), claim: clean(raw.claim, 500), summary: clean(raw.summary),
       agreeArguments: list(raw.agreeArguments).map(v => clean(v, 600)).filter(Boolean).slice(0, 4),
       disagreeArguments: list(raw.disagreeArguments).map(v => clean(v, 600)).filter(Boolean).slice(0, 4), highlights, metrics });

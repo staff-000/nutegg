@@ -162,7 +162,7 @@ export interface DiscussionTopic {
   summary: string;
   agreeArguments: string[];
   disagreeArguments: string[];
-  highlights: Array<{ commentId: string; summary: string; source: DiscussionItem }>;
+  highlights: Array<{ commentId: string; summary: string; supplement?: boolean; source: DiscussionItem }>;
   metrics: Record<DiscussionStance, DiscussionMetric>;
 }
 export interface DiscussionAnalysis {

@@ -150,3 +150,7 @@ plus the existing settings, store, operations, renderer, transport, startup and
 localization tests. Live browser QA was unavailable in the implementation session.
 
 Discussion selectors use a 2×2 grid. Results contain paraphrased highlights without comment quotations or outbound comment links. Bilibili capture traverses the nested open roots for comment text, user info and reactions, and preserves loaded reply ownership. On Zhihu question pages, comments are linked to their own answer (including explicitly identified external panels); unowned floating panels are excluded rather than attributed to another answer.
+
+Discussion output is grouped into short titles and up to three concise highlights per group. Stances use inline badges with comment counts and available likes (or net scores on vote-based forums); missing reactions and commenter counts are omitted. Detailed claim/argument/source explanations are not displayed.
+
+Insightful or detail-rich comments can appear as up to two brief extra insights per group, retaining useful details as supplements to the content while ordinary comment groups stay compact.

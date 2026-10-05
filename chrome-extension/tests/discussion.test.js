@@ -165,3 +165,31 @@ test('disabling discussion on a long Reddit body does not show the short-body wa
   store.dispatch({ type: 'draft', tabId: 1, values: { discussionOverride: false, enabledSections: { ...store.getTab(1).enabledSections, discussion: false } } });
   assert.doesNotMatch(store.viewModel().warning || '', /little information/);
 });
+
+test('compact discussion badges omit unavailable reactions, people and verbose topic details', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const result = core.buildDiscussionResult(capture([item('a', 'u', 12), item('b', 'v', null), item('c', 'w', 0)]), [part([['a', 'agree'], ['b', 'disagree'], ['c', 'neutral']])]);
+  ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
+  const html = root.getElementById('discussion-result').innerHTML;
+  assert.match(html, /Agree<\/strong> 1 comments · 12 likes/);
+  assert.match(html, /Disagree<\/strong> 1 comments<\/span>/);
+  assert.match(html, /Neutral<\/strong> 1 comments · 0 likes/);
+  assert.doesNotMatch(html, /commenters|unavailable|Supporting arguments|Opposing arguments|Proposition|Experience and objections|entire audience/);
+  assert.match(html, /Practical example/);
+});
+
+test('detail-rich supplements survive source validation and render alongside compact groups', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const draft = part([['a', 'agree'], ['b', 'neutral']]);
+  draft.topics[0].highlights.push({ commentId: 'b', summary: 'A six-month trial found that adjusting the dose improved results, but only with consistent follow-up.', supplement: true });
+  draft.topics[0].highlights.push({ commentId: 'invented', summary: 'Unsupported detail', supplement: true });
+  const result = core.buildDiscussionResult(capture([item('a'), item('b')]), [draft]);
+  assert.equal(result.topics[0].highlights[1].supplement, true);
+  assert.equal(result.topics[0].highlights.length, 2);
+  ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
+  const html = root.getElementById('discussion-result').innerHTML;
+  assert.match(html, /discussion-highlights.*Practical example/);
+  assert.match(html, /discussion-supplements.*Extra insights.*six-month trial/);
+  assert.equal(html.match(/six-month trial/g).length, 1);
+  assert.doesNotMatch(html, /Unsupported detail/);
+});
