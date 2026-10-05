@@ -43,6 +43,8 @@ const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
 // Content Analysis sections elements
 const sectionVerdictSummary = document.getElementById("section-verdict-summary");
 const sectionMindmap = document.getElementById("section-mindmap");
+const sectionKnowledge = document.getElementById("section-knowledge");
+const sectionDiscussion = document.getElementById("section-discussion");
 const sectionsSaveBtn = document.getElementById("sections-save-btn");
 const sectionsStatus = document.getElementById("sections-status");
 
@@ -50,6 +52,7 @@ const DEFAULT_SECTIONS = {
   titleVerdict: true,
   coreSummary: true,
   mindMap: true,
+  discussion: false,
 };
 
 let savedPromptOverrides = {};
@@ -71,6 +74,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     "serverPort",
     "analysisMode",
     "enabledSections",
+    "generateKnowledgeEntries",
     "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
@@ -115,7 +119,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // 2. Content Analysis Sections initialization
-  initSectionsSettings(stored.enabledSections);
+  initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries);
 
   // 3. AI Settings initialization
   initAiSettings(stored);
@@ -525,23 +529,26 @@ function showResult(msg, type) {
   testResult.classList.remove("hidden");
 }
 
-function initSectionsSettings(savedSections) {
+function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
   if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
+  if (sectionKnowledge) sectionKnowledge.checked = savedGenerateKnowledgeEntries !== false;
+  if (sectionDiscussion) sectionDiscussion.checked = sections.discussion === true;
 
-  const checkboxes = [
+  const contentCheckboxes = [
     sectionVerdictSummary,
     sectionMindmap,
+    sectionDiscussion,
   ].filter(Boolean);
 
-  function getActiveCount() {
-    return checkboxes.filter((cb) => cb.checked).length;
+  function getActiveContentCount() {
+    return contentCheckboxes.filter((cb) => cb.checked).length;
   }
 
-  checkboxes.forEach((cb) => {
+  contentCheckboxes.forEach((cb) => {
     cb.addEventListener("change", () => {
-      if (getActiveCount() === 0) {
+      if (getActiveContentCount() === 0) {
         cb.checked = true;
         showSectionStatus(t("atLeastOneSection"), "error");
         setTimeout(() => {
@@ -552,7 +559,7 @@ function initSectionsSettings(savedSections) {
   });
 
   sectionsSaveBtn?.addEventListener("click", async () => {
-    if (getActiveCount() === 0) {
+    if (getActiveContentCount() === 0) {
       showSectionStatus(t("atLeastOneSection"), "error");
       return;
     }
@@ -560,8 +567,13 @@ function initSectionsSettings(savedSections) {
       titleVerdict: sectionVerdictSummary ? sectionVerdictSummary.checked : true,
       coreSummary: sectionVerdictSummary ? sectionVerdictSummary.checked : true,
       mindMap: sectionMindmap ? sectionMindmap.checked : true,
+      discussion: sectionDiscussion ? sectionDiscussion.checked : false,
     };
-    await chrome.storage.local.set({ enabledSections: newConfig });
+    const genKnowledge = sectionKnowledge ? sectionKnowledge.checked : true;
+    await chrome.storage.local.set({
+      enabledSections: newConfig,
+      generateKnowledgeEntries: genKnowledge,
+    });
     showSectionStatus(t("sectionPreferencesSaved"), "ok");
     setTimeout(() => {
       sectionsStatus?.classList.add("hidden");
