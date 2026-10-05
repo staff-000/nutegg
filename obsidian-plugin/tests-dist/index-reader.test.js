@@ -487,6 +487,9 @@ function isAIConfigured(settings) {
   return Boolean(apiKey && apiKey.trim().length > 0);
 }
 
+// ../shared/src/ai-diagnostics.ts
+var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
+
 // src/index-reader.ts
 var IndexReader = class {
   plugin;

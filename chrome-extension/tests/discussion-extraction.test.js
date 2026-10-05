@@ -16,6 +16,31 @@ const platforms = [
   ['douyin', 'https://www.douyin.com/video/123', '<div data-e2e="comment-list"><div data-e2e="comment-item" data-comment-id="c1"><a href="/user/alice">Alice</a><p data-e2e="comment-content">我有不同的经验</p><span data-e2e="comment-like-count">2万</span></div></div>', 20000],
   ['zhihu', 'https://www.zhihu.com/question/123/answer/456', '<div class="CommentListV2"><div class="CommentItemV2" data-comment-id="c1"><a class="UserLink-link" href="/people/alice">Alice</a><p class="CommentItemV2-content">我有不同的经验</p><button class="CommentItemV2-likeBtn">赞同 12</button></div></div>', 12],
 ];
+
+test('passive comment observation begins before a slow body capture and retains virtualized comments', async () => {
+  const { win, collector } = page('https://www.youtube.com/watch?v=x', '<ytd-comments></ytd-comments>');
+  let resolveBody;
+  const body = new Promise(resolve => { resolveBody = resolve; });
+  win.EXTRACTORS = [{ name: 'slow', detect: () => true, extract: () => body }];
+  win.chrome = { runtime: { onMessage: { addListener() {} } } };
+  win.eval(fs.readFileSync(require.resolve('../src/content/content-script.js'), 'utf8'));
+  const pending = win.extractContent('early-capture');
+  assert.equal(collector.snapshot().sessionId, 'early-capture');
+  win.document.querySelector('ytd-comments').innerHTML = '<ytd-comment-renderer comment-id="early"><div id="content-text">An experience loaded while the transcript was fetching.</div></ytd-comment-renderer>';
+  await new Promise(resolve => setTimeout(resolve, 310));
+  win.document.querySelector('ytd-comments').innerHTML = '';
+  resolveBody({ title: 'Video', content: 'Transcript', url: win.location.href });
+  const capture = await pending;
+  assert.equal(capture.discussion.items[0].id, 'youtube:early');
+  assert.match(capture.discussion.items[0].text, /while the transcript/);
+});
+
+test('loaded long comments retain their full text within the total capture budget', () => {
+  const longText = 'Detailed experience. '.repeat(1200);
+  const { collector } = page('https://www.youtube.com/watch?v=x', `<ytd-comments><ytd-comment-renderer comment-id="long"><div id="content-text">${longText}</div></ytd-comment-renderer></ytd-comments>`);
+  const capture = collector.snapshot();
+  assert.equal(capture.items[0].text, longText.trim()); assert.equal(capture.truncated, false);
+});
 for (const [name, url, html, count] of platforms) test(`${name} adapter extracts loaded comments, identities and reactions`, () => {
   const { dom, collector } = page(url, html);
   const d = collector.snapshot(); assert.equal(d.items.length, 1); assert.equal(d.items[0].reaction.count, count);

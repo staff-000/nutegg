@@ -22,6 +22,7 @@ class SettingsState {
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = true;
+    this.debugInfo = false;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -42,7 +43,7 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics"],
+          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo"],
           resolve
         );
       });
@@ -54,6 +55,7 @@ class SettingsState {
         this.analysisMode = "full";
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
+      this.debugInfo = stored?.debugInfo === true;
       if (stored?.enabledSections) {
         this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof stored.enabledSections[key] === "boolean" ? stored.enabledSections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
       }
@@ -161,4 +163,3 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_ANALYSIS_SECTIONS,
   };
 }
-

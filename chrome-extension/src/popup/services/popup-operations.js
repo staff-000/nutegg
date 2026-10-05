@@ -3,6 +3,20 @@ class PopupOperations {
   constructor({ store, service, extractor, chromeApi = chrome }) {
     this.store = store; this.service = service; this.extractor = extractor; this.chromeApi = chromeApi;
     this.catalogTask = null;
+    this.debugRequest = 0;
+  }
+  async refreshDebugInfo() {
+    if (!this.store.settings?.debugInfo || this.debugPending) return;
+    this.debugPending = true;
+    const request = ++this.debugRequest;
+    const mode = this.store.settings.isChromeMode() ? 'chrome' : 'obsidian';
+    try {
+      const value = await this.service.sendMessage({ action: 'get-debug-info', mode });
+      if (request !== this.debugRequest || !this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) return;
+      this.store.dispatch({ type: 'debugInfo', value });
+    } catch {
+      if (request === this.debugRequest && this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) this.store.dispatch({ type: 'debugInfo', value: { unavailable: true } });
+    } finally { this.debugPending = false; }
   }
   fail(context, error) {
     this.store.commitOperation(context.token, { type: 'operationFailed', error: error?.message || String(error), code: error?.code });
@@ -21,35 +35,38 @@ class PopupOperations {
         await this.extractor.waitForPageSettle(tabId, cancelled);
         if (cancelled()) return null;
       }
-      const content = await this.extractor.extractPage(tabId, { isCancelled: cancelled });
+      const content = await this.extractor.extractPage(tabId, { isCancelled: cancelled, discussionSessionId: `${ctx.token.pageGeneration}:capture:${ctx.token.requestId}` });
       if (!content) throw new Error(t('couldNotExtractContent'));
       const helpers = globalThis.NutEggHelpers || {};
       const words = helpers.countWords?.(content.content) || 0;
       const warning = helpers.isContentSuspiciouslyLow?.(words, content.sourceType) ? t('contentLowWarning', { count: words.toLocaleString() }) : null;
       const accepted = this.store.commitOperation(ctx.token, { type: 'extracted', content, warning });
-      if (accepted && this.store.getTab(tabId)?.enabledSections.discussion) void this.discussion(tabId);
+      if (accepted && this.extractor.collectDiscussion) void this.discussion(tabId, false, true);
       return accepted ? content : null;
     } catch (error) { this.fail(ctx, error); return null; }
   }
-  async discussion(tabId, load = false) {
+  async discussion(tabId, load = false, passive = false) {
     const ctx = this.store.beginOperation(tabId, 'discussion');
-    if (!ctx || !ctx.tab.enabledSections.discussion || !ctx.tab.extractedContent) {
+    if (!ctx || (!passive && !ctx.tab.enabledSections.discussion) || !ctx.tab.extractedContent) {
       if (ctx) this.store.commitOperation(ctx.token, { type: 'operationFinished' });
       return;
     }
-    const cancelled = () => !this.store.isOperationCurrent(ctx.token) || !this.store.getTab(tabId)?.enabledSections.discussion;
+    const cancelled = () => !this.store.isOperationCurrent(ctx.token) || (!passive && !this.store.getTab(tabId)?.enabledSections.discussion);
     const sessionId = `${ctx.token.pageGeneration}:${ctx.token.requestId}`;
     try {
       const discussion = await this.extractor.collectDiscussion(tabId, { sessionId, load, isCancelled: cancelled,
         onUpdate: (discussion, loading) => {
           if (cancelled() || discussion.url?.split('#')[0] !== ctx.tab.url?.split('#')[0]) return;
-          this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading });
+          this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading, passive });
         } });
       if (this.store.isOperationCurrent(ctx.token)) {
-        if (discussion) this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading: false });
+        if (discussion) this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading: false, passive });
         else this.store.commitOperation(ctx.token, { type: 'operationFinished' });
       }
-    } catch (error) { this.fail(ctx, error); }
+    } catch (error) {
+      if (passive && !this.store.getTab(tabId)?.enabledSections.discussion) this.store.commitOperation(ctx.token, { type: 'operationFinished' });
+      else this.fail(ctx, error);
+    }
   }
   stopDiscussion(tabId) {
     const tab = this.store.getTab(tabId), operation = tab?.operations.discussion;

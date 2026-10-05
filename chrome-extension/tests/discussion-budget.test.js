@@ -160,3 +160,33 @@ test('supplement evidence is bounded and off mode exposes neither summaries nor 
   const off = { ...page, enabledSections: { discussion: false } };
   assert.equal(core.discussionSummaryText(off, analysis), ''); assert.equal(core.discussionEvidenceText(off, analysis), '');
 });
+
+test('a single long comment is split and aggregated once, with full original sources and reusable excerpts', async () => {
+  const text = 'Agree ' + 'A detailed procedure with several caveats. '.repeat(520) + 'FINAL ORIGINAL DETAIL';
+  const page = input([comment('long', { text })]), prompts = [], processor = new core.AIProcessor(mockHost(prompts, { chunkWindowChars: 1000 }));
+  const normalized = core.normalizeDiscussion(page.discussion);
+  assert.equal(normalized.items[0].text, text); assert.equal(normalized.truncated, false);
+  const batches = core.discussionBatches(normalized.items, 8000);
+  assert(batches.length > 2);
+  assert.equal(batches.flat().map(item => item.text).join(''), text);
+  assert(batches.every(batch => JSON.stringify([0, 0, 0, batch[0].text, 'l', 0]).length <= 8000));
+  let result = await processor.analyzeContent(page);
+  assert.equal(prompts.length, batches.length + 1);
+  assert.equal(result.discussion.analyzedCount, 1); assert.equal(result.discussion.topics[0].metrics.agree.comments + result.discussion.topics[0].metrics.mixed.comments, 1);
+  assert.equal(result.discussion.topics[0].highlights[0].source.text, text);
+  await processor.analyzeContent(page); assert.equal(prompts.length, batches.length + 1);
+  page.discussion.items.push(comment('new', { text: 'Disagree, a new limitation.' }));
+  const previous = prompts.length; result = await processor.analyzeContent(page);
+  assert.equal(prompts.length - previous, 2); assert.equal(rows(prompts[previous]).length, 1);
+  assert.equal(result.discussion.topics[0].metrics.disagree.comments, 1);
+  assert.equal(result.discussion.topics[0].metrics.agree.comments + result.discussion.topics[0].metrics.mixed.comments, 1);
+});
+
+test('many comments use batch aggregation and preserve every captured classification', async () => {
+  const page = input(Array.from({ length: 180 }, (_, i) => comment(`c${i}`, { text: 'Agree ' + 'Useful experience. '.repeat(20) })));
+  const prompts = [], result = await new core.AIProcessor(mockHost(prompts, { chunkWindowChars: 1000 })).analyzeContent(page);
+  assert(prompts.filter(p => p.includes('Discussion items to analyze:')).length > 1);
+  assert.equal(prompts.filter(p => p.startsWith('Merge discussion')).length, 1);
+  assert.equal(result.discussion.analyzedCount, 180); assert.equal(result.discussion.topics[0].metrics.agree.comments, 180);
+  assert.equal(result.discussion.topics[0].metrics.agree.likes, 180 * 7);
+});

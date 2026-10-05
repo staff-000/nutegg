@@ -142,7 +142,7 @@
       const vote = commentQuery(el, selected.reaction);
       const parsed = number(vote?.getAttribute?.('number') || vote?.getAttribute?.('score') || vote?.getAttribute?.('aria-label') || text(vote));
       if (!records.has(id) && records.size >= MAX_ITEMS) { capped = true; continue; }
-      const allowance = Math.min(6000, MAX_CHARS - chars + (records.get(id)?.text.length || 0));
+      const allowance = MAX_CHARS - chars + (records.get(id)?.text.length || 0);
       if (allowance <= 0) { capped = true; continue; }
       const boundedText = content.slice(0, allowance);
       chars += boundedText.length - (records.get(id)?.text.length || 0);

@@ -27,6 +27,17 @@ class MetricsComponent {
       this.obsidianPluginLink.classList.add("hidden");
     }
   }
+
+  renderDebug(info, enabled) {
+    const panel = this.root.getElementById('debug-info');
+    if (!panel) return;
+    panel.classList.toggle('hidden', !enabled);
+    if (!enabled) { panel.textContent = ''; return; }
+    panel.textContent = !info || info.unavailable ? t('debugInfoUnavailable') : t('debugInfoStats', {
+      backend: info.mode === 'chrome' ? 'Chrome' : 'Obsidian', running: info.activeCalls, calls: info.totalCalls,
+      words: info.promptWords?.toLocaleString(), last: info.lastPromptWords?.toLocaleString(),
+    });
+  }
 }
 
 const _metricsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
@@ -36,4 +47,3 @@ _metricsScope.NutEggUI.MetricsComponent = MetricsComponent;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { MetricsComponent };
 }
-

@@ -62,6 +62,15 @@ async function loadChromeAiSettings() {
 // --- Messages ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === 'get-debug-info') {
+    if (message.mode === 'chrome') { sendResponse({ ...NutEggAI.getAIDebugInfo(), mode: 'chrome' }); return false; }
+    (async () => {
+      const response = await fetch(`${await getServerUrl()}/debug-info`, { signal: AbortSignal.timeout(2500), cache: 'no-store' });
+      if (!response.ok) throw new Error('Debug info unavailable');
+      return { ...await response.json(), mode: 'obsidian' };
+    })().then(sendResponse).catch(() => sendResponse({ unavailable: true, mode: 'obsidian' }));
+    return true;
+  }
   if (message.action === "analyze") {
     handleAnalyze(message.payload)
       .then((r) => sendResponse(r))

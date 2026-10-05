@@ -7,6 +7,7 @@ class DiscussionComponent {
       this.root.getElementById(prefix)?.classList.toggle('hidden', !enabled);
       const status = this.root.getElementById(prefix + '-status');
       if (status) status.textContent = view.discussionPending ? t('discussionLoading', { count: d?.items?.length || 0 })
+        : d?.truncated ? t('discussionTruncated')
         : d?.status === 'empty' ? t('discussionEmpty') : d?.status === 'unavailable' ? t(d?.reason === 'unsupported' ? 'discussionUnsupported' : 'discussionUnavailable')
         : d?.items?.length ? t('discussionPartial', { count: d.items.length }) : t('discussionNotLoaded');
       const indicator = this.root.getElementById(prefix + '-indicator');

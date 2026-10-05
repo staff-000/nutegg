@@ -35,12 +35,15 @@ function normalizeDiscussion(value) {
   const items = [];
   let characters = 0, limited = false;
   for (const item of value.items.slice(0, 300)) {
-    const id = clean(item?.id, 300), text = clean(item?.text, 6e3);
+    const id = clean(item?.id, 300);
+    let text = clean(item?.text, 15e4);
     if (!id || !text || seen.has(id))
       continue;
     if (characters + text.length > 15e4) {
       limited = true;
-      break;
+      text = text.slice(0, 15e4 - characters);
+      if (!text)
+        break;
     }
     characters += text.length;
     seen.add(id);
@@ -65,8 +68,14 @@ function normalizeDiscussion(value) {
     items,
     status: ["not_loaded", "loading", "partial", "complete", "empty", "unavailable"].includes(value.status) ? value.status : "partial",
     totalCount: Number.isFinite(value.totalCount) && Number(value.totalCount) >= 0 ? Number(value.totalCount) : null,
-    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some((i) => (i?.text?.length || 0) > 6e3)
+    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some((i) => (i?.text?.length || 0) > 15e4)
   };
+}
+
+// ../shared/src/ai-diagnostics.ts
+var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
+function getAIDebugInfo() {
+  return { ...stats };
 }
 
 // src/server.ts
@@ -974,6 +983,11 @@ var NutEggServer = class {
           await this.handleCredit(res);
           return;
         }
+        if (req.method === "GET" && req.url === "/debug-info") {
+          res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+          res.end(JSON.stringify(getAIDebugInfo()));
+          return;
+        }
         if (req.method === "GET" && req.url === "/metrics") {
           this.handleMetrics(req, res);
           return;
@@ -1154,15 +1168,15 @@ var NutEggServer = class {
   handleMetrics(_req, res) {
     try {
       const db = this.plugin.db;
-      const stats = db?.available ? db.getStats() : { nuts: 0, timeSavedMinutes: 0 };
+      const stats2 = db?.available ? db.getStats() : { nuts: 0, timeSavedMinutes: 0 };
       const eggs = this.countEggs();
-      const totalMinutes = Math.round(stats.timeSavedMinutes);
+      const totalMinutes = Math.round(stats2.timeSavedMinutes);
       const hours = Math.floor(totalMinutes / 60);
       const mins = Math.round(totalMinutes % 60);
       const timeSaved = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        nuts: stats.nuts,
+        nuts: stats2.nuts,
         eggs,
         timeSavedMinutes: totalMinutes,
         timeSaved

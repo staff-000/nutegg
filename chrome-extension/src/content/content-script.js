@@ -40,7 +40,10 @@ window.EXTRACTORS = EXTRACTORS;
 // Main entry point
 // ============================================================
 
-async function extractContent() {
+async function extractContent(discussionSessionId) {
+  // Observe comments before potentially slow transcript/body fetching, without moving the page.
+  try { window.NutEggDiscussion?.start(discussionSessionId || `capture:${Date.now()}`, false); }
+  catch (error) { console.warn('[NutEgg] Passive discussion capture unavailable:', error); }
   for (const ex of EXTRACTORS) {
     try {
       if (ex.detect()) {
@@ -120,7 +123,7 @@ if (!window.__nutegg_listener_attached) {
     }
 
     if (message.action === "extract-content") {
-      extractContent()
+      extractContent(message.discussionSessionId)
         .then((content) => sendResponse({ success: true, content }))
         .catch((err) =>
           sendResponse({

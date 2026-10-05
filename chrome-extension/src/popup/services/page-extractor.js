@@ -92,7 +92,7 @@ class PageExtractor {
    * Extract page content via content script, injecting it first when needed.
    * Returns response object or null if unreachable / restricted.
    */
-  async tryExtract(tabId) {
+  async tryExtract(tabId, discussionSessionId) {
     let extractionTimeout = 8000;
     try {
       const tab = await chrome.tabs.get(tabId);
@@ -105,7 +105,7 @@ class PageExtractor {
     } catch {}
     try {
       const response = await this.withTimeout(
-        chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
+        chrome.tabs.sendMessage(tabId, { action: "extract-content", discussionSessionId }),
         extractionTimeout,
         null
       );
@@ -119,7 +119,7 @@ class PageExtractor {
 
     try {
       return await this.withTimeout(
-        chrome.tabs.sendMessage(tabId, { action: "extract-content" }),
+        chrome.tabs.sendMessage(tabId, { action: "extract-content", discussionSessionId }),
         extractionTimeout,
         null
       );
@@ -211,7 +211,7 @@ class PageExtractor {
    * High-level extraction driver: handles settling, extraction retries,
    * and post-extraction navigation verification.
    */
-  async extractPage(tabId, { waitForSettle = false, isCancelled = () => false, onSettle = null } = {}) {
+  async extractPage(tabId, { waitForSettle = false, isCancelled = () => false, onSettle = null, discussionSessionId } = {}) {
     if (waitForSettle) {
       const identity = await this.waitForPageSettle(tabId, isCancelled);
       if (isCancelled()) return null;
@@ -221,7 +221,7 @@ class PageExtractor {
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await this.tryExtract(tabId);
+      const response = await this.tryExtract(tabId, discussionSessionId);
       if (isCancelled()) return null;
 
       if (!response?.success) {
@@ -356,4 +356,3 @@ if (typeof module !== "undefined" && module.exports) {
     CONTENT_SCRIPT_FILES,
   };
 }
-

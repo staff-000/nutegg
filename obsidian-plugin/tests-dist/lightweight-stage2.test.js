@@ -83,12 +83,15 @@ function normalizeDiscussion(value) {
   const items = [];
   let characters = 0, limited = false;
   for (const item of value.items.slice(0, 300)) {
-    const id = clean(item?.id, 300), text = clean(item?.text, 6e3);
+    const id = clean(item?.id, 300);
+    let text = clean(item?.text, 15e4);
     if (!id || !text || seen.has(id))
       continue;
     if (characters + text.length > 15e4) {
       limited = true;
-      break;
+      text = text.slice(0, 15e4 - characters);
+      if (!text)
+        break;
     }
     characters += text.length;
     seen.add(id);
@@ -113,7 +116,7 @@ function normalizeDiscussion(value) {
     items,
     status: ["not_loaded", "loading", "partial", "complete", "empty", "unavailable"].includes(value.status) ? value.status : "partial",
     totalCount: Number.isFinite(value.totalCount) && Number(value.totalCount) >= 0 ? Number(value.totalCount) : null,
-    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some((i) => (i?.text?.length || 0) > 6e3)
+    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some((i) => (i?.text?.length || 0) > 15e4)
   };
 }
 function discussionSourceText(capture2) {
@@ -179,10 +182,38 @@ function unpackDiscussionPart(raw, items, aliases) {
   return { topics, classifications };
 }
 function discussionBatches(items, limit) {
+  limit = Math.max(256, Math.floor(limit) || 8e3);
   const batches = [];
   let batch = [], size = 0;
   for (const item of items) {
     const length = JSON.stringify([0, 0, 0, item.text, "l", 0]).length;
+    if (length > limit) {
+      if (batch.length) {
+        batches.push(batch);
+        batch = [];
+        size = 0;
+      }
+      let remaining = item.text;
+      while (remaining) {
+        let low = 1, high = remaining.length;
+        while (low < high) {
+          const mid = Math.ceil((low + high) / 2);
+          if (JSON.stringify([0, 0, 0, remaining.slice(0, mid), "l", 0]).length <= limit)
+            low = mid;
+          else
+            high = mid - 1;
+        }
+        let end = low;
+        if (end < remaining.length && /[\uD800-\uDBFF]/.test(remaining[end - 1]))
+          end--;
+        const boundary = remaining.lastIndexOf(" ", end - 1);
+        if (boundary > end * 0.75)
+          end = boundary + 1;
+        batches.push([{ ...item, text: remaining.slice(0, end) }]);
+        remaining = remaining.slice(end);
+      }
+      continue;
+    }
     if (batch.length && size + length > limit) {
       batches.push(batch);
       batch = [];
@@ -605,6 +636,9 @@ function resolveConfig(settings) {
     extraHeaders: catalog.apiFormat === "anthropic" ? { "anthropic-version": "2023-06-01" } : {}
   };
 }
+
+// ../shared/src/ai-diagnostics.ts
+var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
 
 // ../shared/src/client.ts
 var AIError = class extends Error {
@@ -1552,7 +1586,7 @@ ${rendered}`;
     const used = /* @__PURE__ */ new Set();
     const chunks = [];
     for (const chunk of cached?.chunks || []) {
-      if (![...chunk.fingerprints].every(([id, fingerprint]) => !used.has(id) && fingerprints.get(id) === fingerprint))
+      if (![...chunk.fingerprints].every(([id, fingerprint]) => fingerprints.get(id) === fingerprint))
         continue;
       chunk.fingerprints.forEach((_, id) => used.add(id));
       chunks.push(chunk);
@@ -1563,7 +1597,7 @@ ${rendered}`;
       const ids = new Set(items.map((item) => item.id));
       const parents = [...new Map(items.map((item) => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : void 0).filter(Boolean).map((item) => [item.id, { ...item, text: item.text.slice(0, 1e3) }])).values()];
       const compact = compactDiscussionRecords(items, discussion.items);
-      const prompt = "Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only.\n" + renderPrompt(this.getPrompt("discussionAnalysis"), {
+      const prompt = "Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only. Long comments may span batches under the same ID; assess only the supplied excerpt.\n" + renderPrompt(this.getPrompt("discussionAnalysis"), {
         title: capture2.title,
         kind: discussion.kind,
         body: capture2.content.slice(0, 4e3),

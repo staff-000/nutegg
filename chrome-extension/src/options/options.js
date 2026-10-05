@@ -47,6 +47,7 @@ const sectionKnowledge = document.getElementById("section-knowledge");
 const sectionDiscussion = document.getElementById("section-discussion");
 const sectionsSaveBtn = document.getElementById("sections-save-btn");
 const sectionsStatus = document.getElementById("sections-status");
+const debugInfoEnabled = document.getElementById('debug-info-enabled');
 
 const DEFAULT_SECTIONS = {
   titleVerdict: true,
@@ -82,8 +83,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiLocalEndpoint",
     "outputLanguage",
     "chromeAiPromptOverrides",
+    "debugInfo",
   ]);
   savedPromptOverrides = stored.chromeAiPromptOverrides || {};
+  if (debugInfoEnabled) {
+    debugInfoEnabled.checked = stored.debugInfo === true;
+    debugInfoEnabled.addEventListener('change', () => chrome.storage.local.set({ debugInfo: debugInfoEnabled.checked }));
+  }
 
   // Initialize i18n following browser language
   window.NutEggI18n?.initI18n();

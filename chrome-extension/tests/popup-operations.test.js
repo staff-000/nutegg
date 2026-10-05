@@ -242,3 +242,40 @@ test('creation supersedes a pending catalog response; identical fetches share on
   store.dispatch({ type: 'eggCreated', egg: { fileName: 'new.md' } }); d.resolve({ eggs: [] }); await Promise.all([a, b]);
   assert.equal(count, 1); assert.equal(store.catalog[0].fileName, 'new.md');
 });
+
+test('extraction collects passive comments with discussion off, but analysis omits them', async () => {
+  const f = fixture(); let sessionId;
+  f.extractor.extractPage = async (_, options) => { sessionId = options.discussionSessionId; return { title: 'Page', url: 'https://tab1.test', content: 'Body', discussion: { kind: 'comments', items: [] } }; };
+  f.extractor.collectDiscussion = async (_, options) => {
+    assert.equal(options.load, false);
+    const discussion = { url: 'https://tab1.test', kind: 'comments', status: 'partial', items: [{ id: 'c', text: 'Captured while discussion is off' }] };
+    options.onUpdate(discussion, false); return discussion;
+  };
+  await f.operations.extract(1);
+  assert.match(sessionId, /:capture:/);
+  assert.equal(f.store.getTab(1).enabledSections.discussion, false);
+  assert.equal(f.store.getTab(1).extractedContent.discussion.items[0].id, 'c');
+  const pending = f.operations.analyze(1, {});
+  assert.equal(f.calls[0].payload.discussion, undefined);
+  f.calls[0].resolve({ titleVerdict: 'Body only' }); await pending;
+});
+
+test('stale passive collection cannot write comments into a newly navigated page', async () => {
+  const f = fixture(), waiting = deferred(); let publish;
+  f.extractor.collectDiscussion = (_, options) => { publish = options.onUpdate; return waiting.promise; };
+  await f.operations.extract(1);
+  f.store.invalidateTab(1, 'https://new.test');
+  publish({ url: 'https://tab1.test', items: [{ id: 'old', text: 'Old comments' }] }, true);
+  waiting.resolve(null); await Promise.resolve();
+  assert.equal(f.store.getTab(1).extractedContent, null);
+});
+
+test('passive collection failures with discussion off leave body analysis usable', async () => {
+  const f = fixture();
+  f.extractor.collectDiscussion = async () => { throw new Error('Comments unavailable'); };
+  await f.operations.extract(1);
+  await Promise.resolve();
+  assert(f.store.getTab(1).extractedContent.content);
+  assert.equal(f.store.getTab(1).errors.discussion, undefined);
+  assert.equal(f.store.getTab(1).operations.discussion.running, false);
+});

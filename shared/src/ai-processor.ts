@@ -472,7 +472,7 @@ export class AIProcessor {
     const used = new Set<string>();
     const chunks: DiscussionChunkCache[] = [];
     for (const chunk of cached?.chunks || []) {
-      if (![...chunk.fingerprints].every(([id, fingerprint]) => !used.has(id) && fingerprints.get(id) === fingerprint)) continue;
+      if (![...chunk.fingerprints].every(([id, fingerprint]) => fingerprints.get(id) === fingerprint)) continue;
       chunk.fingerprints.forEach((_, id) => used.add(id)); chunks.push(chunk);
     }
     // Reuse whole batches so their topic groupings stay intact; changed batches are reclassified.
@@ -483,7 +483,7 @@ export class AIProcessor {
       const parents = [...new Map(items.map(item => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined)
         .filter(Boolean).map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])).values()];
       const compact = compactDiscussionRecords(items, discussion.items);
-      const prompt = 'Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only.\n'
+      const prompt = 'Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only. Long comments may span batches under the same ID; assess only the supplied excerpt.\n'
         + renderPrompt(this.getPrompt('discussionAnalysis'), {
           title: capture.title, kind: discussion.kind, body: capture.content.slice(0, 4000),
           parents: JSON.stringify(compactDiscussionRecords(parents, discussion.items).rows), items: JSON.stringify(compact.rows),

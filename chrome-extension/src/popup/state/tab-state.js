@@ -122,6 +122,7 @@ class TabStateManager {
     }
     if (event.type === 'environment') { this.environment = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
     if (event.type === 'metrics') { this.metrics = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
+    if (event.type === 'debugInfo') { this.debugInfo = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
     if (event.type === 'receipt') {
       this.receipts = popupFreeze([...this.receipts, popupCopy(event.receipt)].slice(-50)); this.emit(event); return;
     }
@@ -173,7 +174,7 @@ class TabStateManager {
         if (next.discussionOverride === null && event.content.discussion?.autoEnable) next.enabledSections.discussion = true;
         next.sourceVersion++; next.warning = event.warning || null; finish(); break;
       case 'discussionUpdated': {
-        if (!next.enabledSections.discussion || !next.extractedContent) { finish(); break; }
+        if ((!event.passive && !next.enabledSections.discussion) || !next.extractedContent) { finish(); break; }
         const previous = next.extractedContent.discussion || {};
         const byId = new Map((previous.items || []).map(item => [item.id, item]));
         for (const item of event.discussion.items || []) byId.set(item.id, popupCopy(item));
@@ -183,6 +184,7 @@ class TabStateManager {
           items, status: items.length ? (event.loading ? 'loading' : 'partial') : event.discussion.status,
           bodyLength: previous.bodyLength, autoEnable: previous.autoEnable || (previous.kind === 'forum' && previous.bodyLength < 500 && items.length >= 3 && items.reduce((n, item) => n + item.text.replace(/\s/g, '').length, 0) >= Math.max(800, previous.bodyLength * 3)),
           truncated: previous.truncated || event.discussion.truncated || byId.size > 300 || characters > 150000 };
+        if (next.discussionOverride === null && next.extractedContent.discussion.autoEnable) next.enabledSections.discussion = true;
         if (!event.loading) finish();
         break;
       }

@@ -11,9 +11,9 @@ export function normalizeDiscussion(value?: DiscussionCapture): DiscussionCaptur
   const items: DiscussionItem[] = [];
   let characters = 0, limited = false;
   for (const item of value.items.slice(0, 300)) {
-    const id = clean(item?.id, 300), text = clean(item?.text, 6000);
+    const id = clean(item?.id, 300); let text = clean(item?.text, 150000);
     if (!id || !text || seen.has(id)) continue;
-    if (characters + text.length > 150000) { limited = true; break; }
+    if (characters + text.length > 150000) { limited = true; text = text.slice(0, 150000 - characters); if (!text) break; }
     characters += text.length;
     seen.add(id);
     const reaction = item.reaction;
@@ -28,7 +28,7 @@ export function normalizeDiscussion(value?: DiscussionCapture): DiscussionCaptur
   return { ...value, kind: value.kind === 'forum' ? 'forum' : 'comments', items,
     status: ['not_loaded', 'loading', 'partial', 'complete', 'empty', 'unavailable'].includes(value.status) ? value.status : 'partial',
     totalCount: Number.isFinite(value.totalCount) && Number(value.totalCount) >= 0 ? Number(value.totalCount) : null,
-    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some(i => (i?.text?.length || 0) > 6000) };
+    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some(i => (i?.text?.length || 0) > 150000) };
 }
 
 /** Prompt-only view. URLs and identities remain in the capture for metrics/navigation. */
@@ -81,10 +81,29 @@ export function unpackDiscussionPart(raw: any, items: DiscussionItem[], aliases:
 }
 
 export function discussionBatches(items: DiscussionItem[], limit: number): DiscussionItem[][] {
+  limit = Math.max(256, Math.floor(limit) || 8000);
   const batches: DiscussionItem[][] = [];
   let batch: DiscussionItem[] = [], size = 0;
   for (const item of items) {
     const length = JSON.stringify([0, 0, 0, item.text, 'l', 0]).length;
+    if (length > limit) {
+      if (batch.length) { batches.push(batch); batch = []; size = 0; }
+      // A long comment keeps its original identity across excerpts. Aggregate counts deduplicate it.
+      let remaining = item.text;
+      while (remaining) {
+        let low = 1, high = remaining.length;
+        while (low < high) {
+          const mid = Math.ceil((low + high) / 2);
+          if (JSON.stringify([0, 0, 0, remaining.slice(0, mid), 'l', 0]).length <= limit) low = mid; else high = mid - 1;
+        }
+        let end = low;
+        if (end < remaining.length && /[\uD800-\uDBFF]/.test(remaining[end - 1])) end--;
+        const boundary = remaining.lastIndexOf(' ', end - 1);
+        if (boundary > end * .75) end = boundary + 1;
+        batches.push([{ ...item, text: remaining.slice(0, end) }]); remaining = remaining.slice(end);
+      }
+      continue;
+    }
     if (batch.length && size + length > limit) { batches.push(batch); batch = []; size = 0; }
     batch.push(item); size += length;
   }

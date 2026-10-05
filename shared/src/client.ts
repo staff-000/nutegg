@@ -2,6 +2,7 @@
 // NutEgg Unified AI Client & Transport
 // ============================================================
 
+import { trackAIRequest } from "./ai-diagnostics";
 import {
   PROVIDER_CATALOG,
   resolveConfig,
@@ -285,13 +286,11 @@ export async function chatAI(
     );
   }
 
-  if (config.apiFormat === "anthropic") {
-    return chatAnthropic(prompt, maxTokens, config);
-  }
-  if ((config as any).apiFormat === "ollama") {
-    return chatOllama(prompt, maxTokens, config);
-  }
-  return chatOpenAICompatible(prompt, maxTokens, config);
+  return trackAIRequest(prompt, () => {
+    if (config.apiFormat === "anthropic") return chatAnthropic(prompt, maxTokens, config);
+    if ((config as any).apiFormat === "ollama") return chatOllama(prompt, maxTokens, config);
+    return chatOpenAICompatible(prompt, maxTokens, config);
+  });
 }
 
 /**
@@ -492,4 +491,3 @@ export class AIClient {
     return chatAI(prompt, maxTokens, this.config);
   }
 }
-

@@ -44,10 +44,10 @@ class PopupRenderer {
     if (questionsChevron) questionsChevron.textContent = view.presentation.questionsExpanded ? '▾' : '▸';
     ui.captureUI.refreshBtn.disabled = view.busy || view.extractionPending;
     const content = view.extractedContent;
-    keyed('capture', [content, view.errors.extraction, view.extractionPending, view.title, view.url], () => {
+    keyed('capture', [content?.content, content?.title, content?.url, content?.sourceType, content?.metadata, content?.discussion?.items, content?.discussion?.truncated, view.errors.extraction, view.extractionPending, view.title, view.url], () => {
       ui.captureUI.setPageInfo({ title: content?.title || view.title || t('loading'), url: content?.url || view.url, sourceType: content?.sourceType || '' });
       ui.captureUI.clearProvenance();
-      if (content) { ui.captureUI.setPreviewText(content.content); ui.captureUI.showProvenance(content.metadata || {}, content.content); }
+      if (content) { ui.captureUI.setPreviewContent(content); ui.captureUI.showProvenance(content.metadata || {}, content.content); }
       else if (view.errors.extraction) ui.captureUI.setError(view.errors.extraction.message);
       else ui.captureUI.setLoading(t('retrievingPageContent'));
     });
@@ -72,6 +72,7 @@ class PopupRenderer {
     ui.eggsUI.clearError();
     if (settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);
     ui.metricsUI.showPluginLink(!settings.serverOnline);
+    keyed('debug', [settings.debugInfo, this.store.debugInfo], () => ui.metricsUI.renderDebug?.(this.store.debugInfo, settings.debugInfo));
     if (this.store.environment?.credit) ui.headerUI.renderCredit(this.store.environment.credit, settings.serverOnline);
     else ui.headerUI.hideCredit();
     keyed('collapse', [view.presentation.collapsible], () => {

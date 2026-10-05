@@ -72,6 +72,19 @@ function createMockRoot() {
 }
 
 describe("Modular UI Components", () => {
+  it('CaptureViewComponent previews comments when discussion is off, safely and without comment links', () => {
+    const root = createMockRoot(), capture = new CaptureViewComponent(root);
+    capture.render({ title: 'Page', content: 'Original body', enabledSections: { discussion: false }, discussion: { truncated: true, items: [
+      { id: 'c', author: 'Reader', text: '<script>alert(1)</script> [02:30] A useful experience', url: 'https://comment.test', reaction: { kind: 'likes', count: 12 } },
+      { id: 'reply', parentId: 'c', text: 'Reply with unknown reactions', reaction: { kind: 'likes', count: null } },
+    ] } });
+    const html = root.getElementById('content-preview').innerHTML;
+    assert(html.includes('Original body')); assert(html.includes('2 captured comments'));
+    assert(html.includes('A useful experience')); assert(html.includes('12 likes')); assert(html.includes('Capture limit reached'));
+    assert(!html.includes('<script>')); assert(!html.includes('https://comment.test')); assert(!html.includes('null likes'));
+    capture.render({ content: 'A different page' });
+    assert.equal(root.getElementById('content-preview').textContent, 'A different page');
+  });
   it("runs the current analysis mode from the label and opens choices only from the arrow", async () => {
     const eggs = new ActionControlsComponent(createMockRoot());
     const calls = [];
@@ -1266,4 +1279,3 @@ describe("Modular UI Components", () => {
     assert.ok(html.includes('action-highlights'));
   });
 });
-

@@ -16,6 +16,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "discussionLoadingHint": "Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured comments at any time.",
+    "discussionPreview": "Discussion · {count} captured comments",
+    "debugInfo": "Debug info",
+    "debugInfoDescription": "Show active AI calls and approximate prompt word counts for the backend session.",
+    "debugInfoUnavailable": "Debug info is unavailable.",
+    "debugInfoStats": "{backend} session · {running} AI calls running · {calls} calls total\nPrompt words (approx.): {words} total · {last} last call",
+
     "discussionUnsupported": "This comment layout is not supported yet. You can analyze the body alone.",
     "discussionSupplement": "Extra insights",
     "jumpToSource": "Source",
@@ -23,7 +30,6 @@ const translations = {
     "discussionSection": "Discussion",
     "discussionLoad": "Load discussion",
     "discussionRefresh": "Refresh comments",
-    "discussionLoadingHint": "Open comments or scroll in the page, then refresh. You can analyze captured content at any time.",
     "discussionShortBody": "The original post contains little information. Most content is in the discussion. You can still analyze the post alone.",
     "discussionOnlyWarning": "Video text is unavailable. This analysis covers captured discussion; comments do not establish what the video says.",
     "discussionLoading": "Collecting discussion… {count} comments captured.",
@@ -389,6 +395,13 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "discussionLoadingHint": "继续滚动页面以加载更多评论，然后刷新预览。您可随时分析已捕获的评论。",
+    "discussionPreview": "讨论 · 已捕获 {count} 条评论",
+    "debugInfo": "调试信息",
+    "debugInfoDescription": "显示后端会话中正在运行的 AI 调用及提示词的大致字数。",
+    "debugInfoUnavailable": "调试信息不可用。",
+    "debugInfoStats": "{backend} 会话 · {running} 个 AI 调用运行中 · 共 {calls} 次调用\n提示词字数（估算）：共 {words} · 上次调用 {last}",
+
     "discussionUnsupported": "暂不支持此评论布局。您仍可仅分析正文。",
     "discussionSupplement": "补充见解",
     "jumpToSource": "原文",
@@ -396,7 +409,6 @@ const translations = {
     "discussionSection": "讨论",
     "discussionLoad": "加载讨论",
     "discussionRefresh": "刷新评论",
-    "discussionLoadingHint": "请打开评论或在页面中滚动，然后刷新。您可随时分析已捕获的内容。",
     "discussionShortBody": "原帖信息较少，大部分内容在讨论中。您仍可仅分析原帖。",
     "discussionOnlyWarning": "视频文字不可用。本次分析针对已捕获的讨论；评论不能证明视频中的观点。",
     "discussionLoading": "正在收集讨论… 已捕获 {count} 条评论。",
@@ -762,6 +774,13 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "discussionLoadingHint": "Sigue desplazándote en la página para cargar más comentarios y actualiza la vista previa. Puedes analizar lo capturado cuando quieras.",
+    "discussionPreview": "Discusión · {count} comentarios capturados",
+    "debugInfo": "Información de depuración",
+    "debugInfoDescription": "Mostrar llamadas de IA activas y palabras aproximadas de los prompts de la sesión.",
+    "debugInfoUnavailable": "Información de depuración no disponible.",
+    "debugInfoStats": "Sesión {backend} · {running} llamadas de IA activas · {calls} en total\nPalabras del prompt (aprox.): {words} en total · {last} última llamada",
+
     "discussionUnsupported": "Este formato de comentarios aún no es compatible. Puedes analizar solo el cuerpo.",
     "discussionSupplement": "Ideas adicionales",
     "jumpToSource": "Fuente",
@@ -769,7 +788,6 @@ const translations = {
     "discussionSection": "Discusión",
     "discussionLoad": "Cargar discusión",
     "discussionRefresh": "Actualizar comentarios",
-    "discussionLoadingHint": "Abre los comentarios o desplázate en la página y actualiza. Puedes analizar lo capturado en cualquier momento.",
     "discussionShortBody": "La publicación original contiene poca información. La mayor parte está en la discusión. Puedes analizar solo la publicación.",
     "discussionOnlyWarning": "El texto del vídeo no está disponible. Este análisis cubre la discusión capturada; los comentarios no demuestran lo que dice el vídeo.",
     "discussionLoading": "Recopilando discusión… {count} comentarios capturados.",
@@ -1135,6 +1153,13 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "discussionLoadingHint": "ページをスクロールしてコメントを読み込み、プレビューを更新してください。取得済みのコメントはいつでも分析できます。",
+    "discussionPreview": "議論 · {count} 件のコメント取得済み",
+    "debugInfo": "デバッグ情報",
+    "debugInfoDescription": "バックエンドのセッションで実行中の AI 呼び出し数とプロンプトの概算語数を表示します。",
+    "debugInfoUnavailable": "デバッグ情報を取得できません。",
+    "debugInfoStats": "{backend} セッション · AI 呼び出し実行中 {running} · 合計 {calls}\nプロンプト概算語数：合計 {words} · 前回 {last}",
+
     "discussionUnsupported": "このコメント形式にはまだ対応していません。本文だけでも分析できます。",
     "discussionSupplement": "補足の知見",
     "jumpToSource": "出典",
@@ -1142,7 +1167,6 @@ const translations = {
     "discussionSection": "ディスカッション",
     "discussionLoad": "議論を読み込む",
     "discussionRefresh": "コメントを更新",
-    "discussionLoadingHint": "コメントを開くかページをスクロールして更新してください。取得済みの内容はいつでも分析できます。",
     "discussionShortBody": "元の投稿の情報は少なく、大半は議論にあります。投稿だけでも分析できます。",
     "discussionOnlyWarning": "動画のテキストは利用できません。取得済みの議論を分析します。コメントは動画の内容を証明しません。",
     "discussionLoading": "議論を取得中… {count} 件のコメントを取得。",
@@ -1508,6 +1532,13 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "discussionLoadingHint": "페이지를 계속 스크롤하여 댓글을 더 불러온 뒤 미리보기를 새로고침하세요. 수집한 댓글은 언제든 분석할 수 있습니다.",
+    "discussionPreview": "토론 · 수집한 댓글 {count}개",
+    "debugInfo": "디버그 정보",
+    "debugInfoDescription": "백엔드 세션의 실행 중 AI 호출 수와 대략적인 프롬프트 단어 수를 표시합니다.",
+    "debugInfoUnavailable": "디버그 정보를 사용할 수 없습니다.",
+    "debugInfoStats": "{backend} 세션 · AI 호출 {running}개 실행 중 · 총 {calls}회\n프롬프트 단어 수(대략): 총 {words} · 마지막 호출 {last}",
+
     "discussionUnsupported": "이 댓글 형식은 아직 지원하지 않습니다. 본문만 분석할 수 있습니다.",
     "discussionSupplement": "추가 인사이트",
     "jumpToSource": "원문",
@@ -1515,7 +1546,6 @@ const translations = {
     "discussionSection": "토론",
     "discussionLoad": "토론 불러오기",
     "discussionRefresh": "댓글 새로고침",
-    "discussionLoadingHint": "댓글을 열거나 페이지를 스크롤한 뒤 새로고침하세요. 수집한 내용은 언제든 분석할 수 있습니다.",
     "discussionShortBody": "원문 정보가 적고 대부분의 내용이 토론에 있습니다. 원문만 분석할 수도 있습니다.",
     "discussionOnlyWarning": "영상 텍스트가 없습니다. 수집한 토론을 분석하며 댓글은 영상 내용을 입증하지 않습니다.",
     "discussionLoading": "토론 수집 중… 댓글 {count}개 수집됨.",
@@ -1881,6 +1911,13 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "discussionLoadingHint": "واصل تمرير الصفحة لتحميل المزيد من التعليقات، ثم حدّث المعاينة. يمكنك تحليل التعليقات الملتقطة في أي وقت.",
+    "discussionPreview": "النقاش · {count} تعليق ملتقط",
+    "debugInfo": "معلومات التصحيح",
+    "debugInfoDescription": "عرض استدعاءات الذكاء الاصطناعي النشطة وعدد كلمات الطلبات التقريبي لجلسة الخدمة.",
+    "debugInfoUnavailable": "معلومات التصحيح غير متاحة.",
+    "debugInfoStats": "جلسة {backend} · {running} استدعاء ذكاء اصطناعي نشط · {calls} إجمالًا\nكلمات الطلبات (تقريبية): {words} إجمالًا · {last} آخر استدعاء",
+
     "discussionUnsupported": "تنسيق التعليقات هذا غير مدعوم بعد. يمكنك تحليل النص وحده.",
     "discussionSupplement": "رؤى إضافية",
     "jumpToSource": "المصدر",
@@ -1888,7 +1925,6 @@ const translations = {
     "discussionSection": "النقاش",
     "discussionLoad": "تحميل النقاش",
     "discussionRefresh": "تحديث التعليقات",
-    "discussionLoadingHint": "افتح التعليقات أو مرّر الصفحة ثم حدّث. يمكنك تحليل المحتوى الملتقط في أي وقت.",
     "discussionShortBody": "يحتوي المنشور الأصلي على معلومات قليلة ومعظم المحتوى في النقاش. يمكنك تحليل المنشور وحده.",
     "discussionOnlyWarning": "نص الفيديو غير متاح. يشمل هذا التحليل النقاش الملتقط؛ التعليقات لا تثبت ما يقوله الفيديو.",
     "discussionLoading": "جارٍ جمع النقاش… تم التقاط {count} تعليق.",
@@ -2254,6 +2290,13 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "discussionLoadingHint": "Continuez à faire défiler la page pour charger plus de commentaires, puis actualisez l’aperçu. Vous pouvez analyser les commentaires capturés à tout moment.",
+    "discussionPreview": "Discussion · {count} commentaires capturés",
+    "debugInfo": "Infos de débogage",
+    "debugInfoDescription": "Afficher les appels IA actifs et le nombre approximatif de mots des prompts pour la session.",
+    "debugInfoUnavailable": "Infos de débogage indisponibles.",
+    "debugInfoStats": "Session {backend} · {running} appels IA actifs · {calls} au total\nMots des prompts (approx.) : {words} au total · {last} dernier appel",
+
     "discussionUnsupported": "Ce format de commentaires n’est pas encore pris en charge. Vous pouvez analyser le texte seul.",
     "discussionSupplement": "Éclairages complémentaires",
     "jumpToSource": "Source",
@@ -2261,7 +2304,6 @@ const translations = {
     "discussionSection": "Discussion",
     "discussionLoad": "Charger la discussion",
     "discussionRefresh": "Actualiser les commentaires",
-    "discussionLoadingHint": "Ouvrez les commentaires ou faites défiler la page, puis actualisez. Vous pouvez analyser le contenu capturé à tout moment.",
     "discussionShortBody": "Le message original contient peu d’informations. L’essentiel est dans la discussion. Vous pouvez analyser le message seul.",
     "discussionOnlyWarning": "Le texte de la vidéo est indisponible. L’analyse porte sur la discussion capturée ; les commentaires ne prouvent pas le contenu de la vidéo.",
     "discussionLoading": "Collecte en cours… {count} commentaires capturés.",
@@ -2627,6 +2669,13 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "discussionLoadingHint": "Scrolle weiter auf der Seite, um mehr Kommentare zu laden, und aktualisiere die Vorschau. Erfasste Kommentare kannst du jederzeit analysieren.",
+    "discussionPreview": "Diskussion · {count} erfasste Kommentare",
+    "debugInfo": "Debug-Informationen",
+    "debugInfoDescription": "Aktive KI-Aufrufe und ungefähre Prompt-Wortzahlen der Backend-Sitzung anzeigen.",
+    "debugInfoUnavailable": "Debug-Informationen nicht verfügbar.",
+    "debugInfoStats": "{backend}-Sitzung · {running} aktive KI-Aufrufe · {calls} insgesamt\nPrompt-Wörter (ca.): {words} insgesamt · {last} letzter Aufruf",
+
     "discussionUnsupported": "Dieses Kommentarformat wird noch nicht unterstützt. Du kannst nur den Haupttext analysieren.",
     "discussionSupplement": "Zusätzliche Erkenntnisse",
     "jumpToSource": "Quelle",
@@ -2634,7 +2683,6 @@ const translations = {
     "discussionSection": "Diskussion",
     "discussionLoad": "Diskussion laden",
     "discussionRefresh": "Kommentare aktualisieren",
-    "discussionLoadingHint": "Öffne die Kommentare oder scrolle auf der Seite und aktualisiere. Du kannst erfasste Inhalte jederzeit analysieren.",
     "discussionShortBody": "Der ursprüngliche Beitrag enthält wenig Information. Der größte Teil steht in der Diskussion. Du kannst nur den Beitrag analysieren.",
     "discussionOnlyWarning": "Der Videotext ist nicht verfügbar. Diese Analyse umfasst erfasste Diskussionen; Kommentare belegen nicht den Videoinhalt.",
     "discussionLoading": "Diskussion wird erfasst… {count} Kommentare erfasst.",
@@ -3000,6 +3048,13 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "discussionLoadingHint": "Continue rolando a página para carregar mais comentários e atualize a prévia. Você pode analisar os comentários capturados a qualquer momento.",
+    "discussionPreview": "Discussão · {count} comentários capturados",
+    "debugInfo": "Informações de depuração",
+    "debugInfoDescription": "Mostrar chamadas de IA ativas e contagens aproximadas de palavras dos prompts da sessão.",
+    "debugInfoUnavailable": "Informações de depuração indisponíveis.",
+    "debugInfoStats": "Sessão {backend} · {running} chamadas de IA ativas · {calls} no total\nPalavras dos prompts (aprox.): {words} no total · {last} última chamada",
+
     "discussionUnsupported": "Este formato de comentários ainda não é compatível. Você pode analisar apenas o texto.",
     "discussionSupplement": "Ideias adicionais",
     "jumpToSource": "Fonte",
@@ -3007,7 +3062,6 @@ const translations = {
     "discussionSection": "Discussão",
     "discussionLoad": "Carregar discussão",
     "discussionRefresh": "Atualizar comentários",
-    "discussionLoadingHint": "Abra os comentários ou role a página e atualize. Você pode analisar o conteúdo capturado a qualquer momento.",
     "discussionShortBody": "A publicação original contém pouca informação. A maior parte está na discussão. Você pode analisar apenas a publicação.",
     "discussionOnlyWarning": "O texto do vídeo está indisponível. A análise abrange a discussão capturada; comentários não comprovam o conteúdo do vídeo.",
     "discussionLoading": "Coletando discussão… {count} comentários capturados.",
@@ -3373,6 +3427,13 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "discussionLoadingHint": "Продолжайте прокручивать страницу, чтобы загрузить больше комментариев, затем обновите предпросмотр. Собранные комментарии можно анализировать в любой момент.",
+    "discussionPreview": "Обсуждение · собрано {count} комментариев",
+    "debugInfo": "Отладочная информация",
+    "debugInfoDescription": "Показывать активные вызовы ИИ и приблизительное число слов в запросах за сеанс сервера.",
+    "debugInfoUnavailable": "Отладочная информация недоступна.",
+    "debugInfoStats": "Сеанс {backend} · {running} активных вызовов ИИ · всего {calls}\nСлов в запросах (примерно): всего {words} · последний вызов {last}",
+
     "discussionUnsupported": "Этот формат комментариев пока не поддерживается. Можно анализировать только основной текст.",
     "discussionSupplement": "Дополнительные идеи",
     "jumpToSource": "Источник",
@@ -3380,7 +3441,6 @@ const translations = {
     "discussionSection": "Обсуждение",
     "discussionLoad": "Загрузить обсуждение",
     "discussionRefresh": "Обновить комментарии",
-    "discussionLoadingHint": "Откройте комментарии или прокрутите страницу, затем обновите. Можно анализировать собранный материал в любое время.",
     "discussionShortBody": "В исходном сообщении мало информации. Основное содержание находится в обсуждении. Можно анализировать только сообщение.",
     "discussionOnlyWarning": "Текст видео недоступен. Анализ охватывает собранное обсуждение; комментарии не доказывают содержание видео.",
     "discussionLoading": "Сбор обсуждения… собрано {count} комментариев.",

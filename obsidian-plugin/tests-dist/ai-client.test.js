@@ -307,6 +307,23 @@ function resolveConfig(settings) {
   };
 }
 
+// ../shared/src/ai-diagnostics.ts
+var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
+function countPromptWords(prompt) {
+  return prompt.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]|[^\s\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]+/gu)?.length || 0;
+}
+async function trackAIRequest(prompt, request) {
+  stats.activeCalls++;
+  stats.totalCalls++;
+  stats.lastPromptWords = countPromptWords(prompt);
+  stats.promptWords += stats.lastPromptWords;
+  try {
+    return await request();
+  } finally {
+    stats.activeCalls--;
+  }
+}
+
 // ../shared/src/client.ts
 var AIError = class extends Error {
   code;
@@ -492,13 +509,13 @@ async function chatAI(prompt, maxTokens, config) {
       "No AI API key configured. Open settings and enter your API key."
     );
   }
-  if (config.apiFormat === "anthropic") {
-    return chatAnthropic(prompt, maxTokens, config);
-  }
-  if (config.apiFormat === "ollama") {
-    return chatOllama(prompt, maxTokens, config);
-  }
-  return chatOpenAICompatible(prompt, maxTokens, config);
+  return trackAIRequest(prompt, () => {
+    if (config.apiFormat === "anthropic")
+      return chatAnthropic(prompt, maxTokens, config);
+    if (config.apiFormat === "ollama")
+      return chatOllama(prompt, maxTokens, config);
+    return chatOpenAICompatible(prompt, maxTokens, config);
+  });
 }
 async function checkCreditAI(settings) {
   const providerId = settings.chromeAiProvider || settings.aiProvider || "gemini";

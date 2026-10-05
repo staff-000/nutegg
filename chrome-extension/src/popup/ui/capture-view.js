@@ -80,7 +80,7 @@ class CaptureViewComponent {
       if (this.contentPreview) this.contentPreview.textContent = t("retrievingPageContent");
       this.clearAuthorAndPublished();
     } else {
-      this.setPreviewText(content?.content || options.previewPlaceholder || t("noContentExtracted"));
+      this.setPreviewContent(content, options.previewPlaceholder);
       this.showProvenance(content?.metadata || {}, content?.content);
     }
 
@@ -135,18 +135,34 @@ class CaptureViewComponent {
     }
   }
 
+  setPreviewContent(content, placeholder) {
+    if (content?.url !== this.previewUrl) {
+      this.previewUrl = content?.url;
+      if (this.contentPreview) this.contentPreview.scrollTop = 0;
+    }
+    const items = content?.discussion?.items || [];
+    const comments = items.length ? '\n\n' + t('discussionPreview', { count: items.length }) + '\n'
+      + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}${item.author || t('discussionComment')}\n${item.text}`
+        + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
+      + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
+    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments);
+  }
+
   setPreviewText(text) {
     if (!this.contentPreview) return;
+    const scrollTop = this.contentPreview.scrollTop || 0;
     const helpers = globalThis.NutEggHelpers;
     if (helpers?.escapeHtml && helpers?.linkifyTimestamps) {
       const escaped = helpers.escapeHtml(String(text ?? ""));
       const html = helpers.linkifyTimestamps(escaped);
       if (html !== escaped) {
         this.contentPreview.innerHTML = html;
+        this.contentPreview.scrollTop = scrollTop;
         return;
       }
     }
     this.contentPreview.textContent = text;
+    this.contentPreview.scrollTop = scrollTop;
   }
 
   clearProvenance() {
@@ -237,4 +253,3 @@ _captureScope.NutEggUI.CaptureViewComponent = CaptureViewComponent;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { CaptureViewComponent };
 }
-

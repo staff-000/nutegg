@@ -1,4 +1,5 @@
 import { normalizeDiscussion } from "../../shared/src/discussion";
+import { getAIDebugInfo } from "../../shared/src/ai-diagnostics";
 import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import type NutEggPlugin from "./main";
@@ -337,6 +338,12 @@ export class NutEggServer {
 
         if (req.method === "GET" && req.url === "/credit") {
           await this.handleCredit(res);
+          return;
+        }
+
+        if (req.method === "GET" && req.url === "/debug-info") {
+          res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+          res.end(JSON.stringify(getAIDebugInfo()));
           return;
         }
 
