@@ -3,20 +3,23 @@ class PopupOperations {
   constructor({ store, service, extractor, chromeApi = chrome }) {
     this.store = store; this.service = service; this.extractor = extractor; this.chromeApi = chromeApi;
     this.catalogTask = null;
-    this.debugRequest = 0;
+    this.debugPending = new Set();
   }
   async refreshDebugInfo() {
-    if (!this.store.settings?.debugInfo || this.debugPending) return;
-    this.debugPending = true;
-    const request = ++this.debugRequest;
+    const tab = this.store.getTab(this.store.activeTabId);
+    if (!this.store.settings?.debugInfo || !tab) return;
+    const { tabId, debugScope } = tab;
     const mode = this.store.settings.isChromeMode() ? 'chrome' : 'obsidian';
+    const key = `${mode}:${debugScope}`;
+    if (this.debugPending.has(key)) return;
+    this.debugPending.add(key);
     try {
-      const value = await this.service.sendMessage({ action: 'get-debug-info', mode });
-      if (request !== this.debugRequest || !this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) return;
-      this.store.dispatch({ type: 'debugInfo', value });
+      const value = await this.service.sendMessage({ action: 'get-debug-info', mode, debugScope });
+      if (!this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) return;
+      this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value });
     } catch {
-      if (request === this.debugRequest && this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) this.store.dispatch({ type: 'debugInfo', value: { unavailable: true } });
-    } finally { this.debugPending = false; }
+      if (this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value: { unavailable: true, mode } });
+    } finally { this.debugPending.delete(key); }
   }
   fail(context, error) {
     this.store.commitOperation(context.token, { type: 'operationFailed', error: error?.message || String(error), code: error?.code });
@@ -97,7 +100,7 @@ class PopupOperations {
     const content = tab.extractedContent;
     try {
       if (!content?.content) throw new Error(t('couldNotRetrieveContent'));
-      const payload = { ...content, force: true, stage: 1, questions: inputs.questions || [], questionsScope: tab.customQuestionsScope,
+      const payload = { ...content, debugScope: tab.debugScope, force: true, stage: 1, questions: inputs.questions || [], questionsScope: tab.customQuestionsScope,
         generateKnowledgeEntries: tab.generateKnowledgeEntries, enabledSections: tab.enabledSections,
         discussion: tab.enabledSections.discussion === true ? content.discussion : undefined,
         outputLanguage: inputs.outputLanguage, ...(inputs.eggs ? { eggs: inputs.eggs } : {}) };
@@ -166,7 +169,7 @@ class PopupOperations {
     // fetched source captured in this operation, never a fresh active-tab read.
     const source = typeof base?.content === 'string' && base.content.trim() ? base : tab.extractedContent;
     if (typeof source?.content !== 'string' || !source.content.trim()) throw new Error(t('couldNotRetrieveContent'));
-    const payload = { ...source, stage: 2, force: true, contentAnalysis: analysis, eggs: inputs.pending || eggs,
+    const payload = { ...source, debugScope: tab.debugScope, stage: 2, force: true, contentAnalysis: analysis, eggs: inputs.pending || eggs,
       selectedEggs: eggs, cachedEggResults: cached, generateKnowledgeEntries: tab.generateKnowledgeEntries,
       outputLanguage: inputs.outputLanguage, nutId: source.nutId || analysis.nutId || tab.currentNutId };
     const response = await this.service.sendAnalyzeViaPort(payload);
@@ -193,7 +196,7 @@ class PopupOperations {
       if (hatch && !entries.length) throw new Error(t('noNewKnowledgeToAdd'));
       const content = tab.stage1Payload || tab.extractedContent;
       if (!content) throw new Error(t('couldNotExtractToSave'));
-      const payload = { ...content, analysis: result, summary: result?.summary || '', matchedEggs: result?.matchedEggs || [],
+      const payload = { ...content, debugScope: tab.debugScope, analysis: result, summary: result?.summary || '', matchedEggs: result?.matchedEggs || [],
         newKnowledge: entries, nutId: tab.currentNutId ?? undefined, skipRaw: hatch && tab.nutCollected };
       requested = true;
       const response = await this.service.sendMessage({ action: 'confirm', payload });
@@ -216,6 +219,7 @@ class PopupOperations {
     const priorQa = [...(tab.analysisResult?.eggResults || []).flatMap(r => r.keyQuestionAnswers || []), ...(tab.analysisResult?.customQuestionAnswers || []), ...tab.followUpQa.filter(q => !q.pending)];
     try {
       const response = await this.service.sendMessage({ action: 'ask', payload: { ...(tab.stage1Payload || tab.extractedContent),
+        debugScope: tab.debugScope,
         questions: [question], scope: tab.followupScope, priorQa, outputLanguage: ctx.inputs.outputLanguage } });
       if (response?.error) throw new Error(response.error);
       this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: response.answers?.[0] || { answer: t('noContentExtracted') } });

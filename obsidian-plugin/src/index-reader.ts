@@ -44,7 +44,8 @@ export class IndexReader {
    */
   async matchEggs(
     content: { title: string; content: string; url: string },
-    index: IndexEntry[]
+    index: IndexEntry[],
+    debugScope?: string
   ): Promise<IndexEntry[]> {
     if (index.length === 0) return [];
     if (index.length === 1) return index;
@@ -69,7 +70,7 @@ export class IndexReader {
 
     try {
       // Allow 800 tokens for routing output so reasoning/thinking tokens don't truncate filenames
-      const response = await this.plugin.aiClient.chat(prompt, 800);
+      const response = await this.plugin.aiClient.chat(prompt, 800, debugScope);
       return this.parseMatchedEggs(response, index);
     } catch (err) {
       console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);

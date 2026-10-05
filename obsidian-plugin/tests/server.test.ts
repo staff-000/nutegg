@@ -4,6 +4,9 @@ import { NutEggServer } from "../src/server";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 import { KnowledgeBase } from "../src/knowledge-base";
 import { EggParser } from "../src/egg-parser";
+import { AIProcessor } from "../src/ai-processor";
+import { IndexReader } from "../src/index-reader";
+import { getAIDebugInfo, trackAIRequest } from "../../shared/src/ai-diagnostics";
 
 function makeServer(overrides: any = {}) {
   const plugin = makeFakePlugin(overrides);
@@ -294,6 +297,54 @@ function makeRes() {
     },
   };
 }
+
+describe("NutEggServer tab-scoped AI diagnostics", () => {
+  it("isolates overlapping follow-ups and includes summary/routing calls for their originating tab", async () => {
+    const scopeA = "server-tab-a", scopeB = "server-tab-b";
+    const pending = new Map<string, (value: string) => void>();
+    let started!: () => void;
+    const bothStarted = new Promise<void>(resolve => { started = resolve; });
+    let blocking = true;
+    const plugin: any = makeFakePlugin();
+    plugin.aiClient.chat = (prompt: string, _maxTokens: number, scope: string) => trackAIRequest(prompt, () => {
+      if (!blocking) return Promise.resolve(JSON.stringify({ titleVerdict: "Summary", coreSummary: ["Point"], mindMap: [] }));
+      return new Promise<string>(resolve => { pending.set(scope, resolve); if (pending.size === 2) started(); });
+    }, scope);
+    plugin.aiProcessor = new AIProcessor(plugin);
+    plugin.indexReader = new IndexReader(plugin);
+    plugin.indexReader.getIndexContent = async () => "tech.md: Technology\nscience.md: Science";
+    const s: any = new NutEggServer(plugin, 27123);
+    const capture = { url: "https://example.test", title: "Article", content: "Article text", sourceType: "article" };
+    const resA = makeRes(), resB = makeRes();
+    const first = s.handleAsk(makeReq(JSON.stringify({ ...capture, debugScope: scopeA, questions: ["Why?"] })), resA);
+    const second = s.handleAsk(makeReq(JSON.stringify({ ...capture, debugScope: scopeB, questions: ["How?"] })), resB);
+    await bothStarted;
+    assert.equal(getAIDebugInfo(scopeA).activeCalls, 1);
+    assert.equal(getAIDebugInfo(scopeB).activeCalls, 1);
+    pending.get(scopeB)!(JSON.stringify({ answers: [{ answer: "B" }] })); await second;
+    assert.equal(getAIDebugInfo(scopeB).activeCalls, 0);
+    assert.equal(getAIDebugInfo(scopeA).activeCalls, 1);
+    pending.get(scopeA)!(JSON.stringify({ answers: [{ answer: "A" }] })); await first;
+    assert.equal(resA.statusCode, 200); assert.equal(resB.statusCode, 200);
+    blocking = false;
+    const analyzed = makeRes();
+    await s.handleAnalyze(makeReq(JSON.stringify({ ...capture, debugScope: scopeA, stage: 1, force: true })), analyzed);
+    assert.equal(analyzed.statusCode, 200);
+    assert.equal(getAIDebugInfo(scopeA).totalCalls, 3, "follow-up, content summary and egg routing");
+    assert.equal(getAIDebugInfo(scopeB).totalCalls, 1);
+    assert.equal(getAIDebugInfo(scopeA).activeCalls, 0);
+    assert.equal(s.captureSnapshot({ ...capture, debugScope: scopeA }).debugScope, undefined);
+
+    const response = makeRes();
+    s.handleDebugInfo({ url: `/debug-info?scope=${scopeB}` }, response);
+    assert.equal(JSON.parse(response.body).totalCalls, 1);
+    assert.equal(response.headers["Cache-Control"], "no-store");
+    for (const url of ["/debug-info", "/debug-info?scope=unknown-tab"]) {
+      const empty = makeRes(); s.handleDebugInfo({ url }, empty);
+      assert.equal(JSON.parse(empty.body).totalCalls, 0, "never expose global totals for a missing/unknown scope");
+    }
+  });
+});
 
 describe("NutEggServer.handleConfirm", () => {
   const baseConfirm = {

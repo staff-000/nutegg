@@ -1,5 +1,5 @@
 import { normalizeDiscussion } from "../../shared/src/discussion";
-import { getAIDebugInfo } from "../../shared/src/ai-diagnostics";
+import { getAIDebugInfo, normalizeAIDebugScope } from "../../shared/src/ai-diagnostics";
 import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import type NutEggPlugin from "./main";
@@ -17,6 +17,7 @@ import type { EggAnalysis } from "../../shared/src/types";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
 
 interface AnalyzeRequest {
+  debugScope?: string;
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
@@ -52,6 +53,7 @@ interface AnalyzeRequest {
 }
 
 interface AskRequest {
+  debugScope?: string;
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
@@ -76,6 +78,7 @@ interface CreateEggRequest {
 }
 
 interface ConfirmRequest {
+  debugScope?: string;
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
@@ -341,9 +344,8 @@ export class NutEggServer {
           return;
         }
 
-        if (req.method === "GET" && req.url === "/debug-info") {
-          res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-          res.end(JSON.stringify(getAIDebugInfo()));
+        if (req.method === "GET" && req.url?.split("?")[0] === "/debug-info") {
+          this.handleDebugInfo(req, res);
           return;
         }
 
@@ -471,6 +473,17 @@ export class NutEggServer {
     }
   }
 
+  private handleDebugInfo(req: http.IncomingMessage, res: http.ServerResponse): void {
+    const url = new URL(req.url || "/debug-info", `http://127.0.0.1:${this.port}`);
+    const scope = normalizeAIDebugScope(url.searchParams.get("scope"));
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(getAIDebugInfo(scope || "")));
+  }
+
+  private processorForDebugScope(scope?: string) {
+    return this.plugin.aiProcessor?.withDebugScope?.(normalizeAIDebugScope(scope)) || this.plugin.aiProcessor;
+  }
+
   /**
    * POST /ask — answer follow-up questions about already-analyzed content.
    * One lightweight AI call; no saving, no dedup cache interaction.
@@ -491,7 +504,8 @@ export class NutEggServer {
         normalizedPriorQa = [];
       }
 
-      const answers = await this.plugin.aiProcessor.askFollowUp(
+      const processor = this.processorForDebugScope(ask.debugScope);
+      const answers = await processor.askFollowUp(
         ask,
         ask.questions,
         normalizedPriorQa,
@@ -628,6 +642,8 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const capture: AnalyzeRequest = JSON.parse(body);
+      capture.debugScope = normalizeAIDebugScope(capture.debugScope);
+      const processor = this.processorForDebugScope(capture.debugScope);
       capture.discussion = capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : undefined;
 
       if (!capture.url || !capture.title) {
@@ -670,7 +686,7 @@ export class NutEggServer {
           mindMap: [],
           customQuestionAnswers: [],
         };
-        let result = await this.plugin.aiProcessor.analyzeEggs(
+        let result = await processor.analyzeEggs(
           capture,
           eggs,
           contentAnalysis
@@ -710,7 +726,7 @@ export class NutEggServer {
       }
 
       // Stage 1 (default): content summary + egg routing via concise summary
-      const contentAnalysis = await this.plugin.aiProcessor.analyzeContent(capture);
+      const contentAnalysis = await processor.analyzeContent(capture);
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
 
@@ -727,7 +743,8 @@ export class NutEggServer {
           .join("\n");
         const matchedIndex = await this.plugin.indexReader.matchEggs(
           { title: capture.title, url: capture.url, content: summaryText },
-          index
+          index,
+          capture.debugScope
         );
         matchedEggs = matchedIndex.map((e) => e.fileName);
       }
@@ -956,7 +973,7 @@ export class NutEggServer {
         })
       );
       if (hasKnowledge) setTimeout(() => {
-        for (const egg of eggNames) void this.plugin.aiProcessor?.maybeMergeEgg?.(egg)
+        for (const egg of eggNames) void this.processorForDebugScope(confirm.debugScope)?.maybeMergeEgg?.(egg)
           ?.catch(err => console.warn(`[NutEgg] Background merge failed for ${egg}`, err));
       }, 0);
     } catch (err) {

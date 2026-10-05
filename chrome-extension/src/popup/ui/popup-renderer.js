@@ -72,7 +72,9 @@ class PopupRenderer {
     ui.eggsUI.clearError();
     if (settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);
     ui.metricsUI.showPluginLink(!settings.serverOnline);
-    keyed('debug', [settings.debugInfo, this.store.debugInfo], () => ui.metricsUI.renderDebug?.(this.store.debugInfo, settings.debugInfo));
+    const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
+    const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;
+    keyed('debug', [settings.debugInfo, debugMode, debugInfo], () => ui.metricsUI.renderDebug?.(debugInfo, settings.debugInfo));
     if (this.store.environment?.credit) ui.headerUI.renderCredit(this.store.environment.credit, settings.serverOnline);
     else ui.headerUI.hideCredit();
     keyed('collapse', [view.presentation.collapsible], () => {

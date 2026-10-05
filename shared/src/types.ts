@@ -194,6 +194,8 @@ export interface ContentAnalysis {
 }
 
 export interface CapturePayload {
+  /** Opaque tab/page diagnostics ID; never included in prompts or archived content. */
+  debugScope?: string;
   discussion?: DiscussionCapture;
   transcriptAvailable?: boolean;
   mediaType?: string;
@@ -318,7 +320,7 @@ export interface AIProcessorHost {
     getPrompt(key: WorkflowPromptKey | string): string;
   };
   aiClient?: {
-    chat(prompt: string, maxTokens?: number): Promise<string>;
+    chat(prompt: string, maxTokens?: number, debugScope?: string): Promise<string>;
   };
   eggParser?: {
     readEgg?(fileName: string): Promise<EggContent | null>;

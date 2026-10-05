@@ -32,23 +32,18 @@ var OPENROUTER_FAMILIES = [
   {
     id: "openai",
     label: "OpenAI GPT & Reasoning",
-    defaultModel: "openai/gpt-6-luna",
+    defaultModel: "openai/gpt-6.1-sol",
     models: [
       "openai/gpt-6-luna",
       "openai/gpt-6.1-sol",
-      "openai/gpt-6-astra",
-      "openai/gpt-5.6-sol",
-      "openai/o3-mini",
-      "openai/gpt-4o",
-      "openai/gpt-4o-mini"
+      "openai/gpt-6-astra"
     ]
   },
   {
     id: "anthropic",
     label: "Anthropic Claude",
-    defaultModel: "anthropic/claude-haiku-4.5",
+    defaultModel: "anthropic/claude-sonnet-5",
     models: [
-      "anthropic/claude-haiku-4.5",
       "anthropic/claude-sonnet-5.5",
       "anthropic/claude-opus-5.5",
       "anthropic/claude-fable-5.1",
@@ -59,26 +54,19 @@ var OPENROUTER_FAMILIES = [
   {
     id: "deepseek",
     label: "DeepSeek",
-    defaultModel: "deepseek/deepseek-v3.2",
+    defaultModel: "deepseek/deepseek-chat",
     models: [
-      "deepseek/deepseek-v3.2",
       "deepseek/deepseek-v4.1-flash",
       "deepseek/deepseek-v4-pro",
-      "deepseek/deepseek-chat",
-      "deepseek/deepseek-r1"
+      "deepseek/deepseek-chat"
     ]
   },
   {
     id: "google",
     label: "Google Gemini",
-    defaultModel: "google/gemini-3.1-flash-lite",
+    defaultModel: "google/gemini-3.8-flash",
     models: [
-      "google/gemini-3.1-flash-lite",
-      "google/gemini-3.5-flash-lite",
-      "google/gemini-3.8-flash",
-      "google/gemini-3.1-pro-preview",
-      "google/gemini-2.5-flash",
-      "google/gemini-2.5-pro"
+      "google/gemini-3.8-flash"
     ]
   },
   {
@@ -99,8 +87,7 @@ var OPENROUTER_FAMILIES = [
       "qwen/qwen3.7-flash",
       "qwen/qwen3.8-flash",
       "qwen/qwen3.7-plus",
-      "qwen/qwen3.8-max-0902",
-      "qwen/qwen-2.5-72b-instruct"
+      "qwen/qwen3.8-max-0902"
     ]
   },
   {
@@ -137,7 +124,6 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
-      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -159,11 +145,7 @@ var PROVIDER_CATALOG = {
       "gpt-6-astra",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
-      "gpt-5.6-luna",
-      "o3-mini",
-      "o1",
-      "gpt-4o",
-      "gpt-4o-mini"
+      "gpt-5.6-luna"
     ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "openai/"
@@ -177,11 +159,7 @@ var PROVIDER_CATALOG = {
     models: [
       "gemini-3.1-flash-lite",
       "gemini-3.5-flash-lite",
-      "gemini-3.8-flash",
-      "gemini-3.1-pro-preview",
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      "gemini-2.5-flash-lite"
+      "gemini-3.8-flash"
     ],
     keyPlaceholder: "AIza...",
     openrouterPrefix: "google/"
@@ -228,10 +206,7 @@ var PROVIDER_CATALOG = {
       "glm-5",
       "glm-5-turbo",
       "glm-4.7",
-      "glm-4.7-flash",
-      "glm-4-plus",
-      "glm-4-air",
-      "glm-4-flash"
+      "glm-4.7-flash"
     ],
     keyPlaceholder: "...",
     openrouterPrefix: "zhipu/"
@@ -326,19 +301,47 @@ function resolveConfig(settings) {
 }
 
 // ../shared/src/ai-diagnostics.ts
-var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
+var createStats = (startedAt = Date.now()) => ({ activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt });
+var stats = createStats();
+var scopedStats = /* @__PURE__ */ new Map();
+var MAX_IDLE_SCOPES = 256;
+function normalizeAIDebugScope(scope) {
+  return typeof scope === "string" && scope.trim().length > 0 && scope.length <= 160 ? scope.trim() : void 0;
+}
+function pruneIdleScopes() {
+  for (const [scope, counters] of scopedStats) {
+    if (scopedStats.size <= MAX_IDLE_SCOPES)
+      break;
+    if (counters.activeCalls === 0)
+      scopedStats.delete(scope);
+  }
+}
 function countPromptWords(prompt) {
   return prompt.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]|[^\s\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]+/gu)?.length || 0;
 }
-async function trackAIRequest(prompt, request) {
-  stats.activeCalls++;
-  stats.totalCalls++;
-  stats.lastPromptWords = countPromptWords(prompt);
-  stats.promptWords += stats.lastPromptWords;
+async function trackAIRequest(prompt, request, scope) {
+  const key = normalizeAIDebugScope(scope);
+  const counters = [stats];
+  if (key) {
+    const scoped = scopedStats.get(key) || createStats();
+    scopedStats.delete(key);
+    scopedStats.set(key, scoped);
+    counters.push(scoped);
+  }
+  const words = countPromptWords(prompt);
+  for (const counter of counters) {
+    counter.activeCalls++;
+    counter.totalCalls++;
+    counter.lastPromptWords = words;
+    counter.promptWords += words;
+  }
+  pruneIdleScopes();
   try {
     return await request();
   } finally {
-    stats.activeCalls--;
+    for (const counter of counters)
+      counter.activeCalls--;
+    pruneIdleScopes();
   }
 }
 
@@ -520,7 +523,7 @@ async function chatOpenAICompatible(prompt, maxTokens, config) {
   }
   return content;
 }
-async function chatAI(prompt, maxTokens, config) {
+async function chatAI(prompt, maxTokens, config, debugScope) {
   if (config.provider !== "local" && !config.apiKey) {
     throw new AIError(
       "no_api_key",
@@ -533,7 +536,7 @@ async function chatAI(prompt, maxTokens, config) {
     if (config.apiFormat === "ollama")
       return chatOllama(prompt, maxTokens, config);
     return chatOpenAICompatible(prompt, maxTokens, config);
-  });
+  }, debugScope);
 }
 async function checkCreditAI(settings) {
   const providerId = settings.chromeAiProvider || settings.aiProvider || "gemini";
@@ -707,8 +710,8 @@ var AIClient = class {
   async checkCredit(settings) {
     return checkCreditAI(settings);
   }
-  async chat(prompt, maxTokens) {
-    return chatAI(prompt, maxTokens, this.config);
+  async chat(prompt, maxTokens, debugScope) {
+    return chatAI(prompt, maxTokens, this.config, debugScope);
   }
 };
 

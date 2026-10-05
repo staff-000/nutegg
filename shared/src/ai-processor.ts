@@ -302,8 +302,13 @@ function discussionFingerprints(items: DiscussionItem[]): Map<string, string> {
 export class AIProcessor {
   private host: AIProcessorHost;
 
-  constructor(host: AIProcessorHost) {
+  constructor(host: AIProcessorHost, private debugScope?: string) {
     this.host = host;
+  }
+
+  /** Keep each concurrent request's diagnostics separate without mutating the host. */
+  withDebugScope(scope?: string): AIProcessor {
+    return new AIProcessor(this.host, scope);
   }
 
   get chunkWindowChars(): number {
@@ -1120,7 +1125,7 @@ export class AIProcessor {
     if (!this.host?.aiClient) {
       throw new AIError("unknown", "AIClient not provided to AIProcessor host");
     }
-    return await this.host.aiClient.chat(prompt, maxTokens);
+    return await this.host.aiClient.chat(prompt, maxTokens, this.debugScope);
   }
 
   /** Normalize a `[{question, answer, sources}]` array from the AI response. */

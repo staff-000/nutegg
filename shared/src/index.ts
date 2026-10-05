@@ -44,10 +44,10 @@ export async function analyzeContentStandalone(
       outputLanguage: language,
     },
     aiClient: {
-      chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 16384, config),
+      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 16384, config, debugScope),
     },
   };
-  const processor = new AIProcessor(host);
+  const processor = new AIProcessor(host, payload.debugScope);
   return processor.analyzeContent(payload);
 }
 
@@ -72,10 +72,10 @@ export async function askFollowUpStandalone(
       outputLanguage: language,
     },
     aiClient: {
-      chat: (prompt, maxTokens) => chatAI(prompt, maxTokens || 2000, config),
+      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 2000, config, debugScope),
     },
   };
-  const processor = new AIProcessor(host);
+  const processor = new AIProcessor(host, payload.debugScope);
   const answers = await processor.askFollowUp(payload, [question], priorQa, scope);
   return answers[0]?.answer || "No answer returned.";
 }

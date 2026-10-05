@@ -18,6 +18,20 @@ function setup(t) {
   return { ...f, root, ui, renderer, settings, analyze: new AnalyzeAction(deps), tab: new TabAction(deps) };
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
+test('debug panel restores only the active tab counters and clears on navigation', context => {
+  const f = setup(context);
+  f.settings.debugInfo = true;
+  const update = (tabId, calls) => f.store.dispatch({ type: 'debugInfo', tabId,
+    debugScope: f.store.getTab(tabId).debugScope,
+    value: { mode: 'obsidian', activeCalls: 1, totalCalls: calls, promptWords: calls * 10, lastPromptWords: 10 } });
+  const panel = f.root.getElementById('debug-info');
+  update(1, 9); update(2, 2);
+  assert.match(panel.textContent, /9 calls total/);
+  f.store.activateTab(2); assert.match(panel.textContent, /2 calls total/);
+  update(1, 10); assert.match(panel.textContent, /2 calls total/);
+  f.store.activateTab(1); assert.match(panel.textContent, /10 calls total/);
+  f.store.invalidateTab(1, 'https://new.test'); assert.match(panel.textContent, /unavailable/);
+});
 for (const order of [[0, 1], [1, 0]]) test(`actual shared DOM shows results for both concurrent tabs in order ${order}`, async context => {
   const f = setup(context); const a = f.analyze.handleAnalyze(); f.store.activateTab(2); const b = f.analyze.handleAnalyze(); f.store.activateTab(1);
   assert.equal(f.ui.resultsUI.captureState.classList.contains('hidden'), false);

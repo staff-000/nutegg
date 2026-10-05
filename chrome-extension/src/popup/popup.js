@@ -133,13 +133,16 @@ async function initPopup() {
     if (changes.outputLanguage) settings.setOutputLanguage(changes.outputLanguage.newValue, false);
     if (changes.enabledSections) settings.setEnabledSections(changes.enabledSections.newValue);
     if (changes.generateKnowledgeEntries) settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
-    if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; tabStateManager.dispatch({ type: 'debugInfo', value: null }); void operations.refreshDebugInfo(); }
+    if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; void operations.refreshDebugInfo(); }
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     if (changes.popupDiagnostics) tabStateManager.diagnosticsEnabled = changes.popupDiagnostics.newValue === true;
     if (Object.keys(changes).some(key => key === 'serverPort' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
     tabStateManager.emit({ type: 'settings' });
   });
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });
+  tabStateManager.subscribe(event => {
+    if (['activated', 'invalidated'].includes(event.type)) void operations.refreshDebugInfo();
+  });
   void operations.refreshDebugInfo();
   setInterval(() => { void operations.refreshDebugInfo(); }, 1000);
   chrome.tabs.onActivated.addListener(info => {

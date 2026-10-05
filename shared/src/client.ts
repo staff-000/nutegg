@@ -277,7 +277,8 @@ async function chatOpenAICompatible(
 export async function chatAI(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string> }
+  config: ResolvedConfig & { extraHeaders?: Record<string, string> },
+  debugScope?: string
 ): Promise<string> {
   if (config.provider !== "local" && !config.apiKey) {
     throw new AIError(
@@ -290,7 +291,7 @@ export async function chatAI(
     if (config.apiFormat === "anthropic") return chatAnthropic(prompt, maxTokens, config);
     if ((config as any).apiFormat === "ollama") return chatOllama(prompt, maxTokens, config);
     return chatOpenAICompatible(prompt, maxTokens, config);
-  });
+  }, debugScope);
 }
 
 /**
@@ -487,7 +488,7 @@ export class AIClient {
     return checkCreditAI(settings);
   }
 
-  async chat(prompt: string, maxTokens: number): Promise<string> {
-    return chatAI(prompt, maxTokens, this.config);
+  async chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> {
+    return chatAI(prompt, maxTokens, this.config, debugScope);
   }
 }

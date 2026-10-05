@@ -52,23 +52,18 @@ var OPENROUTER_FAMILIES = [
   {
     id: "openai",
     label: "OpenAI GPT & Reasoning",
-    defaultModel: "openai/gpt-6-luna",
+    defaultModel: "openai/gpt-6.1-sol",
     models: [
       "openai/gpt-6-luna",
       "openai/gpt-6.1-sol",
-      "openai/gpt-6-astra",
-      "openai/gpt-5.6-sol",
-      "openai/o3-mini",
-      "openai/gpt-4o",
-      "openai/gpt-4o-mini"
+      "openai/gpt-6-astra"
     ]
   },
   {
     id: "anthropic",
     label: "Anthropic Claude",
-    defaultModel: "anthropic/claude-haiku-4.5",
+    defaultModel: "anthropic/claude-sonnet-5",
     models: [
-      "anthropic/claude-haiku-4.5",
       "anthropic/claude-sonnet-5.5",
       "anthropic/claude-opus-5.5",
       "anthropic/claude-fable-5.1",
@@ -79,26 +74,19 @@ var OPENROUTER_FAMILIES = [
   {
     id: "deepseek",
     label: "DeepSeek",
-    defaultModel: "deepseek/deepseek-v3.2",
+    defaultModel: "deepseek/deepseek-chat",
     models: [
-      "deepseek/deepseek-v3.2",
       "deepseek/deepseek-v4.1-flash",
       "deepseek/deepseek-v4-pro",
-      "deepseek/deepseek-chat",
-      "deepseek/deepseek-r1"
+      "deepseek/deepseek-chat"
     ]
   },
   {
     id: "google",
     label: "Google Gemini",
-    defaultModel: "google/gemini-3.1-flash-lite",
+    defaultModel: "google/gemini-3.8-flash",
     models: [
-      "google/gemini-3.1-flash-lite",
-      "google/gemini-3.5-flash-lite",
-      "google/gemini-3.8-flash",
-      "google/gemini-3.1-pro-preview",
-      "google/gemini-2.5-flash",
-      "google/gemini-2.5-pro"
+      "google/gemini-3.8-flash"
     ]
   },
   {
@@ -119,8 +107,7 @@ var OPENROUTER_FAMILIES = [
       "qwen/qwen3.7-flash",
       "qwen/qwen3.8-flash",
       "qwen/qwen3.7-plus",
-      "qwen/qwen3.8-max-0902",
-      "qwen/qwen-2.5-72b-instruct"
+      "qwen/qwen3.8-max-0902"
     ]
   },
   {
@@ -157,7 +144,6 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
-      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -179,11 +165,7 @@ var PROVIDER_CATALOG = {
       "gpt-6-astra",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
-      "gpt-5.6-luna",
-      "o3-mini",
-      "o1",
-      "gpt-4o",
-      "gpt-4o-mini"
+      "gpt-5.6-luna"
     ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "openai/"
@@ -197,11 +179,7 @@ var PROVIDER_CATALOG = {
     models: [
       "gemini-3.1-flash-lite",
       "gemini-3.5-flash-lite",
-      "gemini-3.8-flash",
-      "gemini-3.1-pro-preview",
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      "gemini-2.5-flash-lite"
+      "gemini-3.8-flash"
     ],
     keyPlaceholder: "AIza...",
     openrouterPrefix: "google/"
@@ -248,10 +226,7 @@ var PROVIDER_CATALOG = {
       "glm-5",
       "glm-5-turbo",
       "glm-4.7",
-      "glm-4.7-flash",
-      "glm-4-plus",
-      "glm-4-air",
-      "glm-4-flash"
+      "glm-4.7-flash"
     ],
     keyPlaceholder: "...",
     openrouterPrefix: "zhipu/"
@@ -293,7 +268,8 @@ function isAIConfigured(settings) {
 }
 
 // ../shared/src/ai-diagnostics.ts
-var stats = { activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt: Date.now() };
+var createStats = (startedAt = Date.now()) => ({ activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt });
+var stats = createStats();
 
 // src/i18n/en.ts
 var en = {

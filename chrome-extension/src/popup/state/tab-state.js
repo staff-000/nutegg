@@ -20,6 +20,7 @@ class TabStateManager {
   #sequence = 0;
   #activeTabId = null;
   #activationEpoch = 0;
+  #debugSessionId = globalThis.crypto.randomUUID();
   constructor() {
     this.panelVisible = true;
     this.defaults = {};
@@ -31,8 +32,10 @@ class TabStateManager {
   }
   get activeTabId() { return this.#activeTabId; }
   get activationEpoch() { return this.#activationEpoch; }
+  get debugInfo() { return this.getTab(this.activeTabId)?.debugInfo; }
   fresh(tabId, url = '') {
     return { tabId, url, pageGeneration: ++this.#sequence, revision: 0, sourceVersion: 0,
+      debugScope: `${this.#debugSessionId}:${tabId}:${this.#sequence}`, debugInfo: null,
       stage1Version: 0, resultRevision: 0, selectionRevision: 0, viewedRevision: 0,
       currentView: 'capture', extractedContent: null, analysisResult: null, stage1Payload: null,
       stage1ContentAnalysis: null, currentNutId: null, captureHistory: [], followUpQa: [],
@@ -122,7 +125,6 @@ class TabStateManager {
     }
     if (event.type === 'environment') { this.environment = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
     if (event.type === 'metrics') { this.metrics = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
-    if (event.type === 'debugInfo') { this.debugInfo = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
     if (event.type === 'receipt') {
       this.receipts = popupFreeze([...this.receipts, popupCopy(event.receipt)].slice(-50)); this.emit(event); return;
     }
@@ -131,6 +133,7 @@ class TabStateManager {
     }
     const prev = this.getTab(tabId);
     if (!prev) return;
+    if (event.type === 'debugInfo' && event.debugScope !== prev.debugScope) return;
     const next = popupCopy(prev);
     const kind = event.token?.kind;
     const finish = () => { next.operations[kind].running = false; };
@@ -143,6 +146,7 @@ class TabStateManager {
       if (stage1) { next.stage1Version++; next.stage1ContentAnalysis = popupCopy(value); }
     };
     switch (event.type) {
+      case 'debugInfo': next.debugInfo = popupCopy(event.value); break;
       case 'operationStarted':
         next.operations[kind] = { requestId: event.token.requestId, running: true, phase: event.phase || (kind === 'analysis' ? 'stage1' : kind), dependencies: event.token.dependencies, startedAt: Date.now() };
         delete next.errors[kind]; next.success = null;
