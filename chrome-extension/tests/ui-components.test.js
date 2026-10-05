@@ -82,7 +82,7 @@ describe("Modular UI Components", () => {
     await eggs.handleEggAnalysisClick({ target: { closest: () => null } }, mode => calls.push(mode));
     assert.deepEqual(calls, [false]);
     eggs.updateEggAnalysisLabel(true);
-    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.equal(eggs.eggAnalysisLabel.textContent, `${t("eggAnalysis")} 🍃`);
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.getAttribute("aria-checked"), "true");
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.textContent, `✓ ${t("eggAnalysisWithKnowledge")}`);
     await eggs.handleEggAnalysisClick({ target: { closest: () => null } }, mode => calls.push(mode));
@@ -131,10 +131,12 @@ describe("Modular UI Components", () => {
     assert.equal(controls.confirmBtn.disabled, true);
     controls.updateActionButtons({ hasDelta: true });
     assert.equal(controls.confirmBtn.disabled, false);
-    controls.updateActionButtons({ hasDelta: true, eggHatched: true });
-    assert.equal(controls.confirmBtn.disabled, true);
+    controls.updateStage1ProceedBtn({ selectedCount: 0 });
+    assert.equal(controls.stage1ProceedBtn.disabled, true);
+    assert.equal(controls.eggAnalysisLabel.textContent, t("eggAnalysisSelectEgg"));
+    assert.equal(controls.eggAnalysisLabel.textContent, "🥚 Select an Egg...");
     controls.updateStage1ProceedBtn({ selectedCount: 1 });
-    assert.equal(controls.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.equal(controls.eggAnalysisLabel.textContent, `${t("eggAnalysis")} 🍃`);
     assert.ok(controls.eggAnalysisLabel.textContent.startsWith("🥚"));
     const eggs = controls;
     eggs.toggleEggAnalysisMenu(true);
@@ -145,7 +147,7 @@ describe("Modular UI Components", () => {
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, true);
     eggs.setEggAnalysisLoading(false);
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, false);
-    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
+    assert.equal(eggs.eggAnalysisLabel.textContent, `${t("eggAnalysis")} 🍃`);
   });
 
   it("HeaderComponent binds DOM and updates version & server status", () => {

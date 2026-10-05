@@ -60,7 +60,7 @@ const translations = {
     "eggAnalysis": "🥚 Egg Analysis",
     "eggAnalysisOnly": "🥚 Analysis only",
     "eggAnalysisWithKnowledge": "🍃 Include knowledge",
-    "eggAnalysisSelectEgg": "🥚 Egg Analysis (Select egg)",
+    "eggAnalysisSelectEgg": "🥚 Select an Egg...",
     "eggAnalysisCount": "🥚 Egg Analysis ({count})",
 
     "generateKnowledgeEntries": "Generate knowledge entries",
@@ -422,7 +422,7 @@ const translations = {
     "eggAnalysis": "🥚 Egg 分析",
     "eggAnalysisOnly": "🥚 仅分析",
     "eggAnalysisWithKnowledge": "🍃 包含知识",
-    "eggAnalysisSelectEgg": "🥚 Egg 分析 (选择 Egg)",
+    "eggAnalysisSelectEgg": "🥚 选择 Egg...",
     "eggAnalysisCount": "🥚 Egg 分析 ({count})",
 
     "generateKnowledgeEntries": "生成知识条目",
@@ -784,7 +784,7 @@ const translations = {
     "eggAnalysis": "🥚 Análisis de Egg",
     "eggAnalysisOnly": "🥚 Solo análisis",
     "eggAnalysisWithKnowledge": "🍃 Incluir conocimiento",
-    "eggAnalysisSelectEgg": "🥚 Análisis de Egg (Seleccionar Egg)",
+    "eggAnalysisSelectEgg": "🥚 Seleccionar Egg...",
     "eggAnalysisCount": "🥚 Análisis de Egg ({count})",
 
     "generateKnowledgeEntries": "Generar entradas de conocimiento",
@@ -1146,7 +1146,7 @@ const translations = {
     "eggAnalysis": "🥚 Egg 分析",
     "eggAnalysisOnly": "🥚 分析のみ",
     "eggAnalysisWithKnowledge": "🍃 知識を含める",
-    "eggAnalysisSelectEgg": "🥚 Egg 分析 (Eggを選択)",
+    "eggAnalysisSelectEgg": "🥚 Egg を選択...",
     "eggAnalysisCount": "🥚 Egg 分析 ({count})",
 
     "generateKnowledgeEntries": "知識エントリを生成",
@@ -1508,7 +1508,7 @@ const translations = {
     "eggAnalysis": "🥚 Egg 분석",
     "eggAnalysisOnly": "🥚 분석만",
     "eggAnalysisWithKnowledge": "🍃 지식 포함",
-    "eggAnalysisSelectEgg": "🥚 Egg 분석 (Egg 선택)",
+    "eggAnalysisSelectEgg": "🥚 Egg 선택...",
     "eggAnalysisCount": "🥚 Egg 분석 ({count})",
 
     "generateKnowledgeEntries": "지식 항목 생성",
@@ -1870,7 +1870,7 @@ const translations = {
     "eggAnalysis": "🥚 تحليل Egg",
     "eggAnalysisOnly": "🥚 تحليل فقط",
     "eggAnalysisWithKnowledge": "🍃 تضمين المعرفة",
-    "eggAnalysisSelectEgg": "🥚 تحليل Egg (اختر Egg)",
+    "eggAnalysisSelectEgg": "🥚 اختر Egg...",
     "eggAnalysisCount": "🥚 تحليل Egg ({count})",
 
     "generateKnowledgeEntries": "إنشاء إدخالات معرفية",
@@ -2232,7 +2232,7 @@ const translations = {
     "eggAnalysis": "🥚 Analyse Egg",
     "eggAnalysisOnly": "🥚 Analyse seule",
     "eggAnalysisWithKnowledge": "🍃 Inclure les connaissances",
-    "eggAnalysisSelectEgg": "🥚 Analyse Egg (Choisir un Egg)",
+    "eggAnalysisSelectEgg": "🥚 Choisir un Egg...",
     "eggAnalysisCount": "🥚 Analyse Egg ({count})",
 
     "generateKnowledgeEntries": "Générer des entrées de connaissances",
@@ -2594,7 +2594,7 @@ const translations = {
     "eggAnalysis": "🥚 Egg-Analyse",
     "eggAnalysisOnly": "🥚 Nur Analyse",
     "eggAnalysisWithKnowledge": "🍃 Wissen einbeziehen",
-    "eggAnalysisSelectEgg": "🥚 Egg-Analyse (Egg auswählen)",
+    "eggAnalysisSelectEgg": "🥚 Egg auswählen...",
     "eggAnalysisCount": "🥚 Egg-Analyse ({count})",
 
     "generateKnowledgeEntries": "Wissenseinträge erstellen",
@@ -2956,7 +2956,7 @@ const translations = {
     "eggAnalysis": "🥚 Análise de Egg",
     "eggAnalysisOnly": "🥚 Somente análise",
     "eggAnalysisWithKnowledge": "🍃 Incluir conhecimento",
-    "eggAnalysisSelectEgg": "🥚 Análise de Egg (Selecionar Egg)",
+    "eggAnalysisSelectEgg": "🥚 Selecionar Egg...",
     "eggAnalysisCount": "🥚 Análise de Egg ({count})",
 
     "generateKnowledgeEntries": "Gerar entradas de conhecimento",
@@ -3318,7 +3318,7 @@ const translations = {
     "eggAnalysis": "🥚 Анализ Egg",
     "eggAnalysisOnly": "🥚 Только анализ",
     "eggAnalysisWithKnowledge": "🍃 Добавить знания",
-    "eggAnalysisSelectEgg": "🥚 Анализ Egg (Выбрать Egg)",
+    "eggAnalysisSelectEgg": "🥚 Выберите Egg...",
     "eggAnalysisCount": "🥚 Анализ Egg ({count})",
 
     "generateKnowledgeEntries": "Создавать записи знаний",

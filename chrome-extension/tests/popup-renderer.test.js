@@ -46,7 +46,7 @@ test('Stage 2 loading resets every button dimension on B; background A cleanup l
   assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, false);
   assert.equal(f.ui.actionsUI.eggAnalysisOnlyBtn.disabled, false);
   assert.equal(f.ui.actionsUI.eggAnalysisWithKnowledgeBtn.disabled, false);
-  assert.equal(f.ui.actionsUI.eggAnalysisLabel.textContent, t('eggAnalysis'));
+  assert.equal(f.ui.actionsUI.eggAnalysisLabel.textContent, `${t('eggAnalysis')} 🍃`);
   const b = f.analyze.handleReanalyzeEggs();
   f.calls[0].resolve({ eggResults: [{ egg: 'a.md', extractedEntries: [] }] }); await a;
   assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, true);

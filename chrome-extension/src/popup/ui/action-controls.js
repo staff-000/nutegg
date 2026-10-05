@@ -42,9 +42,13 @@ class ActionControlsComponent {
     return onAnalyze(this.generateKnowledgeEntries);
   }
 
+  getEggAnalysisLabelText(generateKnowledgeEntries = this.generateKnowledgeEntries) {
+    return `${t("eggAnalysis")}${generateKnowledgeEntries ? " 🍃" : ""}`;
+  }
+
   updateEggAnalysisLabel(generateKnowledgeEntries = this.generateKnowledgeEntries) {
     this.generateKnowledgeEntries = generateKnowledgeEntries;
-    if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("eggAnalysis");
+    if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = this.getEggAnalysisLabelText(generateKnowledgeEntries);
     for (const [button, key, selected] of [
       [this.eggAnalysisOnlyBtn, "eggAnalysisOnly", !generateKnowledgeEntries],
       [this.eggAnalysisWithKnowledgeBtn, "eggAnalysisWithKnowledge", generateKnowledgeEntries],
@@ -405,7 +409,15 @@ class ActionControlsComponent {
     this.reanalyzeRefreshBtn?.classList.toggle('rotating', !!view.extractionPending);
     set(this.viewAnalysisBtn, !result, t('viewAnalysis'), !result);
     set(this.stage1ProceedBtn, busy || !view.selectedEggs?.size, null, chromeMode || !result);
-    if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t(view.analyzingEggs ? 'analyzingEggs' : analyzing ? 'analyzing' : !view.selectedEggs?.size ? 'eggAnalysisSelectEgg' : 'eggAnalysis');
+    if (this.eggAnalysisLabel) {
+      this.eggAnalysisLabel.textContent = view.analyzingEggs
+        ? t('analyzingEggs')
+        : analyzing
+        ? t('analyzing')
+        : !view.selectedEggs?.size
+        ? t('eggAnalysisSelectEgg')
+        : this.getEggAnalysisLabelText(view.generateKnowledgeEntries);
+    }
     set(this.eggAnalysisOnlyBtn, busy, `${view.generateKnowledgeEntries ? '' : '✓ '}${t('eggAnalysisOnly')}`);
     set(this.eggAnalysisWithKnowledgeBtn, busy, `${view.generateKnowledgeEntries ? '✓ ' : ''}${t('eggAnalysisWithKnowledge')}`);
     this.stage1ConfirmBox?.classList.toggle('hidden', chromeMode || !result);
