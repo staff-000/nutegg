@@ -171,9 +171,9 @@ test('compact discussion badges omit unavailable reactions, people and verbose t
   const result = core.buildDiscussionResult(capture([item('a', 'u', 12), item('b', 'v', null), item('c', 'w', 0)]), [part([['a', 'agree'], ['b', 'disagree'], ['c', 'neutral']])]);
   ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
   const html = root.getElementById('discussion-result').innerHTML;
-  assert.match(html, /Agree<\/strong> 1 comments · 12 likes/);
-  assert.match(html, /Disagree<\/strong> 1 comments<\/span>/);
-  assert.match(html, /Neutral<\/strong> 1 comments · 0 likes/);
+  assert.match(html, /Agree<\/strong> 💬 1 · ❤️ 12/);
+  assert.match(html, /Disagree<\/strong> 💬 1<\/span>/);
+  assert.match(html, /Neutral<\/strong> 💬 1 · ❤️ 0/);
   assert.doesNotMatch(html, /commenters|unavailable|Supporting arguments|Opposing arguments|Proposition|Experience and objections|entire audience/);
   assert.match(html, /Practical example/);
 });
@@ -192,4 +192,39 @@ test('detail-rich supplements survive source validation and render alongside com
   assert.match(html, /discussion-supplements.*Extra insights.*six-month trial/);
   assert.equal(html.match(/six-month trial/g).length, 1);
   assert.doesNotMatch(html, /Unsupported detail/);
+});
+
+test('discussion topics render arguments directly when highlights are empty and omit overall verdict', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const result = {
+    status: 'ready',
+    analyzedCount: 2,
+    capturedCount: 2,
+    topics: [{
+      id: 't1',
+      title: 'Performance Comparison',
+      summary: 'Debating memory and CPU usage',
+      agreeArguments: ['Lower CPU overhead in production'],
+      disagreeArguments: ['Higher memory consumption in large datasets'],
+      highlights: [],
+      metrics: { agree: { comments: 1, likes: 0, likesKnown: 0, score: 0, scoresKnown: 0 } }
+    }]
+  };
+  ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
+  const html = root.getElementById('discussion-result').innerHTML;
+  assert.match(html, /Performance Comparison/);
+  assert.match(html, /Lower CPU overhead in production/);
+  assert.match(html, /Higher memory consumption in large datasets/);
+  assert.doesNotMatch(html, /overallVerdict/i);
+});
+
+test('discussion prompt templates focus on distinct topics and arguments without overall verdict', () => {
+  const processor = new core.AIProcessor({ settings: { aiProvider: 'openai', aiApiKey: 'test' } });
+  const analysisPrompt = processor.getPrompt('discussionAnalysis');
+  const aggregatePrompt = processor.getPrompt('aggregateDiscussion');
+  assert.match(analysisPrompt, /distinct topics\/questions people are debating/);
+  assert.match(analysisPrompt, /specific arguments and perspectives/);
+  assert.match(aggregatePrompt, /Keep distinct topics, arguments, counter-arguments/);
+  assert.doesNotMatch(analysisPrompt, /overallVerdict/);
+  assert.doesNotMatch(aggregatePrompt, /overallVerdict/);
 });
