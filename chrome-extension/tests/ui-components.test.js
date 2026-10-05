@@ -1166,6 +1166,63 @@ describe("Modular UI Components", () => {
     assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), true);
   });
 
+  it("renderEggKnowledge renders refined entries with kind badges, copy button, and markdown formatting", () => {
+    const root = createMockRoot();
+    const eggs = new EggsComponent(root);
 
+    eggs.renderKnowledge({
+      eggResults: [
+        {
+          egg: "investment.md",
+          readAction: "highlights",
+          readVerdictReason: "Good actionable frameworks",
+          keyQuestionAnswers: [
+            { question: "What is DCA?", answer: "DCA means **Dollar Cost Averaging**." },
+          ],
+          extractedEntries: [
+            {
+              kind: "insight",
+              content: "**Core Idea**: Buy index funds regularly `SPY`\n- Low fees\n- Broad exposure",
+              sources: [{ ref: "05:20" }],
+            },
+            {
+              kind: "list",
+              content: "1. Asset allocation\n2. Rebalancing",
+            },
+          ],
+        },
+      ],
+      activeEggTab: "investment.md",
+    });
+
+    const html = eggs.eggKnowledgeContent.innerHTML;
+    // Section visible
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+
+    // Kind badges
+    assert.ok(html.includes('delta-kind-badge kind-insight'));
+    assert.ok(html.includes('delta-kind-badge kind-list'));
+    assert.ok(html.includes('💡'));
+    assert.ok(html.includes('📋'));
+
+    // Copy buttons with data-content
+    assert.ok(html.includes('class="entry-copy-btn"'));
+    assert.ok(html.includes('data-content='));
+
+    // Markdown formatted output (bold and inline code)
+    assert.ok(html.includes('<strong>Core Idea</strong>'));
+    assert.ok(html.includes('<code class="delta-inline-code">SPY</code>'));
+
+    // Bullet and numbered formatting
+    assert.ok(html.includes('delta-bullet-row'));
+    assert.ok(html.includes('delta-bullet-dot'));
+    assert.ok(html.includes('delta-bullet-num'));
+
+    // Key Questions Q badge
+    assert.ok(html.includes('class="qa-q-badge">Q</span>'));
+
+    // Status banner action class
+    assert.ok(html.includes('action-highlights'));
+  });
 });
 

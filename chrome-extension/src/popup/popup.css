@@ -1465,9 +1465,37 @@ body {
 
 .egg-status-banner {
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.45;
   padding: 6px 10px;
   border-radius: 6px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.egg-status-banner.action-full,
+.egg-status-banner.action-highlights {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.egg-status-banner.action-summary {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.egg-status-banner.action-skip {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.egg-status-banner.action-uncertain {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
 }
 
 .banner-covered {
@@ -1524,16 +1552,49 @@ body {
   margin-top: 6px;
 }
 
+.egg-qa-block .qa-item {
+  margin-top: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #6366f1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  transition: all 0.15s ease;
+}
+
+.egg-qa-block .qa-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.qa-q-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #4f46e5;
+  background: #e0e7ff;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-right: 4px;
+  line-height: 1.3;
+}
+
 .qa-question {
   font-size: 11px;
   font-weight: 600;
-  color: #6b7280;
+  color: #4b5563;
+}
+
+.egg-qa-block .qa-question {
+  color: #3730a3;
+  display: flex;
+  align-items: flex-start;
 }
 
 .qa-answer {
   white-space: pre-wrap;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: #374151;
   margin-top: 2px;
 }
@@ -1633,11 +1694,19 @@ body {
 }
 
 .knowledge-subhead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
+  color: #475569;
+}
+
+.knowledge-subhead .subhead-icon {
+  font-size: 12px;
 }
 
 .new-subhead {
@@ -1649,11 +1718,32 @@ body {
 }
 
 .delta-item {
-  margin-top: 6px;
-  border-radius: 6px;
-  padding: 8px 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+  padding: 9px 12px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e2e8f0;
+  border-left: 3.5px solid var(--primary, #e07a3f);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.delta-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+.delta-item.kind-insight {
+  border-left-color: #f59e0b;
+}
+
+.delta-item.kind-list {
+  border-left-color: #8b5cf6;
+}
+
+.delta-item.kind-answer {
+  border-left-color: #0ea5e9;
 }
 
 .delta-item.is-new {
@@ -1671,8 +1761,74 @@ body {
 .delta-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  min-height: 18px;
+}
+
+.delta-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1.5px 7px;
+  border-radius: 10px;
+  line-height: 1.25;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
+.delta-kind-badge.kind-insight {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.delta-kind-badge.kind-list {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+
+.delta-kind-badge.kind-answer {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.delta-kind-badge .kind-icon {
+  font-size: 11px;
+}
+
+.entry-copy-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0.45;
+  transition: all 0.15s ease;
+}
+
+.delta-item:hover .entry-copy-btn {
+  opacity: 1;
+}
+
+.entry-copy-btn:hover {
+  color: #1e293b;
+  background: #f1f5f9;
+}
+
+.entry-copy-btn.copied {
+  color: #16a34a;
+  font-weight: 700;
 }
 
 .delta-badge {
@@ -1709,10 +1865,65 @@ body {
 
 .delta-content {
   font-size: 12px;
-  line-height: 1.45;
-  color: #1f2937;
+  line-height: 1.55;
+  color: #1e293b;
   white-space: pre-wrap;
   margin-top: 2px;
+  word-break: break-word;
+}
+
+.delta-content strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.delta-content em {
+  font-style: italic;
+  color: #334155;
+}
+
+.delta-inline-code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: #b91c1c;
+}
+
+.delta-bullet-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.delta-bullet-dot {
+  color: var(--primary, #e07a3f);
+  font-weight: bold;
+  font-size: 13px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.delta-bullet-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
+
+.delta-bullet-text {
+  flex: 1;
+}
+
+.entry-sources-footer {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
 }
 
 .existing-tree-container {

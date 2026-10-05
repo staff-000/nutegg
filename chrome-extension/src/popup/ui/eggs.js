@@ -161,6 +161,44 @@ function _renderEggsSection(firstArg = [], options = {}) {
   }
 }
 
+const KIND_METADATA = {
+  insight: { icon: "💡", label: "Insight", className: "kind-insight" },
+  list: { icon: "📋", label: "Framework", className: "kind-list" },
+  answer: { icon: "💬", label: "Takeaway", className: "kind-answer" },
+};
+
+function _formatEntryMarkdown(rawText, linkify) {
+  if (!rawText) return "";
+  const lines = String(rawText).split("\n");
+  const processed = [];
+  for (const line of lines) {
+    let l = _eggEscapeHtml(line);
+    // Bold: **text**
+    l = l.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    // Inline code: `code`
+    l = l.replace(/`([^`]+)`/g, '<code class="delta-inline-code">$1</code>');
+    // Italic: *text*
+    l = l.replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, "$1<em>$2</em>$3");
+
+    // Bullet lists: - item, * item, • item
+    const bulletMatch = l.match(/^\s*(?:[-*•]|\&\#8226;)\s+(.+)$/);
+    if (bulletMatch) {
+      processed.push(`<div class="delta-bullet-row"><span class="delta-bullet-dot">•</span><span class="delta-bullet-text">${linkify(bulletMatch[1])}</span></div>`);
+      continue;
+    }
+
+    // Numbered lists: 1. item
+    const numMatch = l.match(/^\s*(\d+)[.)]\s+(.+)$/);
+    if (numMatch) {
+      processed.push(`<div class="delta-bullet-row"><span class="delta-bullet-num">${numMatch[1]}.</span><span class="delta-bullet-text">${linkify(numMatch[2])}</span></div>`);
+      continue;
+    }
+
+    processed.push(linkify(l));
+  }
+  return processed.join("\n");
+}
+
 function _renderEggKnowledge(firstArg = [], options = {}) {
   const raw = Array.isArray(firstArg) ? firstArg : firstArg?.eggResults;
   const eggResults = Array.isArray(raw) ? raw : [];
@@ -196,15 +234,80 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
   }
   content.innerHTML = eggResults.map(r => {
     const visible = active === "all" || active === r.egg;
-    const qa = (r.keyQuestionAnswers || []).map(answer => `<div class="qa-item"><div class="qa-question">${_eggEscapeHtml(answer.question)}</div><div class="qa-answer">${linkify(_eggEscapeHtml(answer.answer))}</div>${sources(answer.sources)}</div>`).join("");
-    const entries = (r.extractedEntries || []).map(entry => `<div class="delta-item"><div class="delta-content">${linkify(_eggEscapeHtml(entry.content))}</div>${sources(entry.sources)}</div>`).join("");
+    const qa = (r.keyQuestionAnswers || []).map(answer => {
+      const ansFormatted = _formatEntryMarkdown(answer.answer, linkify);
+      const sourcesHtml = sources(answer.sources);
+      return `<div class="qa-item">
+        <div class="qa-question"><span class="qa-q-badge">Q</span> ${_eggEscapeHtml(answer.question)}</div>
+        <div class="qa-answer">${ansFormatted}</div>
+        ${sourcesHtml ? `<div class="entry-sources-footer">${sourcesHtml}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const entries = (r.extractedEntries || []).map(entry => {
+      const text = typeof entry === "string" ? entry : (entry?.content || "");
+      const rawKind = typeof entry === "object" && entry?.kind ? String(entry.kind).toLowerCase() : "insight";
+      const meta = KIND_METADATA[rawKind] || KIND_METADATA.insight;
+      const formatted = _formatEntryMarkdown(text, linkify);
+      const sourcesHtml = typeof entry === "object" ? sources(entry.sources) : "";
+
+      return `<div class="delta-item delta-knowledge-entry ${meta.className}" data-kind="${_eggEscapeHtml(rawKind)}">
+        <div class="delta-header">
+          <span class="delta-kind-badge ${meta.className}">
+            <span class="kind-icon">${meta.icon}</span>
+            <span class="kind-label">${meta.label}</span>
+          </span>
+          <button type="button" class="entry-copy-btn" title="Copy entry" aria-label="Copy entry" data-content="${_eggEscapeHtml(text)}">
+            <span class="copy-icon">📋</span>
+            <span class="copy-feedback hidden">✓</span>
+          </button>
+        </div>
+        <div class="delta-content">${formatted}</div>
+        ${sourcesHtml ? `<div class="entry-sources-footer">${sourcesHtml}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const actionClass = r.readAction ? `action-${r.readAction}` : "action-uncertain";
+
     return `<div class="egg-card${visible ? "" : " hidden"}" data-egg="${_eggEscapeHtml(r.egg)}">
       <div class="egg-card-header"><span class="egg-card-title">${_eggEscapeHtml(cleanEggName(r.egg))}</span></div>
-      <div class="egg-status-banner"><strong>${_eggEscapeHtml(t(labels[r.readAction] || labels.uncertain))}</strong> — ${_eggEscapeHtml(r.readVerdictReason || "")}${sources(r.readingSources)}</div>
+      <div class="egg-status-banner ${actionClass}"><strong>${_eggEscapeHtml(t(labels[r.readAction] || labels.uncertain))}</strong> — ${_eggEscapeHtml(r.readVerdictReason || "")}${sources(r.readingSources)}</div>
       ${qa ? `<div class="knowledge-subsection egg-qa-block"><div class="knowledge-subhead">${t("eggKeyQuestions", { count: r.keyQuestionAnswers.length })}</div>${qa}</div>` : ""}
-      ${entries ? `<div class="knowledge-subsection"><div class="knowledge-subhead">${t("eggResultsHeading", { count: r.extractedEntries.length })}</div>${entries}</div>` : ""}
+      ${entries ? `<div class="knowledge-subsection"><div class="knowledge-subhead"><span class="subhead-icon">🍃</span> <span>${t("eggResultsHeading", { count: r.extractedEntries.length })}</span></div>${entries}</div>` : ""}
     </div>`;
   }).join("");
+
+  content.querySelectorAll?.(".entry-copy-btn")?.forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const text = btn.getAttribute("data-content") || "";
+      if (!text) return;
+      try {
+        if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else if (typeof document !== "undefined") {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
+        }
+        btn.classList.add("copied");
+        const icon = btn.querySelector(".copy-icon");
+        const feedback = btn.querySelector(".copy-feedback");
+        if (icon) icon.classList.add("hidden");
+        if (feedback) feedback.classList.remove("hidden");
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          if (icon) icon.classList.remove("hidden");
+          if (feedback) feedback.classList.add("hidden");
+        }, 1500);
+      } catch (err) {
+        console.warn("[NutEgg] Copy failed:", err);
+      }
+    });
+  });
 }
 
 class EggsComponent {
