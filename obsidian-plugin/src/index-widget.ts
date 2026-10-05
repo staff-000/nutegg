@@ -9,6 +9,7 @@ import {
 } from "@codemirror/view";
 import type NutEggPlugin from "./main";
 import { sanitizeEggName } from "./index-sync";
+import { isAIConfigured } from "./ai-client";
 import { t } from "./i18n";
 
 /**
@@ -238,6 +239,54 @@ export function renderSyncButton(
   return btn;
 }
 
+/**
+ * Render an AI setup callout banner if AI provider/key is not yet configured.
+ */
+export function renderSetupBanner(plugin: NutEggPlugin): HTMLElement | null {
+  if (isAIConfigured(plugin.settings)) {
+    return null;
+  }
+
+  const callout = document.createElement("div");
+  callout.className = "callout nutegg-setup-callout";
+  callout.setAttribute("data-callout", "warning");
+  callout.style.cssText =
+    "margin: 10px 0 14px 0; width: 100%; box-sizing: border-box;";
+
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "callout-title";
+  const icon = document.createElement("div");
+  icon.className = "callout-icon";
+  icon.textContent = "⚠️";
+  const titleText = document.createElement("div");
+  titleText.className = "callout-title-inner";
+  titleText.textContent = t("setupAiBannerTitle");
+  titleWrap.appendChild(icon);
+  titleWrap.appendChild(titleText);
+  callout.appendChild(titleWrap);
+
+  const content = document.createElement("div");
+  content.className = "callout-content";
+  const desc = document.createElement("p");
+  desc.textContent = t("setupAiBannerDesc");
+  desc.style.cssText = "margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.4;";
+  content.appendChild(desc);
+
+  const btn = document.createElement("button");
+  btn.className = "mod-cta nutegg-setup-btn";
+  btn.textContent = `⚙️ ${t("configureAiBtn")}`;
+  btn.style.cssText = "font-size: 0.85em; padding: 4px 12px; cursor: pointer;";
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    plugin.openSettings();
+  });
+  content.appendChild(btn);
+  callout.appendChild(content);
+
+  return callout;
+}
+
 export function registerIndexWidget(plugin: NutEggPlugin): void {
   plugin.registerMarkdownPostProcessor(
     async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
@@ -249,7 +298,12 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
         return;
       }
 
-      if (el.querySelector(".nutegg-index-action-bar")) return;
+      if (
+        el.querySelector(".nutegg-index-action-bar") ||
+        el.querySelector(".nutegg-setup-callout")
+      ) {
+        return;
+      }
 
       // Find heading or callout to place the action bar after
       const targetElement =
@@ -258,6 +312,11 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
         el.firstElementChild;
 
       if (!targetElement) return;
+
+      const banner = renderSetupBanner(plugin);
+      if (banner) {
+        targetElement.insertAdjacentElement("afterend", banner);
+      }
 
       const bar = document.createElement("div");
       bar.className = "nutegg-index-action-bar";
@@ -276,7 +335,12 @@ export function registerIndexWidget(plugin: NutEggPlugin): void {
 
       bar.appendChild(btn);
       renderSyncButton(plugin, bar);
-      targetElement.insertAdjacentElement("afterend", bar);
+
+      if (banner) {
+        banner.insertAdjacentElement("afterend", bar);
+      } else {
+        targetElement.insertAdjacentElement("afterend", bar);
+      }
     }
   );
 }
@@ -288,7 +352,20 @@ class IndexActionBarWidget extends WidgetType {
     super();
   }
 
+  eq(other: IndexActionBarWidget): boolean {
+    return isAIConfigured(this.plugin.settings) === isAIConfigured(other.plugin.settings);
+  }
+
   toDOM(): HTMLElement {
+    const root = document.createElement("div");
+    root.className = "nutegg-index-widget-container";
+    root.style.cssText = "width: 100%;";
+
+    const banner = renderSetupBanner(this.plugin);
+    if (banner) {
+      root.appendChild(banner);
+    }
+
     const wrap = document.createElement("div");
     wrap.className = "nutegg-index-action-bar nutegg-index-editor-widget";
     wrap.style.cssText =
@@ -306,7 +383,8 @@ class IndexActionBarWidget extends WidgetType {
 
     wrap.appendChild(btn);
     renderSyncButton(this.plugin, wrap);
-    return wrap;
+    root.appendChild(wrap);
+    return root;
   }
 }
 

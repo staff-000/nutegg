@@ -172,7 +172,12 @@ var en = {
   syncIndex: "Sync Index",
   syncingIndex: "Syncing...",
   newEggButton: "+ New Egg",
-  unprocessedBadge: "{count} unprocessed"
+  unprocessedBadge: "{count} unprocessed",
+  setupAiKeyStatusBar: "\u26A0\uFE0F NutEgg: Setup AI Key",
+  setupAiKeyTooltip: "NutEgg: AI API key not configured. Click to open Settings.",
+  setupAiBannerTitle: "AI Setup Required",
+  setupAiBannerDesc: "Configure an AI Provider and API key to enable content analysis, egg synthesis, and automated merging.",
+  configureAiBtn: "Configure AI Settings"
 };
 
 // src/i18n/zh.ts
@@ -294,7 +299,12 @@ var zh = {
   syncIndex: "\u540C\u6B65\u7D22\u5F15",
   syncingIndex: "\u6B63\u5728\u540C\u6B65...",
   newEggButton: "+ \u65B0\u5EFA Egg",
-  unprocessedBadge: "{count} \u4E2A\u672A\u5904\u7406"
+  unprocessedBadge: "{count} \u4E2A\u672A\u5904\u7406",
+  setupAiKeyStatusBar: "\u26A0\uFE0F NutEgg: \u8BBE\u7F6E AI \u5BC6\u94A5",
+  setupAiKeyTooltip: "NutEgg\uFF1A\u672A\u914D\u7F6E AI API \u5BC6\u94A5\u3002\u70B9\u51FB\u6253\u5F00\u8BBE\u7F6E\u3002",
+  setupAiBannerTitle: "\u9700\u8981\u914D\u7F6E AI",
+  setupAiBannerDesc: "\u914D\u7F6E AI \u63D0\u4F9B\u5546\u548C API \u5BC6\u94A5\u4EE5\u542F\u7528\u5185\u5BB9\u5206\u6790\u3001Egg \u5408\u6210\u548C\u81EA\u52A8\u5408\u5E76\u3002",
+  configureAiBtn: "\u914D\u7F6E AI \u8BBE\u7F6E"
 };
 
 // src/i18n/es.ts
@@ -412,7 +422,12 @@ var es = {
   "syncIndex": "Sincronizar \xEDndice",
   "syncingIndex": "Sincronizando...",
   "newEggButton": "+ Nuevo Egg",
-  "unprocessedBadge": "{count} sin procesar"
+  "unprocessedBadge": "{count} sin procesar",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: Configurar clave de IA",
+  "setupAiKeyTooltip": "NutEgg: La clave API de IA no est\xE1 configurada. Haga clic para abrir la configuraci\xF3n.",
+  "setupAiBannerTitle": "Configuraci\xF3n de IA requerida",
+  "setupAiBannerDesc": "Configure un proveedor de IA y una clave API para habilitar el an\xE1lisis de contenido, la s\xEDntesis de Egg y la fusi\xF3n autom\xE1tica.",
+  "configureAiBtn": "Configurar ajustes de IA"
 };
 
 // src/i18n/ja.ts
@@ -530,7 +545,12 @@ var ja = {
   "syncIndex": "\u30A4\u30F3\u30C7\u30C3\u30AF\u30B9\u3092\u540C\u671F",
   "syncingIndex": "\u540C\u671F\u4E2D...",
   "newEggButton": "+ \u65B0\u3057\u3044Egg",
-  "unprocessedBadge": "\u672A\u51E6\u7406 {count}\u4EF6"
+  "unprocessedBadge": "\u672A\u51E6\u7406 {count}\u4EF6",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: AI \u30AD\u30FC\u3092\u8A2D\u5B9A",
+  "setupAiKeyTooltip": "NutEgg: AI API \u30AD\u30FC\u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093\u3002\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u8A2D\u5B9A\u3092\u958B\u304D\u307E\u3059\u3002",
+  "setupAiBannerTitle": "AI \u306E\u8A2D\u5B9A\u304C\u5FC5\u8981\u3067\u3059",
+  "setupAiBannerDesc": "\u30B3\u30F3\u30C6\u30F3\u30C4\u5206\u6790\u3001Egg \u5408\u6210\u3001\u304A\u3088\u3073\u81EA\u52D5\u30DE\u30FC\u30B8\u3092\u6709\u52B9\u306B\u3059\u308B\u306B\u306F\u3001AI \u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u3068 API \u30AD\u30FC\u3092\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+  "configureAiBtn": "AI \u8A2D\u5B9A\u3092\u69CB\u6210"
 };
 
 // src/i18n/ko.ts
@@ -648,7 +668,12 @@ var ko = {
   "syncIndex": "\uC778\uB371\uC2A4 \uB3D9\uAE30\uD654",
   "syncingIndex": "\uB3D9\uAE30\uD654 \uC911...",
   "newEggButton": "+ \uC0C8 Egg",
-  "unprocessedBadge": "{count}\uAC1C \uBBF8\uCC98\uB9AC"
+  "unprocessedBadge": "{count}\uAC1C \uBBF8\uCC98\uB9AC",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: AI \uD0A4 \uC124\uC815",
+  "setupAiKeyTooltip": "NutEgg: AI API \uD0A4\uAC00 \uC124\uC815\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4. \uC124\uC815\uC744 \uC5F4\uB824\uBA74 \uD074\uB9AD\uD558\uC138\uC694.",
+  "setupAiBannerTitle": "AI \uC124\uC815 \uD544\uC694",
+  "setupAiBannerDesc": "\uCF58\uD150\uCE20 \uBD84\uC11D, Egg \uD569\uC131 \uBC0F \uC790\uB3D9 \uBCD1\uD569\uC744 \uD65C\uC131\uD654\uD558\uB824\uBA74 AI \uACF5\uAE09\uC790\uC640 API \uD0A4\uB97C \uAD6C\uC131\uD558\uC138\uC694.",
+  "configureAiBtn": "AI \uC124\uC815 \uAD6C\uC131"
 };
 
 // src/i18n/ar.ts
@@ -766,7 +791,12 @@ var ar = {
   "syncIndex": "\u0645\u0632\u0627\u0645\u0646\u0629 \u0627\u0644\u0641\u0647\u0631\u0633",
   "syncingIndex": "\u062C\u0627\u0631\u064D \u0627\u0644\u0645\u0632\u0627\u0645\u0646\u0629...",
   "newEggButton": "+ Egg \u062C\u062F\u064A\u062F",
-  "unprocessedBadge": "{count} \u063A\u064A\u0631 \u0645\u0639\u0627\u0644\u062C"
+  "unprocessedBadge": "{count} \u063A\u064A\u0631 \u0645\u0639\u0627\u0644\u062C",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: \u0625\u0639\u062F\u0627\u062F \u0645\u0641\u062A\u0627\u062D AI",
+  "setupAiKeyTooltip": "NutEgg: \u0645\u0641\u062A\u0627\u062D \u0648\u0627\u062C\u0647\u0629 \u0628\u0631\u0645\u062C\u0629 \u062A\u0637\u0628\u064A\u0642\u0627\u062A AI \u063A\u064A\u0631 \u0645\u0647\u064A\u0623. \u0627\u0646\u0642\u0631 \u0644\u0641\u062A\u062D \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A.",
+  "setupAiBannerTitle": "\u0625\u0639\u062F\u0627\u062F AI \u0645\u0637\u0644\u0648\u0628",
+  "setupAiBannerDesc": "\u0642\u0645 \u0628\u062A\u0643\u0648\u064A\u0646 \u0645\u0632\u0648\u062F AI \u0648\u0645\u0641\u062A\u0627\u062D API \u0644\u062A\u0645\u0643\u064A\u0646 \u062A\u062D\u0644\u064A\u0644 \u0627\u0644\u0645\u062D\u062A\u0648\u0649 \u0648\u062A\u0648\u0644\u064A\u0641 Egg \u0648\u0627\u0644\u062F\u0645\u062C \u0627\u0644\u062A\u0644\u0642\u0627\u0626\u064A.",
+  "configureAiBtn": "\u062A\u0647\u064A\u0626\u0629 \u0625\u0639\u062F\u0627\u062F\u0627\u062A AI"
 };
 
 // src/i18n/fr.ts
@@ -884,7 +914,12 @@ var fr = {
   "syncIndex": "Synchroniser l'index",
   "syncingIndex": "Synchronisation...",
   "newEggButton": "+ Nouvel Egg",
-  "unprocessedBadge": "{count} non trait\xE9(s)"
+  "unprocessedBadge": "{count} non trait\xE9(s)",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg : Configurer la cl\xE9 IA",
+  "setupAiKeyTooltip": "NutEgg : La cl\xE9 API IA n'est pas configur\xE9e. Cliquez pour ouvrir les param\xE8tres.",
+  "setupAiBannerTitle": "Configuration IA requise",
+  "setupAiBannerDesc": "Configurez un fournisseur d'IA et une cl\xE9 API pour activer l'analyse du contenu, la synth\xE8se d'Egg et la fusion automatique.",
+  "configureAiBtn": "Configurer les param\xE8tres IA"
 };
 
 // src/i18n/de.ts
@@ -1002,7 +1037,12 @@ var de = {
   "syncIndex": "Index synchronisieren",
   "syncingIndex": "Synchronisiere...",
   "newEggButton": "+ Neues Egg",
-  "unprocessedBadge": "{count} unverarbeitet"
+  "unprocessedBadge": "{count} unverarbeitet",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: KI-Schl\xFCssel einrichten",
+  "setupAiKeyTooltip": "NutEgg: KI-API-Schl\xFCssel nicht konfiguriert. Klicken Sie hier, um die Einstellungen zu \xF6ffnen.",
+  "setupAiBannerTitle": "KI-Einrichtung erforderlich",
+  "setupAiBannerDesc": "Konfigurieren Sie einen KI-Anbieter und API-Schl\xFCssel, um Inhaltsanalyse, Egg-Synthese und automatische Zusammenf\xFChrung zu aktivieren.",
+  "configureAiBtn": "KI-Einstellungen konfigurieren"
 };
 
 // src/i18n/pt.ts
@@ -1120,7 +1160,12 @@ var pt = {
   "syncIndex": "Sincronizar \xEDndice",
   "syncingIndex": "Sincronizando...",
   "newEggButton": "+ Novo Egg",
-  "unprocessedBadge": "{count} n\xE3o processada(s)"
+  "unprocessedBadge": "{count} n\xE3o processada(s)",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: Configurar chave de IA",
+  "setupAiKeyTooltip": "NutEgg: A chave de API de IA n\xE3o est\xE1 configurada. Clique para abrir as configura\xE7\xF5es.",
+  "setupAiBannerTitle": "Configura\xE7\xE3o de IA necess\xE1ria",
+  "setupAiBannerDesc": "Configure um provedor de IA e uma chave de API para ativar a an\xE1lise de conte\xFAdo, s\xEDntese de Egg e mesclagem autom\xE1tica.",
+  "configureAiBtn": "Configurar defini\xE7\xF5es de IA"
 };
 
 // src/i18n/ru.ts
@@ -1238,7 +1283,12 @@ var ru = {
   "syncIndex": "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0438\u043D\u0434\u0435\u043A\u0441",
   "syncingIndex": "\u0421\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0430\u0446\u0438\u044F...",
   "newEggButton": "+ \u041D\u043E\u0432\u044B\u0439 Egg",
-  "unprocessedBadge": "{count} \u043D\u0435\u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E"
+  "unprocessedBadge": "{count} \u043D\u0435\u043E\u0431\u0440\u0430\u0431\u043E\u0442\u0430\u043D\u043E",
+  "setupAiKeyStatusBar": "\u26A0\uFE0F NutEgg: \u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u043A\u043B\u044E\u0447 AI",
+  "setupAiKeyTooltip": "NutEgg: \u041A\u043B\u044E\u0447 API \u0434\u043B\u044F AI \u043D\u0435 \u043D\u0430\u0441\u0442\u0440\u043E\u0435\u043D. \u041D\u0430\u0436\u043C\u0438\u0442\u0435, \u0447\u0442\u043E\u0431\u044B \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438.",
+  "setupAiBannerTitle": "\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430 AI",
+  "setupAiBannerDesc": "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 \u043F\u043E\u0441\u0442\u0430\u0432\u0449\u0438\u043A\u0430 AI \u0438 \u043A\u043B\u044E\u0447 API, \u0447\u0442\u043E\u0431\u044B \u0432\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u0430\u043D\u0430\u043B\u0438\u0437 \u043A\u043E\u043D\u0442\u0435\u043D\u0442\u0430, \u0441\u0438\u043D\u0442\u0435\u0437 Egg \u0438 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0435 \u0441\u043B\u0438\u044F\u043D\u0438\u0435.",
+  "configureAiBtn": "\u041D\u0430\u0441\u0442\u0440\u043E\u0438\u0442\u044C \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B AI"
 };
 
 // src/i18n/index.ts

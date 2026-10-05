@@ -24,6 +24,11 @@ class PopupRenderer {
     ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries);
     ui.sectionsUI.renderPresentation(view.presentation);
     ui.resultsUI.render(view, settings);
+    const isFunctional = settings.serverOnline || settings.chromeAiConfigured || !!view.analysisResult;
+    const setupHub = root.getElementById?.('setup-hub');
+    const captureState = root.getElementById?.('capture-state');
+    if (setupHub) setupHub.classList.toggle('hidden', isFunctional);
+    if (captureState) captureState.classList.toggle('not-functional', !isFunctional);
     keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.extractedContent?.discussion, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);

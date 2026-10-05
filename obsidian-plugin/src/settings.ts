@@ -5,6 +5,7 @@ import {
   type AISource,
   PROVIDER_CATALOG,
   findOpenRouterFamily,
+  isAIConfigured,
 } from "./ai-client";
 import { t } from "./i18n";
 
@@ -76,6 +77,21 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     containerEl.empty();
     containerEl.createEl("h2", { text: t("settingsTitle") });
+
+    if (!isAIConfigured(settings)) {
+      const banner = containerEl.createDiv({
+        cls: "callout nutegg-setup-callout",
+        attr: { "data-callout": "warning" },
+      });
+      banner.style.cssText = "margin: 12px 0 16px 0;";
+      const titleWrap = banner.createDiv({ cls: "callout-title" });
+      const icon = titleWrap.createDiv({ cls: "callout-icon" });
+      icon.setText("⚠️");
+      const titleText = titleWrap.createDiv({ cls: "callout-title-inner" });
+      titleText.setText(t("setupAiBannerTitle"));
+      const content = banner.createDiv({ cls: "callout-content" });
+      content.createEl("p", { text: t("setupAiBannerDesc") });
+    }
 
     // Companion Chrome Extension Card
     new Setting(containerEl)
@@ -180,8 +196,8 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       });
 
-    // Advanced sections — only visible when developer mode is on
-    if (settings.developerMode) {
+    // Advanced sections — visible when developer mode is on OR AI is not yet configured
+    if (settings.developerMode || !isAIConfigured(settings)) {
       this.displayAdvancedSettings(containerEl, settings, provider, isOpenRouter);
     }
   }

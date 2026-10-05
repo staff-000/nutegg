@@ -22,9 +22,257 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// tests/i18n.test.ts
+// tests/setup-hint.test.ts
 var import_node_test = require("node:test");
-var import_node_assert = __toESM(require("node:assert"));
+var import_strict = __toESM(require("node:assert/strict"));
+var import_jsdom = require("jsdom");
+
+// tests/obsidian-stub.ts
+var TAbstractFile = class {
+  path = "";
+  name = "";
+};
+var TFile = class extends TAbstractFile {
+  basename = "";
+  extension = "";
+};
+function getLanguage() {
+  return "en";
+}
+var moment = {
+  locale: () => "en"
+};
+
+// src/index-widget.ts
+var import_view = require("@codemirror/view");
+
+// ../shared/src/catalog.ts
+var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+var PROVIDER_CATALOG = {
+  local: {
+    id: "local",
+    label: "Local LLM (Ollama, LM Studio, etc.)",
+    officialEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    keyPlaceholder: "Optional for local LLMs",
+    openrouterPrefix: ""
+  },
+  openrouter: {
+    id: "openrouter",
+    label: "OpenRouter (Multi-Provider)",
+    officialEndpoint: OPENROUTER_ENDPOINT,
+    apiFormat: "openai-compatible",
+    defaultModel: "openai/gpt-6-astra",
+    families: [
+      {
+        id: "openai",
+        label: "OpenAI GPT & Reasoning",
+        defaultModel: "openai/gpt-6-astra",
+        models: [
+          "openai/gpt-6-astra",
+          "openai/gpt-5.6-sol",
+          "openai/o3-mini",
+          "openai/gpt-4o"
+        ]
+      },
+      {
+        id: "anthropic",
+        label: "Anthropic Claude",
+        defaultModel: "anthropic/claude-sonnet-5",
+        models: [
+          "anthropic/claude-fable-5-1",
+          "anthropic/claude-opus-5",
+          "anthropic/claude-sonnet-5"
+        ]
+      },
+      {
+        id: "deepseek",
+        label: "DeepSeek",
+        defaultModel: "deepseek/deepseek-r1",
+        models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]
+      },
+      {
+        id: "google",
+        label: "Google Gemini",
+        defaultModel: "google/gemini-2.5-flash",
+        models: [
+          "google/gemini-2.5-flash",
+          "google/gemini-2.5-pro"
+        ]
+      },
+      {
+        id: "meta",
+        label: "Meta Llama",
+        defaultModel: "meta-llama/llama-3.3-70b-instruct",
+        models: [
+          "meta-llama/llama-3.3-70b-instruct"
+        ]
+      },
+      {
+        id: "qwen",
+        label: "Qwen",
+        defaultModel: "qwen/qwen-2.5-72b-instruct",
+        models: [
+          "qwen/qwen-2.5-72b-instruct"
+        ]
+      },
+      {
+        id: "custom",
+        label: "Custom OpenRouter Model",
+        defaultModel: "openai/gpt-6-astra",
+        models: []
+      }
+    ],
+    models: [
+      "openai/gpt-6-astra",
+      "openai/gpt-5.6-sol",
+      "openai/o3-mini",
+      "openai/gpt-4o",
+      "anthropic/claude-fable-5-1",
+      "anthropic/claude-opus-5",
+      "anthropic/claude-sonnet-5",
+      "deepseek/deepseek-r1",
+      "deepseek/deepseek-chat",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro",
+      "meta-llama/llama-3.3-70b-instruct",
+      "qwen/qwen-2.5-72b-instruct"
+    ],
+    keyPlaceholder: "sk-or-...",
+    openrouterPrefix: ""
+  },
+  anthropic: {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    officialEndpoint: "https://api.anthropic.com/v1/messages",
+    apiFormat: "anthropic",
+    defaultModel: "claude-sonnet-5",
+    models: [
+      "claude-fable-5-1",
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-haiku-4-5-20251001",
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022"
+    ],
+    keyPlaceholder: "sk-ant-...",
+    openrouterPrefix: "anthropic/"
+  },
+  openai: {
+    id: "openai",
+    label: "OpenAI",
+    officialEndpoint: "https://api.openai.com/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "gpt-6-astra",
+    models: [
+      "gpt-6-astra",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "o3-mini",
+      "o1",
+      "gpt-4o",
+      "gpt-4o-mini"
+    ],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "openai/"
+  },
+  gemini: {
+    id: "gemini",
+    label: "Google Gemini",
+    officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "gemini-2.5-flash",
+    models: [
+      "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite"
+    ],
+    keyPlaceholder: "AIza...",
+    openrouterPrefix: "google/"
+  },
+  deepseek: {
+    id: "deepseek",
+    label: "DeepSeek",
+    officialEndpoint: "https://api.deepseek.com/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "deepseek-chat",
+    models: [
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-flash"
+    ],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "deepseek/"
+  },
+  kimi: {
+    id: "kimi",
+    label: "Kimi (Moonshot)",
+    officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "kimi-k3",
+    models: [
+      "kimi-k3",
+      "kimi-k2.7-code",
+      "kimi-k2.7-code-highspeed",
+      "moonshot-v1-8k",
+      "moonshot-v1-32k",
+      "moonshot-v1-128k"
+    ],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "moonshot/"
+  },
+  zhipu: {
+    id: "zhipu",
+    label: "Zhipu (GLM)",
+    officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "glm-5.3",
+    models: [
+      "glm-5.3",
+      "glm-5",
+      "glm-5-turbo",
+      "glm-4.7",
+      "glm-4-plus",
+      "glm-4-air",
+      "glm-4-flash"
+    ],
+    keyPlaceholder: "...",
+    openrouterPrefix: "zhipu/"
+  },
+  qwen: {
+    id: "qwen",
+    label: "Qwen (Tongyi)",
+    officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "qwen3-max",
+    models: [
+      "qwen3-max",
+      "qwen3-plus",
+      "qwen3-flash",
+      "qwen-max",
+      "qwen-plus",
+      "qwen-turbo"
+    ],
+    keyPlaceholder: "sk-...",
+    openrouterPrefix: "qwen/"
+  }
+};
+function isAIConfigured(settings) {
+  if (!settings)
+    return false;
+  const provider = settings.chromeAiProvider || settings.aiProvider || "gemini";
+  const apiKey = (settings.chromeAiApiKey !== void 0 ? settings.chromeAiApiKey : settings.aiApiKey) || "";
+  if (provider === "local") {
+    const localEndpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint;
+    return Boolean(
+      localEndpoint && localEndpoint.trim().length > 0 || PROVIDER_CATALOG.local.officialEndpoint
+    );
+  }
+  return Boolean(apiKey && apiKey.trim().length > 0);
+}
 
 // src/i18n/en.ts
 var en = {
@@ -1264,14 +1512,6 @@ var ru = {
   "configureAiBtn": "\u041D\u0430\u0441\u0442\u0440\u043E\u0438\u0442\u044C \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B AI"
 };
 
-// tests/obsidian-stub.ts
-function getLanguage() {
-  return "en";
-}
-var moment = {
-  locale: () => "en"
-};
-
 // src/i18n/index.ts
 var translations = {
   en,
@@ -1348,38 +1588,214 @@ function t(key, params) {
   return str;
 }
 
-// tests/i18n.test.ts
-(0, import_node_test.describe)("Obsidian Plugin i18n", () => {
-  const dicts = { en, zh, es, ja, ko, ar, fr, de, pt, ru };
-  const enKeys = Object.keys(en);
-  (0, import_node_test.it)("has identical keys across all 10 language dictionaries", () => {
-    for (const [lang, dict] of Object.entries(dicts)) {
-      const keys = Object.keys(dict);
-      import_node_assert.default.strictEqual(
-        keys.length,
-        enKeys.length,
-        `Dictionary for ${lang} has ${keys.length} keys, expected ${enKeys.length}`
-      );
-      for (const k of enKeys) {
-        import_node_assert.default.ok(k in dict, `Missing key "${k}" in ${lang}`);
-      }
-    }
+// src/index-widget.ts
+function renderSetupBanner(plugin) {
+  if (isAIConfigured(plugin.settings)) {
+    return null;
+  }
+  const callout = document.createElement("div");
+  callout.className = "callout nutegg-setup-callout";
+  callout.setAttribute("data-callout", "warning");
+  callout.style.cssText = "margin: 10px 0 14px 0; width: 100%; box-sizing: border-box;";
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "callout-title";
+  const icon = document.createElement("div");
+  icon.className = "callout-icon";
+  icon.textContent = "\u26A0\uFE0F";
+  const titleText = document.createElement("div");
+  titleText.className = "callout-title-inner";
+  titleText.textContent = t("setupAiBannerTitle");
+  titleWrap.appendChild(icon);
+  titleWrap.appendChild(titleText);
+  callout.appendChild(titleWrap);
+  const content = document.createElement("div");
+  content.className = "callout-content";
+  const desc = document.createElement("p");
+  desc.textContent = t("setupAiBannerDesc");
+  desc.style.cssText = "margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.4;";
+  content.appendChild(desc);
+  const btn = document.createElement("button");
+  btn.className = "mod-cta nutegg-setup-btn";
+  btn.textContent = `\u2699\uFE0F ${t("configureAiBtn")}`;
+  btn.style.cssText = "font-size: 0.85em; padding: 4px 12px; cursor: pointer;";
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    plugin.openSettings();
   });
-  (0, import_node_test.it)("never translates NutEgg in any language", () => {
-    for (const [lang, dict] of Object.entries(dicts)) {
-      for (const [k, v] of Object.entries(dict)) {
-        if (typeof v === "string") {
-          import_node_assert.default.doesNotMatch(
-            v,
-            /坚果蛋|螺母蛋|果蛋/,
-            `Key "${k}" in ${lang} mistranslated NutEgg: ${v}`
-          );
+  content.appendChild(btn);
+  callout.appendChild(content);
+  return callout;
+}
+
+// tests/helpers.ts
+function makeFakeVault(initial = {}) {
+  const files = new Map(Object.entries(initial));
+  const basePath = "/fake/vault";
+  const listeners = /* @__PURE__ */ new Map();
+  const toTFile = (p) => Object.assign(new TFile(), {
+    path: p,
+    name: p.split("/").pop() || "",
+    basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
+    extension: p.split(".").pop() || ""
+  });
+  const adapter = {
+    exists: async (p) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + "/")),
+    read: async (p) => {
+      if (!files.has(p))
+        throw new Error("File not found: " + p);
+      return files.get(p);
+    },
+    remove: async (p) => {
+      files.delete(p);
+    },
+    append: async (p, data) => {
+      files.set(p, (files.get(p) ?? "") + data);
+    },
+    getBasePath: () => basePath
+  };
+  const vault = {
+    adapter,
+    listeners,
+    on: (event, callback) => {
+      if (!listeners.has(event))
+        listeners.set(event, []);
+      listeners.get(event).push(callback);
+    },
+    trigger: (event, file) => {
+      for (const cb of listeners.get(event) || []) {
+        cb(file);
+      }
+    },
+    create: async (p, content) => {
+      files.set(p, content);
+      vault.trigger("create", toTFile(p));
+    },
+    createFolder: async (_p) => {
+    },
+    modify: async (file, content) => {
+      files.set(file.path, content);
+      vault.trigger("modify", toTFile(file.path));
+    },
+    read: async (file) => {
+      if (!files.has(file.path))
+        throw new Error("File not found: " + file.path);
+      return files.get(file.path);
+    },
+    delete: async (file) => {
+      files.delete(file.path);
+      vault.trigger("delete", toTFile(file.path));
+    },
+    getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
+    getFiles: () => [...files.keys()].map((p) => toTFile(p)),
+    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
+  };
+  return { files, basePath, vault };
+}
+function makeFakePlugin(overrides = {}) {
+  const { vault } = makeFakeVault(overrides.vaultFiles || {});
+  return {
+    manifest: overrides.manifest ?? { version: "0.1.0" },
+    settings: {
+      aiApiKey: "test-key",
+      rawFolder: "nutegg/_raw",
+      indexFile: "nutegg/_index.md",
+      serverPort: 27123,
+      chunkWindowChars: 3e4,
+      ...overrides.settings || {}
+    },
+    app: { vault: overrides.vault ?? vault },
+    aiClient: overrides.aiClient ?? {
+      chat: async () => "{}",
+      checkCredit: async () => ({
+        provider: "anthropic",
+        providerLabel: "Anthropic (Claude)",
+        source: "openrouter",
+        model: "claude-sonnet-5",
+        hasBalance: true,
+        balanceFormatted: "$8.45",
+        statusText: "$8.45 left"
+      })
+    },
+    eggParser: overrides.eggParser ?? {
+      formatEggForPrompt: (e) => `egg:${e.fileName}`,
+      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
+      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
+    },
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
+    knowledgeBase: overrides.knowledgeBase ?? {},
+    workflowManager: overrides.workflowManager ?? {
+      getPrompt: () => ""
+    },
+    db: overrides.db ?? null,
+    ...overrides
+  };
+}
+
+// tests/setup-hint.test.ts
+var dom = new import_jsdom.JSDOM("<!doctype html><html><body></body></html>");
+globalThis.document = dom.window.document;
+globalThis.HTMLElement = dom.window.HTMLElement;
+(0, import_node_test.describe)("AI Setup Hints", () => {
+  (0, import_node_test.describe)("renderSetupBanner", () => {
+    (0, import_node_test.it)("returns null when AI is configured", () => {
+      const plugin = makeFakePlugin({
+        settings: {
+          aiApiKey: "sk-valid-key",
+          aiProvider: "anthropic"
         }
-      }
-    }
+      });
+      import_strict.default.strictEqual(isAIConfigured(plugin.settings), true);
+      const banner = renderSetupBanner(plugin);
+      import_strict.default.strictEqual(banner, null);
+    });
+    (0, import_node_test.it)("renders callout banner when AI is unconfigured (empty key)", () => {
+      let openSettingsCalled = false;
+      const plugin = makeFakePlugin({
+        settings: {
+          aiApiKey: "",
+          aiProvider: "anthropic"
+        },
+        openSettings: () => {
+          openSettingsCalled = true;
+        }
+      });
+      import_strict.default.strictEqual(isAIConfigured(plugin.settings), false);
+      const banner = renderSetupBanner(plugin);
+      import_strict.default.ok(banner !== null, "Expected banner to be rendered");
+      import_strict.default.ok(banner.classList.contains("nutegg-setup-callout"));
+      import_strict.default.strictEqual(banner.getAttribute("data-callout"), "warning");
+      const title = banner.querySelector(".callout-title-inner");
+      import_strict.default.ok(title);
+      import_strict.default.strictEqual(title.textContent, t("setupAiBannerTitle"));
+      const btn = banner.querySelector("button.nutegg-setup-btn");
+      import_strict.default.ok(btn, "Expected button to be in banner");
+      import_strict.default.ok(btn.textContent?.includes(t("configureAiBtn")));
+      btn.click();
+      import_strict.default.strictEqual(openSettingsCalled, true);
+    });
   });
-  (0, import_node_test.it)("supports parameter interpolation via t()", () => {
-    const formatted = t("serverStarted", { port: 27123 });
-    import_node_assert.default.ok(formatted.includes("27123"));
+  (0, import_node_test.describe)("Status Bar unconfigured behavior", () => {
+    (0, import_node_test.it)("recognizes unconfigured settings via isAIConfigured", () => {
+      const unconfiguredPlugin = makeFakePlugin({
+        settings: { aiApiKey: "", aiProvider: "gemini" }
+      });
+      import_strict.default.strictEqual(isAIConfigured(unconfiguredPlugin.settings), false);
+      const configuredPlugin = makeFakePlugin({
+        settings: { aiApiKey: "valid-key", aiProvider: "gemini" }
+      });
+      import_strict.default.strictEqual(isAIConfigured(configuredPlugin.settings), true);
+      const localPlugin = makeFakePlugin({
+        settings: {
+          aiApiKey: "",
+          aiProvider: "local",
+          localEndpoint: "http://127.0.0.1:11434/api/chat"
+        }
+      });
+      import_strict.default.strictEqual(isAIConfigured(localPlugin.settings), true);
+    });
   });
 });

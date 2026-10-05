@@ -112,5 +112,10 @@ export const de = {
   "syncIndex": "Index synchronisieren",
   "syncingIndex": "Synchronisiere...",
   "newEggButton": "+ Neues Egg",
-  "unprocessedBadge": "{count} unverarbeitet"
+  "unprocessedBadge": "{count} unverarbeitet",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: KI-Schlüssel einrichten",
+  "setupAiKeyTooltip": "NutEgg: KI-API-Schlüssel nicht konfiguriert. Klicken Sie hier, um die Einstellungen zu öffnen.",
+  "setupAiBannerTitle": "KI-Einrichtung erforderlich",
+  "setupAiBannerDesc": "Konfigurieren Sie einen KI-Anbieter und API-Schlüssel, um Inhaltsanalyse, Egg-Synthese und automatische Zusammenführung zu aktivieren.",
+  "configureAiBtn": "KI-Einstellungen konfigurieren"
 };

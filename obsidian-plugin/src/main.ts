@@ -4,7 +4,7 @@ import {
   DEFAULT_SETTINGS,
   NutEggSettingTab,
 } from "./settings";
-import { AIClient } from "./ai-client";
+import { AIClient, isAIConfigured } from "./ai-client";
 import { NutEggServer } from "./server";
 import { AIProcessor } from "./ai-processor";
 import { KnowledgeBase } from "./knowledge-base";
@@ -198,7 +198,11 @@ export default class NutEggPlugin extends Plugin {
     this.creditStatusBarItem.addClass("nutegg-statusbar-credit");
     this.creditStatusBarItem.setText("🪙 NutEgg AI");
     this.creditStatusBarItem.addEventListener("click", () => {
-      this.updateCreditStatusBar(true);
+      if (!isAIConfigured(this.settings)) {
+        this.openSettings();
+      } else {
+        this.updateCreditStatusBar(true);
+      }
     });
     this.updateCreditStatusBar();
 
@@ -225,10 +229,38 @@ export default class NutEggPlugin extends Plugin {
   }
 
   /**
+   * Open the NutEgg settings tab in Obsidian settings.
+   */
+  openSettings(): void {
+    const setting = (this.app as any).setting;
+    if (setting) {
+      setting.open();
+      setting.openTabById(this.manifest.id);
+    }
+  }
+
+  /**
    * Update the status bar credit item with live balance or status.
    */
   async updateCreditStatusBar(showNotice = false): Promise<void> {
     if (!this.creditStatusBarItem) return;
+
+    if (!isAIConfigured(this.settings)) {
+      this.creditStatusBarItem.setText(t("setupAiKeyStatusBar"));
+      this.creditStatusBarItem.setAttribute(
+        "aria-label",
+        t("setupAiKeyTooltip")
+      );
+      this.creditStatusBarItem.addClass("mod-warning");
+      this.creditStatusBarItem.style.cursor = "pointer";
+      if (showNotice) {
+        new Notice(t("setupAiKeyTooltip"));
+        this.openSettings();
+      }
+      return;
+    }
+
+    this.creditStatusBarItem.removeClass("mod-warning");
     try {
       const credit = await this.aiClient.checkCredit(this.settings);
       if (credit.hasBalance && credit.balanceFormatted) {
@@ -311,6 +343,7 @@ export default class NutEggPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    this.updateCreditStatusBar();
   }
 
   /**

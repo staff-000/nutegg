@@ -120,6 +120,11 @@ export const en = {
   syncingIndex: "Syncing...",
   newEggButton: "+ New Egg",
   unprocessedBadge: "{count} unprocessed",
+  setupAiKeyStatusBar: "⚠️ NutEgg: Setup AI Key",
+  setupAiKeyTooltip: "NutEgg: AI API key not configured. Click to open Settings.",
+  setupAiBannerTitle: "AI Setup Required",
+  setupAiBannerDesc: "Configure an AI Provider and API key to enable content analysis, egg synthesis, and automated merging.",
+  configureAiBtn: "Configure AI Settings",
 };
 
 export type TranslationKey = keyof typeof en;

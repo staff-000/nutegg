@@ -112,5 +112,10 @@ export const ja = {
   "syncIndex": "インデックスを同期",
   "syncingIndex": "同期中...",
   "newEggButton": "+ 新しいEgg",
-  "unprocessedBadge": "未処理 {count}件"
+  "unprocessedBadge": "未処理 {count}件",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: AI キーを設定",
+  "setupAiKeyTooltip": "NutEgg: AI API キーが設定されていません。クリックして設定を開きます。",
+  "setupAiBannerTitle": "AI の設定が必要です",
+  "setupAiBannerDesc": "コンテンツ分析、Egg 合成、および自動マージを有効にするには、AI プロバイダーと API キーを設定してください。",
+  "configureAiBtn": "AI 設定を構成"
 };

@@ -122,4 +122,9 @@ export const zh: Record<TranslationKey, string> = {
   syncingIndex: "正在同步...",
   newEggButton: "+ 新建 Egg",
   unprocessedBadge: "{count} 个未处理",
+  setupAiKeyStatusBar: "⚠️ NutEgg: 设置 AI 密钥",
+  setupAiKeyTooltip: "NutEgg：未配置 AI API 密钥。点击打开设置。",
+  setupAiBannerTitle: "需要配置 AI",
+  setupAiBannerDesc: "配置 AI 提供商和 API 密钥以启用内容分析、Egg 合成和自动合并。",
+  configureAiBtn: "配置 AI 设置",
 };

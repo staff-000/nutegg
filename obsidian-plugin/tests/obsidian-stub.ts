@@ -8,6 +8,12 @@ export class Notice {
 export class App {}
 export class Plugin {}
 export class MarkdownView {}
+export class Modal {
+  contentEl = (globalThis as any).document?.createElement?.("div") || {};
+  constructor(public app: any) {}
+  open() {}
+  close() {}
+}
 export class SuggestModal {}
 export class PluginSettingTab {}
 export class Setting {}

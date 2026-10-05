@@ -112,5 +112,10 @@ export const ar = {
   "syncIndex": "مزامنة الفهرس",
   "syncingIndex": "جارٍ المزامنة...",
   "newEggButton": "+ Egg جديد",
-  "unprocessedBadge": "{count} غير معالج"
+  "unprocessedBadge": "{count} غير معالج",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: إعداد مفتاح AI",
+  "setupAiKeyTooltip": "NutEgg: مفتاح واجهة برمجة تطبيقات AI غير مهيأ. انقر لفتح الإعدادات.",
+  "setupAiBannerTitle": "إعداد AI مطلوب",
+  "setupAiBannerDesc": "قم بتكوين مزود AI ومفتاح API لتمكين تحليل المحتوى وتوليف Egg والدمج التلقائي.",
+  "configureAiBtn": "تهيئة إعدادات AI"
 };

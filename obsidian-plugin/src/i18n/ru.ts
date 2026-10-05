@@ -112,5 +112,10 @@ export const ru = {
   "syncIndex": "Синхронизировать индекс",
   "syncingIndex": "Синхронизация...",
   "newEggButton": "+ Новый Egg",
-  "unprocessedBadge": "{count} необработано"
+  "unprocessedBadge": "{count} необработано",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: Настройте ключ AI",
+  "setupAiKeyTooltip": "NutEgg: Ключ API для AI не настроен. Нажмите, чтобы открыть настройки.",
+  "setupAiBannerTitle": "Требуется настройка AI",
+  "setupAiBannerDesc": "Настройте поставщика AI и ключ API, чтобы включить анализ контента, синтез Egg и автоматическое слияние.",
+  "configureAiBtn": "Настроить параметры AI"
 };

@@ -112,5 +112,10 @@ export const ko = {
   "syncIndex": "인덱스 동기화",
   "syncingIndex": "동기화 중...",
   "newEggButton": "+ 새 Egg",
-  "unprocessedBadge": "{count}개 미처리"
+  "unprocessedBadge": "{count}개 미처리",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: AI 키 설정",
+  "setupAiKeyTooltip": "NutEgg: AI API 키가 설정되지 않았습니다. 설정을 열려면 클릭하세요.",
+  "setupAiBannerTitle": "AI 설정 필요",
+  "setupAiBannerDesc": "콘텐츠 분석, Egg 합성 및 자동 병합을 활성화하려면 AI 공급자와 API 키를 구성하세요.",
+  "configureAiBtn": "AI 설정 구성"
 };

@@ -112,5 +112,10 @@ export const pt = {
   "syncIndex": "Sincronizar índice",
   "syncingIndex": "Sincronizando...",
   "newEggButton": "+ Novo Egg",
-  "unprocessedBadge": "{count} não processada(s)"
+  "unprocessedBadge": "{count} não processada(s)",
+  "setupAiKeyStatusBar": "⚠️ NutEgg: Configurar chave de IA",
+  "setupAiKeyTooltip": "NutEgg: A chave de API de IA não está configurada. Clique para abrir as configurações.",
+  "setupAiBannerTitle": "Configuração de IA necessária",
+  "setupAiBannerDesc": "Configure um provedor de IA e uma chave de API para ativar a análise de conteúdo, síntese de Egg e mesclagem automática.",
+  "configureAiBtn": "Configurar definições de IA"
 };
