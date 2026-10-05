@@ -15,7 +15,7 @@ function setup(t) {
   const renderer = new PopupRenderer({ store: f.store, settings, ui, root });
   f.store.subscribe(event => renderer.handle(event)); renderer.render();
   const deps = { tabStateManager: f.store, operations: f.operations, settings, ui, envService: { checkServerStatus: async () => {} } };
-  return { ...f, root, ui, renderer, analyze: new AnalyzeAction(deps), tab: new TabAction(deps) };
+  return { ...f, root, ui, renderer, settings, analyze: new AnalyzeAction(deps), tab: new TabAction(deps) };
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 for (const order of [[0, 1], [1, 0]]) test(`actual shared DOM shows results for both concurrent tabs in order ${order}`, async context => {
@@ -184,4 +184,41 @@ test('global catalog updates preserve a create draft, and follow-up renders with
   f.service.sendMessage = async () => ({ answers: [{ answer: 'Follow-up answer' }] });
   await f.operations.followup(1, 'Question');
   assert(f.ui.qaUI.customQuestionsList.innerHTML.includes('Follow-up answer'));
+});
+
+test('when offline and unconfigured, setup hub is shown and capture-state is not-functional; becomes functional once connected', context => {
+  const f = setup(context);
+  const captureState = f.root.getElementById('capture-state');
+  const setupHub = f.root.getElementById('setup-hub');
+
+  // Set offline and unconfigured
+  f.settings.serverOnline = false;
+  f.settings.chromeAiConfigured = false;
+  f.renderer.render();
+
+  assert.equal(setupHub.classList.contains('hidden'), false);
+  assert.equal(captureState.classList.contains('not-functional'), true);
+
+  // Connecting to Obsidian makes it functional
+  f.settings.serverOnline = true;
+  f.renderer.render();
+
+  assert.equal(setupHub.classList.contains('hidden'), true);
+  assert.equal(captureState.classList.contains('not-functional'), false);
+
+  // Configuring Chrome AI makes it functional even if Obsidian is offline
+  f.settings.serverOnline = false;
+  f.settings.chromeAiConfigured = true;
+  f.renderer.render();
+
+  assert.equal(setupHub.classList.contains('hidden'), true);
+  assert.equal(captureState.classList.contains('not-functional'), false);
+
+  // Even if unconfigured, if a tab has an analysis result, setup hub does not block results
+  f.settings.chromeAiConfigured = false;
+  seed(f.store, 1, { titleVerdict: 'Cached result' });
+  f.renderer.render();
+
+  assert.equal(setupHub.classList.contains('hidden'), true);
+  assert.equal(captureState.classList.contains('not-functional'), false);
 });

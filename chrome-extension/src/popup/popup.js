@@ -94,7 +94,10 @@ async function initPopup() {
   for (const input of [e.eggsNewDesc, e.newEggDescription]) input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
   click(e.createEggBtn, () => saveAction.handleCreateEgg(false));
   click(e.eggsCreateBtn, () => saveAction.handleCreateEgg(true));
-  for (const button of [h.serverStatus, h.statusIndicatorWrap, h.settingsBtn, h.aiCreditPill]) click(button, () => chrome.runtime.openOptionsPage());
+  for (const button of [h.serverStatus, h.statusIndicatorWrap, h.settingsBtn, h.aiCreditPill, document.getElementById('setup-open-settings-btn')]) click(button, () => {
+    if (button?.id === 'setup-open-settings-btn' && chrome?.storage?.local?.set) chrome.storage.local.set({ chromeAiEnabled: true });
+    chrome.runtime.openOptionsPage();
+  });
   click(document.getElementById('report-bug-link'), event => { event.preventDefault(); interactionAction.openGitHubBugReport(); });
   click(ui.bannersUI.errorReportBug, event => { event.preventDefault(); interactionAction.openGitHubBugReport(tabStateManager.viewModel().error || ''); });
   document.addEventListener('click', event => {
