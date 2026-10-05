@@ -111,7 +111,19 @@ class PopupOperations {
     const result = tab.analysisResult || {};
     const cached = [...(result.eggResults || []), ...(result.eggAnalysisCache || [])];
     const byEgg = new Map(cached.map(r => [r.egg, r]));
-    const pending = eggs.filter(egg => !byEgg.has(egg) || (tab.generateKnowledgeEntries && byEgg.get(egg).generateKnowledgeEntries === false && !byEgg.get(egg).entryGenerationDisabledByEgg));
+    const pending = eggs.filter(egg => {
+      if (!byEgg.has(egg)) return true;
+      const cachedResult = byEgg.get(egg);
+      if (tab.generateKnowledgeEntries && !cachedResult.entryGenerationDisabledByEgg) {
+        const wasEggOnly = cachedResult.generateKnowledgeEntries === false || result.generateKnowledgeEntries === false;
+        const hasKnowledge = Boolean(cachedResult.extractedEntries?.length ||
+          cachedResult.keyQuestionAnswers?.some(a => a.answered !== false && a.answer && !/^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(String(a.answer).trim())));
+        if (wasEggOnly && !hasKnowledge || cachedResult.generateKnowledgeEntries === false) {
+          return true;
+        }
+      }
+      return false;
+    });
     if (!pending.length) {
       try {
         const composed = { ...globalThis.NutEggAI.composeEggResults(tab.stage1ContentAnalysis || result, eggs.map(egg => byEgg.get(egg)), [...byEgg.values()]),

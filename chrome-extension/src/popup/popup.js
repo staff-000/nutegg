@@ -67,10 +67,18 @@ async function initPopup() {
   click(a.analyzeBtn, () => analyzeAction.handleAnalyze());
   click(a.reanalyzeBtn, () => analyzeAction.handleAnalyze(true, null, true));
   click(a.reanalyzeRefreshBtn, () => tabAction.refreshForCurrentTab(true));
-  click(c.refreshBtn, () => tabAction.refreshForCurrentTab(true));
+  click(c.refreshBtn, () => tabAction.refreshCaptureForCurrentTab());
   click(a.stage1ProceedBtn, event => a.handleEggAnalysisClick(event, mode => analyzeAction.handleEggAnalysis(mode)));
-  click(a.eggAnalysisOnlyBtn, () => { a.toggleEggAnalysisMenu(false); return analyzeAction.handleEggAnalysis(false); });
-  click(a.eggAnalysisWithKnowledgeBtn, () => { a.toggleEggAnalysisMenu(false); return analyzeAction.handleEggAnalysis(true); });
+  click(a.eggAnalysisOnlyBtn, () => {
+    analyzeAction.setGenerateKnowledgeEntries(false);
+    a.updateEggAnalysisLabel(false);
+    a.toggleEggAnalysisMenu(false);
+  });
+  click(a.eggAnalysisWithKnowledgeBtn, () => {
+    analyzeAction.setGenerateKnowledgeEntries(true);
+    a.updateEggAnalysisLabel(true);
+    a.toggleEggAnalysisMenu(false);
+  });
   for (const button of [a.collectNutBtn, a.stage1SkipBtn]) click(button, () => saveAction.handleSaveRaw());
   click(a.confirmBtn, () => saveAction.handleConfirm());
   click(a.backBtn, () => analyzeAction.handleBackToContent());

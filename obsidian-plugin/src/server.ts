@@ -675,7 +675,8 @@ export class NutEggServer {
           for (const egg of result.eggResults) allResults.set(egg.egg, egg);
           result = composeEggResults(contentAnalysis,
             capture.selectedEggs.flatMap(egg => allResults.has(egg) ? [allResults.get(egg)!] : []),
-            [...allResults.values()]);
+            [...allResults.values()],
+            capture.generateKnowledgeEntries !== false);
           result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
         }
         delete (result as any).stage;

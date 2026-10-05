@@ -1260,7 +1260,8 @@ var NutEggServer = class {
           result = composeEggResults(
             contentAnalysis2,
             capture.selectedEggs.flatMap((egg) => allResults.has(egg) ? [allResults.get(egg)] : []),
-            [...allResults.values()]
+            [...allResults.values()],
+            capture.generateKnowledgeEntries !== false
           );
           result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
         }

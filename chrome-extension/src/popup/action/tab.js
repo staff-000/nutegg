@@ -1,5 +1,17 @@
 class TabAction {
   constructor(deps) { Object.assign(this, deps); this.store = deps.tabStateManager; }
+  async refreshCaptureForCurrentTab() {
+    const tabId = this.store.activeTabId;
+    if (tabId == null || this.store.isBusy(tabId)) return;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      this.store.dispatch({ type: 'pageInfo', tabId, url: tab.url, title: tab.title, loading: tab.status === 'loading' });
+      await this.operations.extract(tabId);
+      this.store.dispatch({ type: 'view', tabId, view: 'capture' });
+    } catch (error) {
+      this.store.dispatch({ type: 'notice', tabId, message: error.message });
+    }
+  }
   async refreshForCurrentTab(forceExtract = false) {
     const tabId = this.store.activeTabId;
     if (tabId != null) {

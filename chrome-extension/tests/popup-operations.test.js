@@ -64,6 +64,25 @@ test('Stage 2 uses its response mode and cached selection cannot restore a Chrom
   assert.equal(store.viewModel(1).isStage1(), false);
   assert.equal(calls.length, 1);
 });
+test('switching from egg-only to include-knowledge reruns egg analysis instead of showing cached entry-less result', async () => {
+  const { store, operations, calls } = fixture();
+  seed(store, 1, { stage: 'stage1', titleVerdict: 'Title' });
+  // First run with generateKnowledgeEntries = false (Egg only)
+  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: false } });
+  const eggOnlyJob = operations.eggs(1, { ...options, eggs: ['a.md'] });
+  calls[0].resolve({ stage: 'stage2', eggResults: [{ egg: 'a.md', readAction: 'full', readVerdict: true, extractedEntries: [], keyQuestionAnswers: [], generateKnowledgeEntries: false }] });
+  await eggOnlyJob;
+  assert.equal(store.getTab(1).analysisResult.newKnowledge.length, 0);
+
+  // Now user enables knowledge entries and reruns
+  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: true } });
+  const withKnowledgeJob = operations.eggs(1, { ...options, eggs: ['a.md'] });
+  assert.equal(calls.length, 2, 'Must issue a new call rather than returning cached entry-less result');
+  assert.deepEqual(calls[1].payload.eggs, ['a.md']);
+  calls[1].resolve({ stage: 'stage2', eggResults: [answer('a.md')] });
+  await withKnowledgeJob;
+  assert.equal(store.getTab(1).analysisResult.newKnowledge.length, 1);
+});
 test('cached analysis failures report an error without a new job or losing prior results', async t => {
   const { store, operations } = fixture();
   seed(store, 1, { stage: 'stage2', matchedEggs: ['a.md'], eggResults: [answer('a.md')] });

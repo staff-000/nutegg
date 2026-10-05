@@ -84,3 +84,21 @@ test('save and follow-up actions dispatch operations without touching controls',
   await new SaveAction(f.deps).handleSaveRaw(); assert.equal(f.store.getTab(1).nutCollected, true);
   await new InteractionAction(f.deps).handleFollowUp(); assert.equal(f.store.getTab(1).followUpQa[0].answer, 'A');
 });
+test('refreshCaptureForCurrentTab fetches content without redirecting to analysis view', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions();
+  seed(f.store, 1, { titleVerdict: 'Existing analysis' });
+  f.store.dispatch({ type: 'view', tabId: 1, view: 'capture' });
+  assert.equal(f.store.getTab(1).currentView, 'capture');
+
+  let extractedId = null;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: 'https://tab1.test', title: 'Refreshed Page', status: 'complete' }) } };
+  f.operations.extract = async id => { extractedId = id; };
+
+  await f.tab.refreshCaptureForCurrentTab();
+
+  assert.equal(extractedId, 1);
+  assert.equal(f.store.getTab(1).currentView, 'capture');
+  assert.equal(f.store.getTab(1).title, 'Refreshed Page');
+});
+
