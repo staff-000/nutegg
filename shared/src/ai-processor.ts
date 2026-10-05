@@ -835,7 +835,7 @@ export class AIProcessor {
   }
 
   /**
-   * Localize an egg template (from templates/egg.md) into the same language as
+   * Localize an egg template (from shared/templates/egg.md) into the same language as
    * the egg description. Keeps the structure and parser keywords in English.
    * Returns null when unavailable (no API key, AI error).
    */

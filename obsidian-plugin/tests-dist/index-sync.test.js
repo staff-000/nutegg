@@ -41,7 +41,7 @@ var TFile = class extends TAbstractFile {
   extension = "";
 };
 
-// src/templates/egg.md
+// ../shared/templates/egg.md
 var egg_default = `---
 topic: "Unknown"
 status: "active"
@@ -88,7 +88,7 @@ language: "English"
 # Unprocessed
 `;
 
-// src/defaults.ts
+// ../shared/src/egg-template.ts
 var EGG_TEMPLATE = egg_default;
 
 // ../shared/src/egg-format.ts

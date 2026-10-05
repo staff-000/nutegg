@@ -77,7 +77,7 @@ nutegg/ai_ml.md: artificial intelligence, machine learning, LLMs, AGI
 /**
  * Parsed egg file content.
  *
- * New format (see src/templates/egg.md):
+ * New format (see shared/templates/egg.md):
  *   ---
  *   topic: "..."
  *   status: "active"

@@ -11,6 +11,8 @@ export * from "./chunker";
 export * from "./json-repair";
 export * from "./egg-format";
 export * from "./egg-parser";
+export * from "./egg-template";
+export * from "./egg-examples";
 export * from "./prompt-templates";
 export * from "./ai-processor";
 

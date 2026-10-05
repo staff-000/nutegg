@@ -10,7 +10,7 @@ const context = await esbuild.context({
   bundle: true,
   plugins: [
     {
-      // Bundle template .md files (src/templates/*) as plain text strings
+      // Bundle vault and shared template .md files as plain text strings
       name: "md-as-text",
       setup(build) {
         build.onLoad({ filter: /\.md$/ }, async (args) => ({

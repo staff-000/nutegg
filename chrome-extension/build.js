@@ -2,7 +2,7 @@
 // NutEgg Chrome Extension Build Script
 // ============================================================
 //
-// Bundles shared/src/index.ts and inlines workflow templates into
+// Bundles shared/src/index.ts and inlines workflow and egg templates into
 // a single self-contained browser IIFE bundle: src/ai/ai-core.js.
 
 const path = require("path");
@@ -70,4 +70,3 @@ build().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-
