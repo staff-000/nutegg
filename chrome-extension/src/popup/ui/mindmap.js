@@ -12,6 +12,7 @@ function unwrapMindMapRoots(nodes) {
     Array.isArray(current) &&
     current.length === 1 &&
     !current[0].time &&
+    !current[0].sources?.length &&
     Array.isArray(current[0].children) &&
     current[0].children.length > 0
   ) {
@@ -60,7 +61,11 @@ function renderMindMap(nodes, container) {
 
     const nameEl = document.createElement("div");
     nameEl.className = "mindmap-node-name";
+    const source = node.sources?.find(s => s && typeof s.ref === 'string' && (s.sourceId || !/^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref)) && (s.quote || s.sourceId || s.ref));
     nameEl.innerHTML = renderText(node.name);
+    if (source) {
+      nameEl.insertAdjacentHTML("beforeend", ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('jumpToSource'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`);
+    }
     if (typeof node.time === "string" && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) {
       nameEl.insertAdjacentHTML("beforeend", " " + renderText(node.time));
     }

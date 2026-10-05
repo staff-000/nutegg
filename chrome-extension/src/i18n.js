@@ -18,6 +18,8 @@ const translations = {
   "en": {
     "discussionUnsupported": "This comment layout is not supported yet. You can analyze the body alone.",
     "discussionSupplement": "Extra insights",
+    "jumpToSource": "Source",
+    "sourceJumpUnavailable": "This source is not available on the current page. Open or load the referenced text or comments, then try again.",
     "discussionSection": "Discussion",
     "discussionLoad": "Load discussion",
     "discussionRefresh": "Refresh comments",
@@ -389,6 +391,8 @@ const translations = {
   "zh_CN": {
     "discussionUnsupported": "暂不支持此评论布局。您仍可仅分析正文。",
     "discussionSupplement": "补充见解",
+    "jumpToSource": "原文",
+    "sourceJumpUnavailable": "当前页面无法定位此来源。请展开或加载对应正文或评论，然后重试。",
     "discussionSection": "讨论",
     "discussionLoad": "加载讨论",
     "discussionRefresh": "刷新评论",
@@ -760,6 +764,8 @@ const translations = {
   "es": {
     "discussionUnsupported": "Este formato de comentarios aún no es compatible. Puedes analizar solo el cuerpo.",
     "discussionSupplement": "Ideas adicionales",
+    "jumpToSource": "Fuente",
+    "sourceJumpUnavailable": "Esta fuente no está disponible en la página actual. Abre o carga el texto o los comentarios y vuelve a intentarlo.",
     "discussionSection": "Discusión",
     "discussionLoad": "Cargar discusión",
     "discussionRefresh": "Actualizar comentarios",
@@ -1131,6 +1137,8 @@ const translations = {
   "ja": {
     "discussionUnsupported": "このコメント形式にはまだ対応していません。本文だけでも分析できます。",
     "discussionSupplement": "補足の知見",
+    "jumpToSource": "出典",
+    "sourceJumpUnavailable": "現在のページで出典を見つけられません。本文やコメントを開くか読み込んでから再試行してください。",
     "discussionSection": "ディスカッション",
     "discussionLoad": "議論を読み込む",
     "discussionRefresh": "コメントを更新",
@@ -1502,6 +1510,8 @@ const translations = {
   "ko": {
     "discussionUnsupported": "이 댓글 형식은 아직 지원하지 않습니다. 본문만 분석할 수 있습니다.",
     "discussionSupplement": "추가 인사이트",
+    "jumpToSource": "원문",
+    "sourceJumpUnavailable": "현재 페이지에서 출처를 찾을 수 없습니다. 해당 본문이나 댓글을 열거나 불러온 후 다시 시도하세요.",
     "discussionSection": "토론",
     "discussionLoad": "토론 불러오기",
     "discussionRefresh": "댓글 새로고침",
@@ -1873,6 +1883,8 @@ const translations = {
   "ar": {
     "discussionUnsupported": "تنسيق التعليقات هذا غير مدعوم بعد. يمكنك تحليل النص وحده.",
     "discussionSupplement": "رؤى إضافية",
+    "jumpToSource": "المصدر",
+    "sourceJumpUnavailable": "المصدر غير متاح في الصفحة الحالية. افتح النص أو التعليقات المشار إليها أو حمّلها ثم حاول مجددًا.",
     "discussionSection": "النقاش",
     "discussionLoad": "تحميل النقاش",
     "discussionRefresh": "تحديث التعليقات",
@@ -2244,6 +2256,8 @@ const translations = {
   "fr": {
     "discussionUnsupported": "Ce format de commentaires n’est pas encore pris en charge. Vous pouvez analyser le texte seul.",
     "discussionSupplement": "Éclairages complémentaires",
+    "jumpToSource": "Source",
+    "sourceJumpUnavailable": "Cette source est introuvable sur la page actuelle. Ouvrez ou chargez le texte ou les commentaires, puis réessayez.",
     "discussionSection": "Discussion",
     "discussionLoad": "Charger la discussion",
     "discussionRefresh": "Actualiser les commentaires",
@@ -2615,6 +2629,8 @@ const translations = {
   "de": {
     "discussionUnsupported": "Dieses Kommentarformat wird noch nicht unterstützt. Du kannst nur den Haupttext analysieren.",
     "discussionSupplement": "Zusätzliche Erkenntnisse",
+    "jumpToSource": "Quelle",
+    "sourceJumpUnavailable": "Diese Quelle ist auf der aktuellen Seite nicht verfügbar. Öffne oder lade den Text oder die Kommentare und versuche es erneut.",
     "discussionSection": "Diskussion",
     "discussionLoad": "Diskussion laden",
     "discussionRefresh": "Kommentare aktualisieren",
@@ -2986,6 +3002,8 @@ const translations = {
   "pt": {
     "discussionUnsupported": "Este formato de comentários ainda não é compatível. Você pode analisar apenas o texto.",
     "discussionSupplement": "Ideias adicionais",
+    "jumpToSource": "Fonte",
+    "sourceJumpUnavailable": "Esta fonte não está disponível na página atual. Abra ou carregue o texto ou os comentários e tente novamente.",
     "discussionSection": "Discussão",
     "discussionLoad": "Carregar discussão",
     "discussionRefresh": "Atualizar comentários",
@@ -3357,6 +3375,8 @@ const translations = {
   "ru": {
     "discussionUnsupported": "Этот формат комментариев пока не поддерживается. Можно анализировать только основной текст.",
     "discussionSupplement": "Дополнительные идеи",
+    "jumpToSource": "Источник",
+    "sourceJumpUnavailable": "Источник недоступен на текущей странице. Откройте или загрузите текст либо комментарии и повторите попытку.",
     "discussionSection": "Обсуждение",
     "discussionLoad": "Загрузить обсуждение",
     "discussionRefresh": "Обновить комментарии",

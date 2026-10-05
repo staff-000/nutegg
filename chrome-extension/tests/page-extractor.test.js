@@ -255,3 +255,14 @@ describe('discussion collection lifecycle', () => {
     assert.equal(d, null); assert.equal(sent.at(-1).action, 'discussion-stop'); assert.equal(sent.at(-1).sessionId, 'old');
   });
 });
+
+describe('source jump responses', () => {
+  it('forwards source identity and URL, and reports unresolved references as failures', async () => {
+    let message;
+    globalThis.chrome = { tabs: { sendMessage: async (_, value) => { message = value; return { success: false, reason: 'not_loaded' }; } } };
+    const ok = await new PageExtractor().scrollToSection(1, 'Comment', '', 'zhihu:c2', 'https://www.zhihu.com/question/123');
+    assert.equal(ok, false);
+    assert.equal(message.sourceId, 'zhihu:c2');
+    assert.equal(message.expectedUrl, 'https://www.zhihu.com/question/123');
+  });
+});

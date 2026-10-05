@@ -61,12 +61,13 @@ function renderQaSources(sources) {
     .map((s) => {
       const ref = String(s.ref).trim();
       const timestamp = _qaExtractTimestamp(ref);
-      const isTime = timestamp !== null;
+      const isTime = !s.sourceId && /^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(ref) && timestamp !== null;
       const pillClass = isTime ? "source-pill source-timestamp" : "source-pill source-section";
       const icon = isTime ? "⏱️" : "§";
       const dataAttr = isTime
         ? `data-time="${_qaEscapeHtml(timestamp)}"`
         : `data-heading="${_qaEscapeHtml(ref)}"`;
+      const sourceAttr = s.sourceId ? ` data-source-id="${_qaEscapeHtml(String(s.sourceId))}"` : "";
       const quoteText = s.quote ? String(s.quote).trim() : "";
       const quoteAttr = quoteText ? ` data-quote="${_qaEscapeHtml(quoteText)}"` : "";
       const quoteTitle = quoteText
@@ -81,7 +82,7 @@ function renderQaSources(sources) {
 
       return `
         <div class="qa-source-item">
-          <button type="button" class="${pillClass}" ${dataAttr}${quoteAttr}${quoteTitle}>
+          <button type="button" class="${pillClass}" ${dataAttr}${sourceAttr}${quoteAttr}${quoteTitle}>
             <span class="source-icon">${icon}</span>
             <span class="source-ref">${_qaEscapeHtml(displayRef)}</span>
           </button>
@@ -163,13 +164,13 @@ function handleSourcePillClick(e, { onSeek, onScroll } = {}) {
   e.preventDefault();
   e.stopPropagation();
 
-  const timeVal = pill.dataset.time || _qaExtractTimestamp(pill.dataset.heading);
+  const timeVal = !pill.dataset.sourceId && pill.dataset.time;
   if (timeVal) {
     const seekHandler = onSeek || (typeof seekToChapter === "function" ? seekToChapter : null);
-    if (seekHandler) seekHandler(_qaTimeToSeconds(timeVal));
-  } else if (pill.dataset.heading) {
+    if (seekHandler) return seekHandler(_qaTimeToSeconds(timeVal));
+  } else if (pill.dataset.heading || pill.dataset.sourceId) {
     const scrollHandler = onScroll || (typeof scrollToSection === "function" ? scrollToSection : null);
-    if (scrollHandler) scrollHandler(pill.dataset.heading, pill.dataset.quote || "");
+    if (scrollHandler) return scrollHandler(pill.dataset.heading || "", pill.dataset.quote || "", pill.dataset.sourceId || "");
   }
 }
 

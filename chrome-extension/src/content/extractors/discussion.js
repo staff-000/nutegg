@@ -14,7 +14,7 @@
   };
   let observedRoots = new Set();
   let page = '', selected = null, records = new Map(), observers = [], expiry, debounce, capped = false, activeSession = null;
-  let elementIds = new WeakMap();
+  let elementIds = new WeakMap(), sourceElements = new Map();
   const text = el => (el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim();
   const hostIs = (host, domain) => host === domain || host.endsWith('.' + domain);
   function adapter() {
@@ -28,7 +28,7 @@
   }
   function reset() {
     const url = location.href.split('#')[0];
-    if (page !== url) { stop(); page = url; records = new Map(); elementIds = new WeakMap(); capped = false; selected = adapter(); }
+    if (page !== url) { stop(); page = url; records = new Map(); elementIds = new WeakMap(); sourceElements = new Map(); capped = false; selected = adapter(); }
     selected ||= adapter();
   }
   function query(root, selectors) { try { return root.querySelector(selectors); } catch { return null; } }
@@ -151,6 +151,7 @@
       if (!url && selected.name === 'reddit' && rawId) url = page.replace(/\/$/, '') + '/' + rawId.replace(/^t1_/, '') + '/';
       if (!url && selected.name === 'youtube' && rawId) { const u = new URL(page); u.searchParams.set('lc', rawId); url = u.href; }
       if (!url && el.id) url = page + '#' + el.id;
+      sourceElements.set(id, el);
       records.set(id, { id, parentId: parentId ? selected.name + ':' + parentId : undefined, author: author || undefined,
         authorId: href || undefined, text: boundedText, url,
         reaction: { kind: selected.reactionKind || 'likes', ...parsed } });
@@ -220,6 +221,11 @@
       || (discussion.kind === 'forum' && length < 500 && ((discussion.items.length >= 3 && discussionLength >= Math.max(800, length * 3)) || discussion.totalCount >= 10));
     return { ...capture, content: body, discussion };
   }
-  scope.NutEggDiscussion = { snapshot, start, stop, step, decorate, number };
+  function findSource(id) {
+    scan();
+    const element = sourceElements.get(id);
+    return { element: element?.isConnected ? element : null, item: records.get(id) };
+  }
+  scope.NutEggDiscussion = { snapshot, start, stop, step, decorate, number, findSource };
   if (typeof module !== 'undefined' && module.exports) module.exports = scope.NutEggDiscussion;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -228,3 +228,15 @@ test('discussion prompt templates focus on distinct topics and arguments without
   assert.doesNotMatch(analysisPrompt, /overallVerdict/);
   assert.doesNotMatch(aggregatePrompt, /overallVerdict/);
 });
+
+test('discussion highlights and supplements expose jump tags using their exact captured IDs', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const draft = part([['a', 'agree'], ['b', 'neutral']]);
+  draft.topics[0].highlights.push({ commentId: 'b', summary: 'Useful detailed experience', supplement: true });
+  const result = core.buildDiscussionResult(capture([item('a'), item('b')]), [draft]);
+  ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
+  const html = root.getElementById('discussion-result').innerHTML;
+  assert.match(html, /Practical example.*data-source-id="a"/);
+  assert.match(html, /Useful detailed experience.*data-source-id="b"/);
+  assert.doesNotMatch(html, /<a\b|<blockquote\b/);
+});

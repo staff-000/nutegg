@@ -12,6 +12,7 @@ const CONTENT_SCRIPT_FILES = [
   "src/content/extractors/tiktok.js",
   "src/content/extractors/article.js",
   "src/content/extractors/generic.js",
+  "src/content/source-navigation.js",
   "src/content/content-script.js",
 ];
 
@@ -326,20 +327,20 @@ class PageExtractor {
   /**
    * Scroll the tab to a section heading or quote text.
    */
-  async scrollToSection(tabId, heading, quote) {
+  async scrollToSection(tabId, heading, quote, sourceId, expectedUrl) {
     if (tabId == null) return false;
+    const message = { action: "nutegg-scroll-to", heading, quote,
+      ...(sourceId ? { sourceId } : {}), ...(expectedUrl ? { expectedUrl } : {}) };
     try {
-      await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
-      return true;
+      const response = await chrome.tabs.sendMessage(tabId, message);
+      return response?.success === true || response?.ok === true;
     } catch {
       const injected = await this.injectContentScript(tabId);
       if (!injected) return false;
       try {
-        await chrome.tabs.sendMessage(tabId, { action: "nutegg-scroll-to", heading, quote });
-        return true;
-      } catch {
-        return false;
-      }
+        const response = await chrome.tabs.sendMessage(tabId, message);
+        return response?.success === true || response?.ok === true;
+      } catch { return false; }
     }
   }
 }

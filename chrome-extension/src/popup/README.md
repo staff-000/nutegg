@@ -154,3 +154,9 @@ Discussion selectors use a 2×2 grid. Results contain paraphrased highlights wit
 Discussion output is grouped into short titles and up to three concise highlights per group. Stances use inline badges with comment counts and available likes (or net scores on vote-based forums); missing reactions and commenter counts are omitted. Detailed claim/argument/source explanations are not displayed.
 
 Insightful or detail-rich comments can appear as up to two brief extra insights per group, retaining useful details as supplements to the content while ordinary comment groups stay compact.
+
+## Text source navigation
+
+Text mind-map nodes with supporting references have a small Source tag after the title, styled like timestamp tags. The title and arrow expand the branch; only the Source tag navigates. Discussion highlights and extra insights have Source buttons, and Q&A references support both exact text excerpts and captured discussion IDs. The content script scrolls the current page to a unique matching passage or loaded comment and briefly outlines it. Original-language quotes are retained internally for navigation even when the displayed analysis is translated.
+
+References use exact captured comment/answer IDs or distinctive verbatim excerpts, rather than generated summaries as search terms. Bilibili open shadow roots and multiple Zhihu answers retain their individual source targets. The expected capture URL guards against jumps after navigation. Unloaded, ambiguous or missing sources produce a tab-specific message; no external tabs or paginated comments are opened. Existing text mind maps need re-analysis to obtain source references.

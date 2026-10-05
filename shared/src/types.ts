@@ -79,6 +79,8 @@ export interface ContentChunk {
 
 /** Positional reference and supporting quote for an answer. */
 export interface SourceRef {
+  /** Exact captured discussion item ID; never a CSS selector. */
+  sourceId?: string;
   /** Timestamp string (e.g. "12:34") for video or section heading for articles. */
   ref: string;
   /** Brief verbatim quote from the content. */
@@ -100,6 +102,8 @@ export interface KeyAnswer {
 
 /** A node in the concept mind map / outline tree. */
 export interface MindMapNode {
+  /** References for scrolling to supporting text or comments. */
+  sources?: SourceRef[];
   name: string;
   detail?: string;
   /** Exact timestamp from the source transcript, when available. */

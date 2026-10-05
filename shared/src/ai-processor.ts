@@ -664,6 +664,7 @@ export class AIProcessor {
   private parseSources(raw: any): SourceRef[] {
     return Array.isArray(raw) ? raw.filter(s => s && typeof s.ref === "string" && s.ref.trim()).map(s => ({
       ref: s.ref.trim(), ...(typeof s.quote === "string" ? { quote: s.quote } : {}),
+      ...(typeof s.sourceId === "string" && s.sourceId.trim() ? { sourceId: s.sourceId.trim().slice(0, 300) } : {}),
     })) : [];
   }
 
@@ -1079,6 +1080,7 @@ export class AIProcessor {
                   if (s.quote) {
                     item.quote = String(s.quote).trim();
                   }
+                  if (typeof s.sourceId === "string" && s.sourceId.trim()) item.sourceId = s.sourceId.trim().slice(0, 300);
                   return item;
                 })
                 .filter((s: SourceRef) => s.ref.length > 0);
@@ -1100,6 +1102,8 @@ export class AIProcessor {
         const node: MindMapNode = {
           name: String(item.name || item.title || item.topic).trim(),
         };
+        const sources = this.parseSources(item.sources).slice(0, 3);
+        if (sources.length) node.sources = sources;
         const time = typeof item.time === "string" ? item.time.trim().replace(/^\[|\]$/g, "") : "";
         if (/^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(time)) node.time = time;
         const detail = item.detail || item.description || item.summary;

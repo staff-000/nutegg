@@ -69,6 +69,7 @@
         "src/content/extractors/tiktok.js",
         "src/content/extractors/article.js",
         "src/content/extractors/generic.js",
+        "src/content/source-navigation.js",
         "src/content/content-script.js"
       ],
       "run_at": "document_idle"

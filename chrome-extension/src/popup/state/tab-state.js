@@ -223,6 +223,10 @@ class TabStateManager {
       case 'activitySelected': next.currentView = next.analysisResult ? 'results' : 'capture'; break;
       case 'pageInfo': next.url = event.url || next.url; next.title = event.title || ''; next.currentTabLoading = event.loading; break;
       case 'loading': next.currentTabLoading = event.loading; break;
+      case 'sourceJumpNotice':
+        if (event.message) next.errors.navigation = { message: event.message };
+        else delete next.errors.navigation;
+        break;
       case 'notice': next.errors.intent = { message: event.message }; break;
       case 'viewed':
         if (tabId !== this.activeTabId || !this.panelVisible || next.currentView !== 'results' || !next.analysisResult || next.resultRevision !== event.revision || next.operations.analysis?.running || next.viewedRevision === event.revision) return;

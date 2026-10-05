@@ -2,6 +2,8 @@
 - Source References: For every question you answer (customQuestionAnswers, keyQuestionAnswers, answers), include a "sources" array citing WHERE in the content the answer comes from: `[{"ref": "...", "quote": "..."}]`.
   - For video transcripts: `ref` must be the timestamp string (e.g. "12:34" or "1:05:30") where the relevant segment begins.
   - For articles/webpages: `ref` must be the nearest section heading (e.g. "Methodology" or "Key Findings") or short location hint.
-  - `quote`: A brief verbatim excerpt (10-25 words) from that location directly supporting the answer.
+  - `quote`: A brief distinctive verbatim excerpt (10-25 words, or equivalent in the source language) from that location directly supporting the answer. Preserve its original language and wording even when translating the answer; do not use a paraphrase as a quote.
+  - For captured comments/answers/posts, include `sourceId` with the exact item `id` from the supplied discussion, alongside a short display `ref` and optional exact quote. Never invent source IDs.
+  - For text mind-map nodes, include `sources` in the same format, so users can jump to the supporting passage. Omit references to content not supplied.
   - If the question is not covered in the content (or answered "Not covered in this content"), omit the "sources" field or return an empty array `[]`.
 - Output Language: Write ALL output text (verdicts, summaries, answers, knowledge entries, reasons) in {{output_language}}. Keep all JSON keys in English.

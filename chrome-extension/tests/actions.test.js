@@ -102,3 +102,19 @@ test('refreshCaptureForCurrentTab fetches content without redirecting to analysi
   assert.equal(f.store.getTab(1).title, 'Refreshed Page');
 });
 
+
+test('source jump feedback stays with the initiating tab and ignores a replaced page', async () => {
+  const f = actions(), requests = [];
+  const pageExtractor = { scrollToSection: (...args) => { const d = deferred(); requests.push({ args, ...d }); return d.promise; } };
+  const action = new InteractionAction({ ...f.deps, pageExtractor });
+  const jump = action.scrollToSection('Heading', 'Quote', 'zhihu:c1');
+  f.store.activateTab(2);
+  requests[0].resolve(false); await jump;
+  assert.match(f.store.getTab(1).errors.navigation.message, /current page/);
+  assert.equal(f.store.getTab(2).errors.navigation, undefined);
+  f.store.activateTab(1);
+  const obsolete = action.scrollToSection('Heading', 'Quote');
+  f.store.invalidateTab(1, 'https://new.test');
+  requests[1].resolve(false); await obsolete;
+  assert.equal(f.store.getTab(1).errors.navigation, undefined);
+});

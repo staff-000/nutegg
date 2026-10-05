@@ -512,3 +512,10 @@ test('Stage 1 preserves per-chunk mind-map citations in aggregation', async () =
   assert.equal(result.mindMap[0].time, '10:20');
   assert.equal('chapterMap' in result, false);
 });
+
+test('text mind-map and Q&A parsers preserve original excerpts and discussion IDs', () => {
+  const processor = new NutEggAI.AIProcessor({});
+  const sources = [{ ref: 'Answer by author', quote: '原文中的证据', sourceId: 'zhihu:answer-123' }];
+  assert.deepEqual(processor.parseMindMap([{ name: 'Translated topic', sources }])[0].sources, sources);
+  assert.deepEqual(processor.parseKeyAnswers([{ question: 'Q', answer: 'A', sources }])[0].sources, sources);
+});
