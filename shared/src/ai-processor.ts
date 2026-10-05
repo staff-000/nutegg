@@ -2,6 +2,7 @@
 // NutEgg Unified AI Processor (Stage 1 + Stage 2 + Orchestration)
 // ============================================================
 
+import { buildDiscussionResult, discussionBase, discussionBatches, discussionSourceText, normalizeDiscussion } from "./discussion";
 import { composeEggResults } from "./analysis-results";
 import { isAIConfigured } from "./catalog";
 import { AIError } from "./client";
@@ -411,18 +412,45 @@ export class AIProcessor {
    * Stage 1 — content summary + mind map + custom question answers.
    * Handles long-form chunked content with aggregation or single-chunk content.
    */
-  async analyzeContent(
-    capture: {
-      url: string;
-      title: string;
-      content: string;
-      sourceType: string;
-      chapters?: Array<{ time: string; title: string }>;
-      questions?: string[];
-      questionsScope?: QuestionScope;
-      enabledSections?: Partial<AnalysisSectionsConfig>;
+  async analyzeContent(capture: CapturePayload): Promise<ContentAnalysis> {
+    const enabled = capture.enabledSections?.discussion === true;
+    const discussion = enabled ? normalizeDiscussion(capture.discussion) : undefined;
+    const source = discussion?.kind === 'forum' || capture.transcriptAvailable === false || capture.questions?.length ? discussionSourceText(capture) : '';
+    const bodyCapture = { ...capture, content: (capture.transcriptAvailable === false ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the captured discussion and label commenter claims.\n' : '') + capture.content + source };
+    const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
+    const needsBody = sections.titleVerdict || sections.coreSummary || sections.mindMap || capture.questions?.length;
+    const contentAnalysis = needsBody ? await this.analyzeBody(bodyCapture) : { titleVerdict: '', coreSummary: [], mindMap: [], customQuestionAnswers: [] };
+    if (!enabled) return contentAnalysis;
+    const base = discussionBase(discussion);
+    if (!discussion?.items.length) return { ...contentAnalysis, discussion: base };
+    if (!isAIConfigured(this.host?.settings)) return { ...contentAnalysis, discussion: { ...base, status: 'unavailable' } };
+    const byId = new Map(discussion.items.map(item => [item.id, item]));
+    const parts: any[] = [];
+    // Batches preserve whole comments; parent text is context and never counted twice.
+    for (const items of discussionBatches(discussion.items, Math.max(8000, this.chunkWindowChars - 6000))) {
+      const ids = new Set(items.map(item => item.id));
+      const parents = [...new Map(items.map(item => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined).filter(Boolean).map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])).values()];
+      const prompt = renderPrompt(this.getPrompt('discussionAnalysis'), {
+        title: capture.title, kind: discussion.kind, body: capture.content.slice(0, 4000),
+        parents: JSON.stringify(parents), items: JSON.stringify(items),
+        shared_output_rules: this.getContentOutputRules(capture, 'within'),
+      });
+      const part = this.parseJson(await this.callAI(prompt, Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 8192)), 'discussion-analysis');
+      if (!Array.isArray(part.topics) || !Array.isArray(part.classifications)) throw new Error('Invalid discussion analysis response');
+      part.classifications = Array.isArray(part.classifications) ? part.classifications.filter((label: any) => ids.has(label?.commentId)) : [];
+      parts.push(part);
     }
-  ): Promise<ContentAnalysis> {
+    let aggregate;
+    if (parts.length > 1 && parts.some(part => part.topics?.length)) {
+      const drafts = parts.flatMap((part, index) => (Array.isArray(part.topics) ? part.topics : []).map((topic: any) => ({ ...topic, id: `${index}:${topic.id}` })));
+      aggregate = this.parseJson(await this.callAI(renderPrompt(this.getPrompt('aggregateDiscussion'), {
+        title: capture.title, drafts: JSON.stringify(drafts), shared_output_rules: this.getContentOutputRules(capture, 'within'),
+      }), 8192), 'aggregate-discussion');
+    }
+    return { ...contentAnalysis, discussion: buildDiscussionResult(discussion, parts, aggregate) };
+  }
+
+  private async analyzeBody(capture: CapturePayload): Promise<ContentAnalysis> {
     const effectiveSections: AnalysisSectionsConfig = {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
@@ -491,6 +519,7 @@ export class AIProcessor {
    * Existing notes are only read during merge.
    */
   async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis): Promise<AnalysisResult> {
+    capture = { ...capture, content: capture.content + discussionSourceText(capture) };
     if (!isAIConfigured(this.host?.settings) || !eggs.length) {
       return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
         shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
@@ -534,7 +563,7 @@ export class AIProcessor {
   }
 
   private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
-    return [capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
+    return [analysis.discussion?.topics.length ? `Stage 1 discussion (commenter claims):\n${JSON.stringify(analysis.discussion.topics)}` : "", capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
       capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : "",
       capture.enabledSections?.mindMap !== false && analysis.mindMap?.length ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}` : ""].filter(Boolean).join("\n\n");
   }
@@ -821,12 +850,7 @@ export class AIProcessor {
    * context so the model can refer back instead of repeating answers.
    */
   async askFollowUp(
-    capture: {
-      title: string;
-      url: string;
-      content: string;
-      sourceType: string;
-    },
+    capture: CapturePayload,
     questions: string[],
     priorQa: KeyAnswer[] | string = [],
     scope: QuestionScope = "within"
@@ -860,7 +884,9 @@ export class AIProcessor {
       url: capture.url,
       source_type: capture.sourceType,
       prior_qa: priorBlock,
-      content: this.truncate(capture.content, this.chunkWindowChars),
+      content: discussionSourceText(capture)
+        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * .6)) + this.truncate(discussionSourceText(capture), Math.floor(this.chunkWindowChars * .4))
+        : this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       shared_output_rules: this.getContentOutputRules(capture, scope),
     });

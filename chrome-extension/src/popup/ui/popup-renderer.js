@@ -24,6 +24,7 @@ class PopupRenderer {
     ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries);
     ui.sectionsUI.renderPresentation(view.presentation);
     ui.resultsUI.render(view, settings);
+    keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.extractedContent?.discussion, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);
     value(ui.captureUI.customQuestionsEl, view.customQuestions);

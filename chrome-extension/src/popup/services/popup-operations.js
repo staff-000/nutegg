@@ -26,8 +26,35 @@ class PopupOperations {
       const helpers = globalThis.NutEggHelpers || {};
       const words = helpers.countWords?.(content.content) || 0;
       const warning = helpers.isContentSuspiciouslyLow?.(words, content.sourceType) ? t('contentLowWarning', { count: words.toLocaleString() }) : null;
-      return this.store.commitOperation(ctx.token, { type: 'extracted', content, warning }) ? content : null;
+      const accepted = this.store.commitOperation(ctx.token, { type: 'extracted', content, warning });
+      if (accepted && this.store.getTab(tabId)?.enabledSections.discussion) void this.discussion(tabId);
+      return accepted ? content : null;
     } catch (error) { this.fail(ctx, error); return null; }
+  }
+  async discussion(tabId, load = false) {
+    const ctx = this.store.beginOperation(tabId, 'discussion');
+    if (!ctx || !ctx.tab.enabledSections.discussion || !ctx.tab.extractedContent) {
+      if (ctx) this.store.commitOperation(ctx.token, { type: 'operationFinished' });
+      return;
+    }
+    const cancelled = () => !this.store.isOperationCurrent(ctx.token) || !this.store.getTab(tabId)?.enabledSections.discussion;
+    const sessionId = `${ctx.token.pageGeneration}:${ctx.token.requestId}`;
+    try {
+      const discussion = await this.extractor.collectDiscussion(tabId, { sessionId, load, isCancelled: cancelled,
+        onUpdate: (discussion, loading) => {
+          if (cancelled() || discussion.url?.split('#')[0] !== ctx.tab.url?.split('#')[0]) return;
+          this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading });
+        } });
+      if (this.store.isOperationCurrent(ctx.token)) {
+        if (discussion) this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading: false });
+        else this.store.commitOperation(ctx.token, { type: 'operationFinished' });
+      }
+    } catch (error) { this.fail(ctx, error); }
+  }
+  stopDiscussion(tabId) {
+    const tab = this.store.getTab(tabId), operation = tab?.operations.discussion;
+    this.store.dispatch({ type: 'discussionCancelled', tabId });
+    if (operation) void this.extractor.stopDiscussion(tabId, `${tab.pageGeneration}:${operation.requestId}`);
   }
   async history(tabId, select = true, expectedSelection) {
     const ctx = this.store.beginOperation(tabId, 'history', { select }, ['selectionRevision', 'sourceVersion']);
@@ -55,6 +82,7 @@ class PopupOperations {
       if (!content?.content) throw new Error(t('couldNotRetrieveContent'));
       const payload = { ...content, force: true, stage: 1, questions: inputs.questions || [], questionsScope: tab.customQuestionsScope,
         generateKnowledgeEntries: tab.generateKnowledgeEntries, enabledSections: tab.enabledSections,
+        discussion: tab.enabledSections.discussion === true ? content.discussion : undefined,
         outputLanguage: inputs.outputLanguage, ...(inputs.eggs ? { eggs: inputs.eggs } : {}) };
       const response = await this.service.sendAnalyzeViaPort(payload);
       if (!this.store.isOperationCurrent(token)) return { stale: true };
@@ -134,7 +162,7 @@ class PopupOperations {
       const result = tab.analysisResult;
       const entries = hatch ? result?.newKnowledge || [] : [];
       if (hatch && !entries.length) throw new Error(t('noNewKnowledgeToAdd'));
-      const content = tab.extractedContent || tab.stage1Payload;
+      const content = tab.stage1Payload || tab.extractedContent;
       if (!content) throw new Error(t('couldNotExtractToSave'));
       const payload = { ...content, analysis: result, summary: result?.summary || '', matchedEggs: result?.matchedEggs || [],
         newKnowledge: entries, nutId: tab.currentNutId ?? undefined, skipRaw: hatch && tab.nutCollected };
@@ -158,7 +186,7 @@ class PopupOperations {
     this.store.commitOperation(token, { type: 'questionStarted', id: token.requestId, question, scope: tab.followupScope });
     const priorQa = [...(tab.analysisResult?.eggResults || []).flatMap(r => r.keyQuestionAnswers || []), ...(tab.analysisResult?.customQuestionAnswers || []), ...tab.followUpQa.filter(q => !q.pending)];
     try {
-      const response = await this.service.sendMessage({ action: 'ask', payload: { ...(tab.extractedContent || tab.stage1Payload),
+      const response = await this.service.sendMessage({ action: 'ask', payload: { ...(tab.stage1Payload || tab.extractedContent),
         questions: [question], scope: tab.followupScope, priorQa, outputLanguage: ctx.inputs.outputLanguage } });
       if (response?.error) throw new Error(response.error);
       this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: response.answers?.[0] || { answer: t('noContentExtracted') } });

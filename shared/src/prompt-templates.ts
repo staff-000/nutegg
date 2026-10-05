@@ -2,6 +2,8 @@
 // NutEgg AI Prompt Templates & Substitution
 // ============================================================
 
+import discussionAnalysisTpl from "../workflow/discussion-analysis.md";
+import aggregateDiscussionTpl from "../workflow/aggregate-discussion.md";
 import contentAnalysisTpl from "../workflow/content-analysis.md";
 import eggAnalysisTpl from "../workflow/egg-analysis.md";
 import followUpTpl from "../workflow/follow-up.md";
@@ -14,6 +16,8 @@ import localizeEggTpl from "../workflow/localize-egg.md";
 import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
 
 export const PROMPTS = {
+  discussionAnalysis: discussionAnalysisTpl,
+  aggregateDiscussion: aggregateDiscussionTpl,
   /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */

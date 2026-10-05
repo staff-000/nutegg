@@ -98,3 +98,13 @@ On the top Egg Analysis button beside Collect Nut Only, clicking the analysis la
 While the side panel stays open, the indicator below its header counts running analyses and completed results you have not viewed in the current Chrome window. Click it to list unread completions first and running tabs second. Selecting a completed tab switches to its analysis without rerunning it; selecting a running tab opens its current progress.
 
 Results count as read when the latest analysis is shown in the active tab with the panel visible, including completion while you are already viewing it. Content previews do not mark results read. Automatic Stage 1→Stage 2 processing counts as one running tab; a confirmation pause completes Stage 1, and a later Stage 2 run can produce a new unread result. Cached-only changes, Hatch, and follow-up questions do not create notifications. Closed or navigated tabs are removed. This tracker resets when the panel closes; it does not persist across sessions or add a toolbar badge.
+
+### Discussion
+
+The optional Discussion section uses `discussion-analysis.md` to identify topics,
+arguments, examples and comment stances, and `aggregate-discussion.md` to merge
+related topics across batches. Original comment IDs, parent context and reaction
+metadata stay attached to the capture. Models supply classifications; NutEgg
+calculates sample metrics from source records. Discussion is disabled by default,
+except for discussion-heavy forum pages. Empty results differ from unloaded or
+unavailable comments. Source comments are reports, not verified author claims.

@@ -4,6 +4,8 @@ import { PROMPTS } from "./prompt-templates";
 import workflowReadmeTpl from "../../shared/workflow/README.md";
 
 export type WorkflowPromptKey =
+  | "discussionAnalysis"
+  | "aggregateDiscussion"
   | "contentAnalysis"
   | "eggAnalysis"
   | "followUp"
@@ -16,6 +18,8 @@ export type WorkflowPromptKey =
   | "sharedOutputRules";
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
+  discussionAnalysis: "discussion-analysis.md",
+  aggregateDiscussion: "aggregate-discussion.md",
   contentAnalysis: "content-analysis.md",
   eggAnalysis: "egg-analysis.md",
   followUp: "follow-up.md",
@@ -31,6 +35,8 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
 /** All built-in workflow files including README.md */
 export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "README.md": workflowReadmeTpl,
+  "discussion-analysis.md": PROMPTS.discussionAnalysis,
+  "aggregate-discussion.md": PROMPTS.aggregateDiscussion,
   "content-analysis.md": PROMPTS.contentAnalysis,
   "egg-analysis.md": PROMPTS.eggAnalysis,
   "follow-up.md": PROMPTS.followUp,

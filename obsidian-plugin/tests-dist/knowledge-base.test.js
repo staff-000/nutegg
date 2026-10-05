@@ -469,6 +469,9 @@ var KnowledgeBase = class {
     frontmatterLines.push(`**Source:** ${capture.url}`);
     frontmatterLines.push("");
     frontmatterLines.push(capture.content);
+    if (capture.enabledSections?.discussion && capture.discussion) {
+      frontmatterLines.push("", "# Captured Discussion", "", "```json", JSON.stringify(capture.discussion, null, 2), "```");
+    }
     if (capture.analysis) {
       frontmatterLines.push("", "# NutEgg Analysis", "", "```json", JSON.stringify(capture.analysis, null, 2), "```");
     }

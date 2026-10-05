@@ -152,7 +152,7 @@
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon">🎯</span>
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-            <span class="sections-badge" id="sections-badge">3/3</span>
+            <span class="sections-badge" id="sections-badge">3/4</span>
           </div>
           <span class="sections-toggle-chevron" id="sections-chevron">▸</span>
         </button>
@@ -169,7 +169,9 @@
             <button type="button" class="section-chip active" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
               <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
             </button>
+            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
           </div>
+          <div id="discussion-capture" class="discussion-controls hidden"><p id="discussion-capture-status" role="status" aria-live="polite"></p><div><button type="button" id="discussion-capture-load" data-i18n="discussionLoad">Load discussion</button><button type="button" id="discussion-capture-refresh" data-i18n="discussionRefresh">Refresh comments</button></div><small data-i18n="discussionLoadingHint">Open comments or scroll in the page, then refresh. You can analyze the captured content at any time.</small></div>
         </div>
       </div>
 
@@ -217,7 +219,7 @@
               <div class="sections-toggle-left">
                 <span class="sections-toggle-icon">🎯</span>
                 <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-                <span class="sections-badge" id="reanalyze-sections-badge">3/3</span>
+                <span class="sections-badge" id="reanalyze-sections-badge">3/4</span>
               </div>
               <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
             </button>
@@ -234,7 +236,9 @@
             <button type="button" class="section-chip active" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
               <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
             </button>
+            <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
               </div>
+          <div id="discussion-reanalyze" class="discussion-controls hidden"><p id="discussion-reanalyze-status" role="status" aria-live="polite"></p><div><button type="button" id="discussion-reanalyze-load" data-i18n="discussionLoad">Load discussion</button><button type="button" id="discussion-reanalyze-refresh" data-i18n="discussionRefresh">Refresh comments</button></div><small data-i18n="discussionLoadingHint">Open comments or scroll in the page, then refresh. You can analyze the captured content at any time.</small></div>
             </div>
           </div>
         </div>
@@ -331,6 +335,10 @@
         </div>
       </div>
 
+      <div class="result-section hidden" id="discussion-section">
+        <div class="section-header" role="button" tabindex="0"><div class="section-label" data-i18n="discussionSection">Discussion</div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+        <div class="section-content" id="discussion-result"></div>
+      </div>
       <div id="custom-questions-section" class="result-section hidden">
         <div class="section-header">
           <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
@@ -430,6 +438,7 @@
   <script defer src="ui/action-controls.js"></script>
   <script defer src="ui/results-view.js"></script>
   <script defer src="ui/metrics.js"></script>
+  <script defer src="ui/discussion.js"></script>
   <script defer src="ui/popup-renderer.js"></script>
   <script defer src="action/tab.js"></script>
   <script defer src="action/analyze.js"></script>

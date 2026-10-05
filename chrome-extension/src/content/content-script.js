@@ -28,6 +28,8 @@ var EXTRACTORS = window.EXTRACTORS || [
   { name: "douyin", detect: detectDouyin, extract: extractDouyin },
   { name: "weibo", detect: detectWeibo, extract: extractWeibo },
   { name: "zhihu", detect: detectZhihu, extract: extractZhihu },
+  { name: "forum", detect: detectForum, extract: extractForum },
+  { name: "tiktok", detect: detectTikTok, extract: extractTikTok },
   { name: "article", detect: detectArticle, extract: extractArticle },
   // Generic must be last — it always matches
   { name: "generic", detect: () => true, extract: extractGeneric },
@@ -43,7 +45,8 @@ async function extractContent() {
     try {
       if (ex.detect()) {
         console.log(`[NutEgg] Using extractor: ${ex.name}`);
-        return await ex.extract();
+        const capture = await ex.extract();
+        return window.NutEggDiscussion ? window.NutEggDiscussion.decorate(capture) : capture;
       }
     } catch (e) {
       console.warn(`[NutEgg] Extractor "${ex.name}" failed:`, e);
@@ -60,6 +63,16 @@ async function extractContent() {
 if (!window.__nutegg_listener_attached) {
   window.__nutegg_listener_attached = true;
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.action?.startsWith('discussion-') && window.NutEggDiscussion) {
+      try {
+        const collector = window.NutEggDiscussion;
+        const discussion = message.action === 'discussion-start' ? collector.start(message.sessionId, message.load)
+          : message.action === 'discussion-stop' ? (collector.stop(message.sessionId), null)
+          : message.action === 'discussion-step' ? collector.step(message.sessionId) : collector.snapshot();
+        sendResponse({ success: true, discussion, url: location.href });
+      } catch (error) { sendResponse({ success: false, error: String(error) }); }
+      return false;
+    }
     if (message.action === "page-identity") {
       // Cheap page-state check (no transcript fetching) — the popup uses it to
       // wait for the page to settle and to detect SPA navigation races.

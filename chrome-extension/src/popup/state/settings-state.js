@@ -6,6 +6,7 @@ const DEFAULT_ANALYSIS_SECTIONS = {
   titleVerdict: true,
   coreSummary: true,
   mindMap: true,
+  discussion: false,
 };
 
 /**
@@ -50,7 +51,7 @@ class SettingsState {
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       if (stored?.enabledSections) {
-        this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, stored.enabledSections[key] !== false]));
+        this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof stored.enabledSections[key] === "boolean" ? stored.enabledSections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
       }
       if (stored?.outputLanguage) {
         this.outputLanguage = stored.outputLanguage;
@@ -88,7 +89,7 @@ class SettingsState {
 
   setEnabledSections(sections, persist = false) {
     if (sections && typeof sections === "object") {
-      this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, sections[key] !== false]));
+      this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof sections[key] === "boolean" ? sections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
       }
@@ -98,9 +99,9 @@ class SettingsState {
   getToggledSections(key, sections = this.enabledSections) {
     const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
     if (keys.some(k => !(k in DEFAULT_ANALYSIS_SECTIONS))) return null;
-    const nextVal = !keys.every(k => sections[k] !== false);
+    const nextVal = !keys.every(k => (sections[k] ?? DEFAULT_ANALYSIS_SECTIONS[k]) === true);
     const next = { ...sections, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
-    return Object.keys(DEFAULT_ANALYSIS_SECTIONS).some(k => next[k] !== false) ? next : null;
+    return Object.keys(DEFAULT_ANALYSIS_SECTIONS).some(k => (next[k] ?? DEFAULT_ANALYSIS_SECTIONS[k]) === true) ? next : null;
   }
 
   async toggleSection(key, persist = true) {

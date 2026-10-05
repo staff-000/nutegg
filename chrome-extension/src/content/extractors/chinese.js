@@ -249,6 +249,7 @@ async function extractZhihu() {
     } catch { return false; }
   });
   let capturedAnswers = 0;
+  const discussionAnswers = [];
   for (const answer of answers) {
     const body = answer.querySelector('.RichContent-inner .RichText, .RichText');
     if (!body) continue;
@@ -259,7 +260,13 @@ async function extractZhihu() {
       full = chineseFind(state, item => String(item.id) === String(itemId) && typeof item.content === 'string' && item.author);
       if (full) break;
     }
-    parts.push(`## ${author || full?.author?.name || 'Answer'}\n\n${full ? chineseHtmlText(full.content) : extractText(body)}`);
+    const answerText = full ? chineseHtmlText(full.content) : extractText(body);
+    if (answerId) parts.push(`## ${author || full?.author?.name || 'Answer'}\n\n${answerText}`);
+    else discussionAnswers.push({ id: `zhihu:answer-${itemId || capturedAnswers}`, text: answerText,
+      author: author || full?.author?.name || undefined,
+      authorId: full?.author?.url_token ? `https://www.zhihu.com/people/${full.author.url_token}` : answer.querySelector('.AuthorInfo-name a, a.UserLink-link')?.href,
+      url: itemId ? `https://www.zhihu.com/question/${url.pathname.match(/question\/(\d+)/)?.[1]}/answer/${itemId}` : undefined,
+      reaction: { kind: 'likes', count: Number.isFinite(full?.voteup_count) ? full.voteup_count : null } });
     capturedAnswers++;
   }
   // A permalink can hydrate before its AnswerItem renders.
@@ -277,6 +284,7 @@ async function extractZhihu() {
   if (article) parts.push(extractText(article));
   if ((answerId && !capturedAnswers) || (parts.length === 1 && !document.querySelector('h1.QuestionHeader-title'))) throw new Error('Zhihu content is unavailable');
   return { url: url.href, title, content: truncate(parts.join('\n\n'), 100000), sourceType: 'zhihu',
+    ...(!answerId && !article ? { discussion: { kind: 'forum', status: discussionAnswers.length ? 'partial' : 'not_loaded', items: discussionAnswers } } : {}),
     metadata: { platform: 'zhihu', author: chineseText('.Post-Author .AuthorInfo-name'), answer_count: capturedAnswers,
       capture_scope: answerId ? 'answer' : article ? 'article' : 'question_and_loaded_answers' } };
 }

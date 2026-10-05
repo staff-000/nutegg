@@ -29,7 +29,9 @@ function extractGeneric() {
 
   let mainContent = "";
   if (container) {
-    mainContent = extractText(container);
+    const body = container.cloneNode(true);
+    body.querySelectorAll('.comments, #comments, [itemprop="comment"], [data-comment-id]').forEach(el => el.remove());
+    mainContent = extractText(body);
   } else {
     const body = document.body.cloneNode(true);
     const removeSelectors = ["nav", "header", "footer", "script", "style", "noscript",

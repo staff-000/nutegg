@@ -30,6 +30,8 @@ class SectionChipsComponent {
     this.reanalyzeSectionsBadge = getEl("reanalyze-sections-badge");
 
     this.chipVerdictSummary = getEl("chip-verdict-summary");
+    this.chipDiscussion = getEl("chip-discussion");
+    this.reanalyzeChipDiscussion = getEl("reanalyze-chip-discussion");
     this.chipMindmap = getEl("chip-mindmap");
     this.chipKnowledge = getEl("chip-knowledge");
 
@@ -89,6 +91,8 @@ class SectionChipsComponent {
 
     const allChips = [
       { el: this.chipVerdictSummary, key: "verdictSummary" },
+      { el: this.chipDiscussion, key: "discussion" },
+      { el: this.reanalyzeChipDiscussion, key: "discussion" },
       { el: this.chipMindmap, key: "mindMap" },
       { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
       { el: this.reanalyzeChipVerdictSummary, key: "verdictSummary" },
@@ -106,7 +110,7 @@ class SectionChipsComponent {
           await options.onToggle(key);
         } else if (options.onSectionToggle) {
           const current = this.enabledSections || {};
-          const currentVal = current[key] !== false;
+          const currentVal = key === "discussion" ? current[key] === true : current[key] !== false;
           const nextVal = !currentVal;
           const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
           const newSections = { ...current, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
@@ -137,6 +141,8 @@ class SectionChipsComponent {
 
     const map = [
       { el: this.chipVerdictSummary, key: "verdictSummary" },
+      { el: this.chipDiscussion, key: "discussion" },
+      { el: this.reanalyzeChipDiscussion, key: "discussion" },
       { el: this.chipMindmap, key: "mindMap" },
       { el: this.chipKnowledge, key: "generateKnowledgeEntries" },
       { el: this.reanalyzeChipVerdictSummary, key: "verdictSummary" },
@@ -146,7 +152,7 @@ class SectionChipsComponent {
 
     map.forEach(({ el, key }) => {
       if (!el) return;
-      const active = enabledSections[key] !== false;
+      const active = key === "discussion" ? enabledSections[key] === true : enabledSections[key] !== false;
       el.setAttribute?.("aria-pressed", String(active));
       if (active) {
         el.classList.add("active");
@@ -158,11 +164,13 @@ class SectionChipsComponent {
     });
 
     const hasKnowledgeChip = Boolean(this.chipKnowledge || this.reanalyzeChipKnowledge);
-    const total = hasKnowledgeChip ? 3 : 2;
+    const hasDiscussionChip = Boolean(this.chipDiscussion || this.reanalyzeChipDiscussion);
+    const total = (hasKnowledgeChip ? 3 : 2) + (hasDiscussionChip ? 1 : 0);
     const activeCount = [
       enabledSections.verdictSummary,
       enabledSections.mindMap !== false,
       ...(hasKnowledgeChip ? [generateKnowledgeEntries] : []),
+      ...(hasDiscussionChip ? [enabledSections.discussion === true] : []),
     ].filter(Boolean).length;
 
     const badgeText = `${activeCount}/${total}`;

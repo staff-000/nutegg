@@ -1,11 +1,11 @@
 // Authoritative popup state. Reads are immutable; only events change records.
 /**
- * @typedef {'extraction'|'history'|'analysis'|'saving'|'followup'|'creation'} PopupOperationKind
+ * @typedef {'discussion'|'extraction'|'history'|'analysis'|'saving'|'followup'|'creation'} PopupOperationKind
  * @typedef {{readonly tabId: number, readonly pageGeneration: number, readonly kind: PopupOperationKind,
  *   readonly requestId: number, readonly dependencies: Readonly<Record<string, number>>}} PopupOperationToken
  * @typedef {{readonly token: PopupOperationToken, readonly tab: Readonly<object>, readonly inputs: Readonly<object>}} PopupOperationContext
  */
-const POPUP_OPERATION_KINDS = ['extraction', 'history', 'analysis', 'saving', 'followup', 'creation'];
+const POPUP_OPERATION_KINDS = ['discussion', 'extraction', 'history', 'analysis', 'saving', 'followup', 'creation'];
 function popupCopy(value) { return value == null ? value : structuredClone(value); }
 function popupFreeze(value) {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -38,7 +38,8 @@ class TabStateManager {
       stage1ContentAnalysis: null, currentNutId: null, captureHistory: [], followUpQa: [],
       selectedEggs: [], preSelectedEggs: [], activeEggTab: null, customQuestions: '',
       followupDraft: '', newEggName: '', newEggDescription: '', customQuestionsScope: 'within', followupScope: 'within',
-      enabledSections: this.defaults.enabledSections || {}, generateKnowledgeEntries: this.defaults.generateKnowledgeEntries !== false,
+      discussionOverride: null,
+      enabledSections: { discussion: false, ...this.defaults.enabledSections }, generateKnowledgeEntries: this.defaults.generateKnowledgeEntries !== false,
       eggHatched: false, nutCollected: false, errors: {}, warning: null, success: null,
       operations: {}, completion: null, currentTabLoading: false,
       presentation: { scroll: 0, eggsExpanded: false, captureEggsExpanded: false, questionsExpanded: false, createFormOpen: false, sectionsExpanded: false, reanalyzeSectionsExpanded: false, collapsible: {} },
@@ -157,8 +158,8 @@ class TabStateManager {
         if (event.eggs) next.selectedEggs = popupCopy(event.eggs);
         if (event.history) next.captureHistory = popupCopy(event.history);
         else if (next.currentNutId != null) {
-          const content = next.extractedContent || next.stage1Payload || {};
-          const entry = { ...popupCopy(content), nutId: next.currentNutId, result: popupCopy(event.result), saved: 'analyzed', capturedAt: new Date().toISOString() };
+          const content = next.stage1Payload || next.extractedContent || {};
+          const entry = { ...popupCopy(content), capturePayload: popupCopy(content), nutId: next.currentNutId, result: popupCopy(event.result), saved: 'analyzed', capturedAt: new Date().toISOString() };
           next.captureHistory = [entry, ...next.captureHistory.filter(h => h.nutId !== next.currentNutId)];
         }
         finish(); next.completion = { revision: next.resultRevision, completedAt: Date.now(), startedAt: next.operations[kind].startedAt };
@@ -169,7 +170,25 @@ class TabStateManager {
         next.success = event.message || null; break;
       case 'extracted':
         next.extractedContent = popupCopy(event.content); next.url = event.content.url || next.url;
+        if (next.discussionOverride === null && event.content.discussion?.autoEnable) next.enabledSections.discussion = true;
         next.sourceVersion++; next.warning = event.warning || null; finish(); break;
+      case 'discussionUpdated': {
+        if (!next.enabledSections.discussion || !next.extractedContent) { finish(); break; }
+        const previous = next.extractedContent.discussion || {};
+        const byId = new Map((previous.items || []).map(item => [item.id, item]));
+        for (const item of event.discussion.items || []) byId.set(item.id, popupCopy(item));
+        let characters = 0;
+        const items = [...byId.values()].slice(0, 300).filter(item => { characters += item.text.length; return characters <= 150000; });
+        next.extractedContent.discussion = { ...previous, ...popupCopy(event.discussion), kind: previous.kind || event.discussion.kind,
+          items, status: items.length ? (event.loading ? 'loading' : 'partial') : event.discussion.status,
+          bodyLength: previous.bodyLength, autoEnable: previous.autoEnable || (previous.kind === 'forum' && previous.bodyLength < 500 && items.length >= 3 && items.reduce((n, item) => n + item.text.replace(/\s/g, '').length, 0) >= Math.max(800, previous.bodyLength * 3)),
+          truncated: previous.truncated || event.discussion.truncated || byId.size > 300 || characters > 150000 };
+        if (!event.loading) finish();
+        break;
+      }
+      case 'discussionCancelled':
+        if (next.operations.discussion) next.operations.discussion.running = false;
+        break;
       case 'historyLoaded':
         next.captureHistory = popupCopy(event.history); finish();
         if (event.select && event.history.length) this.applyHistory(next, event.history[0]);
@@ -193,7 +212,7 @@ class TabStateManager {
         if (kind === 'followup') next.followUpQa = next.followUpQa.map(q => q.pending ? { ...q, pending: false, answer: event.error } : q);
         break;
       case 'draft':
-        for (const key of ['enabledSections', 'generateKnowledgeEntries', 'selectedEggs', 'preSelectedEggs', 'activeEggTab', 'customQuestions', 'customQuestionsScope', 'followupScope', 'followupDraft', 'newEggName', 'newEggDescription', 'presentation']) {
+        for (const key of ['discussionOverride', 'enabledSections', 'generateKnowledgeEntries', 'selectedEggs', 'preSelectedEggs', 'activeEggTab', 'customQuestions', 'customQuestionsScope', 'followupScope', 'followupDraft', 'newEggName', 'newEggDescription', 'presentation']) {
           if (key in event.values) next[key] = popupCopy(event.values[key]);
         }
         break;
@@ -225,9 +244,10 @@ class TabStateManager {
     tab.currentNutId = entry.nutId; tab.nutCollected = ['saved', 'skip'].includes(entry.saved); tab.eggHatched = entry.saved === 'saved';
     tab.stage1Version++;
     tab.stage1ContentAnalysis = popupCopy(entry.result);
-    tab.stage1Payload = { url: entry.url || tab.url, title: entry.title, content: entry.content || tab.extractedContent?.content || '', sourceType: entry.sourceType || 'generic', nutId: entry.nutId };
+    if (entry.capturePayload?.enabledSections) tab.enabledSections = { ...tab.enabledSections, ...popupCopy(entry.capturePayload.enabledSections) };
+    tab.stage1Payload = { ...(entry.capturePayload || {}), url: entry.capturePayload?.url || entry.url || tab.url, title: entry.title, content: entry.content || tab.extractedContent?.content || '', sourceType: entry.sourceType || 'generic', nutId: entry.nutId };
     if (typeof entry.content === 'string' && entry.content.trim()) {
-      tab.extractedContent = { ...tab.stage1Payload, metadata: { author: entry.author, published: entry.publishedAt } };
+      tab.extractedContent = { ...tab.stage1Payload, metadata: { ...entry.capturePayload?.metadata, ...(entry.author ? { author: entry.author } : {}), ...(entry.publishedAt ? { published: entry.publishedAt } : {}) } };
       tab.sourceVersion++;
     }
     if (typeof tab.extractedContent?.content === 'string' && tab.extractedContent.content.trim()) delete tab.errors.extraction;
@@ -252,6 +272,11 @@ class TabStateManager {
       isAnalyzing: !!analysis?.running, analyzingEggs: !!analysis?.running && analysis.phase === 'stage2',
       savingToVault: !!tab.operations.saving?.running, busy: this.isBusy(tab.tabId),
       extractionPending: !!tab.operations.extraction?.running, extractionFailed: !!tab.errors.extraction,
+      discussionPending: !!tab.operations.discussion?.running,
+      warning: tab.extractedContent?.discussion?.kind === 'forum' && tab.extractedContent.discussion.autoEnable && tab.extractedContent.discussion.bodyLength < 500 && tab.enabledSections.discussion !== true
+        ? (globalThis.t?.('discussionShortBody') || tab.warning)
+        : tab.extractedContent?.transcriptAvailable === false && tab.enabledSections.discussion === true
+          ? globalThis.t?.('discussionOnlyWarning') : tab.warning,
       error: error?.message || null, errorCode: error?.code || null,
     });
   }

@@ -294,7 +294,7 @@ function getAnalyzeNotReadyReason(sessionState, settingsState) {
   if (!sessionState.extractedContent || !sessionState.extractedContent.content) {
     return t("pageOrContentNotReady");
   }
-  if (isTranscriptBlocked(sessionState.extractedContent)) {
+  if (isTranscriptBlocked(sessionState.extractedContent) && sessionState.enabledSections?.discussion !== true) {
     return t("transcriptUnavailableAnalyze");
   }
   if (settingsState && !settingsState.serverOnline) {

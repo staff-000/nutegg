@@ -10,7 +10,7 @@ const ui = Object.fromEntries([
   ['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'],
   ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'],
   ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'],
-  ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent'],
+  ['discussionUI', 'DiscussionComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent'],
 ].map(([name, type]) => [name, new globalThis.NutEggUI[type]() ]));
 const renderer = new globalThis.NutEggUI.PopupRenderer({ store: tabStateManager, settings, ui });
 const activityUI = new globalThis.NutEggUI.AnalysisActivityComponent();
@@ -42,7 +42,13 @@ async function initPopup() {
     if (key === 'generateKnowledgeEntries') { analyzeAction.setGenerateKnowledgeEntries(!view.generateKnowledgeEntries); return true; }
     const next = settings.getToggledSections(key, view.enabledSections);
     if (!next) { tabStateManager.dispatch({ type: 'notice', tabId: view.activeTabId, message: t('atLeastOneSection') }); return false; }
-    settings.setEnabledSections(next, true);
+    if (key === 'discussion') {
+      activeDraft({ enabledSections: next, discussionOverride: next.discussion });
+      if (next.discussion) void operations.discussion(view.activeTabId); else operations.stopDiscussion(view.activeTabId);
+      return true;
+    }
+    // Auto-enable is per-page and must not become a default on other pages.
+    settings.setEnabledSections({ ...next, discussion: settings.enabledSections.discussion }, true);
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     activeDraft({ enabledSections: next }); return true;
   };
@@ -52,6 +58,10 @@ async function initPopup() {
     reanalyzeSectionsBody: document.getElementById('reanalyze-sections-body'), onToggle: toggleSection,
     onExpand: key => presentation({ [key]: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation[key] }) });
   const { actionsUI: a, captureUI: c, qaUI: q, eggsUI: e, headerUI: h } = ui;
+  for (const prefix of ['discussion-capture', 'discussion-reanalyze']) {
+    click(document.getElementById(prefix + '-load'), () => operations.discussion(tabStateManager.activeTabId, true));
+    click(document.getElementById(prefix + '-refresh'), () => operations.discussion(tabStateManager.activeTabId));
+  }
   click(a.modeFastBtn, () => analyzeAction.setAnalysisMode('fast'));
   click(a.modeConfirmBtn, () => analyzeAction.setAnalysisMode('confirm'));
   click(a.analyzeBtn, () => analyzeAction.handleAnalyze());

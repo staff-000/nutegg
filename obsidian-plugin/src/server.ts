@@ -1,3 +1,5 @@
+import { normalizeDiscussion } from "../../shared/src/discussion";
+import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import type NutEggPlugin from "./main";
 import { AIError, isAIConfigured } from "./ai-client";
@@ -14,6 +16,10 @@ import type { EggAnalysis } from "../../shared/src/types";
 import { isEggPath, insertEggLanguage } from "./egg-parser";
 
 interface AnalyzeRequest {
+  discussion?: DiscussionCapture;
+  enabledSections?: Partial<AnalysisSectionsConfig>;
+  transcriptAvailable?: boolean;
+  mediaType?: string;
   generateKnowledgeEntries?: boolean;
   /** Captured results reused when only newly selected eggs need analysis. */
   cachedEggResults?: EggAnalysis[];
@@ -40,12 +46,15 @@ interface AnalyzeRequest {
   /** Row id of the capture (when completing stage 2 for an existing stage 1 capture). */
   nutId?: number;
   /** Content analysis sections to include (sent from Chrome as single source of truth). */
-  enabledSections?: Partial<AnalysisSectionsConfig>;
   /** Output language for content analysis and summaries (sent from Chrome as single source of truth). */
   outputLanguage?: string;
 }
 
 interface AskRequest {
+  discussion?: DiscussionCapture;
+  enabledSections?: Partial<AnalysisSectionsConfig>;
+  transcriptAvailable?: boolean;
+  mediaType?: string;
   url: string;
   title: string;
   content: string;
@@ -66,6 +75,10 @@ interface CreateEggRequest {
 }
 
 interface ConfirmRequest {
+  discussion?: DiscussionCapture;
+  enabledSections?: Partial<AnalysisSectionsConfig>;
+  transcriptAvailable?: boolean;
+  mediaType?: string;
   url: string;
   title: string;
   content: string;
@@ -87,6 +100,7 @@ interface ConfirmRequest {
 
 /** One capture of a URL, as exposed to /analyze for history + result replay. */
 interface CaptureEntry {
+  capturePayload?: CapturePayload | null;
   nutId: number;
   /** When this capture was analyzed (ISO timestamp). */
   capturedAt: string;
@@ -152,7 +166,16 @@ export class NutEggServer {
       url: row.url,
       sourceType: row.sourceType,
       content: row.content,
+      capturePayload: row.capturePayload,
     }));
+  }
+
+  private captureSnapshot(capture: AnalyzeRequest | ConfirmRequest): CapturePayload & { metadata?: Record<string, string> } {
+    return { url: capture.url, title: capture.title, content: capture.content || '', sourceType: capture.sourceType,
+      metadata: capture.metadata, enabledSections: capture.enabledSections, transcriptAvailable: capture.transcriptAvailable, mediaType: capture.mediaType,
+      ...('chapters' in capture ? { chapters: capture.chapters } : {}),
+      ...('outputLanguage' in capture ? { outputLanguage: capture.outputLanguage } : {}),
+      discussion: capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : undefined };
   }
 
   /** Reading/watch time estimate from metadata, or word-count fallback. */
@@ -197,6 +220,7 @@ export class NutEggServer {
         matchedEggs: result.matchedEggs || [],
         fileName: "",
         analysisResult: result,
+        capturePayload: this.captureSnapshot(capture),
       }) ?? undefined
     );
   }
@@ -597,6 +621,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const capture: AnalyzeRequest = JSON.parse(body);
+      capture.discussion = capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : undefined;
 
       if (!capture.url || !capture.title) {
         res.writeHead(400, { "Content-Type": "application/json" });
@@ -688,6 +713,7 @@ export class NutEggServer {
         const summaryText = [
           contentAnalysis.titleVerdict,
           ...(contentAnalysis.coreSummary || []),
+          ...(contentAnalysis.discussion?.topics.map(topic => `${topic.title}: ${topic.summary}`) || []),
         ]
           .filter(Boolean)
           .join("\n");
@@ -773,6 +799,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const confirm: ConfirmRequest = JSON.parse(body);
+      confirm.discussion = confirm.enabledSections?.discussion === true ? normalizeDiscussion(confirm.discussion) : undefined;
 
       if (!confirm.url || !confirm.title) {
         res.writeHead(400, { "Content-Type": "application/json" });
@@ -814,6 +841,8 @@ export class NutEggServer {
           url: confirm.url,
           title: confirm.title,
           content: confirm.content,
+          discussion: confirm.discussion,
+          enabledSections: confirm.enabledSections,
           sourceType: confirm.sourceType,
           metadata: confirm.metadata,
           summary,
@@ -898,6 +927,7 @@ export class NutEggServer {
           matchedEggs: eggNames,
           fileName,
           analysisResult: confirm.analysis ?? null,
+          capturePayload: this.captureSnapshot(confirm),
         });
       }
 

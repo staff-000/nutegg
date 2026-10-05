@@ -129,7 +129,9 @@ test('Zhihu captures question and loaded answers without sidebar content', async
   ctx.extractText = el => el.textContent;
   const capture = await ctx.extractZhihu();
   assert.match(capture.content, /问题描述/);
-  assert.match(capture.content, /答案正文/);
+  assert.doesNotMatch(capture.content, /答案正文/);
+  assert.equal(capture.discussion.kind, "forum");
+  assert.match(capture.discussion.items[0].text, /答案正文/);
   assert.equal(capture.metadata.answer_count, 1);
   assert.equal(capture.metadata.capture_scope, 'question_and_loaded_answers');
 });

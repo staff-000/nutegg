@@ -7,6 +7,9 @@ const CONTENT_SCRIPT_FILES = [
   "src/content/extractors/youtube.js",
   "src/content/extractors/twitter.js",
   "src/content/extractors/chinese.js",
+  "src/content/extractors/discussion.js",
+  "src/content/extractors/forum.js",
+  "src/content/extractors/tiktok.js",
   "src/content/extractors/article.js",
   "src/content/extractors/generic.js",
   "src/content/content-script.js",
@@ -20,6 +23,33 @@ const CONTENT_SCRIPT_FILES = [
 class PageExtractor {
   constructor(options = {}) {
     this.contentScriptFiles = options.contentScriptFiles || CONTENT_SCRIPT_FILES;
+  }
+
+  async collectDiscussion(tabId, { sessionId, load = false, onUpdate, isCancelled = () => false }) {
+    let last = null, completed = false;
+    try {
+      for (let step = 0; step < 10; step++) {
+        if (isCancelled()) return null;
+        const response = await this.withTimeout(chrome.tabs.sendMessage(tabId, {
+          action: step === 0 ? 'discussion-start' : load && step <= 3 ? 'discussion-step' : 'discussion-snapshot', sessionId, load,
+        }), 3000);
+        if (isCancelled()) return null;
+        if (!response?.success || !response.discussion) throw new Error('Discussion capture unavailable');
+        if (response.discussion.sessionId !== sessionId) return null;
+        last = response.discussion;
+        onUpdate?.(last, step < 9 && !['empty', 'unavailable', 'complete'].includes(last.status));
+        if (['empty', 'unavailable', 'complete'].includes(last.status) || last.truncated) { completed = true; return last; }
+        if (step < 9) await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      completed = true; return last;
+    } finally {
+      // Collection remains available for manual scrolling for two minutes in the page.
+      // Cancellation (off/navigation) disconnects immediately without touching a newer session.
+      if (!completed) await this.stopDiscussion(tabId, sessionId);
+    }
+  }
+  async stopDiscussion(tabId, sessionId) {
+    try { await chrome.tabs.sendMessage(tabId, { action: 'discussion-stop', sessionId }); } catch {}
   }
 
   /** Safe promise timeout wrapper. */

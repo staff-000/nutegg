@@ -112,3 +112,41 @@ analysis on A, then B, then return to A before completion. Both tabs should show
 their own results when ready. Repeat with Stage 2: B's egg-analysis button must
 remain enabled while A runs. Navigate or reload A during a request and verify its
 old response cannot replace the new page or leave a loading button behind.
+
+## Discussion capture
+
+Discussion is off by default, except Reddit threads, which enable it on initial
+capture even before comments load. Other short-body forum threads with at least
+three substantial replies (800 non-whitespace characters, and at least three
+times the body length) enable it for that page. An explicit off choice survives
+refresh; a short body shows a nonblocking warning.
+Auto-enable never changes global defaults.
+
+Load discussion opens or scrolls toward the discussion and performs at most three
+scroll steps. The panel polls for up to ten snapshots, one second apart; it does
+not delay Analyze. A DOM observer retains comments removed by virtualized lists
+for up to two minutes; Refresh reads the retained buffer. Turning Discussion off
+or changing the page disconnects the watcher. No next-page or paginated-reply
+traversal is performed. Captures are capped at 300 items, 150k text characters,
+and 6k characters per item. Quiet loading never means the discussion is complete.
+
+Adapters cover Reddit, YouTube, TikTok, Douyin, Bilibili open shadow roots, Zhihu,
+Discourse and traditional forum markup, with a generic comments fallback.
+Zhihu question answers belong to discussion; answer permalinks keep the selected
+answer in the body. Unrecognized layouts and unloaded comments are distinct from
+an analyzed discussion with no substantive content. Site layout changes and
+closed shadow roots may require adapter updates; verify actual logged-in pages
+before releasing.
+
+Analysis freezes the selected sources. Later captures update the draft only;
+saving and follow-up use the analysis snapshot. History persists the structured
+capture through a nullable SQLite capture_payload column, migrated additively.
+Stances refer to a specific claim. Counts come from deduplicated source IDs;
+commenter counts require stable identities. Likes and net vote scores are
+separate reactions, never extra people. All metrics describe the captured sample.
+
+Targeted tests: tests/discussion.test.js and tests/discussion-extraction.test.js,
+plus the existing settings, store, operations, renderer, transport, startup and
+localization tests. Live browser QA was unavailable in the implementation session.
+
+Discussion selectors use a 2×2 grid. Results contain paraphrased highlights without comment quotations or outbound comment links. Bilibili capture traverses the nested open roots for comment text, user info and reactions, and preserves loaded reply ownership. On Zhihu question pages, comments are linked to their own answer (including explicitly identified external panels); unowned floating panels are excluded rather than attributed to another answer.

@@ -239,3 +239,19 @@ describe("PageExtractor", () => {
   });
 });
 
+
+describe('discussion collection lifecycle', () => {
+  it('stops at an explicit empty state without scrolling or claiming meaningful discussion', async () => {
+    const sent = [];
+    globalThis.chrome = { tabs: { sendMessage: async (_, message) => { sent.push(message); return { success: true, discussion: { sessionId: 's', status: 'empty', items: [] } }; } } };
+    let update;
+    const d = await new PageExtractor().collectDiscussion(1, { sessionId: 's', load: true, onUpdate: (value, loading) => { update = { value, loading }; } });
+    assert.equal(d.status, 'empty'); assert.equal(update.loading, false); assert.equal(sent.length, 1); assert.equal(sent[0].action, 'discussion-start');
+  });
+  it('rejects a snapshot from a replaced page session and disconnects only its own watcher', async () => {
+    const sent = [];
+    globalThis.chrome = { tabs: { sendMessage: async (_, message) => { sent.push(message); return { success: true, discussion: { sessionId: 'new', status: 'partial', items: [] } }; } } };
+    const d = await new PageExtractor().collectDiscussion(1, { sessionId: 'old' });
+    assert.equal(d, null); assert.equal(sent.at(-1).action, 'discussion-stop'); assert.equal(sent.at(-1).sessionId, 'old');
+  });
+});

@@ -783,7 +783,7 @@ body {
   display: none;
 }
 
-/* Combined verdict/summary above mind map and knowledge. */
+/* Four analysis sections in a 2×2 selector. */
 .sections-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2224,4 +2224,24 @@ body {
 .analysis-activity-list button { display: block; width: 100%; text-align: left; border: 0; border-radius: 5px; padding: 8px; font-size: 12px; background: transparent; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .analysis-activity-list button:hover { background: #fff3e6; }
 
-.section-chip[data-section="verdictSummary"] { grid-column: 1 / -1; }
+/* Captured discussion uses the same cards, typography and buttons as analysis. */
+.discussion-controls { margin-top: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; line-height: 1.5; color: #374151; }
+.discussion-controls p { margin: 0 0 8px; }
+.discussion-controls > div { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.discussion-controls button { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; background: #fff; color: #374151; font: inherit; font-weight: 500; transition: background .15s, border-color .15s; }
+.discussion-controls button:hover:not(:disabled) { background: #fff4e8; border-color: var(--primary-border, #ebd6b7); color: var(--primary, #a8561e); }
+.discussion-controls button:disabled { opacity: .5; cursor: default; }
+.discussion-controls small { display: block; color: #6b7280; font-size: 11px; }
+#discussion-result { font-size: 12px; line-height: 1.5; color: #374151; }
+.discussion-coverage { margin: 0 0 8px; color: #6b7280; font-size: 11px; }
+.discussion-topic { padding: 10px 12px; margin-bottom: 8px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; }
+.discussion-topic h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.discussion-topic p { margin: 4px 0; }
+.discussion-claim { color: #6b7280; }
+.discussion-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 8px 0; }
+.discussion-metric { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; overflow-wrap: anywhere; }
+.discussion-metric strong { color: var(--primary, #a8561e); }
+.discussion-metric small { color: #6b7280; font-size: 10px; }
+.discussion-topic ul { margin: 4px 0 8px; padding-inline-start: 18px; }
+.discussion-topic li + li { margin-top: 4px; }
+.discussion-topic .discussion-highlights { margin-bottom: 0; }

@@ -148,13 +148,14 @@ test("AI Processor - parseMindMap in Chrome bundle handles up to 3 levels deep",
   assert.equal(out[0].children[0].children[0].name, "Leaf");
 });
 
-test("Analysis Sections - DEFAULT_ANALYSIS_SECTIONS has all sections enabled", () => {
+test("Analysis Sections - DEFAULT_ANALYSIS_SECTIONS keeps discussion opt-in", () => {
   const { DEFAULT_ANALYSIS_SECTIONS } = NutEggAI;
   assert.ok(DEFAULT_ANALYSIS_SECTIONS);
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.titleVerdict, true);
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.coreSummary, true);
   assert.equal(DEFAULT_ANALYSIS_SECTIONS.mindMap, true);
-  assert.equal(Object.keys(DEFAULT_ANALYSIS_SECTIONS).length, 3);
+  assert.equal(DEFAULT_ANALYSIS_SECTIONS.discussion, false);
+  assert.equal(Object.keys(DEFAULT_ANALYSIS_SECTIONS).length, 4);
 });
 
 test("Analysis Sections - pruneTaskContent prunes disabled tasks and renumbers", () => {

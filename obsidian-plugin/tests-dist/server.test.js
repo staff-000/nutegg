@@ -26,6 +26,49 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var import_node_test = require("node:test");
 var import_strict = __toESM(require("node:assert/strict"));
 
+// ../shared/src/discussion.ts
+var clean = (value, limit = 1e3) => typeof value === "string" ? value.trim().slice(0, limit) : "";
+function normalizeDiscussion(value) {
+  if (!value || !Array.isArray(value.items))
+    return void 0;
+  const seen = /* @__PURE__ */ new Set();
+  const items = [];
+  let characters = 0, limited = false;
+  for (const item of value.items.slice(0, 300)) {
+    const id = clean(item?.id, 300), text = clean(item?.text, 6e3);
+    if (!id || !text || seen.has(id))
+      continue;
+    if (characters + text.length > 15e4) {
+      limited = true;
+      break;
+    }
+    characters += text.length;
+    seen.add(id);
+    const reaction = item.reaction;
+    items.push({
+      id,
+      text,
+      parentId: clean(item.parentId, 300) || void 0,
+      author: clean(item.author, 200) || void 0,
+      authorId: clean(item.authorId, 500) || void 0,
+      url: /^https?:\/\//i.test(item.url || "") ? clean(item.url, 2e3) : void 0,
+      reaction: reaction && ["likes", "score"].includes(reaction.kind) ? {
+        kind: reaction.kind,
+        count: typeof reaction.count === "number" && Number.isFinite(reaction.count) && (reaction.kind === "score" || reaction.count >= 0) ? reaction.count : null,
+        approximate: !!reaction.approximate
+      } : void 0
+    });
+  }
+  return {
+    ...value,
+    kind: value.kind === "forum" ? "forum" : "comments",
+    items,
+    status: ["not_loaded", "loading", "partial", "complete", "empty", "unavailable"].includes(value.status) ? value.status : "partial",
+    totalCount: Number.isFinite(value.totalCount) && Number(value.totalCount) >= 0 ? Number(value.totalCount) : null,
+    truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some((i) => (i?.text?.length || 0) > 6e3)
+  };
+}
+
 // src/server.ts
 var http = __toESM(require("http"));
 
@@ -788,8 +831,24 @@ var NutEggServer = class {
       publishedAt: row.publishedAt,
       url: row.url,
       sourceType: row.sourceType,
-      content: row.content
+      content: row.content,
+      capturePayload: row.capturePayload
     }));
+  }
+  captureSnapshot(capture) {
+    return {
+      url: capture.url,
+      title: capture.title,
+      content: capture.content || "",
+      sourceType: capture.sourceType,
+      metadata: capture.metadata,
+      enabledSections: capture.enabledSections,
+      transcriptAvailable: capture.transcriptAvailable,
+      mediaType: capture.mediaType,
+      ..."chapters" in capture ? { chapters: capture.chapters } : {},
+      ..."outputLanguage" in capture ? { outputLanguage: capture.outputLanguage } : {},
+      discussion: capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : void 0
+    };
   }
   /** Reading/watch time estimate from metadata, or word-count fallback. */
   estimateTime(metadata, content) {
@@ -815,7 +874,8 @@ var NutEggServer = class {
       summary: [result.titleVerdict, ...result.coreSummary || []].filter(Boolean).join("\n"),
       matchedEggs: result.matchedEggs || [],
       fileName: "",
-      analysisResult: result
+      analysisResult: result,
+      capturePayload: this.captureSnapshot(capture)
     }) ?? void 0;
   }
   /** Strip trailing slashes, fragment, and common tracking/session params. */
@@ -1152,6 +1212,7 @@ var NutEggServer = class {
     try {
       const body = await this.readBody(req);
       const capture = JSON.parse(body);
+      capture.discussion = capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : void 0;
       if (!capture.url || !capture.title) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
@@ -1230,7 +1291,8 @@ var NutEggServer = class {
       } else {
         const summaryText = [
           contentAnalysis.titleVerdict,
-          ...contentAnalysis.coreSummary || []
+          ...contentAnalysis.coreSummary || [],
+          ...contentAnalysis.discussion?.topics.map((topic) => `${topic.title}: ${topic.summary}`) || []
         ].filter(Boolean).join("\n");
         const matchedIndex = await this.plugin.indexReader.matchEggs(
           { title: capture.title, url: capture.url, content: summaryText },
@@ -1305,6 +1367,7 @@ var NutEggServer = class {
     try {
       const body = await this.readBody(req);
       const confirm = JSON.parse(body);
+      confirm.discussion = confirm.enabledSections?.discussion === true ? normalizeDiscussion(confirm.discussion) : void 0;
       if (!confirm.url || !confirm.title) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
@@ -1329,6 +1392,8 @@ var NutEggServer = class {
           url: confirm.url,
           title: confirm.title,
           content: confirm.content,
+          discussion: confirm.discussion,
+          enabledSections: confirm.enabledSections,
           sourceType: confirm.sourceType,
           metadata: confirm.metadata,
           summary,
@@ -1397,7 +1462,8 @@ var NutEggServer = class {
           summary: summary || "",
           matchedEggs: eggNames,
           fileName,
-          analysisResult: confirm.analysis ?? null
+          analysisResult: confirm.analysis ?? null,
+          capturePayload: this.captureSnapshot(confirm)
         });
       }
       console.log(
@@ -1681,6 +1747,9 @@ var KnowledgeBase = class {
     frontmatterLines.push(`**Source:** ${capture.url}`);
     frontmatterLines.push("");
     frontmatterLines.push(capture.content);
+    if (capture.enabledSections?.discussion && capture.discussion) {
+      frontmatterLines.push("", "# Captured Discussion", "", "```json", JSON.stringify(capture.discussion, null, 2), "```");
+    }
     if (capture.analysis) {
       frontmatterLines.push("", "# NutEgg Analysis", "", "```json", JSON.stringify(capture.analysis, null, 2), "```");
     }
@@ -2495,4 +2564,11 @@ function makeRes() {
     import_strict.default.equal(updatedNutId, 42);
     import_strict.default.equal(updatePatch?.analysisResult?.shouldRead, true);
   });
+});
+(0, import_node_test.it)("discussion capture snapshot excludes unselected comments and preserves selected source records", () => {
+  const s = makeServer();
+  const payload = { url: "https://forum.test", title: "Thread", content: "Question", sourceType: "forum", enabledSections: { discussion: false }, discussion: { kind: "forum", status: "partial", items: [{ id: "a", text: "Experience" }] } };
+  import_strict.default.equal(s.captureSnapshot(payload).discussion, void 0);
+  payload.enabledSections.discussion = true;
+  import_strict.default.equal(s.captureSnapshot(payload).discussion.items[0].id, "a");
 });

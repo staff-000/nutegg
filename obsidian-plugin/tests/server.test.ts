@@ -753,3 +753,11 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
   });
 });
 
+
+it('discussion capture snapshot excludes unselected comments and preserves selected source records', () => {
+  const s = makeServer();
+  const payload = { url: 'https://forum.test', title: 'Thread', content: 'Question', sourceType: 'forum', enabledSections: { discussion: false }, discussion: { kind: 'forum', status: 'partial', items: [{ id: 'a', text: 'Experience' }] } };
+  assert.equal(s.captureSnapshot(payload).discussion, undefined);
+  payload.enabledSections.discussion = true;
+  assert.equal(s.captureSnapshot(payload).discussion.items[0].id, 'a');
+});

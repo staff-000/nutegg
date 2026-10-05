@@ -97,10 +97,14 @@ var NutEggDatabase = class {
         summary TEXT,
         matched_eggs TEXT,
         file_name TEXT,
+        capture_payload TEXT,
         analysis_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_nuts_url ON nuts(url);
     `);
+    const columns = this.db.prepare("PRAGMA table_info(nuts)").all();
+    if (!columns.some((column) => column.name === "capture_payload"))
+      this.db.exec("ALTER TABLE nuts ADD COLUMN capture_payload TEXT");
   }
   // --- Nuts ---
   /**
@@ -114,8 +118,8 @@ var NutEggDatabase = class {
     try {
       const res = this.db.prepare(
         `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
         row.url,
         row.title,
@@ -129,7 +133,8 @@ var NutEggDatabase = class {
         row.summary || null,
         JSON.stringify(row.matchedEggs),
         row.fileName || null,
-        row.analysisResult ? JSON.stringify(row.analysisResult) : null
+        row.analysisResult ? JSON.stringify(row.analysisResult) : null,
+        row.capturePayload ? JSON.stringify(row.capturePayload) : null
       );
       return Number(res.lastInsertRowid);
     } catch (err) {
@@ -276,7 +281,13 @@ ${r.content || ""}`;
       analysisResult = row.analysis_result ? JSON.parse(row.analysis_result) : null;
     } catch {
     }
+    let capturePayload = null;
+    try {
+      capturePayload = row.capture_payload ? JSON.parse(row.capture_payload) : null;
+    } catch {
+    }
     return {
+      capturePayload,
       id: row.id,
       url: row.url,
       title: row.title,
@@ -446,4 +457,26 @@ function capture(overrides = {}) {
       dead.updateNut(1, { processingResult: "saved" });
     });
   });
+});
+(0, import_node_test.it)("migrates existing databases and round-trips exact structured discussion snapshots", { skip: !sqliteAvailable() }, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nutegg-discussion-db-"));
+  const DatabaseSync = require("node:sqlite").DatabaseSync;
+  const file = path.join(tmp, ".nutegg.db");
+  const old = new DatabaseSync(file);
+  old.exec("CREATE TABLE nuts (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, title TEXT NOT NULL, source_type TEXT NOT NULL, content TEXT, saved_at TEXT, published_at TEXT, author TEXT, time_estimate_minutes REAL, processing_result TEXT, summary TEXT, matched_eggs TEXT, file_name TEXT, analysis_result TEXT)");
+  old.close();
+  const plugin = { settings: { rawFolder: "_raw" }, app: { vault: { adapter: { exists: async () => true, getBasePath: () => tmp } } } };
+  const db = new NutEggDatabase(plugin);
+  try {
+    await db.init();
+    import_strict.default.equal(db.available, true);
+    const capturePayload = { url: "https://forum.test", title: "Thread", content: "Question", sourceType: "forum", enabledSections: { discussion: true }, discussion: { kind: "forum", status: "partial", items: [{ id: "c1", text: "Experience", authorId: "u1", reaction: { kind: "likes", count: 12 } }] } };
+    const id = db.insertNut(capture({ capturePayload }));
+    import_strict.default.ok(id);
+    import_strict.default.deepEqual(db.getNutById(id)?.capturePayload, capturePayload);
+    import_strict.default.deepEqual(db.getNutHistory("https://example.com/video")[0].capturePayload, capturePayload);
+  } finally {
+    db.close();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });

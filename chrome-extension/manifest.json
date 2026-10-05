@@ -64,6 +64,9 @@
         "src/content/extractors/youtube.js",
         "src/content/extractors/twitter.js",
         "src/content/extractors/chinese.js",
+        "src/content/extractors/discussion.js",
+        "src/content/extractors/forum.js",
+        "src/content/extractors/tiktok.js",
         "src/content/extractors/article.js",
         "src/content/extractors/generic.js",
         "src/content/content-script.js"

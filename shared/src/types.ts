@@ -112,16 +112,73 @@ export interface AnalysisSectionsConfig {
   titleVerdict: boolean;
   coreSummary: boolean;
   mindMap: boolean;
+  discussion?: boolean;
 }
 
 export const DEFAULT_ANALYSIS_SECTIONS: AnalysisSectionsConfig = {
   titleVerdict: true,
   coreSummary: true,
   mindMap: true,
+  discussion: false,
 };
+
+export type DiscussionStance = "agree" | "disagree" | "mixed" | "neutral" | "unclear";
+export interface DiscussionItem {
+  id: string;
+  parentId?: string;
+  author?: string;
+  authorId?: string;
+  text: string;
+  url?: string;
+  reaction?: { kind: "likes" | "score"; count: number | null; approximate?: boolean };
+}
+export interface DiscussionCapture {
+  kind: "forum" | "comments";
+  status: "not_loaded" | "loading" | "partial" | "complete" | "empty" | "unavailable";
+  reason?: "login" | "disabled" | "unsupported" | "error";
+  items: DiscussionItem[];
+  totalCount?: number | null;
+  truncated?: boolean;
+  capturedAt?: string;
+  bodyLength?: number;
+  autoEnable?: boolean;
+}
+export interface DiscussionMetric {
+  comments: number;
+  /** Null when any author identity is unavailable. Author buckets are exclusive per topic. */
+  commenters: number | null;
+  likes: number;
+  score: number;
+  reactionsKnown: number;
+  likesKnown: number;
+  scoresKnown: number;
+  reactionsMissing: number;
+  approximate: boolean;
+}
+export interface DiscussionTopic {
+  id: string;
+  title: string;
+  claim: string;
+  summary: string;
+  agreeArguments: string[];
+  disagreeArguments: string[];
+  highlights: Array<{ commentId: string; summary: string; source: DiscussionItem }>;
+  metrics: Record<DiscussionStance, DiscussionMetric>;
+}
+export interface DiscussionAnalysis {
+  status: "ready" | "no_meaningful" | "not_loaded" | "unavailable";
+  kind: "forum" | "comments";
+  coverage: DiscussionCapture["status"];
+  capturedCount: number;
+  analyzedCount: number;
+  totalCount: number | null;
+  truncated: boolean;
+  topics: DiscussionTopic[];
+}
 
 /** Content-level analysis, independent of any egg. */
 export interface ContentAnalysis {
+  discussion?: DiscussionAnalysis;
   /** Direct answer to the question posed in the title / intro. */
   titleVerdict: string;
   /** Max 3 plain-language bullets. */
@@ -133,6 +190,9 @@ export interface ContentAnalysis {
 }
 
 export interface CapturePayload {
+  discussion?: DiscussionCapture;
+  transcriptAvailable?: boolean;
+  mediaType?: string;
   generateKnowledgeEntries?: boolean;
   url: string;
   title: string;
@@ -147,6 +207,8 @@ export interface CapturePayload {
 }
 
 export interface AskRequest {
+  discussion?: DiscussionCapture;
+  enabledSections?: Partial<AnalysisSectionsConfig>;
   url: string;
   title: string;
   content: string;
@@ -229,6 +291,8 @@ export interface AnalysisResult extends ContentAnalysis {
 }
 
 export type WorkflowPromptKey =
+  | "discussionAnalysis"
+  | "aggregateDiscussion"
   | "contentAnalysis"
   | "eggAnalysis"
   | "followUp"

@@ -107,3 +107,10 @@ describe("Chrome Extension i18n", () => {
     }
   });
 });
+
+it('all discussion UI keys are translated in every supported locale', () => {
+  const { translations } = require('../src/i18n.js');
+  for (const key of Object.keys(translations.en).filter(key => key.startsWith('discussion'))) {
+    for (const [locale, dictionary] of Object.entries(translations)) assert.ok(dictionary[key], `${locale}: ${key}`);
+  }
+});

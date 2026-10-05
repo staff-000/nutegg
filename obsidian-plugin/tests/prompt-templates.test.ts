@@ -55,6 +55,8 @@ describe("PROMPTS", () => {
       "egg_description", "output_language",
       // localize-egg.md
       "description", "template",
+      // discussion analysis and topic aggregation
+      "kind", "body", "parents", "items", "drafts",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

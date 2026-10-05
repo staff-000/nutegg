@@ -366,8 +366,8 @@ describe("Modular UI Components", () => {
     });
     assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
     assert.strictEqual(chips.chipVerdictSummary.classList.contains("active"), true);
-    assert.strictEqual(chips.sectionsBadge.textContent, "2/3");
-    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/3");
+    assert.strictEqual(chips.sectionsBadge.textContent, "2/4");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/4");
 
     chips.chipKnowledge.click();
     assert.equal(toggledKey, "generateKnowledgeEntries");
@@ -376,7 +376,7 @@ describe("Modular UI Components", () => {
     chips.updateUI({ titleVerdict: true, coreSummary: true, mindMap: false }, false);
     assert.equal(chips.chipKnowledge.classList.contains("inactive"), true);
     assert.equal(chips.reanalyzeChipKnowledge.classList.contains("inactive"), true);
-    assert.equal(chips.sectionsBadge.textContent, "1/3");
+    assert.equal(chips.sectionsBadge.textContent, "1/4");
 
     // Test onSectionToggle fallback
     let fallbackResult = null;

@@ -1,3 +1,4 @@
+import type { CapturePayload } from "../../shared/src/types";
 import type NutEggPlugin from "./main";
 import type { AnalysisResult } from "./ai-processor";
 import type { DatabaseSync as DatabaseSyncClass } from "node:sqlite";
@@ -36,6 +37,7 @@ export interface NutRow {
   matchedEggs: string[];
   fileName: string;
   analysisResult: AnalysisResult | null;
+  capturePayload?: (CapturePayload & { metadata?: Record<string, string> }) | null;
 }
 
 /**
@@ -128,10 +130,13 @@ export class NutEggDatabase {
         summary TEXT,
         matched_eggs TEXT,
         file_name TEXT,
+        capture_payload TEXT,
         analysis_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_nuts_url ON nuts(url);
     `);
+    const columns = this.db!.prepare('PRAGMA table_info(nuts)').all() as Array<{ name: string }>;
+    if (!columns.some(column => column.name === 'capture_payload')) this.db!.exec('ALTER TABLE nuts ADD COLUMN capture_payload TEXT');
   }
 
   // --- Nuts ---
@@ -147,8 +152,8 @@ export class NutEggDatabase {
       const res = this.db
         .prepare(
           `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           row.url,
@@ -163,7 +168,8 @@ export class NutEggDatabase {
           row.summary || null,
           JSON.stringify(row.matchedEggs),
           row.fileName || null,
-          row.analysisResult ? JSON.stringify(row.analysisResult) : null
+          row.analysisResult ? JSON.stringify(row.analysisResult) : null,
+          row.capturePayload ? JSON.stringify(row.capturePayload) : null
         );
       return Number(res.lastInsertRowid);
     } catch (err) {
@@ -351,7 +357,10 @@ export class NutEggDatabase {
       analysisResult = row.analysis_result ? JSON.parse(row.analysis_result) : null;
     } catch { /* corrupted — ignore */ }
 
+    let capturePayload: NutRow["capturePayload"] = null;
+    try { capturePayload = row.capture_payload ? JSON.parse(row.capture_payload) : null; } catch {}
     return {
+      capturePayload,
       id: row.id,
       url: row.url,
       title: row.title,
