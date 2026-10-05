@@ -1,229 +1,100 @@
-// ============================================================
-// NutEgg Chrome Extension Tab State Manager Tests
-// ============================================================
-
-const test = require("node:test");
-const assert = require("node:assert/strict");
-
-const { TabStateManager } = require("../src/popup/state/tab-state.js");
-
-test("TabStateManager - basic Map compatibility (get, set, has, delete, size)", () => {
-  const manager = new TabStateManager();
-  assert.equal(manager.size, 0);
-
-  manager.set(101, { url: "https://example.com", status: "done" });
-  assert.equal(manager.size, 1);
-  assert.equal(manager.has(101), true);
-  assert.equal(manager.has(102), false);
-
-  const entry = manager.get(101);
-  assert.equal(entry.url, "https://example.com");
-  assert.equal(entry.status, "done");
-
-  manager.delete(101);
-  assert.equal(manager.size, 0);
-  assert.equal(manager.has(101), false);
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { TabStateManager } = require('../src/popup/state/tab-state.js');
+const { fixture, seed } = require('./helpers/popup-fixture');
+test('records and captured contexts cannot be mutated; activation does not merge old state', () => {
+  const { store } = fixture();
+  assert(Object.isFrozen(store.getTab(1)));
+  const ctx = store.beginOperation(1, 'analysis', { eggs: ['a'] });
+  assert.throws(() => ctx.inputs.eggs.push('b'));
+  assert.throws(() => store.viewModel(1).selectedEggs.add('a'));
+  store.activateTab(2); store.activateTab(1);
+  assert.equal(store.getTab(1).operations.analysis.running, true);
 });
-
-test("TabStateManager - active tab tracking", () => {
-  const manager = new TabStateManager();
-  assert.equal(manager.getActiveTabId(), null);
-  assert.equal(manager.isCurrentTabLoading(), false);
-
-  manager.setActiveTabId(202);
-  manager.setCurrentTabLoading(true);
-
-  assert.equal(manager.getActiveTabId(), 202);
-  assert.equal(manager.isCurrentTabLoading(), true);
-
-  manager.setCurrentTabLoading(false);
-  assert.equal(manager.isCurrentTabLoading(), false);
+test('explicit views and completion are atomic in active and background tabs', () => {
+  const { store } = fixture();
+  store.dispatch({ type: 'view', tabId: 1, view: 'results' });
+  assert.equal(store.getTab(1).currentView, 'capture');
+  const ctx = store.beginOperation(1, 'analysis'); store.activateTab(2);
+  store.commitOperation(ctx.token, { type: 'analysisComplete', result: { titleVerdict: 'A' }, stage1: true });
+  const tab = store.getTab(1);
+  assert.equal(tab.currentView, 'results'); assert.equal(tab.operations.analysis.running, false);
+  assert.equal(store.getAnalysisActivity().length, 1);
+  store.dispatch({ type: 'viewed', tabId: 1, revision: tab.resultRevision });
+  assert.equal(store.getAnalysisActivity().length, 1);
+  store.activateTab(1); store.dispatch({ type: 'view', tabId: 1, view: 'capture' });
+  store.dispatch({ type: 'viewed', tabId: 1, revision: tab.resultRevision });
+  assert.equal(store.getAnalysisActivity().length, 1);
+  store.dispatch({ type: 'view', tabId: 1, view: 'results' });
+  store.dispatch({ type: 'visibility', visible: false });
+  store.dispatch({ type: 'viewed', tabId: 1, revision: tab.resultRevision });
+  assert.equal(store.getAnalysisActivity().length, 1);
+  store.dispatch({ type: 'visibility', visible: true });
+  store.dispatch({ type: 'viewed', tabId: 1, revision: tab.resultRevision });
+  assert.equal(store.getAnalysisActivity().length, 0);
 });
-
-test("TabStateManager - extraction sequence numbers & current check", () => {
-  const manager = new TabStateManager();
-
-  assert.equal(manager.getExtractSeq(10), 0);
-  assert.equal(manager.isExtractSeqCurrent(10, 1), false);
-
-  const seq1 = manager.nextExtractSeq(10);
-  assert.equal(seq1, 1);
-  assert.equal(manager.getExtractSeq(10), 1);
-  assert.equal(manager.isExtractSeqCurrent(10, 1), true);
-  assert.equal(manager.isExtractSeqCurrent(10, 2), false);
-
-  const seq2 = manager.nextExtractSeq(10);
-  assert.equal(seq2, 2);
-  assert.equal(manager.isExtractSeqCurrent(10, 1), false);
-  assert.equal(manager.isExtractSeqCurrent(10, 2), true);
+test('page generations are never reused after closure or returning to the same URL', () => {
+  const { store } = fixture(); const ctx = store.beginOperation(1, 'analysis');
+  for (const remove of [false, true]) {
+    store.invalidateTab(1, 'https://tab1.test', remove); store.ensure(1, 'https://tab1.test');
+    assert.equal(store.commitOperation(ctx.token, { type: 'operationFailed', error: 'old' }), false);
+    assert.equal(store.getTab(1).errors.analysis, undefined);
+  }
 });
-
-test("TabStateManager - extraction in-flight status", () => {
-  const manager = new TabStateManager();
-
-  assert.equal(manager.isExtracting(10), false);
-  manager.setExtracting(10, true);
-  assert.equal(manager.isExtracting(10), true);
-
-  manager.setExtracting(10, false);
-  assert.equal(manager.isExtracting(10), false);
+test('old completion/error/cleanup cannot clear a newer operation', () => {
+  const { store } = fixture(); const a = store.beginOperation(1, 'extraction'); const b = store.beginOperation(1, 'extraction');
+  for (const type of ['operationFinished', 'operationFailed', 'extracted']) assert.equal(store.commitOperation(a.token, { type, error: 'Old' }), false);
+  assert.equal(store.isOperationCurrent(b.token), true);
 });
-
-test("TabStateManager - status & isAnalyzing helpers", () => {
-  const manager = new TabStateManager();
-
-  assert.equal(manager.getStatus(50), null);
-  assert.equal(manager.isAnalyzing(50), false);
-
-  manager.setStatus(50, "analyzing");
-  assert.equal(manager.getStatus(50), "analyzing");
-  assert.equal(manager.isAnalyzing(50), true);
-
-  manager.setStatus(50, "hatching");
-  assert.equal(manager.getStatus(50), "hatching");
-  assert.equal(manager.isAnalyzing(50), true);
-
-  manager.setStatus(50, "done");
-  assert.equal(manager.getStatus(50), "done");
-  assert.equal(manager.isAnalyzing(50), false);
+test('diagnostics distinguish discarded generations, requests, and result dependencies', () => {
+  const { store } = fixture(); store.diagnosticsEnabled = true;
+  const a = store.beginOperation(1, 'extraction'); store.beginOperation(1, 'extraction');
+  store.commitOperation(a.token, { type: 'operationFinished' });
+  assert.equal(store.diagnostics.at(-1).reason, 'superseded-request');
+  store.invalidateTab(1); store.commitOperation(a.token, { type: 'operationFailed', error: 'private error' });
+  assert.equal(store.diagnostics.at(-1).reason, 'page-generation');
+  const history = store.beginOperation(2, 'history', {}, ['selectionRevision']);
+  seed(store, 2, { titleVerdict: 'New result' });
+  store.commitOperation(history.token, { type: 'historyLoaded', history: [] });
+  assert.equal(store.diagnostics.at(-1).reason, 'changed-dependency');
+  assert(!JSON.stringify(store.diagnostics).includes('private error'));
 });
-
-test("TabStateManager - saveActiveTabState and restoreTabState with Set hydration", () => {
-  const manager = new TabStateManager();
-
-  const state = {
-    url: "https://example.com/article",
-    extractedContent: { title: "Test Article", content: "Hello world" },
-    selectedEggs: new Set(["AI/LLM", "Tech"]),
-    preSelectedEggs: new Set(["AI/LLM"]),
-    captureHistory: [{ nutId: 1, capturedAt: 12345 }],
-    followUpQa: [{ question: "What?", answer: "This" }],
-    customQuestions: "Summarize this",
-    currentNutId: 1,
-  };
-
-  manager.saveActiveTabState(55, state);
-
-  // Cached data stored selectedEggs as Array
-  const cached = manager.get(55);
-  assert.ok(Array.isArray(cached.selectedEggs));
-  assert.deepEqual(cached.selectedEggs, ["AI/LLM", "Tech"]);
-  assert.deepEqual(cached.preSelectedEggs, ["AI/LLM"]);
-
-  // Restored data converts selectedEggs back to Set
-  const restored = manager.restoreTabState(55);
-  assert.ok(restored.selectedEggs instanceof Set);
-  assert.equal(restored.selectedEggs.has("Tech"), true);
-  assert.ok(restored.preSelectedEggs instanceof Set);
-  assert.equal(restored.preSelectedEggs.has("AI/LLM"), true);
-  assert.equal(restored.currentNutId, 1);
-  assert.equal(restored.customQuestions, "Summarize this");
+test('dependencies invalidate history and follow-up without leaving loading flags behind', () => {
+  const { store } = fixture();
+  const history = store.beginOperation(1, 'history', {}, ['selectionRevision']);
+  const analysis = store.beginOperation(1, 'analysis');
+  store.commitOperation(analysis.token, { type: 'analysisComplete', result: { titleVerdict: 'New' }, stage1: true });
+  assert.equal(store.getTab(1).operations.history.running, false);
+  assert.equal(store.commitOperation(history.token, { type: 'historyLoaded', history: [{ result: {} }], select: true }), false);
 });
-
-test("TabStateManager - invalidateTab clears cache, sequence, and extracting flag", () => {
-  const manager = new TabStateManager();
-
-  manager.set(77, { url: "https://example.com" });
-  manager.nextExtractSeq(77);
-  manager.setExtracting(77, true);
-
-  assert.equal(manager.has(77), true);
-  assert.equal(manager.getExtractSeq(77), 1);
-  assert.equal(manager.isExtracting(77), true);
-
-  manager.invalidateTab(77);
-
-  assert.equal(manager.has(77), false);
-  assert.equal(manager.getExtractSeq(77), 0);
-  assert.equal(manager.isExtracting(77), false);
+test('operation flags are derived and conflicting work is blocked only on its own tab', () => {
+  const { store } = fixture(); const ctx = store.beginOperation(1, 'analysis');
+  store.commitOperation(ctx.token, { type: 'phase', phase: 'stage2' });
+  assert.equal(store.viewModel(1).analyzingEggs, true); assert.equal(store.viewModel(2).analyzingEggs, false);
+  assert.equal(store.beginOperation(1, 'saving'), null);
+  assert(store.beginOperation(2, 'saving')); assert.equal(store.viewModel(2).savingToVault, true);
 });
-
-test("TabStateManager - non-destructive saving preserves existing analysis when transient state is saved", () => {
-  const manager = new TabStateManager();
-
-  // Initial full analysis state
-  manager.saveActiveTabState(10, {
-    extractedContent: { title: "NutEgg Paper", content: "Content here" },
-    analysisResult: { titleVerdict: "Good read", stage: "stage1" },
-    currentNutId: 42,
-    captureHistory: [{ nutId: 42 }],
-  });
-
-  // Now simulate a fast tab switch where transient globals are null during loading
-  manager.saveActiveTabState(10, {
-    extractedContent: null,
-    analysisResult: null,
-    currentNutId: null,
-    captureHistory: [],
-  });
-
-  const restored = manager.restoreTabState(10);
-  // Must preserve previously cached analysis & content!
-  assert.equal(restored.extractedContent?.title, "NutEgg Paper");
-  assert.equal(restored.analysisResult?.titleVerdict, "Good read");
-  assert.equal(restored.currentNutId, 42);
-  assert.equal(restored.captureHistory.length, 1);
+test('failure keeps the old successful result and view, without unread completion', () => {
+  const { store } = fixture(); seed(store, 1, { titleVerdict: 'Old' });
+  store.dispatch({ type: 'view', tabId: 1, view: 'capture' });
+  const ctx = store.beginOperation(1, 'analysis');
+  store.commitOperation(ctx.token, { type: 'operationFailed', error: 'Failed' });
+  assert.equal(store.getTab(1).analysisResult.titleVerdict, 'Old'); assert.equal(store.getTab(1).currentView, 'capture');
+  assert.equal(store.getAnalysisActivity().length, 0);
 });
-
-test("TabStateManager - error tracking (setError, getError, clearError)", () => {
-  const manager = new TabStateManager();
-
-  manager.setError(20, "Connection closed before response received", "ERR_CLOSED");
-  assert.equal(manager.getStatus(20), "error");
-  const err = manager.getError(20);
-  assert.equal(err?.message, "Connection closed before response received");
-  assert.equal(err?.code, "ERR_CLOSED");
-
-  manager.clearError(20);
-  assert.equal(manager.getError(20), null);
-  assert.equal(manager.getStatus(20), "idle");
+test('restoration does not rewrite global defaults; diagnostics omit input data and are bounded', () => {
+  const { store } = fixture();
+  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: false } });
+  store.activateTab(2); assert.equal(store.viewModel().generateKnowledgeEntries, true);
+  store.activateTab(1); assert.equal(store.viewModel().generateKnowledgeEntries, false);
+  store.diagnosticsEnabled = true;
+  for (let i = 0; i < 210; i++) { const ctx = store.beginOperation(1, 'extraction', { secret: 'SECRET' }); store.commitOperation(ctx.token, { type: 'operationFinished' }); }
+  assert.equal(store.diagnostics.length, 200); assert(!JSON.stringify(store.diagnostics).includes('SECRET'));
 });
-
-test("TabStateManager - atomic tab switching (switchActiveTab)", () => {
-  const manager = new TabStateManager();
-  manager.setActiveTabId(1);
-
-  // Tab 1 state to save on departing
-  const departingState = {
-    extractedContent: { title: "Tab 1 Title" },
-    analysisResult: { stage: "stage1" },
-  };
-
-  // Switch to Tab 2
-  const res = manager.switchActiveTab(2, departingState);
-  assert.equal(res.fromTabId, 1);
-  assert.equal(res.toTabId, 2);
-  assert.equal(manager.getActiveTabId(), 2);
-
-  // Check Tab 1 was safely saved
-  const tab1 = manager.restoreTabState(1);
-  assert.equal(tab1.extractedContent.title, "Tab 1 Title");
+test('extraction errors do not clear analysis errors or warnings owned by other operations', () => {
+  const { store } = fixture(); const a = store.beginOperation(1, 'analysis');
+  store.commitOperation(a.token, { type: 'operationFailed', error: 'Analysis failed' });
+  const x = store.beginOperation(1, 'extraction');
+  store.commitOperation(x.token, { type: 'extracted', content: { content: 'New content' } });
+  assert.equal(store.getTab(1).errors.analysis.message, 'Analysis failed');
 });
-
-test("TabStateManager - warning tracking (setWarning, getWarning, clearWarning)", () => {
-  const manager = new TabStateManager();
-
-  assert.equal(manager.getWarning(30), null);
-  manager.setWarning(30, "Could not extract content from restricted page");
-  assert.equal(manager.getWarning(30), "Could not extract content from restricted page");
-
-  manager.clearWarning(30);
-  assert.equal(manager.getWarning(30), null);
-});
-
-test("TabStateManager - saveActiveTabState and restoreTabState preserves warning, duplicate, and extractionFailed", () => {
-  const manager = new TabStateManager();
-
-  manager.saveActiveTabState(40, {
-    warning: "Restricted URL",
-    duplicate: "Note already exists",
-    extractionFailed: true,
-  });
-
-  const restored = manager.restoreTabState(40);
-  assert.equal(restored.warning, "Restricted URL");
-  assert.equal(restored.duplicate, "Note already exists");
-  assert.equal(restored.extractionFailed, true);
-});
-
-

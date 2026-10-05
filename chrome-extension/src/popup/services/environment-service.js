@@ -1,254 +1,47 @@
-// ============================================================
-// NutEgg Popup Services — Environment & Server Status Service
-// ============================================================
-
-/**
- * Manages checking Obsidian server connectivity, Chrome AI fallback status,
- * AI credit / token balance, version compatibility, and metrics sync.
- */
+// Global environment requests are deduplicated and never mutate tab UI.
 class EnvironmentService {
-  constructor(options = {}) {
-    this.settings = options.settings;
-    this._headerUI = options.headerUI || null;
-    this._bannersUI = options.bannersUI || null;
-    this._metricsUI = options.metricsUI || null;
-    this.helper = options.helper || globalThis.helper || {};
-    this.t = options.t || ((key, params) => (typeof window !== "undefined" && window.NutEggI18n ? window.NutEggI18n.t(key, params) : key));
+  constructor({ settings, store, chromeApi = chrome }) { this.settings = settings; this.store = store; this.chromeApi = chromeApi; this.task = null; this.version = 0; }
+  checkServerStatus(force = false) {
+    if (force) { this.version++; this.task = null; }
+    if (this.task) return this.task;
+    const version = ++this.version;
+    const task = this.loadStatus(version).finally(() => { if (this.task === task) this.task = null; });
+    this.task = task; return task;
   }
-
-  get headerUI() {
-    return this._headerUI || (typeof headerUI !== "undefined" ? headerUI : null) || globalThis.headerUI;
+  async loadStatus(version) {
+    let status;
+    try { status = await this.chromeApi.runtime.sendMessage({ action: 'check-server' }); } catch { status = { online: false }; }
+    if (version !== this.version) return;
+    let config = {}, ai = {};
+    try {
+      if (status.online) config = await this.chromeApi.runtime.sendMessage({ action: 'config-status' });
+      else ai = await this.chromeApi.runtime.sendMessage({ action: 'check-chrome-ai' });
+    } catch {}
+    if (version !== this.version) return;
+    const issues = config.issues || [];
+    this.settings.setServerStatus({ online: !!status.online, version: status.version, aiConfigured: !issues.some(i => /no api key|not configured/i.test(i)) });
+    this.settings.setChromeAiStatus({ enabled: !!ai.enabled, configured: !!ai.configured, provider: ai.provider || '', model: ai.model || '' });
+    this.store.dispatch({ type: 'environment', value: { issues, credit: config.credit || null } });
+    void this.fetchMetrics();
+    if (status.online || ai.configured) void this.fetchCredit(version, !!status.online);
   }
-  set headerUI(val) {
-    this._headerUI = val;
+  async fetchCredit(version, online) {
+    try {
+      const credit = await this.chromeApi.runtime.sendMessage({ action: online ? 'get-credit' : 'check-chrome-credit' });
+      if (version !== this.version) return;
+      this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: { ...credit, isChromeAi: !online } } });
+    } catch {}
   }
-
-  get bannersUI() {
-    return this._bannersUI || (typeof bannersUI !== "undefined" ? bannersUI : null) || globalThis.bannersUI;
-  }
-  set bannersUI(val) {
-    this._bannersUI = val;
-  }
-
-  get metricsUI() {
-    return this._metricsUI || (typeof metricsUI !== "undefined" ? metricsUI : null) || globalThis.metricsUI;
-  }
-  set metricsUI(val) {
-    this._metricsUI = val;
-  }
-
-  setUI(ui = {}) {
-    if (ui.headerUI) this._headerUI = ui.headerUI;
-    if (ui.bannersUI) this._bannersUI = ui.bannersUI;
-    if (ui.metricsUI) this._metricsUI = ui.metricsUI;
-  }
-
-  /**
-   * Fetches fresh metrics from Obsidian server and persists them to cache.
-   */
   async fetchMetrics() {
+    const version = this.metricsVersion = (this.metricsVersion || 0) + 1;
     try {
-      const response = await chrome.runtime.sendMessage({ action: "metrics" });
-      if (response && (response.nuts != null || response.eggs != null)) {
-        if (!this.settings?.serverOnline && response.nuts === 0 && response.eggs === 0) {
-          return;
-        }
-        this.metricsUI?.render(response);
-        chrome.storage?.local?.set?.({ cachedMetrics: response });
-      }
-    } catch {
-      // server may not support /metrics yet
-    }
-  }
-
-  /**
-   * Checks Obsidian AI configuration status and version mismatches.
-   */
-  async checkConfigStatus() {
-    try {
-      const response = await chrome.runtime.sendMessage({ action: "config-status" });
-      if (response?.version) {
-        this.settings.obsidianPluginVersion = response.version;
-        this.headerUI?.updateVersion(null, this.settings.obsidianPluginVersion);
-      }
-
-      const issues = Array.isArray(response?.issues) ? [...response.issues] : [];
-      const mismatch = this.helper.getVersionMismatchIssue
-        ? this.helper.getVersionMismatchIssue(response?.version || this.settings.obsidianPluginVersion)
-        : null;
-      if (mismatch && !issues.some((i) => i.includes("Version mismatch"))) {
-        issues.unshift(mismatch);
-      }
-
-      if (issues.length > 0) {
-        this.bannersUI?.showWarning(issues.join(" • "));
-      } else {
-        this.bannersUI?.hideWarning();
-      }
-      if (response?.credit) {
-        this.headerUI?.renderCredit(response.credit, this.settings.serverOnline);
-      }
-    } catch {
-      // handled by server status dot
-    }
-  }
-
-  /**
-   * Checks credit status for Obsidian server.
-   */
-  async checkCreditStatus() {
-    if (!this.settings?.serverOnline) {
-      this.headerUI?.hideCredit();
-      return;
-    }
-    try {
-      const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
-      this.headerUI?.renderCredit(credit, this.settings.serverOnline);
-    } catch {
-      this.headerUI?.hideCredit();
-    }
-  }
-
-  /**
-   * Checks credit status for Chrome AI mode.
-   */
-  async checkChromeCreditStatus() {
-    try {
-      const credit = await chrome.runtime.sendMessage({ action: "check-chrome-credit" });
-      if (credit && !this.settings?.serverOnline) {
-        credit.isChromeAi = true;
-        this.headerUI?.renderCredit(credit, false);
-      }
-    } catch {
-      this.headerUI?.hideCredit();
-    }
-  }
-
-  /**
-   * Updates the server status indicator dot and tooltip in the header.
-   */
-  updateServerStatusIndicator() {
-    if (!this.settings || !this.headerUI) return;
-
-    if (this.settings.serverOnline) {
-      const mismatch = this.helper.getVersionMismatchIssue
-        ? this.helper.getVersionMismatchIssue(this.settings.obsidianPluginVersion)
-        : null;
-      if (mismatch) {
-        this.headerUI.updateServerStatus("obsidian-mismatch", this.settings.obsidianPluginVersion, mismatch);
-      } else if (!this.settings.obsidianAiConfigured) {
-        this.headerUI.updateServerStatus("obsidian-no-key", this.settings.obsidianPluginVersion);
-      } else {
-        this.headerUI.updateServerStatus("obsidian-online", this.settings.obsidianPluginVersion);
-      }
-      return;
-    }
-
-    // Obsidian offline
-    if (this.settings.chromeAiConfigured) {
-      this.headerUI.updateServerStatus("chrome-ai", null, this.settings.chromeAiProvider);
-    } else if (this.settings.chromeAiEnabled) {
-      this.headerUI.updateServerStatus("chrome-no-key", null, this.settings.chromeAiProvider);
-    } else {
-      this.headerUI.updateServerStatus("offline");
-    }
-  }
-
-  /**
-   * Updates offline / key missing capture banners according to environment state.
-   */
-  updateCaptureBanners() {
-    if (!this.settings || !this.bannersUI) return;
-    this.bannersUI.updateCaptureBanners({
-      serverOnline: this.settings.serverOnline,
-      chromeAiEnabled: this.settings.chromeAiEnabled,
-      chromeAiConfigured: this.settings.chromeAiConfigured,
-      obsidianAiConfigured: this.settings.obsidianAiConfigured,
-    });
-  }
-
-  /**
-   * Queries server connection, determines Obsidian vs Chrome AI mode, and updates UI status.
-   */
-  async checkServerStatus(onStatusUpdated) {
-    let online = false;
-    let version = null;
-    try {
-      const response = await chrome.runtime.sendMessage({ action: "check-server" });
-      online = response?.online || false;
-      version = response?.version || null;
-    } catch {
-      online = false;
-      version = null;
-    }
-
-    this.settings.setServerStatus({ online, version, aiConfigured: this.settings.obsidianAiConfigured });
-    this.headerUI?.updateVersion(null, this.settings.obsidianPluginVersion);
-
-    if (this.settings.serverOnline) {
-      try {
-        const config = await chrome.runtime.sendMessage({ action: "config-status" });
-        const issues = config?.issues || [];
-        const aiConfigured = !issues.some((i) =>
-          i.toLowerCase().includes("no api key") ||
-          i.toLowerCase().includes("not configured")
-        );
-        this.settings.setServerStatus({ online: true, version, aiConfigured });
-      } catch {
-        this.settings.setServerStatus({ online: true, version, aiConfigured: true });
-      }
-
-      this.metricsUI?.showPluginLink(false);
-
-      const mismatch = this.helper.getVersionMismatchIssue
-        ? this.helper.getVersionMismatchIssue(this.settings.obsidianPluginVersion)
-        : null;
-      if (mismatch) {
-        this.bannersUI?.showWarning(mismatch);
-      } else {
-        this.updateServerStatusIndicator();
-      }
-    } else {
-      try {
-        const chromeAi = await chrome.runtime.sendMessage({ action: "check-chrome-ai" });
-        this.settings.setChromeAiStatus({
-          enabled: chromeAi?.enabled || false,
-          configured: chromeAi?.configured || false,
-          provider: chromeAi?.provider || "",
-          model: chromeAi?.model || "",
-        });
-      } catch {
-        this.settings.setChromeAiStatus({ enabled: false, configured: false });
-      }
-
-      if (!this.settings.chromeAiConfigured) this.headerUI?.hideCredit();
-
-      this.metricsUI?.showPluginLink(true);
-      this.updateServerStatusIndicator();
-    }
-
-    this.updateCaptureBanners();
-    if (typeof onStatusUpdated === "function") {
-      onStatusUpdated();
-    }
-
-    // Balance is supplementary UI, not readiness. Some providers' credit
-    // endpoints have no timeout; never hold page extraction behind them.
-    if (this.settings.serverOnline) {
-      void this.checkCreditStatus();
-    } else if (this.settings.chromeAiConfigured) {
-      void this.checkChromeCreditStatus();
-    }
+      const metrics = await this.chromeApi.runtime.sendMessage({ action: 'metrics' });
+      if (metrics?.nuts == null || version !== this.metricsVersion) return;
+      this.store.dispatch({ type: 'metrics', value: metrics });
+      void this.chromeApi.storage?.local?.set?.({ cachedMetrics: metrics });
+    } catch {}
   }
 }
-
-// Browser global namespace attachment
-if (typeof globalThis !== "undefined") {
-  globalThis.NutEggServices = globalThis.NutEggServices || {};
-  globalThis.NutEggServices.EnvironmentService = EnvironmentService;
-}
-
-// CommonJS export for Node test environments
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = { EnvironmentService };
-}
+globalThis.NutEggServices = globalThis.NutEggServices || {};
+globalThis.NutEggServices.EnvironmentService = EnvironmentService;
+if (typeof module !== 'undefined' && module.exports) module.exports = { EnvironmentService };

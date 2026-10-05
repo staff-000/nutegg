@@ -27,6 +27,7 @@ class ActionControlsComponent {
     this.stage1SkipBtn = root.getElementById("stage1-skip-btn");
 
     this.confirmBtn = root.getElementById("confirm-btn");
+    this.confirmBtnWrap = root.getElementById("confirm-btn-wrap");
     this.collectNutBtn = root.getElementById("collect-nut-btn");
     this.discardBtn = root.getElementById("discard-btn");
     this.backBtn = root.getElementById("back-btn");
@@ -368,70 +369,66 @@ class ActionControlsComponent {
     }
   }
 
-  render(session, settings) {
-    this.updateEggAnalysisLabel(session?.generateKnowledgeEntries !== false);
-    if (!settings && !session) return;
-    if (settings?.analysisMode) {
-      this.setMode(settings.analysisMode);
+  render(view, settings) {
+    const result = view.analysisResult;
+    const chromeMode = settings.isChromeMode(result);
+    const stage1 = view.isStage1?.() || false;
+    const busy = !!view.busy;
+    const analyzing = !!view.isAnalyzing;
+    const saving = !!view.savingToVault;
+    const hatching = saving && view.operations.saving.phase === 'hatch';
+    const collecting = saving && view.operations.saving.phase === 'collect';
+    const ready = !view.currentTabLoading && !view.extractionPending;
+    const blocked = globalThis.NutEggHelpers?.getAnalyzeNotReadyReason?.(view, settings);
+    const analyzeDisabled = busy || !ready || !!blocked;
+    const entries = (result?.newKnowledge?.length || 0) > 0;
+    const operationLabel = saving ? t(hatching ? 'hatching' : 'collecting') : analyzing ? t(view.analyzingEggs ? 'analyzingEggs' : 'analyzing')
+      : view.operations?.followup?.running ? t('askingBtn') : view.operations?.creation?.running ? t('creatingEgg') : t('analyzing');
+    const hatchReason = view.eggHatched ? t('hatchAlreadySaved') : busy ? t('hatchWaitForOperation', { operation: operationLabel })
+      : !entries ? t('noNewKnowledgeToAdd') : '';
+    const hatchHidden = chromeMode || !result || stage1;
+    const set = (element, disabled, text, hidden = false, title = '') => {
+      if (!element) return;
+      element.disabled = !!disabled; element.title = title;
+      if (text != null) element.textContent = text;
+      element.classList.toggle('hidden', !!hidden);
+    };
+    this.setMode(settings.analysisMode);
+    if (busy || chromeMode || !result) this.toggleEggAnalysisMenu(false);
+    this.updateEggAnalysisLabel(view.generateKnowledgeEntries);
+    set(this.analyzeBtn, analyzeDisabled, null, false, blocked || '');
+    this.analyzeBtn?.classList.toggle('inactive', analyzeDisabled);
+    if (this.analyzeBtnText) this.analyzeBtnText.textContent = t(analyzing ? 'analyzing' : 'analyze');
+    set(this.reanalyzeBtn, analyzeDisabled, t(analyzing ? 'analyzing' : 'reanalyze'), false, blocked || '');
+    this.reanalyzeBtn?.classList.toggle('inactive', analyzeDisabled);
+    set(this.reanalyzeRefreshBtn, busy || !ready, null);
+    this.reanalyzeRefreshBtn?.classList.toggle('rotating', !!view.extractionPending);
+    set(this.viewAnalysisBtn, !result, t('viewAnalysis'), !result);
+    set(this.stage1ProceedBtn, busy || !view.selectedEggs?.size, null, chromeMode || !result);
+    if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t(view.analyzingEggs ? 'analyzingEggs' : analyzing ? 'analyzing' : !view.selectedEggs?.size ? 'eggAnalysisSelectEgg' : 'eggAnalysis');
+    set(this.eggAnalysisOnlyBtn, busy, `${view.generateKnowledgeEntries ? '' : '✓ '}${t('eggAnalysisOnly')}`);
+    set(this.eggAnalysisWithKnowledgeBtn, busy, `${view.generateKnowledgeEntries ? '✓ ' : ''}${t('eggAnalysisWithKnowledge')}`);
+    this.stage1ConfirmBox?.classList.toggle('hidden', chromeMode || !result);
+    this.stage1ConfirmBox?.classList.toggle('stage1-saved', !!view.nutCollected);
+    if (this.stage1ConfirmText) this.stage1ConfirmText.innerHTML = t(view.nutCollected ? 'stage1NutSavedNotice' : view.selectedEggs?.size ? 'stage1SelectedNotice' : view.allEggs?.length ? 'stage1NoSelectedNotice' : 'stage1NoEggsNotice', { count: view.selectedEggs?.size || 0 });
+    const icon = this.root.querySelector?.('.stage1-confirm-icon');
+    if (icon) icon.textContent = view.nutCollected ? '✅' : '🥚';
+    set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : view.eggHatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason);
+    if (this.confirmBtnWrap) {
+      this.confirmBtnWrap.title = hatchReason;
+      this.confirmBtnWrap.classList.toggle('hidden', !!hatchHidden);
     }
-
-    const result = session?.analysisResult;
-    const isChrome = settings ? settings.isChromeMode() : false;
-    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result?.stage === "stage1" || result?.mode === "chrome");
-
-    if (result) {
-      if (isChrome) {
-        this.hideStage1Confirm();
-        this.setConfirmButtonVisible(false);
-        this.setCollectNutButtonVisible(false);
-      } else {
-        this.setCollectNutButtonVisible(true);
-        this.showStage1Confirm();
-        this.setConfirmButtonVisible(!isStage1);
-      }
-
-      this.updateActionButtons({
-        isChromeMode: isChrome,
-        isStage1,
-        nutCollected: Boolean(session?.nutCollected),
-        eggHatched: Boolean(session?.eggHatched),
-        hasDelta: Boolean(result?.eggResults?.some(egg => egg.extractedEntries?.length)),
-      });
-
-      if (!isChrome) {
-        this.updateStage1ProceedBtn({
-          selectedCount: session?.selectedEggs?.size || 0,
-          totalEggsCount: session?.allEggs?.length || 0,
-          isProceeding: Boolean(session?.isAnalyzing || session?.isReanalyzing),
-        });
-        if (this.stage1SkipBtn) {
-          this.stage1SkipBtn.disabled = Boolean(session?.nutCollected);
-          this.stage1SkipBtn.textContent = t(session?.nutCollected ? "nutCollected" : "collectNutOnly");
-        }
-      }
-    } else {
-      this.hideStage1Confirm();
-      this.setConfirmButtonVisible(false);
-      this.setCollectNutButtonVisible(false);
-    }
-
-    // Analyze buttons
-    this.updateAnalyzeState({
-      isAnalyzing: Boolean(session?.isAnalyzing),
-      canAnalyze: session?.canAnalyze !== false,
-      notReadyReason: session?.notReadyReason || null,
-      isTranscriptBlocked: Boolean(session?.isTranscriptBlocked),
-      currentTabLoading: Boolean(session?.currentTabLoading),
-      extractionPending: Boolean(session?.extractionPending),
-      hasContent: Boolean(session?.extractedContent?.content),
-      hasAnalysisResult: Boolean(session?.analysisResult),
-    });
-
-    // History select
-    if (session?.captureHistory) {
-      this.renderHistory(session.captureHistory, session.currentNutId);
-    }
+    set(this.collectNutBtn, busy || view.nutCollected, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNut'), chromeMode || !result);
+    set(this.stage1SkipBtn, busy || view.nutCollected, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'));
+    set(this.historySelect, busy, null, (view.captureHistory?.length || 0) < 2);
+    set(this.backBtn, false, t('back'));
+    this.showProcessedNote(result ? t(analyzing ? 'analyzingContent' : 'analysisCompleteAdjust') : '');
+    this.processedNote?.classList.toggle('hidden', !result);
+    const key = JSON.stringify([view.currentNutId, view.captureHistory]);
+    if (key !== this.historyKey) { this.historyKey = key; this.renderHistory(view.captureHistory || [], view.currentNutId); }
+    if (this.historySelect) this.historySelect.disabled = busy;
   }
+
 }
 
 const _actionsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
@@ -441,4 +438,3 @@ _actionsScope.NutEggUI.ActionControlsComponent = ActionControlsComponent;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { ActionControlsComponent };
 }
-

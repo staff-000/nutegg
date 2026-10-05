@@ -99,12 +99,8 @@ function _renderCustomQuestions(options = {}) {
   const listEl = options.customQuestionsList || (typeof customQuestionsList !== "undefined" ? customQuestionsList : (typeof document !== "undefined" ? document.getElementById("custom-questions-list") : null));
   const inputEl = options.followupInput || (typeof followupInput !== "undefined" ? followupInput : (typeof document !== "undefined" ? document.getElementById("followup-input") : null));
 
-  const questions = options.questions !== undefined
-    ? options.questions
-    : (typeof analysisResult !== "undefined" ? analysisResult?.customQuestionAnswers : []) || [];
-  const followUps = options.followUps !== undefined
-    ? options.followUps
-    : (typeof followUpQa !== "undefined" ? followUpQa : []) || [];
+  const questions = options.questions || [];
+  const followUps = options.followUps || [];
 
   const all = [...(questions || []), ...(followUps || [])];
 
@@ -151,7 +147,7 @@ function _renderCustomQuestions(options = {}) {
 
 /** All Q&A seen so far — context so follow-ups can refer back instead of repeating. */
 function buildPriorQa(res, qaList) {
-  const targetRes = res !== undefined ? res : (typeof analysisResult !== "undefined" ? analysisResult : null);
+  const targetRes = res || null;
   const targetQaList = qaList !== undefined ? qaList : (typeof followUpQa !== "undefined" ? followUpQa : []);
   const eggQa = (targetRes?.eggResults || []).flatMap(
     (r) => r.keyQuestionAnswers || []
@@ -251,7 +247,7 @@ class QaComponent {
     }
 
     let questions = [];
-    let followUps = [];
+    let followUps = Array.isArray(secondArg) ? secondArg : [];
     if (firstArg && typeof firstArg === "object") {
       if (Array.isArray(firstArg.questions)) {
         questions = firstArg.questions;
@@ -311,4 +307,3 @@ if (typeof module !== "undefined" && module.exports) {
     renderQaSources,
   };
 }
-

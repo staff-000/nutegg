@@ -86,6 +86,9 @@ Connecting the extension to Obsidian is automatic:
 
 ## 🔗 Related Repositories
 
+Popup developers: see [tab state, async operations and diagnostics](src/popup/README.md)
+for ownership rules, race-condition tests and the concurrent-tab verification steps.
+
 - **Main Repository (Monorepo)**: [staff-000/nutegg](https://github.com/staff-000/nutegg)
 - **Obsidian Plugin Release**: [staff-000/nutegg-obsidian-release](https://github.com/staff-000/nutegg-obsidian-release)
 

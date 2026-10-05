@@ -75,9 +75,7 @@ class SectionChipsComponent {
     if (this.sectionsToggle && !this.sectionsToggle._hasAccordionListener) {
       this.sectionsToggle._hasAccordionListener = true;
       this.sectionsToggle.addEventListener("click", () => {
-        const isHidden = this.sectionsBody?.classList.toggle("hidden");
-        if (this.sectionsChevron) this.sectionsChevron.textContent = isHidden ? "▸" : "▾";
-        this.sectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
+        options.onExpand?.('sectionsExpanded');
       });
     }
 
@@ -85,9 +83,7 @@ class SectionChipsComponent {
     if (this.reanalyzeSectionsToggle && !this.reanalyzeSectionsToggle._hasAccordionListener) {
       this.reanalyzeSectionsToggle._hasAccordionListener = true;
       this.reanalyzeSectionsToggle.addEventListener("click", () => {
-        const isHidden = this.reanalyzeSectionsBody?.classList.toggle("hidden");
-        if (this.reanalyzeSectionsChevron) this.reanalyzeSectionsChevron.textContent = isHidden ? "▸" : "▾";
-        this.reanalyzeSectionsToggle?.setAttribute("aria-expanded", String(!isHidden));
+        options.onExpand?.('reanalyzeSectionsExpanded');
       });
     }
 
@@ -119,6 +115,17 @@ class SectionChipsComponent {
       };
       el.addEventListener("click", el._chipClickListener);
     });
+  }
+
+  renderPresentation(presentation) {
+    for (const [body, chevron, toggle, expanded] of [
+      [this.sectionsBody, this.sectionsChevron, this.sectionsToggle, presentation.sectionsExpanded],
+      [this.reanalyzeSectionsBody, this.reanalyzeSectionsChevron, this.reanalyzeSectionsToggle, presentation.reanalyzeSectionsExpanded],
+    ]) {
+      body?.classList.toggle('hidden', !expanded);
+      if (chevron) chevron.textContent = expanded ? '▾' : '▸';
+      toggle?.setAttribute('aria-expanded', String(!!expanded));
+    }
   }
 
   updateUI(enabledSections = {}, generateKnowledgeEntries = true) {
@@ -171,4 +178,3 @@ _chipsScope.NutEggUI.SectionChipsComponent = SectionChipsComponent;
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { SectionChipsComponent };
 }
-

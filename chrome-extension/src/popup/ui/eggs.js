@@ -26,8 +26,8 @@ function cleanEggName(fileName) {
 function _renderCaptureEggsList(options = {}) {
   const listEl = options.captureEggsList || (typeof captureEggsList !== "undefined" ? captureEggsList : (typeof document !== "undefined" ? document.getElementById("capture-eggs-list") : null));
   const toggleEl = options.captureEggsToggle || (typeof captureEggsToggle !== "undefined" ? captureEggsToggle : (typeof document !== "undefined" ? document.getElementById("capture-eggs-toggle") : null));
-  const eggs = options.allEggs || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
-  const selected = options.preSelectedEggs || (typeof preSelectedEggs !== "undefined" ? preSelectedEggs : (typeof window !== "undefined" ? window.preSelectedEggs : null)) || new Set();
+  const eggs = options.allEggs || [];
+  const selected = options.preSelectedEggs || new Set();
   const onLabelUpdate = options.updateLabel || (typeof updateCaptureEggsLabel === "function" ? updateCaptureEggsLabel : null);
 
   if (!listEl || !toggleEl) return;
@@ -52,6 +52,7 @@ function _renderCaptureEggsList(options = {}) {
       const name = ev.target.dataset.captureEgg;
       if (ev.target.checked) selected.add(name);
       else selected.delete(name);
+      options.onSelectChange?.(new Set(selected));
       if (onLabelUpdate) onLabelUpdate();
     });
   });
@@ -60,7 +61,7 @@ function _renderCaptureEggsList(options = {}) {
 
 function _updateCaptureEggsLabel(options = {}) {
   const labelEl = options.captureEggsLabel || (typeof captureEggsLabel !== "undefined" ? captureEggsLabel : (typeof document !== "undefined" ? document.getElementById("capture-eggs-label") : null));
-  const selected = options.preSelectedEggs || (typeof preSelectedEggs !== "undefined" ? preSelectedEggs : (typeof window !== "undefined" ? window.preSelectedEggs : null)) || new Set();
+  const selected = options.preSelectedEggs || new Set();
   if (!labelEl) return;
   if (selected.size === 0) {
     labelEl.textContent = t("autoDetect");
@@ -73,13 +74,12 @@ function _updateCaptureEggsLabel(options = {}) {
 }
 
 /**
- * Render the egg picker: the matched eggs are checked; changing any box
- * reveals the "Re-analyze with selected eggs" button.
+ * Render the selected eggs supplied by the store; changes dispatch new selections.
  */
 function _renderEggsSection(firstArg = [], options = {}) {
   const matchedEggs = Array.isArray(firstArg) ? firstArg : (firstArg?.matchedEggs || []);
   const opts = Array.isArray(firstArg) ? options : (firstArg || {});
-  const rawEggs = opts.allEggs || (typeof session !== "undefined" ? session.allEggs : null) || (typeof allEggs !== "undefined" ? allEggs : (typeof window !== "undefined" ? window.allEggs : [])) || [];
+  const rawEggs = opts.allEggs || [];
   const eggs = rawEggs.map((e) => (typeof e === "string" ? { fileName: e, description: "", topic: "" } : { ...e }));
   // Include matched eggs that are missing from the index list (index drift)
   for (const m of matchedEggs) {
@@ -115,16 +115,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
     return;
   }
 
-  if (typeof selectedEggs !== "undefined") {
-    selectedEggs = new Set(matchedEggs);
-  }
-  const currentSelected = opts.selectedEggs || (typeof session !== "undefined" ? session.selectedEggs : null) || (typeof selectedEggs !== "undefined" ? selectedEggs : (typeof window !== "undefined" ? window.selectedEggs : null)) || new Set();
-  if (currentSelected.size === 0 && Array.isArray(matchedEggs) && matchedEggs.length > 0) {
-    matchedEggs.forEach((m) => {
-      const name = typeof m === "string" ? m : m?.fileName;
-      if (name) currentSelected.add(name);
-    });
-  }
+  const currentSelected = new Set(opts.selectedEggs || []);
 
   if (sectionEl) sectionEl.classList.remove("hidden");
   const shouldExpand = opts.expand === true || (expandedEl && !expandedEl.classList.contains("hidden"));
@@ -157,9 +148,7 @@ function _renderEggsSection(firstArg = [], options = {}) {
         if (ev.target.checked) currentSelected.add(name);
         else currentSelected.delete(name);
         if (opts.onSelectChange) {
-          opts.onSelectChange(name, ev.target.checked);
-        } else if (typeof updateStage1ProceedBtn === "function") {
-          updateStage1ProceedBtn();
+          opts.onSelectChange(new Set(currentSelected));
         }
       });
     });
@@ -410,7 +399,6 @@ class EggsComponent {
   setNoEggVisible(visible) {
     if (visible) {
       this.noEggSection?.classList.remove("hidden");
-      this.clearNewEggInput();
     } else {
       this.noEggSection?.classList.add("hidden");
     }
@@ -426,66 +414,19 @@ class EggsComponent {
     }
   }
 
-  render(session, settings) {
-    const result = session?.analysisResult;
-    const isChrome = settings ? settings.isChromeMode() : false;
-    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result?.stage === "stage1" || result?.mode === "chrome");
-
-    if (!result || isChrome) {
-      this.setNoEggVisible(false);
-      this.setKnowledgeVisible(false);
-      if (this.eggsSection) this.eggsSection.classList.add("hidden");
-      return;
-    }
-
-    const eggResults = isStage1 ? [] : (result.eggResults || []);
-
-
-    if (session?.isReanalyzing) {
-      this.setNoEggVisible(false);
-      this.setKnowledgeVisible(false);
-    } else {
-      // No egg matched banner
-      const noEgg = (result.matchedEggs || []).length === 0;
-      this.setNoEggVisible(noEgg);
-
-      // Egg knowledge section
-      this.renderKnowledge({
-        eggResults,
-        activeEggTab: session?.activeEggTab,
-        onTabChange: (tab) => {
-          if (session) session.activeEggTab = tab;
-        },
-      });
-    }
-
-    // Populate session.selectedEggs if empty and matched eggs exist
-    if (session?.selectedEggs && session.selectedEggs.size === 0 && Array.isArray(result.matchedEggs) && result.matchedEggs.length > 0) {
-      result.matchedEggs.forEach((egg) => session.selectedEggs.add(egg));
-    }
-
-    // Checklist of eggs
-    const allVaultEggs = session?.allEggs || settings?.allEggs || [];
-    this.renderSection({
-      matchedEggs: result.matchedEggs || [],
-      allEggs: allVaultEggs,
-      selectedEggs: session?.selectedEggs,
-      onSelectChange: () => {
-        if (typeof updateStage1ProceedBtn === "function") {
-          updateStage1ProceedBtn();
-        }
-      },
-    });
-
-    if (this.eggsSection) {
-      this.eggsSection.classList.remove("hidden");
-    }
-
-    const shouldExpand = isStage1 && (settings?.analysisMode === "confirm" || (result?.matchedEggs || []).length === 0);
-    if (shouldExpand) {
-      this.expandEggsList(true);
-    }
+  render(view, settings, callbacks = {}) {
+    const result = view.analysisResult;
+    const visible = !!result && !settings.isChromeMode(result);
+    this.eggsSection?.classList.toggle('hidden', !visible);
+    this.setNoEggVisible(visible && !view.isAnalyzing && !(result.matchedEggs || []).length);
+    this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
+    this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
+    this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange });
+    this.eggsSection?.classList.toggle('hidden', !visible);
+    this.expandEggsList(view.presentation?.eggsExpanded || (view.isStage1?.() && (settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length)));
+    this.eggsSection?.classList.toggle('hidden', !visible);
   }
+
 }
 
 const _eggScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
@@ -497,4 +438,3 @@ if (typeof module !== "undefined" && module.exports) {
     EggsComponent,
   };
 }
-

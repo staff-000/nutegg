@@ -382,7 +382,7 @@
       </div>
 
       <div class="action-buttons">
-        <button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🐣 Hatch Egg</button>
+        <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🐣 Hatch Egg</button></span>
         <button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button>
         <button id="discard-btn" class="discard-btn" data-i18n="discard">Discard</button>
         <button id="back-btn" class="back-btn" data-i18n="back">← Back</button>
@@ -413,12 +413,11 @@
   <script defer src="helpers.js"></script>
   <script defer src="state/tab-state.js"></script>
   <script defer src="state/settings-state.js"></script>
-  <script defer src="state/session-state.js"></script>
   <script defer src="services/page-extractor.js"></script>
   <script defer src="../../dist/ai-core.js"></script>
   <script defer src="services/analysis-service.js"></script>
   <script defer src="services/environment-service.js"></script>
-  <script defer src="ui/collapsible.js"></script>
+  <script defer src="services/popup-operations.js"></script>
   <script defer src="ui/mindmap.js"></script>
   <script defer src="ui/qa.js"></script>
   <script defer src="ui/eggs.js"></script>
@@ -431,6 +430,7 @@
   <script defer src="ui/action-controls.js"></script>
   <script defer src="ui/results-view.js"></script>
   <script defer src="ui/metrics.js"></script>
+  <script defer src="ui/popup-renderer.js"></script>
   <script defer src="action/tab.js"></script>
   <script defer src="action/analyze.js"></script>
   <script defer src="action/save.js"></script>

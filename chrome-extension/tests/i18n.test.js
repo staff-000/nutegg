@@ -76,6 +76,8 @@ describe("Chrome Extension i18n", () => {
       "analyzeAgain",
       "viewAnalysis",
       "analyzingEggs",
+      "cachedEggAnalysisShown",
+      "hatchAlreadySaved", "hatchWaitForOperation",
       "reanalyze",
       "loadAndReanalyze",
       "countMatched",
@@ -105,4 +107,3 @@ describe("Chrome Extension i18n", () => {
     }
   });
 });
-

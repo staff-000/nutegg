@@ -16,6 +16,9 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "hatchAlreadySaved": "This knowledge has already been saved to the egg.",
+    "hatchWaitForOperation": "{operation} Please wait until it finishes before hatching.",
+    "cachedEggAnalysisShown": "Showing cached egg analysis. No new AI request was needed.",
     "activityRunningCount": "{count} running",
     "activityUnreadCount": "{count} unread",
     "activityUnread": "Completed, unread",
@@ -343,6 +346,9 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "hatchAlreadySaved": "这些知识已保存到 Egg。",
+    "hatchWaitForOperation": "{operation} 请等待当前操作完成后再孵化。",
+    "cachedEggAnalysisShown": "已显示缓存的 Egg 分析，无需再次请求 AI。",
     "activityRunningCount": "{count} 个运行中",
     "activityUnreadCount": "{count} 个未读",
     "activityUnread": "已完成，未读",
@@ -670,6 +676,9 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "hatchAlreadySaved": "Este conocimiento ya se ha guardado en el Egg.",
+    "hatchWaitForOperation": "{operation} Espera a que termine antes de guardar en el Egg.",
+    "cachedEggAnalysisShown": "Se muestra el análisis de Egg en caché. No fue necesaria otra solicitud a la IA.",
     "activityRunningCount": "{count} en curso",
     "activityUnreadCount": "{count} sin leer",
     "activityUnread": "Completados, sin leer",
@@ -997,6 +1006,9 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "hatchAlreadySaved": "この知識はすでに Egg に保存されています。",
+    "hatchWaitForOperation": "{operation} 完了してから Egg に保存してください。",
+    "cachedEggAnalysisShown": "キャッシュ済みの Egg 分析を表示しました。AI への再リクエストは不要でした。",
     "activityRunningCount": "{count}件実行中",
     "activityUnreadCount": "{count}件未読",
     "activityUnread": "完了・未読",
@@ -1324,6 +1336,9 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "hatchAlreadySaved": "이 지식은 이미 Egg에 저장되었습니다.",
+    "hatchWaitForOperation": "{operation} 완료된 후 Egg에 저장해 주세요.",
+    "cachedEggAnalysisShown": "캐시된 Egg 분석을 표시했습니다. 새로운 AI 요청은 필요하지 않았습니다.",
     "activityRunningCount": "{count}개 실행 중",
     "activityUnreadCount": "{count}개 읽지 않음",
     "activityUnread": "완료, 읽지 않음",
@@ -1651,6 +1666,9 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "hatchAlreadySaved": "تم حفظ هذه المعرفة بالفعل في Egg.",
+    "hatchWaitForOperation": "{operation} يُرجى الانتظار حتى تكتمل العملية قبل الحفظ في Egg.",
+    "cachedEggAnalysisShown": "تم عرض تحليل Egg المخزّن مؤقتًا. لم تكن هناك حاجة إلى طلب جديد للذكاء الاصطناعي.",
     "activityRunningCount": "{count} قيد التشغيل",
     "activityUnreadCount": "{count} غير مقروء",
     "activityUnread": "مكتمل، غير مقروء",
@@ -1978,6 +1996,9 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "hatchAlreadySaved": "Ces connaissances ont déjà été enregistrées dans l’Egg.",
+    "hatchWaitForOperation": "{operation} Attendez la fin de cette opération avant d’enregistrer dans l’Egg.",
+    "cachedEggAnalysisShown": "Analyse Egg en cache affichée. Aucune nouvelle requête à l’IA n’était nécessaire.",
     "activityRunningCount": "{count} en cours",
     "activityUnreadCount": "{count} non lus",
     "activityUnread": "Terminés, non lus",
@@ -2305,6 +2326,9 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "hatchAlreadySaved": "Dieses Wissen wurde bereits im Egg gespeichert.",
+    "hatchWaitForOperation": "{operation} Warte, bis der Vorgang abgeschlossen ist, bevor du im Egg speicherst.",
+    "cachedEggAnalysisShown": "Die zwischengespeicherte Egg-Analyse wird angezeigt. Eine neue KI-Anfrage war nicht erforderlich.",
     "activityRunningCount": "{count} laufen",
     "activityUnreadCount": "{count} ungelesen",
     "activityUnread": "Abgeschlossen, ungelesen",
@@ -2632,6 +2656,9 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "hatchAlreadySaved": "Este conhecimento já foi salvo no Egg.",
+    "hatchWaitForOperation": "{operation} Aguarde a conclusão antes de salvar no Egg.",
+    "cachedEggAnalysisShown": "Análise de Egg em cache exibida. Não foi necessário outro pedido à IA.",
     "activityRunningCount": "{count} em execução",
     "activityUnreadCount": "{count} não lidos",
     "activityUnread": "Concluídos, não lidos",
@@ -2959,6 +2986,9 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "hatchAlreadySaved": "Эти знания уже сохранены в Egg.",
+    "hatchWaitForOperation": "{operation} Дождитесь завершения операции перед сохранением в Egg.",
+    "cachedEggAnalysisShown": "Показан сохранённый анализ Egg. Новый запрос к ИИ не потребовался.",
     "activityRunningCount": "{count} выполняются",
     "activityUnreadCount": "{count} не прочитаны",
     "activityUnread": "Завершены, не прочитаны",

@@ -41,7 +41,7 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries"],
+          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics"],
           resolve
         );
       });
@@ -128,10 +128,10 @@ class SettingsState {
 
   /**
    * Determine whether Chrome AI fallback mode is active for analysis or results.
-   * If resultOrMode is omitted, inspects active session.analysisResult or server connection status.
+   * Without a result, uses the global server connection status.
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
-    const res = resultOrMode || (typeof session !== "undefined" ? session.analysisResult : null);
+    const res = resultOrMode;
     const mode = typeof res === "string" ? res : res?.mode;
     if (mode === "chrome") return true;
     if (!this.serverOnline) {

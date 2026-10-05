@@ -1913,6 +1913,11 @@ body {
   margin-bottom: 8px;
 }
 
+.confirm-btn-wrap { display: flex; flex: 1; min-width: 0; }
+.confirm-btn-wrap[title]:not([title=""]) { cursor: not-allowed; }
+/* Hover the wrapper so the explanation works even for a disabled button. */
+.confirm-btn-wrap > button:disabled { pointer-events: none; }
+
 .confirm-btn {
   flex: 1;
   min-width: 0;

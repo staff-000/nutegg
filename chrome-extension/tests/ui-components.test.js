@@ -15,7 +15,7 @@ const { MindmapComponent } = require("../src/popup/ui/mindmap.js");
 const { QaComponent } = require("../src/popup/ui/qa.js");
 const { EggsComponent } = require("../src/popup/ui/eggs.js");
 const { SettingsState } = require("../src/popup/state/settings-state.js");
-const { SessionState } = require("../src/popup/state/session-state.js");
+const { testView } = require("./helpers/popup-fixture.js");
 const { EnvironmentService } = require("../src/popup/services/environment-service.js");
 
 function createMockElement(id = "") {
@@ -31,7 +31,8 @@ function createMockElement(id = "") {
       add(c) { this._classes.add(c); },
       remove(c) { this._classes.delete(c); },
       contains(c) { return this._classes.has(c); },
-      toggle(c) {
+      toggle(c, force) {
+        if (force !== undefined) { if (force) this._classes.add(c); else this._classes.delete(c); return force; }
         if (this._classes.has(c)) { this._classes.delete(c); return false; }
         this._classes.add(c); return true;
       }
@@ -71,35 +72,6 @@ function createMockRoot() {
 }
 
 describe("Modular UI Components", () => {
-  it("synchronizes Knowledge on both pages with analysis-mode selection in both directions", async () => {
-    const { AnalyzeAction } = require("../src/popup/action/analyze.js");
-    const root = createMockRoot();
-    const sections = new SectionChipsComponent(root);
-    const controls = new ActionControlsComponent(root);
-    const session = { generateKnowledgeEntries: true, enabledSections: { mindMap: true } };
-    const action = new AnalyzeAction({ session, ui: { sectionsUI: sections, actionsUI: controls } });
-    let analyses = 0;
-    action.handleReanalyzeEggs = async () => { analyses++; };
-    await action.handleEggAnalysis(false);
-    assert.equal(sections.chipKnowledge.classList.contains("inactive"), true);
-    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("inactive"), true);
-    assert.equal(controls.eggAnalysisOnlyBtn.getAttribute("aria-checked"), "true");
-    sections.init({ onToggle: key => {
-      if (key === "generateKnowledgeEntries") action.setGenerateKnowledgeEntries(session.generateKnowledgeEntries === false);
-    } });
-    sections.chipKnowledge.click();
-    assert.equal(session.generateKnowledgeEntries, true);
-    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("active"), true);
-    assert.equal(controls.eggAnalysisWithKnowledgeBtn.getAttribute("aria-checked"), "true");
-    assert.equal(analyses, 1, "Section toggling must not start another analysis");
-    sections.reanalyzeChipKnowledge.click();
-    assert.equal(sections.chipKnowledge.classList.contains("inactive"), true);
-    await action.handleEggAnalysis(true);
-    assert.equal(sections.chipKnowledge.classList.contains("active"), true);
-    assert.equal(sections.reanalyzeChipKnowledge.classList.contains("active"), true);
-    assert.equal(analyses, 2);
-  });
-
   it("runs the current analysis mode from the label and opens choices only from the arrow", async () => {
     const eggs = new ActionControlsComponent(createMockRoot());
     const calls = [];
@@ -144,8 +116,8 @@ describe("Modular UI Components", () => {
     eggs.eggsList.querySelectorAll = () => [checkbox];
     const controls = new ActionControlsComponent(root);
     controls.toggleEggAnalysisMenu(false);
-    const selected = new Set();
-    eggs.renderSection([], { allEggs: [{ fileName: "a.md" }], selectedEggs: selected });
+    let selected = new Set();
+    eggs.renderSection([], { allEggs: [{ fileName: "a.md" }], selectedEggs: selected, onSelectChange: next => { selected = next; } });
     checkbox._listeners.change[0]({ target: checkbox });
     assert.equal(selected.has("a.md"), true);
     assert.equal(controls.eggAnalysisMenu.classList.contains("hidden"), true);
@@ -346,10 +318,12 @@ describe("Modular UI Components", () => {
     assert.ok(chips.sectionsToggle);
 
     let toggledKey = null;
+    const expanded = { sectionsExpanded: false, reanalyzeSectionsExpanded: false };
     chips.init({
       onToggle: (key) => {
         toggledKey = key;
       },
+      onExpand: key => { expanded[key] = !expanded[key]; chips.renderPresentation(expanded); },
     });
 
     // Test accordion toggling
@@ -722,7 +696,7 @@ describe("Modular UI Components", () => {
   it("BannersComponent.render synchronizes capture and chrome result banners", () => {
     const root = createMockRoot();
     const banners = new BannersComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
 
     // Capture state with server offline and chrome AI enabled but not configured
@@ -742,7 +716,7 @@ describe("Modular UI Components", () => {
   it("ResultsViewComponent.render toggles view and displays summary/provenance", () => {
     const root = createMockRoot();
     const results = new ResultsViewComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
 
     // Capture state
@@ -755,18 +729,19 @@ describe("Modular UI Components", () => {
       title: "My Result",
       coreSummary: ["Key takeaway 1", "Key takeaway 2"],
     };
+    session.currentView = "results";
     results.render(session, settings);
     assert.strictEqual(results.resultsState.classList.contains("hidden"), false);
     assert.strictEqual(results.captureState.classList.contains("hidden"), true);
     assert.strictEqual(results.resultPageTitle.textContent, "My Result");
     assert.ok(results.coreSummaryEl.innerHTML.includes("Key takeaway 1"));
 
-    session.viewingContent = true;
+    session.currentView = 'capture';
     results.render(session, settings);
     assert.equal(results.captureState.classList.contains("hidden"), false);
     assert.equal(results.resultsState.classList.contains("hidden"), true);
     assert.ok(session.analysisResult);
-    session.viewingContent = false;
+    session.currentView = 'results';
     results.render(session, settings);
     assert.equal(results.resultsState.classList.contains("hidden"), false);
 
@@ -782,7 +757,7 @@ describe("Modular UI Components", () => {
   it("CaptureViewComponent.render supports polymorphic session input and loading state", () => {
     const root = createMockRoot();
     const capture = new CaptureViewComponent(root);
-    const session = new SessionState();
+    const session = testView();
 
     // Loading state
     session.currentTabLoading = true;
@@ -809,7 +784,7 @@ describe("Modular UI Components", () => {
   it("VerdictComponent.render shows/hides verdicts based on mode and stage", () => {
     const root = createMockRoot();
     const verdict = new VerdictComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
 
     // Chrome mode: decision verdict hidden, but title verdict shown!
@@ -849,7 +824,7 @@ describe("Modular UI Components", () => {
   it("ActionControlsComponent.render updates buttons, modes, and analyze state", () => {
     const root = createMockRoot();
     const actions = new ActionControlsComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
     settings.setServerStatus({ online: true });
 
@@ -868,7 +843,7 @@ describe("Modular UI Components", () => {
   it("EggsComponent.render toggles no-egg banner and egg knowledge section", () => {
     const root = createMockRoot();
     const eggs = new EggsComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
 
     // Obsidian mode, no eggs matched
@@ -885,16 +860,20 @@ describe("Modular UI Components", () => {
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
     assert.ok(eggs.eggKnowledgeContent.innerHTML.includes("Useful answer"));
 
-    // Chrome mode: no eggs or knowledge shown
+    // Losing connectivity does not hide an already-produced egg result.
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: true });
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), false);
+    // A result produced in Chrome mode has no egg UI.
+    session.analysisResult = { mode: 'chrome', matchedEggs: [], eggResults: [] };
     eggs.render(session, settings);
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
 
     // Re-analyzing with selected eggs hides existing eggs
     settings.setServerStatus({ online: true });
-    session.isReanalyzing = true;
+    session.isAnalyzing = true;
     session.analysisResult = {
       stage: "stage2",
       matchedEggs: ["Egg1.md"],
@@ -909,7 +888,7 @@ describe("Modular UI Components", () => {
     const root = createMockRoot();
     const eggs = new EggsComponent(root);
     const actions = new ActionControlsComponent(root);
-    const session = new SessionState();
+    const session = testView();
     const settings = new SettingsState();
     settings.setServerStatus({ online: true });
 
@@ -917,6 +896,7 @@ describe("Modular UI Components", () => {
     settings.setAnalysisMode("confirm");
     session.analysisResult = { stage: "stage1", matchedEggs: ["Egg1.md"] };
     session.allEggs = [{ fileName: "Egg1.md" }, { fileName: "Egg2.md" }];
+    session.selectedEggs = new Set(session.analysisResult.matchedEggs || []);
     eggs.render(session, settings);
     actions.render(session, settings);
 
@@ -1186,45 +1166,6 @@ describe("Modular UI Components", () => {
     assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), true);
   });
 
-  it("EnvironmentService synchronizes with UI components and renders metrics and credits", async () => {
-    const root = createMockRoot();
-    const headerUI = new HeaderComponent(root);
-    const metricsUI = new MetricsComponent(root);
-    const bannersUI = new BannersComponent(root);
-    const settings = new SettingsState();
 
-    // Mock chrome.runtime.sendMessage
-    globalThis.chrome = globalThis.chrome || {};
-    globalThis.chrome.runtime = {
-      sendMessage: async (msg) => {
-        if (msg.action === "metrics") {
-          return { nuts: 15, eggs: 4, timeSaved: "1h 15m" };
-        }
-        if (msg.action === "get-credit") {
-          return { provider: "deepseek", hasBalance: true, balanceFormatted: "¥25.00" };
-        }
-        return {};
-      },
-    };
-
-    const env = new EnvironmentService({
-      settings,
-      headerUI,
-      metricsUI,
-      bannersUI,
-    });
-
-    settings.setServerStatus({ online: true, version: "0.2.3", aiConfigured: true });
-
-    await env.fetchMetrics();
-    assert.strictEqual(metricsUI.metricNuts.textContent, 15);
-    assert.strictEqual(metricsUI.metricEggs.textContent, 4);
-    assert.strictEqual(metricsUI.metricTime.textContent, "1h 15m");
-
-    await env.checkCreditStatus();
-    assert.strictEqual(headerUI.aiCreditPill.classList.contains("hidden"), false);
-    assert.strictEqual(headerUI.aiCreditText.textContent, "DeepSeek: ¥25.00");
-  });
 });
-
 

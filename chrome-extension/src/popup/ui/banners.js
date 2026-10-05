@@ -217,7 +217,7 @@ class BannersComponent {
   render(session, settings) {
     if (!settings) return;
     const hasResult = Boolean(session?.analysisResult);
-    const isChrome = settings.isChromeMode();
+    const isChrome = settings.isChromeMode(session?.analysisResult);
 
     if (hasResult && isChrome) {
       this.setChromeResultBanner(true);
