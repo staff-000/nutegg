@@ -9,6 +9,12 @@ class DiscussionComponent {
       if (status) status.textContent = view.discussionPending ? t('discussionLoading', { count: d?.items?.length || 0 })
         : d?.status === 'empty' ? t('discussionEmpty') : d?.status === 'unavailable' ? t(d?.reason === 'unsupported' ? 'discussionUnsupported' : 'discussionUnavailable')
         : d?.items?.length ? t('discussionPartial', { count: d.items.length }) : t('discussionNotLoaded');
+      const indicator = this.root.getElementById(prefix + '-indicator');
+      if (indicator) {
+        indicator.classList.toggle('status-loading', Boolean(view.discussionPending));
+        indicator.classList.toggle('status-active', !view.discussionPending && Boolean(d?.items?.length));
+        indicator.classList.toggle('status-empty', !view.discussionPending && d?.status === 'empty');
+      }
       for (const suffix of ['-load', '-refresh']) {
         const button = this.root.getElementById(prefix + suffix);
         if (button) button.disabled = view.discussionPending || view.extractionPending;
