@@ -85,13 +85,13 @@ test('long discussion retains labels and parent context while aggregating topic 
   const processor = new core.AIProcessor({ settings: { aiProvider: 'openai', aiApiKey: 'test', chunkWindowChars: 1000 }, aiClient: { chat: async prompt => {
     prompts.push(prompt);
     if (prompt.startsWith('Merge discussion')) return JSON.stringify({ topics: [{ ...topic('m'), mergeTopicIds: ['0:t', '1:t', '2:t'] }] });
-    const id = JSON.parse(prompt.match(/Discussion items to analyze: (.*)\n/)[1])[0].id;
+    const id = items[JSON.parse(prompt.match(/Discussion items to analyze: (.*)\n/)[1])[0][0]].id;
     return JSON.stringify(part([[id, id === 'a' ? 'agree' : 'disagree']]));
   } } });
   const result = await processor.analyzeContent({ url: 'https://example.test', title: 'T', content: 'Short', sourceType: 'forum', discussion: capture(items), enabledSections: { titleVerdict: false, coreSummary: false, mindMap: false, discussion: true } });
   assert.equal(result.discussion.topics.length, 1); assert.equal(result.discussion.analyzedCount, 3);
   assert.equal(result.discussion.topics[0].metrics.disagree.comments, 2);
-  assert.match(prompts[1], /Parent comments.*"id":"a"/);
+  assert.equal(JSON.parse(prompts[1].match(/Parent comments .*: (.*)\n/)[1])[0][0], 0);
 });
 
 test('loading updates cannot alter an analysis snapshot, saved source or another tab', async () => {

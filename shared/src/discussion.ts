@@ -31,23 +31,91 @@ export function normalizeDiscussion(value?: DiscussionCapture): DiscussionCaptur
     truncated: limited || !!value.truncated || value.items.length > 300 || value.items.some(i => (i?.text?.length || 0) > 6000) };
 }
 
+/** Prompt-only view. URLs and identities remain in the capture for metrics/navigation. */
 export function discussionSourceText(capture: CapturePayload): string {
   if (capture.enabledSections?.discussion !== true) return '';
   const discussion = normalizeDiscussion(capture.discussion);
   if (!discussion?.items.length) return '';
-  return '\n\n## Captured discussion (commenter claims, not verified facts)\n' + JSON.stringify(discussion.items);
+  const records = discussion.items.map(item => ({ id: item.id, text: item.text,
+    ...(item.parentId ? { parentId: item.parentId } : {}) }));
+  return '\n\n## Captured discussion (commenter claims, not verified facts)\n' + JSON.stringify(records);
+}
+
+/** Tuple columns: local ID, parent ID, anonymous author ID, text, reaction kind, count. */
+export function compactDiscussionRecords(items: DiscussionItem[], allItems = items): { rows: any[][]; aliases: Map<number, string> } {
+  const aliasById = new Map(allItems.map((item, index) => [item.id, index]));
+  const authors = new Map<string, number>();
+  allItems.forEach(item => { const author = item.authorId || item.author; if (author && !authors.has(author)) authors.set(author, authors.size); });
+  return { aliases: new Map(allItems.map((item, index) => [index, item.id])), rows: items.map(item => [
+    aliasById.get(item.id), item.parentId ? aliasById.get(item.parentId) ?? null : null,
+    authors.get(item.authorId || item.author || '') ?? null, item.text,
+    item.reaction?.count != null ? item.reaction.kind === 'score' ? 's' : 'l' : null, item.reaction?.count ?? null,
+  ]) };
+}
+
+/** Expand local IDs and grouped stance lists before computing metrics. Accept old workflows too. */
+export function unpackDiscussionPart(raw: any, items: DiscussionItem[], aliases: Map<number, string>): any {
+  if (!Array.isArray(raw?.topics) || raw.classifications != null && !Array.isArray(raw.classifications)) throw new Error('Invalid discussion analysis response');
+  const allowed = new Set(items.map(item => item.id)), legacy = Array.isArray(raw.classifications);
+  const originalId = (value: any): string | undefined => {
+    if (legacy && typeof value === 'string' && allowed.has(value)) return value;
+    const alias = typeof value === 'number' && Number.isInteger(value) ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : null;
+    const id = alias != null ? aliases.get(alias) : typeof value === 'string' ? value : undefined;
+    return id && allowed.has(id) ? id : undefined;
+  };
+  const classifications: any[] = legacy ? raw.classifications.map((label: any) => ({ ...label, commentId: originalId(label?.commentId) })).filter((label: any) => label.commentId) : [];
+  const topics = raw.topics.map((topic: any) => {
+    if (!topic || typeof topic !== 'object') throw new Error('Invalid discussion topic');
+    if (!legacy && (!topic.stances || typeof topic.stances !== 'object' || Array.isArray(topic.stances))) throw new Error('Invalid discussion stance groups');
+    for (const stance of DISCUSSION_STANCES) {
+      const group = topic.stances?.[stance];
+      if (group != null && !Array.isArray(group)) throw new Error('Invalid discussion stance list');
+      for (const value of list(group)) {
+        const commentId = originalId(value); if (commentId) classifications.push({ commentId, topicId: topic.id, stance });
+      }
+    }
+    const { stances, ...rest } = topic;
+    return { ...rest, highlights: list(topic.highlights).map(h => ({ ...h, commentId: originalId(h?.commentId) })).filter(h => h.commentId) };
+  });
+  return { topics, classifications };
 }
 
 export function discussionBatches(items: DiscussionItem[], limit: number): DiscussionItem[][] {
   const batches: DiscussionItem[][] = [];
   let batch: DiscussionItem[] = [], size = 0;
   for (const item of items) {
-    const length = JSON.stringify(item).length;
+    const length = JSON.stringify([0, 0, 0, item.text, 'l', 0]).length;
     if (batch.length && size + length > limit) { batches.push(batch); batch = []; size = 0; }
     batch.push(item); size += length;
   }
   if (batch.length) batches.push(batch);
   return batches;
+}
+
+/** Compact derived context, never full DiscussionTopic objects with embedded originals. */
+export function discussionSummaryText(capture: CapturePayload, analysis?: DiscussionAnalysis): string {
+  if (capture.enabledSections?.discussion !== true || !analysis?.topics.length) return '';
+  const topics = analysis.topics.map(topic => ({ title: topic.title, claim: topic.claim, summary: topic.summary,
+    counts: Object.fromEntries(Object.entries(topic.metrics).filter(([, m]) => m.comments > 0).map(([stance, m]) => [stance,
+      { comments: m.comments, ...(m.likesKnown ? { likes: m.likes } : {}), ...(m.scoresKnown ? { score: m.score } : {}) }])),
+    highlights: topic.highlights.map(h => ({ sourceId: h.commentId, summary: h.summary, ...(h.supplement ? { supplement: true } : {}) })),
+  }));
+  return '\n\n## Analyzed discussion (commenter claims; counts describe captured comments only)\n'
+    + 'Summaries are derived from the comments. Keep sourceId references; quote only supplied original excerpts. Reaction totals cover known reactions only.\n' + JSON.stringify(topics);
+}
+
+/** Selected originals ground detailed supplements; all originals remain saved in the capture. */
+export function discussionEvidenceText(capture: CapturePayload, analysis?: DiscussionAnalysis): string {
+  if (capture.enabledSections?.discussion !== true || !analysis?.topics.length) return '';
+  const byId = new Map(normalizeDiscussion(capture.discussion)?.items.map(item => [item.id, item]) || []);
+  const used = new Set<string>(), evidence: any[] = []; let remaining = 8000;
+  for (const topic of analysis.topics) for (const highlight of topic.highlights) {
+    const item = byId.get(highlight.commentId);
+    if (!highlight.supplement || !item || used.has(item.id) || remaining <= 0) continue;
+    used.add(item.id); const text = item.text.slice(0, Math.min(2000, remaining)); remaining -= text.length;
+    evidence.push({ id: item.id, text, ...(text.length < item.text.length ? { excerpt: true } : {}) });
+  }
+  return evidence.length ? '\n\n## Original supplement excerpts (commenter claims, not verified facts)\n' + JSON.stringify(evidence) : '';
 }
 
 export function discussionBase(capture?: DiscussionCapture): DiscussionAnalysis {

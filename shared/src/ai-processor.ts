@@ -2,9 +2,9 @@
 // NutEgg Unified AI Processor (Stage 1 + Stage 2 + Orchestration)
 // ============================================================
 
-import { buildDiscussionResult, discussionBase, discussionBatches, discussionSourceText, normalizeDiscussion } from "./discussion";
+import { buildDiscussionResult, compactDiscussionRecords, discussionBase, discussionBatches, discussionEvidenceText, discussionSourceText, discussionSummaryText, normalizeDiscussion, unpackDiscussionPart } from "./discussion";
 import { composeEggResults } from "./analysis-results";
-import { isAIConfigured } from "./catalog";
+import { isAIConfigured, resolveConfig } from "./catalog";
 import { AIError } from "./client";
 import {
   DEFAULT_CHUNK_WINDOW_CHARS,
@@ -35,6 +35,9 @@ import {
   type CapturePayload,
   type ContentAnalysis,
   type ContentChunk,
+  type DiscussionAnalysis,
+  type DiscussionCapture,
+  type DiscussionItem,
   type EggAnalysis,
   type EggContent,
   type ExtractedKnowledgeEntry,
@@ -274,6 +277,20 @@ export function applyPrunedSections(
 /** Unprocessed entries accumulate per egg; the merge runs at this threshold. */
 export const MERGE_THRESHOLD = 20;
 
+// Shared by standalone processor instances; ephemeral, bounded, and never written to disk.
+type DiscussionChunkCache = { fingerprints: Map<string, string>; part: any };
+type DiscussionCache = { updatedAt: number; signature: string; chunks: DiscussionChunkCache[]; aggregate?: any };
+const discussionCache = new Map<string, DiscussionCache>();
+const DISCUSSION_CACHE_TTL = 15 * 60 * 1000;
+function discussionFingerprints(items: DiscussionItem[]): Map<string, string> {
+  const byId = new Map(items.map(item => [item.id, item]));
+  return new Map(items.map(item => {
+    const parent = item.parentId ? byId.get(item.parentId) : undefined;
+    return [item.id, JSON.stringify([item.id, item.parentId, item.authorId || item.author, item.text,
+      item.reaction?.kind, item.reaction?.count, parent && [parent.id, parent.authorId || parent.author, parent.text.slice(0, 1000)]])];
+  }));
+}
+
 /**
  * Two-phase AI pipeline driven by the eggs' Action Guides:
  *   Phase 1 — content analysis (title verdict, core summary, mind map).
@@ -414,40 +431,85 @@ export class AIProcessor {
    */
   async analyzeContent(capture: CapturePayload): Promise<ContentAnalysis> {
     const enabled = capture.enabledSections?.discussion === true;
-    const discussion = enabled ? normalizeDiscussion(capture.discussion) : undefined;
-    const source = discussion?.kind === 'forum' || capture.transcriptAvailable === false || capture.questions?.length ? discussionSourceText(capture) : '';
-    const bodyCapture = { ...capture, content: (capture.transcriptAvailable === false ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the captured discussion and label commenter claims.\n' : '') + capture.content + source };
+    const discussion = enabled ? await this.analyzeDiscussion(capture) : undefined;
+    const needsDiscussionContext = capture.discussion?.kind === 'forum' || capture.transcriptAvailable === false || capture.questions?.length;
+    const context = needsDiscussionContext ? discussionSummaryText(capture, discussion) + discussionEvidenceText(capture, discussion) : '';
+    const bodyCapture = { ...capture, content: (capture.transcriptAvailable === false ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n' : '') + capture.content + context };
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const needsBody = sections.titleVerdict || sections.coreSummary || sections.mindMap || capture.questions?.length;
     const contentAnalysis = needsBody ? await this.analyzeBody(bodyCapture) : { titleVerdict: '', coreSummary: [], mindMap: [], customQuestionAnswers: [] };
-    if (!enabled) return contentAnalysis;
-    const base = discussionBase(discussion);
-    if (!discussion?.items.length) return { ...contentAnalysis, discussion: base };
-    if (!isAIConfigured(this.host?.settings)) return { ...contentAnalysis, discussion: { ...base, status: 'unavailable' } };
-    const byId = new Map(discussion.items.map(item => [item.id, item]));
-    const parts: any[] = [];
-    // Batches preserve whole comments; parent text is context and never counted twice.
-    for (const items of discussionBatches(discussion.items, Math.max(8000, this.chunkWindowChars - 6000))) {
-      const ids = new Set(items.map(item => item.id));
-      const parents = [...new Map(items.map(item => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined).filter(Boolean).map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])).values()];
-      const prompt = renderPrompt(this.getPrompt('discussionAnalysis'), {
-        title: capture.title, kind: discussion.kind, body: capture.content.slice(0, 4000),
-        parents: JSON.stringify(parents), items: JSON.stringify(items),
-        shared_output_rules: this.getContentOutputRules(capture, 'within'),
-      });
-      const part = this.parseJson(await this.callAI(prompt, Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 8192)), 'discussion-analysis');
-      if (!Array.isArray(part.topics) || !Array.isArray(part.classifications)) throw new Error('Invalid discussion analysis response');
-      part.classifications = Array.isArray(part.classifications) ? part.classifications.filter((label: any) => ids.has(label?.commentId)) : [];
-      parts.push(part);
+    return discussion ? { ...contentAnalysis, discussion } : contentAnalysis;
+  }
+
+  private discussionCacheKey(capture: CapturePayload, discussion: DiscussionCapture): string {
+    const config = resolveConfig(this.host?.settings || {});
+    return JSON.stringify([capture.url, capture.title, discussion.kind, capture.content.slice(0, 4000),
+      config.provider, config.model, config.endpoint, this.getPrompt('discussionAnalysis'), this.getPrompt('aggregateDiscussion'),
+      this.getContentOutputRules(capture, 'within')]);
+  }
+
+  private readDiscussionCache(key: string): DiscussionCache | undefined {
+    const cached = discussionCache.get(key);
+    if (cached && Date.now() - cached.updatedAt < DISCUSSION_CACHE_TTL) return cached;
+    discussionCache.delete(key); return undefined;
+  }
+
+  private cachedDiscussion(capture: CapturePayload): DiscussionAnalysis | undefined {
+    if (capture.enabledSections?.discussion !== true) return undefined;
+    const discussion = normalizeDiscussion(capture.discussion);
+    if (!discussion?.items.length) return undefined;
+    const cached = this.readDiscussionCache(this.discussionCacheKey(capture, discussion));
+    if (cached?.signature !== JSON.stringify([...discussionFingerprints(discussion.items)])) return undefined;
+    return buildDiscussionResult(discussion, cached.chunks.map(chunk => chunk.part), cached.aggregate);
+  }
+
+  private async analyzeDiscussion(capture: CapturePayload): Promise<DiscussionAnalysis> {
+    const discussion = normalizeDiscussion(capture.discussion), base = discussionBase(discussion);
+    if (!discussion?.items.length) return base;
+    if (!isAIConfigured(this.host?.settings)) return { ...base, status: 'unavailable' };
+    const key = this.discussionCacheKey(capture, discussion), cached = this.readDiscussionCache(key);
+    const fingerprints = discussionFingerprints(discussion.items), signature = JSON.stringify([...fingerprints]);
+    const used = new Set<string>();
+    const chunks: DiscussionChunkCache[] = [];
+    for (const chunk of cached?.chunks || []) {
+      if (![...chunk.fingerprints].every(([id, fingerprint]) => !used.has(id) && fingerprints.get(id) === fingerprint)) continue;
+      chunk.fingerprints.forEach((_, id) => used.add(id)); chunks.push(chunk);
     }
-    let aggregate;
-    if (parts.length > 1 && parts.some(part => part.topics?.length)) {
-      const drafts = parts.flatMap((part, index) => (Array.isArray(part.topics) ? part.topics : []).map((topic: any) => ({ ...topic, id: `${index}:${topic.id}` })));
+    // Reuse whole batches so their topic groupings stay intact; changed batches are reclassified.
+    const pending = discussion.items.filter(item => !used.has(item.id));
+    const byId = new Map(discussion.items.map(item => [item.id, item]));
+    for (const items of discussionBatches(pending, Math.max(8000, this.chunkWindowChars - 6000))) {
+      const ids = new Set(items.map(item => item.id));
+      const parents = [...new Map(items.map(item => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined)
+        .filter(Boolean).map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])).values()];
+      const compact = compactDiscussionRecords(items, discussion.items);
+      const prompt = 'Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only.\n'
+        + renderPrompt(this.getPrompt('discussionAnalysis'), {
+          title: capture.title, kind: discussion.kind, body: capture.content.slice(0, 4000),
+          parents: JSON.stringify(compactDiscussionRecords(parents, discussion.items).rows), items: JSON.stringify(compact.rows),
+          shared_output_rules: this.getContentOutputRules(capture, 'within'),
+        });
+      const raw = this.parseJson(await this.callAI(prompt, Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 8192)), 'discussion-analysis');
+      const part = unpackDiscussionPart(raw, items, compact.aliases);
+      chunks.push({ fingerprints: new Map(items.map(item => [item.id, fingerprints.get(item.id)!])), part });
+    }
+    const parts = chunks.map(chunk => chunk.part);
+    let aggregate = cached?.signature === signature ? cached.aggregate : undefined;
+    if (parts.length > 1 && parts.some(part => part.topics?.length) && !aggregate) {
+      const drafts = parts.flatMap((part, index) => part.topics.map((topic: any) => ({
+        id: `${index}:${topic.id}`, title: topic.title, claim: topic.claim, summary: topic.summary, highlights: topic.highlights,
+        ...(topic.agreeArguments?.length ? { agreeArguments: topic.agreeArguments } : {}),
+        ...(topic.disagreeArguments?.length ? { disagreeArguments: topic.disagreeArguments } : {}),
+      })));
       aggregate = this.parseJson(await this.callAI(renderPrompt(this.getPrompt('aggregateDiscussion'), {
         title: capture.title, drafts: JSON.stringify(drafts), shared_output_rules: this.getContentOutputRules(capture, 'within'),
       }), 8192), 'aggregate-discussion');
     }
-    return { ...contentAnalysis, discussion: buildDiscussionResult(discussion, parts, aggregate) };
+    const result = buildDiscussionResult(discussion, parts, aggregate);
+    discussionCache.delete(key);
+    discussionCache.set(key, { updatedAt: Date.now(), signature, chunks, aggregate });
+    while (discussionCache.size > 8) discussionCache.delete(discussionCache.keys().next().value!);
+    return result;
   }
 
   private async analyzeBody(capture: CapturePayload): Promise<ContentAnalysis> {
@@ -519,12 +581,15 @@ export class AIProcessor {
    * Existing notes are only read during merge.
    */
   async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis): Promise<AnalysisResult> {
-    capture = { ...capture, content: capture.content + discussionSourceText(capture) };
     if (!isAIConfigured(this.host?.settings) || !eggs.length) {
       return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
         shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
         eggResults: [], newKnowledge: [], ...(eggs.length ? { readAction: "uncertain" as const } : {}) };
     }
+    if (capture.enabledSections?.discussion === true && !contentAnalysis.discussion) {
+      contentAnalysis = { ...contentAnalysis, discussion: await this.analyzeDiscussion(capture) };
+    }
+    capture = { ...capture, content: capture.content + discussionEvidenceText(capture, contentAnalysis.discussion) };
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     const signals = this.eggStage1Signals(capture, contentAnalysis);
     const eggResults = await Promise.all(eggs.map(async egg => {
@@ -563,7 +628,7 @@ export class AIProcessor {
   }
 
   private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
-    return [analysis.discussion?.topics.length ? `Stage 1 discussion (commenter claims):\n${JSON.stringify(analysis.discussion.topics)}` : "", capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
+    return [discussionSummaryText(capture, analysis.discussion), capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
       capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : "",
       capture.enabledSections?.mindMap !== false && analysis.mindMap?.length ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}` : ""].filter(Boolean).join("\n\n");
   }
@@ -880,13 +945,15 @@ export class AIProcessor {
       priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa.trim()}`;
     }
 
+    const cachedDiscussion = this.cachedDiscussion(capture);
+    const discussionContext = cachedDiscussion ? discussionSummaryText(capture, cachedDiscussion) + discussionEvidenceText(capture, cachedDiscussion) : discussionSourceText(capture);
     const prompt = renderPrompt(this.getPrompt("followUp"), {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
       prior_qa: priorBlock,
-      content: discussionSourceText(capture)
-        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * .6)) + this.truncate(discussionSourceText(capture), Math.floor(this.chunkWindowChars * .4))
+      content: discussionContext
+        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * .6)) + this.truncate(discussionContext, Math.floor(this.chunkWindowChars * .4))
         : this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
       shared_output_rules: this.getContentOutputRules(capture, scope),
