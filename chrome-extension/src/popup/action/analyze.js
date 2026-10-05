@@ -23,7 +23,7 @@ class AnalyzeAction {
     const tab = this.store.getTab(tabId);
     const reason = this.getAnalyzeNotReadyReason();
     if (reason) { this.store.dispatch({ type: 'notice', tabId, message: reason }); return Promise.resolve({ error: reason }); }
-    const eggs = eggsOverride || (isReanalyze ? tab.selectedEggs : tab.preSelectedEggs.length ? tab.preSelectedEggs : undefined);
+    const eggs = eggsOverride || (isReanalyze ? tab.selectedEggs : tab.preSelectedEggs?.length ? tab.preSelectedEggs : undefined);
     return this.operations.analyze(tabId, { ...this.requestOptions(eggs), reanalyze: isReanalyze });
   }
   handleEggAnalysis(include) { this.setGenerateKnowledgeEntries(include); return this.handleReanalyzeEggs(); }

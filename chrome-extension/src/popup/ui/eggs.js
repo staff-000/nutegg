@@ -26,29 +26,34 @@ function cleanEggName(fileName) {
 function _renderCaptureEggsList(options = {}) {
   const listEl = options.captureEggsList || (typeof captureEggsList !== "undefined" ? captureEggsList : (typeof document !== "undefined" ? document.getElementById("capture-eggs-list") : null));
   const toggleEl = options.captureEggsToggle || (typeof captureEggsToggle !== "undefined" ? captureEggsToggle : (typeof document !== "undefined" ? document.getElementById("capture-eggs-toggle") : null));
+  const accordionEl = options.captureEggsAccordion || (toggleEl?.closest?.(".sections-accordion") || (typeof document !== "undefined" ? document.getElementById("capture-eggs-accordion") : null));
   const eggs = options.allEggs || [];
-  const selected = options.preSelectedEggs || new Set();
+  const selected = options.preSelectedEggs instanceof Set ? options.preSelectedEggs : new Set(options.preSelectedEggs || []);
   const onLabelUpdate = options.updateLabel || (typeof updateCaptureEggsLabel === "function" ? updateCaptureEggsLabel : null);
 
   if (!listEl || !toggleEl) return;
   if (eggs.length === 0) {
     toggleEl.classList.add("hidden");
+    if (accordionEl && accordionEl !== toggleEl) accordionEl.classList.add("hidden");
     return;
   }
   toggleEl.classList.remove("hidden");
+  if (accordionEl && accordionEl !== toggleEl) accordionEl.classList.remove("hidden");
   listEl.innerHTML = eggs
     .map((e) => {
       const checked = selected.has(e.fileName) ? "checked" : "";
       return `<label class="egg-row">
         <input type="checkbox" data-capture-egg="${_eggEscapeHtml(e.fileName)}" ${checked} />
-        <span class="egg-row-name">${_eggEscapeHtml(e.fileName)}</span>
+        <span class="egg-row-name">${_eggEscapeHtml(cleanEggName(e.fileName))}</span>
         <span class="egg-row-desc">${_eggEscapeHtml(e.description || e.topic || "")}</span>
       </label>`;
     })
     .join("");
 
   listEl.querySelectorAll("input").forEach((cb) => {
+    cb.addEventListener("click", (ev) => ev?.stopPropagation?.());
     cb.addEventListener("change", (ev) => {
+      ev?.stopPropagation?.();
       const name = ev.target.dataset.captureEgg;
       if (ev.target.checked) selected.add(name);
       else selected.delete(name);
@@ -61,13 +66,13 @@ function _renderCaptureEggsList(options = {}) {
 
 function _updateCaptureEggsLabel(options = {}) {
   const labelEl = options.captureEggsLabel || (typeof captureEggsLabel !== "undefined" ? captureEggsLabel : (typeof document !== "undefined" ? document.getElementById("capture-eggs-label") : null));
-  const selected = options.preSelectedEggs || new Set();
+  const selected = options.preSelectedEggs instanceof Set ? options.preSelectedEggs : new Set(options.preSelectedEggs || []);
   if (!labelEl) return;
   if (selected.size === 0) {
-    labelEl.textContent = t("autoDetect");
+    labelEl.textContent = "";
   } else if (selected.size === 1) {
-    const egg = [...selected][0].split("/").pop();
-    labelEl.textContent = `(${egg})`;
+    const rawEgg = [...selected][0];
+    labelEl.textContent = `(${cleanEggName(rawEgg)})`;
   } else {
     labelEl.textContent = t("countSelected", { count: selected.size });
   }
@@ -341,6 +346,7 @@ class EggsComponent {
     this.eggsNewDesc = getEl("eggs-new-desc");
     this.eggsCreateBtn = getEl("eggs-create-btn");
     this.eggsCreateCancelBtn = getEl("eggs-create-cancel-btn");
+    this.captureEggsAccordion = getEl("capture-eggs-accordion");
     this.captureEggsToggle = getEl("capture-eggs-toggle");
     this.captureEggsLabel = getEl("capture-eggs-label");
     this.captureEggsChevron = getEl("capture-eggs-chevron");
@@ -449,9 +455,11 @@ class EggsComponent {
     if (expanded) {
       this.captureEggsArea?.classList.remove("hidden");
       if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▾";
+      this.captureEggsToggle?.setAttribute?.("aria-expanded", "true");
     } else {
       this.captureEggsArea?.classList.add("hidden");
       if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▸";
+      this.captureEggsToggle?.setAttribute?.("aria-expanded", "false");
     }
   }
 
@@ -472,6 +480,7 @@ class EggsComponent {
     return _renderCaptureEggsList({
       captureEggsList: this.captureEggsList,
       captureEggsToggle: this.captureEggsToggle,
+      captureEggsAccordion: this.captureEggsAccordion,
       captureEggsLabel: this.captureEggsLabel,
       updateLabel: () => this.updateCaptureLabel(options.preSelectedEggs),
       ...options,

@@ -188,6 +188,21 @@
         </div>
       </div>
 
+      <!-- Target Egg Selector (Content-Fetch View) -->
+      <div class="sections-accordion capture-eggs-accordion hidden" id="capture-eggs-accordion">
+        <button type="button" class="sections-toggle-btn" id="capture-eggs-toggle" aria-expanded="false" title="Target eggs to compare against" data-i18n-title="targetEggsTooltip">
+          <div class="sections-toggle-left">
+            <span class="sections-toggle-icon">🥚</span>
+            <span class="sections-toggle-title" data-i18n="targetEggHeader">Target Eggs</span>
+            <span id="capture-eggs-label" class="eggs-toggle-label"></span>
+          </div>
+          <span class="sections-toggle-chevron" id="capture-eggs-chevron">▸</span>
+        </button>
+        <div class="sections-body hidden" id="capture-eggs-area">
+          <div id="capture-eggs-list" class="eggs-list"></div>
+        </div>
+      </div>
+
       <button type="button" id="view-analysis-btn" class="back-btn view-analysis-btn hidden" data-i18n="viewAnalysis">View analysis →</button>
       <div id="analyze-btn-wrap" class="analyze-btn-wrap">
         <button id="analyze-btn" class="analyze-btn inactive">

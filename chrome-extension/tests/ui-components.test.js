@@ -599,6 +599,24 @@ describe("Modular UI Components", () => {
     eggs.expandCaptureEggs(true);
     assert.strictEqual(eggs.captureEggsArea.classList.contains("hidden"), false);
 
+    const captureCheckbox = createMockElement("cb");
+    captureCheckbox.dataset = { captureEgg: "prod.md" };
+    captureCheckbox.checked = true;
+    eggs.captureEggsList.querySelectorAll = () => [captureCheckbox];
+
+    let captureSelected = new Set();
+    eggs.renderCaptureList({
+      allEggs: [{ fileName: "prod.md", description: "Productivity" }],
+      preSelectedEggs: captureSelected,
+      onSelectChange: next => { captureSelected = next; }
+    });
+    assert.strictEqual(eggs.captureEggsToggle.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.captureEggsLabel.textContent, "");
+
+    captureCheckbox._listeners.change[0]({ target: captureCheckbox });
+    assert.strictEqual(captureSelected.has("prod.md"), true);
+    assert.strictEqual(eggs.captureEggsLabel.textContent, "(prod)");
+
     eggs.toggleCaptureEggs();
     assert.strictEqual(eggs.captureEggsArea.classList.contains("hidden"), true);
 

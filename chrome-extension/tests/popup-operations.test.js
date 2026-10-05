@@ -26,6 +26,16 @@ test('fast Stage 1 → Stage 2 is continuous, reuses captured settings and opens
   assert.equal(store.getTab(1).analysisResult.stage, 'stage2');
   assert.equal(store.viewModel(1).isStage1(), false);
 });
+test('fast mode with pre-selected eggs runs Stage 1 → Stage 2 continuous egg analysis', async () => {
+  const { store, operations, calls } = fixture();
+  const job = operations.analyze(1, { ...options, analysisMode: 'fast', eggs: ['selected.md'] });
+  calls[0].resolve({ stage: 'stage1', titleVerdict: 'Stage 1', matchedEggs: ['other.md'] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls[1].payload.eggs[0], 'selected.md');
+  calls[1].resolve({ eggResults: [answer('selected.md')] }); await job;
+  assert.equal(store.getTab(1).analysisResult.stage, 'stage2');
+  assert.equal(store.viewModel(1).isStage1(), false);
+});
 test('confirmation and Stage 2 finish separately; incremental selection preserves prior eggs', async () => {
   const { store, operations, calls } = fixture();
   const a = operations.analyze(1, options); calls[0].resolve({ titleVerdict: 'First', matchedEggs: ['a.md'] }); await a;
