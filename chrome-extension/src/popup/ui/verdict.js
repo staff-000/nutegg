@@ -102,7 +102,7 @@ class VerdictComponent {
     // Not applicable in Chrome standalone mode or before eggs are confirmed in Stage 1 confirm mode.
     const isChrome = settings ? settings.isChromeMode(result) : false;
     const isStage1 = session?.isStage1 ? session.isStage1(result) : (result.stage === "stage1" || result.mode === "chrome");
-    const confirmMode = settings?.analysisMode === "confirm";
+    const confirmMode = settings?.analysisMode === "preview" || settings?.analysisMode === "confirm";
 
     if (isChrome || (isStage1 && confirmMode)) {
       this.verdictSection?.classList.add("hidden");

@@ -62,8 +62,8 @@ async function initPopup() {
     click(document.getElementById(prefix + '-load'), () => operations.discussion(tabStateManager.activeTabId, true));
     click(document.getElementById(prefix + '-refresh'), () => operations.discussion(tabStateManager.activeTabId));
   }
-  click(a.modeFastBtn, () => analyzeAction.setAnalysisMode('fast'));
-  click(a.modeConfirmBtn, () => analyzeAction.setAnalysisMode('confirm'));
+  click(a.modeFastBtn, () => analyzeAction.setAnalysisMode('full'));
+  click(a.modeConfirmBtn, () => analyzeAction.setAnalysisMode('preview'));
   click(a.analyzeBtn, () => analyzeAction.handleAnalyze());
   click(a.reanalyzeBtn, () => analyzeAction.handleAnalyze(true, null, true));
   click(a.reanalyzeRefreshBtn, () => tabAction.refreshForCurrentTab(true));

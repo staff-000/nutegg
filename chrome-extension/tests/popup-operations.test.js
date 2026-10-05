@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { fixture, deferred, seed } = require('./helpers/popup-fixture');
-const options = { analysisMode: 'confirm', outputLanguage: 'same-as-content', chromeMode: false };
+const options = { analysisMode: 'preview', outputLanguage: 'same-as-content', chromeMode: false };
 const answer = egg => ({ egg, readAction: 'full', readVerdict: true, extractedEntries: [{ content: `Knowledge ${egg}` }], keyQuestionAnswers: [] });
 for (const order of [[0, 1], [1, 0]]) test(`concurrent analysis completes independently in order ${order}`, async () => {
   const { store, operations, calls } = fixture();
@@ -12,9 +12,9 @@ for (const order of [[0, 1], [1, 0]]) test(`concurrent analysis completes indepe
   for (const id of [1, 2, 1]) { store.activateTab(id); assert.equal(store.viewModel().analysisResult.titleVerdict, `Result ${id}`); assert.equal(store.viewModel().currentView, 'results'); }
   assert.equal(store.getAnalysisActivity().length, 2);
 });
-test('fast Stage 1 → Stage 2 is continuous, reuses captured settings and opens background results', async () => {
+test('full Stage 1 → Stage 2 is continuous, reuses captured settings and opens background results', async () => {
   const { store, operations, calls } = fixture();
-  const job = operations.analyze(1, { ...options, analysisMode: 'fast' });
+  const job = operations.analyze(1, { ...options, analysisMode: 'full' });
   store.activateTab(2); store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: false } });
   calls[0].resolve({ stage: 'stage1', titleVerdict: 'Stage 1', matchedEggs: ['a.md'] });
   await new Promise(resolve => setImmediate(resolve));
@@ -26,9 +26,9 @@ test('fast Stage 1 → Stage 2 is continuous, reuses captured settings and opens
   assert.equal(store.getTab(1).analysisResult.stage, 'stage2');
   assert.equal(store.viewModel(1).isStage1(), false);
 });
-test('fast mode with pre-selected eggs runs Stage 1 → Stage 2 continuous egg analysis', async () => {
+test('full mode with pre-selected eggs runs Stage 1 → Stage 2 continuous egg analysis', async () => {
   const { store, operations, calls } = fixture();
-  const job = operations.analyze(1, { ...options, analysisMode: 'fast', eggs: ['selected.md'] });
+  const job = operations.analyze(1, { ...options, analysisMode: 'full', eggs: ['selected.md'] });
   calls[0].resolve({ stage: 'stage1', titleVerdict: 'Stage 1', matchedEggs: ['other.md'] });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(calls[1].payload.eggs[0], 'selected.md');

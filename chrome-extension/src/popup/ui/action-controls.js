@@ -86,7 +86,7 @@ class ActionControlsComponent {
   }
 
   setMode(mode) {
-    if (mode === "confirm") {
+    if (mode === "preview" || mode === "confirm") {
       this.modeConfirmBtn?.classList.add("active");
       this.modeFastBtn?.classList.remove("active");
     } else {

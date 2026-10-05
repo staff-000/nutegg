@@ -95,7 +95,7 @@ describe("Modular UI Components", () => {
 
   it("keeps the top analysis and collect controls visible through stages and modes", () => {
     const controls = new ActionControlsComponent(createMockRoot());
-    for (const mode of ["fast", "confirm"]) {
+    for (const mode of ["full", "preview"]) {
       for (const stage of ["stage1", "stage2"]) {
         const session = { analysisResult: { stage, matchedEggs: ["a.md"] }, selectedEggs: new Set(["a.md"]),
           isStage1: () => stage === "stage1" };
@@ -428,15 +428,15 @@ describe("Modular UI Components", () => {
     assert.strictEqual(verdict.verdictReason.innerHTML, "Highly relevant");
   });
 
-  it("ActionControlsComponent handles fast/confirm mode and buttons", () => {
+  it("ActionControlsComponent handles full/preview mode and buttons", () => {
     const root = createMockRoot();
     const actions = new ActionControlsComponent(root);
 
-    actions.setMode("confirm");
+    actions.setMode("preview");
     assert.strictEqual(actions.modeConfirmBtn.classList.contains("active"), true);
     assert.strictEqual(actions.modeFastBtn.classList.contains("active"), false);
 
-    actions.setMode("fast");
+    actions.setMode("full");
     assert.strictEqual(actions.modeFastBtn.classList.contains("active"), true);
     assert.strictEqual(actions.modeConfirmBtn.classList.contains("active"), false);
   });
@@ -839,7 +839,7 @@ describe("Modular UI Components", () => {
 
     // Obsidian mode - Stage 1 confirm: decision verdict hidden, title verdict shown!
     settings.setServerStatus({ online: true });
-    settings.setAnalysisMode("confirm");
+    settings.setAnalysisMode("preview");
     session.analysisResult = { stage: "stage1", titleVerdict: "Title verdict in confirm mode" };
     verdict.render(session, settings);
     assert.strictEqual(verdict.verdictSection.classList.contains("hidden"), true);
@@ -869,7 +869,7 @@ describe("Modular UI Components", () => {
     const settings = new SettingsState();
     settings.setServerStatus({ online: true });
 
-    settings.setAnalysisMode("confirm");
+    settings.setAnalysisMode("preview");
     session.analysisResult = { stage: "stage1" };
     session.selectedEggs = new Set(["Egg1.md"]);
     session.allEggs = [{ fileName: "Egg1.md" }];
@@ -933,8 +933,8 @@ describe("Modular UI Components", () => {
     const settings = new SettingsState();
     settings.setServerStatus({ online: true });
 
-    // Case 1: Confirm mode with matched eggs
-    settings.setAnalysisMode("confirm");
+    // Case 1: Preview mode with matched eggs
+    settings.setAnalysisMode("preview");
     session.analysisResult = { stage: "stage1", matchedEggs: ["Egg1.md"] };
     session.allEggs = [{ fileName: "Egg1.md" }, { fileName: "Egg2.md" }];
     session.selectedEggs = new Set(session.analysisResult.matchedEggs || []);
@@ -947,8 +947,8 @@ describe("Modular UI Components", () => {
     assert.strictEqual(session.selectedEggs.has("Egg1.md"), true);
     assert.strictEqual(actions.stage1ProceedBtn.disabled, false);
 
-    // Case 2: Fast mode with 0 matched eggs - MUST show stage 1 confirm and expand eggs list
-    settings.setAnalysisMode("fast");
+    // Case 2: Full mode with 0 matched eggs - MUST show stage 1 confirm and expand eggs list
+    settings.setAnalysisMode("full");
     session.selectedEggs.clear();
     session.analysisResult = { stage: "stage1", matchedEggs: [] };
     eggs.render(session, settings);

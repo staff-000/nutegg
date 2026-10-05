@@ -69,7 +69,7 @@ describe("SettingsState", () => {
 
   it("initializes with default values", () => {
     const settings = new SettingsState();
-    assert.equal(settings.analysisMode, "fast");
+    assert.equal(settings.analysisMode, "full");
     assert.equal(settings.outputLanguage, "same-as-content");
     assert.equal(settings.serverOnline, false);
     assert.equal(settings.obsidianPluginVersion, null);
@@ -83,9 +83,9 @@ describe("SettingsState", () => {
     const store = setupMockStorage();
     const settings = new SettingsState();
 
-    settings.setAnalysisMode("confirm");
-    assert.equal(settings.analysisMode, "confirm");
-    assert.equal(store.analysisMode, "confirm");
+    settings.setAnalysisMode("preview");
+    assert.equal(settings.analysisMode, "preview");
+    assert.equal(store.analysisMode, "preview");
 
     settings.setOutputLanguage("zh-CN");
     assert.equal(settings.outputLanguage, "zh-CN");
@@ -147,7 +147,7 @@ describe("SettingsState", () => {
 
   it("loads settings from chrome.storage.local", async () => {
     setupMockStorage({
-      analysisMode: "confirm",
+      analysisMode: "preview",
       outputLanguage: "ja",
       enabledSections: { coreSummary: true, chapterMap: false },
     });
@@ -155,9 +155,9 @@ describe("SettingsState", () => {
     const settings = new SettingsState();
     const loaded = await settings.loadFromStorage();
 
-    assert.equal(loaded.analysisMode, "confirm");
+    assert.equal(loaded.analysisMode, "preview");
     assert.equal(loaded.outputLanguage, "ja");
-    assert.equal(settings.analysisMode, "confirm");
+    assert.equal(settings.analysisMode, "preview");
     assert.equal(settings.outputLanguage, "ja");
     assert.equal(settings.enabledSections.coreSummary, true);
     assert.equal("chapterMap" in settings.enabledSections, false);

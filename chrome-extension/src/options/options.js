@@ -56,7 +56,7 @@ let savedPromptOverrides = {};
 let activePromptKey = "contentAnalysis";
 
 function updateModeDesc(mode) {
-  if (mode === "confirm") {
+  if (mode === "preview" || mode === "confirm") {
     confirmDesc?.classList.add("active-desc");
     fastDesc?.classList.remove("active-desc");
   } else {
@@ -90,7 +90,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   portInput.value = port;
   portDisplay.textContent = port;
 
-  const mode = stored.analysisMode || "fast";
+  const rawMode = stored.analysisMode || "full";
+  const mode = rawMode === "confirm" ? "preview" : rawMode === "fast" ? "full" : rawMode;
   if (modeSelect) {
     modeSelect.value = mode;
     updateModeDesc(mode);
@@ -457,7 +458,7 @@ async function handleSave() {
     return;
   }
 
-  const mode = modeSelect ? modeSelect.value : "fast";
+  const mode = modeSelect ? modeSelect.value : "full";
   await chrome.storage.local.set({ serverPort: port, analysisMode: mode });
   // Notify background
   await chrome.runtime.sendMessage({ action: "set-port", port });

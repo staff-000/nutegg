@@ -8,7 +8,7 @@ const { HistoryAction } = require('../src/popup/action/history.js');
 const { InteractionAction } = require('../src/popup/action/interaction.js');
 const { SettingsState } = require('../src/popup/state/settings-state.js');
 function actions() {
-  const f = fixture(); const settings = new SettingsState(); settings.setServerStatus({ online: true, aiConfigured: true }); settings.analysisMode = 'confirm';
+  const f = fixture(); const settings = new SettingsState(); settings.setServerStatus({ online: true, aiConfigured: true }); settings.analysisMode = 'preview';
   const deps = { tabStateManager: f.store, operations: f.operations, settings, ui: { captureUI: { getParsedQuestions: () => ['Q'] }, qaUI: { getFollowupText: () => 'Question' } }, envService: { checkServerStatus: async () => {} } };
   return { ...f, settings, deps, analyze: new AnalyzeAction(deps), tab: new TabAction(deps) };
 }

@@ -10,7 +10,7 @@ for (const file of ['header', 'banners', 'capture-view', 'section-chips', 'verdi
 function setup(t) {
   const f = fixture(); const root = createMockRoot(); root.querySelectorAll = () => [];
   const original = globalThis.document; globalThis.document = root; t.after(() => { globalThis.document = original; });
-  const settings = new SettingsState(); settings.serverOnline = true; settings.obsidianAiConfigured = true; settings.analysisMode = 'confirm';
+  const settings = new SettingsState(); settings.serverOnline = true; settings.obsidianAiConfigured = true; settings.analysisMode = 'preview';
   const ui = Object.fromEntries([['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'], ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'], ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent']].map(([key, type]) => [key, new globalThis.NutEggUI[type](root)]));
   const renderer = new PopupRenderer({ store: f.store, settings, ui, root });
   f.store.subscribe(event => renderer.handle(event)); renderer.render();

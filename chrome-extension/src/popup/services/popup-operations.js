@@ -89,7 +89,7 @@ class PopupOperations {
       if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
       const stage1 = { ...response, generateKnowledgeEntries: tab.generateKnowledgeEntries };
       const eggs = inputs.eggs || response.matchedEggs || [];
-      if (!inputs.chromeMode && (inputs.analysisMode === 'fast' || inputs.reanalyze) && eggs.length) {
+      if (!inputs.chromeMode && (inputs.analysisMode === 'full' || inputs.analysisMode === 'fast' || inputs.reanalyze) && eggs.length) {
         this.store.commitOperation(token, { type: 'analysisInterim', result: stage1, payload, eggs });
         this.store.commitOperation(token, { type: 'phase', phase: 'stage2' });
         const result = await this.runEggs(ctx, stage1, payload, eggs, []);

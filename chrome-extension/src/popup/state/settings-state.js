@@ -18,7 +18,7 @@ class SettingsState {
     this.DEFAULT_ANALYSIS_SECTIONS = DEFAULT_ANALYSIS_SECTIONS;
 
     // User preferences
-    this.analysisMode = "fast"; // "fast" | "confirm"
+    this.analysisMode = "full"; // "full" | "preview"
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = true;
@@ -46,8 +46,12 @@ class SettingsState {
           resolve
         );
       });
-      if (stored?.analysisMode === "confirm" || stored?.analysisMode === "fast") {
+      if (stored?.analysisMode === "preview" || stored?.analysisMode === "full") {
         this.analysisMode = stored.analysisMode;
+      } else if (stored?.analysisMode === "confirm") {
+        this.analysisMode = "preview";
+      } else if (stored?.analysisMode === "fast") {
+        this.analysisMode = "full";
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       if (stored?.enabledSections) {
@@ -63,10 +67,11 @@ class SettingsState {
   }
 
   setAnalysisMode(mode, persist = true) {
-    if (mode === "confirm" || mode === "fast") {
-      this.analysisMode = mode;
+    const normalized = mode === "confirm" ? "preview" : mode === "fast" ? "full" : mode;
+    if (normalized === "preview" || normalized === "full") {
+      this.analysisMode = normalized;
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
-        chrome.storage.local.set({ analysisMode: mode });
+        chrome.storage.local.set({ analysisMode: normalized });
       }
     }
   }

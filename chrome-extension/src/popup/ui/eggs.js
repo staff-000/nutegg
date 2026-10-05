@@ -542,7 +542,7 @@ class EggsComponent {
     this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
     this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange });
     this.eggsSection?.classList.toggle('hidden', !visible);
-    this.expandEggsList(view.presentation?.eggsExpanded || (view.isStage1?.() && (settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length)));
+    this.expandEggsList(view.presentation?.eggsExpanded || (view.isStage1?.() && (settings.analysisMode === 'preview' || settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length)));
     this.eggsSection?.classList.toggle('hidden', !visible);
   }
 
