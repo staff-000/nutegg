@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
   aiProvider: "anthropic",
   aiApiKey: "",
-  aiModel: "claude-sonnet-5",
+  aiModel: PROVIDER_CATALOG.anthropic.defaultModel!,
   localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
   localApiType: "openai",
   serverPort: 27123,
@@ -233,7 +233,7 @@ export class NutEggSettingTab extends PluginSettingTab {
             const families = PROVIDER_CATALOG.openrouter.families || [];
             const firstFamily = families[0];
             settings.aiModelFamily = firstFamily?.id || "openai";
-            settings.aiModel = firstFamily?.defaultModel || "openai/gpt-6-astra";
+            settings.aiModel = firstFamily?.defaultModel || PROVIDER_CATALOG.openrouter.defaultModel!;
           } else {
             const newProvider = PROVIDER_CATALOG[settings.aiProvider];
             settings.aiModelFamily = undefined;

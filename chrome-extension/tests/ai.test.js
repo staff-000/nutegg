@@ -80,6 +80,21 @@ test("AI Client - resolveConfig OpenRouter", () => {
   assert.ok(conf.extraHeaders["HTTP-Referer"]);
 });
 
+test("AI Client - catalog defaults apply only when no model is saved", () => {
+  for (const [provider, catalog] of Object.entries(PROVIDER_CATALOG)) {
+    if (provider === "local") continue;
+    assert.equal(resolveConfig({ chromeAiProvider: provider }).model, catalog.defaultModel);
+    assert.equal(resolveConfig({ aiProvider: provider, aiModel: "" }).model, catalog.defaultModel);
+    for (const savedModel of [catalog.models.at(-1), "custom-working-model"]) {
+      assert.equal(resolveConfig({ chromeAiProvider: provider, chromeAiModel: savedModel }).model, savedModel);
+      assert.equal(resolveConfig({ aiProvider: provider, aiModel: savedModel }).model, savedModel);
+    }
+  }
+  assert.equal(resolveConfig({ aiProvider: "openrouter", openrouterModel: "deepseek/deepseek-chat" }).model,
+    "deepseek/deepseek-chat");
+  assert.equal(resolveConfig({ aiProvider: "deepseek" }).model, "deepseek-chat");
+});
+
 test("AI Processor - AIProcessor class available in Chrome bundle", () => {
   assert.ok(AIProcessor);
   const processor = new AIProcessor({});

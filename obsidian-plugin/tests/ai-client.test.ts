@@ -181,6 +181,35 @@ describe("AIClient Local LLM execution", () => {
 });
 
 describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
+  it("Obsidian initial settings use the shared provider default", () => {
+    assert.equal(DEFAULT_SETTINGS.aiModel, PROVIDER_CATALOG[DEFAULT_SETTINGS.aiProvider].defaultModel);
+  });
+
+  it("sends the selected default through each cloud provider's API format", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      for (const providerId of Object.keys(PROVIDER_CATALOG) as AIProviderId[]) {
+        if (providerId === "local") continue;
+        const provider = PROVIDER_CATALOG[providerId];
+        globalThis.fetch = (async (url: string, init?: any) => {
+          const body = JSON.parse(init.body);
+          assert.equal(url, provider.officialEndpoint);
+          assert.equal(body.model, provider.defaultModel);
+          assert.equal(body.messages[0].content, "Summarize this article");
+          assert.equal(providerId === "openai" ? body.max_completion_tokens : body.max_tokens, 500);
+          const response = provider.apiFormat === "anthropic"
+            ? { content: [{ type: "text", text: "Summary" }] }
+            : { choices: [{ message: { content: "Summary" } }] };
+          return new Response(JSON.stringify(response), { status: 200 });
+        }) as any;
+        const client = new AIClient({ ...DEFAULT_SETTINGS, aiProvider: providerId, aiModel: "", aiApiKey: "test-key" });
+        assert.equal(await client.chat("Summarize this article", 500), "Summary");
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("defines defaultModel and models for all cloud providers in PROVIDER_CATALOG", () => {
     for (const providerId of Object.keys(PROVIDER_CATALOG) as AIProviderId[]) {
       if (providerId === "local") {
@@ -201,6 +230,13 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
       assert.ok(fam.id, "OpenRouter family must have an id");
       assert.ok(fam.label, "OpenRouter family must have a label");
       assert.ok(fam.defaultModel, "OpenRouter family must have a defaultModel");
+      if (fam.id !== "custom") {
+        assert.ok(fam.models.includes(fam.defaultModel));
+      }
+      for (const model of fam.models) {
+        assert.ok(PROVIDER_CATALOG.openrouter.models?.includes(model));
+        assert.equal(findOpenRouterFamily(model)?.id, fam.id);
+      }
     }
   });
 
@@ -234,5 +270,4 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     assert.equal(fallbackFam?.id, "openai");
   });
 });
-
 

@@ -1203,6 +1203,88 @@ function renderPrompt(template, vars = {}) {
 
 // ../shared/src/catalog.ts
 var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
+var OPENROUTER_FAMILIES = [
+  {
+    id: "openai",
+    label: "OpenAI GPT & Reasoning",
+    defaultModel: "openai/gpt-6-luna",
+    models: [
+      "openai/gpt-6-luna",
+      "openai/gpt-6.1-sol",
+      "openai/gpt-6-astra",
+      "openai/gpt-5.6-sol",
+      "openai/o3-mini",
+      "openai/gpt-4o",
+      "openai/gpt-4o-mini"
+    ]
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic Claude",
+    defaultModel: "anthropic/claude-haiku-4.5",
+    models: [
+      "anthropic/claude-haiku-4.5",
+      "anthropic/claude-sonnet-5.5",
+      "anthropic/claude-opus-5.5",
+      "anthropic/claude-fable-5.1",
+      "anthropic/claude-sonnet-5",
+      "anthropic/claude-opus-5"
+    ]
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    defaultModel: "deepseek/deepseek-v3.2",
+    models: [
+      "deepseek/deepseek-v3.2",
+      "deepseek/deepseek-v4.1-flash",
+      "deepseek/deepseek-v4-pro",
+      "deepseek/deepseek-chat",
+      "deepseek/deepseek-r1"
+    ]
+  },
+  {
+    id: "google",
+    label: "Google Gemini",
+    defaultModel: "google/gemini-3.1-flash-lite",
+    models: [
+      "google/gemini-3.1-flash-lite",
+      "google/gemini-3.5-flash-lite",
+      "google/gemini-3.8-flash",
+      "google/gemini-3.1-pro-preview",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.5-pro"
+    ]
+  },
+  {
+    id: "meta",
+    label: "Meta Llama",
+    defaultModel: "meta-llama/llama-4-scout",
+    models: [
+      "meta-llama/llama-4-scout",
+      "meta-llama/llama-4-maverick",
+      "meta-llama/llama-3.3-70b-instruct"
+    ]
+  },
+  {
+    id: "qwen",
+    label: "Qwen",
+    defaultModel: "qwen/qwen3.7-flash",
+    models: [
+      "qwen/qwen3.7-flash",
+      "qwen/qwen3.8-flash",
+      "qwen/qwen3.7-plus",
+      "qwen/qwen3.8-max-0902",
+      "qwen/qwen-2.5-72b-instruct"
+    ]
+  },
+  {
+    id: "custom",
+    label: "Custom OpenRouter Model",
+    defaultModel: "openai/gpt-6-luna",
+    models: []
+  }
+];
 var PROVIDER_CATALOG = {
   local: {
     id: "local",
@@ -1217,82 +1299,9 @@ var PROVIDER_CATALOG = {
     label: "OpenRouter (Multi-Provider)",
     officialEndpoint: OPENROUTER_ENDPOINT,
     apiFormat: "openai-compatible",
-    defaultModel: "openai/gpt-6-astra",
-    families: [
-      {
-        id: "openai",
-        label: "OpenAI GPT & Reasoning",
-        defaultModel: "openai/gpt-6-astra",
-        models: [
-          "openai/gpt-6-astra",
-          "openai/gpt-5.6-sol",
-          "openai/o3-mini",
-          "openai/gpt-4o"
-        ]
-      },
-      {
-        id: "anthropic",
-        label: "Anthropic Claude",
-        defaultModel: "anthropic/claude-sonnet-5",
-        models: [
-          "anthropic/claude-fable-5-1",
-          "anthropic/claude-opus-5",
-          "anthropic/claude-sonnet-5"
-        ]
-      },
-      {
-        id: "deepseek",
-        label: "DeepSeek",
-        defaultModel: "deepseek/deepseek-r1",
-        models: ["deepseek/deepseek-r1", "deepseek/deepseek-chat"]
-      },
-      {
-        id: "google",
-        label: "Google Gemini",
-        defaultModel: "google/gemini-2.5-flash",
-        models: [
-          "google/gemini-2.5-flash",
-          "google/gemini-2.5-pro"
-        ]
-      },
-      {
-        id: "meta",
-        label: "Meta Llama",
-        defaultModel: "meta-llama/llama-3.3-70b-instruct",
-        models: [
-          "meta-llama/llama-3.3-70b-instruct"
-        ]
-      },
-      {
-        id: "qwen",
-        label: "Qwen",
-        defaultModel: "qwen/qwen-2.5-72b-instruct",
-        models: [
-          "qwen/qwen-2.5-72b-instruct"
-        ]
-      },
-      {
-        id: "custom",
-        label: "Custom OpenRouter Model",
-        defaultModel: "openai/gpt-6-astra",
-        models: []
-      }
-    ],
-    models: [
-      "openai/gpt-6-astra",
-      "openai/gpt-5.6-sol",
-      "openai/o3-mini",
-      "openai/gpt-4o",
-      "anthropic/claude-fable-5-1",
-      "anthropic/claude-opus-5",
-      "anthropic/claude-sonnet-5",
-      "deepseek/deepseek-r1",
-      "deepseek/deepseek-chat",
-      "google/gemini-2.5-flash",
-      "google/gemini-2.5-pro",
-      "meta-llama/llama-3.3-70b-instruct",
-      "qwen/qwen-2.5-72b-instruct"
-    ],
+    defaultModel: "openai/gpt-6-luna",
+    families: OPENROUTER_FAMILIES,
+    models: OPENROUTER_FAMILIES.flatMap((family) => family.models),
     keyPlaceholder: "sk-or-...",
     openrouterPrefix: ""
   },
@@ -1301,14 +1310,14 @@ var PROVIDER_CATALOG = {
     label: "Anthropic (Claude)",
     officialEndpoint: "https://api.anthropic.com/v1/messages",
     apiFormat: "anthropic",
-    defaultModel: "claude-sonnet-5",
+    defaultModel: "claude-haiku-4-5-20251001",
     models: [
-      "claude-fable-5-1",
-      "claude-opus-5",
-      "claude-sonnet-5",
       "claude-haiku-4-5-20251001",
-      "claude-3-7-sonnet-20250219",
-      "claude-3-5-sonnet-20241022"
+      "claude-sonnet-5-5",
+      "claude-opus-5-5",
+      "claude-fable-5-1",
+      "claude-sonnet-5",
+      "claude-opus-5"
     ],
     keyPlaceholder: "sk-ant-...",
     openrouterPrefix: "anthropic/"
@@ -1318,8 +1327,10 @@ var PROVIDER_CATALOG = {
     label: "OpenAI",
     officialEndpoint: "https://api.openai.com/v1/chat/completions",
     apiFormat: "openai-compatible",
-    defaultModel: "gpt-6-astra",
+    defaultModel: "gpt-6-luna",
     models: [
+      "gpt-6-luna",
+      "gpt-6.1-sol",
       "gpt-6-astra",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
@@ -1337,13 +1348,15 @@ var PROVIDER_CATALOG = {
     label: "Google Gemini",
     officialEndpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     apiFormat: "openai-compatible",
-    defaultModel: "gemini-2.5-flash",
+    defaultModel: "gemini-3.1-flash-lite",
     models: [
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash-lite",
+      "gemini-3.8-flash",
+      "gemini-3.1-pro-preview",
       "gemini-2.5-flash",
       "gemini-2.5-pro",
-      "gemini-2.5-flash-lite",
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite"
+      "gemini-2.5-flash-lite"
     ],
     keyPlaceholder: "AIza...",
     openrouterPrefix: "google/"
@@ -1357,7 +1370,8 @@ var PROVIDER_CATALOG = {
     models: [
       "deepseek-chat",
       "deepseek-reasoner",
-      "deepseek-flash"
+      "deepseek-flash",
+      "deepseek-v4-pro"
     ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "deepseek/"
@@ -1367,14 +1381,12 @@ var PROVIDER_CATALOG = {
     label: "Kimi (Moonshot)",
     officialEndpoint: "https://api.moonshot.cn/v1/chat/completions",
     apiFormat: "openai-compatible",
-    defaultModel: "kimi-k3",
+    defaultModel: "kimi-k2.6",
     models: [
+      "kimi-k2.6",
       "kimi-k3",
       "kimi-k2.7-code",
-      "kimi-k2.7-code-highspeed",
-      "moonshot-v1-8k",
-      "moonshot-v1-32k",
-      "moonshot-v1-128k"
+      "kimi-k2.7-code-highspeed"
     ],
     keyPlaceholder: "sk-...",
     openrouterPrefix: "moonshot/"
@@ -1384,12 +1396,14 @@ var PROVIDER_CATALOG = {
     label: "Zhipu (GLM)",
     officialEndpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
     apiFormat: "openai-compatible",
-    defaultModel: "glm-5.3",
+    defaultModel: "glm-5.3-flash",
     models: [
+      "glm-5.3-flash",
       "glm-5.3",
       "glm-5",
       "glm-5-turbo",
       "glm-4.7",
+      "glm-4.7-flash",
       "glm-4-plus",
       "glm-4-air",
       "glm-4-flash"
@@ -1402,8 +1416,12 @@ var PROVIDER_CATALOG = {
     label: "Qwen (Tongyi)",
     officialEndpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     apiFormat: "openai-compatible",
-    defaultModel: "qwen3-max",
+    defaultModel: "qwen3.7-flash",
     models: [
+      "qwen3.7-flash",
+      "qwen3.8-flash",
+      "qwen3.7-plus",
+      "qwen3.8-max",
       "qwen3-max",
       "qwen3-plus",
       "qwen3-flash",
