@@ -2124,10 +2124,143 @@ body {
   margin-bottom: 8px;
 }
 
-.confirm-btn-wrap { display: flex; flex: 1; min-width: 0; }
-.confirm-btn-wrap[title]:not([title=""]) { cursor: not-allowed; }
+.confirm-btn-wrap,
+.collect-nut-btn-wrap,
+.stage1-skip-btn-wrap { display: flex; flex: 1; min-width: 0; }
+
+.collect-nut-btn-wrap > .collect-nut-btn,
+.stage1-skip-btn-wrap > .collect-nut-btn { width: 100%; }
+
+.reanalyze-btn-wrap { display: inline-flex; }
+
+.analyze-btn-wrap {
+  width: 100%;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+.analyze-btn-wrap > .analyze-btn {
+  position: static;
+  box-shadow: none;
+}
+
+.confirm-btn-wrap[title]:not([title=""]),
+.collect-nut-btn-wrap[title]:not([title=""]),
+.stage1-skip-btn-wrap[title]:not([title=""]),
+.egg-analysis-selector[title]:not([title=""]),
+.analyze-btn-wrap[title]:not([title=""]),
+.reanalyze-btn-wrap[title]:not([title=""]) {
+  cursor: not-allowed;
+}
+
 /* Hover the wrapper so the explanation works even for a disabled button. */
-.confirm-btn-wrap > button:disabled { pointer-events: none; }
+.confirm-btn-wrap > button:disabled,
+.collect-nut-btn-wrap > button:disabled,
+.stage1-skip-btn-wrap > button:disabled,
+.egg-analysis-selector > button:disabled,
+.analyze-btn-wrap > button:disabled,
+.reanalyze-btn-wrap > button:disabled {
+  pointer-events: none;
+}
+
+/* ============================================================ */
+/* In-DOM Instant Floating Tooltips for Disabled Action Buttons */
+/* ============================================================ */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  z-index: 1000;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 11px);
+  left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: normal;
+  width: max-content;
+  max-width: 250px;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  z-index: 1000;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Align left-side button tooltips */
+.confirm-btn-wrap[data-tooltip]::after,
+.egg-analysis-selector[data-tooltip]::after {
+  left: 0;
+  transform: translateY(3px);
+}
+.confirm-btn-wrap[data-tooltip]::before,
+.egg-analysis-selector[data-tooltip]::before {
+  left: 24px;
+  transform: translateY(3px);
+}
+.confirm-btn-wrap[data-tooltip]:hover::after,
+.egg-analysis-selector[data-tooltip]:hover::after,
+.confirm-btn-wrap[data-tooltip]:hover::before,
+.egg-analysis-selector[data-tooltip]:hover::before {
+  transform: translateY(0);
+}
+
+/* Align right-side button tooltips */
+.collect-nut-btn-wrap[data-tooltip]::after,
+.stage1-skip-btn-wrap[data-tooltip]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(3px);
+}
+.collect-nut-btn-wrap[data-tooltip]::before,
+.stage1-skip-btn-wrap[data-tooltip]::before {
+  left: auto;
+  right: 24px;
+  transform: translateY(3px);
+}
+.collect-nut-btn-wrap[data-tooltip]:hover::after,
+.stage1-skip-btn-wrap[data-tooltip]:hover::after,
+.collect-nut-btn-wrap[data-tooltip]:hover::before,
+.stage1-skip-btn-wrap[data-tooltip]:hover::before {
+  transform: translateY(0);
+}
+
+/* Hide when empty or not set */
+[data-tooltip=""]::before,
+[data-tooltip=""]::after {
+  display: none !important;
+}
 
 .confirm-btn {
   flex: 1;

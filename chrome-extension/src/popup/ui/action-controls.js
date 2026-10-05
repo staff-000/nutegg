@@ -19,16 +19,23 @@ class ActionControlsComponent {
     this.stage1ConfirmBox = root.getElementById("stage1-confirm-box");
     this.stage1ConfirmText = root.getElementById("stage1-confirm-text");
     this.stage1ProceedBtn = root.getElementById("stage1-proceed-btn");
+    this.eggAnalysisSelector = root.getElementById("egg-analysis-selector") || root.querySelector?.(".egg-analysis-selector");
     this.eggAnalysisLabel = root.getElementById("egg-analysis-label");
     this.eggAnalysisMenu = root.getElementById("egg-analysis-menu");
     this.eggAnalysisOnlyBtn = root.getElementById("egg-analysis-only");
     this.eggAnalysisWithKnowledgeBtn = root.getElementById("egg-analysis-with-knowledge");
     this.generateKnowledgeEntries = true;
     this.stage1SkipBtn = root.getElementById("stage1-skip-btn");
+    this.stage1SkipBtnWrap = root.getElementById("stage1-skip-btn-wrap");
 
+    this.analyzeBtn = root.getElementById("analyze-btn");
+    this.analyzeBtnWrap = root.getElementById("analyze-btn-wrap");
+    this.reanalyzeBtn = root.getElementById("reanalyze-btn");
+    this.reanalyzeBtnWrap = root.getElementById("reanalyze-btn-wrap");
     this.confirmBtn = root.getElementById("confirm-btn");
     this.confirmBtnWrap = root.getElementById("confirm-btn-wrap");
     this.collectNutBtn = root.getElementById("collect-nut-btn");
+    this.collectNutBtnWrap = root.getElementById("collect-nut-btn-wrap");
     this.discardBtn = root.getElementById("discard-btn");
     this.backBtn = root.getElementById("back-btn");
   }
@@ -186,11 +193,25 @@ class ActionControlsComponent {
     if (!this.stage1ProceedBtn) return;
     if (isProceeding) {
       this.stage1ProceedBtn.disabled = true;
+      const title = t("analysisRunningHint");
+      this.stage1ProceedBtn.title = title;
+      this.stage1ProceedBtn.setAttribute?.("data-tooltip", title);
+      if (this.eggAnalysisSelector) {
+        this.eggAnalysisSelector.title = title;
+        this.eggAnalysisSelector.setAttribute?.("data-tooltip", title);
+      }
       if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("analyzingEggs");
       return;
     }
     if (selectedCount === 0) {
       this.stage1ProceedBtn.disabled = true;
+      const title = t("selectEggToAnalyzeHint");
+      this.stage1ProceedBtn.title = title;
+      this.stage1ProceedBtn.setAttribute?.("data-tooltip", title);
+      if (this.eggAnalysisSelector) {
+        this.eggAnalysisSelector.title = title;
+        this.eggAnalysisSelector.setAttribute?.("data-tooltip", title);
+      }
       if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("eggAnalysisSelectEgg");
       if (this.stage1ConfirmText) {
         this.stage1ConfirmText.innerHTML = totalEggsCount === 0
@@ -199,6 +220,12 @@ class ActionControlsComponent {
       }
     } else {
       this.stage1ProceedBtn.disabled = false;
+      this.stage1ProceedBtn.title = "";
+      this.stage1ProceedBtn.removeAttribute?.("data-tooltip");
+      if (this.eggAnalysisSelector) {
+        this.eggAnalysisSelector.title = "";
+        this.eggAnalysisSelector.removeAttribute?.("data-tooltip");
+      }
       this.updateEggAnalysisLabel();
       if (this.stage1ConfirmText) {
         this.stage1ConfirmText.innerHTML = t("stage1SelectedNotice", { count: selectedCount });
@@ -215,61 +242,78 @@ class ActionControlsComponent {
   } = {}) {
     if (isChromeMode) {
       this.confirmBtn?.classList.add("hidden");
+      this.confirmBtnWrap?.classList.add("hidden");
       this.collectNutBtn?.classList.add("hidden");
+      this.collectNutBtnWrap?.classList.add("hidden");
       return;
     }
 
     if (isStage1) {
       this.confirmBtn?.classList.add("hidden");
-      if (nutCollected) {
-        if (this.collectNutBtn) {
-          this.collectNutBtn.disabled = true;
-          this.collectNutBtn.textContent = t("nutCollected");
-        }
-        if (this.stage1SkipBtn) {
-          this.stage1SkipBtn.disabled = true;
-          this.stage1SkipBtn.textContent = t("nutCollected");
-        }
-        if (this.stage1ConfirmText) {
-          this.stage1ConfirmText.innerHTML = t("stage1NutSavedNotice");
-        }
-        const confirmIconEl = this.root.querySelector?.(".stage1-confirm-icon");
-        if (confirmIconEl) {
-          confirmIconEl.textContent = "✅";
-        }
-        this.stage1ConfirmBox?.classList.add("stage1-saved");
-      } else {
-        if (this.collectNutBtn) {
-          this.collectNutBtn.disabled = false;
-          this.collectNutBtn.textContent = t("collectNutOnly");
-        }
-        if (this.stage1SkipBtn) {
-          this.stage1SkipBtn.disabled = false;
-          this.stage1SkipBtn.textContent = t("collectNutOnly");
-        }
-        this.stage1ConfirmBox?.classList.remove("stage1-saved");
+      this.confirmBtnWrap?.classList.add("hidden");
+      const nutTitle = nutCollected ? t("nutAlreadySaved") : "";
+      if (this.collectNutBtn) {
+        this.collectNutBtn.disabled = nutCollected;
+        this.collectNutBtn.textContent = t(nutCollected ? "nutCollected" : "collectNutOnly");
+        this.collectNutBtn.title = nutTitle;
+        if (nutTitle) this.collectNutBtn.setAttribute?.("data-tooltip", nutTitle);
+        else this.collectNutBtn.removeAttribute?.("data-tooltip");
       }
+      if (this.collectNutBtnWrap) {
+        this.collectNutBtnWrap.title = nutTitle;
+        if (nutTitle) this.collectNutBtnWrap.setAttribute?.("data-tooltip", nutTitle);
+        else this.collectNutBtnWrap.removeAttribute?.("data-tooltip");
+      }
+      if (this.stage1SkipBtn) {
+        this.stage1SkipBtn.disabled = nutCollected;
+        this.stage1SkipBtn.textContent = t(nutCollected ? "nutCollected" : "collectNutOnly");
+        this.stage1SkipBtn.title = nutTitle;
+        if (nutTitle) this.stage1SkipBtn.setAttribute?.("data-tooltip", nutTitle);
+        else this.stage1SkipBtn.removeAttribute?.("data-tooltip");
+      }
+      if (this.stage1SkipBtnWrap) {
+        this.stage1SkipBtnWrap.title = nutTitle;
+        if (nutTitle) this.stage1SkipBtnWrap.setAttribute?.("data-tooltip", nutTitle);
+        else this.stage1SkipBtnWrap.removeAttribute?.("data-tooltip");
+      }
+      if (this.stage1ConfirmText) {
+        this.stage1ConfirmText.innerHTML = t("stage1NutSavedNotice");
+      }
+      const confirmIconEl = this.root.querySelector?.(".stage1-confirm-icon");
+      if (confirmIconEl) {
+        confirmIconEl.textContent = "✅";
+      }
+      this.stage1ConfirmBox?.classList.add("stage1-saved");
       return;
     }
 
-    if (nutCollected) {
-      if (this.collectNutBtn) {
-        this.collectNutBtn.disabled = true;
-        this.collectNutBtn.textContent = t("nutCollected");
-      }
-    } else {
-      if (this.collectNutBtn) {
-        this.collectNutBtn.disabled = false;
-        this.collectNutBtn.textContent = t("collectNut");
-      }
+    const nutTitle = nutCollected ? t("nutAlreadySaved") : "";
+    if (this.collectNutBtn) {
+      this.collectNutBtn.disabled = nutCollected;
+      this.collectNutBtn.textContent = t(nutCollected ? "nutCollected" : "collectNut");
+      this.collectNutBtn.title = nutTitle;
+      if (nutTitle) this.collectNutBtn.setAttribute?.("data-tooltip", nutTitle);
+      else this.collectNutBtn.removeAttribute?.("data-tooltip");
+    }
+    if (this.collectNutBtnWrap) {
+      this.collectNutBtnWrap.title = nutTitle;
+      if (nutTitle) this.collectNutBtnWrap.setAttribute?.("data-tooltip", nutTitle);
+      else this.collectNutBtnWrap.removeAttribute?.("data-tooltip");
     }
 
     if (this.confirmBtn) {
       this.confirmBtn.classList.remove("hidden");
+      this.confirmBtnWrap?.classList.remove("hidden");
+      const hatchTitle = eggHatched
+        ? t("hatchAlreadySaved")
+        : hasDelta
+        ? ""
+        : t("noNewKnowledgeToAdd");
+
       if (eggHatched) {
         this.confirmBtn.disabled = true;
         this.confirmBtn.textContent = t("eggHatched");
-        this.confirmBtn.title = "";
+        this.confirmBtn.title = hatchTitle;
       } else if (hasDelta) {
         this.confirmBtn.disabled = false;
         this.confirmBtn.textContent = t("hatchEgg");
@@ -277,7 +321,14 @@ class ActionControlsComponent {
       } else {
         this.confirmBtn.disabled = true;
         this.confirmBtn.textContent = t("hatchEgg");
-        this.confirmBtn.title = t("noNewKnowledgeToAdd");
+        this.confirmBtn.title = hatchTitle;
+      }
+      if (hatchTitle) this.confirmBtn.setAttribute?.("data-tooltip", hatchTitle);
+      else this.confirmBtn.removeAttribute?.("data-tooltip");
+      if (this.confirmBtnWrap) {
+        this.confirmBtnWrap.title = hatchTitle;
+        if (hatchTitle) this.confirmBtnWrap.setAttribute?.("data-tooltip", hatchTitle);
+        else this.confirmBtnWrap.removeAttribute?.("data-tooltip");
       }
     }
   }
@@ -385,30 +436,48 @@ class ActionControlsComponent {
     const ready = !view.currentTabLoading && !view.extractionPending;
     const blocked = globalThis.NutEggHelpers?.getAnalyzeNotReadyReason?.(view, settings);
     const analyzeDisabled = busy || !ready || !!blocked;
-    const entries = (result?.newKnowledge?.length || 0) > 0;
+    const analyzeReason = blocked || (busy ? t('analysisRunningHint') : !ready ? t('pageLoadingHint') : '');
+    const entries = ((result?.newKnowledge?.length || 0) > 0) || ((result?.eggResults || []).some(r => (r.extractedEntries?.length || 0) > 0));
     const operationLabel = saving ? t(hatching ? 'hatching' : 'collecting') : analyzing ? t(view.analyzingEggs ? 'analyzingEggs' : 'analyzing')
       : view.operations?.followup?.running ? t('askingBtn') : view.operations?.creation?.running ? t('creatingEgg') : t('analyzing');
     const hatchReason = view.eggHatched ? t('hatchAlreadySaved') : busy ? t('hatchWaitForOperation', { operation: operationLabel })
       : !entries ? t('noNewKnowledgeToAdd') : '';
     const hatchHidden = chromeMode || !result || stage1;
-    const set = (element, disabled, text, hidden = false, title = '') => {
+    const set = (element, disabled, text, hidden = false, title = '', wrap = null) => {
       if (!element) return;
       element.disabled = !!disabled; element.title = title;
+      if (title) {
+        element.setAttribute?.('data-tooltip', title);
+      } else {
+        element.removeAttribute?.('data-tooltip');
+      }
       if (text != null) element.textContent = text;
       element.classList.toggle('hidden', !!hidden);
+      if (wrap) {
+        wrap.title = title;
+        if (title) {
+          wrap.setAttribute?.('data-tooltip', title);
+        } else {
+          wrap.removeAttribute?.('data-tooltip');
+        }
+        wrap.classList.toggle('hidden', !!hidden);
+      }
     };
     this.setMode(settings.analysisMode);
     if (busy || chromeMode || !result) this.toggleEggAnalysisMenu(false);
     this.updateEggAnalysisLabel(view.generateKnowledgeEntries);
-    set(this.analyzeBtn, analyzeDisabled, null, false, blocked || '');
+    set(this.analyzeBtn, analyzeDisabled, null, false, analyzeReason, this.analyzeBtnWrap);
     this.analyzeBtn?.classList.toggle('inactive', analyzeDisabled);
     if (this.analyzeBtnText) this.analyzeBtnText.textContent = t(analyzing ? 'analyzing' : 'analyze');
-    set(this.reanalyzeBtn, analyzeDisabled, t(analyzing ? 'analyzing' : 'reanalyze'), false, blocked || '');
+    set(this.reanalyzeBtn, analyzeDisabled, t(analyzing ? 'analyzing' : 'reanalyze'), false, analyzeReason, this.reanalyzeBtnWrap);
     this.reanalyzeBtn?.classList.toggle('inactive', analyzeDisabled);
-    set(this.reanalyzeRefreshBtn, busy || !ready, null);
+    set(this.reanalyzeRefreshBtn, busy || !ready, null, false, busy ? t('operationInProgressHint') : !ready ? t('pageLoadingHint') : '');
     this.reanalyzeRefreshBtn?.classList.toggle('rotating', !!view.extractionPending);
     set(this.viewAnalysisBtn, !result, t('viewAnalysis'), !result);
-    set(this.stage1ProceedBtn, busy || !view.selectedEggs?.size, null, chromeMode || !result);
+
+    const stage1ProceedDisabled = busy || !view.selectedEggs?.size;
+    const stage1ProceedReason = busy ? t('analysisRunningHint') : !view.selectedEggs?.size ? t('selectEggToAnalyzeHint') : '';
+    set(this.stage1ProceedBtn, stage1ProceedDisabled, null, chromeMode || !result, stage1ProceedReason, this.eggAnalysisSelector);
     if (this.eggAnalysisLabel) {
       this.eggAnalysisLabel.textContent = view.analyzingEggs
         ? t('analyzingEggs')
@@ -425,13 +494,12 @@ class ActionControlsComponent {
     if (this.stage1ConfirmText) this.stage1ConfirmText.innerHTML = t(view.nutCollected ? 'stage1NutSavedNotice' : view.selectedEggs?.size ? 'stage1SelectedNotice' : view.allEggs?.length ? 'stage1NoSelectedNotice' : 'stage1NoEggsNotice', { count: view.selectedEggs?.size || 0 });
     const icon = this.root.querySelector?.('.stage1-confirm-icon');
     if (icon) icon.textContent = view.nutCollected ? '✅' : '🥚';
-    set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : view.eggHatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason);
-    if (this.confirmBtnWrap) {
-      this.confirmBtnWrap.title = hatchReason;
-      this.confirmBtnWrap.classList.toggle('hidden', !!hatchHidden);
-    }
-    set(this.collectNutBtn, busy || view.nutCollected, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNut'), chromeMode || !result);
-    set(this.stage1SkipBtn, busy || view.nutCollected, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'));
+    set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : view.eggHatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason, this.confirmBtnWrap);
+
+    const nutDisabled = busy || view.nutCollected;
+    const nutReason = view.nutCollected ? t('nutAlreadySaved') : busy ? t('operationInProgressHint') : '';
+    set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
+    set(this.stage1SkipBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'), false, nutReason, this.stage1SkipBtnWrap);
     set(this.historySelect, busy, null, (view.captureHistory?.length || 0) < 2);
     set(this.backBtn, false, t('back'));
     this.showProcessedNote(result ? t(analyzing ? 'analyzingContent' : 'analysisCompleteAdjust') : '');

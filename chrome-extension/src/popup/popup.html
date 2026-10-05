@@ -176,9 +176,11 @@
       </div>
 
       <button type="button" id="view-analysis-btn" class="back-btn view-analysis-btn hidden" data-i18n="viewAnalysis">View analysis →</button>
-      <button id="analyze-btn" class="analyze-btn inactive">
-        <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
-      </button>
+      <div id="analyze-btn-wrap" class="analyze-btn-wrap">
+        <button id="analyze-btn" class="analyze-btn inactive">
+          <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
+        </button>
+      </div>
     </div>
 
     <!-- State 2: Results -->
@@ -202,7 +204,7 @@
         <div class="processed-info">
           <span id="processed-message"></span>
           <div class="processed-actions">
-            <button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button>
+            <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button></span>
             <button id="reanalyze-refresh-btn" class="refresh-btn" type="button" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-title="refreshTooltip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -258,14 +260,14 @@
           </div>
         </div>
         <div class="stage1-confirm-actions">
-          <div class="egg-analysis-selector">
+          <div id="egg-analysis-selector" class="egg-analysis-selector">
             <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
             <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
               <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisOnly">🥚 Analysis only</button>
               <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisWithKnowledge">🍃 Include knowledge</button>
             </div>
           </div>
-          <button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly">🌰 Collect Nut Only</button>
+          <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly">🌰 Collect Nut Only</button></span>
         </div>
       </div>
 
@@ -391,7 +393,7 @@
 
       <div class="action-buttons">
         <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🐣 Hatch Egg</button></span>
-        <button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button>
+        <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button></span>
         <button id="discard-btn" class="discard-btn" data-i18n="discard">Discard</button>
         <button id="back-btn" class="back-btn" data-i18n="back">← Back</button>
       </div>

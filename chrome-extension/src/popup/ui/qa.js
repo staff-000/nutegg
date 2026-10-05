@@ -282,7 +282,13 @@ class QaComponent {
   }
 
   setFollowupLoading(isLoading) {
-    if (this.followupBtn) this.followupBtn.disabled = isLoading;
+    if (this.followupBtn) {
+      this.followupBtn.disabled = isLoading;
+      const title = isLoading ? t("operationInProgressHint") : "";
+      this.followupBtn.title = title;
+      if (title) this.followupBtn.setAttribute?.("data-tooltip", title);
+      else this.followupBtn.removeAttribute?.("data-tooltip");
+    }
     if (this.followupInput) this.followupInput.disabled = isLoading;
   }
 

@@ -386,13 +386,20 @@ class EggsComponent {
   setCreateButtonLoading(isLoading) {
     const loadingText = t("creatingEgg") || t("creating") || "Creating…";
     const normalText = t("createEggBtn") || "Create Egg";
+    const title = isLoading ? t("operationInProgressHint") : "";
     if (this.eggsCreateBtn) {
       this.eggsCreateBtn.disabled = Boolean(isLoading);
       this.eggsCreateBtn.textContent = isLoading ? loadingText : normalText;
+      this.eggsCreateBtn.title = title;
+      if (title) this.eggsCreateBtn.setAttribute?.("data-tooltip", title);
+      else this.eggsCreateBtn.removeAttribute?.("data-tooltip");
     }
     if (this.createEggBtn) {
       this.createEggBtn.disabled = Boolean(isLoading);
       this.createEggBtn.textContent = isLoading ? loadingText : normalText;
+      this.createEggBtn.title = title;
+      if (title) this.createEggBtn.setAttribute?.("data-tooltip", title);
+      else this.createEggBtn.removeAttribute?.("data-tooltip");
     }
   }
 
