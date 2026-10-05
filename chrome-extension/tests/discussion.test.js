@@ -240,3 +240,19 @@ test('discussion highlights and supplements expose jump tags using their exact c
   assert.match(html, /Useful detailed experience.*data-source-id="b"/);
   assert.doesNotMatch(html, /<a\b|<blockquote\b/);
 });
+
+test('discussion highlights and supplements omit source tag when there is a timestamp', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const draft = part([['a', 'agree'], ['b', 'neutral']]);
+  draft.topics[0].highlights[0] = { commentId: 'a', summary: 'Explained at [02:15] in the video' };
+  draft.topics[0].highlights.push({ commentId: 'b', summary: 'Check 10:30 for alternative approach', supplement: true });
+  const result = core.buildDiscussionResult(capture([item('a'), item('b')]), [draft]);
+  ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
+  const html = root.getElementById('discussion-result').innerHTML;
+  // Should NOT contain discussion-source buttons since timestamps are present
+  assert.doesNotMatch(html, /discussion-source/);
+  // Timestamps should be linkified
+  assert.match(html, /source-pill source-timestamp.*data-time="02:15"/);
+  assert.match(html, /source-pill source-timestamp.*data-time="10:30"/);
+});
+

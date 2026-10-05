@@ -82,3 +82,27 @@ test('a text heading containing a ratio is not treated as a video timestamp', t 
   document.querySelector('.source-pill').click();
   assert.equal(calls[0][0], 'The 1:30 ratio');
 });
+
+test('mind-map nodes omit source tag when there is a timestamp', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  new MindmapComponent(document).render([
+    {
+      name: 'Video topic',
+      time: '05:30',
+      sources: [{ ref: 'Chapter 2', quote: 'Supporting transcript', sourceId: 'yt-ch-2' }],
+      children: [{ name: 'Subtopic with time', time: '06:00', sources: [{ ref: 'Chapter 2.1' }] }],
+    },
+  ]);
+  const tree = document.getElementById('mindmap-tree');
+  // Should NOT contain .source-mindmap or .source-section tag
+  assert.equal(tree.querySelector('.source-mindmap'), null);
+  assert.equal(tree.querySelector('.source-section'), null);
+  // Should contain timestamp buttons
+  const timestamps = tree.querySelectorAll('.source-timestamp');
+  assert.equal(timestamps.length, 2);
+  assert.equal(timestamps[0].dataset.time, '05:30');
+  assert.equal(timestamps[1].dataset.time, '06:00');
+});
