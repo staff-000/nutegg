@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { JSDOM } = require("jsdom");
 
 const utilsCode = fs.readFileSync(
   path.resolve(__dirname, "../src/content/utils.js"),
@@ -180,6 +181,8 @@ test("Twitter Extractor - extracts X Article when twitterArticleReadView is pres
   assert.equal(result.sourceType, "twitter");
   assert.equal(result.metadata.isArticle, true);
   assert.equal(result.title, "How to Launch Yourself into a Brand New Life");
+  assert.equal(result.metadata.author, "Dan Koe");
+  assert.equal(result.metadata.handle, "@thedankoe");
   assert.equal(result.metadata.published, "2026-09-20T10:00:00.000Z");
 
   assert.ok(result.content.includes("# How to Launch Yourself into a Brand New Life"));
@@ -290,4 +293,57 @@ test("Twitter Extractor - derives author handle from URL when not in DOM", async
 
   assert.equal(result.metadata.handle, "@thedankoe");
   assert.equal(result.metadata.author, "thedankoe");
+});
+
+function realTwitterPage(html, url = "https://x.com/thedankoe/status/2104198133928390984") {
+  const dom = new JSDOM(html, { url, runScripts: "outside-only" });
+  dom.window.eval(utilsCode);
+  dom.window.eval(twitterCode);
+  return dom;
+}
+
+function authorHeader(name, handle, date = 'Sep 27', absolute = false) {
+  const profile = absolute ? `https://x.com/${handle}` : `/${handle}`;
+  return `<div data-testid="User-Name"><a href="${profile}"><span>${name}</span><svg aria-label="Verified account"><title>Verified account</title></svg></a><a href="${profile}"><span>@${handle}</span></a><span>·</span><a href="/${handle}/status/123"><time datetime="2026-09-27T13:15:00Z">${date}</time></a></div>`;
+}
+
+test('Twitter Extractor - separates names and handles from timestamps in the reported post and its replies', async () => {
+  const dom = realTwitterPage(`<main>
+    <article data-testid="tweet">${authorHeader('DAN KOE', 'thedankoe', '6:15 AM · Sep 27, 2026')}<div data-testid="tweetText">The most dangerous moment is right after you win.</div></article>
+    <article data-testid="tweet">${authorHeader('Mishka', 'iamrealmishka')}<div data-testid="tweetText">A different perspective.</div></article>
+    <article data-testid="tweet">${authorHeader('Sharyph', 'sharyph_', '1h', true)}<div data-testid="tweetText">Another experience.</div></article>
+  </main>`);
+  try {
+    const result = await dom.window.extractTwitter();
+    assert.equal(result.metadata.author, 'DAN KOE');
+    assert.equal(result.metadata.handle, '@thedankoe');
+    assert.equal(result.metadata.published, '2026-09-27T13:15:00Z');
+    assert.equal(result.title, 'Tweet by DAN KOE (@thedankoe)');
+    assert.match(result.content, /1\. \*\*DAN KOE \(@thedankoe\)\*\*/);
+    assert.match(result.content, /2\. \*\*Mishka \(@iamrealmishka\)\*\*/);
+    assert.match(result.content, /3\. \*\*Sharyph \(@sharyph_\)\*\*/);
+    assert.doesNotMatch(result.content, /Sep 27|6:15 AM|1h|Verified account/);
+  } finally { dom.window.close(); }
+});
+
+test('Twitter Extractor - parses main and quoted authors independently without timestamps or parent-user fallbacks', () => {
+  const dom = realTwitterPage(`<article data-testid="tweet">${authorHeader('DAN KOE', 'thedankoe')}<div data-testid="tweetText">Main content</div><div role="link">${authorHeader('Quoted User', 'quoteduser', 'Oct 1')}<div data-testid="tweetText">Quoted content</div></div></article>`);
+  try {
+    const content = dom.window.extractMainTweet(dom.window.document.querySelector('article'));
+    assert.match(content, /\*\*Author:\*\* DAN KOE \(@thedankoe\)/);
+    assert.match(content, /Quoted Tweet \(Quoted User \(@quoteduser\)\)/);
+    assert.doesNotMatch(content, /Sep 27|Oct 1|Verified account/);
+    const quote = dom.window.document.querySelector('div[role="link"]');
+    quote.querySelector('[data-testid="User-Name"]').remove();
+    assert.equal(dom.window.formatTwitterAuthor(quote), '');
+  } finally { dom.window.close(); }
+});
+
+test('Twitter Extractor - handles flat author headers with nested time, badges and concatenated handle', () => {
+  const dom = realTwitterPage('<article data-testid="tweet"><div data-testid="User-Name"><span>小明 (@Work)</span><span>@alice</span><svg><title>Verified account</title></svg><span>·</span><time>Oct 6, 2026 10:00 AM</time></div><div data-testid="tweetText">Text</div></article>', 'https://x.com/alice/status/123');
+  try {
+    const author = dom.window.extractAuthorInfo(dom.window.document.querySelector('article'));
+    assert.equal(author.authorName, '小明 (@Work)');
+    assert.equal(author.authorHandle, '@alice');
+  } finally { dom.window.close(); }
 });

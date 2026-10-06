@@ -47,13 +47,13 @@
     return out;
   }
   // Search within one comment, without borrowing text/likes from nested replies.
-  function commentQuery(el, selectors) {
+  function commentQuery(el, selectors, accept = () => true) {
     const queue = [el], seen = new Set();
     for (let i = 0; i < queue.length && i < 64; i++) {
       const root = queue[i]; if (seen.has(root)) continue; seen.add(root);
       const match = all(root, selectors).find(node => {
         const owner = node.parentElement?.closest(selected.item);
-        return !owner || owner === el;
+        return (!owner || owner === el) && accept(node);
       });
       if (match) return match;
       if (root.shadowRoot) queue.push(root.shadowRoot);
@@ -129,7 +129,9 @@
       if (!body) continue;
       const content = commentText(body);
       if (!content) continue;
-      const authorEl = commentQuery(el, selected.author);
+      // Profile/avatar links can precede the visible username. Prefer a named node
+      // belonging to this comment rather than an empty avatar or a nested reply.
+      const authorEl = commentQuery(el, selected.author, node => !!text(node)) || commentQuery(el, selected.author);
       const author = text(authorEl), href = authorEl?.href || (authorEl && query(authorEl, 'a[href]')?.href);
       const rawId = identity(el);
       // A stable DOM ID is preferred. A structural location disambiguates identical anonymous texts.
@@ -152,8 +154,9 @@
       if (!url && selected.name === 'youtube' && rawId) { const u = new URL(page); u.searchParams.set('lc', rawId); url = u.href; }
       if (!url && el.id) url = page + '#' + el.id;
       sourceElements.set(id, el);
-      records.set(id, { id, parentId: parentId ? selected.name + ':' + parentId : undefined, author: author || undefined,
-        authorId: href || undefined, text: boundedText, url,
+      const previous = records.get(id);
+      records.set(id, { id, parentId: parentId ? selected.name + ':' + parentId : undefined, author: author || previous?.author,
+        authorId: href || previous?.authorId, text: boundedText, url,
         reaction: { kind: selected.reactionKind || 'likes', ...parsed } });
     }
     return [...records.values()];

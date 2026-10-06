@@ -142,11 +142,24 @@ class CaptureViewComponent {
     }
     const items = content?.discussion?.items || [];
     const comments = items.length ? '\n\n' + t('discussionPreview', { count: items.length }) + '\n'
-      + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}${item.author || t('discussionComment')}\n${item.text}`
+      + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}👤 ${this.commentAuthor(item)}\n${item.text}`
         + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
       + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
     const warning = globalThis.NutEggHelpers?.getExtractionWarning?.(content);
     this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning);
+  }
+
+  commentAuthor(item) {
+    if (typeof item.author === 'string' && item.author.trim()) return item.author.trim();
+    // Older captures or avatar-only layouts may still expose a named profile URL.
+    try {
+      const profile = new URL(item.authorId);
+      if (/^https?:$/.test(profile.protocol)) {
+        const match = profile.pathname.match(/^\/(@[^/]+)(?:\/|$)|^\/(?:user|u|people)\/([^/]+)(?:\/|$)/);
+        if (match) return decodeURIComponent(match[1] || match[2]);
+      }
+    } catch { /* No usable profile name. */ }
+    return t('discussionUnknownAuthor');
   }
 
   setPreviewText(text, warning = null) {

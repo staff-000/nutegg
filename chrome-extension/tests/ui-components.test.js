@@ -75,15 +75,39 @@ describe("Modular UI Components", () => {
   it('CaptureViewComponent previews comments when discussion is off, safely and without comment links', () => {
     const root = createMockRoot(), capture = new CaptureViewComponent(root);
     capture.render({ title: 'Page', content: 'Original body', enabledSections: { discussion: false }, discussion: { truncated: true, items: [
-      { id: 'c', author: 'Reader', text: '<script>alert(1)</script> [02:30] A useful experience', url: 'https://comment.test', reaction: { kind: 'likes', count: 12 } },
+      { id: 'c', author: 'Reader <img src=x onerror=alert(1)>', text: '<script>alert(1)</script> [02:30] A useful experience', url: 'https://comment.test', reaction: { kind: 'likes', count: 12 } },
       { id: 'reply', parentId: 'c', text: 'Reply with unknown reactions', reaction: { kind: 'likes', count: null } },
     ] } });
     const html = root.getElementById('content-preview').innerHTML;
     assert(html.includes('Original body')); assert(html.includes('2 captured comments'));
+    assert(html.includes('1. 👤 Reader'));
+    assert(html.includes('&lt;img'));
+    assert(!html.includes('<img'));
+    assert(html.includes('2. ↳ 👤 Unknown user'));
     assert(html.includes('A useful experience')); assert(html.includes('12 likes')); assert(html.includes('Capture limit reached'));
     assert(!html.includes('<script>')); assert(!html.includes('https://comment.test')); assert(!html.includes('null likes'));
     capture.render({ content: 'A different page' });
     assert.ok(root.getElementById('content-preview').textContent.endsWith('A different page'));
+  });
+
+  it('CaptureViewComponent shows comment usernames and named profile fallbacks above their own comments', () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const content = { content: 'Article', discussion: { items: [
+      { id: 'a', author: ' Alice ', text: 'First experience' },
+      { id: 'b', authorId: 'https://www.youtube.com/@bob', text: 'Second experience' },
+      { id: 'c', parentId: 'a', authorId: 'https://www.reddit.com/user/Carol', text: 'Reply experience' },
+      { id: 'd', authorId: 'https://www.tiktok.com/@%E5%B0%8F%E6%98%8E', text: 'Chinese name' },
+      { id: 'e', author: '   ', text: 'Anonymous experience' },
+    ] } };
+    const original = structuredClone(content);
+    capture.render(content);
+    const text = capture.contentPreview.textContent;
+    assert.ok(text.includes('1. 👤 Alice\nFirst experience'));
+    assert.ok(text.includes('2. 👤 @bob\nSecond experience'));
+    assert.ok(text.includes('3. ↳ 👤 Carol\nReply experience'));
+    assert.ok(text.includes('4. 👤 @小明\nChinese name'));
+    assert.ok(text.includes('5. 👤 Unknown user\nAnonymous experience'));
+    assert.deepEqual(content, original);
   });
   it("runs the current analysis mode from the label and opens choices only from the arrow", async () => {
     const eggs = new ActionControlsComponent(createMockRoot());

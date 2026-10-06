@@ -44,7 +44,32 @@ test('loaded long comments retain their full text within the total capture budge
 for (const [name, url, html, count] of platforms) test(`${name} adapter extracts loaded comments, identities and reactions`, () => {
   const { dom, collector } = page(url, html);
   const d = collector.snapshot(); assert.equal(d.items.length, 1); assert.equal(d.items[0].reaction.count, count);
+  assert.equal(d.items[0].author, 'Alice');
   assert(d.items[0].authorId.includes('alice')); assert.equal(d.status, 'partial'); dom.window.close();
+});
+
+test('comment authors prefer the visible username over an earlier empty avatar link', () => {
+  const { collector } = page('https://www.tiktok.com/@creator/video/123', '<div data-e2e="comment-list"><div data-e2e="comment-item" data-comment-id="c1"><a href="/@alice"><img alt="Avatar"></a><a href="/@alice"><span>Alice</span></a><p data-e2e="comment-level-1">An experience</p></div></div>');
+  const item = collector.snapshot().items[0];
+  assert.equal(item.author, 'Alice');
+  assert.equal(item.authorId, 'https://www.tiktok.com/@alice');
+});
+
+test('a parent never borrows its nested reply author, and captured names survive partial rerenders', () => {
+  const { win, collector } = page('https://www.tiktok.com/@creator/video/123', '<div data-e2e="comment-list"><div data-e2e="comment-item" data-comment-id="parent"><a href="/@alice"></a><p data-e2e="comment-level-1">Parent experience</p><div data-e2e="comment-item" data-comment-id="reply"><a href="/@bob">Bob</a><p data-e2e="comment-level-2">Reply experience</p></div></div></div>');
+  let items = collector.snapshot().items;
+  assert.equal(items[0].author, undefined);
+  assert.equal(items[0].authorId, 'https://www.tiktok.com/@alice');
+  assert.equal(items[1].author, 'Bob');
+  const author = win.document.querySelector('[data-comment-id="parent"] > a');
+  author.textContent = 'Alice';
+  items = collector.snapshot().items;
+  assert.equal(items[0].author, 'Alice');
+  author.remove();
+  items = collector.snapshot().items;
+  assert.equal(items[0].author, 'Alice');
+  assert.equal(items[0].authorId, 'https://www.tiktok.com/@alice');
+  assert.equal(items[1].author, 'Bob');
 });
 
 test('Reddit separates short original post, excludes recommendations and auto-enables long discussion', () => {

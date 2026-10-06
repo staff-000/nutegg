@@ -19,6 +19,26 @@ function setup(t) {
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 
+test('comment usernames update as they load and stay with their own browser tab', context => {
+  const f = setup(context);
+  const update = author => {
+    const job = f.store.beginOperation(1, 'discussion');
+    f.store.commitOperation(job.token, { type: 'discussionUpdated', passive: true, discussion: {
+      status: 'partial', items: [{ id: 'c1', author, text: 'Comment experience' }],
+    } });
+  };
+  update(undefined);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /👤 Unknown user\nComment experience/);
+  update('Alice');
+  assert.match(f.ui.captureUI.contentPreview.textContent, /👤 Alice\nComment experience/);
+  assert.ok(!f.ui.captureUI.contentPreview.textContent.includes('Unknown user'));
+  f.store.activateTab(2);
+  update('Alice Updated');
+  assert.ok(!f.ui.captureUI.contentPreview.textContent.includes('Alice'));
+  f.store.activateTab(1);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /👤 Alice Updated\nComment experience/);
+});
+
 test('missing-transcript notices appear in the warning and preview, survive tab switches, and clear on recovery', async context => {
   const f = setup(context);
   const body = 'page text '.repeat(250);

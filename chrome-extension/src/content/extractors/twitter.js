@@ -69,11 +69,11 @@ async function extractTwitter() {
   }
 
   // 5. Author info
-  const { authorName, authorHandle } = extractAuthorInfo();
-  const timestamp = document.querySelector("time")?.getAttribute("datetime") || "";
+  const mainTweet = document.querySelector('article[data-testid="tweet"]');
+  const { authorName, authorHandle } = extractAuthorInfo(mainTweet || document);
+  const timestamp = (mainTweet || document).querySelector("time")?.getAttribute("datetime") || "";
 
   // 6. Main tweet
-  const mainTweet = document.querySelector('article[data-testid="tweet"]');
   let tweetContent = mainTweet ? extractMainTweet(mainTweet) : "";
 
   // Fallback: collect all visible tweet texts if main tweet didn't yield text
@@ -128,7 +128,7 @@ async function extractTwitter() {
     const threadContent = [...threadTweets]
       .map((tweet, i) => {
         const text = tweet.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
-        const user = tweet.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
+        const user = formatTwitterAuthor(tweet);
         return text ? `${i + 1}. **${user || "..."}**: ${text}` : null;
       })
       .filter(Boolean).join("\n\n");
@@ -310,30 +310,42 @@ function extractXArticleBody(root, articleTitle) {
   return (richContainer.textContent || "").trim();
 }
 
-function extractAuthorInfo() {
+function extractAuthorInfo(root = document, usePageFallback = true) {
   let authorName = "";
   let authorHandle = "";
 
-  const userNameEl = document.querySelector('[data-testid="User-Name"]');
+  const userNameEl = root.querySelector('[data-testid="User-Name"]');
   if (userNameEl) {
-    const textTokens = (userNameEl.textContent || "")
-      .split(/\n/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    authorHandle = textTokens.find((t) => t.startsWith("@")) || "";
-    authorName = textTokens.find((t) => t !== authorHandle && !t.startsWith("@")) || "";
-    if (!authorHandle) {
-      const handleLink = userNameEl.querySelector('a[href^="/"]');
-      if (handleLink) {
-        const href = handleLink.getAttribute("href") || "";
-        const m = href.match(/^\/([A-Za-z0-9_]{1,15})/);
-        if (m) authorHandle = `@${m[1]}`;
-      }
+    // The whole User-Name header also contains the post date, separators and
+    // badges. Read account profile links, excluding status/timestamp links.
+    const profiles = Array.from(userNameEl.querySelectorAll("a")).map(link => {
+      const href = (link.getAttribute("href") || "").replace(/^https?:\/\/(?:www\.)?(?:x|twitter)\.com(?=\/)/i, "");
+      const match = href.match(/^\/([A-Za-z0-9_]{1,15})\/?(?:[?#].*)?$/);
+      const label = link.cloneNode(true);
+      label.querySelectorAll('svg, time, [role="button"]').forEach(node => node.remove());
+      return match ? { handle: `@${match[1]}`, label: (label.textContent || "").replace(/\s+/g, " ").trim() } : null;
+    }).filter(Boolean);
+    authorHandle = profiles.find(profile => profile.label)?.handle || profiles[0]?.handle || "";
+    const named = profiles.find(profile => profile.handle.toLowerCase() === authorHandle.toLowerCase() && profile.label && !profile.label.startsWith("@"));
+    if (named) authorName = named.label;
+
+    if (!authorName) {
+      // Text-only headers remain a fallback, after removing timestamp UI.
+      const cleanHeader = userNameEl.cloneNode(true);
+      cleanHeader.querySelectorAll('time, a[href*="/status/"], svg, [role="button"]').forEach(node => node.remove());
+      const header = (cleanHeader.textContent || "").replace(/\s+/g, " ").trim();
+      authorHandle ||= header.match(/@[A-Za-z0-9_]{1,15}(?=$|[\s·])/)?.[0] || "";
+      const handleIndex = authorHandle ? header.toLowerCase().indexOf(authorHandle.toLowerCase()) : -1;
+      authorName = (handleIndex >= 0 ? header.slice(0, handleIndex) : header).replace(/[\s·]+$/, "");
+    }
+    // Some layouts put display name and handle together in the profile link.
+    if (authorHandle && authorName.toLowerCase().endsWith(authorHandle.toLowerCase())) {
+      authorName = authorName.slice(0, -authorHandle.length).trim();
     }
   }
 
   // Fallback: extract handle from URL: x.com/<handle>/status/... or /article/...
-  if (!authorHandle) {
+  if (!authorHandle && usePageFallback) {
     const urlMatch = window.location.pathname.match(/^\/([A-Za-z0-9_]{1,15})(?:\/status|\/article|$)/);
     if (urlMatch && !["home", "explore", "notifications", "messages", "i", "search"].includes(urlMatch[1].toLowerCase())) {
       authorHandle = `@${urlMatch[1]}`;
@@ -344,9 +356,14 @@ function extractAuthorInfo() {
   return { authorName, authorHandle };
 }
 
+function formatTwitterAuthor(root) {
+  const { authorName, authorHandle } = extractAuthorInfo(root, false);
+  return authorName ? `${authorName}${authorHandle ? ` (${authorHandle})` : ""}` : authorHandle;
+}
+
 function extractMainTweet(tweetElement) {
   const parts = [];
-  const author = tweetElement.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
+  const author = formatTwitterAuthor(tweetElement);
   if (author) parts.push(`**Author:** ${author}`);
 
   const text = tweetElement.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
@@ -355,7 +372,8 @@ function extractMainTweet(tweetElement) {
   // Quoted tweet handling
   const quoteTweet = tweetElement.querySelector('div[role="link"] [data-testid="tweetText"]');
   if (quoteTweet && quoteTweet.textContent?.trim() !== text) {
-    const quoteAuthor = quoteTweet.closest('div[role="link"]')?.querySelector('[data-testid="User-Name"]')?.textContent?.trim();
+    const quoteRoot = quoteTweet.closest('div[role="link"]');
+    const quoteAuthor = quoteRoot ? formatTwitterAuthor(quoteRoot) : "";
     parts.push(`\n> **Quoted Tweet${quoteAuthor ? ` (${quoteAuthor})` : ""}:**\n> ${quoteTweet.textContent.trim().replace(/\n/g, "\n> ")}`);
   }
 
