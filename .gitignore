@@ -9,3 +9,4 @@ dist/
 website/dist/
 .agents/
 promo-video/
+obsidian-plugin/tests-dist/
