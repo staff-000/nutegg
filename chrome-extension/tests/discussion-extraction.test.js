@@ -194,6 +194,100 @@ test('Bilibili extracts nested text, user and toolbar components once, with repl
   assert.equal(collector.snapshot().items.length, 2);
 });
 
+test('Bilibili reads the user-info DOM before body mentions or empty avatar links', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer rpid="1"></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<a id="user-avatar" href="https://space.bilibili.com/11"><img alt="Avatar"></a><div id="content"><a href="https://space.bilibili.com/99">Mentioned user</a> Experience</div><bili-comment-user-info></bili-comment-user-info>';
+  root.querySelector('bili-comment-user-info').attachShadow({ mode: 'open' }).innerHTML = '<div id="user-name"><a href="https://space.bilibili.com/11">主评论用户<svg><title>Badge</title></svg></a><span>UP主</span></div>';
+  const item = collector.snapshot().items[0];
+  assert.equal(item.author, '主评论用户');
+  assert.equal(item.authorId, 'https://space.bilibili.com/11');
+});
+
+test('Bilibili reads slotted usernames that load later without creating a second comment', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<div id="content">An experience</div><bili-comment-user-info></bili-comment-user-info>';
+  const info = root.querySelector('bili-comment-user-info');
+  const initial = collector.snapshot().items[0];
+  assert.equal(initial.author, undefined);
+  info.attachShadow({ mode: 'open' }).innerHTML = '<div id="user-name"><a href="https://space.bilibili.com/11"><slot name="username"></slot></a></div><style>Hidden styles</style>';
+  info.innerHTML = '<span slot="username">Later username</span>';
+  let items = collector.snapshot().items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, initial.id);
+  assert.equal(items[0].author, 'Later username');
+  assert.equal(items[0].authorId, 'https://space.bilibili.com/11');
+  info.remove();
+  items = collector.snapshot().items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].author, 'Later username');
+});
+
+test('Bilibili never borrows a nested reply user-info component username', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer rpid="1"></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<a id="user-avatar" href="https://space.bilibili.com/11"><img alt="Parent avatar"></a><div id="content">Parent without author</div><bili-comment-reply-renderer rpid="2"><bili-comment-user-info></bili-comment-user-info><div id="content">Reply</div></bili-comment-reply-renderer>';
+  root.querySelector('bili-comment-user-info').attachShadow({ mode: 'open' }).innerHTML = '<a id="user-name" href="https://space.bilibili.com/22">Reply author</a>';
+  const items = collector.snapshot().items;
+  assert.equal(items[0].author, undefined);
+  assert.equal(items[0].authorId, 'https://space.bilibili.com/11');
+  assert.equal(items[1].author, 'Reply author');
+  assert.equal(items[1].authorId, 'https://space.bilibili.com/22');
+  assert.equal(items[1].parentId, 'bilibili:1');
+});
+
+test('Bilibili classic DOM usernames without profile hrefs use their author headers', () => {
+  const { collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<div class="reply-list"><div class="reply-item" data-rpid="1"><div class="user"><a class="name" data-user-profile-id="11">经典用户</a></div><div class="reply-content">Experience</div></div></div>');
+  const item = collector.snapshot().items[0];
+  assert.equal(item.author, '经典用户');
+  assert.equal(item.authorId, 'https://space.bilibili.com/11');
+});
+
+test('Bilibili falls back to an owned profile link when user-info and username tags change', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer rpid="1"></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<div id="content"><a href="https://space.bilibili.com/99">Mentioned person</a> Experience</div><bili-comment-profile-v2></bili-comment-profile-v2>';
+  root.querySelector('bili-comment-profile-v2').attachShadow({ mode: 'open' }).innerHTML = '<section><a class="renamed-display-name" href="https://space.bilibili.com/11">Actual author</a></section>';
+  const item = collector.snapshot().items[0];
+  assert.equal(item.author, 'Actual author');
+  assert.equal(item.authorId, 'https://space.bilibili.com/11');
+});
+
+test('Bilibili keeps comments with missing username DOM and a profile outside an empty user-info', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer rpid="1"></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<a id="user-avatar" href="https://space.bilibili.com/11"><img alt="Avatar"></a><bili-comment-user-info></bili-comment-user-info><div id="content"><a href="https://space.bilibili.com/99">Mentioned person</a> Experience</div>';
+  root.querySelector('bili-comment-user-info').attachShadow({ mode: 'open' });
+  const discussion = collector.snapshot();
+  assert.equal(discussion.status, 'partial');
+  assert.equal(discussion.items.length, 1);
+  assert.equal(discussion.items[0].author, undefined);
+  assert.equal(discussion.items[0].authorId, 'https://space.bilibili.com/11');
+  assert.match(discussion.items[0].text, /Experience/);
+});
+
+test('Bilibili unreadable author shadow roots do not drop comments or guess usernames', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments><bili-comment-renderer rpid="1"></bili-comment-renderer></bili-comments>');
+  const root = win.document.querySelector('bili-comment-renderer').attachShadow({ mode: 'open' });
+  root.innerHTML = '<bili-comment-user-info></bili-comment-user-info><div id="content">Experience</div>';
+  root.querySelector('bili-comment-user-info').attachShadow({ mode: 'closed' }).innerHTML = '<a id="user-name" href="https://space.bilibili.com/11">Inaccessible author</a>';
+  const item = collector.snapshot().items[0];
+  assert.equal(item.text, 'Experience');
+  assert.equal(item.author, undefined);
+  assert.equal(item.authorId, undefined);
+});
+
+test('Bilibili missing comment DOM remains not loaded and can recover on a later snapshot', () => {
+  const { win, collector } = page('https://www.bilibili.com/video/BV17WicBpEgh/', '<bili-comments></bili-comments>');
+  assert.equal(collector.snapshot().status, 'not_loaded');
+  const root = win.document.querySelector('bili-comments').attachShadow({ mode: 'open' });
+  root.innerHTML = '<bili-comment-renderer rpid="1"><bili-comment-user-info><a href="https://space.bilibili.com/11">Later author</a></bili-comment-user-info><div id="content">Later experience</div></bili-comment-renderer>';
+  const discussion = collector.snapshot();
+  assert.equal(discussion.status, 'partial');
+  assert.equal(discussion.items[0].author, 'Later author');
+});
+
 test('Zhihu keeps three answer discussions separate, including nested replies and identified external panels', () => {
   const answers = [1, 2, 3].map(id => `<div class="AnswerItem" data-zop='{"itemId":"${id}"}'><a class="UserLink-link" href="/people/answer${id}">Author ${id}</a><div class="RichContent-inner"><div class="RichText">Answer ${id} argument</div></div><div class="CommentListV2"><div class="CommentItemV2" data-comment-id="c${id}"><a class="UserLink-link" href="/people/comment${id}">Commenter ${id}</a><p class="CommentItemV2-content">Response to answer ${id}</p>${id === 2 ? '<div class="CommentItemV2" data-comment-id="reply"><p class="CommentItemV2-content">Reply to commenter 2</p></div>' : ''}</div></div></div>`).join('');
   const { collector } = page('https://www.zhihu.com/question/123', answers + '<div class="CommentListV2" data-answer-id="3"><div class="CommentItemV2" data-comment-id="external"><p class="CommentItemV2-content">Identified panel for answer 3</p></div></div><div class="CommentListV2"><div class="CommentItemV2" data-comment-id="unknown"><p class="CommentItemV2-content">Unidentified floating panel</p></div></div>');

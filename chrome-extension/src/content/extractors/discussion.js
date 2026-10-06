@@ -48,29 +48,58 @@
   }
   // Search within one comment, without borrowing text/likes from nested replies.
   function commentQuery(el, selectors, accept = () => true) {
-    const queue = [el], seen = new Set();
+    const queue = [el], seen = new Set(), targetOwner = commentOwner(el) || el;
     for (let i = 0; i < queue.length && i < 64; i++) {
       const root = queue[i]; if (seen.has(root)) continue; seen.add(root);
       const match = all(root, selectors).find(node => {
-        const owner = node.parentElement?.closest(selected.item);
-        return (!owner || owner === el) && accept(node);
+        const owner = commentOwner(node);
+        return (!owner || owner === targetOwner) && accept(node);
       });
       if (match) return match;
       if (root.shadowRoot) queue.push(root.shadowRoot);
       for (const child of all(root, '*')) {
-        const owner = child.closest(selected.item);
-        if (child.shadowRoot && (!owner || owner === el)) queue.push(child.shadowRoot);
+        const owner = commentOwner(child);
+        if (child.shadowRoot && (!owner || owner === targetOwner)) queue.push(child.shadowRoot);
       }
     }
     return null;
   }
-  function commentText(body) {
+  function commentOwner(el) {
+    for (let node = el; node; node = composedParent(node)) if (node.matches?.(selected.item)) return node;
+    return null;
+  }
+  function bilibiliAuthor(el) {
+    const info = commentQuery(el, 'bili-comment-user-info');
+    const outsideBody = node => {
+      for (; node && node !== el; node = composedParent(node)) if (node.matches?.(selected.text)) return false;
+      return true;
+    };
+    // Read the actual name inside the user-info component's open shadow root.
+    // Prefer its name link over the containing header, avatar, or body mentions.
+    const findName = root => {
+      if (!root) return null;
+      for (const selector of ['#user-name a', '#user-name', '.user-name', '.sub-user-name', '.user .name', '.reply-author-name', 'a[href*="space.bilibili.com"]']) {
+        const node = commentQuery(root, selector, node => outsideBody(node) && !!commentText(node, false));
+        if (node) return node;
+      }
+      return null;
+    };
+    const name = findName(info) || findName(el);
+    const profile = name?.href || (name && query(name, 'a[href]')?.href)
+      || (info && commentQuery(info, 'a[href*="space.bilibili.com"]', outsideBody)?.href)
+      || commentQuery(el, 'a[href*="space.bilibili.com"]', outsideBody)?.href;
+    const uid = name?.getAttribute('data-user-profile-id') || name?.getAttribute('data-user-id');
+    return { author: name ? commentText(name, false) : '', href: profile || (/^\d+$/.test(uid || '') ? `https://space.bilibili.com/${uid}` : undefined) };
+  }
+  function commentText(body, includeImages = true) {
     const parts = [];
     function visit(node) {
       if (node.nodeType === 3) { parts.push(node.textContent); return; }
       if (node.matches?.('button, script, style, ' + selected.item)) return;
+      if (!includeImages && node.matches?.('svg, img')) return;
       if (node.matches?.('img')) { parts.push(node.getAttribute('alt') || ''); return; }
-      const children = node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
+      const assigned = node.matches?.('slot') ? node.assignedNodes?.({ flatten: true }) : null;
+      const children = assigned?.length ? assigned : node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
       for (const child of children || []) visit(child);
       if (node.matches?.('p, div, br, li')) parts.push(' ');
     }
@@ -131,11 +160,15 @@
       if (!content) continue;
       // Profile/avatar links can precede the visible username. Prefer a named node
       // belonging to this comment rather than an empty avatar or a nested reply.
-      const authorEl = commentQuery(el, selected.author, node => !!text(node)) || commentQuery(el, selected.author);
-      const author = text(authorEl), href = authorEl?.href || (authorEl && query(authorEl, 'a[href]')?.href);
+      const authorEl = selected.name === 'bilibili' ? null : commentQuery(el, selected.author, node => !!text(node)) || commentQuery(el, selected.author);
+      const { author, href } = selected.name === 'bilibili' ? bilibiliAuthor(el)
+        : { author: text(authorEl), href: authorEl?.href || (authorEl && query(authorEl, 'a[href]')?.href) };
       const rawId = identity(el);
       // A stable DOM ID is preferred. A structural location disambiguates identical anonymous texts.
-      const id = selected.name + ':' + (rawId || stableHash(`${href || author}|${content}|${href || author ? '' : all(root, selected.item).indexOf(el)}`));
+      // Keep a DOM-only Bilibili record's identity while its name hydrates later.
+      const priorId = selected.name === 'bilibili' && !rawId ? elementIds.get(el) : null;
+      const id = priorId && records.get(priorId)?.text === content ? priorId
+        : selected.name + ':' + (rawId || stableHash(`${href || author}|${content}|${href || author ? '' : all(root, selected.item).indexOf(el)}`));
       elementIds.set(el, id);
       const thread = el.closest?.('ytd-comment-thread-renderer');
       const threadTop = thread && query(thread, selected.item);
