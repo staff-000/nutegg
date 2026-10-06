@@ -58,6 +58,7 @@ async function initPopup() {
     reanalyzeSectionsBody: document.getElementById('reanalyze-sections-body'), onToggle: toggleSection,
     onExpand: key => presentation({ [key]: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation[key] }) });
   const { actionsUI: a, captureUI: c, qaUI: q, eggsUI: e, headerUI: h } = ui;
+  ui.discussionUI.init({ onToggle: (topicId, stance) => interactionAction.toggleDiscussionComments(topicId, stance) });
   for (const prefix of ['discussion-capture', 'discussion-reanalyze']) {
     click(document.getElementById(prefix + '-load'), () => operations.discussion(tabStateManager.activeTabId, true));
     click(document.getElementById(prefix + '-refresh'), () => operations.discussion(tabStateManager.activeTabId));

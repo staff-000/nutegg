@@ -45,7 +45,7 @@ class TabStateManager {
       enabledSections: { discussion: false, ...this.defaults.enabledSections }, generateKnowledgeEntries: this.defaults.generateKnowledgeEntries !== false,
       eggHatched: false, nutCollected: false, errors: {}, warning: null, success: null,
       operations: {}, completion: null, currentTabLoading: false,
-      presentation: { scroll: 0, eggsExpanded: false, captureEggsExpanded: false, questionsExpanded: false, createFormOpen: false, sectionsExpanded: false, reanalyzeSectionsExpanded: false, collapsible: {} },
+      presentation: { scroll: 0, eggsExpanded: false, captureEggsExpanded: false, questionsExpanded: false, createFormOpen: false, sectionsExpanded: false, reanalyzeSectionsExpanded: false, collapsible: {}, discussionComments: {} },
     };
   }
   ensure(tabId, url = '') {
@@ -139,6 +139,7 @@ class TabStateManager {
     const finish = () => { next.operations[kind].running = false; };
     const result = (value, stage1 = false) => {
       next.analysisResult = popupCopy(value);
+      next.presentation.discussionComments = {};
       next.resultRevision++;
       next.selectionRevision++;
       next.currentView = 'results'; next.followUpQa = []; next.eggHatched = false; next.nutCollected = false;
@@ -263,6 +264,7 @@ class TabStateManager {
   applyHistory(tab, entry) {
     if (!entry?.result) return;
     tab.analysisResult = popupCopy(entry.result); tab.resultRevision++; tab.selectionRevision++;
+    tab.presentation.discussionComments = {};
     tab.currentView = 'results'; tab.completion = null; tab.followUpQa = [];
     tab.currentNutId = entry.nutId; tab.nutCollected = ['saved', 'skip'].includes(entry.saved); tab.eggHatched = entry.saved === 'saved';
     tab.stage1Version++;

@@ -2789,6 +2789,15 @@ body {
 .discussion-metric { display: inline-flex; align-items: center; padding: 1.5px 5px; border-radius: 4px; font-size: 10px; line-height: 1.35; white-space: nowrap; letter-spacing: -0.015em; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; }
 .discussion-metric strong { margin-inline-end: 2px; font-weight: 600; }
 .discussion-metric .stance-icon { margin-right: 2px; font-size: 9.5px; }
+button.discussion-metric { font-family: inherit; cursor: pointer; }
+button.discussion-metric:hover, button.discussion-metric[aria-expanded="true"] { box-shadow: 0 0 0 1px currentColor; }
+button.discussion-metric:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+.discussion-metric-chevron { margin-inline-start: 4px; }
+.discussion-comments-panel { max-height: 240px; overflow-y: auto; margin-top: 8px; padding: 8px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+.discussion-original + .discussion-original { margin-top: 10px; padding-top: 8px; border-top: 1px solid #e2e8f0; }
+.discussion-original-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; color: #64748b; font-size: 10px; overflow-wrap: anywhere; }
+.discussion-original blockquote { margin: 4px 0 0; padding-inline-start: 8px; border-inline-start: 2px solid #cbd5e1; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+.discussion-topic .discussion-originals-missing { color: #64748b; font-size: 10px; }
 
 .discussion-metric-agree { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
 .discussion-metric-agree strong { color: #166534; }

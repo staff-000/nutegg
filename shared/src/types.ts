@@ -168,6 +168,8 @@ export interface DiscussionTopic {
   disagreeArguments: string[];
   highlights: Array<{ commentId: string; summary: string; supplement?: boolean; source: DiscussionItem }>;
   metrics: Record<DiscussionStance, DiscussionMetric>;
+  /** Local source lookup for stance drill-down; absent in older saved analyses. Never sent in prompts. */
+  commentIds?: Partial<Record<DiscussionStance, string[]>>;
 }
 export interface DiscussionAnalysis {
   status: "ready" | "no_meaningful" | "not_loaded" | "unavailable";

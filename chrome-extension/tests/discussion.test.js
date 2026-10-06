@@ -172,9 +172,9 @@ test('compact discussion badges omit unavailable reactions, people and verbose t
   ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
   const html = root.getElementById('discussion-result').innerHTML;
   assert.match(html, /Agree<\/strong> 💬 1 · ❤️ 12/);
-  assert.match(html, /Disagree<\/strong> 💬 1<\/span>/);
+  assert.match(html, /Disagree<\/strong> 💬 1<span class="discussion-metric-chevron"/);
   assert.match(html, /Neutral<\/strong> 💬 1 · ❤️ 0/);
-  assert.doesNotMatch(html, /commenters|unavailable|Supporting arguments|Opposing arguments|Proposition|Experience and objections|entire audience/);
+  assert.doesNotMatch(html, /commenters|Reactions unavailable|Supporting arguments|Opposing arguments|Proposition|Experience and objections|entire audience/);
   assert.match(html, /Practical example/);
 });
 
@@ -255,4 +255,3 @@ test('discussion highlights and supplements omit source tag when there is a time
   assert.match(html, /source-pill source-timestamp.*data-time="02:15"/);
   assert.match(html, /source-pill source-timestamp.*data-time="10:30"/);
 });
-

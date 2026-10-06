@@ -6,6 +6,14 @@ class InteractionAction {
     return this.operations.followup(this.store.activeTabId, question, { outputLanguage: this.settings.outputLanguage });
   }
   seekToChapter(seconds) { return this.pageExtractor.seekToChapter(this.store.activeTabId, seconds); }
+  toggleDiscussionComments(topicId, stance) {
+    const tabId = this.store.activeTabId, tab = this.store.getTab(tabId);
+    const topic = tab?.analysisResult?.discussion?.topics?.find(topic => topic.id === topicId);
+    if (!['agree', 'disagree', 'mixed', 'neutral', 'unclear'].includes(stance) || !(topic?.metrics?.[stance]?.comments > 0)) return;
+    const expanded = tab.presentation.discussionComments || {};
+    this.store.dispatch({ type: 'draft', tabId, values: { presentation: { ...tab.presentation,
+      discussionComments: { ...expanded, [topicId]: expanded[topicId] === stance ? null : stance } } } });
+  }
   async scrollToSection(heading, quote, sourceId) {
     const tabId = this.store.activeTabId, tab = this.store.getTab(tabId);
     if (!tab) return false;

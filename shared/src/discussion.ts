@@ -182,11 +182,13 @@ export function buildDiscussionResult(capture: DiscussionCapture, parts: any[], 
     if (!assignments.size) continue;
     const metric = (): DiscussionMetric => ({ comments: 0, commenters: 0, likes: 0, score: 0, reactionsKnown: 0, likesKnown: 0, scoresKnown: 0, reactionsMissing: 0, approximate: false });
     const metrics = Object.fromEntries(DISCUSSION_STANCES.map(s => [s, metric()])) as Record<DiscussionStance, DiscussionMetric>;
+    const commentIds: Record<DiscussionStance, string[]> = { agree: [], disagree: [], mixed: [], neutral: [], unclear: [] };
     const authors = new Map<string, Set<DiscussionStance>>();
     let identitiesComplete = true;
     for (const [id, stance] of assignments) {
       const item = byId.get(id)!, m = metrics[stance];
       m.comments++;
+      commentIds[stance].push(id);
       if (item.authorId) { const positions = authors.get(item.authorId) || new Set(); positions.add(stance); authors.set(item.authorId, positions); }
       else identitiesComplete = false;
       if (item.reaction?.count != null) {
@@ -205,7 +207,7 @@ export function buildDiscussionResult(capture: DiscussionCapture, parts: any[], 
       .map(h => ({ commentId: h.commentId, summary: clean(h.summary, 600), supplement: h.supplement === true, source: byId.get(h.commentId)! }));
     topics.push({ id: `topic-${topics.length + 1}`, title: clean(raw.title, 200), claim: clean(raw.claim, 500), summary: clean(raw.summary),
       agreeArguments: list(raw.agreeArguments).map(v => clean(v, 600)).filter(Boolean).slice(0, 4),
-      disagreeArguments: list(raw.disagreeArguments).map(v => clean(v, 600)).filter(Boolean).slice(0, 4), highlights, metrics });
+      disagreeArguments: list(raw.disagreeArguments).map(v => clean(v, 600)).filter(Boolean).slice(0, 4), highlights, metrics, commentIds });
   }
   return { ...base, status: topics.length ? 'ready' : 'no_meaningful', analyzedCount: items.length, topics };
 }

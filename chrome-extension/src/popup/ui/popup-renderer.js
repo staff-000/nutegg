@@ -29,7 +29,7 @@ class PopupRenderer {
     const captureState = root.getElementById?.('capture-state');
     if (setupHub) setupHub.classList.toggle('hidden', isFunctional);
     if (captureState) captureState.classList.toggle('not-functional', !isFunctional);
-    keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.extractedContent?.discussion, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
+    keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.stage1Payload?.discussion, view.extractedContent?.discussion, view.presentation.discussionComments, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);
     value(ui.captureUI.customQuestionsEl, view.customQuestions);

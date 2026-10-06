@@ -6,18 +6,44 @@ const { SettingsState } = require('../src/popup/state/settings-state.js');
 const { PopupRenderer } = require('../src/popup/ui/popup-renderer.js');
 const { TabAction } = require('../src/popup/action/tab.js');
 const { AnalyzeAction } = require('../src/popup/action/analyze.js');
-for (const file of ['header', 'banners', 'capture-view', 'section-chips', 'verdict', 'action-controls', 'results-view', 'metrics', 'mindmap', 'qa', 'eggs']) require(`../src/popup/ui/${file}.js`);
+const { InteractionAction } = require('../src/popup/action/interaction.js');
+for (const file of ['header', 'banners', 'capture-view', 'section-chips', 'verdict', 'action-controls', 'results-view', 'metrics', 'mindmap', 'discussion', 'qa', 'eggs']) require(`../src/popup/ui/${file}.js`);
 function setup(t) {
   const f = fixture(); const root = createMockRoot(); root.querySelectorAll = () => [];
   const original = globalThis.document; globalThis.document = root; t.after(() => { globalThis.document = original; });
   const settings = new SettingsState(); settings.serverOnline = true; settings.obsidianAiConfigured = true; settings.analysisMode = 'preview';
-  const ui = Object.fromEntries([['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'], ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'], ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent']].map(([key, type]) => [key, new globalThis.NutEggUI[type](root)]));
+  const ui = Object.fromEntries([['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'], ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'], ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'], ['discussionUI', 'DiscussionComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent']].map(([key, type]) => [key, new globalThis.NutEggUI[type](root)]));
   const renderer = new PopupRenderer({ store: f.store, settings, ui, root });
   f.store.subscribe(event => renderer.handle(event)); renderer.render();
   const deps = { tabStateManager: f.store, operations: f.operations, settings, ui, envService: { checkServerStatus: async () => {} } };
   return { ...f, root, ui, renderer, settings, analyze: new AnalyzeAction(deps), tab: new TabAction(deps) };
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
+
+test('discussion originals expand locally, stay isolated across tabs and reset with history', context => {
+  const f = setup(context), core = globalThis.NutEggAI;
+  const discussion = { kind: 'comments', status: 'partial', items: [{ id: 'original', text: 'Saved comment experience' }] };
+  const result = core.buildDiscussionResult(discussion, [{ topics: [{ id: 't', title: 'Experience' }],
+    classifications: [{ topicId: 't', commentId: 'original', stance: 'agree' }] }]);
+  const entry = { title: 'Post', url: 'https://tab1.test', content: 'Body', result: { ...response(1), discussion: result },
+    capturePayload: { discussion, enabledSections: { discussion: true } } };
+  f.store.dispatch({ type: 'historySelected', tabId: 1, entry });
+  const action = new InteractionAction({ tabStateManager: f.store });
+  const html = () => f.root.getElementById('discussion-result').innerHTML;
+  assert.doesNotMatch(html(), /Saved comment experience/);
+  action.toggleDiscussionComments('topic-1', 'agree');
+  assert.match(html(), /Saved comment experience/);
+  f.store.activateTab(2);
+  assert.doesNotMatch(html(), /Saved comment experience/);
+  f.store.activateTab(1);
+  assert.match(html(), /Saved comment experience/);
+  action.toggleDiscussionComments('topic-1', 'agree');
+  assert.doesNotMatch(html(), /Saved comment experience/);
+  action.toggleDiscussionComments('topic-1', 'agree');
+  f.store.dispatch({ type: 'historySelected', tabId: 1, entry });
+  assert.doesNotMatch(html(), /Saved comment experience/);
+  assert.equal(f.calls.length, 0);
+});
 
 test('caption retry progress switches with its tab and clears after the final capture', context => {
   const f = setup(context);
