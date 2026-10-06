@@ -6,9 +6,9 @@ These shared prompts power the extension and Obsidian plugin. Customize the Acti
 
 ```text
 Captured content
-  → Stage 1: summary, title verdict, mind map, custom Q&A
+  → Stage 1: summary, title verdict, mind map, Q&A, plus discussion analysis (when enabled)
   → Summary-based egg routing and egg selection
-  → Stage 2: egg-analysis (one call per egg for short content)
+  → Stage 2: egg-analysis (one call per egg for short content, with discussion signals)
   → Answers, extracted entries, and reading recommendation
   → User clicks Hatch: archive originals and append to # Unprocessed
   → Merge at 20 pending entries or on demand: dedupe and organize # Knowledge
@@ -24,7 +24,7 @@ Stage 2 uses the Stage 1 mind map to navigate relevant concepts and source locat
 
 Set `> **Generate Knowledge Entries:** no` in an egg’s Instructions callout to disable entries for that egg. Omitting the setting or using `yes` permits generation. An opt-out in the Action Guide is also honored by the prompt.
 
-The **🍃 Knowledge** option in **Analysis Sections** and the Egg Analysis dropdown share one per-tab setting. Choosing **🥚 Analysis only** turns Knowledge off on both pages; choosing **🍃 Include knowledge** turns it on. Toggling Knowledge updates the dropdown’s checkmark as well. Clicking a dropdown choice also runs analysis; toggling the section option alone does not start an AI call.
+The **🍃 Knowledge** option in **Analysis Sections** and the Egg Analysis dropdown share one per-tab setting. Choosing **🥚 Analysis only** turns Knowledge off on both pages; choosing **🍃 Include knowledge** turns it on. Toggling Knowledge updates the dropdown’s checkmark and button label. Switching choices in the dropdown or section selector updates the setting without auto-triggering; click the Egg Analysis button to start an AI call.
 
 Knowledge-entry generation follows these rules:
 
@@ -36,7 +36,7 @@ Knowledge-entry generation follows these rules:
 
 Either an off UI setting or an egg opt-out disables generation; an on setting never overrides an opt-out. The initial default is **Include knowledge**. Your last choice is saved as the default for tabs without analysis, including after reopening the panel. Processed tabs retain their own choice. Key-question answers and reading recommendations are produced regardless. Generation does not save to egg files: **🐣 Hatch Egg** is the separate save action, enabled when generated entries are available.
 
-Changing the generation setting does not hide or remove entries already generated, and those entries remain available to Hatch. Turning generation on after an answers-only analysis requires Stage 2 for eggs without previously generated entries; eggs that explicitly opt out are not rerun just to request entries.
+Changing the generation setting does not hide or remove entries already generated, and those entries remain available to Hatch. When switching from answers-only to include knowledge for an egg lacking generated knowledge entries, NutEgg automatically reruns Stage 2 rather than simply showing the cached answers-only analysis; eggs that explicitly opt out are not rerun just to request entries.
 
 
 ## Egg structure
@@ -72,6 +72,8 @@ Worth Reading If and Skip If only guide recommendations; they never remove entri
 | `egg-analysis.md` | Follow one egg’s instructions | `keyQuestionAnswers`, `extractedEntries`, `readAction`, `readVerdictReason`, `readingSources`, `language` |
 | `aggregate-content.md` | Combine long-content Stage 1 results | Whole-source summary and answers |
 | `aggregate-egg.md` | Combine compact chunk answer drafts, recommendations, and coverage | Whole-source key answers and recommendation only |
+| `discussion-analysis.md` | Extract topics, arguments, examples, and stances from captured discussion | `topics`, `arguments`, `examples`, `stances` |
+| `aggregate-discussion.md` | Merge related discussion topics and synthesize thread perspectives across batches | Unified discussion synthesis and topic threads |
 | `merge-unprocessed.md` | Assemble fragments and consolidate duplicate claims | Complete `knowledge` and remaining `unprocessed` |
 | `follow-up.md` | Answer follow-up questions | Answers with source references |
 | `localize-egg.md` | Localize an egg’s instructions | Markdown with English structural labels |
@@ -89,22 +91,25 @@ Hatch archives original analyses and source references in the nut and history, t
 
 Preserve `{{placeholders}}`, exact JSON schema keys, and English structural labels such as `# Knowledge` and `# Unprocessed`. Edited workflow files remain untouched during updates; new defaults are supplied as `.new.md` for review. Unmodified obsolete prompts are removed. Missing new recommendation fields in customized prompts display uncertain. Use Defaults backs up customized files before restoring built-in prompts.
 
-The Chrome extension offers a per-tab **Knowledge** option in **Analysis Sections** on both the content and analysis pages. The egg selector offers **🥚 Egg Analysis** (answers and verdicts only) and **🥚 Egg Analysis with knowledge entry** (also generate entries). Neither saves to the egg file. The separate bottom **🐣 Hatch Egg** button saves generated entries and supported key answers to egg files; it is available only when entries have been generated. The **🍃 Knowledge** analysis-section option controls entry generation on both pages.
+The Chrome extension offers a per-tab **Knowledge** option in **Analysis Sections** on both the content and analysis pages. The top Egg Analysis button beside Collect Nut Only displays the current action (e.g. **🥚 Egg Analysis** for answers/verdicts only, or **🥚 Egg Analysis 🍃** when knowledge entries are enabled). Clicking the button label runs analysis with the currently selected choice; clicking its dropdown arrow opens the mode selector (**🥚 Analysis only** vs **🍃 Include knowledge**). Switching modes updates the button label and checkmark without auto-triggering; click the button again to execute the run. Neither action saves directly to the egg file: the separate bottom **🐣 Hatch Egg** button saves generated entries and supported key answers to egg files once entries are generated. The **🍃 Knowledge** analysis-section option controls entry generation across both pages.
 
-On the top Egg Analysis button beside Collect Nut Only, clicking the analysis label runs the current mode; clicking its separate arrow opens the two analysis choices. Selecting a choice runs it immediately. Egg selection changes do not open the menu. The top Egg Analysis and Collect Nut Only controls remain visible throughout connected-mode results.
+On the top Egg Analysis button beside Collect Nut Only, clicking the analysis label runs the current mode; clicking its separate arrow opens the two analysis choices. Selecting a choice updates the mode; clicking the button runs it. Egg selection changes do not open the menu. The top Egg Analysis and Collect Nut Only controls remain visible throughout connected-mode results.
 
 ## Cross-tab analysis activity
 
 While the side panel stays open, the indicator below its header counts running analyses and completed results you have not viewed in the current Chrome window. Click it to list unread completions first and running tabs second. Selecting a completed tab switches to its analysis without rerunning it; selecting a running tab opens its current progress.
 
-Results count as read when the latest analysis is shown in the active tab with the panel visible, including completion while you are already viewing it. Content previews do not mark results read. Automatic Stage 1→Stage 2 processing counts as one running tab; a confirmation pause completes Stage 1, and a later Stage 2 run can produce a new unread result. Cached-only changes, Hatch, and follow-up questions do not create notifications. Closed or navigated tabs are removed. This tracker resets when the panel closes; it does not persist across sessions or add a toolbar badge.
+Results count as read when the latest analysis is shown in the active tab with the panel visible, including completion while you are already viewing it. Content previews do not mark results read. In Full mode, automatic Stage 1→Stage 2 processing counts as one running tab; in Preview mode, Stage 1 completes and pauses for user review, and a subsequent Stage 2 run can produce a new unread result. Cached-only changes, Hatch, and follow-up questions do not create notifications. Closed or navigated tabs are removed. This tracker resets when the panel closes; it does not persist across sessions or add a toolbar badge.
 
 ### Discussion
 
-The optional Discussion section uses `discussion-analysis.md` to identify topics,
-arguments, examples and comment stances, and `aggregate-discussion.md` to merge
-related topics across batches. Original comment IDs, parent context and reaction
-metadata stay attached to the capture. Models supply classifications; NutEgg
-calculates sample metrics from source records. Discussion is disabled by default,
-except for discussion-heavy forum pages. Empty results differ from unloaded or
-unavailable comments. Source comments are reports, not verified author claims.
+Discussion analysis executes as part of **Stage 1** when:
+1. The **💬 Discussion** section is enabled (`capture.enabledSections.discussion === true`) in Extension Options or popup Analysis Sections.
+2. The page extractor captures discussion items (such as YouTube comments, Twitter replies, Reddit/forum threads, Bilibili comments, or Zhihu answers).
+
+**Execution flow within Stage 1:**
+- **Batch Processing**: When enabled, `discussion-analysis.md` runs across batches of captured comments to identify 3–5 core debating topics, classify commenter stances (`agree`, `disagree`, `mixed`, `neutral`, `unclear`), and highlight insightful firsthand experiences or corrections (`supplement: true`).
+- **Multi-Batch Aggregation**: For long comment threads spanning multiple batches, `aggregate-discussion.md` consolidates and unifies the topics and stance distributions.
+- **Stage 1 Context Injection**: Discussion summaries and verbatim evidence become part of the Stage 1 result and are supplied to body analysis and custom Q&A. On forum threads or video pages without transcripts, this allows the AI to ground summaries directly on community discourse.
+- **Stage 2 Context Injection**: Discussion signals (`discussionSummaryText` and `discussionEvidenceText`) from Stage 1 are also passed into `egg-analysis.md` so that eggs can evaluate community consensus, counterexamples, and user reports against their specific instructions. (If discussion was initially omitted during Stage 1 but enabled for Stage 2, it lazily runs before Stage 2).
+- Original comment IDs, parent context and reaction metadata stay attached to the capture. Models supply classifications; NutEgg calculates sample metrics from source records. Empty results differ from unloaded or unavailable comments. Source comments are reports, not verified author claims.

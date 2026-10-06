@@ -76,21 +76,25 @@
                                     │
                                     ▼
        ===========================================================
-       STAGE 1: Content Analysis & Summary-Based Egg Routing
+       STAGE 1: Content & Discussion Analysis + Egg Routing
        ===========================================================
-                                    │
-                         Is content >30k chars?
-                            ├── No  ──► [content-analysis.md]
-                            └── Yes ──► Chunks + [aggregate-content.md]
-                                    │
-                                    ▼
-                    Produces: Title Verdict, 3-Bullet Summary,
-                    Mind Map with Clickable Timestamps, & Timestamped Q&A
-                                    │
-                                    ▼
-                           [egg-routing.md]
-           (Routes matched eggs from _index.md using the
-            concise Stage 1 summary instead of raw content)
+            │                                             │
+            ├─► Content Analysis                          ├─► Discussion Analysis
+            │   (Is content >30k chars?)                  │   (When 💬 Discussion enabled
+            │    ├── No  ──► [content-analysis.md]        │    & comments captured)
+            │    └── Yes ──► Chunks + [aggregate-         │    ├── [discussion-analysis.md]
+            │                content.md]                  │    └── [aggregate-discussion.md]
+            │                                             │
+            └──────────────────────┬──────────────────────┘
+                                   │
+                                   ▼
+        Produces: Title Verdict, 3-Bullet Summary, Mind Map,
+        Timestamped Q&A, and Discussion Topics/Stances
+                                   │
+                                   ▼
+                          [egg-routing.md]
+          (Routes matched eggs from _index.md using the
+           concise Stage 1 summary instead of raw content)
                                     │
                                     ▼
        ===========================================================
@@ -135,7 +139,7 @@
 
       <p>The side panel’s cross-tab indicator shows running analyses and unread completed results in the current Chrome window. Click it to list tabs and switch directly to their results or progress. Results become read when their analysis is visible in the active tab. Tracking lasts while the panel stays open and resets when it closes.</p>
       <p>Hatch archives the original analysis and appends approved entries to <code># Unprocessed</code>. Merge runs at 20 pending entries or on demand to assemble fragments and deduplicate claims while preserving sources, caveats, examples, and disagreements. Stage 2 never receives the Knowledge tree, so the recommendation assesses relevance and substance rather than novelty.</p>
-      <p>The <strong>🍃 Knowledge</strong> section option and the Egg Analysis dropdown share one setting for the current browser tab: <strong>🥚 Analysis only</strong> switches Knowledge off, and <strong>🍃 Include knowledge</strong> switches it on. Include knowledge is the initial default; your last choice becomes the default for tabs without analysis. Turning the option off does not hide previously generated entries or prevent saving them. Turning Knowledge off disables entries for every selected egg. Turning it on allows entries only for eggs that permit them: <code>Generate Knowledge Entries: no</code> or an opt-out in the egg’s Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.</p>
+      <p>The <strong>🍃 Knowledge</strong> section option and the Egg Analysis dropdown share one setting for the current browser tab: <strong>🥚 Analysis only</strong> switches Knowledge off, and <strong>🍃 Include knowledge</strong> switches it on. Switching dropdown choices updates the setting and button label without auto-triggering an AI call—click the button to analyze. When switching to Include Knowledge for an egg analyzed previously without knowledge entries, NutEgg reruns Stage 2 rather than simply showing the cached answer-only result. Include knowledge is the initial default; your last choice becomes the default for tabs without analysis. Turning the option off does not hide previously generated entries or prevent saving them. Turning Knowledge off disables entries for every selected egg. Turning it on allows entries only for eggs that permit them: <code>Generate Knowledge Entries: no</code> or an opt-out in the egg’s Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.</p>
       <h2>Execution Modes</h2>
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
         <thead>
@@ -184,7 +188,19 @@
         <li><code>aggregate-content.md</code> &amp; <code>aggregate-egg.md</code>: Long-content (>30k characters) aggregation. Stage 2 combines only answer drafts, recommendation notes, and coverage; extracted entries remain in source order until merge.</li>
       </ul>
 
-      <h3>3. Interactive &amp; Maintenance Workflows</h3>
+      <h3>3. Discussion Analysis (Stage 1)</h3>
+      <p>
+        Discussion analysis executes as part of <strong>Stage 1</strong> content analysis when the <strong>💬 Discussion</strong> section is enabled in Extension Options or popup Analysis Sections, and the page extractor captures reader comments or social replies (e.g. YouTube comments, Twitter replies, Reddit/forum threads, Bilibili comments, or Zhihu answers).
+      </p>
+      <ul>
+        <li><code>discussion-analysis.md</code>: Analyzes comments in batches to extract 3–5 core debating topics, classify commenter stances (<code>agree</code>, <code>disagree</code>, <code>mixed</code>, <code>neutral</code>, <code>unclear</code>), and highlight valuable firsthand experience supplements or corrections (<code>supplement: true</code>).</li>
+        <li><code>aggregate-discussion.md</code>: Merges and synthesizes topics and stance distributions across multi-batch comment threads for large forums or video comment sections.</li>
+      </ul>
+      <p>
+        <strong>Context Flow:</strong> Analyzed discussion summaries and evidence items are returned in the Stage 1 result and feed directly into custom Q&amp;A or forum body analysis (crucial for discussion-centric pages or videos without transcripts). They are also forwarded as context signals into Stage 2 <code>egg-analysis.md</code> so eggs can evaluate community feedback alongside the source content.
+      </p>
+
+      <h3>4. Interactive &amp; Maintenance Workflows</h3>
       <ul>
         <li><code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel with prior conversation history and clickable video timestamp jumping.</li>
         <li><code>merge-unprocessed.md</code>: Triggered manually or automatically at 20+ pending entries to organize and nest raw items into <code># Knowledge</code>.</li>
