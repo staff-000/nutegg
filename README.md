@@ -29,7 +29,7 @@ Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Sk
 ```
 
 1. **Open NutEgg** — Click the extension icon on any webpage or video to open the side panel.
-2. **Retrieve Content & Choose Target Eggs** — Wait for page content to load in NutEgg. (Click 🔄 to re-extract on dynamic single-page apps without leaving the preview). Use "Target eggs (auto-select by default)" or customize which knowledge trees to evaluate against.
+2. **Retrieve Content** — Wait for page content to load in NutEgg. (Click 🔄 to re-extract on dynamic single-page apps without leaving the preview). Use "Target eggs (auto-select by default)" or customize which knowledge trees to evaluate against.
 3. **Click Analyze (Full vs. Preview Mode)**:
    - **Full Mode**: Evaluates content and immediately runs knowledge matching against matching eggs in one step.
    - **Preview Mode**: Generates the Stage 1 overview first, allowing you to review summary, mind map, Q&A, and discussion before triggering egg knowledge analysis.
@@ -39,7 +39,7 @@ Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Sk
    - **📍 In-Page Text Source Navigation**: Click source tags in text mind maps or Q&A to automatically scroll the live page to the corresponding paragraph or comment.
    - **💬 Discussion & Community Perspectives**: Summarizes comments across YouTube, Reddit, Zhihu, and forums into concise topics, stance badges (agree/disagree/neutral), and detail-rich extra insights.
    - **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**: Choose whether your questions are strictly grounded within the page content or expand beyond it for fact-checking, justification, and external reasoning.
-   - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures. Redundant source tags are cleanly omitted when timestamps exist.
+   - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures.
    - **⚡ Novelty-First Evaluation**: Highlights new insights vs. concepts already documented in your vault.
 5. **Take Action**:
    - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file (the raw 🌰 nut is also archived automatically).

@@ -112,6 +112,7 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -225,7 +226,14 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
 export function findOpenRouterFamily(modelName: string): ModelFamily | undefined {
   const families = PROVIDER_CATALOG.openrouter.families || [];
   if (families.length === 0) return undefined;
-  return families.find((f) => f.models.includes(modelName)) || families[0];
+  const exact = families.find((f) => f.models.includes(modelName));
+  if (exact) return exact;
+  const byPrefix = families.find((f) => {
+    if (f.id === "custom") return false;
+    if (f.id === "meta") return modelName.startsWith("meta-llama/") || modelName.startsWith("meta/");
+    return modelName.startsWith(f.id + "/");
+  });
+  return byPrefix || families[0];
 }
 
 /**

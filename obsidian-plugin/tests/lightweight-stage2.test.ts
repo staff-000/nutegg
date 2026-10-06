@@ -170,17 +170,17 @@ describe('Lightweight Stage 2', () => {
 describe('Merge safety', () => {
   const original = '# Knowledge\n- Existing\n# Unprocessed\n- New\n';
   it('does not repair truncated JSON or modify notes', async () => {
-    const { vault } = makeFakeVault({ 'egg.md': original });
+    const { vault } = makeFakeVault({ 'nutegg/egg.md': original });
     const plugin = makeFakePlugin({ vault, aiClient: { chat: async () => '{"knowledge":"- partial' } });
     plugin.app = { vault }; plugin.eggParser = new EggParser(plugin as any);
     assert.equal(await new AIProcessor(plugin as any).mergeEgg('egg.md'), null);
-    assert.equal(await vault.adapter.read('egg.md'), original);
+    assert.equal(await vault.adapter.read('nutegg/egg.md'), original);
   });
   it('persists consolidated claims with every source, caveat and distinct framework from a mock merge', async () => {
     const existing = '- **Claim**\n  - Useful only with supervision.\n  _source: [A](https://a.example)_';
     const pending = '- **Claim**\n  - Counterexample: unsupervised use fails.\n  _source: [B](https://b.example)_\n- **Framework v1**\n  - Step one\n- **Framework v2**\n  - Different step';
     const merged = '- **Claim**\n  - Useful only with supervision.\n  - Counterexample: unsupervised use fails.\n  _source: [A](https://a.example)_\n  _source: [B](https://b.example)_\n- **Framework v1**\n  - Step one\n- **Framework v2**\n  - Different step';
-    const { vault } = makeFakeVault({ 'egg.md': `> **Skip If:**\n> - Tutorials\n\n# Knowledge\n${existing}\n# Unprocessed\n${pending}\n` });
+    const { vault } = makeFakeVault({ 'nutegg/egg.md': `> **Skip If:**\n> - Tutorials\n\n# Knowledge\n${existing}\n# Unprocessed\n${pending}\n` });
     const plugin = makeFakePlugin({ vault, aiClient: { chat: async (prompt: string) => {
       assert.ok(prompt.includes(existing)); assert.ok(prompt.includes(pending));
       assert.ok(prompt.includes('Retain ALL distinct author/source'));
@@ -190,12 +190,12 @@ describe('Merge safety', () => {
     } } });
     plugin.eggParser = new EggParser(plugin as any);
     await new AIProcessor(plugin as any).mergeEgg('egg.md');
-    const note = await vault.adapter.read('egg.md');
+    const note = await vault.adapter.read('nutegg/egg.md');
     assert.equal((note.match(/\*\*Claim\*\*/g) || []).length, 1);
     for (const detail of ['https://a.example', 'https://b.example', 'Counterexample', 'supervision', 'Framework v1', 'Framework v2']) assert.ok(note.includes(detail));
   });
   it('scales output budget and serializes simultaneous merges of one egg', async () => {
-    const { vault } = makeFakeVault({ 'egg.md': original });
+    const { vault } = makeFakeVault({ 'nutegg/egg.md': original });
     let calls = 0, budget = 0;
     const plugin = makeFakePlugin({ vault, aiClient: { chat: async (_: string, tokens: number) => {
       calls++; budget = tokens;
@@ -208,25 +208,25 @@ describe('Merge safety', () => {
     assert.ok(budget >= 4096);
   });
   it('defers oversized output without an AI call or changes', async () => {
-    const { vault } = makeFakeVault({ 'egg.md': '# Knowledge\n' + '概念'.repeat(5000) + '\n# Unprocessed\n- New\n' });
+    const { vault } = makeFakeVault({ 'nutegg/egg.md': '# Knowledge\n' + '概念'.repeat(5000) + '\n# Unprocessed\n- New\n' });
     let calls = 0;
     const plugin = makeFakePlugin({ vault, settings: { aiApiKey: "test-key", mergeMaxTokens: 4096 }, aiClient: { chat: async () => { calls++; return '{}'; } } });
-    const before = await vault.adapter.read('egg.md');
+    const before = await vault.adapter.read('nutegg/egg.md');
     plugin.app = { vault }; plugin.eggParser = new EggParser(plugin as any);
     assert.equal(await new AIProcessor(plugin as any).mergeEgg('egg.md'), null);
     assert.equal(calls, 0);
-    assert.equal(await vault.adapter.read('egg.md'), before);
+    assert.equal(await vault.adapter.read('nutegg/egg.md'), before);
   });
   it('retries a stale snapshot and retains concurrently appended notes', async () => {
-    const { vault } = makeFakeVault({ 'egg.md': original });
+    const { vault } = makeFakeVault({ 'nutegg/egg.md': original });
     let calls = 0;
     const plugin = makeFakePlugin({ vault, aiClient: { chat: async () => {
-      if (++calls === 1) await vault.modify(vault.getAbstractFileByPath('egg.md')!, original + '- Concurrent\n');
+      if (++calls === 1) await vault.modify(vault.getAbstractFileByPath('nutegg/egg.md')!, original + '- Concurrent\n');
       return JSON.stringify({ knowledge: '- Existing\n- New', unprocessed: '- Concurrent' });
     } } });
     plugin.app = { vault }; plugin.eggParser = new EggParser(plugin as any);
     await new AIProcessor(plugin as any).mergeEgg('egg.md');
     assert.equal(calls, 2);
-    assert.match(await vault.adapter.read('egg.md'), /Concurrent/);
+    assert.match(await vault.adapter.read('nutegg/egg.md'), /Concurrent/);
   });
 });
