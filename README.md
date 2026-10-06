@@ -14,6 +14,8 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 | **Google Chrome Extension** | [Install from Chrome Web Store ↗](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol) |
 | **Obsidian Community Plugin** | [Install from Obsidian Community Catalog ↗](https://community.obsidian.md/plugins/nutegg) |
 
+> 🎬 **Watch the 1-minute promo**: [NutEgg Product Tour on YouTube ↗](https://www.youtube.com/watch?v=_u6mDoHZSAo)
+
 ### ⚡ Flexible Modes: Standalone in Chrome or Paired with Obsidian
 - **📱 Chrome Standalone Mode (No Obsidian required)**: Run NutEgg completely inside Chrome. Enter your AI key in extension Options to get instant anti-clickbait verdicts, executive summaries, collapsible mind maps with clickable video timestamps, and timestamped video Q&A.
 - **💎 Obsidian Connected Mode**: Run the companion Obsidian plugin to apply your egg instructions to incoming content, highlight useful answers, and archive notes into `nutegg/`.
@@ -27,13 +29,17 @@ Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Sk
 ```
 
 1. **Open NutEgg** — Click the extension icon on any webpage or video to open the side panel.
-2. **Retrieve Content** — Wait for page content to load in NutEgg. (If it ever gets stuck, click 🔄 to retry).
-3. **Click Analyze** — AI evaluates the content against your egg index and existing knowledge trees in Obsidian.
+2. **Retrieve Content & Choose Target Eggs** — Wait for page content to load in NutEgg. (Click 🔄 to re-extract on dynamic single-page apps without leaving the preview). Use "Target eggs (auto-select by default)" or customize which knowledge trees to evaluate against.
+3. **Click Analyze (Full vs. Preview Mode)**:
+   - **Full Mode**: Evaluates content and immediately runs knowledge matching against matching eggs in one step.
+   - **Preview Mode**: Generates the Stage 1 overview first, allowing you to review summary, mind map, Q&A, and discussion before triggering egg knowledge analysis.
 4. **Review Results & Navigate**:
    - **🎯 Anti-Clickbait Verdict**: Instant 1-sentence verdict answering what the video actually delivers.
    - **⏱️ Video Q&A & Timestamps**: Ask questions about video content and click timestamp citations to jump directly to that exact moment in YouTube playback.
+   - **📍 In-Page Text Source Navigation**: Click source tags in text mind maps or Q&A to automatically scroll the live page to the corresponding paragraph or comment.
+   - **💬 Discussion & Community Perspectives**: Summarizes comments across YouTube, Reddit, Zhihu, and forums into concise topics, stance badges (agree/disagree/neutral), and detail-rich extra insights.
    - **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**: Choose whether your questions are strictly grounded within the page content or expand beyond it for fact-checking, justification, and external reasoning.
-   - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures.
+   - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures. Redundant source tags are cleanly omitted when timestamps exist.
    - **⚡ Novelty-First Evaluation**: Highlights new insights vs. concepts already documented in your vault.
 5. **Take Action**:
    - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file (the raw 🌰 nut is also archived automatically).

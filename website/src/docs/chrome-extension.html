@@ -52,6 +52,7 @@
         <ul class="sidebar-links">
           <li><a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Web Store ↗</a></li>
           <li><a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin ↗</a></li>
+          <li><a href="https://www.youtube.com/watch?v=_u6mDoHZSAo" target="_blank" rel="noopener">🎬 Promo Video ↗</a></li>
           <li><a href="https://github.com/staff-000/nutegg-chrome-extension-release/releases" target="_blank" rel="noopener">Extension Releases</a></li>
           <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
         </ul>
@@ -92,8 +93,15 @@
       </p>
       <ul>
         <li><strong>Auto-Extraction</strong>: As you browse, NutEgg detects the active tab (YouTube video, Twitter/X thread, or blog post) and extracts its text and structure.</li>
+        <li><strong>Content Refresh (🔄)</strong>: Click the refresh button in content preview to re-extract the page on dynamic single-page apps without unexpectedly redirecting away from the preview.</li>
+        <li><strong>Target Egg Selector</strong>: In content preview, choose target knowledge eggs or use "Target eggs (auto-select by default)" to let AI match relevant vault trees automatically.</li>
+        <li><strong>Analysis Modes</strong>:
+          <ul>
+            <li><strong>Full Mode</strong>: Evaluates content and immediately runs knowledge matching against matching eggs in a single streamlined workflow.</li>
+            <li><strong>Preview Mode</strong>: Generates the Stage 1 overview first (summary, mind map, Q&amp;A, discussion), letting you inspect or adjust target eggs before running egg knowledge analysis on demand.</li>
+          </ul>
+        </li>
         <li><strong>Status Indicator</strong>: A green dot indicates a healthy connection to your local Obsidian server (<code>127.0.0.1:27123</code>). If red, ensure Obsidian is running with the NutEgg plugin enabled.</li>
-        <li><strong>Retry Button (🔄)</strong>: If content loading ever gets stuck on dynamic single-page apps, click the refresh button to trigger a fresh extraction.</li>
       </ul>
 
       <h2>YouTube Integration & Smart Navigation</h2>
@@ -102,9 +110,27 @@
       </p>
       <ul>
         <li><strong>Full Captions &amp; Transcripts</strong>: Automatic high-accuracy extraction from creator and auto-generated transcripts.</li>
-        <li><strong>Mind Map with Clickable Timestamps</strong>: Instant breakdown with clickable timestamp buttons that seek your active YouTube video player directly to that segment.</li>
+        <li><strong>Mind Map with Clickable Timestamps</strong>: Instant breakdown with clickable timestamp buttons that seek your active YouTube video player directly to that segment. When timestamps are present, redundant source tags are hidden to keep the tree clean.</li>
         <li><strong>Q&amp;A with Timestamp Jumping</strong>: Ask any question about the video in natural language; NutEgg provides cited answers with clickable timestamp pills that jump straight to the source moment in video playback.</li>
         <li><strong>Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the video title's premise, letting you skip fluff immediately.</li>
+      </ul>
+
+      <h2>Text In-Page Source Navigation</h2>
+      <p>
+        When reading articles, blogs, or forums:
+      </p>
+      <ul>
+        <li><strong>📍 Jump to Source</strong>: Text mind-map nodes and Q&amp;A citations include source tags. Clicking a source tag automatically scrolls the live web page to the exact matching paragraph or quote and briefly highlights it with an outline.</li>
+        <li><strong>Comment Navigation</strong>: On discussion pages (Reddit, Zhihu, etc.), clicking source citations scrolls directly to the specific comment or answer.</li>
+      </ul>
+
+      <h2>Discussion Analysis &amp; Community Perspectives</h2>
+      <p>
+        NutEgg analyzes public comments across YouTube, Reddit, Twitter/X, Zhihu, and forums:
+      </p>
+      <ul>
+        <li><strong>Topic &amp; Stance Breakdown</strong>: Summarizes core debate points with stance badges (agree 👍, disagree 👎, mixed 🤔, neutral ⚖️) and reaction metrics.</li>
+        <li><strong>Extra Insights</strong>: High-value comments containing evidence, caveats, or unique experiences are preserved as concise extra insights.</li>
       </ul>
 
       <h2>Chrome-Only Standalone Mode (No Obsidian Required)</h2>
@@ -145,6 +171,7 @@
         NutEgg includes real-time synchronization between the extension Options and active side panels:
       </p>
       <ul>
+        <li><strong>Content Section Controls</strong>: Customize which sections are extracted and analyzed by default (Content, Summary, Mind Map, Q&amp;A, Knowledge Entries, and Discussion) in the Options page.</li>
         <li><strong>Live Settings Sync</strong>: Changing your analysis models, enabled output sections, or server settings immediately updates all open side panels without requiring a page refresh.</li>
         <li><strong>Custom Server Port</strong>: If port <code>27123</code> conflicts with another service, open extension <strong>Options</strong>, adjust the port (e.g. <code>28123</code>), and test the connection.</li>
       </ul>

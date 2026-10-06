@@ -53,8 +53,10 @@ atomically stores the result, clears running state, records completion and selec
 results, including in background tabs. Back selects capture; View Analysis selects
 results. A failed operation preserves the last successful result and view.
 
-Fast Stage 1 → Stage 2 uses one continuous operation. Confirmation pauses complete
-Stage 1; subsequent Stage 2 completes separately. Egg caches belong to the current
+Full mode (`full`, formerly fast) Stage 1 → Stage 2 uses one continuous operation.
+Preview mode (`preview`, formerly confirm) pauses after completing Stage 1;
+subsequent Stage 2 completes separately on demand. The capture view includes a Target Eggs
+selector with automatic egg selection by default. Egg caches belong to the current
 Stage 1 result. Cached-only selection changes make no AI request or activity.
 An explicit Egg Analysis click that uses cached results shows a confirmation message;
 cached composition failures show an error and preserve the previous result.
@@ -157,6 +159,6 @@ Insightful or detail-rich comments can appear as up to two brief extra insights 
 
 ## Text source navigation
 
-Text mind-map nodes with supporting references have a small Source tag after the title, styled like timestamp tags. The title and arrow expand the branch; only the Source tag navigates. Discussion highlights and extra insights have Source buttons, and Q&A references support both exact text excerpts and captured discussion IDs. The content script scrolls the current page to a unique matching passage or loaded comment and briefly outlines it. Original-language quotes are retained internally for navigation even when the displayed analysis is translated.
+Text mind-map nodes with supporting references have a small Source tag after the title, styled like timestamp tags. When a node already contains a timestamp (such as video timestamps), redundant Source tags are omitted to prevent visual clutter. The title and arrow expand the branch; only the Source tag navigates. Discussion highlights and extra insights have Source buttons (also omitted when the comment summary has a timestamp), and Q&A references support both exact text excerpts and captured discussion IDs. The content script scrolls the current page to a unique matching passage or loaded comment and briefly outlines it. Original-language quotes are retained internally for navigation even when the displayed analysis is translated.
 
 References use exact captured comment/answer IDs or distinctive verbatim excerpts, rather than generated summaries as search terms. Bilibili open shadow roots and multiple Zhihu answers retain their individual source targets. The expected capture URL guards against jumps after navigation. Unloaded, ambiguous or missing sources produce a tab-specific message; no external tabs or paginated comments are opened. Existing text mind maps need re-analysis to obtain source references.
