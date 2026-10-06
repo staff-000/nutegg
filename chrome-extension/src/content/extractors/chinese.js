@@ -93,15 +93,22 @@ function chineseSubtitleText(raw) {
     }).filter(Boolean).join('\n');
   }
 }
-async function chineseSubtitles(tracks) {
-  // Stable sort keeps the platform's language preference within each class.
-  for (const track of [...tracks].sort((a, b) => Number(chineseIsAI(a)) - Number(chineseIsAI(b)))) {
+function chineseCaptionLanguage(track) {
+  const language = String(track.lan || '').trim().replace(/^ai[-_]/i, '');
+  if (language) return /^(?:zh|cmn|yue)(?:[-_]|$)/i.test(language);
+  return /中文|汉语|漢語|chinese/i.test(track.lan_doc || '');
+}
+async function chineseSubtitles(tracks, { preferChineseAI = false } = {}) {
+  // Prefer manual captions in any language, then Chinese AI, then other AI.
+  // Stable sorting retains platform order among tracks with equal priority.
+  const rank = track => !chineseIsAI(track) ? 0 : preferChineseAI && !chineseCaptionLanguage(track) ? 2 : 1;
+  for (const track of [...tracks].sort((a, b) => rank(a) - rank(b))) {
     const url = track.subtitle_url || track.Url || track.url?.url_list?.[0] || track.url;
     if (typeof url !== 'string') continue;
     try {
       const text = chineseSubtitleText(await chineseFetch(url.startsWith('//') ? `https:${url}` : url, false));
       if (text) return { text, source: chineseIsAI(track) ? 'ai' : 'manual' };
-    } catch { /* Try another manual track before falling back to AI. */ }
+    } catch { /* Try the next track in language/source preference order. */ }
   }
   return { text: '', source: '' };
 }
@@ -156,7 +163,7 @@ async function extractBilibili() {
       } catch {}
     }
   }
-  const transcript = await chineseSubtitles(player?.subtitle?.subtitles || []);
+  const transcript = await chineseSubtitles(player?.subtitle?.subtitles || [], { preferChineseAI: true });
   const title = info?.title || chineseText('h1.video-title, .video-title') || getMeta('og:title') || document.title;
   const capture = chineseVideoResult('bilibili', title, info?.desc || chineseText('#v_desc, .basic-desc-info'),
     info?.owner?.name || chineseText('.up-name'), selectedPage?.duration || info?.duration, transcript,

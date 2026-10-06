@@ -74,6 +74,86 @@ test('failed manual track falls back to AI', async () => {
   assert.equal(capture.metadata.transcript_source, 'ai');
   assert.match(capture.content, /AI字幕/);
 });
+
+function biliCaptionFixture(tracks, { failed = [], empty = [] } = {}) {
+  const fetched = [];
+  const ctx = context(regular, { api: async raw => {
+    const url = new URL(raw);
+    if (url.pathname === '/x/web-interface/view') return { code: 0, data: { title: 'Video', cid: 111 } };
+    if (url.hostname === 'api.bilibili.com') return { code: 0, data: { subtitle: { subtitles: tracks } } };
+    const name = url.pathname.split('/').pop();
+    fetched.push(name);
+    if (failed.includes(name)) throw new Error('Unavailable');
+    return { body: empty.includes(name) ? [] : [{ from: 0, content: name }] };
+  } });
+  return { ctx, fetched };
+}
+const captionTrack = (name, lan, ai_type = 0) => ({ lan, ai_type, subtitle_url: `//subtitle.hdslb.com/bfs/subtitle/${name}.json` });
+
+test('Bilibili prefers manual captions in any language over Chinese AI captions', async () => {
+  const { ctx, fetched } = biliCaptionFixture([
+    captionTrack('english', 'en'), captionTrack('chinese-ai', 'ai-zh', 1),
+  ]);
+  const capture = await ctx.extractBilibili();
+  assert.deepEqual(fetched, ['english.json']);
+  assert.match(capture.content, /english.json/);
+  assert.equal(capture.metadata.transcript_source, 'manual');
+});
+
+test('Bilibili preserves platform order among manual captions regardless of language', async () => {
+  const { ctx, fetched } = biliCaptionFixture([
+    captionTrack('english', 'en'), captionTrack('chinese-ai', 'ai-zh', 1),
+    captionTrack('traditional', 'zh-Hant'), captionTrack('simplified', 'zh-CN'),
+  ]);
+  const capture = await ctx.extractBilibili();
+  assert.deepEqual(fetched, ['english.json']);
+  assert.equal(capture.metadata.transcript_source, 'manual');
+});
+
+test('Bilibili exhausts manual captions, then Chinese AI, before other-language AI', async () => {
+  const tracks = [captionTrack('english-ai', 'ai-en', 1), captionTrack('english-manual', 'en'), captionTrack('chinese-ai', 'ai-zh', 1), captionTrack('chinese-manual', 'zh-CN')];
+  const availableManual = biliCaptionFixture(tracks, { failed: ['english-manual.json'] });
+  assert.equal((await availableManual.ctx.extractBilibili()).metadata.transcript_source, 'manual');
+  assert.deepEqual(availableManual.fetched, ['english-manual.json', 'chinese-manual.json']);
+  const availableAI = biliCaptionFixture(tracks, { failed: ['english-manual.json', 'chinese-manual.json'] });
+  assert.equal((await availableAI.ctx.extractBilibili()).metadata.transcript_source, 'ai');
+  assert.deepEqual(availableAI.fetched, ['english-manual.json', 'chinese-manual.json', 'chinese-ai.json']);
+  const unavailableChinese = biliCaptionFixture(tracks, { failed: ['english-manual.json', 'chinese-manual.json'], empty: ['chinese-ai.json'] });
+  const capture = await unavailableChinese.ctx.extractBilibili();
+  assert.deepEqual(unavailableChinese.fetched, ['english-manual.json', 'chinese-manual.json', 'chinese-ai.json', 'english-ai.json']);
+  assert.match(capture.content, /english-ai.json/);
+  assert.equal(capture.transcriptAvailable, true);
+});
+
+test('Bilibili selects manual foreign captions when no Chinese version is listed', async () => {
+  const { ctx, fetched } = biliCaptionFixture([
+    captionTrack('english-ai', 'ai-en', 1), captionTrack('japanese', 'ja'),
+  ]);
+  const capture = await ctx.extractBilibili();
+  assert.deepEqual(fetched, ['japanese.json']);
+  assert.equal(capture.metadata.transcript_source, 'manual');
+});
+
+test('Bilibili recognizes Chinese caption language variants and a label when the language code is absent', async () => {
+  for (const lan of ['zh', 'ZH_CN', 'zh-Hans', 'zh-TW', 'ai-zh-CN', 'cmn', 'yue', '']) {
+    const track = { ...captionTrack('chinese', lan, 1), ...(lan ? {} : { lan_doc: '中文（简体）' }) };
+    const { ctx, fetched } = biliCaptionFixture([captionTrack('english-ai', 'ai-en', 1), track]);
+    await ctx.extractBilibili();
+    assert.deepEqual(fetched, ['chinese.json'], lan || 'language label');
+  }
+});
+
+test('other platform captions retain manual-first selection', async () => {
+  const ctx = context('https://www.douyin.com/video/123');
+  const fetched = [];
+  ctx.chineseFetch = async url => {
+    fetched.push(url);
+    return '{"body":[{"from":0,"content":"Caption"}]}';
+  };
+  const transcript = await ctx.chineseSubtitles([captionTrack('chinese-ai', 'ai-zh', 1), captionTrack('english', 'en')]);
+  assert.equal(transcript.source, 'manual');
+  assert.match(fetched[0], /english.json$/);
+});
 test('missing video transcript is explicitly blocked, not inferred from description', async () => {
   const ctx = context(later, { api: async raw => raw.includes('web-interface') ? {
     code: 0, data: { title: 'Video', desc: 'Description', cid: 111 },
