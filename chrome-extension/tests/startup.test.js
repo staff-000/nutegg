@@ -74,7 +74,7 @@ test('popup declares every script in dependency order and has no writable sessio
   assert(!scripts.includes('state/session-state.js'));
 });
 
-test('the actual popup scripts wire Egg Analysis clicks, loading, responses and cached feedback', async () => {
+test('the actual popup scripts wire Egg Analysis clicks, loading, responses and cached feedback', async t => {
   const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
   const { createMockRoot } = require('./helpers/mock-dom');
   const root = createMockRoot(); root.querySelectorAll = () => []; root.addEventListener = () => {}; root.visibilityState = 'visible';
@@ -89,7 +89,9 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
     tabs: { query: async () => [{ id: 1, windowId: 7 }], get: async id => ({ id, title: 'Page', url: 'https://one.test', status: 'complete' }),
       onActivated: { addListener() {} }, onUpdated: { addListener() {} }, onRemoved: { addListener() {} }, onAttached: { addListener() {} }, onDetached: { addListener() {} } },
     storage: { local: { get: (keys, callback) => callback({}), set() {} }, onChanged: { addListener() {} } } };
-  const context = vm.createContext({ console, structuredClone, setTimeout, clearTimeout, setInterval, clearInterval, document: root,
+  const intervals = new Set(); t.after(() => { for (const timer of intervals) clearInterval(timer); });
+  const context = vm.createContext({ console, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
+    setInterval: (...args) => { const timer = setInterval(...args); intervals.add(timer); return timer; }, clearInterval, document: root,
     chrome: api, navigator: { language: 'en' }, window: { addEventListener() {}, scrollTo() {}, scrollY: 0 }, module: { exports: {} } });
   vm.runInContext('Object.assign(globalThis, window); window = globalThis;', context);
   root.body = { classList: { remove() {} } };
@@ -139,4 +141,28 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   assert.equal(requests.length, 2);
   assert.equal(root.getElementById('error-banner').classList.contains('hidden'), true);
   assert.equal(root.getElementById('success-message').textContent, context.t('cachedEggAnalysisShown'));
+  let created, saved;
+  api.runtime.sendMessage = async message => {
+    if (message.action === 'create-egg') { created = message; return { success: true, path: 'nutegg/new.md' }; }
+    if (message.action === 'confirm') { saved = message.payload; return { success: true }; }
+    return {};
+  };
+  root.getElementById('eggs-new-name').value = 'New';
+  root.getElementById('eggs-new-desc').value = '知识范围';
+  root.getElementById('eggs-create-btn').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(created.description, '知识范围');
+  assert.equal(requests.length, 2, 'Creating an egg must not initiate an analysis request');
+  assert.deepEqual([...store.getTab(1).selectedEggs], ['a.md', 'nutegg/new.md']);
+  assert.equal(root.getElementById('confirm-btn').disabled, true);
+  assert.equal(root.getElementById('confirm-btn').title, context.t('hatchAnalyzeSelectedEggs'));
+  button.click();
+  assert.equal(requests.length, 3);
+  assert.deepEqual([...requests[2].payload.eggs], ['nutegg/new.md']);
+  ports[2].respond({ stage: 'stage2', mode: 'obsidian', eggResults: [{ egg: 'nutegg/new.md', extractedEntries: [{ content: 'New egg insight' }], keyQuestionAnswers: [] }] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(root.getElementById('confirm-btn').disabled, false);
+  root.getElementById('confirm-btn').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(saved.newKnowledge.some(entry => entry.egg === 'nutegg/new.md'));
 });

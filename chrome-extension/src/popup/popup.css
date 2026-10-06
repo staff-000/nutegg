@@ -2000,6 +2000,13 @@ body {
   border-color: var(--primary, #a8561e);
 }
 
+.create-egg-hint {
+  margin: 2px 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .confirm-btn.create-egg-btn {
   width: 100%;
   flex: none;

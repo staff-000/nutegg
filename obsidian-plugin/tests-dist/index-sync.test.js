@@ -528,6 +528,7 @@ var IndexSync = class {
   isUpdatingIndex = false;
   directEditTimer = null;
   diffListeners = /* @__PURE__ */ new Set();
+  indexMutationTask = Promise.resolve();
   constructor(plugin) {
     this.plugin = plugin;
   }
@@ -740,20 +741,22 @@ var IndexSync = class {
       this.plugin.settings.indexFile
     );
     const entries = [];
-    let updatedIndexContent = indexContent;
     for (const entry of rawEntries) {
       const target = norm(entry.fileName);
       if (!isEggPath(target, folder)) {
-        const escaped = entry.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
-        updatedIndexContent = updatedIndexContent.replace(re, "");
         result.prunedIndexEntries.push(entry.fileName);
       } else {
         entries.push(entry);
       }
     }
     if (result.prunedIndexEntries.length > 0 && indexFile) {
-      await this.plugin.app.vault.modify(indexFile, updatedIndexContent);
+      await this.updateIndex(indexFile, (content) => {
+        for (const entryPath of result.prunedIndexEntries) {
+          const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          content = content.replace(new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m"), "");
+        }
+        return content;
+      });
       console.log(`[NutEgg] Pruned ${result.prunedIndexEntries.length} invalid entries from index`);
     }
     if (options?.syncUnindexed && indexFile) {
@@ -856,15 +859,11 @@ var IndexSync = class {
   async removeIndexEntry(indexFile, entryPath) {
     if (!indexFile)
       return false;
-    const content = await this.plugin.app.vault.read(indexFile);
     const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
-    if (!re.test(content))
+    const changed = await this.updateIndex(indexFile, (content) => content.replace(re, ""));
+    if (!changed)
       return false;
-    const updated = content.replace(re, "");
-    if (updated === content)
-      return false;
-    await this.plugin.app.vault.modify(indexFile, updated);
     console.log(`[NutEgg] Removed index entry: ${entryPath}`);
     return true;
   }
@@ -872,29 +871,49 @@ var IndexSync = class {
     if (!indexFile)
       return;
     const line = `* ${eggPath}${description ? `: ${description}` : ""}`;
-    const content = await this.plugin.app.vault.read(indexFile);
-    await this.plugin.app.vault.modify(
-      indexFile,
-      content.replace(/\n+$/, "") + `
+    await this.updateIndex(indexFile, (content) => {
+      const entries = this.plugin.indexReader.parseIndexContent(content);
+      if (entries.some((entry) => entry.fileName === eggPath || entry.fileName === eggPath.split("/").pop()))
+        return content;
+      return content.replace(/\n+$/, "") + `
 ${line}
-`
-    );
+`;
+    });
     console.log(`[NutEgg] Added index entry: ${line}`);
   }
   /** Rewrite one index entry's file path in place (keeps its description). */
   async rewriteIndexPath(indexFile, oldPath, newPath) {
     if (!indexFile)
       return;
-    const content = await this.plugin.app.vault.read(indexFile);
     const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`^(\\s*[*\\-+]?\\s*)${escaped}(\\s*:)`, "m");
-    if (!re.test(content))
+    if (!await this.updateIndex(indexFile, (content) => content.replace(re, `$1${newPath}$2`)))
       return;
-    const updated = content.replace(re, `$1${newPath}$2`);
-    if (updated === content)
-      return;
-    await this.plugin.app.vault.modify(indexFile, updated);
     console.log(`[NutEgg] Index path fixed: ${oldPath} -> ${newPath}`);
+  }
+  /** Atomic transforms in Obsidian; serialize the read/modify fallback as well. */
+  updateIndex(indexFile, transform) {
+    const task = this.indexMutationTask.then(async () => {
+      const vault = this.plugin.app.vault;
+      let changed = false;
+      const apply = (content) => {
+        const updated = transform(content);
+        changed = updated !== content;
+        return updated;
+      };
+      if (vault.process)
+        await vault.process(indexFile, apply);
+      else {
+        const updated = apply(await vault.read(indexFile));
+        if (changed)
+          await vault.modify(indexFile, updated);
+      }
+      return changed;
+    });
+    this.indexMutationTask = task.then(() => {
+    }, () => {
+    });
+    return task;
   }
   /**
    * Create the missing egg file from the template, seeded from the index
@@ -1721,6 +1740,28 @@ function egg(topic) {
   ].join("\n");
 }
 (0, import_node_test.describe)("IndexSync.checkAndFix", () => {
+  for (const atomic of [false, true])
+    (0, import_node_test.it)(`concurrent egg creation retains both index entries (vault.process=${atomic})`, async () => {
+      const { sync, files, plugin } = makeSync({ "nutegg/_index.md": INDEX });
+      if (atomic)
+        plugin.app.vault.process = async (file, transform) => {
+          files.set(file.path, transform(files.get(file.path)));
+        };
+      await Promise.all([sync.createEgg("First", "First description"), sync.createEgg("Second", "Second description")]);
+      const index = files.get("nutegg/_index.md");
+      import_strict.default.ok(index.includes("* nutegg/first.md: First description"));
+      import_strict.default.ok(index.includes("* nutegg/second.md: Second description"));
+      import_strict.default.ok(index.includes("* nutegg/investment.md: investment strategies"));
+      import_strict.default.equal(plugin.indexReader.parseIndexContent(index).length, 4);
+    });
+  (0, import_node_test.it)("concurrent rename and creation retain both changes", async () => {
+    const { sync, files } = makeSync({ "nutegg/_index.md": INDEX });
+    await Promise.all([sync.createEgg("New", "New egg"), sync.onEggFileRenamed("nutegg/investment.md", "nutegg/portfolio.md")]);
+    const index = files.get("nutegg/_index.md");
+    import_strict.default.ok(index.includes("nutegg/new.md"));
+    import_strict.default.ok(index.includes("nutegg/portfolio.md"));
+    import_strict.default.ok(!index.includes("nutegg/investment.md"));
+  });
   (0, import_node_test.it)("does not auto-append unindexed egg files or workflow files to _index.md", async () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,

@@ -40,6 +40,28 @@ function egg(topic: string): string {
 }
 
 describe("IndexSync.checkAndFix", () => {
+  for (const atomic of [false, true]) it(`concurrent egg creation retains both index entries (vault.process=${atomic})`, async () => {
+    const { sync, files, plugin } = makeSync({ 'nutegg/_index.md': INDEX });
+    if (atomic) (plugin.app.vault as any).process = async (file: any, transform: (content: string) => string) => {
+      files.set(file.path, transform(files.get(file.path)!));
+    };
+    await Promise.all([sync.createEgg('First', 'First description'), sync.createEgg('Second', 'Second description')]);
+    const index = files.get('nutegg/_index.md')!;
+    assert.ok(index.includes('* nutegg/first.md: First description'));
+    assert.ok(index.includes('* nutegg/second.md: Second description'));
+    assert.ok(index.includes('* nutegg/investment.md: investment strategies'));
+    assert.equal(plugin.indexReader.parseIndexContent(index).length, 4);
+  });
+
+  it('concurrent rename and creation retain both changes', async () => {
+    const { sync, files } = makeSync({ 'nutegg/_index.md': INDEX });
+    await Promise.all([sync.createEgg('New', 'New egg'), sync.onEggFileRenamed('nutegg/investment.md', 'nutegg/portfolio.md')]);
+    const index = files.get('nutegg/_index.md')!;
+    assert.ok(index.includes('nutegg/new.md'));
+    assert.ok(index.includes('nutegg/portfolio.md'));
+    assert.ok(!index.includes('nutegg/investment.md'));
+  });
+
   it("does not auto-append unindexed egg files or workflow files to _index.md", async () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,

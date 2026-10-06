@@ -84,6 +84,16 @@ test('save and follow-up actions dispatch operations without touching controls',
   await new SaveAction(f.deps).handleSaveRaw(); assert.equal(f.store.getTab(1).nutCollected, true);
   await new InteractionAction(f.deps).handleFollowUp(); assert.equal(f.store.getTab(1).followUpQa[0].answer, 'A');
 });
+
+test('Create Egg sends the preferred-language description and never starts analysis', async () => {
+  const f = actions(); let input;
+  f.deps.ui.eggsUI = { getNewEggInput: () => ({ name: '方法论', desc: '收集解决问题的方法' }) };
+  f.service.createEgg = async (name, desc) => { input = { name, desc }; return { success: true, path: 'nutegg/方法论.md' }; };
+  await new SaveAction(f.deps).handleCreateEgg(true);
+  assert.deepEqual(input, { name: '方法论', desc: '收集解决问题的方法' });
+  assert.equal(f.calls.length, 0);
+  assert.deepEqual(f.store.getTab(1).selectedEggs, ['nutegg/方法论.md']);
+});
 test('refreshCaptureForCurrentTab fetches content without redirecting to analysis view', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
   const f = actions();
@@ -93,7 +103,7 @@ test('refreshCaptureForCurrentTab fetches content without redirecting to analysi
 
   let extractedId = null;
   globalThis.chrome = { tabs: { get: async id => ({ id, url: 'https://tab1.test', title: 'Refreshed Page', status: 'complete' }) } };
-  f.operations.extract = async id => { extractedId = id; };
+  f.operations.extract = async id => { extractedId = id; return { url: 'https://tab1.test', content: 'Refreshed content' }; };
 
   await f.tab.refreshCaptureForCurrentTab();
 
@@ -117,4 +127,90 @@ test('source jump feedback stays with the initiating tab and ignores a replaced 
   f.store.invalidateTab(1, 'https://new.test');
   requests[1].resolve(false); await obsolete;
   assert.equal(f.store.getTab(1).errors.navigation, undefined);
+});
+
+test('refresh cannot recreate a closed tab after its Chrome lookup resolves', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), lookup = deferred();
+  globalThis.chrome = { tabs: { get: () => lookup.promise } };
+  const refresh = f.tab.refreshCaptureForCurrentTab();
+  f.tab.handleTabRemoved(1); f.store.activateTab(2);
+  lookup.resolve({ id: 1, url: 'https://tab1.test', status: 'complete' });
+  await refresh;
+  assert.equal(f.store.getTab(1), null);
+});
+
+test('cancelled refresh cannot hide the replacement page results or surface its old error', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  for (const fail of [false, true]) {
+    const f = actions(), extraction = deferred();
+    globalThis.chrome = { tabs: { get: async () => ({ id: 1, url: 'https://tab1.test', status: 'complete' }) } };
+    f.operations.extract = () => extraction.promise;
+    const refresh = f.tab.refreshCaptureForCurrentTab();
+    await new Promise(resolve => setImmediate(resolve));
+    f.store.invalidateTab(1, 'https://new.test'); seed(f.store, 1, { titleVerdict: 'Replacement' });
+    fail ? extraction.reject(new Error('Obsolete refresh error')) : extraction.resolve(null);
+    await refresh;
+    assert.equal(f.store.getTab(1).currentView, 'results');
+    assert.deepEqual(f.store.getTab(1).errors, {});
+  }
+});
+
+test('refresh does not invalidate an analysis started during the Chrome lookup', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), lookup = deferred();
+  globalThis.chrome = { tabs: { get: () => lookup.promise } };
+  const refresh = f.tab.refreshCaptureForCurrentTab();
+  const analysis = f.analyze.handleAnalyze();
+  lookup.resolve({ id: 1, url: 'https://tab1.test', status: 'complete' }); await refresh;
+  assert.equal(f.store.getTab(1).operations.extraction.running, false);
+  f.calls[0].resolve({ titleVerdict: 'New analysis' }); await analysis;
+  assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'New analysis');
+});
+
+test('late activity activation cannot overwrite a subsequent user tab switch', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), activated = deferred();
+  globalThis.chrome = { tabs: { update: () => activated.promise, get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.store.activateTab(2);
+  const open = f.tab.openAnalysisActivity(1);
+  await f.tab.handleTabActivated({ tabId: 1 });
+  await f.tab.handleTabActivated({ tabId: 2 });
+  activated.resolve(); await open;
+  assert.equal(f.store.activeTabId, 2);
+});
+
+test('URL-only navigation extracts the new route after settling; fragments retain results', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(); let extractions = 0, settlements = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: 'https://tab1.test/new-route', status: 'complete' }) } };
+  f.extractor.waitForPageSettle = async () => { settlements++; };
+  f.extractor.extractPage = async () => { extractions++; return { url: 'https://tab1.test/new-route', content: 'New route' }; };
+  await f.tab.handleTabUpdated(1, { url: 'https://tab1.test/new-route' });
+  assert.equal(extractions, 1); assert.equal(settlements, 1);
+  assert.equal(f.store.getTab(1).extractedContent.content, 'New route');
+  assert.equal(f.store.getTab(1).currentTabLoading, false);
+  f.store.dispatch({ type: 'historySelected', tabId: 1, entry: { result: { titleVerdict: 'Current result' } } });
+  const generation = f.store.getTab(1).pageGeneration;
+  await f.tab.handleTabUpdated(1, { url: 'https://tab1.test/new-route#section' });
+  assert.equal(f.store.getTab(1).pageGeneration, generation);
+  assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Current result');
+  assert.equal(extractions, 1);
+});
+
+test('A → B → A during extraction waits for the shared extraction before restoring history', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), extraction = deferred(); let extractions = 0, histories = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.extractor.extractPage = () => { extractions++; return extraction.promise; };
+  f.service.loadHistory = async () => { histories++; return [{ nutId: 99, title: 'Saved capture', content: 'Old content', result: { titleVerdict: 'Saved history' } }]; };
+  const first = f.tab.handleTabActivated({ tabId: 1 }); await new Promise(resolve => setImmediate(resolve));
+  f.store.activateTab(2);
+  const returning = f.tab.handleTabActivated({ tabId: 1 }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(histories, 0);
+  extraction.resolve({ title: 'Fresh page', url: 'https://tab1.test', content: 'Fresh content' });
+  await Promise.all([first, returning]);
+  assert.equal(extractions, 1); assert.equal(histories, 1);
+  assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Saved history');
 });

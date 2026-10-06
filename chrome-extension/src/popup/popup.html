@@ -323,7 +323,8 @@
             <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg">➕ Create a new egg</button>
             <div id="eggs-create-form" class="create-egg-box hidden">
               <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
-              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" />
+              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="eggs-create-hint" />
+              <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
               <div class="create-egg-actions">
                 <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create an Egg</button>
                 <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel">Cancel</button>
@@ -422,7 +423,8 @@
         <div class="section-content">
           <div class="create-egg-box">
             <input id="new-egg-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
-            <input id="new-egg-description" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" />
+            <input id="new-egg-description" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="new-egg-hint" />
+            <p id="new-egg-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
             <button id="create-egg-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create Egg</button>
           </div>
         </div>

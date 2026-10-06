@@ -200,6 +200,45 @@ test('global catalog updates preserve a create draft, and follow-up renders with
   assert(f.ui.qaUI.customQuestionsList.innerHTML.includes('Follow-up answer'));
 });
 
+test('a created egg stays selected until manual Egg Analysis, then Hatch includes its knowledge', async context => {
+  const f = setup(context);
+  const oldEgg = { egg: 'nutegg/old.md', readAction: 'full', readVerdict: true, keyQuestionAnswers: [], extractedEntries: [{ content: 'Old insight' }] };
+  seed(f.store, 1, { stage: 'stage2', matchedEggs: ['nutegg/old.md'], eggResults: [oldEgg], newKnowledge: [{ egg: oldEgg.egg, content: 'Old insight' }] });
+  const previous = f.store.getTab(1).analysisResult;
+  f.service.createEgg = async () => ({ success: true, path: 'nutegg/new.md' });
+  let confirmations = 0, saved;
+  f.service.sendMessage = async message => { if (message.action === 'confirm') { confirmations++; saved = message.payload; } return { success: true }; };
+  await f.operations.create(1, { name: 'New', desc: 'New knowledge', inline: true });
+  assert.equal(f.calls.length, 0);
+  assert.deepEqual(f.store.getTab(1).analysisResult, previous);
+  assert.deepEqual(f.store.getTab(1).selectedEggs, ['nutegg/old.md', 'nutegg/new.md']);
+  assert.equal(f.ui.actionsUI.confirmBtn.disabled, true);
+  assert.equal(f.ui.actionsUI.confirmBtn.title, t('hatchAnalyzeSelectedEggs'));
+  const blocked = await f.operations.save(1, true);
+  assert.equal(blocked.error, t('hatchAnalyzeSelectedEggs')); assert.equal(confirmations, 0);
+  const analysis = f.analyze.handleReanalyzeEggs();
+  assert.deepEqual(f.calls[0].payload.eggs, ['nutegg/new.md']);
+  assert.deepEqual(f.calls[0].payload.selectedEggs, ['nutegg/old.md', 'nutegg/new.md']);
+  f.calls[0].resolve({ eggResults: [{ egg: 'nutegg/new.md', readAction: 'full', readVerdict: true, keyQuestionAnswers: [], extractedEntries: [{ content: 'New insight' }] }] });
+  await analysis;
+  assert.equal(f.ui.actionsUI.confirmBtn.disabled, false);
+  await f.operations.save(1, true);
+  assert.equal(confirmations, 1);
+  assert.ok(saved.newKnowledge.some(entry => entry.egg === 'nutegg/new.md' && entry.content.includes('New insight')));
+});
+
+test('creating an egg after no matches hides the empty creation prompt and enables manual Egg Analysis', async context => {
+  const f = setup(context);
+  seed(f.store, 1, { stage: 'stage1', matchedEggs: [] });
+  assert.equal(f.ui.eggsUI.noEggSection.classList.contains('hidden'), false);
+  f.service.createEgg = async () => ({ success: true, path: 'nutegg/new.md' });
+  await f.operations.create(1, { name: 'New', inline: false });
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.ui.eggsUI.noEggSection.classList.contains('hidden'), true);
+  assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, false);
+  assert.ok(f.ui.eggsUI.eggsList.innerHTML.includes('nutegg/new.md'));
+});
+
 test('when offline and unconfigured, setup hub is shown and capture-state is not-functional; becomes functional once connected', context => {
   const f = setup(context);
   const captureState = f.root.getElementById('capture-state');

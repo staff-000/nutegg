@@ -537,7 +537,7 @@ class EggsComponent {
     const result = view.analysisResult;
     const visible = !!result && !settings.isChromeMode(result);
     this.eggsSection?.classList.toggle('hidden', !visible);
-    this.setNoEggVisible(visible && !view.isAnalyzing && !(result.matchedEggs || []).length);
+    this.setNoEggVisible(visible && !view.isAnalyzing && !(result.matchedEggs || []).length && !view.selectedEggs?.size);
     this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
     this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
     this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange });

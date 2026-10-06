@@ -151,14 +151,22 @@ it('migrates existing databases and round-trips exact structured discussion snap
   const file = path.join(tmp, '.nutegg.db');
   const old = new DatabaseSync(file);
   old.exec('CREATE TABLE nuts (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT NOT NULL, title TEXT NOT NULL, source_type TEXT NOT NULL, content TEXT, saved_at TEXT, published_at TEXT, author TEXT, time_estimate_minutes REAL, processing_result TEXT, summary TEXT, matched_eggs TEXT, file_name TEXT, analysis_result TEXT)');
+  old.exec("INSERT INTO nuts (url, title, source_type, processing_result) VALUES ('https://legacy.test', 'Legacy capture', 'article', 'saved')");
   old.close();
   const plugin: any = { settings: { rawFolder: '_raw' }, app: { vault: { adapter: { exists: async () => true, getBasePath: () => tmp } } } };
   const db = new NutEggDatabase(plugin);
   try {
     await db.init(); assert.equal(db.available, true);
+    assert.equal(db.getNutById(1)?.title, 'Legacy capture');
+    assert.equal(db.getNutById(1)?.confirmedKnowledge, null);
     const capturePayload: any = { url: 'https://forum.test', title: 'Thread', content: 'Question', sourceType: 'forum', enabledSections: { discussion: true }, discussion: { kind: 'forum', status: 'partial', items: [{ id: 'c1', text: 'Experience', authorId: 'u1', reaction: { kind: 'likes', count: 12 } }] } };
     const id = db.insertNut(capture({ capturePayload })); assert.ok(id);
     assert.deepEqual(db.getNutById(id!)?.capturePayload, capturePayload);
     assert.deepEqual(db.getNutHistory('https://example.com/video')[0].capturePayload, capturePayload);
+    db.updateNut(id!, { confirmedKnowledge: ['confirmed-a', 'confirmed-b'] });
+    db.updateNut(id!, { analysisResult: { schemaVersion: 3 } as any });
+    db.close(); await db.init();
+    assert.deepEqual(db.getNutById(id!)?.confirmedKnowledge, ['confirmed-a', 'confirmed-b']);
+    assert.deepEqual(db.getNutById(id!)?.capturePayload, capturePayload);
   } finally { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
 });

@@ -423,18 +423,96 @@ describe("NutEggServer.handleConfirm", () => {
     const res = makeRes();
     await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, analysis, newKnowledge: [{ egg: "egg.md", content: "Useful answer" }] })), res);
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(events, ["archive", "append", "db"]);
+    assert.deepEqual(events, ["append", "archive", "db"]);
     await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual(events, ["archive", "append", "db", "merge"]);
+    assert.deepEqual(events, ["append", "archive", "db", "merge"]);
   });
 
   it("does not append a second Hatch for a saved result", async () => {
-    const s = makeServer({ db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md" }) },
+    const s = makeServer({ db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md", analysisResult: { newKnowledge: [{ egg: 'egg.md', content: 'one' }] } }) },
       knowledgeBase: { appendKnowledge: async () => { assert.fail("duplicate append"); } } });
     const res = makeRes();
     await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "one" }] })), res);
     assert.equal(res.statusCode, 200);
     assert.equal(JSON.parse(res.body).alreadySaved, true);
+  });
+
+  it('hatches additional eggs without replaying confirmed entries, even after analysis changes and a restart', async () => {
+    const row: any = { id: 42, processingResult: 'analyzed', fileName: '', confirmedKnowledge: null };
+    const appended: any[] = []; let archives = 0;
+    const plugin = makeFakePlugin({
+      db: { getNutById: () => structuredClone(row), updateNut: (_id: number, patch: any) => Object.assign(row, patch) },
+      knowledgeBase: {
+        saveRaw: async () => { archives++; return 'nutegg/_raw/original.md'; },
+        updateRawAnalysis: async () => {},
+        appendKnowledge: async (entries: any[]) => { appended.push(...entries); },
+      },
+    });
+    const first = { egg: 'nutegg/first.md', content: 'First insight' };
+    const second = { egg: 'nutegg/second.md', content: 'Second insight' };
+    const s: any = new NutEggServer(plugin as any, 27123);
+    const payload = { ...baseConfirm, nutId: 42, skipRaw: false };
+    const resA = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [first], analysis: { newKnowledge: [first] } })), resA);
+    assert.equal(resA.statusCode, 200);
+    // Stage 2 updates this same nut's analysis, independently of its save ledger.
+    row.analysisResult = { newKnowledge: [first, second] };
+    const resB = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [first, second], analysis: row.analysisResult })), resB);
+    assert.equal(resB.statusCode, 200);
+    assert.deepEqual(appended, [first, second]); assert.equal(archives, 1);
+    assert.equal(row.confirmedKnowledge.length, 2);
+    const restarted: any = new NutEggServer(plugin as any, 27123), repeated = makeRes();
+    await restarted.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [{ ...first, egg: 'first.md' }, second] })), repeated);
+    assert.equal(JSON.parse(repeated.body).alreadySaved, true);
+    assert.equal(appended.length, 2);
+  });
+
+  it('legacy saved nuts use archived Hatch entries rather than their newer Stage 2 analysis', async () => {
+    const first = { egg: 'first.md', content: 'First insight' }, second = { egg: 'second.md', content: 'Second insight' };
+    const row: any = { id: 42, processingResult: 'saved', fileName: 'original.md', analysisResult: { newKnowledge: [first, second] } };
+    let appended: any;
+    const s = makeServer({
+      db: { getNutById: () => row, updateNut: (_id: number, patch: any) => Object.assign(row, patch) },
+      knowledgeBase: {
+        readRawAnalysis: async () => ({ newKnowledge: [first] }), updateRawAnalysis: async () => {},
+        appendKnowledge: async (entries: any[]) => { appended = entries; },
+      },
+    });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [first, second], analysis: row.analysisResult })), res);
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(appended, [second]); assert.equal(row.confirmedKnowledge.length, 2);
+  });
+
+  it('concurrent confirmations for one nut append once and release the queue', async () => {
+    const row: any = { id: 42, processingResult: 'analyzed', fileName: 'original.md', confirmedKnowledge: [] };
+    let release!: () => void, started!: () => void, appends = 0;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const began = new Promise<void>(resolve => { started = resolve; });
+    const s = makeServer({
+      db: { getNutById: () => structuredClone(row), updateNut: (_id: number, patch: any) => Object.assign(row, patch) },
+      knowledgeBase: { appendKnowledge: async () => { appends++; started(); await waiting; } },
+    });
+    const payload = JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: 'egg.md', content: 'One insight' }] });
+    const first = makeRes(), second = makeRes();
+    const a = s.handleConfirm(makeReq(payload), first); await began;
+    const b = s.handleConfirm(makeReq(payload), second);
+    release(); await Promise.all([a, b]);
+    assert.equal(first.statusCode, 200); assert.equal(second.statusCode, 200);
+    assert.equal(appends, 1); assert.equal(JSON.parse(second.body).alreadySaved, true);
+    assert.equal(s.confirmationQueues.size, 0);
+  });
+
+  it('a failed confirmation does not block a retry', async () => {
+    let appends = 0;
+    const s = makeServer({ knowledgeBase: { appendKnowledge: async () => { if (++appends === 1) throw new Error('Temporary write failure'); } } });
+    const payload = JSON.stringify({ ...baseConfirm, newKnowledge: [{ egg: 'egg.md', content: 'One insight' }] });
+    const first = makeRes(), second = makeRes();
+    await s.handleConfirm(makeReq(payload), first);
+    await s.handleConfirm(makeReq(payload), second);
+    assert.equal(first.statusCode, 500); assert.equal(second.statusCode, 200);
+    assert.equal(s.confirmationQueues.size, 0);
   });
 
   it("resolves the author from channel metadata when author is absent", async () => {

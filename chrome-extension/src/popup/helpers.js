@@ -280,9 +280,13 @@ function isTranscriptBlocked(extractedContent) {
     extractedContent.transcriptAvailable === false;
 }
 
-/**
- * Returns a non-null string prompt if the page or content is not ready for analysis.
- */
+/** A selected egg needs its own result before knowledge can be hatched into it. */
+function selectedEggsNeedAnalysis(view) {
+  const analyzed = new Set((view.analysisResult?.eggResults || []).map(result => result.egg.split('/').pop()));
+  return [...(view.selectedEggs || [])].some(egg => !analyzed.has(egg.split('/').pop()));
+}
+
+/** Returns a prompt if the page or content is not ready for analysis. */
 function getAnalyzeNotReadyReason(sessionState, settingsState) {
   if (!sessionState) return null;
   if (sessionState.currentTabLoading) {
@@ -374,6 +378,7 @@ const NutEggHelpers = {
   isVideoMediaSource,
   isTranscriptBlocked,
   getAnalyzeNotReadyReason,
+  selectedEggsNeedAnalysis,
   buildGitHubBugReportUrl,
   openGitHubBugReport,
 };

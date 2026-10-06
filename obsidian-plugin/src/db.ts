@@ -37,6 +37,8 @@ export interface NutRow {
   matchedEggs: string[];
   fileName: string;
   analysisResult: AnalysisResult | null;
+  /** Fingerprints of durably hatched entries; independent of later analysis updates. */
+  confirmedKnowledge?: string[] | null;
   capturePayload?: (CapturePayload & { metadata?: Record<string, string> }) | null;
 }
 
@@ -131,12 +133,14 @@ export class NutEggDatabase {
         matched_eggs TEXT,
         file_name TEXT,
         capture_payload TEXT,
+        confirmed_knowledge TEXT,
         analysis_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_nuts_url ON nuts(url);
     `);
     const columns = this.db!.prepare('PRAGMA table_info(nuts)').all() as Array<{ name: string }>;
     if (!columns.some(column => column.name === 'capture_payload')) this.db!.exec('ALTER TABLE nuts ADD COLUMN capture_payload TEXT');
+    if (!columns.some(column => column.name === 'confirmed_knowledge')) this.db!.exec('ALTER TABLE nuts ADD COLUMN confirmed_knowledge TEXT');
   }
 
   // --- Nuts ---
@@ -152,8 +156,8 @@ export class NutEggDatabase {
       const res = this.db
         .prepare(
           `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload, confirmed_knowledge)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           row.url,
@@ -169,7 +173,8 @@ export class NutEggDatabase {
           JSON.stringify(row.matchedEggs),
           row.fileName || null,
           row.analysisResult ? JSON.stringify(row.analysisResult) : null,
-          row.capturePayload ? JSON.stringify(row.capturePayload) : null
+          row.capturePayload ? JSON.stringify(row.capturePayload) : null,
+          row.confirmedKnowledge ? JSON.stringify(row.confirmedKnowledge) : null
         );
       return Number(res.lastInsertRowid);
     } catch (err) {
@@ -223,6 +228,7 @@ export class NutEggDatabase {
       summary?: string;
       matchedEggs?: string[];
       analysisResult?: AnalysisResult | null;
+      confirmedKnowledge?: string[];
     }
   ): void {
     if (!this.db) return;
@@ -248,6 +254,10 @@ export class NutEggDatabase {
     if (patch.analysisResult !== undefined) {
       sets.push("analysis_result = ?");
       params.push(patch.analysisResult ? JSON.stringify(patch.analysisResult) : null);
+    }
+    if (patch.confirmedKnowledge !== undefined) {
+      sets.push("confirmed_knowledge = ?");
+      params.push(JSON.stringify(patch.confirmedKnowledge));
     }
     if (sets.length === 0) return;
     params.push(id);
@@ -359,8 +369,14 @@ export class NutEggDatabase {
 
     let capturePayload: NutRow["capturePayload"] = null;
     try { capturePayload = row.capture_payload ? JSON.parse(row.capture_payload) : null; } catch {}
+    let confirmedKnowledge: string[] | null = null;
+    try {
+      const parsed = row.confirmed_knowledge ? JSON.parse(row.confirmed_knowledge) : null;
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) confirmedKnowledge = parsed;
+    } catch {}
     return {
       capturePayload,
+      confirmedKnowledge,
       id: row.id,
       url: row.url,
       title: row.title,

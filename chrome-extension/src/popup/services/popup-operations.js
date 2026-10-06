@@ -3,6 +3,7 @@ class PopupOperations {
   constructor({ store, service, extractor, chromeApi = chrome }) {
     this.store = store; this.service = service; this.extractor = extractor; this.chromeApi = chromeApi;
     this.catalogTask = null;
+    this.extractionTasks = new Map();
     this.debugPending = new Set();
   }
   async refreshDebugInfo() {
@@ -25,9 +26,21 @@ class PopupOperations {
     this.store.commitOperation(context.token, { type: 'operationFailed', error: error?.message || String(error), code: error?.code });
     return { error: error?.message || String(error) };
   }
-  async extract(tabId) {
+  extract(tabId, { waitForSettle = false } = {}) {
+    const tab = this.store.getTab(tabId);
+    if (!tab) return Promise.resolve(null);
+    const existing = this.extractionTasks.get(tabId);
+    if (existing?.generation === tab.pageGeneration && this.store.isOperationCurrent(existing.token)) return existing.task;
     const ctx = this.store.beginOperation(tabId, 'extraction', {}, ['sourceVersion']);
-    if (!ctx) return null;
+    if (!ctx) return Promise.resolve(null);
+    const task = this.runExtraction(ctx, waitForSettle).finally(() => {
+      if (this.extractionTasks.get(tabId)?.task === task) this.extractionTasks.delete(tabId);
+    });
+    this.extractionTasks.set(tabId, { generation: tab.pageGeneration, token: ctx.token, task });
+    return task;
+  }
+  async runExtraction(ctx, waitForSettle) {
+    const tabId = ctx.token.tabId;
     try {
       const tab = await this.chromeApi.tabs.get(tabId);
       if (!this.store.isOperationCurrent(ctx.token)) return null;
@@ -35,6 +48,8 @@ class PopupOperations {
       if (tab.status === 'loading') {
         await this.extractor.waitForTabComplete(tabId, 6000);
         if (cancelled()) return null;
+      }
+      if (tab.status === 'loading' || waitForSettle) {
         await this.extractor.waitForPageSettle(tabId, cancelled);
         if (cancelled()) return null;
       }
@@ -82,7 +97,7 @@ class PopupOperations {
     if (expectedSelection != null && ctx.tab.selectionRevision !== expectedSelection) { this.store.commitOperation(ctx.token, { type: 'operationFinished' }); return; }
     try {
       const history = await this.service.loadHistory(ctx.tab.url || ctx.tab.extractedContent?.url);
-      this.store.commitOperation(ctx.token, { type: 'historyLoaded', history: history || [], select });
+      this.store.commitOperation(ctx.token, { type: 'historyLoaded', history: history || [], select, selectionIntent: ctx.tab.intentRevision });
     } catch (error) { this.fail(ctx, error); }
   }
   async catalog() {
@@ -192,6 +207,7 @@ class PopupOperations {
       resultRevision: tab.resultRevision, requestId: token.requestId, nutId: tab.currentNutId, time: Date.now(), ...outcome } });
     try {
       const result = tab.analysisResult;
+      if (hatch && globalThis.NutEggHelpers.selectedEggsNeedAnalysis(tab)) throw new Error(t('hatchAnalyzeSelectedEggs'));
       const entries = hatch ? result?.newKnowledge || [] : [];
       if (hatch && !entries.length) throw new Error(t('noNewKnowledgeToAdd'));
       const content = tab.stage1Payload || tab.extractedContent;
@@ -232,11 +248,14 @@ class PopupOperations {
     try {
       const response = await this.service.createEgg(captured.name, captured.desc);
       if (!response?.success) throw new Error(response?.error || t('failedToCreateEgg'));
-      const fileName = response.path?.split('/').pop() || `${globalThis.NutEggHelpers.slugify(captured.name)}.md`;
+      const fileName = response.path || `${globalThis.NutEggHelpers.slugify(captured.name)}.md`;
+      const pendingCatalog = this.catalogTask;
       this.store.dispatch({ type: 'eggCreated', egg: { fileName, description: captured.desc || captured.name } });
-      if (!this.store.commitOperation(ctx.token, { type: 'operationFinished' })) return { stale: true };
-      // Continuation uses the originating page and the inputs captured before creation.
-      return this.analyze(tabId, { ...ctx.inputs, eggs: captured.inline ? ctx.tab.selectedEggs : [fileName] });
+      // A fetch started before creation is discarded; refresh it to retain the other eggs too.
+      if (pendingCatalog) void pendingCatalog.then(() => this.catalog());
+      if (!this.store.commitOperation(ctx.token, { type: 'creationComplete', fileName,
+        message: t('eggCreatedSelected', { egg: globalThis.NutEggHelpers.cleanEggName(fileName) }) })) return { stale: true };
+      return { success: true, fileName };
     } catch (error) { return this.fail(ctx, error); }
   }
 }

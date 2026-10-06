@@ -440,7 +440,10 @@ class ActionControlsComponent {
     const entries = ((result?.newKnowledge?.length || 0) > 0) || ((result?.eggResults || []).some(r => (r.extractedEntries?.length || 0) > 0));
     const operationLabel = saving ? t(hatching ? 'hatching' : 'collecting') : analyzing ? t(view.analyzingEggs ? 'analyzingEggs' : 'analyzing')
       : view.operations?.followup?.running ? t('askingBtn') : view.operations?.creation?.running ? t('creatingEgg') : t('analyzing');
-    const hatchReason = view.eggHatched ? t('hatchAlreadySaved') : busy ? t('hatchWaitForOperation', { operation: operationLabel })
+    const selectionNeedsAnalysis = globalThis.NutEggHelpers?.selectedEggsNeedAnalysis?.(view);
+    const hatched = view.eggHatched && !selectionNeedsAnalysis;
+    const hatchReason = hatched ? t('hatchAlreadySaved') : busy ? t('hatchWaitForOperation', { operation: operationLabel })
+      : selectionNeedsAnalysis ? t('hatchAnalyzeSelectedEggs')
       : !entries ? t('noNewKnowledgeToAdd') : '';
     const hatchHidden = chromeMode || !result || stage1;
     const set = (element, disabled, text, hidden = false, title = '', wrap = null) => {
@@ -494,7 +497,7 @@ class ActionControlsComponent {
     if (this.stage1ConfirmText) this.stage1ConfirmText.innerHTML = t(view.nutCollected ? 'stage1NutSavedNotice' : view.selectedEggs?.size ? 'stage1SelectedNotice' : view.allEggs?.length ? 'stage1NoSelectedNotice' : 'stage1NoEggsNotice', { count: view.selectedEggs?.size || 0 });
     const icon = this.root.querySelector?.('.stage1-confirm-icon');
     if (icon) icon.textContent = view.nutCollected ? '✅' : '🥚';
-    set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : view.eggHatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason, this.confirmBtnWrap);
+    set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : hatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason, this.confirmBtnWrap);
 
     const nutDisabled = busy || view.nutCollected;
     const nutReason = view.nutCollected ? t('nutAlreadySaved') : busy ? t('operationInProgressHint') : '';

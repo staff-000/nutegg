@@ -33,9 +33,23 @@ describe("KnowledgeBase.saveRaw", () => {
     const fileName = await kb.saveRaw({ ...base });
     assert.match(
       fileName,
-      /^nutegg\/_raw\/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-article-Jane-Doe-My-Title!.md$/
+      /^nutegg\/_raw\/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-article-Jane-Doe-My-Title!-[a-f0-9-]{36}\.md$/
     );
     assert.ok(files.has(fileName));
+  });
+
+  it('concurrent and repeated captures retain distinct archives with their exact bodies', async () => {
+    const { vault, files } = makeFakeVault({ 'nutegg/_raw/existing.md': '' });
+    vault.create = async (path: string, content: string) => {
+      if (files.has(path)) throw new Error('File already exists');
+      files.set(path, content);
+    };
+    const kb = new KnowledgeBase({ settings: { rawFolder: 'nutegg/_raw' }, app: { vault } } as any);
+    const bodies = ['First capture', 'Second capture'];
+    const paths = await Promise.all(bodies.map(content => kb.saveRaw({ ...base, content })));
+    paths.push(await kb.saveRaw({ ...base, content: 'Third capture' }));
+    assert.equal(new Set(paths).size, 3);
+    for (const [index, path] of paths.entries()) assert.ok(files.get(path)!.includes([...bodies, 'Third capture'][index]));
   });
 
   it("uses `unknown` for missing published/author", async () => {
@@ -205,11 +219,14 @@ describe("KnowledgeBase preserves original analysis", () => {
     const original = { schemaVersion: 3, eggResults: [{ egg: "egg.md", extractedEntries: [{ content: "Distinct caveat", sources: [{ ref: "10:00" }] }] }] };
     const fileName = await kb.saveRaw({ url: "https://example.com", title: "Original", content: "Source text", sourceType: "article", processingResult: "unprocessed", analysis: original });
     assert.ok(files.get(fileName)!.includes(JSON.stringify(original, null, 2)));
+    assert.deepEqual(await kb.readRawAnalysis(fileName), original);
     const updated = { ...original, readAction: "skip" };
     await kb.updateRawAnalysis(fileName, updated);
     const note = files.get(fileName)!;
     assert.ok(note.includes("Source text"));
     assert.ok(note.includes(JSON.stringify(updated, null, 2)));
     assert.equal(note.split("# NutEgg Analysis").length, 2);
+    assert.deepEqual(await kb.readRawAnalysis(fileName), updated);
+    assert.equal(await kb.readRawAnalysis('missing.md'), null);
   });
 });

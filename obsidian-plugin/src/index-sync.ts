@@ -62,6 +62,7 @@ export class IndexSync {
   private isUpdatingIndex = false;
   private directEditTimer: any = null;
   private diffListeners: Set<() => void> = new Set();
+  private indexMutationTask: Promise<void> = Promise.resolve();
 
   constructor(plugin: NutEggPlugin) {
     this.plugin = plugin;
@@ -306,13 +307,9 @@ export class IndexSync {
     // Rule 1: Only direct egg files under nutegg/ are allowed in _index.md.
     // Prune any invalid entries (system folders like _workflow/, _raw/, subdirectories, etc.)
     const entries: IndexEntry[] = [];
-    let updatedIndexContent = indexContent;
     for (const entry of rawEntries) {
       const target = norm(entry.fileName);
       if (!isEggPath(target, folder)) {
-        const escaped = entry.fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
-        updatedIndexContent = updatedIndexContent.replace(re, "");
         result.prunedIndexEntries.push(entry.fileName);
       } else {
         entries.push(entry);
@@ -320,7 +317,13 @@ export class IndexSync {
     }
 
     if (result.prunedIndexEntries.length > 0 && indexFile) {
-      await this.plugin.app.vault.modify(indexFile as any, updatedIndexContent);
+      await this.updateIndex(indexFile, content => {
+        for (const entryPath of result.prunedIndexEntries) {
+          const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          content = content.replace(new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m"), "");
+        }
+        return content;
+      });
       console.log(`[NutEgg] Pruned ${result.prunedIndexEntries.length} invalid entries from index`);
     }
 
@@ -446,13 +449,10 @@ export class IndexSync {
     entryPath: string
   ): Promise<boolean> {
     if (!indexFile) return false;
-    const content = await this.plugin.app.vault.read(indexFile);
     const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
-    if (!re.test(content)) return false;
-    const updated = content.replace(re, "");
-    if (updated === content) return false;
-    await this.plugin.app.vault.modify(indexFile, updated);
+    const changed = await this.updateIndex(indexFile, content => content.replace(re, ""));
+    if (!changed) return false;
     console.log(`[NutEgg] Removed index entry: ${entryPath}`);
     return true;
   }
@@ -464,11 +464,11 @@ export class IndexSync {
   ): Promise<void> {
     if (!indexFile) return;
     const line = `* ${eggPath}${description ? `: ${description}` : ""}`;
-    const content = await this.plugin.app.vault.read(indexFile);
-    await this.plugin.app.vault.modify(
-      indexFile,
-      content.replace(/\n+$/, "") + `\n${line}\n`
-    );
+    await this.updateIndex(indexFile, content => {
+      const entries = this.plugin.indexReader.parseIndexContent(content);
+      if (entries.some(entry => entry.fileName === eggPath || entry.fileName === eggPath.split('/').pop())) return content;
+      return content.replace(/\n+$/, "") + `\n${line}\n`;
+    });
     console.log(`[NutEgg] Added index entry: ${line}`);
   }
 
@@ -479,14 +479,31 @@ export class IndexSync {
     newPath: string
   ): Promise<void> {
     if (!indexFile) return;
-    const content = await this.plugin.app.vault.read(indexFile);
     const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`^(\\s*[*\\-+]?\\s*)${escaped}(\\s*:)`, "m");
-    if (!re.test(content)) return;
-    const updated = content.replace(re, `$1${newPath}$2`);
-    if (updated === content) return;
-    await this.plugin.app.vault.modify(indexFile, updated);
+    if (!await this.updateIndex(indexFile, content => content.replace(re, `$1${newPath}$2`))) return;
     console.log(`[NutEgg] Index path fixed: ${oldPath} -> ${newPath}`);
+  }
+
+  /** Atomic transforms in Obsidian; serialize the read/modify fallback as well. */
+  private updateIndex(indexFile: any, transform: (content: string) => string): Promise<boolean> {
+    const task = this.indexMutationTask.then(async () => {
+      const vault = this.plugin.app.vault;
+      let changed = false;
+      const apply = (content: string) => {
+        const updated = transform(content);
+        changed = updated !== content;
+        return updated;
+      };
+      if (vault.process) await vault.process(indexFile, apply);
+      else {
+        const updated = apply(await vault.read(indexFile));
+        if (changed) await vault.modify(indexFile, updated);
+      }
+      return changed;
+    });
+    this.indexMutationTask = task.then(() => {}, () => {});
+    return task;
   }
 
   /**

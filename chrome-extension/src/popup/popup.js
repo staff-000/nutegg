@@ -17,7 +17,7 @@ const activityUI = new globalThis.NutEggUI.AnalysisActivityComponent();
 const deps = { tabStateManager, settings, operations, envService, pageExtractor, ui };
 const tabAction = new globalThis.NutEggActions.TabAction(deps);
 const analyzeAction = new globalThis.NutEggActions.AnalyzeAction(deps);
-const saveAction = new globalThis.NutEggActions.SaveAction({ ...deps, getAnalyzeAction: () => analyzeAction });
+const saveAction = new globalThis.NutEggActions.SaveAction(deps);
 const historyAction = new globalThis.NutEggActions.HistoryAction(deps);
 const interactionAction = new globalThis.NutEggActions.InteractionAction(deps);
 const activeDraft = values => tabStateManager.dispatch({ type: 'draft', tabId: tabStateManager.activeTabId, values });

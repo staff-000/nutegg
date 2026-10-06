@@ -6,7 +6,7 @@ class SaveAction {
     const tabId = this.store.activeTabId;
     const input = this.ui.eggsUI.getNewEggInput();
     if (!input.name) return;
-    return this.operations.create(tabId, { ...input, inline, ...this.getAnalyzeAction().requestOptions() });
+    return this.operations.create(tabId, { ...input, inline });
   }
 }
 globalThis.NutEggActions = globalThis.NutEggActions || {};

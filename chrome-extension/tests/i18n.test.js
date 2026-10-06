@@ -78,6 +78,7 @@ describe("Chrome Extension i18n", () => {
       "analyzingEggs",
       "cachedEggAnalysisShown",
       "hatchAlreadySaved", "hatchWaitForOperation",
+      "eggCreationHint", "eggCreatedSelected", "hatchAnalyzeSelectedEggs",
       "reanalyze",
       "loadAndReanalyze",
       "countMatched",

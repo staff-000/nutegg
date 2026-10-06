@@ -2,6 +2,7 @@ import { normalizeDiscussion } from "../../shared/src/discussion";
 import { getAIDebugInfo, normalizeAIDebugScope } from "../../shared/src/ai-diagnostics";
 import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
+import { createHash } from "crypto";
 import type NutEggPlugin from "./main";
 import { AIError, isAIConfigured } from "./ai-client";
 import type {
@@ -121,6 +122,7 @@ interface CaptureEntry {
 }
 
 export class NutEggServer {
+  private confirmationQueues = new Map<string, Promise<void>>();
   private server: http.Server | null = null;
   private plugin: NutEggPlugin;
   private port: number;
@@ -814,13 +816,30 @@ export class NutEggServer {
     }
   }
 
-  /**
-   * POST /confirm — User confirmed adding knowledge. Save raw content and update egg files.
-   */
+  /** Serialize confirmations for a capture so retries observe its latest save ledger. */
+  private async lockConfirmation(key: string): Promise<() => void> {
+    const previous = this.confirmationQueues.get(key);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    this.confirmationQueues.set(key, gate);
+    await previous;
+    return () => {
+      release();
+      if (this.confirmationQueues.get(key) === gate) this.confirmationQueues.delete(key);
+    };
+  }
+
+  private knowledgeFingerprint(entry: { egg: string; content: string }): string {
+    // Eggs are direct files in nutegg/; both basename and full-path selections occur.
+    return createHash('sha256').update(JSON.stringify([entry.egg.split('/').pop(), entry.content.trim()])).digest('hex');
+  }
+
+  /** POST /confirm — archive the nut and append knowledge not previously hatched. */
   private async handleConfirm(
     req: http.IncomingMessage,
     res: http.ServerResponse
   ): Promise<void> {
+    let releaseConfirmation: (() => void) | undefined;
     try {
       const body = await this.readBody(req);
       const confirm: ConfirmRequest = JSON.parse(body);
@@ -834,14 +853,30 @@ export class NutEggServer {
         return;
       }
 
-      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : null;
-      if (prior?.processingResult === "saved") {
+      const normalizedUrl = this.normalizeUrl(confirm.url);
+      releaseConfirmation = await this.lockConfirmation(confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`);
+      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
+      let confirmed = prior?.confirmedKnowledge;
+      if (confirmed == null && prior?.processingResult === 'saved') {
+        // Legacy rows have no ledger. The archive still holds the last Hatch,
+        // whereas the DB analysis may already have been replaced by Stage 2.
+        const archived = prior.fileName ? await this.plugin.knowledgeBase.readRawAnalysis?.(prior.fileName) : null;
+        confirmed = (archived?.newKnowledge || prior.analysisResult?.newKnowledge || []).map(entry => this.knowledgeFingerprint(entry));
+      }
+      const fingerprints = new Set(confirmed || []);
+      const pending = new Map<string, ConfirmRequest['newKnowledge'][number]>();
+      for (const entry of confirm.newKnowledge || []) {
+        const fingerprint = this.knowledgeFingerprint(entry);
+        if (!fingerprints.has(fingerprint)) pending.set(fingerprint, entry);
+      }
+      confirm.newKnowledge = [...pending.values()];
+      if (prior?.processingResult === "saved" && !pending.size) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, fileName: prior.fileName, alreadySaved: true }));
         return;
       }
       const hasKnowledge = confirm.newKnowledge && confirm.newKnowledge.length > 0;
-      const saved = hasKnowledge ? "saved" as const : "skip" as const;
+      const saved = hasKnowledge || prior?.processingResult === 'saved' ? "saved" as const : "skip" as const;
 
       // Collect egg names from newKnowledge (deduplicated)
       const eggNames = hasKnowledge
@@ -861,7 +896,8 @@ export class NutEggServer {
 
       // Save raw content to _raw/ (skipped when the nut was already saved)
       let fileName = "";
-      if (!confirm.skipRaw) {
+      const rawAlreadySaved = prior?.fileName && ['saved', 'skip'].includes(prior.processingResult);
+      if (!confirm.skipRaw && !rawAlreadySaved) {
         fileName = await this.plugin.knowledgeBase.saveRaw({
           url: confirm.url,
           title: confirm.title,
@@ -875,9 +911,8 @@ export class NutEggServer {
           processingResult: saved,
           analysis: confirm.analysis,
         });
-      } else if (prior?.fileName && confirm.analysis) {
+      } else if (prior?.fileName) {
         fileName = prior.fileName;
-        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
       }
 
       // Insert new knowledge into the eggs' Unprocessed sections. Entries
@@ -921,15 +956,21 @@ export class NutEggServer {
         }
       }
 
+      // Do not let a failed append make the legacy archive claim a successful Hatch.
+      if (fileName && fileName === prior?.fileName && confirm.analysis) {
+        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
+      }
+
       // Update THIS capture's row in SQLite (identified by nutId from
       // /analyze or the history). Fall back to the latest row for the URL.
       const db = this.plugin.db;
-      const normalizedUrl = this.normalizeUrl(confirm.url);
       const targetId =
-        confirm.nutId ?? db?.getNutByUrl(normalizedUrl)?.id ?? null;
+        confirm.nutId ?? prior?.id ?? null;
+      const confirmedKnowledge = [...new Set([...fingerprints, ...pending.keys()])];
       if (targetId != null) {
         db?.updateNut(targetId, {
           processingResult: saved,
+          confirmedKnowledge,
           ...(confirm.analysis ? { analysisResult: confirm.analysis } : {}),
           ...(fileName ? { fileName } : {}),
         });
@@ -948,6 +989,7 @@ export class NutEggServer {
             "",
           timeEstimateMinutes: timeEstimate,
           processingResult: saved,
+          confirmedKnowledge,
           summary: summary || "",
           matchedEggs: eggNames,
           fileName,
@@ -980,6 +1022,8 @@ export class NutEggServer {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to save content" }));
+    } finally {
+      releaseConfirmation?.();
     }
   }
 

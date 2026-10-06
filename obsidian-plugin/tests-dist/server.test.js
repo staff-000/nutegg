@@ -366,6 +366,7 @@ async function trackAIRequest(prompt, request, scope) {
 
 // src/server.ts
 var http = __toESM(require("http"));
+var import_crypto = require("crypto");
 
 // ../shared/src/catalog.ts
 var OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -1126,6 +1127,7 @@ function mergeVerdict(results) {
 
 // src/server.ts
 var NutEggServer = class {
+  confirmationQueues = /* @__PURE__ */ new Map();
   server = null;
   plugin;
   port;
@@ -1713,10 +1715,27 @@ var NutEggServer = class {
       );
     }
   }
-  /**
-   * POST /confirm — User confirmed adding knowledge. Save raw content and update egg files.
-   */
+  /** Serialize confirmations for a capture so retries observe its latest save ledger. */
+  async lockConfirmation(key) {
+    const previous = this.confirmationQueues.get(key);
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    this.confirmationQueues.set(key, gate);
+    await previous;
+    return () => {
+      release();
+      if (this.confirmationQueues.get(key) === gate)
+        this.confirmationQueues.delete(key);
+    };
+  }
+  knowledgeFingerprint(entry) {
+    return (0, import_crypto.createHash)("sha256").update(JSON.stringify([entry.egg.split("/").pop(), entry.content.trim()])).digest("hex");
+  }
+  /** POST /confirm — archive the nut and append knowledge not previously hatched. */
   async handleConfirm(req, res) {
+    let releaseConfirmation;
     try {
       const body = await this.readBody(req);
       const confirm = JSON.parse(body);
@@ -1728,19 +1747,35 @@ var NutEggServer = class {
         );
         return;
       }
-      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : null;
-      if (prior?.processingResult === "saved") {
+      const normalizedUrl = this.normalizeUrl(confirm.url);
+      releaseConfirmation = await this.lockConfirmation(confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`);
+      const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
+      let confirmed = prior?.confirmedKnowledge;
+      if (confirmed == null && prior?.processingResult === "saved") {
+        const archived = prior.fileName ? await this.plugin.knowledgeBase.readRawAnalysis?.(prior.fileName) : null;
+        confirmed = (archived?.newKnowledge || prior.analysisResult?.newKnowledge || []).map((entry) => this.knowledgeFingerprint(entry));
+      }
+      const fingerprints = new Set(confirmed || []);
+      const pending = /* @__PURE__ */ new Map();
+      for (const entry of confirm.newKnowledge || []) {
+        const fingerprint = this.knowledgeFingerprint(entry);
+        if (!fingerprints.has(fingerprint))
+          pending.set(fingerprint, entry);
+      }
+      confirm.newKnowledge = [...pending.values()];
+      if (prior?.processingResult === "saved" && !pending.size) {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: true, fileName: prior.fileName, alreadySaved: true }));
         return;
       }
       const hasKnowledge = confirm.newKnowledge && confirm.newKnowledge.length > 0;
-      const saved = hasKnowledge ? "saved" : "skip";
+      const saved = hasKnowledge || prior?.processingResult === "saved" ? "saved" : "skip";
       const eggNames = hasKnowledge ? [...new Set(confirm.newKnowledge.map((k) => k.egg))] : confirm.matchedEggs || [];
       const summary = confirm.summary || (confirm.analysis ? [confirm.analysis.titleVerdict, ...confirm.analysis.coreSummary || []].filter(Boolean).join("\n") : void 0);
       const timeEstimate = this.estimateTime(confirm.metadata, confirm.content);
       let fileName = "";
-      if (!confirm.skipRaw) {
+      const rawAlreadySaved = prior?.fileName && ["saved", "skip"].includes(prior.processingResult);
+      if (!confirm.skipRaw && !rawAlreadySaved) {
         fileName = await this.plugin.knowledgeBase.saveRaw({
           url: confirm.url,
           title: confirm.title,
@@ -1754,9 +1789,8 @@ var NutEggServer = class {
           processingResult: saved,
           analysis: confirm.analysis
         });
-      } else if (prior?.fileName && confirm.analysis) {
+      } else if (prior?.fileName) {
         fileName = prior.fileName;
-        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
       }
       const mergedEggs = [];
       if (hasKnowledge) {
@@ -1792,12 +1826,16 @@ var NutEggServer = class {
           }
         }
       }
+      if (fileName && fileName === prior?.fileName && confirm.analysis) {
+        await this.plugin.knowledgeBase.updateRawAnalysis(fileName, confirm.analysis);
+      }
       const db = this.plugin.db;
-      const normalizedUrl = this.normalizeUrl(confirm.url);
-      const targetId = confirm.nutId ?? db?.getNutByUrl(normalizedUrl)?.id ?? null;
+      const targetId = confirm.nutId ?? prior?.id ?? null;
+      const confirmedKnowledge = [.../* @__PURE__ */ new Set([...fingerprints, ...pending.keys()])];
       if (targetId != null) {
         db?.updateNut(targetId, {
           processingResult: saved,
+          confirmedKnowledge,
           ...confirm.analysis ? { analysisResult: confirm.analysis } : {},
           ...fileName ? { fileName } : {}
         });
@@ -1812,6 +1850,7 @@ var NutEggServer = class {
           author: confirm.metadata?.author || confirm.metadata?.channel || confirm.metadata?.handle || "",
           timeEstimateMinutes: timeEstimate,
           processingResult: saved,
+          confirmedKnowledge,
           summary: summary || "",
           matchedEggs: eggNames,
           fileName,
@@ -1840,6 +1879,8 @@ var NutEggServer = class {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to save content" }));
+    } finally {
+      releaseConfirmation?.();
     }
   }
   /**
@@ -2031,6 +2072,7 @@ function makeFakePlugin(overrides = {}) {
 }
 
 // src/knowledge-base.ts
+var import_crypto2 = require("crypto");
 var KnowledgeBase = class {
   plugin;
   constructor(plugin) {
@@ -2038,7 +2080,7 @@ var KnowledgeBase = class {
   }
   /**
    * Save the captured content to the raw folder.
-   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title.md
+   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title-UUID.md
    */
   async saveRaw(capture) {
     const folder = this.plugin.settings.rawFolder;
@@ -2058,7 +2100,7 @@ var KnowledgeBase = class {
     const savedAt = (/* @__PURE__ */ new Date()).toISOString();
     const author = capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "unknown";
     const safeAuthor = this.sanitizeFileName(author);
-    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}.md`;
+    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}-${(0, import_crypto2.randomUUID)()}.md`;
     const sourceUrl = capture.url;
     const processingResult = capture.processingResult;
     const timeEstimate = capture.metadata?.time_estimate_minutes || String(Math.max(1, Math.ceil((capture.content?.split(/\s+/)?.length || 0) / 200)));
@@ -2110,6 +2152,19 @@ var KnowledgeBase = class {
     await this.plugin.app.vault.create(fileName, noteContent);
     console.log(`[NutEgg] Saved raw: ${fileName}`);
     return fileName;
+  }
+  /** Read the last archived Hatch when upgrading rows without a confirmation ledger. */
+  async readRawAnalysis(fileName) {
+    try {
+      const content = await this.plugin.app.vault.adapter.read(fileName);
+      const marker = "\n# NutEgg Analysis\n\n```json\n";
+      const offset = content.lastIndexOf(marker);
+      if (offset < 0)
+        return null;
+      return JSON.parse(content.slice(offset + marker.length).split("\n```")[0]);
+    } catch {
+      return null;
+    }
   }
   /** Keep the original per-egg results when an already-collected nut is hatched. */
   async updateRawAnalysis(fileName, analysis) {
@@ -2178,7 +2233,12 @@ var KnowledgeBase = class {
       currentPath += (currentPath ? "/" : "") + part;
       const exists = await this.plugin.app.vault.adapter.exists(currentPath);
       if (!exists) {
-        await this.plugin.app.vault.createFolder(currentPath);
+        try {
+          await this.plugin.app.vault.createFolder(currentPath);
+        } catch (error) {
+          if (!await this.plugin.app.vault.adapter.exists(currentPath))
+            throw error;
+        }
       }
     }
   }
@@ -4321,13 +4381,13 @@ function makeRes() {
     const res = makeRes();
     await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, analysis, newKnowledge: [{ egg: "egg.md", content: "Useful answer" }] })), res);
     import_strict.default.equal(res.statusCode, 200);
-    import_strict.default.deepEqual(events, ["archive", "append", "db"]);
+    import_strict.default.deepEqual(events, ["append", "archive", "db"]);
     await new Promise((resolve) => setTimeout(resolve, 5));
-    import_strict.default.deepEqual(events, ["archive", "append", "db", "merge"]);
+    import_strict.default.deepEqual(events, ["append", "archive", "db", "merge"]);
   });
   (0, import_node_test.it)("does not append a second Hatch for a saved result", async () => {
     const s = makeServer({
-      db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md" }) },
+      db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md", analysisResult: { newKnowledge: [{ egg: "egg.md", content: "one" }] } }) },
       knowledgeBase: { appendKnowledge: async () => {
         import_strict.default.fail("duplicate append");
       } }
@@ -4336,6 +4396,108 @@ function makeRes() {
     await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "one" }] })), res);
     import_strict.default.equal(res.statusCode, 200);
     import_strict.default.equal(JSON.parse(res.body).alreadySaved, true);
+  });
+  (0, import_node_test.it)("hatches additional eggs without replaying confirmed entries, even after analysis changes and a restart", async () => {
+    const row = { id: 42, processingResult: "analyzed", fileName: "", confirmedKnowledge: null };
+    const appended = [];
+    let archives = 0;
+    const plugin = makeFakePlugin({
+      db: { getNutById: () => structuredClone(row), updateNut: (_id, patch) => Object.assign(row, patch) },
+      knowledgeBase: {
+        saveRaw: async () => {
+          archives++;
+          return "nutegg/_raw/original.md";
+        },
+        updateRawAnalysis: async () => {
+        },
+        appendKnowledge: async (entries) => {
+          appended.push(...entries);
+        }
+      }
+    });
+    const first = { egg: "nutegg/first.md", content: "First insight" };
+    const second = { egg: "nutegg/second.md", content: "Second insight" };
+    const s = new NutEggServer(plugin, 27123);
+    const payload = { ...baseConfirm, nutId: 42, skipRaw: false };
+    const resA = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [first], analysis: { newKnowledge: [first] } })), resA);
+    import_strict.default.equal(resA.statusCode, 200);
+    row.analysisResult = { newKnowledge: [first, second] };
+    const resB = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [first, second], analysis: row.analysisResult })), resB);
+    import_strict.default.equal(resB.statusCode, 200);
+    import_strict.default.deepEqual(appended, [first, second]);
+    import_strict.default.equal(archives, 1);
+    import_strict.default.equal(row.confirmedKnowledge.length, 2);
+    const restarted = new NutEggServer(plugin, 27123), repeated = makeRes();
+    await restarted.handleConfirm(makeReq(JSON.stringify({ ...payload, newKnowledge: [{ ...first, egg: "first.md" }, second] })), repeated);
+    import_strict.default.equal(JSON.parse(repeated.body).alreadySaved, true);
+    import_strict.default.equal(appended.length, 2);
+  });
+  (0, import_node_test.it)("legacy saved nuts use archived Hatch entries rather than their newer Stage 2 analysis", async () => {
+    const first = { egg: "first.md", content: "First insight" }, second = { egg: "second.md", content: "Second insight" };
+    const row = { id: 42, processingResult: "saved", fileName: "original.md", analysisResult: { newKnowledge: [first, second] } };
+    let appended;
+    const s = makeServer({
+      db: { getNutById: () => row, updateNut: (_id, patch) => Object.assign(row, patch) },
+      knowledgeBase: {
+        readRawAnalysis: async () => ({ newKnowledge: [first] }),
+        updateRawAnalysis: async () => {
+        },
+        appendKnowledge: async (entries) => {
+          appended = entries;
+        }
+      }
+    });
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [first, second], analysis: row.analysisResult })), res);
+    import_strict.default.equal(res.statusCode, 200);
+    import_strict.default.deepEqual(appended, [second]);
+    import_strict.default.equal(row.confirmedKnowledge.length, 2);
+  });
+  (0, import_node_test.it)("concurrent confirmations for one nut append once and release the queue", async () => {
+    const row = { id: 42, processingResult: "analyzed", fileName: "original.md", confirmedKnowledge: [] };
+    let release, started, appends = 0;
+    const waiting = new Promise((resolve) => {
+      release = resolve;
+    });
+    const began = new Promise((resolve) => {
+      started = resolve;
+    });
+    const s = makeServer({
+      db: { getNutById: () => structuredClone(row), updateNut: (_id, patch) => Object.assign(row, patch) },
+      knowledgeBase: { appendKnowledge: async () => {
+        appends++;
+        started();
+        await waiting;
+      } }
+    });
+    const payload = JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "One insight" }] });
+    const first = makeRes(), second = makeRes();
+    const a = s.handleConfirm(makeReq(payload), first);
+    await began;
+    const b = s.handleConfirm(makeReq(payload), second);
+    release();
+    await Promise.all([a, b]);
+    import_strict.default.equal(first.statusCode, 200);
+    import_strict.default.equal(second.statusCode, 200);
+    import_strict.default.equal(appends, 1);
+    import_strict.default.equal(JSON.parse(second.body).alreadySaved, true);
+    import_strict.default.equal(s.confirmationQueues.size, 0);
+  });
+  (0, import_node_test.it)("a failed confirmation does not block a retry", async () => {
+    let appends = 0;
+    const s = makeServer({ knowledgeBase: { appendKnowledge: async () => {
+      if (++appends === 1)
+        throw new Error("Temporary write failure");
+    } } });
+    const payload = JSON.stringify({ ...baseConfirm, newKnowledge: [{ egg: "egg.md", content: "One insight" }] });
+    const first = makeRes(), second = makeRes();
+    await s.handleConfirm(makeReq(payload), first);
+    await s.handleConfirm(makeReq(payload), second);
+    import_strict.default.equal(first.statusCode, 500);
+    import_strict.default.equal(second.statusCode, 200);
+    import_strict.default.equal(s.confirmationQueues.size, 0);
   });
   (0, import_node_test.it)("resolves the author from channel metadata when author is absent", async () => {
     let appended = null;

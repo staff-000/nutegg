@@ -400,6 +400,7 @@ var EggParser = class {
 };
 
 // src/knowledge-base.ts
+var import_crypto = require("crypto");
 var KnowledgeBase = class {
   plugin;
   constructor(plugin) {
@@ -407,7 +408,7 @@ var KnowledgeBase = class {
   }
   /**
    * Save the captured content to the raw folder.
-   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title.md
+   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title-UUID.md
    */
   async saveRaw(capture) {
     const folder = this.plugin.settings.rawFolder;
@@ -427,7 +428,7 @@ var KnowledgeBase = class {
     const savedAt = (/* @__PURE__ */ new Date()).toISOString();
     const author = capture.metadata?.author || capture.metadata?.channel || capture.metadata?.handle || "unknown";
     const safeAuthor = this.sanitizeFileName(author);
-    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}.md`;
+    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}-${(0, import_crypto.randomUUID)()}.md`;
     const sourceUrl = capture.url;
     const processingResult = capture.processingResult;
     const timeEstimate = capture.metadata?.time_estimate_minutes || String(Math.max(1, Math.ceil((capture.content?.split(/\s+/)?.length || 0) / 200)));
@@ -479,6 +480,19 @@ var KnowledgeBase = class {
     await this.plugin.app.vault.create(fileName, noteContent);
     console.log(`[NutEgg] Saved raw: ${fileName}`);
     return fileName;
+  }
+  /** Read the last archived Hatch when upgrading rows without a confirmation ledger. */
+  async readRawAnalysis(fileName) {
+    try {
+      const content = await this.plugin.app.vault.adapter.read(fileName);
+      const marker = "\n# NutEgg Analysis\n\n```json\n";
+      const offset = content.lastIndexOf(marker);
+      if (offset < 0)
+        return null;
+      return JSON.parse(content.slice(offset + marker.length).split("\n```")[0]);
+    } catch {
+      return null;
+    }
   }
   /** Keep the original per-egg results when an already-collected nut is hatched. */
   async updateRawAnalysis(fileName, analysis) {
@@ -547,7 +561,12 @@ var KnowledgeBase = class {
       currentPath += (currentPath ? "/" : "") + part;
       const exists = await this.plugin.app.vault.adapter.exists(currentPath);
       if (!exists) {
-        await this.plugin.app.vault.createFolder(currentPath);
+        try {
+          await this.plugin.app.vault.createFolder(currentPath);
+        } catch (error) {
+          if (!await this.plugin.app.vault.adapter.exists(currentPath))
+            throw error;
+        }
       }
     }
   }
@@ -660,9 +679,24 @@ function makeKb() {
     const fileName = await kb.saveRaw({ ...base });
     import_strict.default.match(
       fileName,
-      /^nutegg\/_raw\/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-article-Jane-Doe-My-Title!.md$/
+      /^nutegg\/_raw\/\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-article-Jane-Doe-My-Title!-[a-f0-9-]{36}\.md$/
     );
     import_strict.default.ok(files.has(fileName));
+  });
+  (0, import_node_test.it)("concurrent and repeated captures retain distinct archives with their exact bodies", async () => {
+    const { vault, files } = makeFakeVault({ "nutegg/_raw/existing.md": "" });
+    vault.create = async (path, content) => {
+      if (files.has(path))
+        throw new Error("File already exists");
+      files.set(path, content);
+    };
+    const kb = new KnowledgeBase({ settings: { rawFolder: "nutegg/_raw" }, app: { vault } });
+    const bodies = ["First capture", "Second capture"];
+    const paths = await Promise.all(bodies.map((content) => kb.saveRaw({ ...base, content })));
+    paths.push(await kb.saveRaw({ ...base, content: "Third capture" }));
+    import_strict.default.equal(new Set(paths).size, 3);
+    for (const [index, path] of paths.entries())
+      import_strict.default.ok(files.get(path).includes([...bodies, "Third capture"][index]));
   });
   (0, import_node_test.it)("uses `unknown` for missing published/author", async () => {
     const { kb } = makeKb();
@@ -827,11 +861,14 @@ function makeKb() {
     const original = { schemaVersion: 3, eggResults: [{ egg: "egg.md", extractedEntries: [{ content: "Distinct caveat", sources: [{ ref: "10:00" }] }] }] };
     const fileName = await kb.saveRaw({ url: "https://example.com", title: "Original", content: "Source text", sourceType: "article", processingResult: "unprocessed", analysis: original });
     import_strict.default.ok(files.get(fileName).includes(JSON.stringify(original, null, 2)));
+    import_strict.default.deepEqual(await kb.readRawAnalysis(fileName), original);
     const updated = { ...original, readAction: "skip" };
     await kb.updateRawAnalysis(fileName, updated);
     const note = files.get(fileName);
     import_strict.default.ok(note.includes("Source text"));
     import_strict.default.ok(note.includes(JSON.stringify(updated, null, 2)));
     import_strict.default.equal(note.split("# NutEgg Analysis").length, 2);
+    import_strict.default.deepEqual(await kb.readRawAnalysis(fileName), updated);
+    import_strict.default.equal(await kb.readRawAnalysis("missing.md"), null);
   });
 });

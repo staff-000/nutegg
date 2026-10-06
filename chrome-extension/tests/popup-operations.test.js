@@ -127,6 +127,60 @@ test('old history cannot replace analysis completed while it was loading', async
   d.resolve([{ result: { titleVerdict: 'Old' } }]); await history;
   assert.equal(store.getTab(1).analysisResult.titleVerdict, 'New'); assert.equal(store.getTab(1).operations.history.running, false);
 });
+
+test('history finishing before analysis cannot replace its source or cancel its response', async () => {
+  const { store, operations, service, calls } = fixture(), waiting = deferred();
+  service.loadHistory = () => waiting.promise;
+  const history = operations.history(1), analysis = operations.analyze(1, options);
+  waiting.resolve([{ nutId: 99, title: 'Old capture', content: 'Old content', result: { titleVerdict: 'Old history' } }]);
+  await history;
+  assert.equal(store.getTab(1).analysisResult, null);
+  assert.equal(store.getTab(1).extractedContent.content, 'Content 1');
+  assert.equal(store.isBusy(1), true);
+  assert.equal(store.getTab(1).captureHistory.length, 1);
+  calls[0].resolve({ titleVerdict: 'New analysis', nutId: 100 }); await analysis;
+  assert.equal(store.getTab(1).analysisResult.titleVerdict, 'New analysis');
+});
+
+for (const kind of ['saving', 'followup']) test(`automatic history selection cannot interrupt ${kind}`, async () => {
+  const { store, operations, service } = fixture(), waiting = deferred();
+  seed(store, 1, { titleVerdict: 'Current result' });
+  service.loadHistory = () => waiting.promise;
+  const history = operations.history(1);
+  const ctx = store.beginOperation(1, kind, {}, ['resultRevision']);
+  waiting.resolve([{ nutId: 99, content: 'Old content', result: { titleVerdict: 'Old history' } }]); await history;
+  assert.equal(store.getTab(1).analysisResult.titleVerdict, 'Current result');
+  assert.equal(store.isOperationCurrent(ctx.token), true);
+  store.commitOperation(ctx.token, { type: 'operationFinished' });
+});
+
+for (const kind of ['saving', 'followup']) test(`late history cannot undo completed ${kind}`, async () => {
+  const { store, operations, service } = fixture(), waiting = deferred();
+  seed(store, 1, { titleVerdict: 'Current result' });
+  service.loadHistory = () => waiting.promise;
+  service.sendMessage = async () => ({ success: true, answers: [{ answer: 'New answer' }] });
+  const history = operations.history(1);
+  if (kind === 'saving') await operations.save(1, false);
+  else await operations.followup(1, 'New question');
+  waiting.resolve([{ nutId: 99, content: 'Old content', result: { titleVerdict: 'Old history' } }]); await history;
+  assert.equal(store.getTab(1).analysisResult.titleVerdict, 'Current result');
+  assert.equal(store.getTab(1).currentNutId, 1);
+  if (kind === 'saving') assert.equal(store.getTab(1).nutCollected, true);
+  else assert.equal(store.getTab(1).followUpQa[0].answer, 'New answer');
+});
+
+test('obsolete extraction cleanup cannot remove the replacement page extraction task', async () => {
+  const f = fixture(), old = deferred(), current = deferred(); let calls = 0;
+  f.extractor.extractPage = () => ++calls === 1 ? old.promise : current.promise;
+  const first = f.operations.extract(1); await new Promise(resolve => setImmediate(resolve));
+  f.store.invalidateTab(1, 'https://new.test');
+  const second = f.operations.extract(1); await new Promise(resolve => setImmediate(resolve));
+  old.resolve({ url: 'https://tab1.test', content: 'Old' }); await first;
+  assert.equal(f.operations.extract(1), second);
+  current.resolve({ url: 'https://new.test', content: 'New' }); await second;
+  assert.equal(f.store.getTab(1).extractedContent.content, 'New');
+  assert.equal(calls, 2);
+});
 test('history restores usable content after extraction fails, then Egg Analysis uses it', async () => {
   const { store, operations, service, extractor, calls } = fixture();
   store.invalidateTab(1, 'https://tab1.test'); extractor.extractPage = async () => null;
@@ -223,24 +277,59 @@ test('disconnected saving records an unknown receipt without reviving a closed t
   d.reject(new Error('Disconnected')); await job;
   assert.equal(store.getTab(1), null); assert.equal(store.receipts[0].outcome, 'unknown');
 });
-test('creation updates the global catalog and continues only on its captured page', async () => {
-  const { store, operations, service, calls } = fixture(); const d = deferred(); service.createEgg = () => d.promise;
-  const job = operations.create(1, { ...options, name: 'New', desc: 'Desc' }); store.activateTab(2);
-  d.resolve({ success: true, path: 'new.md' }); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(store.catalog[0].fileName, 'new.md'); assert.equal(calls[0].payload.url, 'https://tab1.test');
-  calls[0].resolve({ titleVerdict: 'A' }); await job; assert.equal(store.getTab(2).analysisResult, null);
+for (const inline of [false, true]) test(`creation selects the canonical egg on its originating tab without analyzing (inline=${inline})`, async () => {
+  const { store, operations, service, calls } = fixture(), d = deferred(); service.createEgg = () => d.promise;
+  store.dispatch({ type: 'draft', tabId: 1, values: { selectedEggs: ['nutegg/old.md'], preSelectedEggs: ['nutegg/old.md'], newEggName: 'New', newEggDescription: 'Desc' } });
+  const job = operations.create(1, { name: 'New', desc: 'Desc', inline }); store.activateTab(2);
+  d.resolve({ success: true, path: 'nutegg/new.md' });
+  assert.deepEqual(await job, { success: true, fileName: 'nutegg/new.md' });
+  assert.equal(store.catalog[0].fileName, 'nutegg/new.md'); assert.equal(calls.length, 0);
+  assert.deepEqual(store.getTab(1).selectedEggs, ['nutegg/old.md', 'nutegg/new.md']);
+  assert.deepEqual(store.getTab(1).preSelectedEggs, ['nutegg/old.md', 'nutegg/new.md']);
+  assert.equal(store.getTab(1).newEggName, ''); assert.equal(store.isBusy(1), false);
+  assert.deepEqual(store.getTab(2).selectedEggs, []); assert.deepEqual(store.getTab(2).preSelectedEggs, []);
+  assert.equal(store.getTab(2).analysisResult, null);
+  const manual = operations.analyze(1, { ...options, eggs: store.getTab(1).preSelectedEggs });
+  assert.deepEqual(calls[0].payload.eggs, ['nutegg/old.md', 'nutegg/new.md']);
+  calls[0].resolve({ titleVerdict: 'User requested analysis', matchedEggs: calls[0].payload.eggs }); await manual;
 });
 test('creation after navigation still updates catalog but does not analyze the replacement page', async () => {
   const { store, operations, service, calls } = fixture(); const d = deferred(); service.createEgg = () => d.promise;
   const job = operations.create(1, { ...options, name: 'New' }); store.invalidateTab(1, 'https://new.test');
   d.resolve({ success: true, path: 'new.md' }); await job;
   assert.equal(store.catalog[0].fileName, 'new.md'); assert.equal(calls.length, 0);
+  assert.deepEqual(store.getTab(1).selectedEggs, []); assert.deepEqual(store.getTab(1).preSelectedEggs, []);
 });
 test('creation supersedes a pending catalog response; identical fetches share one request', async () => {
   const { store, operations, service } = fixture(); const d = deferred(); let count = 0; service.sendMessage = () => { count++; return d.promise; };
   const a = operations.catalog(), b = operations.catalog();
   store.dispatch({ type: 'eggCreated', egg: { fileName: 'new.md' } }); d.resolve({ eggs: [] }); await Promise.all([a, b]);
   assert.equal(count, 1); assert.equal(store.catalog[0].fileName, 'new.md');
+});
+
+test('creating an existing egg replaces its basename selection without duplicate catalog entries', async () => {
+  const { store, operations, service, calls } = fixture();
+  store.dispatch({ type: 'eggCreated', egg: { fileName: 'new.md' } });
+  store.dispatch({ type: 'draft', tabId: 1, values: { selectedEggs: ['new.md'], preSelectedEggs: ['new.md'] } });
+  service.createEgg = async () => ({ success: true, alreadyExists: true, path: 'nutegg/new.md' });
+  await operations.create(1, { name: 'New' });
+  assert.deepEqual(store.getTab(1).selectedEggs, ['nutegg/new.md']);
+  assert.deepEqual(store.getTab(1).preSelectedEggs, ['nutegg/new.md']);
+  assert.equal(store.catalog.length, 1); assert.equal(store.catalog[0].fileName, 'nutegg/new.md');
+  assert.equal(calls.length, 0);
+});
+
+test('creation refreshes a superseded catalog fetch so other eggs remain available', async () => {
+  const { store, operations, service } = fixture(), old = deferred(); let requests = 0;
+  service.sendMessage = () => ++requests === 1 ? old.promise : Promise.resolve({ eggs: [{ fileName: 'nutegg/old.md' }, { fileName: 'nutegg/new.md' }] });
+  service.createEgg = async () => ({ success: true, path: 'nutegg/new.md' });
+  const catalog = operations.catalog();
+  await operations.create(1, { name: 'New' });
+  old.resolve({ eggs: [{ fileName: 'nutegg/old.md' }] }); await catalog;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requests, 2);
+  assert.deepEqual(store.catalog.map(egg => egg.fileName), ['nutegg/old.md', 'nutegg/new.md']);
+  assert.deepEqual(store.getTab(1).selectedEggs, ['nutegg/new.md']);
 });
 
 test('extraction collects passive comments with discussion off, but analysis omits them', async () => {

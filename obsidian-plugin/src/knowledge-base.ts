@@ -1,6 +1,8 @@
 import type { DiscussionCapture, AnalysisSectionsConfig } from "../../shared/src/types";
 import type NutEggPlugin from "./main";
 import { EggParser } from "./egg-parser";
+import { randomUUID } from "crypto";
+import type { AnalysisResult } from "./ai-processor";
 
 /**
  * Simplified knowledge base — saves raw content and appends to egg files.
@@ -14,7 +16,7 @@ export class KnowledgeBase {
 
   /**
    * Save the captured content to the raw folder.
-   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title.md
+   * File naming: YYYY-MM-DD-HH-MM-Source-Author-title-UUID.md
    */
   async saveRaw(capture: {
     discussion?: DiscussionCapture;
@@ -57,7 +59,7 @@ export class KnowledgeBase {
       "unknown";
     
     const safeAuthor = this.sanitizeFileName(author);
-    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}.md`;
+    const fileName = `${folder}/${timestamp}-${source}-${safeAuthor}-${safeTitle}-${randomUUID()}.md`;
 
     // 4. Source link
     const sourceUrl = capture.url;
@@ -133,6 +135,17 @@ export class KnowledgeBase {
     await this.plugin.app.vault.create(fileName, noteContent);
     console.log(`[NutEgg] Saved raw: ${fileName}`);
     return fileName;
+  }
+
+  /** Read the last archived Hatch when upgrading rows without a confirmation ledger. */
+  async readRawAnalysis(fileName: string): Promise<AnalysisResult | null> {
+    try {
+      const content = await this.plugin.app.vault.adapter.read(fileName);
+      const marker = "\n# NutEgg Analysis\n\n```json\n";
+      const offset = content.lastIndexOf(marker);
+      if (offset < 0) return null;
+      return JSON.parse(content.slice(offset + marker.length).split('\n```')[0]);
+    } catch { return null; }
   }
 
   /** Keep the original per-egg results when an already-collected nut is hatched. */
@@ -213,7 +226,8 @@ export class KnowledgeBase {
       currentPath += (currentPath ? "/" : "") + part;
       const exists = await this.plugin.app.vault.adapter.exists(currentPath);
       if (!exists) {
-        await this.plugin.app.vault.createFolder(currentPath);
+        try { await this.plugin.app.vault.createFolder(currentPath); }
+        catch (error) { if (!await this.plugin.app.vault.adapter.exists(currentPath)) throw error; }
       }
     }
   }

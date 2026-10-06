@@ -36,7 +36,7 @@ class TabStateManager {
   fresh(tabId, url = '') {
     return { tabId, url, pageGeneration: ++this.#sequence, revision: 0, sourceVersion: 0,
       debugScope: `${this.#debugSessionId}:${tabId}:${this.#sequence}`, debugInfo: null,
-      stage1Version: 0, resultRevision: 0, selectionRevision: 0, viewedRevision: 0,
+      stage1Version: 0, resultRevision: 0, selectionRevision: 0, intentRevision: 0, viewedRevision: 0,
       currentView: 'capture', extractedContent: null, analysisResult: null, stage1Payload: null,
       stage1ContentAnalysis: null, currentNutId: null, captureHistory: [], followUpQa: [],
       selectedEggs: [], preSelectedEggs: [], activeEggTab: null, customQuestions: '',
@@ -120,7 +120,7 @@ class TabStateManager {
     }
     if (event.type === 'eggCreated') {
       this.catalogVersion++;
-      this.catalog = popupFreeze([...this.catalog.filter(e => e.fileName !== event.egg.fileName), popupCopy(event.egg)]);
+      this.catalog = popupFreeze([...this.catalog.filter(e => e.fileName.split('/').pop() !== event.egg.fileName.split('/').pop()), popupCopy(event.egg)]);
       this.emit(event); return;
     }
     if (event.type === 'environment') { this.environment = popupFreeze(popupCopy(event.value)); this.emit(event); return; }
@@ -149,6 +149,7 @@ class TabStateManager {
       case 'debugInfo': next.debugInfo = popupCopy(event.value); break;
       case 'operationStarted':
         next.operations[kind] = { requestId: event.token.requestId, running: true, phase: event.phase || (kind === 'analysis' ? 'stage1' : kind), dependencies: event.token.dependencies, startedAt: Date.now() };
+        if (['analysis', 'saving', 'followup', 'creation'].includes(kind)) next.intentRevision++;
         delete next.errors[kind]; next.success = null;
         if (kind === 'analysis') next.completion = null;
         break;
@@ -197,7 +198,8 @@ class TabStateManager {
         break;
       case 'historyLoaded':
         next.captureHistory = popupCopy(event.history); finish();
-        if (event.select && event.history.length) this.applyHistory(next, event.history[0]);
+        if (event.select && event.history.length && !this.isBusy(tabId) &&
+            (event.selectionIntent == null || event.selectionIntent === next.intentRevision)) this.applyHistory(next, event.history[0]);
         break;
       case 'historySelected':
         if (this.isBusy(tabId)) return;
@@ -210,6 +212,15 @@ class TabStateManager {
       case 'questionStarted': next.followUpQa.push({ id: event.id, question: event.question, scope: event.scope, pending: true, answer: '…' }); next.followupDraft = ''; break;
       case 'questionAnswered':
         next.followUpQa = next.followUpQa.map(q => q.id === event.id ? { ...q, ...popupCopy(event.answer), pending: false } : q); finish(); break;
+      case 'creationComplete': {
+        const select = eggs => [...eggs.filter(egg => egg.split('/').pop() !== event.fileName.split('/').pop()), event.fileName];
+        next.selectedEggs = select(next.selectedEggs);
+        next.preSelectedEggs = select(next.preSelectedEggs);
+        next.selectionRevision++;
+        next.newEggName = ''; next.newEggDescription = '';
+        next.presentation.createFormOpen = false; next.presentation.eggsExpanded = true; next.presentation.captureEggsExpanded = true;
+        next.success = event.message; finish(); break;
+      }
       case 'operationFinished': finish();
         if (kind === 'creation') { next.newEggName = ''; next.newEggDescription = ''; next.presentation.createFormOpen = false; }
         break;
