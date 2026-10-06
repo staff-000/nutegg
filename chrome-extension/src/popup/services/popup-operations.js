@@ -56,8 +56,7 @@ class PopupOperations {
       const content = await this.extractor.extractPage(tabId, { isCancelled: cancelled, discussionSessionId: `${ctx.token.pageGeneration}:capture:${ctx.token.requestId}` });
       if (!content) throw new Error(t('couldNotExtractContent'));
       const helpers = globalThis.NutEggHelpers || {};
-      const words = helpers.countWords?.(content.content) || 0;
-      const warning = helpers.isContentSuspiciouslyLow?.(words, content.sourceType) ? t('contentLowWarning', { count: words.toLocaleString() }) : null;
+      const warning = helpers.getExtractionWarning?.(content) || null;
       const accepted = this.store.commitOperation(ctx.token, { type: 'extracted', content, warning });
       if (accepted && this.extractor.collectDiscussion) void this.discussion(tabId, false, true);
       return accepted ? content : null;

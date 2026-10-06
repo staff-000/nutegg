@@ -2,6 +2,34 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { fixture, deferred, seed } = require('./helpers/popup-fixture');
 const options = { analysisMode: 'preview', outputLanguage: 'same-as-content', chromeMode: false };
+
+test('missing transcripts warn regardless of description length and stay with the originating tab', async () => {
+  const { store, operations, extractor } = fixture();
+  const pending = deferred();
+  extractor.extractPage = () => pending.promise;
+  const job = operations.extract(1);
+  store.activateTab(2);
+  pending.resolve({ url: 'https://tab1.test', title: 'Video', sourceType: 'youtube', transcriptAvailable: false,
+    content: 'description '.repeat(500) });
+  await job;
+  assert.match(store.getTab(1).warning, /Could not fetch the video transcript/);
+  assert.equal(store.getTab(2).warning, null);
+
+  extractor.extractPage = async () => ({ url: 'https://tab1.test', sourceType: 'youtube', transcriptAvailable: true,
+    content: 'transcript '.repeat(500) });
+  await operations.extract(1);
+  assert.equal(store.getTab(1).warning, null);
+});
+
+test('the larger low-content threshold warns below 200 words and clears at 200', async () => {
+  const { store, operations, extractor } = fixture();
+  extractor.extractPage = async () => ({ sourceType: 'article', content: 'word '.repeat(199) });
+  await operations.extract(1);
+  assert.match(store.getTab(1).warning, /Only 199 words extracted/);
+  extractor.extractPage = async () => ({ sourceType: 'article', content: 'word '.repeat(200) });
+  await operations.extract(1);
+  assert.equal(store.getTab(1).warning, null);
+});
 const answer = egg => ({ egg, readAction: 'full', readVerdict: true, extractedEntries: [{ content: `Knowledge ${egg}` }], keyQuestionAnswers: [] });
 for (const order of [[0, 1], [1, 0]]) test(`concurrent analysis completes independently in order ${order}`, async () => {
   const { store, operations, calls } = fixture();

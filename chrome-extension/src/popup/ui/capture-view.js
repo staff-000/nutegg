@@ -77,7 +77,7 @@ class CaptureViewComponent {
     if (this.pageType) this.pageType.textContent = content?.sourceType || options.defaultType || "";
 
     if (isSessionLoading) {
-      if (this.contentPreview) this.contentPreview.textContent = t("retrievingPageContent");
+      this.setPreviewText(t("retrievingPageContent"));
       this.clearAuthorAndPublished();
     } else {
       this.setPreviewContent(content, options.previewPlaceholder);
@@ -145,12 +145,17 @@ class CaptureViewComponent {
       + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}${item.author || t('discussionComment')}\n${item.text}`
         + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
       + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
-    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments);
+    const warning = globalThis.NutEggHelpers?.getExtractionWarning?.(content);
+    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning);
   }
 
-  setPreviewText(text) {
+  setPreviewText(text, warning = null) {
     if (!this.contentPreview) return;
-    const scrollTop = this.contentPreview.scrollTop || 0;
+    this.contentPreview.classList.toggle('incomplete', !!warning);
+    if (warning) text = `⚠️ ${warning}\n\n${text}`;
+    // Bring a newly detected fetch problem into view after refreshing a scrolled preview.
+    const scrollTop = warning && warning !== this.previewWarning ? 0 : this.contentPreview.scrollTop || 0;
+    this.previewWarning = warning;
     const helpers = globalThis.NutEggHelpers;
     if (helpers?.escapeHtml && helpers?.linkifyTimestamps) {
       const escaped = helpers.escapeHtml(String(text ?? ""));
@@ -183,12 +188,12 @@ class CaptureViewComponent {
   }
 
   setLoading(text) {
-    if (this.contentPreview) this.contentPreview.textContent = text || t("retrievingPageContent");
+    this.setPreviewText(text || t("retrievingPageContent"));
     this.clearAuthorAndPublished();
   }
 
   setError(message) {
-    if (this.contentPreview) this.contentPreview.textContent = message;
+    this.setPreviewText(message);
     this.clearAuthorAndPublished();
   }
 
@@ -196,7 +201,7 @@ class CaptureViewComponent {
     if (this.pageTitle) this.pageTitle.textContent = t("untitled");
     if (this.pageUrl) this.pageUrl.textContent = "";
     if (this.pageType) this.pageType.textContent = "";
-    if (this.contentPreview) this.contentPreview.textContent = t("noContentExtracted");
+    this.setPreviewText(t("noContentExtracted"));
     this.clearAuthorAndPublished();
   }
 

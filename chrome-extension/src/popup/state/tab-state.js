@@ -270,6 +270,7 @@ class TabStateManager {
     if (typeof entry.content === 'string' && entry.content.trim()) {
       tab.extractedContent = { ...tab.stage1Payload, metadata: { ...entry.capturePayload?.metadata, ...(entry.author ? { author: entry.author } : {}), ...(entry.publishedAt ? { published: entry.publishedAt } : {}) } };
       tab.sourceVersion++;
+      tab.warning = globalThis.NutEggHelpers?.getExtractionWarning?.(tab.extractedContent) || null;
     }
     if (typeof tab.extractedContent?.content === 'string' && tab.extractedContent.content.trim()) delete tab.errors.extraction;
     tab.selectedEggs = popupCopy(entry.result.matchedEggs || []);

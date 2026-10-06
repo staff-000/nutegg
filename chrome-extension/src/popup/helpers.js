@@ -217,13 +217,13 @@ function isContentSuspiciouslyLow(wordCount, sourceType = "webpage") {
     // Single tweets can be concise, but fewer than 5 words is suspicious
     return wordCount < 5;
   }
-  if (type === "youtube" || type === "bilibili" || type === "douyin" || type === "video") {
-    // Video descriptions/transcripts are normally 30+ words; fewer than 30 indicates missing transcript/description
-    return wordCount < 30;
+  if (isVideoMediaSource(type) || type === "video") {
+    // Very short video text may be only metadata or an incomplete transcript.
+    return wordCount < 200;
   }
   // Standard articles, documentation, blog posts, news, generic pages
-  // Under 50 words usually means only headers/navigation or placeholders were extracted
-  return wordCount < 50;
+  // Under 200 words may mean only headers/navigation or placeholders were extracted.
+  return wordCount < 200;
 }
 
 /**
@@ -278,6 +278,17 @@ function isTranscriptBlocked(extractedContent) {
   return !!extractedContent &&
     isVideoMediaSource(extractedContent) &&
     extractedContent.transcriptAvailable === false;
+}
+
+/** One extraction notice for both the tab warning and the fetched-content preview. */
+function getExtractionWarning(content) {
+  if (!content) return null;
+  // A long description cannot substitute for a missing transcript.
+  if (isTranscriptBlocked(content)) return t("transcriptBlockedWarning");
+  const words = countWords(content.content || "");
+  const sourceType = isVideoMediaSource(content) ? "video" : content.sourceType;
+  return isContentSuspiciouslyLow(words, sourceType)
+    ? t("contentLowWarning", { count: words.toLocaleString() }) : null;
 }
 
 /** A selected egg needs its own result before knowledge can be hatched into it. */
@@ -374,6 +385,7 @@ const NutEggHelpers = {
   provenanceFromExtraction,
   countWords,
   isContentSuspiciouslyLow,
+  getExtractionWarning,
   getVersionMismatchIssue,
   isVideoMediaSource,
   isTranscriptBlocked,

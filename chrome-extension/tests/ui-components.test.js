@@ -83,7 +83,7 @@ describe("Modular UI Components", () => {
     assert(html.includes('A useful experience')); assert(html.includes('12 likes')); assert(html.includes('Capture limit reached'));
     assert(!html.includes('<script>')); assert(!html.includes('https://comment.test')); assert(!html.includes('null likes'));
     capture.render({ content: 'A different page' });
-    assert.equal(root.getElementById('content-preview').textContent, 'A different page');
+    assert.ok(root.getElementById('content-preview').textContent.endsWith('A different page'));
   });
   it("runs the current analysis mode from the label and opens choices only from the arrow", async () => {
     const eggs = new ActionControlsComponent(createMockRoot());
@@ -293,7 +293,8 @@ describe("Modular UI Components", () => {
 
     assert.strictEqual(captureView.pageTitle.textContent, "Test Page");
     assert.strictEqual(captureView.pageUrl.textContent, "https://example.com");
-    assert.strictEqual(captureView.contentPreview.textContent, "Hello world content");
+    assert.ok(captureView.contentPreview.textContent.startsWith("⚠️ Only 3 words extracted"));
+    assert.ok(captureView.contentPreview.textContent.endsWith("Hello world content"));
     assert.ok(captureView.pageAuthorEl.textContent.includes("Alice"));
     assert.ok(captureView.pageWordCountEl.textContent.includes("3 words"));
     assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), false);
@@ -301,6 +302,44 @@ describe("Modular UI Components", () => {
     captureView.clearProvenance();
     assert.strictEqual(captureView.pageWordCountEl.textContent, "");
     assert.strictEqual(captureView.pageWordCountEl.classList.contains("hidden"), true);
+  });
+
+  it("CaptureViewComponent explains missing transcripts above the description without changing captured text", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const content = { url: "https://youtube.com/watch?v=video", sourceType: "youtube", transcriptAvailable: false,
+      content: "Video description ".repeat(150) };
+    const original = structuredClone(content);
+    capture.previewUrl = content.url;
+    capture.contentPreview.scrollTop = 150;
+    capture.render(content);
+    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Could not fetch the video transcript."));
+    assert.ok(capture.contentPreview.textContent.includes("not the spoken content"));
+    assert.ok(capture.contentPreview.textContent.endsWith(content.content));
+    assert.equal(capture.contentPreview.classList.contains("incomplete"), true);
+    assert.equal(capture.contentPreview.scrollTop, 0);
+    assert.deepEqual(content, original);
+
+    capture.render({ ...content, content: "", transcriptAvailable: false });
+    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Could not fetch the video transcript."));
+
+    capture.render({ ...content, transcriptAvailable: true });
+    assert.equal(capture.contentPreview.textContent, content.content);
+    assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
+  });
+
+  it("CaptureViewComponent clears extraction notices on loading, errors and tab changes", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const missing = { sourceType: "youtube", transcriptAvailable: false, content: "Description" };
+    for (const reset of [() => capture.setLoading(), () => capture.setError("Fetch failed"), () => capture.clear()]) {
+      capture.render(missing);
+      reset();
+      assert.ok(!capture.contentPreview.textContent.includes("Could not fetch the video transcript"));
+      assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
+    }
+    capture.render(missing);
+    capture.render({ sourceType: "article", content: "article ".repeat(250) });
+    assert.ok(!capture.contentPreview.textContent.includes("transcript"));
+    assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
   });
 
   it("CaptureViewComponent shows the caption route and clears it across refreshes and pages", () => {

@@ -416,6 +416,12 @@ body {
   word-break: break-word;
 }
 
+/* Incomplete content extraction */
+.content-preview.incomplete {
+  border-color: #f5c36a;
+  background: #fffbeb;
+}
+
 /* Custom questions */
 .questions-toggle {
   width: 100%;

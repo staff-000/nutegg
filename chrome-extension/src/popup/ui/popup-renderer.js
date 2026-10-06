@@ -44,7 +44,7 @@ class PopupRenderer {
     if (questionsChevron) questionsChevron.textContent = view.presentation.questionsExpanded ? '▾' : '▸';
     ui.captureUI.refreshBtn.disabled = view.busy || view.extractionPending;
     const content = view.extractedContent;
-    keyed('capture', [content?.content, content?.title, content?.url, content?.sourceType, content?.metadata, content?.discussion?.items, content?.discussion?.truncated, view.errors.extraction, view.extractionPending, view.title, view.url], () => {
+    keyed('capture', [content?.content, content?.title, content?.url, content?.sourceType, content?.mediaType, content?.isVideo, content?.transcriptAvailable, content?.metadata, content?.discussion?.items, content?.discussion?.truncated, view.errors.extraction, view.extractionPending, view.title, view.url], () => {
       ui.captureUI.setPageInfo({ title: content?.title || view.title || t('loading'), url: content?.url || view.url, sourceType: content?.sourceType || '' });
       ui.captureUI.clearProvenance();
       if (content) { ui.captureUI.setPreviewContent(content); ui.captureUI.showProvenance(content.metadata || {}, content.content); }

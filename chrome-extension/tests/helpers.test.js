@@ -16,6 +16,7 @@ const {
   provenanceFromExtraction,
   countWords,
   isContentSuspiciouslyLow,
+  getExtractionWarning,
   getVersionMismatchIssue,
   isVideoMediaSource,
   isTranscriptBlocked,
@@ -239,19 +240,28 @@ test("isContentSuspiciouslyLow - correctly detects suspiciously short extraction
   assert.equal(isContentSuspiciouslyLow(5, "twitter"), false);
   assert.equal(isContentSuspiciouslyLow(20, "twitter"), false);
 
-  // YouTube / Bilibili / Video: threshold 30
-  assert.equal(isContentSuspiciouslyLow(10, "youtube"), true);
-  assert.equal(isContentSuspiciouslyLow(29, "youtube"), true);
-  assert.equal(isContentSuspiciouslyLow(30, "youtube"), false);
-  assert.equal(isContentSuspiciouslyLow(25, "video"), true);
-  assert.equal(isContentSuspiciouslyLow(50, "video"), false);
+  // Articles, pages and all supported video/audio sources: threshold 200.
+  for (const sourceType of ["youtube", "bilibili", "douyin", "tiktok", "podcast", "video", "article", "webpage", "generic"]) {
+    assert.equal(isContentSuspiciouslyLow(50, sourceType), true, sourceType);
+    assert.equal(isContentSuspiciouslyLow(199, sourceType), true, sourceType);
+    assert.equal(isContentSuspiciouslyLow(200, sourceType), false, sourceType);
+    assert.equal(isContentSuspiciouslyLow(500, sourceType), false, sourceType);
+  }
+});
 
-  // Article / Webpage / Generic: threshold 50
-  assert.equal(isContentSuspiciouslyLow(15, "article"), true);
-  assert.equal(isContentSuspiciouslyLow(49, "article"), true);
-  assert.equal(isContentSuspiciouslyLow(50, "article"), false);
-  assert.equal(isContentSuspiciouslyLow(40, "webpage"), true);
-  assert.equal(isContentSuspiciouslyLow(100, "generic"), false);
+test("getExtractionWarning - prioritizes missing transcripts independently of description length", () => {
+  const longText = "word ".repeat(500);
+  assert.equal(getExtractionWarning(null), null);
+  assert.equal(getExtractionWarning({ sourceType: "article", content: "word ".repeat(199) }), "contentLowWarning");
+  assert.equal(getExtractionWarning({ sourceType: "article", content: "word ".repeat(200) }), null);
+  for (const content of [
+    { sourceType: "youtube" }, { sourceType: "bilibili" }, { sourceType: "tiktok" }, { sourceType: "generic", mediaType: "video" },
+  ]) {
+    assert.equal(getExtractionWarning({ ...content, transcriptAvailable: false, content: longText }), "transcriptBlockedWarning");
+    assert.equal(getExtractionWarning({ ...content, transcriptAvailable: false, content: "" }), "transcriptBlockedWarning");
+    assert.equal(getExtractionWarning({ ...content, transcriptAvailable: true, content: longText }), null);
+  }
+  assert.equal(getExtractionWarning({ sourceType: "tiktok", mediaType: "article", transcriptAvailable: false, content: longText }), null);
 });
 
 test("provenanceFromExtraction - includes accurate wordCount", () => {
@@ -268,4 +278,3 @@ test("provenanceFromExtraction - includes accurate wordCount", () => {
   assert.equal(prov.author, "Bob");
   assert.equal(prov.wordCount, 5);
 });
-
