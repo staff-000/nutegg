@@ -269,11 +269,13 @@ function buildDiscussionResult(capture, parts, aggregate) {
       continue;
     const metric = () => ({ comments: 0, commenters: 0, likes: 0, score: 0, reactionsKnown: 0, likesKnown: 0, scoresKnown: 0, reactionsMissing: 0, approximate: false });
     const metrics = Object.fromEntries(DISCUSSION_STANCES.map((s) => [s, metric()]));
+    const commentIds = { agree: [], disagree: [], mixed: [], neutral: [], unclear: [] };
     const authors = /* @__PURE__ */ new Map();
     let identitiesComplete = true;
     for (const [id, stance] of assignments) {
       const item = byId.get(id), m = metrics[stance];
       m.comments++;
+      commentIds[stance].push(id);
       if (item.authorId) {
         const positions = authors.get(item.authorId) || /* @__PURE__ */ new Set();
         positions.add(stance);
@@ -310,10 +312,66 @@ function buildDiscussionResult(capture, parts, aggregate) {
       agreeArguments: list(raw.agreeArguments).map((v) => clean(v, 600)).filter(Boolean).slice(0, 4),
       disagreeArguments: list(raw.disagreeArguments).map((v) => clean(v, 600)).filter(Boolean).slice(0, 4),
       highlights,
-      metrics
+      metrics,
+      commentIds
     });
   }
   return { ...base, status: topics.length ? "ready" : "no_meaningful", analyzedCount: items.length, topics };
+}
+
+// ../shared/src/content-url.ts
+function getVideoIdentity(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:")
+      return null;
+    const host = u.hostname.toLowerCase();
+    const segments = u.pathname.split("/").filter(Boolean);
+    const youtube = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"];
+    let id = null;
+    if (youtube.includes(host)) {
+      if (segments[0] === "watch" && segments.length === 1)
+        id = u.searchParams.get("v");
+      else if (["shorts", "live", "embed", "v"].includes(segments[0]))
+        id = segments[1];
+    } else if (host === "youtu.be" || host === "www.youtu.be")
+      id = segments[0];
+    else if (["youtube-nocookie.com", "www.youtube-nocookie.com"].includes(host) && segments[0] === "embed")
+      id = segments[1];
+    if (id && /^[A-Za-z0-9_-]{11}$/.test(id))
+      return { platform: "youtube", id, canonicalUrl: `https://www.youtube.com/watch?v=${id}` };
+    if (["bilibili.com", "www.bilibili.com", "m.bilibili.com", "player.bilibili.com"].includes(host)) {
+      id = segments[0] === "video" ? segments[1] : u.searchParams.get("bvid");
+      if (id && /^BV[A-Za-z0-9]{10}$/.test(id)) {
+        const part = Number(u.searchParams.get("p") || (host === "player.bilibili.com" ? u.searchParams.get("page") : null) || 1);
+        return { platform: "bilibili", id, canonicalUrl: `https://www.bilibili.com/video/${id}${Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : ""}` };
+      }
+    }
+  } catch {
+  }
+  return null;
+}
+function normalizeContentUrl(url) {
+  const video = getVideoIdentity(url);
+  if (video)
+    return video.canonicalUrl;
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    if (["twitter.com", "www.twitter.com", "mobile.twitter.com", "x.com", "www.x.com"].includes(u.hostname.toLowerCase())) {
+      u.hostname = "x.com";
+      if (/\/status\/\d+/.test(u.pathname)) {
+        u.search = "";
+        return u.toString().replace(/\/$/, "");
+      }
+    }
+    for (const param of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "source", "fbclid", "gclid", "si", "pp", "feature", "spm"])
+      u.searchParams.delete(param);
+    u.searchParams.sort();
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return url.replace(/#.*$/, "").replace(/\/$/, "");
+  }
 }
 
 // ../shared/src/ai-diagnostics.ts
@@ -1170,19 +1228,14 @@ var NutEggServer = class {
       return [];
     const normalized = this.normalizeUrl(url);
     let rows = db.getNutHistory(normalized);
-    if (rows.length === 0) {
-      const ytMatch = normalized.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
-      if (ytMatch) {
-        const v = ytMatch[1];
-        rows = db.getNutHistoryByPattern(`%watch%v=${v}%`);
-        if (rows.length === 0) {
-          rows = db.getNutHistoryByPattern(`%youtu.be/${v}%`);
-        }
-      } else {
-        const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
-        if (twMatch) {
-          rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
-        }
+    const video = getVideoIdentity(normalized);
+    if (video) {
+      const legacy = (db.getNutHistoryByPattern?.(`%${video.id}%`) || []).filter((row) => this.normalizeUrl(row.url) === normalized);
+      rows = [...new Map([...rows, ...legacy].map((row) => [row.id, row])).values()].sort((a, b) => b.id - a.id);
+    } else if (rows.length === 0) {
+      const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
+      if (twMatch) {
+        rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
       }
     }
     return rows.filter((row) => row.analysisResult?.schemaVersion === 3).map((row) => ({
@@ -1244,55 +1297,7 @@ var NutEggServer = class {
   }
   /** Strip trailing slashes, fragment, and common tracking/session params. */
   normalizeUrl(url) {
-    try {
-      const u = new URL(url);
-      u.hash = "";
-      const hostname = u.hostname.toLowerCase();
-      if (hostname === "youtube.com" || hostname === "www.youtube.com" || hostname === "m.youtube.com" || hostname === "music.youtube.com") {
-        if (u.pathname === "/watch") {
-          const v = u.searchParams.get("v");
-          if (v)
-            return `https://www.youtube.com/watch?v=${v}`;
-        } else if (u.pathname.startsWith("/shorts/")) {
-          const id = u.pathname.replace(/^\/shorts\//, "").split("/")[0]?.split("?")[0];
-          if (id)
-            return `https://www.youtube.com/watch?v=${id}`;
-        }
-      } else if (hostname === "youtu.be") {
-        const id = u.pathname.replace(/^\//, "").split("/")[0]?.split("?")[0];
-        if (id)
-          return `https://www.youtube.com/watch?v=${id}`;
-      }
-      if (hostname === "twitter.com" || hostname === "www.twitter.com" || hostname === "mobile.twitter.com" || hostname === "x.com" || hostname === "www.x.com") {
-        u.hostname = "x.com";
-        if (/\/status\/\d+/.test(u.pathname)) {
-          u.search = "";
-          return u.toString().replace(/\/$/, "");
-        }
-      }
-      const stripParams = [
-        "utm_source",
-        "utm_medium",
-        "utm_campaign",
-        "utm_content",
-        "utm_term",
-        "ref",
-        "source",
-        "fbclid",
-        "gclid",
-        "si",
-        "pp",
-        "feature",
-        "spm"
-      ];
-      for (const p of stripParams) {
-        u.searchParams.delete(p);
-      }
-      u.searchParams.sort();
-      return u.toString().replace(/\/$/, "");
-    } catch {
-      return url.replace(/#.*$/, "").replace(/\/$/, "");
-    }
+    return normalizeContentUrl(url);
   }
   async start() {
     if (this.server) {
@@ -3117,7 +3122,7 @@ ${rendered}`;
   discussionCacheKey(capture, discussion) {
     const config = resolveConfig(this.host?.settings || {});
     return JSON.stringify([
-      capture.url,
+      getVideoIdentity(capture.url)?.canonicalUrl || capture.url,
       capture.title,
       discussion.kind,
       capture.content.slice(0, 4e3),
@@ -4040,6 +4045,31 @@ function makeServer(overrides = {}) {
       "https://x.com/elonmusk/status/123456789"
     );
   });
+  (0, import_node_test.it)("normalizes Bilibili watch-later and tracked video URLs by bvid, keeping multipart videos distinct", () => {
+    const s = makeServer();
+    const canonical = "https://www.bilibili.com/video/BV1jc8e6vEKk";
+    for (const url of [
+      "https://www.bilibili.com/list/watchlater/?bvid=BV1jc8e6vEKk&oid=117147766360158&watchlater_cfg=%7B%22viewed%22%3A0%7D&spm_id_from=333.881.0.0&vd_source=tracking",
+      "https://www.bilibili.com/video/BV1jc8e6vEKk/?spm_id_from=333.1245.0.0",
+      "https://www.bilibili.com/video/BV1jc8e6vEKk/?spm_id_from=333.788.top_right_bar_window_custom_collection.content.click&vd_source=tracking",
+      "https://m.bilibili.com/video/BV1jc8e6vEKk?p=1&t=40"
+    ])
+      import_strict.default.equal(s.normalizeUrl(url), canonical);
+    import_strict.default.equal(s.normalizeUrl(canonical + "?p=2&vd_source=tracking"), canonical + "?p=2");
+    import_strict.default.equal(s.normalizeUrl("https://www.bilibili.com/list/watchlater/?p=2&bvid=BV1jc8e6vEKk"), canonical + "?p=2");
+  });
+  (0, import_node_test.it)("normalizes YouTube live and embed variants while preserving channel and playlist identities", () => {
+    const s = makeServer();
+    for (const url of [
+      "https://www.youtube.com/live/dQw4w9WgXcQ?si=tracking",
+      "https://www.youtube.com/embed/dQw4w9WgXcQ?start=20",
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+      "https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=playlist"
+    ])
+      import_strict.default.equal(s.normalizeUrl(url), "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    import_strict.default.equal(s.normalizeUrl("https://www.youtube.com/@DanKoeTalks/videos"), "https://www.youtube.com/@DanKoeTalks/videos");
+    import_strict.default.equal(s.normalizeUrl("https://www.youtube.com/playlist?list=PL123"), "https://www.youtube.com/playlist?list=PL123");
+  });
 });
 (0, import_node_test.describe)("NutEggServer.estimateTime", () => {
   (0, import_node_test.it)("prefers metadata time_estimate_minutes", () => {
@@ -4053,6 +4083,59 @@ function makeServer(overrides = {}) {
   });
 });
 (0, import_node_test.describe)("NutEggServer.getCaptureHistory", () => {
+  (0, import_node_test.it)("stores the canonical video key while preserving the original capture URL", () => {
+    let inserted;
+    const s = makeServer({ db: { available: true, insertNut: (row) => {
+      inserted = row;
+      return 1;
+    } } });
+    const original = "https://www.bilibili.com/list/watchlater/?bvid=BV1jc8e6vEKk&oid=117147766360158";
+    import_strict.default.equal(s.recordNut({ url: original, title: "Video", sourceType: "bilibili", content: "Transcript" }, { schemaVersion: 3 }), 1);
+    import_strict.default.equal(inserted.url, "https://www.bilibili.com/video/BV1jc8e6vEKk");
+    import_strict.default.equal(inserted.capturePayload.url, original);
+  });
+  (0, import_node_test.it)("combines existing canonical and legacy Bilibili captures, excluding other parts and lookalike URLs", () => {
+    const canonical = "https://www.bilibili.com/video/BV1jc8e6vEKk";
+    const row = (id, url) => ({ id, url, savedAt: `2026-10-0${id}T00:00:00Z`, analysisResult: { schemaVersion: 3 } });
+    const rows = [
+      row(1, canonical + "/?spm_id_from=tracking"),
+      row(2, "https://www.bilibili.com/list/watchlater/?oid=123&bvid=BV1jc8e6vEKk"),
+      row(3, canonical),
+      row(4, canonical + "?p=2"),
+      row(5, "https://example.com/video/BV1jc8e6vEKk"),
+      row(6, canonical + "extra"),
+      { ...row(7, canonical + "?t=5"), analysisResult: { schemaVersion: 2 } }
+    ];
+    const s = makeServer({ db: {
+      available: true,
+      getNutHistory: (url) => rows.filter((row2) => row2.url === url),
+      getNutHistoryByPattern: () => rows
+    } });
+    for (const url of [canonical, rows[0].url, rows[1].url]) {
+      import_strict.default.deepEqual(s.getCaptureHistory(url).map((entry) => entry.nutId), [3, 2, 1]);
+    }
+    import_strict.default.deepEqual(s.getCaptureHistory(canonical + "?p=2").map((entry) => entry.nutId), [4]);
+  });
+  (0, import_node_test.it)("combines legacy YouTube watch, short, live and embed links even when canonical history exists", () => {
+    const canonical = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const urls = [
+      canonical,
+      "https://youtu.be/dQw4w9WgXcQ?t=20",
+      "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+      "https://www.youtube.com/live/dQw4w9WgXcQ",
+      "https://www.youtube.com/embed/dQw4w9WgXcQ",
+      "https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ",
+      canonical + "extra"
+    ];
+    const rows = urls.map((url, index) => ({ id: index + 1, url, analysisResult: { schemaVersion: 3 } }));
+    const s = makeServer({ db: {
+      available: true,
+      getNutHistory: (url) => rows.filter((row) => row.url === url),
+      getNutHistoryByPattern: () => rows
+    } });
+    for (const url of urls.slice(0, 5))
+      import_strict.default.deepEqual(s.getCaptureHistory(url).map((entry) => entry.nutId), [5, 4, 3, 2, 1]);
+  });
   (0, import_node_test.it)("maps DB rows to capture entries with saved-state normalization", () => {
     const db = {
       available: true,

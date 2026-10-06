@@ -1,4 +1,5 @@
 import { normalizeDiscussion } from "../../shared/src/discussion";
+import { getVideoIdentity, normalizeContentUrl } from "../../shared/src/content-url";
 import { getAIDebugInfo, normalizeAIDebugScope } from "../../shared/src/ai-diagnostics";
 import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
@@ -140,21 +141,17 @@ export class NutEggServer {
     if (!db?.available) return [];
     const normalized = this.normalizeUrl(url);
     let rows = db.getNutHistory(normalized);
-
-    // Fallback: If not found by exact normalized URL, match older captures in DB
-    if (rows.length === 0) {
-      const ytMatch = normalized.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
-      if (ytMatch) {
-        const v = ytMatch[1];
-        rows = db.getNutHistoryByPattern(`%watch%v=${v}%`);
-        if (rows.length === 0) {
-          rows = db.getNutHistoryByPattern(`%youtu.be/${v}%`);
-        }
-      } else {
-        const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
-        if (twMatch) {
-          rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
-        }
+    const video = getVideoIdentity(normalized);
+    if (video) {
+      // Include earlier captures stored under raw URLs even when a canonical row already exists.
+      // LIKE narrows candidates; exact parsed identity rejects partial IDs and unrelated domains.
+      const legacy = (db.getNutHistoryByPattern?.(`%${video.id}%`) || [])
+        .filter(row => this.normalizeUrl(row.url) === normalized);
+      rows = [...new Map([...rows, ...legacy].map(row => [row.id, row])).values()].sort((a, b) => b.id - a.id);
+    } else if (rows.length === 0) {
+      const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
+      if (twMatch) {
+        rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
       }
     }
 
@@ -233,59 +230,7 @@ export class NutEggServer {
 
   /** Strip trailing slashes, fragment, and common tracking/session params. */
   normalizeUrl(url: string): string {
-    try {
-      const u = new URL(url);
-      u.hash = "";
-
-      const hostname = u.hostname.toLowerCase();
-
-      // YouTube: normalize to https://www.youtube.com/watch?v=VIDEO_ID
-      if (
-        hostname === "youtube.com" ||
-        hostname === "www.youtube.com" ||
-        hostname === "m.youtube.com" ||
-        hostname === "music.youtube.com"
-      ) {
-        if (u.pathname === "/watch") {
-          const v = u.searchParams.get("v");
-          if (v) return `https://www.youtube.com/watch?v=${v}`;
-        } else if (u.pathname.startsWith("/shorts/")) {
-          const id = u.pathname.replace(/^\/shorts\//, "").split("/")[0]?.split("?")[0];
-          if (id) return `https://www.youtube.com/watch?v=${id}`;
-        }
-      } else if (hostname === "youtu.be") {
-        const id = u.pathname.replace(/^\//, "").split("/")[0]?.split("?")[0];
-        if (id) return `https://www.youtube.com/watch?v=${id}`;
-      }
-
-      // Twitter / X: normalize domain to x.com and strip tracking on tweet URLs
-      if (
-        hostname === "twitter.com" ||
-        hostname === "www.twitter.com" ||
-        hostname === "mobile.twitter.com" ||
-        hostname === "x.com" ||
-        hostname === "www.x.com"
-      ) {
-        u.hostname = "x.com";
-        if (/\/status\/\d+/.test(u.pathname)) {
-          u.search = "";
-          return u.toString().replace(/\/$/, "");
-        }
-      }
-
-      // Common tracking params
-      const stripParams = [
-        "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-        "ref", "source", "fbclid", "gclid", "si", "pp", "feature", "spm"
-      ];
-      for (const p of stripParams) {
-        u.searchParams.delete(p);
-      }
-      u.searchParams.sort();
-      return u.toString().replace(/\/$/, "");
-    } catch {
-      return url.replace(/#.*$/, "").replace(/\/$/, "");
-    }
+    return normalizeContentUrl(url);
   }
 
   async start(): Promise<void> {

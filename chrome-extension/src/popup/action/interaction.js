@@ -18,7 +18,10 @@ class InteractionAction {
     const tabId = this.store.activeTabId, tab = this.store.getTab(tabId);
     if (!tab) return false;
     const request = this.sourceJumpRequest = (this.sourceJumpRequest || 0) + 1;
-    const expectedUrl = tab.stage1Payload?.url || tab.extractedContent?.url || tab.url;
+    const capturedUrl = tab.stage1Payload?.url || tab.extractedContent?.url || tab.url;
+    const capturedVideo = globalThis.NutEggAI?.getVideoIdentity?.(capturedUrl);
+    const currentVideo = globalThis.NutEggAI?.getVideoIdentity?.(tab.url);
+    const expectedUrl = capturedVideo && capturedVideo.canonicalUrl === currentVideo?.canonicalUrl ? tab.url : capturedUrl;
     const ok = await this.pageExtractor.scrollToSection(tabId, heading, quote, sourceId, expectedUrl);
     if (this.sourceJumpRequest === request && this.store.getTab(tabId)?.pageGeneration === tab.pageGeneration) {
       this.store.dispatch({ type: 'sourceJumpNotice', tabId, message: ok ? null : t('sourceJumpUnavailable') });

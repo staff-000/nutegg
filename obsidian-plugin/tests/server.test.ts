@@ -60,6 +60,31 @@ describe("NutEggServer.normalizeUrl", () => {
       "https://x.com/elonmusk/status/123456789"
     );
   });
+
+  it("normalizes Bilibili watch-later and tracked video URLs by bvid, keeping multipart videos distinct", () => {
+    const s = makeServer();
+    const canonical = "https://www.bilibili.com/video/BV1jc8e6vEKk";
+    for (const url of [
+      "https://www.bilibili.com/list/watchlater/?bvid=BV1jc8e6vEKk&oid=117147766360158&watchlater_cfg=%7B%22viewed%22%3A0%7D&spm_id_from=333.881.0.0&vd_source=tracking",
+      "https://www.bilibili.com/video/BV1jc8e6vEKk/?spm_id_from=333.1245.0.0",
+      "https://www.bilibili.com/video/BV1jc8e6vEKk/?spm_id_from=333.788.top_right_bar_window_custom_collection.content.click&vd_source=tracking",
+      "https://m.bilibili.com/video/BV1jc8e6vEKk?p=1&t=40",
+    ]) assert.equal(s.normalizeUrl(url), canonical);
+    assert.equal(s.normalizeUrl(canonical + "?p=2&vd_source=tracking"), canonical + "?p=2");
+    assert.equal(s.normalizeUrl("https://www.bilibili.com/list/watchlater/?p=2&bvid=BV1jc8e6vEKk"), canonical + "?p=2");
+  });
+
+  it("normalizes YouTube live and embed variants while preserving channel and playlist identities", () => {
+    const s = makeServer();
+    for (const url of [
+      "https://www.youtube.com/live/dQw4w9WgXcQ?si=tracking",
+      "https://www.youtube.com/embed/dQw4w9WgXcQ?start=20",
+      "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+      "https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=playlist",
+    ]) assert.equal(s.normalizeUrl(url), "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    assert.equal(s.normalizeUrl("https://www.youtube.com/@DanKoeTalks/videos"), "https://www.youtube.com/@DanKoeTalks/videos");
+    assert.equal(s.normalizeUrl("https://www.youtube.com/playlist?list=PL123"), "https://www.youtube.com/playlist?list=PL123");
+  });
 });
 
 describe("NutEggServer.estimateTime", () => {
@@ -76,6 +101,42 @@ describe("NutEggServer.estimateTime", () => {
 });
 
 describe("NutEggServer.getCaptureHistory", () => {
+  it("stores the canonical video key while preserving the original capture URL", () => {
+    let inserted: any;
+    const s = makeServer({ db: { available: true, insertNut: (row: any) => { inserted = row; return 1; } } });
+    const original = "https://www.bilibili.com/list/watchlater/?bvid=BV1jc8e6vEKk&oid=117147766360158";
+    assert.equal(s.recordNut({ url: original, title: "Video", sourceType: "bilibili", content: "Transcript" }, { schemaVersion: 3 }), 1);
+    assert.equal(inserted.url, "https://www.bilibili.com/video/BV1jc8e6vEKk");
+    assert.equal(inserted.capturePayload.url, original);
+  });
+
+  it("combines existing canonical and legacy Bilibili captures, excluding other parts and lookalike URLs", () => {
+    const canonical = "https://www.bilibili.com/video/BV1jc8e6vEKk";
+    const row = (id: number, url: string) => ({ id, url, savedAt: `2026-10-0${id}T00:00:00Z`, analysisResult: { schemaVersion: 3 } });
+    const rows = [row(1, canonical + "/?spm_id_from=tracking"),
+      row(2, "https://www.bilibili.com/list/watchlater/?oid=123&bvid=BV1jc8e6vEKk"),
+      row(3, canonical), row(4, canonical + "?p=2"),
+      row(5, "https://example.com/video/BV1jc8e6vEKk"), row(6, canonical + "extra"),
+      { ...row(7, canonical + "?t=5"), analysisResult: { schemaVersion: 2 } }];
+    const s = makeServer({ db: { available: true,
+      getNutHistory: (url: string) => rows.filter(row => row.url === url),
+      getNutHistoryByPattern: () => rows } });
+    for (const url of [canonical, rows[0].url, rows[1].url]) {
+      assert.deepEqual(s.getCaptureHistory(url).map((entry: any) => entry.nutId), [3, 2, 1]);
+    }
+    assert.deepEqual(s.getCaptureHistory(canonical + "?p=2").map((entry: any) => entry.nutId), [4]);
+  });
+
+  it("combines legacy YouTube watch, short, live and embed links even when canonical history exists", () => {
+    const canonical = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const urls = [canonical, "https://youtu.be/dQw4w9WgXcQ?t=20", "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+      "https://www.youtube.com/live/dQw4w9WgXcQ", "https://www.youtube.com/embed/dQw4w9WgXcQ",
+      "https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ", canonical + "extra"];
+    const rows = urls.map((url, index) => ({ id: index + 1, url, analysisResult: { schemaVersion: 3 } }));
+    const s = makeServer({ db: { available: true,
+      getNutHistory: (url: string) => rows.filter(row => row.url === url), getNutHistoryByPattern: () => rows } });
+    for (const url of urls.slice(0, 5)) assert.deepEqual(s.getCaptureHistory(url).map((entry: any) => entry.nutId), [5, 4, 3, 2, 1]);
+  });
   it("maps DB rows to capture entries with saved-state normalization", () => {
     const db = {
       available: true,

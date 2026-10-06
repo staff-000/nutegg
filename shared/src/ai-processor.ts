@@ -3,6 +3,7 @@
 // ============================================================
 
 import { buildDiscussionResult, compactDiscussionRecords, discussionBase, discussionBatches, discussionEvidenceText, discussionSourceText, discussionSummaryText, normalizeDiscussion, unpackDiscussionPart } from "./discussion";
+import { getVideoIdentity } from "./content-url";
 import { composeEggResults } from "./analysis-results";
 import { isAIConfigured, resolveConfig } from "./catalog";
 import { AIError } from "./client";
@@ -448,7 +449,7 @@ export class AIProcessor {
 
   private discussionCacheKey(capture: CapturePayload, discussion: DiscussionCapture): string {
     const config = resolveConfig(this.host?.settings || {});
-    return JSON.stringify([capture.url, capture.title, discussion.kind, capture.content.slice(0, 4000),
+    return JSON.stringify([getVideoIdentity(capture.url)?.canonicalUrl || capture.url, capture.title, discussion.kind, capture.content.slice(0, 4000),
       config.provider, config.model, config.endpoint, this.getPrompt('discussionAnalysis'), this.getPrompt('aggregateDiscussion'),
       this.getContentOutputRules(capture, 'within')]);
   }
