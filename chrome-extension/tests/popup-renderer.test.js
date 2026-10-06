@@ -19,6 +19,36 @@ function setup(t) {
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 
+test('caption retry progress switches with its tab and clears after the final capture', context => {
+  const f = setup(context);
+  const job = f.store.beginOperation(1, 'extraction');
+  f.store.commitOperation(job.token, { type: 'captureProgress', progress: { captions: true, attempt: 1, retryCount: 3 } });
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Waiting for captions.*Retry 1 of 3/);
+  assert.equal(f.ui.captureUI.contentPreview.classList.contains('incomplete'), false);
+  f.store.activateTab(2);
+  assert.doesNotMatch(f.ui.captureUI.contentPreview.textContent, /Waiting for captions/);
+  f.store.commitOperation(job.token, { type: 'captureProgress', progress: { captions: true, attempt: 2, retryCount: 3 } });
+  assert.doesNotMatch(f.ui.captureUI.contentPreview.textContent, /Waiting for captions/);
+  f.store.activateTab(1);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Retry 2 of 3/);
+  f.store.commitOperation(job.token, { type: 'extracted', content: { url: 'https://tab1.test', content: 'Full transcript', transcriptAvailable: true } });
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Full transcript$/);
+  assert.doesNotMatch(f.ui.captureUI.contentPreview.textContent, /Waiting for captions|Retry/);
+});
+
+test('dynamic content still loading after retries warns even with a long page body', context => {
+  const f = setup(context);
+  const content = { url: 'https://tab1.test', content: 'word '.repeat(500), extractionStatus: 'not_ready' };
+  let job = f.store.beginOperation(1, 'extraction');
+  f.store.commitOperation(job.token, { type: 'extracted', content, warning: globalThis.NutEggHelpers.getExtractionWarning(content) });
+  assert.match(f.ui.bannersUI.warningMessage.textContent, /still be loading/);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /still be loading/);
+  job = f.store.beginOperation(1, 'extraction');
+  f.store.commitOperation(job.token, { type: 'extracted', content: { ...content, extractionStatus: 'ready' } });
+  assert.doesNotMatch(f.ui.captureUI.contentPreview.textContent, /still be loading/);
+  assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
+});
+
 test('comment usernames update as they load and stay with their own browser tab', context => {
   const f = setup(context);
   const update = author => {

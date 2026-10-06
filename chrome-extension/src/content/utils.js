@@ -18,6 +18,64 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
   );
 }
 
+// Capture contexts are passed explicitly, so an obsolete task never acquires
+// the signal or page identity of a newer task in the same document.
+function createCaptureContext({ requestId, expectedUrl, deadline = Date.now() + 20000 } = {}) {
+  const controller = new AbortController();
+  const url = expectedUrl || window.location.href;
+  const abort = (code = 'cancelled') => {
+    const error = Object.assign(new Error(code), { name: 'AbortError', code });
+    controller.abort(error);
+  };
+  const timer = setTimeout(() => abort('timeout'), Math.max(1, deadline - Date.now()));
+  const context = {
+    requestId, url, deadline, signal: controller.signal, abort,
+    check() {
+      if (window.location.href.split('#')[0] !== url.split('#')[0]) abort('stale');
+      if (Date.now() >= deadline && !controller.signal.aborted) abort('timeout');
+      if (controller.signal.aborted) throw controller.signal.reason;
+    },
+    async wait(promise) {
+      let listener;
+      try {
+        context.check();
+        return await Promise.race([promise, new Promise((_, reject) => {
+          listener = () => reject(controller.signal.reason);
+          controller.signal.addEventListener('abort', listener, { once: true });
+        })]);
+      } finally {
+        if (listener) controller.signal.removeEventListener('abort', listener);
+        // Also observe a rejection if cancellation won before it was awaited.
+        Promise.resolve(promise).catch(() => {});
+      }
+    },
+    dispose() { clearTimeout(timer); },
+  };
+  controller.signal.addEventListener('abort', () => {
+    if (requestId) {
+      try { chrome.runtime.sendMessage({ action: 'chinese-content-cancel', requestId })?.catch?.(() => {}); } catch {}
+    }
+  }, { once: true });
+  return context;
+}
+
+async function captureFetchText(url, opts = {}, timeoutMs = 8000, context) {
+  context?.check();
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  context?.signal.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, Math.max(1, Math.min(timeoutMs, (context?.deadline || Infinity) - Date.now())));
+  try {
+    const response = await fetch(url, { ...opts, signal: controller.signal });
+    const text = await response.text();
+    context?.check();
+    return { ok: response.ok, status: response.status, text };
+  } finally {
+    clearTimeout(timer);
+    context?.signal.removeEventListener('abort', abort);
+  }
+}
+
 function extractText(element) {
   const clone = element.cloneNode(true);
   clone.querySelectorAll("script, style, noscript, svg, img, video, audio, iframe, nav, footer")

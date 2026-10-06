@@ -54,16 +54,19 @@ function chineseFind(value, predicate, depth = 0) {
   }
   return null;
 }
-async function chineseFetch(url, json = true) {
+async function chineseFetch(url, json = true, context) {
+  context?.check();
   // Privileged worker fetch avoids API/CDN CORS restrictions. Same-origin
   // requests stay in the tab to use the site's normal authenticated session.
   const target = new URL(url, window.location.href);
   if (target.origin === new URL(window.location.href).origin) {
-    const response = await fetchWithTimeout(target.href, { credentials: 'include' }, 1800);
+    const response = await captureFetchText(target.href, { credentials: 'include' }, 4000, context);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return json ? response.json() : response.text();
+    return json ? JSON.parse(response.text) : response.text;
   }
-  const result = await chrome.runtime.sendMessage({ action: 'chinese-content-fetch', url: target.href });
+  const pending = chrome.runtime.sendMessage({ action: 'chinese-content-fetch', url: target.href, requestId: context?.requestId, deadline: context?.deadline });
+  const result = await (context ? context.wait(pending) : pending);
+  context?.check();
   if (!result?.success) throw new Error(result?.error || 'Content fetch failed');
   return json ? JSON.parse(result.text) : result.text;
 }
@@ -98,15 +101,16 @@ function chineseCaptionLanguage(track) {
   if (language) return /^(?:zh|cmn|yue)(?:[-_]|$)/i.test(language);
   return /中文|汉语|漢語|chinese/i.test(track.lan_doc || '');
 }
-async function chineseSubtitles(tracks, { preferChineseAI = false } = {}) {
+async function chineseSubtitles(tracks, { preferChineseAI = false, context } = {}) {
   // Prefer manual captions in any language, then Chinese AI, then other AI.
   // Stable sorting retains platform order among tracks with equal priority.
   const rank = track => !chineseIsAI(track) ? 0 : preferChineseAI && !chineseCaptionLanguage(track) ? 2 : 1;
   for (const track of [...tracks].sort((a, b) => rank(a) - rank(b))) {
+    context?.check();
     const url = track.subtitle_url || track.Url || track.url?.url_list?.[0] || track.url;
     if (typeof url !== 'string') continue;
     try {
-      const text = chineseSubtitleText(await chineseFetch(url.startsWith('//') ? `https:${url}` : url, false));
+      const text = chineseSubtitleText(await chineseFetch(url.startsWith('//') ? `https:${url}` : url, false, context));
       if (text) return { text, source: chineseIsAI(track) ? 'ai' : 'manual' };
     } catch { /* Try the next track in language/source preference order. */ }
   }
@@ -121,12 +125,13 @@ function chineseVideoResult(platform, title, description, author, duration, tran
       time_estimate_minutes: Math.max(1, Math.ceil((Number(duration) || 0) / 60)), ...extra } };
 }
 
-async function extractBilibili() {
+async function extractBilibili(context) {
   const id = bilibiliVideoId();
   const url = new URL(window.location.href);
   const params = id.toLowerCase().startsWith('av') ? `aid=${id.slice(2)}` : `bvid=${id}`;
   let info = null;
-  try { info = (await chineseFetch(`https://api.bilibili.com/x/web-interface/view?${params}`)).data; } catch {}
+  try { info = (await chineseFetch(`https://api.bilibili.com/x/web-interface/view?${params}`, true, context)).data; } catch {}
+  context?.check();
   if (!info) {
     for (const state of chinesePageStates()) {
       info = chineseFind(state, item => (item.bvid === id || `av${item.aid}` === id) && item.title && item.pages);
@@ -145,6 +150,7 @@ async function extractBilibili() {
     (!url.searchParams.has('p') && currentPlayer ? currentPlayer.searchParams.get('cid') : null) ||
     page?.cid || (part === 1 ? info?.cid : null);
   const selectedPage = info?.pages?.find(p => String(p.cid) === String(cid)) || page;
+  if (context) context.partial = chineseVideoResult('bilibili', info?.title || document.title, info?.desc || '', info?.owner?.name || '', selectedPage?.duration, { text: '', source: '' }, { video_id: info?.bvid || id, requested_video_id: id, cid });
   let player = null;
   if (cid) {
     // Replay the site's signed request when available, only for this video/part.
@@ -158,21 +164,23 @@ async function extractBilibili() {
     });
     for (const endpoint of [...new Set([signed, `https://api.bilibili.com/x/player/wbi/v2?${params}&cid=${cid}`].filter(Boolean))]) {
       try {
-        const result = await chineseFetch(endpoint);
+        const result = await chineseFetch(endpoint, true, context);
         if (result.code === 0) { player = result.data; break; }
       } catch {}
     }
   }
-  const transcript = await chineseSubtitles(player?.subtitle?.subtitles || [], { preferChineseAI: true });
+  context?.check();
+  const transcript = await chineseSubtitles(player?.subtitle?.subtitles || [], { preferChineseAI: true, context });
   const title = info?.title || chineseText('h1.video-title, .video-title') || getMeta('og:title') || document.title;
   const capture = chineseVideoResult('bilibili', title, info?.desc || chineseText('#v_desc, .basic-desc-info'),
     info?.owner?.name || chineseText('.up-name'), selectedPage?.duration || info?.duration, transcript,
-    { video_id: info?.bvid || id, cid, part: selectedPage?.page || part, published: info?.pubdate ? new Date(info.pubdate * 1000).toISOString() : '' });
+    { video_id: info?.bvid || id, requested_video_id: id, cid, part: selectedPage?.page || part, published: info?.pubdate ? new Date(info.pubdate * 1000).toISOString() : '' });
   capture.chapters = (player?.view_points || []).map(point => ({ time: formatTime(point.from), title: point.content }));
+  capture.extractionStatus = transcript.text ? 'ready' : !info || !cid || !player ? 'not_ready' : 'transient';
   return capture;
 }
 
-async function extractDouyin() {
+async function extractDouyin(context) {
   const url = new URL(window.location.href);
   const id = url.pathname.match(/\/(?:video|note)\/(\d+)/)?.[1] || url.searchParams.get('modal_id');
   let detail = null;
@@ -188,7 +196,7 @@ async function extractDouyin() {
       } catch { return false; }
     });
     try {
-      detail = (await chineseFetch(request || `${url.origin}/aweme/v1/web/aweme/detail/?aweme_id=${id}&aid=6383`)).aweme_detail;
+      detail = (await chineseFetch(request || `${url.origin}/aweme/v1/web/aweme/detail/?aweme_id=${id}&aid=6383`, true, context)).aweme_detail;
       if (String(detail?.aweme_id || detail?.awemeId) !== id) detail = null;
     } catch {}
   }
@@ -196,7 +204,7 @@ async function extractDouyin() {
   for (const sticker of detail?.interaction_stickers || []) {
     tracks.push(...(sticker.auto_video_caption_info?.auto_captions || []).map(track => ({ ...track, source: 'ai' })));
   }
-  const transcript = await chineseSubtitles(tracks);
+  const transcript = await chineseSubtitles(tracks, { context });
   const description = detail?.desc || getMeta('og:description') || '';
   const title = description || getMeta('og:title') || document.title;
   if (detail?.images?.length || url.pathname.startsWith('/note/')) {
@@ -207,20 +215,20 @@ async function extractDouyin() {
     (detail?.video?.duration || 0) / 1000, transcript, { video_id: id });
 }
 
-async function extractWeibo() {
+async function extractWeibo(context) {
   const url = new URL(window.location.href);
   const id = url.pathname.match(/^\/(?:\d+|detail|status)\/([\w]+)\/?$/)?.[1];
   let post = null;
   if (id) {
     try {
-      if (chineseHost('weibo.com')) post = await chineseFetch(`${url.origin}/ajax/statuses/show?id=${encodeURIComponent(id)}`);
-      else post = (await chineseFetch(`${url.origin}/statuses/show?id=${encodeURIComponent(id)}`)).data;
+      if (chineseHost('weibo.com')) post = await chineseFetch(`${url.origin}/ajax/statuses/show?id=${encodeURIComponent(id)}`, true, context);
+      else post = (await chineseFetch(`${url.origin}/statuses/show?id=${encodeURIComponent(id)}`, true, context)).data;
     } catch {}
   }
   let text = post?.text_raw || (post?.text ? chineseHtmlText(post.text) : '');
   if (post?.isLongText && post?.idstr) {
     try {
-      const full = await chineseFetch(`${url.origin}/ajax/statuses/longtext?id=${post.idstr}`);
+      const full = await chineseFetch(`${url.origin}/ajax/statuses/longtext?id=${post.idstr}`, true, context);
       if (full.data?.longTextContent) text = chineseHtmlText(full.data.longTextContent);
     } catch {}
   }

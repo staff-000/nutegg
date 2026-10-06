@@ -13,7 +13,7 @@
     <!-- Output Language -->
     <section class="option-group" id="language-config-group">
       <h2 data-i18n="outputLanguageSection">Output Language</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="outputLanguageDesc">
+      <p class="section-desc" data-i18n="outputLanguageDesc">
         Choose the language used for generated verdicts, summaries, and mind maps.
       </p>
       <div class="option-row">
@@ -54,10 +54,36 @@
       </div>
     </section>
 
+    <section class="option-group" id="content-loading-group">
+      <h2 data-i18n="captureRetrySettings">Content loading</h2>
+      <p class="section-desc" data-i18n="captureRetryDescription">Retry when captions or dynamically loaded content are missing. Successful captures finish immediately.</p>
+      
+      <div class="retry-params-row">
+        <div class="retry-param-card">
+          <label for="capture-retry-count" data-i18n="captureRetryCountLabel">Maximum retries</label>
+          <div class="retry-input-wrapper">
+            <input id="capture-retry-count" class="capture-retry-input" type="number" min="0" max="10" step="1" value="3" required>
+          </div>
+        </div>
+        <div class="retry-param-card">
+          <label for="capture-retry-delay" data-i18n="captureRetryDelayLabel">Delay before retries (seconds)</label>
+          <div class="retry-input-wrapper">
+            <input id="capture-retry-delay" class="capture-retry-input" type="number" min="0.1" max="10" step="0.1" value="3" required>
+          </div>
+        </div>
+      </div>
+
+      <p class="hint retry-hint" data-i18n="captureRetryHint">Set retries to 0 to disable them. Retries stop when content is ready or the capture time limit is reached.</p>
+      <div class="option-actions">
+        <button id="capture-retry-save" class="primary-btn" data-i18n="captureRetrySave">Save preferences</button>
+        <span id="capture-retry-status" class="test-result hidden" role="status"></span>
+      </div>
+    </section>
+
     <!-- Content Analysis Sections -->
     <section class="option-group" id="sections-config-group">
       <h2 data-i18n="sectionsConfigSection">Content Analysis Sections</h2>
-      <p style="margin-bottom: 12px; color: #4b5563; font-size: 13px; line-height: 1.5;" data-i18n="sectionsConfigDesc">
+      <p class="section-desc" data-i18n="sectionsConfigDesc">
         Configure which sections are generated during Content Analysis. Disabling unused sections completely removes them from the AI prompt and output schema, saving tokens and cutting latency.
       </p>
       <div class="option-row">
@@ -237,6 +263,7 @@
 
   <script src="../../dist/ai-core.js"></script>
   <script src="../i18n.js"></script>
+  <script src="../popup/state/settings-state.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

@@ -74,7 +74,7 @@ class PageExtractor {
    */
   async injectContentScript(tabId, timeoutMs = 4000) {
     try {
-      await this.withTimeout(
+      const injected = await this.withTimeout(
         chrome.scripting.executeScript({
           target: { tabId },
           files: this.contentScriptFiles,
@@ -82,7 +82,7 @@ class PageExtractor {
         timeoutMs,
         null
       );
-      return true;
+      return injected !== null;
     } catch {
       return false; // Restricted page (chrome://, Web Store, PDF viewer, etc.)
     }
@@ -92,36 +92,46 @@ class PageExtractor {
    * Extract page content via content script, injecting it first when needed.
    * Returns response object or null if unreachable / restricted.
    */
-  async tryExtract(tabId, discussionSessionId) {
+  async tryExtract(tabId, discussionSessionId, options = {}) {
     let extractionTimeout = 8000;
     try {
       const tab = await chrome.tabs.get(tabId);
       const host = new URL(tab.url).hostname;
-      // Chinese video extraction can require several API/subtitle requests.
+      // Video extraction can require several API/subtitle requests.
       // Keep the ordinary-page failure budget at 8s rather than slowing all sites.
-      if (["bilibili.com", "douyin.com"].some(domain => host === domain || host.endsWith(`.${domain}`))) {
+      if (["youtube.com", "bilibili.com", "douyin.com"].some(domain => host === domain || host.endsWith(`.${domain}`))) {
         extractionTimeout = 20000;
       }
     } catch {}
+    extractionTimeout = Math.max(1, Math.min(extractionTimeout, (options.deadline || Infinity) - Date.now()));
+    // Reserve a small transport margin so the content script can return its
+    // partial capture on deadline expiry before the outer message times out.
+    const message = { action: 'extract-content', discussionSessionId, requestId: options.requestId,
+      deadline: options.deadline ? Math.max(Date.now() + 1, Math.min(options.deadline, Date.now() + extractionTimeout) - 100) : undefined,
+      expectedUrl: options.expectedUrl };
+    const timeout = { success: false, errorCode: 'timeout' };
     try {
       const response = await this.withTimeout(
-        chrome.tabs.sendMessage(tabId, { action: "extract-content", discussionSessionId }),
+        chrome.tabs.sendMessage(tabId, message),
         extractionTimeout,
-        null
+        timeout
       );
-      if (response?.success) return response;
+      // A slow or failed extractor is not a missing content script. Reinjection
+      // here could start a second capture while the original still runs.
+      return response;
     } catch {
       // Content script not yet injected
     }
 
-    const injected = await this.injectContentScript(tabId, 4000);
+    if (Date.now() >= (options.deadline || Infinity)) return timeout;
+    const injected = await this.injectContentScript(tabId, Math.max(1, Math.min(4000, (options.deadline || Infinity) - Date.now())));
     if (!injected) return null;
 
     try {
       return await this.withTimeout(
-        chrome.tabs.sendMessage(tabId, { action: "extract-content", discussionSessionId }),
-        extractionTimeout,
-        null
+        chrome.tabs.sendMessage(tabId, message),
+        Math.max(1, Math.min(extractionTimeout, (options.deadline || Infinity) - Date.now())),
+        timeout
       );
     } catch {
       return null;
@@ -138,7 +148,7 @@ class PageExtractor {
         2500,
         null
       );
-      if (resp?.success) return resp;
+      return resp?.success ? resp : null;
     } catch {}
 
     const injected = await this.injectContentScript(tabId, 3000);
@@ -198,6 +208,7 @@ class PageExtractor {
         identity &&
         identity.readyState === "complete" &&
         identity.youtubeReady !== false &&
+        identity.bilibiliReady !== false &&
         identity.twitterReady !== false
       ) {
         return identity;
@@ -211,7 +222,13 @@ class PageExtractor {
    * High-level extraction driver: handles settling, extraction retries,
    * and post-extraction navigation verification.
    */
-  async extractPage(tabId, { waitForSettle = false, isCancelled = () => false, onSettle = null, discussionSessionId } = {}) {
+  async extractPage(tabId, { waitForSettle = false, isCancelled = () => false, onSettle = null, discussionSessionId,
+    retryCount = 3, retryDelayMs = 1000, onProgress, expectedUrl, timeoutMs = 20000 } = {}) {
+    retryCount = Number.isFinite(retryCount) ? Math.max(0, Math.min(10, Math.floor(retryCount))) : 3;
+    retryDelayMs = Number.isFinite(retryDelayMs) ? Math.max(100, Math.min(10000, retryDelayMs)) : 1000;
+    const deadline = Date.now() + timeoutMs;
+    const requestPrefix = discussionSessionId || `capture:${Date.now()}:${Math.random()}`;
+    const samePage = url => !expectedUrl || !url || url.split('#')[0] === expectedUrl.split('#')[0];
     if (waitForSettle) {
       const identity = await this.waitForPageSettle(tabId, isCancelled);
       if (isCancelled()) return null;
@@ -220,34 +237,70 @@ class PageExtractor {
       }
     }
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await this.tryExtract(tabId, discussionSessionId);
+    let best = null;
+    for (let attempt = 0; attempt <= retryCount && Date.now() < deadline; attempt++) {
       if (isCancelled()) return null;
-
-      if (!response?.success) {
-        if (attempt === 0) {
-          await new Promise((r) => setTimeout(r, 400));
-          if (isCancelled()) return null;
-          continue;
-        }
-        return null;
-      }
-
-      const after = await this.requestPageIdentity(tabId);
+      const requestId = `${requestPrefix}:${attempt}`;
+      const response = await this.withCancellation(this.tryExtract(tabId, discussionSessionId, { deadline, requestId, expectedUrl }), isCancelled,
+        () => this.cancelExtraction(tabId, requestId));
       if (isCancelled()) return null;
-
-      if (
-        after?.url &&
-        response.content?.url &&
-        after.url !== response.content.url
-      ) {
-        console.warn("[NutEgg] Page navigated during extraction — retrying");
-        continue;
+      if (response?.errorCode === 'stale') return null;
+      if (response?.errorCode === 'timeout') {
+        await this.cancelExtraction(tabId, requestId);
+        break;
       }
-
-      return response.content;
+      const after = await this.withTimeout(this.requestPageIdentity(tabId), Math.max(1, deadline - Date.now()));
+      if (isCancelled()) return null;
+      if (!samePage(after?.url) || !samePage(response?.content?.url)) return null;
+      if (after?.url && response?.content?.url && after.url.split('#')[0] !== response.content.url.split('#')[0]) return null;
+      const capturedVideoId = response?.content?.metadata?.requested_video_id || response?.content?.metadata?.video_id;
+      if (after?.videoId && capturedVideoId && after.videoId !== capturedVideoId) return null;
+      if (after?.cid && response?.content?.metadata?.cid && String(after.cid) !== String(response.content.metadata.cid)) return null;
+      expectedUrl ||= after?.url || response?.content?.url;
+      if (response?.success && response.content) {
+        const content = response.content;
+        best = content;
+        const retryable = content.extractionStatus === 'not_ready' || content.extractionStatus === 'transient'
+          || (content.transcriptAvailable === false && content.extractionStatus !== 'unavailable');
+        if (!retryable) return content;
+      }
+      if (attempt === retryCount || Date.now() >= deadline) break;
+      onProgress?.({ attempt: attempt + 1, retryCount, captions: best?.transcriptAvailable === false });
+      if (!await this.waitForRetry(tabId, { deadline, retryDelayMs, isCancelled, samePage, initial: after })) return !isCancelled() && Date.now() >= deadline ? best : null;
     }
-    return null;
+    return best;
+  }
+
+  async cancelExtraction(tabId, requestId) {
+    try { await this.withTimeout(chrome.tabs.sendMessage(tabId, { action: 'cancel-extraction', requestId }), 500); } catch {}
+  }
+
+  withCancellation(promise, isCancelled, cancel) {
+    let timer;
+    const stopped = new Promise(resolve => {
+      timer = setInterval(() => {
+        if (isCancelled()) { void cancel(); resolve(null); }
+      }, 100);
+    });
+    return Promise.race([promise, stopped]).finally(() => clearInterval(timer));
+  }
+
+  async waitForRetry(tabId, { deadline, retryDelayMs, isCancelled, samePage, initial }) {
+    let completeAt = initial?.readyState === 'complete' ? Date.now() : null;
+    const started = Date.now();
+    while (Date.now() < deadline) {
+      if (isCancelled()) return false;
+      await new Promise(resolve => setTimeout(resolve, Math.min(200, Math.max(1, deadline - Date.now()))));
+      if (isCancelled()) return false;
+      const identity = await this.withTimeout(this.requestPageIdentity(tabId), Math.max(1, Math.min(2500, deadline - Date.now())));
+      if (isCancelled() || !samePage(identity?.url)) return false;
+      if (identity?.captionTracksReady && !initial?.captionTracksReady) return true;
+      if (identity?.readyState === 'complete') completeAt ??= Date.now();
+      if (completeAt !== null && Date.now() - completeAt >= retryDelayMs) return true;
+      // Pages without a readable identity still get a bounded fallback retry.
+      if (!identity && Date.now() - started >= retryDelayMs) return true;
+    }
+    return false;
   }
 
   /**

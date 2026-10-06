@@ -41,6 +41,22 @@ function setupMockStorage(initial = {}) {
 }
 
 describe("SettingsState", () => {
+  it('loads and bounds capture retry preferences, including zero retries', async () => {
+    const stored = setupMockStorage({ captureRetryCount: 0, captureRetryDelayMs: 2500 });
+    const settings = new SettingsState();
+    assert.equal(settings.captureRetryCount, 3);
+    assert.equal(settings.captureRetryDelayMs, 3000);
+    await settings.loadFromStorage();
+    assert.equal(settings.captureRetryCount, 0);
+    assert.equal(settings.captureRetryDelayMs, 2500);
+    settings.setCaptureRetries({ captureRetryCount: Infinity, captureRetryDelayMs: 'bad' });
+    assert.equal(settings.captureRetryCount, 3);
+    assert.equal(settings.captureRetryDelayMs, 3000);
+    settings.setCaptureRetries({ captureRetryCount: 100, captureRetryDelayMs: -1 });
+    assert.equal(settings.captureRetryCount, 10);
+    assert.equal(settings.captureRetryDelayMs, 100);
+    assert.equal(stored.captureRetryCount, 0);
+  });
   it("toggles Verdict and Summary together while retaining a Stage 1 section", async () => {
     setupMockStorage();
     const settings = new SettingsState();

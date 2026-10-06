@@ -12,22 +12,26 @@ function detectYouTube() {
   return window.location.href.includes("youtube.com/watch");
 }
 
-async function extractYouTube() {
+async function extractYouTube(context) {
+  context?.check();
   const url = window.location.href;
   const meta = extractYouTubeMetadata(url);
+  if (context) context.partial = { url, title: meta.title, sourceType: "youtube", transcriptAvailable: false, content: `# ${meta.title}\n\n${meta.description || ""}`, metadata: { video_id: meta.videoId } };
 
   // Chapters (with timestamps, for the clickable Mind Map)
-  const chapters = await extractChapters();
+  const chapters = await extractChapters(context);
+  context?.check();
 
   // Captions / transcript via YouTube timedtext API
   let transcript = "";
   const captionMetadata = {};
   try {
-    transcript = await fetchYouTubeCaptions(captionMetadata);
+    transcript = await fetchYouTubeCaptions(captionMetadata, context);
   } catch {
     // Captions not available — that's fine
   }
 
+  context?.check();
   const parts = [`# ${meta.title}`];
   if (meta.channelName) parts.push(`**Channel:** ${meta.channelName}`);
   if (meta.viewCount) parts.push(`**Views:** ${meta.viewCount}`);
@@ -61,6 +65,7 @@ async function extractYouTube() {
     // False when captions could not be fetched — the popup refuses to
     // analyze, because description-only analysis would be misleading.
     transcriptAvailable: !!transcript,
+    extractionStatus: transcript ? "ready" : captionMetadata.caption_unavailable ? "unavailable" : "transient",
     metadata: {
       platform: "YouTube",
       ...captionMetadata,
@@ -185,7 +190,8 @@ function extractYouTubeMetadata(url) {
  * `window.ytInitialPlayerResponse` via a nonce-authenticated page script.
  * In YouTube, the player element holds live tracks (including auto-generated ASR).
  */
-async function queryPlayerCaptionTracks() {
+async function queryPlayerCaptionTracks(context) {
+  context?.check();
   return new Promise((resolve) => {
     const eventId = "nutegg_yt_tracks_" + Math.random().toString(36).slice(2);
     const handler = (e) => {
@@ -205,13 +211,18 @@ async function queryPlayerCaptionTracks() {
         try {
           const player = document.querySelector('#movie_player');
           let tracks = null;
+          const expected = ${JSON.stringify(new URL(window.location.href).searchParams.get('v'))};
+          const playerResponse = player?.getPlayerResponse?.();
+          if (playerResponse?.videoDetails?.videoId && playerResponse.videoDetails.videoId !== expected) {
+            window.dispatchEvent(new CustomEvent('${eventId}', { detail: [] })); return;
+          }
           if (player && typeof player.getOption === 'function') {
             tracks = player.getOption('captions', 'tracklist');
           }
           if ((!tracks || !tracks.length) && player && typeof player.getPlayerResponse === 'function') {
             tracks = player.getPlayerResponse()?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
           }
-          if ((!tracks || !tracks.length) && window.ytInitialPlayerResponse) {
+          if ((!tracks || !tracks.length) && window.ytInitialPlayerResponse?.videoDetails?.videoId === expected) {
             tracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
           }
           window.dispatchEvent(new CustomEvent('${eventId}', { detail: tracks || [] }));
@@ -247,7 +258,8 @@ async function queryPlayerCaptionTracks() {
  * Every network layer has a timeout — a stalled request must never hang
  * extraction. Each layer logs its outcome for debugging.
  */
-async function fetchYouTubeCaptions(metadata = {}) {
+async function fetchYouTubeCaptions(metadata = {}, context) {
+  context?.check();
   delete metadata.caption_source;
   const videoId = new URL(window.location.href).searchParams.get("v");
   if (!videoId) return "";
@@ -255,12 +267,17 @@ async function fetchYouTubeCaptions(metadata = {}) {
   const started = Date.now();
   const pr = readYtInitialPlayerResponse();
 
+  if (["LOGIN_REQUIRED", "UNPLAYABLE"].includes(pr?.playabilityStatus?.status)) {
+    metadata.caption_unavailable = true;
+    return "";
+  }
+
   // Layer 1: captionTracks from DOM scripts / ytInitialPlayerResponse
   let tracks =
-    findCaptionTracksInDom() ||
+    findCaptionTracksInDom(videoId) ||
     pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (tracks?.length) {
-    const transcript = await fetchTimedtext(tracks);
+    const transcript = await fetchTimedtext(tracks, context);
     if (transcript) {
       console.log(`[NutEgg] Captions: page tracks in ${Date.now() - started}ms`);
       metadata.caption_source = "page_tracks";
@@ -273,19 +290,17 @@ async function fetchYouTubeCaptions(metadata = {}) {
   // parsed from <script> tags, it may lack caption tracks (ASR-only, stale SPA
   // data, etc.), so the fresh HTML fetch is always worth trying.
   try {
-    const resp = await fetchWithTimeout(
-      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`,
-      {},
-      4000
+    const resp = await captureFetchText(
+      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`, {}, 4000, context
     );
-    const html = await resp.text();
+    const html = resp.text;
     const idx = html.indexOf('"captionTracks"');
     if (idx !== -1) {
       const raw = extractBalanced(html, idx);
       if (raw) {
         tracks = JSON.parse(raw);
         if (Array.isArray(tracks) && tracks.length > 0) {
-          const transcript = await fetchTimedtext(tracks);
+          const transcript = await fetchTimedtext(tracks, context);
           if (transcript) {
             console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
             metadata.caption_source = "watch_page";
@@ -301,11 +316,11 @@ async function fetchYouTubeCaptions(metadata = {}) {
   // Layer 3: Innertube player API — pure network, works in background
   // tabs. Always worth one timeout-bounded call.
   try {
-    const playerResp = await fetchInnertubePlayer(videoId);
+    const playerResp = await fetchInnertubePlayer(videoId, context);
     const innertubeTracks =
       playerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     if (Array.isArray(innertubeTracks) && innertubeTracks.length > 0) {
-      const transcript = await fetchTimedtext(innertubeTracks);
+      const transcript = await fetchTimedtext(innertubeTracks, context);
       if (transcript) {
         console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
         metadata.caption_source = "innertube";
@@ -320,18 +335,20 @@ async function fetchYouTubeCaptions(metadata = {}) {
   // fails in background tabs (player suspended, CC click ignored, timer
   // throttling), so attempted after the network-only layers above.
   try {
-    let playerTracks = await queryPlayerCaptionTracks();
+    context?.check();
+    let playerTracks = await queryPlayerCaptionTracks(context);
     if (!playerTracks?.length) {
       // If player hasn't loaded captions yet, wake up subtitles via CC button if available
+      context?.check();
       const ccBtn = document.querySelector(".ytp-subtitles-button");
       if (ccBtn && ccBtn.getAttribute("aria-pressed") !== "true") {
         ccBtn.click();
         await new Promise((r) => setTimeout(r, 600));
-        playerTracks = await queryPlayerCaptionTracks();
+        playerTracks = await queryPlayerCaptionTracks(context);
       }
     }
     if (playerTracks?.length) {
-      const transcript = await fetchTimedtext(playerTracks);
+      const transcript = await fetchTimedtext(playerTracks, context);
       if (transcript) {
         console.log(`[NutEgg] Captions: player tracks in ${Date.now() - started}ms`);
         metadata.caption_source = "player_tracks";
@@ -342,7 +359,7 @@ async function fetchYouTubeCaptions(metadata = {}) {
 
   // Layer 5: the on-page transcript panel ("Show transcript") — DOM-heavy
   // last resort, fails in background tabs.
-  const panel = await readTranscriptPanel();
+  const panel = await readTranscriptPanel(context);
   console.log(
     panel
       ? `[NutEgg] Captions: transcript panel in ${Date.now() - started}ms`
@@ -355,16 +372,29 @@ async function fetchYouTubeCaptions(metadata = {}) {
 /**
  * Scan all <script> tags in the current page DOM for `"captionTracks"`.
  */
-function findCaptionTracksInDom() {
+function findCaptionTracksInDom(videoId = new URL(window.location.href).searchParams.get('v')) {
   for (const script of document.querySelectorAll("script")) {
     const text = script.textContent || "";
+    const marker = text.indexOf('ytInitialPlayerResponse');
+    if (marker >= 0) {
+      try {
+        const response = JSON.parse(extractBalanced(text, marker + 'ytInitialPlayerResponse'.length));
+        if (response?.videoDetails?.videoId && response.videoDetails.videoId !== videoId) continue;
+      } catch {}
+    }
     const idx = text.indexOf('"captionTracks"');
     if (idx === -1) continue;
     const raw = extractBalanced(text, idx);
     if (raw) {
       try {
         const tracks = JSON.parse(raw);
-        if (Array.isArray(tracks) && tracks.length > 0) return tracks;
+        if (Array.isArray(tracks)) {
+          const matching = tracks.filter(track => {
+            try { const id = new URL(track.baseUrl || track.url).searchParams.get('v'); return !id || id === videoId; }
+            catch { return false; }
+          });
+          if (matching.length) return matching;
+        }
       } catch {}
     }
   }
@@ -374,8 +404,9 @@ function findCaptionTracksInDom() {
 /**
  * Fetch video metadata via YouTube's public web client API.
  */
-async function fetchInnertubePlayer(videoId) {
-  const resp = await fetchWithTimeout(
+async function fetchInnertubePlayer(videoId, context) {
+  context?.check();
+  const resp = await captureFetchText(
     "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
     {
       method: "POST",
@@ -392,10 +423,10 @@ async function fetchInnertubePlayer(videoId) {
         },
       }),
     },
-    4000
+    4000, context
   );
   if (!resp.ok) return null;
-  return resp.json();
+  return JSON.parse(resp.text);
 }
 
 /** "json3" / "srv3" / "default" label for a timedtext URL, for logs. */
@@ -410,7 +441,8 @@ function timedtextFormat(url) {
  * On signed URLs (containing sparams/signature), baseUrl is fetched first to avoid
  * breaking signature verification with query modifications.
  */
-async function fetchTimedtext(tracks) {
+async function fetchTimedtext(tracks, context) {
+  context?.check();
   if (!Array.isArray(tracks) || tracks.length === 0) return "";
 
   // Prioritize candidate tracks:
@@ -455,11 +487,12 @@ async function fetchTimedtext(tracks) {
 
     for (const url of urls) {
       try {
-        const resp = await fetchWithTimeout(url, {}, 2500);
+        context?.check();
+        const resp = await captureFetchText(url, {}, 2500, context);
         if (!resp.ok) {
           continue;
         }
-        const text = await resp.text();
+        const text = resp.text;
         const parsed = parseYouTubeCaptionResponse(text);
         if (parsed) {
           console.log(
@@ -491,7 +524,8 @@ async function fetchTimedtext(tracks) {
  *   4. open the on-page chapter panel, read its items, close it again
  * Each layer logs which one produced the list, for easy debugging.
  */
-function extractChapters() {
+function extractChapters(context) {
+  context?.check();
   // Layer 1: player response — the source the chapter ring renders from
   const pr = readYtInitialPlayerResponse();
   const markerPaths = [
@@ -525,7 +559,7 @@ function extractChapters() {
   }
 
   // Layer 4: open the chapter panel, read, close (async — handled below)
-  return readChapterPanel().then((chapters) => {
+  return readChapterPanel(context).then((chapters) => {
     if (chapters.length > 0) {
       console.log(`[NutEgg] Chapters: ${chapters.length} from chapter panel`);
     } else {
@@ -664,8 +698,9 @@ function dedupChapters(chapters) {
 }
 
 /** Open the chapter-list panel (player chapter button), read it, close it. */
-async function readChapterPanel() {
+async function readChapterPanel(context) {
   try {
+    context?.check();
     const button = [...document.querySelectorAll("button")].find((b) => {
       const label = (b.getAttribute("aria-label") || "").toLowerCase();
       return label === "chapters" || label.includes("chapters");
@@ -678,6 +713,7 @@ async function readChapterPanel() {
       const els = document.querySelectorAll("ytd-macro-markers-list-item-renderer");
       return els.length > 0 ? els : null;
     }, 800);
+    context?.check();
     if (!items) return [];
 
     const chapters = readChapterListDom();
@@ -718,7 +754,9 @@ function readYtVar(name) {
 
 /** The page's `ytInitialPlayerResponse` (captions, chapters, ...). */
 function readYtInitialPlayerResponse() {
-  return readYtVar("ytInitialPlayerResponse");
+  const response = readYtVar("ytInitialPlayerResponse");
+  const expected = new URL(window.location.href).searchParams.get("v");
+  return response?.videoDetails?.videoId && response.videoDetails.videoId !== expected ? null : response;
 }
 
 /** The page's `ytInitialData` (description chapter markers, ...). */
@@ -731,8 +769,9 @@ function readYtInitialData() {
  * The last resort — works even when the player response and page HTML are
  * unavailable (consent walls, A/B layouts, ...).
  */
-async function readTranscriptPanel() {
+async function readTranscriptPanel(context) {
   try {
+    context?.check();
     // 1. Expand the description if collapsed (YouTube lazy-renders the transcript button inside it)
     const expandSelectors = [
       "ytd-text-inline-expander #expand",
@@ -757,6 +796,7 @@ async function readTranscriptPanel() {
     }
     await new Promise((r) => setTimeout(r, 400));
 
+    context?.check();
     // 2. Find and click the transcript button
     let button =
       document.querySelector("ytd-video-description-transcript-section-renderer button") ||
@@ -803,6 +843,7 @@ async function readTranscriptPanel() {
       if (overflowBtn) {
         overflowBtn.click();
         await new Promise((r) => setTimeout(r, 350));
+        context?.check();
         const menuItems = [
           ...document.querySelectorAll(
             "ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer, tp-yt-paper-item"
@@ -842,6 +883,7 @@ async function readTranscriptPanel() {
       );
       return els.length > 0 ? els : null;
     }, 2000);
+    context?.check();
     if (!segments || segments.length === 0) return "";
 
     const lines = [...segments]

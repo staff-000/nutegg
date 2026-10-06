@@ -84,7 +84,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     "outputLanguage",
     "chromeAiPromptOverrides",
     "debugInfo",
+    "captureRetryCount",
+    "captureRetryDelayMs",
   ]);
+  const captureSettings = new window.SettingsState();
+  captureSettings.setCaptureRetries(stored);
+  const retryCount = document.getElementById('capture-retry-count');
+  const retryDelay = document.getElementById('capture-retry-delay');
+  retryCount.value = captureSettings.captureRetryCount;
+  retryDelay.value = captureSettings.captureRetryDelayMs / 1000;
+  document.getElementById('capture-retry-save').addEventListener('click', async () => {
+    if (!retryCount.reportValidity() || !retryDelay.reportValidity()) return;
+    captureSettings.setCaptureRetries({ captureRetryCount: Number(retryCount.value), captureRetryDelayMs: Number(retryDelay.value) * 1000 });
+    await chrome.storage.local.set({ captureRetryCount: captureSettings.captureRetryCount, captureRetryDelayMs: captureSettings.captureRetryDelayMs });
+    const status = document.getElementById('capture-retry-status');
+    status.textContent = t('captureRetrySaved');
+    status.className = 'test-result ok';
+    setTimeout(() => {
+      status.classList.add('hidden');
+    }, 2500);
+  });
   savedPromptOverrides = stored.chromeAiPromptOverrides || {};
   if (debugInfoEnabled) {
     debugInfoEnabled.checked = stored.debugInfo === true;

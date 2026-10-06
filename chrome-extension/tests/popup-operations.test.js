@@ -3,6 +3,28 @@ const assert = require('node:assert/strict');
 const { fixture, deferred, seed } = require('./helpers/popup-fixture');
 const options = { analysisMode: 'preview', outputLanguage: 'same-as-content', chromeMode: false };
 
+test('capture retries use stored preferences and progress remains on the originating tab', async () => {
+  const { store, operations, extractor } = fixture();
+  store.settings = { captureRetryCount: 5, captureRetryDelayMs: 1500 };
+  const pending = deferred();
+  let request;
+  extractor.extractPage = (tabId, options) => { request = options; return pending.promise; };
+  const job = operations.extract(1);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(request.retryCount, 5); assert.equal(request.retryDelayMs, 1500);
+  store.activateTab(2);
+  request.onProgress({ attempt: 1, retryCount: 5, captions: true });
+  assert.equal(store.getTab(1).operations.extraction.progress.attempt, 1);
+  assert.equal(store.getTab(2).operations.extraction?.progress, undefined);
+  assert.equal(store.getTab(1).extractedContent.content, 'Content 1');
+  store.invalidateTab(1, 'https://new.test');
+  request.onProgress({ attempt: 2, retryCount: 5, captions: true });
+  assert.equal(store.getTab(1).operations.extraction?.progress, undefined);
+  pending.resolve(null);
+  await job;
+  assert.equal(store.getTab(1).errors.extraction, undefined);
+});
+
 test('missing transcripts warn regardless of description length and stay with the originating tab', async () => {
   const { store, operations, extractor } = fixture();
   const pending = deferred();

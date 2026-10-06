@@ -134,6 +134,10 @@ async function initPopup() {
     if (changes.enabledSections) settings.setEnabledSections(changes.enabledSections.newValue);
     if (changes.generateKnowledgeEntries) settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
     if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; void operations.refreshDebugInfo(); }
+    if (changes.captureRetryCount || changes.captureRetryDelayMs) settings.setCaptureRetries({
+      captureRetryCount: changes.captureRetryCount ? changes.captureRetryCount.newValue ?? 3 : settings.captureRetryCount,
+      captureRetryDelayMs: changes.captureRetryDelayMs ? changes.captureRetryDelayMs.newValue ?? 3000 : settings.captureRetryDelayMs,
+    });
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     if (changes.popupDiagnostics) tabStateManager.diagnosticsEnabled = changes.popupDiagnostics.newValue === true;
     if (Object.keys(changes).some(key => key === 'serverPort' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);

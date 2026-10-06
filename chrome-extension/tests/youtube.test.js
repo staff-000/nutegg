@@ -58,7 +58,7 @@ test('caption metadata records the successful fallback route and is included in 
       URL, console: { log() {} }, route,
       window: { location: { href: 'https://www.youtube.com/watch?v=test' } },
       document: { querySelector() { return null; } },
-      fetchWithTimeout: async () => ({ text: async () => route === 'watch_page' ? '"captionTracks":[{"route":"watch_page"}]' : '' }),
+      captureFetchText: async () => ({ text: route === 'watch_page' ? '"captionTracks":[{"route":"watch_page"}]' : '' }),
       extractBalanced: () => '[{"route":"watch_page"}]',
       truncate: text => text, estimateTime: () => 1,
     });
@@ -84,4 +84,29 @@ test('caption metadata records the successful fallback route and is included in 
       assert.equal(capture.metadata.caption_source, route);
     }
   }
+});
+
+test('stale player response and caption tracks from the previous video are ignored', () => {
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const oldResponse = { videoDetails: { videoId: 'old' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=old' }] } } };
+  const scripts = [{ textContent: `var ytInitialPlayerResponse = ${JSON.stringify(oldResponse)};` }];
+  const context = vm.createContext({ URL, window: { location: { href: 'https://www.youtube.com/watch?v=new' } }, document: { querySelectorAll: () => scripts } });
+  for (const file of ['utils', 'extractors/youtube']) vm.runInContext(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'), context);
+  assert.equal(context.readYtInitialPlayerResponse(), null);
+  assert.equal(context.findCaptionTracksInDom(), null);
+  scripts.push({ textContent: '"captionTracks":[{"baseUrl":"https://www.youtube.com/api/timedtext?v=new"}]' });
+  assert.equal(context.findCaptionTracksInDom()[0].baseUrl, 'https://www.youtube.com/api/timedtext?v=new');
+});
+
+test('confirmed unavailable videos finish without repeated network or DOM caption attempts', async () => {
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const context = vm.createContext({ URL, window: { location: { href: 'https://www.youtube.com/watch?v=one' } }, document: {} });
+  vm.runInContext(fs.readFileSync(require.resolve('../src/content/extractors/youtube.js'), 'utf8'), context);
+  context.readYtInitialPlayerResponse = () => ({ videoDetails: { videoId: 'one' }, playabilityStatus: { status: 'UNPLAYABLE' } });
+  context.captureFetchText = () => assert.fail('Must not fetch unavailable captions');
+  const metadata = {};
+  assert.equal(await context.fetchYouTubeCaptions(metadata), '');
+  assert.equal(metadata.caption_unavailable, true);
 });

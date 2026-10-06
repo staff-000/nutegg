@@ -182,10 +182,10 @@ describe("PageExtractor", () => {
   });
 
   describe("tryExtract timeout budgets", () => {
-    it("uses the longer budget only for Bilibili and Douyin, including reinjection", async () => {
+    it("uses the longer budget for video sites, including missing-script injection", async () => {
       for (const [url, expected] of [
         ["https://example.com/article", 8000],
-        ["https://www.youtube.com/watch?v=123", 8000],
+        ["https://www.youtube.com/watch?v=123", 20000],
         ["https://www.bilibili.com/list/watchlater/?bvid=BV123", 20000],
         ["https://www.douyin.com/video/123", 20000],
         ["https://douyin.com.evil.test/video/123", 8000],
@@ -194,7 +194,7 @@ describe("PageExtractor", () => {
         let attempt = 0;
         globalThis.chrome = { tabs: {
           get: async () => ({ url }),
-          sendMessage: async () => ++attempt === 1 ? null : { success: true },
+          sendMessage: async () => { if (++attempt === 1) throw new Error('No receiver'); return { success: true }; },
         } };
         const instance = new PageExtractor();
         instance.withTimeout = (promise, ms) => { timeouts.push(ms); return promise; };

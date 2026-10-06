@@ -285,6 +285,7 @@ function getExtractionWarning(content) {
   if (!content) return null;
   // A long description cannot substitute for a missing transcript.
   if (isTranscriptBlocked(content)) return t("transcriptBlockedWarning");
+  if (['not_ready', 'transient'].includes(content.extractionStatus)) return t('captureRetryIncomplete');
   const words = countWords(content.content || "");
   const sourceType = isVideoMediaSource(content) ? "video" : content.sourceType;
   return isContentSuspiciouslyLow(words, sourceType)

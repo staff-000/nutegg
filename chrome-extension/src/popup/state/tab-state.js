@@ -151,9 +151,11 @@ class TabStateManager {
         next.operations[kind] = { requestId: event.token.requestId, running: true, phase: event.phase || (kind === 'analysis' ? 'stage1' : kind), dependencies: event.token.dependencies, startedAt: Date.now() };
         if (['analysis', 'saving', 'followup', 'creation'].includes(kind)) next.intentRevision++;
         delete next.errors[kind]; next.success = null;
+        if (kind === 'extraction') next.warning = null;
         if (kind === 'analysis') next.completion = null;
         break;
       case 'phase': next.operations[kind].phase = event.phase; break;
+      case 'captureProgress': next.operations[kind].progress = popupCopy(event.progress); break;
       case 'analysisInterim':
         result(event.result, true); next.stage1Payload = popupCopy(event.payload);
         next.selectedEggs = popupCopy(event.eggs || event.result.matchedEggs || []);

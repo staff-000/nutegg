@@ -17,14 +17,25 @@ function chineseFetchAllowed(raw, senderUrl) {
   } catch {}
   return false;
 }
+const chineseCaptureRequests = new Map();
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  const requestKey = sender.tab && message.requestId ? `${sender.tab.id}:${sender.frameId || 0}:${sender.documentId || ''}:${message.requestId}` : null;
+  if (message.action === 'chinese-content-cancel') {
+    if (requestKey) for (const controller of chineseCaptureRequests.get(requestKey) || []) controller.abort();
+    sendResponse({ success: true });
+    return false;
+  }
   if (message.action !== 'chinese-content-fetch') return false;
   if (!sender.tab || !chineseFetchAllowed(message.url, sender.url)) {
     sendResponse({ success: false, error: 'Unsupported content URL' });
     return false;
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1800);
+  if (requestKey) {
+    if (!chineseCaptureRequests.has(requestKey)) chineseCaptureRequests.set(requestKey, new Set());
+    chineseCaptureRequests.get(requestKey).add(controller);
+  }
+  const timer = setTimeout(() => controller.abort(), Math.max(1, Math.min(4000, (message.deadline || Infinity) - Date.now())));
   fetch(message.url, { credentials: new URL(message.url).hostname === 'api.bilibili.com' ? 'include' : 'omit',
     signal: controller.signal, redirect: 'error' })
     .then(async response => {
@@ -46,6 +57,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true, text: new TextDecoder().decode(bytes) });
     })
     .catch(error => sendResponse({ success: false, error: error.message }))
-    .finally(() => clearTimeout(timer));
+    .finally(() => {
+      clearTimeout(timer);
+      if (requestKey) {
+        const requests = chineseCaptureRequests.get(requestKey);
+        requests?.delete(controller);
+        if (!requests?.size) chineseCaptureRequests.delete(requestKey);
+      }
+    });
   return true;
 });

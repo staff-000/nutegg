@@ -41,6 +41,7 @@ class PopupOperations {
   }
   async runExtraction(ctx, waitForSettle) {
     const tabId = ctx.token.tabId;
+    const deadline = Date.now() + 20000;
     try {
       const tab = await this.chromeApi.tabs.get(tabId);
       if (!this.store.isOperationCurrent(ctx.token)) return null;
@@ -53,7 +54,15 @@ class PopupOperations {
         await this.extractor.waitForPageSettle(tabId, cancelled);
         if (cancelled()) return null;
       }
-      const content = await this.extractor.extractPage(tabId, { isCancelled: cancelled, discussionSessionId: `${ctx.token.pageGeneration}:capture:${ctx.token.requestId}` });
+      const content = await this.extractor.extractPage(tabId, {
+        isCancelled: cancelled, expectedUrl: ctx.tab.url,
+        discussionSessionId: `${ctx.token.pageGeneration}:capture:${ctx.token.requestId}`,
+        retryCount: this.store.settings?.captureRetryCount ?? 3,
+        retryDelayMs: this.store.settings?.captureRetryDelayMs ?? 3000,
+        timeoutMs: Math.max(1, deadline - Date.now()),
+        onProgress: progress => this.store.commitOperation(ctx.token, { type: 'captureProgress', progress }),
+      });
+      if (cancelled()) return null;
       if (!content) throw new Error(t('couldNotExtractContent'));
       const helpers = globalThis.NutEggHelpers || {};
       const warning = helpers.getExtractionWarning?.(content) || null;

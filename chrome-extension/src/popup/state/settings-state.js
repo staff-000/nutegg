@@ -23,6 +23,8 @@ class SettingsState {
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = true;
     this.debugInfo = false;
+    this.captureRetryCount = 3;
+    this.captureRetryDelayMs = 3000;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -43,7 +45,7 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo"],
+          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs"],
           resolve
         );
       });
@@ -56,6 +58,7 @@ class SettingsState {
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       this.debugInfo = stored?.debugInfo === true;
+      this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
         this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof stored.enabledSections[key] === "boolean" ? stored.enabledSections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
       }
@@ -76,6 +79,13 @@ class SettingsState {
         chrome.storage.local.set({ analysisMode: normalized });
       }
     }
+  }
+
+  setCaptureRetries(values = {}) {
+    const bounded = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value)
+      ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
+    this.captureRetryCount = bounded(values.captureRetryCount ?? this.captureRetryCount, 3, 0, 10);
+    this.captureRetryDelayMs = bounded(values.captureRetryDelayMs ?? this.captureRetryDelayMs, 3000, 100, 10000);
   }
 
   setOutputLanguage(lang, persist = true) {
