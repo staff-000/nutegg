@@ -1,6 +1,7 @@
 import type NutEggPlugin from "./main";
 import { PROMPTS, renderPrompt } from "./prompt-templates";
 import { isAIConfigured } from "./ai-client";
+import { resolveEggPath } from "./egg-parser";
 
 /**
  * Parsed entry from _index.md.
@@ -186,7 +187,8 @@ export class IndexReader {
     return await this.plugin.app.vault.read(file as any);
   }
 
-  parseIndexContent(content: string): IndexEntry[] {
+  // Maintenance needs invalid entries to report/prune them; analysis excludes them by default.
+  parseIndexContent(content: string, options?: { includeInvalid?: boolean }): IndexEntry[] {
     const entries: IndexEntry[] = [];
 
     for (const rawLine of content.split("\n")) {
@@ -204,9 +206,9 @@ export class IndexReader {
       const fileName = line.substring(0, colonIdx).trim();
       const description = line.substring(colonIdx + 1).trim();
 
-      if (fileName.endsWith(".md")) {
-        entries.push({ fileName, description });
-      }
+      if (!fileName.toLowerCase().endsWith(".md")) continue;
+      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || "nutegg")) continue;
+      entries.push({ fileName, description });
     }
 
     return entries;

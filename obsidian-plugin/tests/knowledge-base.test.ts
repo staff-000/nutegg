@@ -150,8 +150,8 @@ describe("KnowledgeBase.saveRaw", () => {
 describe("KnowledgeBase.appendKnowledge", () => {
   it("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
-      "a.md": "# Knowledge\n\n- existing a\n",
-      "b.md": "# Knowledge\n\n- existing b\n",
+      "nutegg/a.md": "# Knowledge\n\n- existing a\n",
+      "nutegg/b.md": "# Knowledge\n\n- existing b\n",
     });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
@@ -166,8 +166,8 @@ describe("KnowledgeBase.appendKnowledge", () => {
       "https://example.com/src",
       "Jane Doe"
     );
-    const a = files.get("a.md")!;
-    const b = files.get("b.md")!;
+    const a = files.get("nutegg/a.md")!;
+    const b = files.get("nutegg/b.md")!;
     assert.ok(a.includes("# Unprocessed"));
     assert.ok(a.includes("- one"));
     assert.ok(a.includes("_author: Jane Doe_"));
@@ -178,12 +178,12 @@ describe("KnowledgeBase.appendKnowledge", () => {
   });
 
   it("removes playback timestamps and source quotes from hatched entries without changing originals or attribution", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n\n# Unprocessed\n" });
+    const { vault, files } = makeFakeVault({ "nutegg/a.md": "# Knowledge\n\n# Unprocessed\n" });
     const kb = new KnowledgeBase({ app: { vault } } as any);
     const item = { egg: "a.md", content: "- **Advice** [12:34]\n  - Important answer (01:02:03–01:02:30).\n  - Another example 02:15.\n  - Linked example [03:20](https://example.com/video?t=200).\n  - Source location: 12:34 — Supporting evidence.\n  - Source location: 01:02:03\n  - Source location: paragraph 2 — Paragraph evidence.\n  - Source quote: Standalone evidence.\n  - Aspect ratio 16:9; wait 30 seconds.\n  - https://example.com/video?t=12:34" };
     const original = item.content;
     await kb.appendKnowledge([item], "Video", "https://example.com/video", "Author");
-    const note = files.get("a.md")!;
+    const note = files.get("nutegg/a.md")!;
     assert.ok(!note.includes("[12:34]"));
     assert.ok(!note.includes("01:02:03"));
     assert.ok(!note.includes("02:15"));
@@ -195,7 +195,7 @@ describe("KnowledgeBase.appendKnowledge", () => {
   });
 
   it("omits the author line when unknown", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
+    const { vault, files } = makeFakeVault({ "nutegg/a.md": "# Knowledge\n" });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
       app: { vault },
@@ -206,7 +206,7 @@ describe("KnowledgeBase.appendKnowledge", () => {
       "https://example.com/src",
       ""
     );
-    const a = files.get("a.md")!;
+    const a = files.get("nutegg/a.md")!;
     assert.ok(!a.includes("_author:"));
     assert.ok(a.includes("_source: [Title](https://example.com/src)_"));
   });

@@ -1,5 +1,6 @@
 import type NutEggPlugin from "./main";
 import type { IndexEntry } from "./index-reader";
+import type { TFile } from "obsidian";
 import {
   KNOWLEDGE_HEADING,
   UNPROCESSED_HEADING,
@@ -20,6 +21,16 @@ import {
 // Re-export everything from shared egg-parser for backward compatibility
 export * from "@shared/egg-parser";
 
+/** Basenames refer only to the configured egg folder; explicit paths must stay inside it. */
+export function resolveEggPath(fileName: string, vaultFolder = "nutegg"): string | null {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\")) return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  // Reject absolute paths and traversal instead of normalizing them into another note.
+  if (path.split("/").some(part => !part || part === "." || part === "..")) return null;
+  return isEggPath(path, folder) ? path : null;
+}
+
 export class EggParser {
   private plugin: NutEggPlugin;
 
@@ -27,39 +38,66 @@ export class EggParser {
     this.plugin = plugin;
   }
 
-  private async findFile(path: string) {
+  private async findFile(fileName: string): Promise<{ file: TFile; path: string } | null> {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path) return null;
     const vault = this.plugin.app.vault;
-    if (!(await vault.adapter.exists(path))) return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter(file => resolveEggPath(file.path, folder) === file.path);
+    const exact = exists && files.find(file => file.path === path);
+    if (exact) return { file: exact, path: exact.path };
+    // Keep case-insensitive aliases, but never pick arbitrarily between ambiguous names.
+    const matches = files.filter(file => file.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1) return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!(await vault.adapter.exists(matchedPath))) return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+
+  private assertEggFile(file: TFile, path: string): void {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+
+  private async processFile(target: { file: TFile; path: string }, transform: (content: string) => string): Promise<void> {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content: string) => {
+      // TFile.path can change while vault.process/read waits on disk IO.
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process) await vault.process(file, guardedTransform);
+    else await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName: string, transform: (content: string) => string): Promise<void> {
+    const file = await this.findFile(fileName);
+    if (!file) throw new Error(`Cannot update — egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
 
   async readEgg(
     fileName: string,
     fallbackDescription?: string
   ): Promise<EggContent | null> {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop()!.toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop()!.toLowerCase() === base
-      );
-      if (match) file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
 
-    const content = await this.plugin.app.vault.read(file as any);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const content = await this.plugin.app.vault.read(file);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -114,11 +152,6 @@ export class EggParser {
     sourceTitle: string,
     sourceUrl: string
   ): Promise<void> {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append — egg file not found: ${fileName}`);
-    }
-
     const transform = (existing: string) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -145,8 +178,7 @@ export class EggParser {
       if (existing.includes(block)) return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process) await this.plugin.app.vault.process(file as any, transform);
-    else await this.plugin.app.vault.modify(file as any, transform(await this.plugin.app.vault.read(file as any)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
 
@@ -234,8 +266,7 @@ export class EggParser {
 
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process) await this.plugin.app.vault.process(file as any, transform);
-    else await this.plugin.app.vault.modify(file as any, transform(await this.plugin.app.vault.read(file as any)));
+    await this.processFile(file, transform);
     return applied;
   }
 }

@@ -10,6 +10,19 @@ import {
 import type NutEggPlugin from "./main";
 import type { MergeResult } from "./ai-processor";
 import { t } from "./i18n";
+import { resolveEggPath } from "./egg-parser";
+
+/** Bind the editor to its own leaf, never whichever tab happens to be active. */
+function editorFilePath(plugin: NutEggPlugin, view: EditorView): string {
+  for (const leaf of plugin.app.workspace.getLeavesOfType("markdown")) {
+    if ((leaf.view as any)?.editor?.cm === view) return (leaf.view as any).file?.path || "";
+  }
+  return "";
+}
+
+function isScopedEgg(plugin: NutEggPlugin, path: string): boolean {
+  return !!path && resolveEggPath(path, plugin.vaultFolder || "nutegg") === path;
+}
 
 /**
  * Merge UI in both modes:
@@ -83,12 +96,15 @@ export async function runMerge(
   filePath: string,
   currentDoc: string | null
 ): Promise<MergeResult | null> {
+  if (!isScopedEgg(plugin, filePath)) return null;
   if (currentDoc !== null) {
-    const file = plugin.app.vault.getAbstractFileByPath(filePath);
-    if (file) {
-      const disk = await plugin.app.vault.read(file as any);
-      if (disk !== currentDoc) {
-        await plugin.app.vault.modify(file as any, currentDoc);
+    const egg = await plugin.eggParser.readEgg(filePath);
+    if (egg) {
+      if (egg.sourceText !== currentDoc) {
+        await plugin.eggParser.processEgg(filePath, disk => {
+          if (disk !== egg.sourceText) throw new Error(`Egg changed before editor save: ${filePath}`);
+          return currentDoc;
+        });
         console.log(`[NutEgg] Saved unsaved edits in ${filePath} before merge`);
       }
     }
@@ -129,7 +145,7 @@ function appendCreditPill(plugin: NutEggPlugin, targetBadge: HTMLElement): void 
 export function registerMergeWidget(plugin: NutEggPlugin): void {
   plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     // Only process markdown files that could be egg files
-    if (!ctx.sourcePath || ctx.sourcePath.includes("/_raw/") || ctx.sourcePath.endsWith("_index.md")) {
+    if (!isScopedEgg(plugin, ctx.sourcePath)) {
       return;
     }
 
@@ -212,7 +228,6 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
       button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
-
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
@@ -285,6 +300,7 @@ class MergeButtonWidget extends WidgetType {
       button.addEventListener("click", async (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (editorFilePath(this.plugin, this.view) !== this.filePath) return;
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
@@ -340,15 +356,12 @@ class EggMergeEditorPlugin {
 
   /** The vault path of the file rendered by this editor view. */
   private filePath(): string {
-    for (const leaf of this.plugin.app.workspace.getLeavesOfType("markdown")) {
-      if ((leaf.view as any)?.editor?.cm === this.view) {
-        return (leaf.view as any).file?.path || "";
-      }
-    }
-    return this.plugin.app.workspace.getActiveFile()?.path || "";
+    return editorFilePath(this.plugin, this.view);
   }
 
   private build(): DecorationSet {
+    const filePath = this.filePath();
+    if (!isScopedEgg(this.plugin, filePath)) return this.logState("not-egg", Decoration.none);
     const docText = this.view.state.doc.toString();
     const lineNo = findInstructionTargetLine(docText);
     if (lineNo === null) {
@@ -358,7 +371,7 @@ class EggMergeEditorPlugin {
     // Count from the LIVE document (reflects unsaved edits). The badge
     // always shows (so the widget is discoverable); the button only when
     // there is something to merge.
-    const egg = this.plugin.eggParser.parseEggFile(this.filePath(), docText);
+    const egg = this.plugin.eggParser.parseEggFile(filePath, docText);
     const count = this.plugin.eggParser.countUnprocessed(egg);
     const state = count === 0 ? "up-to-date" : `count-${count}`;
 
@@ -367,7 +380,7 @@ class EggMergeEditorPlugin {
       state,
       Decoration.set([
         Decoration.widget({
-          widget: new MergeButtonWidget(this.plugin, this.view, this.filePath(), count),
+          widget: new MergeButtonWidget(this.plugin, this.view, filePath, count),
           // CM block widgets can't come from plugins — an inline decoration
           // whose DOM displays as a block is the portable equivalent (the
           // CSS gives it width:100% so it sits on its own line).
@@ -383,9 +396,11 @@ class EggMergeEditorPlugin {
       const detail =
         state === "no-target"
           ? "no instruction block or heading in this file"
-          : state === "up-to-date"
-            ? "0 entries — showing up-to-date badge"
-            : `${state.replace("count-", "")} entries — showing merge button`;
+          : state === "not-egg"
+            ? "outside egg folder or editor has no file binding"
+            : state === "up-to-date"
+              ? "0 entries — showing up-to-date badge"
+              : `${state.replace("count-", "")} entries — showing merge button`;
       console.log(`[NutEgg] Editor merge widget (${this.filePath() || "?"}): ${detail}`);
     }
     return decorations;

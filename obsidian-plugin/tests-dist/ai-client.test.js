@@ -124,6 +124,7 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -237,7 +238,17 @@ function findOpenRouterFamily(modelName) {
   const families = PROVIDER_CATALOG.openrouter.families || [];
   if (families.length === 0)
     return void 0;
-  return families.find((f) => f.models.includes(modelName)) || families[0];
+  const exact = families.find((f) => f.models.includes(modelName));
+  if (exact)
+    return exact;
+  const byPrefix = families.find((f) => {
+    if (f.id === "custom")
+      return false;
+    if (f.id === "meta")
+      return modelName.startsWith("meta-llama/") || modelName.startsWith("meta/");
+    return modelName.startsWith(f.id + "/");
+  });
+  return byPrefix || families[0];
 }
 function isAIConfigured(settings) {
   if (!settings)

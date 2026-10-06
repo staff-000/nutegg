@@ -357,6 +357,7 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -483,6 +484,41 @@ function isAIConfigured(settings) {
 // ../shared/src/ai-diagnostics.ts
 var createStats = (startedAt = Date.now()) => ({ activeCalls: 0, totalCalls: 0, promptWords: 0, lastPromptWords: 0, startedAt });
 var stats = createStats();
+
+// ../shared/src/egg-parser.ts
+function isEggPath(path, vaultFolder = "nutegg") {
+  if (!path || typeof path !== "string")
+    return false;
+  const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+  const folder = (vaultFolder || "").replace(/^\/+|\/+$/g, "");
+  if (folder) {
+    if (!normalized.startsWith(folder + "/"))
+      return false;
+    const rel = normalized.slice(folder.length + 1);
+    if (rel.includes("/"))
+      return false;
+    if (rel.startsWith("_") || !rel.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  } else {
+    if (normalized.includes("/"))
+      return false;
+    if (normalized.startsWith("_") || !normalized.toLowerCase().endsWith(".md"))
+      return false;
+    return true;
+  }
+}
+
+// src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 
 // src/index-reader.ts
 var IndexReader = class {
@@ -613,7 +649,8 @@ var IndexReader = class {
       return "(No _index.md found)";
     return await this.plugin.app.vault.read(file);
   }
-  parseIndexContent(content) {
+  // Maintenance needs invalid entries to report/prune them; analysis excludes them by default.
+  parseIndexContent(content, options) {
     const entries = [];
     for (const rawLine of content.split("\n")) {
       const trimmed = rawLine.trim();
@@ -625,9 +662,11 @@ var IndexReader = class {
         continue;
       const fileName = line.substring(0, colonIdx).trim();
       const description = line.substring(colonIdx + 1).trim();
-      if (fileName.endsWith(".md")) {
-        entries.push({ fileName, description });
-      }
+      if (!fileName.toLowerCase().endsWith(".md"))
+        continue;
+      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || "nutegg"))
+        continue;
+      entries.push({ fileName, description });
     }
     return entries;
   }
@@ -806,6 +845,25 @@ function parse(content) {
   });
   (0, import_node_test.it)("returns empty list for empty content", () => {
     import_strict.default.deepEqual(parse(""), []);
+  });
+  (0, import_node_test.it)("excludes external, traversing, nested and system paths from routing", () => {
+    const entries = parse([
+      "egg.md: basename",
+      "nutegg/valid.md: explicit egg",
+      "outside/valid.md: external note",
+      "../valid.md: traversal",
+      "/nutegg/valid.md: absolute path",
+      "nutegg/../valid.md: traversal",
+      "nutegg/_index.md: system",
+      "nutegg/_raw/raw.md: raw nut",
+      "nutegg/_workflow/prompt.md: prompt",
+      "nutegg/sub/nested.md: nested note"
+    ].join("\n"));
+    import_strict.default.deepEqual(entries.map((entry) => entry.fileName), ["egg.md", "nutegg/valid.md"]);
+  });
+  (0, import_node_test.it)("uses the configured egg folder", () => {
+    const reader = new IndexReader(makeFakePlugin({ vaultFolder: "custom/eggs" }));
+    import_strict.default.deepEqual(reader.parseIndexContent("a.md: alias\ncustom/eggs/b.md: valid\nnutegg/c.md: external").map((entry) => entry.fileName), ["a.md", "custom/eggs/b.md"]);
   });
 });
 (0, import_node_test.describe)("IndexReader.parseMatchedEggs", () => {

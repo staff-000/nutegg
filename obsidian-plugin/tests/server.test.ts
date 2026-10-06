@@ -408,6 +408,50 @@ describe("NutEggServer.handleConfirm", () => {
     assert.equal(appended[3], "Jane Doe");
   });
 
+  it("rejects unsafe egg destinations before any archive, append or database write", async () => {
+    const effects: string[] = [];
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => { effects.push("archive"); return "raw.md"; },
+        appendKnowledge: async () => { effects.push("append"); },
+      },
+      db: { insertNut: () => effects.push("database") },
+    });
+    for (const path of ["outside/egg.md", "../egg.md", "/nutegg/egg.md", "nutegg/_index.md", "nutegg/_raw/egg.md"]) {
+      const res = makeRes();
+      await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, skipRaw: false,
+        newKnowledge: [{ egg: "nutegg/valid.md", content: "valid" }, { egg: path, content: "unsafe" }],
+      })), res);
+      assert.equal(res.statusCode, 400, path);
+      assert.match(JSON.parse(res.body).error, /configured egg folder/);
+    }
+    assert.deepEqual(effects, []);
+  });
+
+  it("hatches basename selections and language metadata only into the actual egg folder", async () => {
+    const rootNote = "# Knowledge\n- private root note";
+    const externalNote = "# Knowledge\n- private external note";
+    const { vault, files } = makeFakeVault({
+      "egg.md": rootNote,
+      "outside/egg.md": externalNote,
+      "nutegg/egg.md": "# Knowledge\n- tree",
+    });
+    const plugin = makeFakePlugin({ vault });
+    plugin.eggParser = new EggParser(plugin as any);
+    plugin.knowledgeBase = new KnowledgeBase(plugin as any);
+    const s = new NutEggServer(plugin as any, 27123) as any;
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm,
+      newKnowledge: [{ egg: "egg.md", content: "new insight" }],
+      analysis: { eggResults: [{ egg: "egg.md", language: "English" }, { egg: "outside/egg.md", language: "Chinese" }] },
+    })), res);
+    assert.equal(res.statusCode, 200, res.body);
+    assert.ok(files.get("nutegg/egg.md")!.includes("- new insight"));
+    assert.ok(files.get("nutegg/egg.md")!.includes('language: "English"'));
+    assert.equal(files.get("egg.md"), rootNote);
+    assert.equal(files.get("outside/egg.md"), externalNote);
+  });
+
   it("archives Stage 2 originals on an already-collected nut and schedules merge after acknowledgement", async () => {
     const events: string[] = [];
     const analysis = { schemaVersion: 3, readAction: "skip", eggResults: [{ egg: "egg.md", language: "English" }] };

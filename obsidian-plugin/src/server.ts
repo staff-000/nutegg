@@ -15,7 +15,7 @@ import type {
 import { sanitizeEggName } from "./index-sync";
 import { composeEggResults } from "../../shared/src/analysis-results";
 import type { EggAnalysis } from "../../shared/src/types";
-import { isEggPath, insertEggLanguage } from "./egg-parser";
+import { isEggPath, insertEggLanguage, resolveEggPath } from "./egg-parser";
 
 interface AnalyzeRequest {
   debugScope?: string;
@@ -853,6 +853,13 @@ export class NutEggServer {
         return;
       }
 
+      // Reject unsafe destinations before archiving, deduplicating, or writing any eggs.
+      if ((confirm.newKnowledge || []).some(entry => !resolveEggPath(entry.egg, this.plugin.vaultFolder || "nutegg"))) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Knowledge destination must be an egg in the configured egg folder" }));
+        return;
+      }
+
       const normalizedUrl = this.normalizeUrl(confirm.url);
       releaseConfirmation = await this.lockConfirmation(confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`);
       const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
@@ -939,14 +946,7 @@ export class NutEggServer {
               try {
                 const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
                 if (egg && !egg.language) {
-                  const file = this.plugin.app.vault.getMarkdownFiles().find(file => file.path === egg.fileName);
-                  if (file) {
-                    const vault = this.plugin.app.vault;
-                    const language = perEgg.language;
-                    const transform = (content: string) => insertEggLanguage(content, language);
-                    if (vault.process) await vault.process(file, transform);
-                    else await vault.modify(file, transform(await vault.read(file)));
-                  }
+                  await this.plugin.eggParser.processEgg(egg.fileName, content => insertEggLanguage(content, perEgg.language!));
                 }
               } catch (err) {
                 console.warn(`[NutEgg] Failed to persist egg language on confirm:`, err);

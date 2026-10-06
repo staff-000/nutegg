@@ -7,6 +7,7 @@ import {
   insertEggLanguage,
   isEggPath,
   matchesEggFormat,
+  resolveEggPath,
 } from "./egg-parser";
 
 export { isEggPath, matchesEggFormat };
@@ -218,8 +219,7 @@ export class IndexSync {
   /** Calculate discrepancies between _index.md and disk */
   async getDiffStatus(): Promise<IndexDiffStatus> {
     const folder = this.plugin.vaultFolder || "nutegg";
-    const norm = (p: string) =>
-      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+    const norm = (p: string) => resolveEggPath(p, folder) || "";
 
     const eggFilesOnDisk = (this.plugin.app.vault.getMarkdownFiles?.() || [])
       .filter((f) => isEggPath(f.path, folder))
@@ -231,7 +231,7 @@ export class IndexSync {
       return { missingEggs: [], unindexedEggs: [], invalidEntries: [], totalDiffs: 0 };
     }
 
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent, { includeInvalid: true });
     const missingEggs: string[] = [];
     const invalidEntries: string[] = [];
     const indexedEggPaths = new Set<string>();
@@ -295,10 +295,9 @@ export class IndexSync {
     if (indexContent === "(No _index.md found)") {
       return result;
     }
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent, { includeInvalid: true });
 
-    const norm = (p: string) =>
-      p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+    const norm = (p: string) => resolveEggPath(p, folder) || "";
 
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
@@ -359,7 +358,6 @@ export class IndexSync {
     for (const entry of entries) {
       const target = norm(entry.fileName);
       if (await this.plugin.app.vault.adapter.exists(target)) continue;
-      if (await this.plugin.app.vault.adapter.exists(entry.fileName)) continue;
         try {
           await this.createEggFromTemplate(target, entry);
           if (target !== entry.fileName) {
@@ -515,6 +513,12 @@ export class IndexSync {
     targetPath: string,
     entry: IndexEntry
   ): Promise<{ path: string; language: string }> {
+    const assertTarget = () => {
+      if (resolveEggPath(targetPath, this.plugin.vaultFolder || "nutegg") !== targetPath) {
+        throw new Error(`Cannot create egg outside the egg folder: ${targetPath}`);
+      }
+    };
+    assertTarget();
     await this.ensureParentFolders(targetPath);
     const folder = this.plugin.vaultFolder || "nutegg";
     const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
@@ -570,6 +574,7 @@ export class IndexSync {
       content = insertEggLanguage(content, detectedLanguage, { overwrite: true });
     }
 
+    assertTarget();
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);
     return { path: targetPath, language: detectedLanguage };

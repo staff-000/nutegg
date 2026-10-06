@@ -1367,315 +1367,6 @@ function t(key, params) {
   return str;
 }
 
-// src/merge-widget.ts
-function findInstructionTargetLine(docText) {
-  const lines = docText.split("\n");
-  const calloutStart = lines.findIndex(
-    (l) => /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
-  );
-  if (calloutStart !== -1) {
-    let calloutEnd = calloutStart;
-    for (let i = calloutStart + 1; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (trimmed.startsWith(">")) {
-        calloutEnd = i;
-      } else if (trimmed === "") {
-        let moreCallout = false;
-        for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
-          const nextTrimmed = lines[j].trim();
-          if (nextTrimmed === "")
-            continue;
-          if (nextTrimmed.startsWith(">"))
-            moreCallout = true;
-          break;
-        }
-        if (moreCallout)
-          continue;
-        break;
-      } else {
-        break;
-      }
-    }
-    return calloutEnd + 1;
-  }
-  const headingIdx = lines.findIndex(
-    (l) => /^#+\s*instructions?\s*:?$/i.test(l.trim())
-  );
-  if (headingIdx !== -1) {
-    return headingIdx + 1;
-  }
-  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
-  if (unprocIdx !== -1) {
-    return unprocIdx + 1;
-  }
-  return null;
-}
-async function runMerge(plugin, filePath, currentDoc) {
-  if (currentDoc !== null) {
-    const file = plugin.app.vault.getAbstractFileByPath(filePath);
-    if (file) {
-      const disk = await plugin.app.vault.read(file);
-      if (disk !== currentDoc) {
-        await plugin.app.vault.modify(file, currentDoc);
-        console.log(`[NutEgg] Saved unsaved edits in ${filePath} before merge`);
-      }
-    }
-  }
-  return plugin.aiProcessor.mergeEgg(filePath);
-}
-function appendCreditPill(plugin, targetBadge) {
-  if (typeof plugin.aiClient?.checkCredit !== "function")
-    return;
-  const creditPill = document.createElement("span");
-  creditPill.className = "nutegg-merge-credit";
-  creditPill.style.opacity = "0.75";
-  creditPill.style.marginLeft = "8px";
-  creditPill.style.fontSize = "0.85em";
-  plugin.aiClient.checkCredit(plugin.settings).then((credit) => {
-    if (credit.hasBalance && credit.balanceFormatted) {
-      creditPill.textContent = `\u2022 \u{1FA99} ${credit.providerLabel}: ${credit.balanceFormatted}`;
-      creditPill.title = `NutEgg AI: ${credit.statusText}`;
-      targetBadge.appendChild(creditPill);
-    } else if (credit.providerLabel) {
-      const label = plugin.settings.aiProvider === "openrouter" ? "OpenRouter" : credit.providerLabel;
-      creditPill.textContent = `\u2022 \u{1FA99} ${label}`;
-      creditPill.title = `NutEgg AI: ${credit.statusText}`;
-      targetBadge.appendChild(creditPill);
-    }
-  }).catch(() => {
-  });
-}
-var MergeButtonWidget = class extends import_view.WidgetType {
-  constructor(plugin, view, filePath, count) {
-    super();
-    this.plugin = plugin;
-    this.view = view;
-    this.filePath = filePath;
-    this.count = count;
-  }
-  toDOM() {
-    const wrap = document.createElement("div");
-    wrap.className = "nutegg-merge-container nutegg-merge-editor-widget";
-    const badge = document.createElement("div");
-    badge.className = "nutegg-merge-badge";
-    badge.textContent = this.count > 0 ? t("unprocessedEntries", {
-      count: this.count,
-      entries: this.count === 1 ? t("entrySingle") : t("entryPlural")
-    }) : t("treeUpToDate");
-    appendCreditPill(this.plugin, badge);
-    wrap.appendChild(badge);
-    if (this.count > 0) {
-      const button = document.createElement("button");
-      button.className = "nutegg-merge-btn mod-cta";
-      button.textContent = t("mergeButtonText");
-      button.addEventListener("click", async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (button.disabled)
-          return;
-        button.disabled = true;
-        const originalText = button.textContent;
-        button.textContent = t("merging");
-        try {
-          const result = await runMerge(
-            this.plugin,
-            this.filePath,
-            this.view.state.doc.toString()
-          );
-          if (result && result.entries > 0) {
-            new Notice(t("mergedEntries", { count: result.entries }));
-          } else {
-            new Notice(t("mergeNoChanges"));
-            button.disabled = false;
-            button.textContent = originalText;
-          }
-        } catch (err) {
-          console.error("[NutEgg] Editor merge failed:", err);
-          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
-          button.disabled = false;
-          button.textContent = originalText;
-        }
-      });
-      wrap.appendChild(button);
-    }
-    return wrap;
-  }
-};
-var EggMergeEditorPlugin = class {
-  constructor(plugin, view) {
-    this.plugin = plugin;
-    this.view = view;
-    this.decorations = this.build();
-  }
-  decorations;
-  /** Last built state — logged once per transition, not per keystroke. */
-  lastState = "";
-  update(update) {
-    if (update.docChanged || update.viewportChanged) {
-      this.decorations = this.build();
-    }
-  }
-  /** The vault path of the file rendered by this editor view. */
-  filePath() {
-    for (const leaf of this.plugin.app.workspace.getLeavesOfType("markdown")) {
-      if (leaf.view?.editor?.cm === this.view) {
-        return leaf.view.file?.path || "";
-      }
-    }
-    return this.plugin.app.workspace.getActiveFile()?.path || "";
-  }
-  build() {
-    const docText = this.view.state.doc.toString();
-    const lineNo = findInstructionTargetLine(docText);
-    if (lineNo === null) {
-      return this.logState("no-target", import_view.Decoration.none);
-    }
-    const egg = this.plugin.eggParser.parseEggFile(this.filePath(), docText);
-    const count = this.plugin.eggParser.countUnprocessed(egg);
-    const state = count === 0 ? "up-to-date" : `count-${count}`;
-    const line = this.view.state.doc.line(lineNo);
-    return this.logState(
-      state,
-      import_view.Decoration.set([
-        import_view.Decoration.widget({
-          widget: new MergeButtonWidget(this.plugin, this.view, this.filePath(), count),
-          // CM block widgets can't come from plugins — an inline decoration
-          // whose DOM displays as a block is the portable equivalent (the
-          // CSS gives it width:100% so it sits on its own line).
-          side: 1
-        }).range(line.to)
-      ])
-    );
-  }
-  logState(state, decorations) {
-    if (state !== this.lastState) {
-      this.lastState = state;
-      const detail = state === "no-target" ? "no instruction block or heading in this file" : state === "up-to-date" ? "0 entries \u2014 showing up-to-date badge" : `${state.replace("count-", "")} entries \u2014 showing merge button`;
-      console.log(`[NutEgg] Editor merge widget (${this.filePath() || "?"}): ${detail}`);
-    }
-    return decorations;
-  }
-};
-function mergeEditorExtension(plugin) {
-  return import_view.ViewPlugin.fromClass(
-    class extends EggMergeEditorPlugin {
-      constructor(view) {
-        super(plugin, view);
-      }
-    },
-    // Required: fromClass only wires decorations into the editor when the
-    // spec declares them — an instance `decorations` field alone is ignored.
-    { decorations: (v) => v.decorations }
-  );
-}
-
-// tests/helpers.ts
-function makeFakeVault(initial = {}) {
-  const files = new Map(Object.entries(initial));
-  const basePath = "/fake/vault";
-  const listeners = /* @__PURE__ */ new Map();
-  const toTFile = (p) => Object.assign(new TFile(), {
-    path: p,
-    name: p.split("/").pop() || "",
-    basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
-    extension: p.split(".").pop() || ""
-  });
-  const adapter = {
-    exists: async (p) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + "/")),
-    read: async (p) => {
-      if (!files.has(p))
-        throw new Error("File not found: " + p);
-      return files.get(p);
-    },
-    remove: async (p) => {
-      files.delete(p);
-    },
-    append: async (p, data) => {
-      files.set(p, (files.get(p) ?? "") + data);
-    },
-    getBasePath: () => basePath
-  };
-  const vault = {
-    adapter,
-    listeners,
-    on: (event, callback) => {
-      if (!listeners.has(event))
-        listeners.set(event, []);
-      listeners.get(event).push(callback);
-    },
-    trigger: (event, file) => {
-      for (const cb of listeners.get(event) || []) {
-        cb(file);
-      }
-    },
-    create: async (p, content) => {
-      files.set(p, content);
-      vault.trigger("create", toTFile(p));
-    },
-    createFolder: async (_p) => {
-    },
-    modify: async (file, content) => {
-      files.set(file.path, content);
-      vault.trigger("modify", toTFile(file.path));
-    },
-    read: async (file) => {
-      if (!files.has(file.path))
-        throw new Error("File not found: " + file.path);
-      return files.get(file.path);
-    },
-    delete: async (file) => {
-      files.delete(file.path);
-      vault.trigger("delete", toTFile(file.path));
-    },
-    getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
-    getFiles: () => [...files.keys()].map((p) => toTFile(p)),
-    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
-  };
-  return { files, basePath, vault };
-}
-function makeFakePlugin(overrides = {}) {
-  const { vault } = makeFakeVault(overrides.vaultFiles || {});
-  return {
-    manifest: overrides.manifest ?? { version: "0.1.0" },
-    settings: {
-      aiApiKey: "test-key",
-      rawFolder: "nutegg/_raw",
-      indexFile: "nutegg/_index.md",
-      serverPort: 27123,
-      chunkWindowChars: 3e4,
-      ...overrides.settings || {}
-    },
-    app: { vault: overrides.vault ?? vault },
-    aiClient: overrides.aiClient ?? {
-      chat: async () => "{}",
-      checkCredit: async () => ({
-        provider: "anthropic",
-        providerLabel: "Anthropic (Claude)",
-        source: "openrouter",
-        model: "claude-sonnet-5",
-        hasBalance: true,
-        balanceFormatted: "$8.45",
-        statusText: "$8.45 left"
-      })
-    },
-    eggParser: overrides.eggParser ?? {
-      formatEggForPrompt: (e) => `egg:${e.fileName}`,
-      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
-      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
-    },
-    indexReader: overrides.indexReader ?? {
-      getIndexContent: async () => "",
-      parseIndexContent: () => []
-    },
-    knowledgeBase: overrides.knowledgeBase ?? {},
-    workflowManager: overrides.workflowManager ?? {
-      getPrompt: () => ""
-    },
-    db: overrides.db ?? null,
-    ...overrides
-  };
-}
-
 // ../shared/src/egg-format.ts
 function formatEggInstructionsForPrompt(egg) {
   const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
@@ -1869,41 +1560,77 @@ function parseListItems(text) {
 }
 
 // src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async findFile(path) {
-    const vault = this.plugin.app.vault;
-    if (!await vault.adapter.exists(path))
+  async findFile(fileName) {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path)
       return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const vault = this.plugin.app.vault;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter((file2) => resolveEggPath(file2.path, folder) === file2.path);
+    const exact = exists && files.find((file2) => file2.path === path);
+    if (exact)
+      return { file: exact, path: exact.path };
+    const matches = files.filter((file2) => file2.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1)
+      return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!await vault.adapter.exists(matchedPath))
+      return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+  assertEggFile(file, path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+  async processFile(target, transform) {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content) => {
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process)
+      await vault.process(file, guardedTransform);
+    else
+      await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName, transform) {
+    const file = await this.findFile(fileName);
+    if (!file)
+      throw new Error(`Cannot update \u2014 egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
   async readEgg(fileName, fallbackDescription) {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop().toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop().toLowerCase() === base
-      );
-      if (match)
-        file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
+    const { file, path } = target;
+    this.assertEggFile(file, path);
     const content = await this.plugin.app.vault.read(file);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -1944,10 +1671,6 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
-    }
     const transform = (existing) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -1968,10 +1691,7 @@ var EggParser = class {
         return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
@@ -2041,13 +1761,429 @@ var EggParser = class {
       }
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processFile(file, transform);
     return applied;
   }
 };
+
+// src/merge-widget.ts
+function editorFilePath(plugin, view) {
+  for (const leaf of plugin.app.workspace.getLeavesOfType("markdown")) {
+    if (leaf.view?.editor?.cm === view)
+      return leaf.view.file?.path || "";
+  }
+  return "";
+}
+function isScopedEgg(plugin, path) {
+  return !!path && resolveEggPath(path, plugin.vaultFolder || "nutegg") === path;
+}
+function findInstructionTargetLine(docText) {
+  const lines = docText.split("\n");
+  const calloutStart = lines.findIndex(
+    (l) => /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
+  );
+  if (calloutStart !== -1) {
+    let calloutEnd = calloutStart;
+    for (let i = calloutStart + 1; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.startsWith(">")) {
+        calloutEnd = i;
+      } else if (trimmed === "") {
+        let moreCallout = false;
+        for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
+          const nextTrimmed = lines[j].trim();
+          if (nextTrimmed === "")
+            continue;
+          if (nextTrimmed.startsWith(">"))
+            moreCallout = true;
+          break;
+        }
+        if (moreCallout)
+          continue;
+        break;
+      } else {
+        break;
+      }
+    }
+    return calloutEnd + 1;
+  }
+  const headingIdx = lines.findIndex(
+    (l) => /^#+\s*instructions?\s*:?$/i.test(l.trim())
+  );
+  if (headingIdx !== -1) {
+    return headingIdx + 1;
+  }
+  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
+  if (unprocIdx !== -1) {
+    return unprocIdx + 1;
+  }
+  return null;
+}
+async function runMerge(plugin, filePath, currentDoc) {
+  if (!isScopedEgg(plugin, filePath))
+    return null;
+  if (currentDoc !== null) {
+    const egg = await plugin.eggParser.readEgg(filePath);
+    if (egg) {
+      if (egg.sourceText !== currentDoc) {
+        await plugin.eggParser.processEgg(filePath, (disk) => {
+          if (disk !== egg.sourceText)
+            throw new Error(`Egg changed before editor save: ${filePath}`);
+          return currentDoc;
+        });
+        console.log(`[NutEgg] Saved unsaved edits in ${filePath} before merge`);
+      }
+    }
+  }
+  return plugin.aiProcessor.mergeEgg(filePath);
+}
+function appendCreditPill(plugin, targetBadge) {
+  if (typeof plugin.aiClient?.checkCredit !== "function")
+    return;
+  const creditPill = document.createElement("span");
+  creditPill.className = "nutegg-merge-credit";
+  creditPill.style.opacity = "0.75";
+  creditPill.style.marginLeft = "8px";
+  creditPill.style.fontSize = "0.85em";
+  plugin.aiClient.checkCredit(plugin.settings).then((credit) => {
+    if (credit.hasBalance && credit.balanceFormatted) {
+      creditPill.textContent = `\u2022 \u{1FA99} ${credit.providerLabel}: ${credit.balanceFormatted}`;
+      creditPill.title = `NutEgg AI: ${credit.statusText}`;
+      targetBadge.appendChild(creditPill);
+    } else if (credit.providerLabel) {
+      const label = plugin.settings.aiProvider === "openrouter" ? "OpenRouter" : credit.providerLabel;
+      creditPill.textContent = `\u2022 \u{1FA99} ${label}`;
+      creditPill.title = `NutEgg AI: ${credit.statusText}`;
+      targetBadge.appendChild(creditPill);
+    }
+  }).catch(() => {
+  });
+}
+function registerMergeWidget(plugin) {
+  plugin.registerMarkdownPostProcessor(async (el, ctx) => {
+    if (!isScopedEgg(plugin, ctx.sourcePath)) {
+      return;
+    }
+    let targetElement = null;
+    const callouts = el.querySelectorAll(".callout");
+    for (let i = 0; i < callouts.length; i++) {
+      const c = callouts[i];
+      const title = c.querySelector(".callout-title, .callout-title-inner")?.textContent?.toLowerCase() || "";
+      const type = c.getAttribute("data-callout")?.toLowerCase() || "";
+      if (title.includes("instruction") || type === "abstract" || type === "info") {
+        targetElement = c;
+        break;
+      }
+    }
+    if (!targetElement) {
+      const headings = el.querySelectorAll("h1, h2, h3");
+      for (let i = 0; i < headings.length; i++) {
+        const h = headings[i];
+        const text = h.textContent?.trim().toLowerCase() || "";
+        if (text.startsWith("instruction") || text.includes("instruction")) {
+          targetElement = h;
+          break;
+        }
+      }
+    }
+    if (!targetElement) {
+      const headings = el.querySelectorAll("h1, h2, h3");
+      for (let i = 0; i < headings.length; i++) {
+        const h = headings[i];
+        const text = h.textContent?.trim().toLowerCase() || "";
+        if (text === "unprocessed" || text.startsWith("unprocessed")) {
+          targetElement = h;
+          break;
+        }
+      }
+    }
+    if (!targetElement)
+      return;
+    if (targetElement.parentElement?.querySelector(".nutegg-merge-container")) {
+      return;
+    }
+    const egg = await plugin.eggParser.readEgg(ctx.sourcePath);
+    if (!egg)
+      return;
+    const count = plugin.eggParser.countUnprocessed(egg);
+    const container = document.createElement("div");
+    container.className = "nutegg-merge-container";
+    const badge = document.createElement("div");
+    badge.className = "nutegg-merge-badge";
+    badge.textContent = count > 0 ? t("unprocessedEntries", {
+      count,
+      entries: count === 1 ? t("entrySingle") : t("entryPlural")
+    }) : t("treeUpToDate");
+    appendCreditPill(plugin, badge);
+    container.appendChild(badge);
+    if (count > 0) {
+      const button = document.createElement("button");
+      button.className = "nutegg-merge-btn mod-cta";
+      button.textContent = t("mergeButtonText");
+      button.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (button.disabled)
+          return;
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = t("mergingWithAi");
+        try {
+          const result = await runMerge(plugin, ctx.sourcePath, null);
+          if (result && result.entries > 0) {
+            new Notice(t("mergedEntries", { count: result.entries }));
+            button.textContent = t("mergedSuccess");
+            badge.textContent = t("treeUpToDate");
+            setTimeout(() => {
+              button.remove();
+            }, 2e3);
+          } else {
+            new Notice(t("mergeNoChanges"));
+            button.disabled = false;
+            button.textContent = originalText;
+          }
+        } catch (err) {
+          console.error("[NutEgg] Merge button click failed:", err);
+          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      });
+      container.appendChild(button);
+    }
+    targetElement.insertAdjacentElement("afterend", container);
+  });
+}
+var MergeButtonWidget = class extends import_view.WidgetType {
+  constructor(plugin, view, filePath, count) {
+    super();
+    this.plugin = plugin;
+    this.view = view;
+    this.filePath = filePath;
+    this.count = count;
+  }
+  toDOM() {
+    const wrap = document.createElement("div");
+    wrap.className = "nutegg-merge-container nutegg-merge-editor-widget";
+    const badge = document.createElement("div");
+    badge.className = "nutegg-merge-badge";
+    badge.textContent = this.count > 0 ? t("unprocessedEntries", {
+      count: this.count,
+      entries: this.count === 1 ? t("entrySingle") : t("entryPlural")
+    }) : t("treeUpToDate");
+    appendCreditPill(this.plugin, badge);
+    wrap.appendChild(badge);
+    if (this.count > 0) {
+      const button = document.createElement("button");
+      button.className = "nutegg-merge-btn mod-cta";
+      button.textContent = t("mergeButtonText");
+      button.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (editorFilePath(this.plugin, this.view) !== this.filePath)
+          return;
+        if (button.disabled)
+          return;
+        button.disabled = true;
+        const originalText = button.textContent;
+        button.textContent = t("merging");
+        try {
+          const result = await runMerge(
+            this.plugin,
+            this.filePath,
+            this.view.state.doc.toString()
+          );
+          if (result && result.entries > 0) {
+            new Notice(t("mergedEntries", { count: result.entries }));
+          } else {
+            new Notice(t("mergeNoChanges"));
+            button.disabled = false;
+            button.textContent = originalText;
+          }
+        } catch (err) {
+          console.error("[NutEgg] Editor merge failed:", err);
+          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      });
+      wrap.appendChild(button);
+    }
+    return wrap;
+  }
+};
+var EggMergeEditorPlugin = class {
+  constructor(plugin, view) {
+    this.plugin = plugin;
+    this.view = view;
+    this.decorations = this.build();
+  }
+  decorations;
+  /** Last built state — logged once per transition, not per keystroke. */
+  lastState = "";
+  update(update) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = this.build();
+    }
+  }
+  /** The vault path of the file rendered by this editor view. */
+  filePath() {
+    return editorFilePath(this.plugin, this.view);
+  }
+  build() {
+    const filePath = this.filePath();
+    if (!isScopedEgg(this.plugin, filePath))
+      return this.logState("not-egg", import_view.Decoration.none);
+    const docText = this.view.state.doc.toString();
+    const lineNo = findInstructionTargetLine(docText);
+    if (lineNo === null) {
+      return this.logState("no-target", import_view.Decoration.none);
+    }
+    const egg = this.plugin.eggParser.parseEggFile(filePath, docText);
+    const count = this.plugin.eggParser.countUnprocessed(egg);
+    const state = count === 0 ? "up-to-date" : `count-${count}`;
+    const line = this.view.state.doc.line(lineNo);
+    return this.logState(
+      state,
+      import_view.Decoration.set([
+        import_view.Decoration.widget({
+          widget: new MergeButtonWidget(this.plugin, this.view, filePath, count),
+          // CM block widgets can't come from plugins — an inline decoration
+          // whose DOM displays as a block is the portable equivalent (the
+          // CSS gives it width:100% so it sits on its own line).
+          side: 1
+        }).range(line.to)
+      ])
+    );
+  }
+  logState(state, decorations) {
+    if (state !== this.lastState) {
+      this.lastState = state;
+      const detail = state === "no-target" ? "no instruction block or heading in this file" : state === "not-egg" ? "outside egg folder or editor has no file binding" : state === "up-to-date" ? "0 entries \u2014 showing up-to-date badge" : `${state.replace("count-", "")} entries \u2014 showing merge button`;
+      console.log(`[NutEgg] Editor merge widget (${this.filePath() || "?"}): ${detail}`);
+    }
+    return decorations;
+  }
+};
+function mergeEditorExtension(plugin) {
+  return import_view.ViewPlugin.fromClass(
+    class extends EggMergeEditorPlugin {
+      constructor(view) {
+        super(plugin, view);
+      }
+    },
+    // Required: fromClass only wires decorations into the editor when the
+    // spec declares them — an instance `decorations` field alone is ignored.
+    { decorations: (v) => v.decorations }
+  );
+}
+
+// tests/helpers.ts
+function makeFakeVault(initial = {}) {
+  const files = new Map(Object.entries(initial));
+  const basePath = "/fake/vault";
+  const listeners = /* @__PURE__ */ new Map();
+  const toTFile = (p) => Object.assign(new TFile(), {
+    path: p,
+    name: p.split("/").pop() || "",
+    basename: (p.split("/").pop() || "").replace(/\.[^/.]+$/, ""),
+    extension: p.split(".").pop() || ""
+  });
+  const adapter = {
+    exists: async (p) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + "/")),
+    read: async (p) => {
+      if (!files.has(p))
+        throw new Error("File not found: " + p);
+      return files.get(p);
+    },
+    remove: async (p) => {
+      files.delete(p);
+    },
+    append: async (p, data) => {
+      files.set(p, (files.get(p) ?? "") + data);
+    },
+    getBasePath: () => basePath
+  };
+  const vault = {
+    adapter,
+    listeners,
+    on: (event, callback) => {
+      if (!listeners.has(event))
+        listeners.set(event, []);
+      listeners.get(event).push(callback);
+    },
+    trigger: (event, file) => {
+      for (const cb of listeners.get(event) || []) {
+        cb(file);
+      }
+    },
+    create: async (p, content) => {
+      files.set(p, content);
+      vault.trigger("create", toTFile(p));
+    },
+    createFolder: async (_p) => {
+    },
+    modify: async (file, content) => {
+      files.set(file.path, content);
+      vault.trigger("modify", toTFile(file.path));
+    },
+    read: async (file) => {
+      if (!files.has(file.path))
+        throw new Error("File not found: " + file.path);
+      return files.get(file.path);
+    },
+    delete: async (file) => {
+      files.delete(file.path);
+      vault.trigger("delete", toTFile(file.path));
+    },
+    getAbstractFileByPath: (p) => files.has(p) ? toTFile(p) : null,
+    getFiles: () => [...files.keys()].map((p) => toTFile(p)),
+    getMarkdownFiles: () => [...files.keys()].filter((k) => k.endsWith(".md")).map((p) => toTFile(p))
+  };
+  return { files, basePath, vault };
+}
+function makeFakePlugin(overrides = {}) {
+  const { vault } = makeFakeVault(overrides.vaultFiles || {});
+  return {
+    manifest: overrides.manifest ?? { version: "0.1.0" },
+    settings: {
+      aiApiKey: "test-key",
+      rawFolder: "nutegg/_raw",
+      indexFile: "nutegg/_index.md",
+      serverPort: 27123,
+      chunkWindowChars: 3e4,
+      ...overrides.settings || {}
+    },
+    app: { vault: overrides.vault ?? vault },
+    aiClient: overrides.aiClient ?? {
+      chat: async () => "{}",
+      checkCredit: async () => ({
+        provider: "anthropic",
+        providerLabel: "Anthropic (Claude)",
+        source: "openrouter",
+        model: "claude-sonnet-5",
+        hasBalance: true,
+        balanceFormatted: "$8.45",
+        statusText: "$8.45 left"
+      })
+    },
+    eggParser: overrides.eggParser ?? {
+      formatEggForPrompt: (e) => `egg:${e.fileName}`,
+      formatEggInstructionsForPrompt: (e) => `instructions:${e.fileName}`,
+      formatEggKnowledgeForPrompt: (e) => `knowledge:${e.fileName}`
+    },
+    indexReader: overrides.indexReader ?? {
+      getIndexContent: async () => "",
+      parseIndexContent: () => []
+    },
+    knowledgeBase: overrides.knowledgeBase ?? {},
+    workflowManager: overrides.workflowManager ?? {
+      getPrompt: () => ""
+    },
+    db: overrides.db ?? null,
+    ...overrides
+  };
+}
 
 // tests/merge-widget-dom.test.ts
 var dom = new import_jsdom.JSDOM("<!doctype html><html><body><div id='editor'></div></body></html>", {
@@ -2055,6 +2191,7 @@ var dom = new import_jsdom.JSDOM("<!doctype html><html><body><div id='editor'></
 });
 var defineGlobal = (key, value) => Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
 defineGlobal("window", dom.window);
+defineGlobal("Window", dom.window.Window);
 defineGlobal("document", dom.window.document);
 defineGlobal("navigator", dom.window.navigator);
 defineGlobal("requestAnimationFrame", (cb) => setTimeout(cb, 0));
@@ -2092,13 +2229,18 @@ function makePlugin() {
   fake.app.workspace = { getLeavesOfType: () => [], getActiveFile: () => null };
   return fake;
 }
-async function renderEditor(docText, plugin) {
+async function renderEditor(docText, plugin, filePath = "nutegg/egg.md", mapped = true) {
   const parent = dom.window.document.getElementById("editor");
   parent.innerHTML = "";
   const view = new import_view2.EditorView({
     parent,
-    state: import_state.EditorState.create({ doc: docText, extensions: [mergeEditorExtension(plugin)] })
+    state: import_state.EditorState.create({ doc: docText })
   });
+  plugin.app.workspace = {
+    getLeavesOfType: () => mapped ? [{ view: { file: { path: filePath }, editor: { cm: view } } }] : [],
+    getActiveFile: () => ({ path: "nutegg/active.md" })
+  };
+  view.dispatch({ effects: import_state.StateEffect.appendConfig.of(mergeEditorExtension(plugin)) });
   for (let i = 0; i < 10; i++) {
     view.requestMeasure();
     await new Promise((r) => setTimeout(r, 10));
@@ -2139,5 +2281,68 @@ async function renderEditor(docText, plugin) {
     const view = await renderEditor("# Knowledge\n\n- tree", makePlugin());
     views.push(view);
     import_strict.default.ok(!view.dom.innerHTML.includes("nutegg-merge-editor-widget"));
+  });
+  (0, import_node_test.it)("renders nothing for an external note with egg headings", async () => {
+    const view = await renderEditor(EGG_WITH_ENTRIES, makePlugin(), "outside/egg.md");
+    views.push(view);
+    import_strict.default.ok(!view.dom.innerHTML.includes("nutegg-merge-editor-widget"));
+  });
+  (0, import_node_test.it)("does not borrow the active tab's path for an unmapped editor", async () => {
+    const view = await renderEditor(EGG_WITH_ENTRIES, makePlugin(), "", false);
+    views.push(view);
+    import_strict.default.ok(!view.dom.innerHTML.includes("nutegg-merge-editor-widget"));
+  });
+  (0, import_node_test.it)("ignores a stale button after its editor changes to another file", async () => {
+    const plugin = makePlugin();
+    let merges = 0;
+    let writes = 0;
+    plugin.aiProcessor = { mergeEgg: async () => {
+      merges++;
+      return null;
+    } };
+    plugin.app.vault.modify = async () => {
+      writes++;
+    };
+    const view = await renderEditor(EGG_WITH_ENTRIES, plugin);
+    views.push(view);
+    const button = view.dom.querySelector(".nutegg-merge-btn");
+    import_strict.default.ok(button);
+    plugin.app.workspace.getLeavesOfType = () => [{ view: { file: { path: "outside/other.md" }, editor: { cm: view } } }];
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    import_strict.default.equal(merges, 0);
+    import_strict.default.equal(writes, 0);
+  });
+  (0, import_node_test.it)("merges its own egg when a different Obsidian tab becomes active", async () => {
+    const plugin = makePlugin();
+    const { vault, files } = makeFakeVault({ "nutegg/egg.md": EGG_WITH_ENTRIES, "outside/other.md": "private" });
+    plugin.app.vault = vault;
+    let mergedPath = "";
+    plugin.aiProcessor = { mergeEgg: async (path) => {
+      mergedPath = path;
+      return { egg: path, entries: 2 };
+    } };
+    const view = await renderEditor(EGG_WITH_ENTRIES, plugin);
+    views.push(view);
+    plugin.app.workspace.getActiveFile = () => ({ path: "outside/other.md" });
+    view.dom.querySelector(".nutegg-merge-btn").click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    import_strict.default.equal(mergedPath, "nutegg/egg.md");
+    import_strict.default.equal(files.get("outside/other.md"), "private");
+  });
+  (0, import_node_test.it)("never adds a reading-mode merge widget to notes outside the egg folder", async () => {
+    const plugin = makePlugin();
+    let callback;
+    plugin.registerMarkdownPostProcessor = (cb) => {
+      callback = cb;
+    };
+    plugin.eggParser.readEgg = async () => {
+      throw new Error("External note was read");
+    };
+    registerMergeWidget(plugin);
+    const el = document.createElement("div");
+    el.innerHTML = "<h1>Unprocessed</h1><ul><li>Pending</li></ul>";
+    await callback(el, { sourcePath: "outside/egg.md" });
+    import_strict.default.equal(el.querySelector(".nutegg-merge-container"), null);
   });
 });

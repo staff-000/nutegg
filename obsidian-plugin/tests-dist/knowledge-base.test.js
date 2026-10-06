@@ -219,41 +219,77 @@ function parseListItems(text) {
 }
 
 // src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async findFile(path) {
-    const vault = this.plugin.app.vault;
-    if (!await vault.adapter.exists(path))
+  async findFile(fileName) {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path)
       return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const vault = this.plugin.app.vault;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter((file2) => resolveEggPath(file2.path, folder) === file2.path);
+    const exact = exists && files.find((file2) => file2.path === path);
+    if (exact)
+      return { file: exact, path: exact.path };
+    const matches = files.filter((file2) => file2.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1)
+      return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!await vault.adapter.exists(matchedPath))
+      return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+  assertEggFile(file, path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+  async processFile(target, transform) {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content) => {
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process)
+      await vault.process(file, guardedTransform);
+    else
+      await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName, transform) {
+    const file = await this.findFile(fileName);
+    if (!file)
+      throw new Error(`Cannot update \u2014 egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
   async readEgg(fileName, fallbackDescription) {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop().toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop().toLowerCase() === base
-      );
-      if (match)
-        file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
+    const { file, path } = target;
+    this.assertEggFile(file, path);
     const content = await this.plugin.app.vault.read(file);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -294,10 +330,6 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
-    }
     const transform = (existing) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -318,10 +350,7 @@ var EggParser = class {
         return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
@@ -391,10 +420,7 @@ var EggParser = class {
       }
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processFile(file, transform);
     return applied;
   }
 };
@@ -795,8 +821,8 @@ function makeKb() {
 (0, import_node_test.describe)("KnowledgeBase.appendKnowledge", () => {
   (0, import_node_test.it)("appends each entry to the egg's Unprocessed section with author and source", async () => {
     const { vault, files } = makeFakeVault({
-      "a.md": "# Knowledge\n\n- existing a\n",
-      "b.md": "# Knowledge\n\n- existing b\n"
+      "nutegg/a.md": "# Knowledge\n\n- existing a\n",
+      "nutegg/b.md": "# Knowledge\n\n- existing b\n"
     });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
@@ -811,8 +837,8 @@ function makeKb() {
       "https://example.com/src",
       "Jane Doe"
     );
-    const a = files.get("a.md");
-    const b = files.get("b.md");
+    const a = files.get("nutegg/a.md");
+    const b = files.get("nutegg/b.md");
     import_strict.default.ok(a.includes("# Unprocessed"));
     import_strict.default.ok(a.includes("- one"));
     import_strict.default.ok(a.includes("_author: Jane Doe_"));
@@ -821,12 +847,12 @@ function makeKb() {
     import_strict.default.ok(!a.split("# Unprocessed")[0].includes("- one"));
   });
   (0, import_node_test.it)("removes playback timestamps and source quotes from hatched entries without changing originals or attribution", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n\n# Unprocessed\n" });
+    const { vault, files } = makeFakeVault({ "nutegg/a.md": "# Knowledge\n\n# Unprocessed\n" });
     const kb = new KnowledgeBase({ app: { vault } });
     const item = { egg: "a.md", content: "- **Advice** [12:34]\n  - Important answer (01:02:03\u201301:02:30).\n  - Another example 02:15.\n  - Linked example [03:20](https://example.com/video?t=200).\n  - Source location: 12:34 \u2014 Supporting evidence.\n  - Source location: 01:02:03\n  - Source location: paragraph 2 \u2014 Paragraph evidence.\n  - Source quote: Standalone evidence.\n  - Aspect ratio 16:9; wait 30 seconds.\n  - https://example.com/video?t=12:34" };
     const original = item.content;
     await kb.appendKnowledge([item], "Video", "https://example.com/video", "Author");
-    const note = files.get("a.md");
+    const note = files.get("nutegg/a.md");
     import_strict.default.ok(!note.includes("[12:34]"));
     import_strict.default.ok(!note.includes("01:02:03"));
     import_strict.default.ok(!note.includes("02:15"));
@@ -839,7 +865,7 @@ function makeKb() {
     import_strict.default.equal(item.content, original);
   });
   (0, import_node_test.it)("omits the author line when unknown", async () => {
-    const { vault, files } = makeFakeVault({ "a.md": "# Knowledge\n" });
+    const { vault, files } = makeFakeVault({ "nutegg/a.md": "# Knowledge\n" });
     const kb = new KnowledgeBase({
       settings: { rawFolder: "nutegg/_raw" },
       app: { vault }
@@ -850,7 +876,7 @@ function makeKb() {
       "https://example.com/src",
       ""
     );
-    const a = files.get("a.md");
+    const a = files.get("nutegg/a.md");
     import_strict.default.ok(!a.includes("_author:"));
     import_strict.default.ok(a.includes("_source: [Title](https://example.com/src)_"));
   });

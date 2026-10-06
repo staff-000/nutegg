@@ -460,6 +460,7 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -2419,41 +2420,77 @@ function parseListItems(text) {
 }
 
 // src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async findFile(path) {
-    const vault = this.plugin.app.vault;
-    if (!await vault.adapter.exists(path))
+  async findFile(fileName) {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path)
       return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const vault = this.plugin.app.vault;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter((file2) => resolveEggPath(file2.path, folder) === file2.path);
+    const exact = exists && files.find((file2) => file2.path === path);
+    if (exact)
+      return { file: exact, path: exact.path };
+    const matches = files.filter((file2) => file2.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1)
+      return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!await vault.adapter.exists(matchedPath))
+      return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+  assertEggFile(file, path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+  async processFile(target, transform) {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content) => {
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process)
+      await vault.process(file, guardedTransform);
+    else
+      await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName, transform) {
+    const file = await this.findFile(fileName);
+    if (!file)
+      throw new Error(`Cannot update \u2014 egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
   async readEgg(fileName, fallbackDescription) {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop().toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop().toLowerCase() === base
-      );
-      if (match)
-        file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
+    const { file, path } = target;
+    this.assertEggFile(file, path);
     const content = await this.plugin.app.vault.read(file);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -2494,10 +2531,6 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
-    }
     const transform = (existing) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -2518,10 +2551,7 @@ var EggParser = class {
         return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
@@ -2591,10 +2621,7 @@ var EggParser = class {
       }
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processFile(file, transform);
     return applied;
   }
 };
@@ -3203,7 +3230,7 @@ ${entries}
   (0, import_node_test.it)("does nothing below the threshold (no AI call)", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(19) },
+      { "nutegg/egg.md": unprocessedEgg(19) },
       { aiClient: { chat: async () => (calls++, "{}") } }
     );
     const out = await p.maybeMergeEgg("egg.md");
@@ -3213,7 +3240,7 @@ ${entries}
   (0, import_node_test.it)("merges 20 entries into the tree via one AI call", async () => {
     let seenPrompt = "";
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       {
         aiClient: {
           chat: async (prompt) => {
@@ -3228,7 +3255,7 @@ ${entries}
     );
     const out = await p.maybeMergeEgg("egg.md");
     import_strict.default.deepEqual(out, { egg: "egg.md", entries: 20 });
-    const content = files.get("egg.md");
+    const content = files.get("nutegg/egg.md");
     import_strict.default.ok(
       content.includes("# Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
       "Knowledge tree replaced with the merged output"
@@ -3239,18 +3266,18 @@ ${entries}
   });
   (0, import_node_test.it)("leaves the egg untouched when the AI returns no knowledge", async () => {
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       { aiClient: { chat: async () => JSON.stringify({ unprocessed: "x" }) } }
     );
-    const before = files.get("egg.md");
+    const before = files.get("nutegg/egg.md");
     const out = await p.maybeMergeEgg("egg.md");
     import_strict.default.equal(out, null);
-    import_strict.default.equal(files.get("egg.md"), before);
+    import_strict.default.equal(files.get("nutegg/egg.md"), before);
   });
   (0, import_node_test.it)("skips the merge without an API key", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       {
         settings: { aiApiKey: "" },
         aiClient: { chat: async () => (calls++, "{}") }
@@ -3265,7 +3292,7 @@ ${entries}
   });
   (0, import_node_test.it)("mergeEgg merges on demand even with few entries (e.g. 3 entries)", async () => {
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(3) },
+      { "nutegg/egg.md": unprocessedEgg(3) },
       {
         aiClient: {
           chat: async () => JSON.stringify({
@@ -3277,14 +3304,14 @@ ${entries}
     );
     const out = await p.mergeEgg("egg.md");
     import_strict.default.deepEqual(out, { egg: "egg.md", entries: 3 });
-    const content = files.get("egg.md");
+    const content = files.get("nutegg/egg.md");
     import_strict.default.ok(content.includes("- merged item"));
     import_strict.default.ok(!content.includes("- entry 1"));
   });
   (0, import_node_test.it)("mergeEgg returns null when there are 0 unprocessed entries", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(0) },
+      { "nutegg/egg.md": unprocessedEgg(0) },
       { aiClient: { chat: async () => (calls++, "{}") } }
     );
     const out = await p.mergeEgg("egg.md");

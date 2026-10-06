@@ -61,6 +61,28 @@ describe("IndexReader.parseIndexContent", () => {
   it("returns empty list for empty content", () => {
     assert.deepEqual(parse(""), []);
   });
+
+  it("excludes external, traversing, nested and system paths from routing", () => {
+    const entries = parse([
+      "egg.md: basename",
+      "nutegg/valid.md: explicit egg",
+      "outside/valid.md: external note",
+      "../valid.md: traversal",
+      "/nutegg/valid.md: absolute path",
+      "nutegg/../valid.md: traversal",
+      "nutegg/_index.md: system",
+      "nutegg/_raw/raw.md: raw nut",
+      "nutegg/_workflow/prompt.md: prompt",
+      "nutegg/sub/nested.md: nested note",
+    ].join("\n"));
+    assert.deepEqual(entries.map(entry => entry.fileName), ["egg.md", "nutegg/valid.md"]);
+  });
+
+  it("uses the configured egg folder", () => {
+    const reader = new IndexReader(makeFakePlugin({ vaultFolder: "custom/eggs" }) as any);
+    assert.deepEqual(reader.parseIndexContent("a.md: alias\ncustom/eggs/b.md: valid\nnutegg/c.md: external")
+      .map(entry => entry.fileName), ["a.md", "custom/eggs/b.md"]);
+  });
 });
 
 describe("IndexReader.parseMatchedEggs", () => {

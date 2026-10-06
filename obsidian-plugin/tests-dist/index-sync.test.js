@@ -338,41 +338,77 @@ function parseListItems(text) {
 }
 
 // src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async findFile(path) {
-    const vault = this.plugin.app.vault;
-    if (!await vault.adapter.exists(path))
+  async findFile(fileName) {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path)
       return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const vault = this.plugin.app.vault;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter((file2) => resolveEggPath(file2.path, folder) === file2.path);
+    const exact = exists && files.find((file2) => file2.path === path);
+    if (exact)
+      return { file: exact, path: exact.path };
+    const matches = files.filter((file2) => file2.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1)
+      return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!await vault.adapter.exists(matchedPath))
+      return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+  assertEggFile(file, path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+  async processFile(target, transform) {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content) => {
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process)
+      await vault.process(file, guardedTransform);
+    else
+      await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName, transform) {
+    const file = await this.findFile(fileName);
+    if (!file)
+      throw new Error(`Cannot update \u2014 egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
   async readEgg(fileName, fallbackDescription) {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop().toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop().toLowerCase() === base
-      );
-      if (match)
-        file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
+    const { file, path } = target;
+    this.assertEggFile(file, path);
     const content = await this.plugin.app.vault.read(file);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -413,10 +449,6 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
-    }
     const transform = (existing) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -437,10 +469,7 @@ var EggParser = class {
         return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
@@ -510,10 +539,7 @@ var EggParser = class {
       }
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processFile(file, transform);
     return applied;
   }
 };
@@ -674,14 +700,14 @@ var IndexSync = class {
   /** Calculate discrepancies between _index.md and disk */
   async getDiffStatus() {
     const folder = this.plugin.vaultFolder || "nutegg";
-    const norm = (p) => p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+    const norm = (p) => resolveEggPath(p, folder) || "";
     const eggFilesOnDisk = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter((f) => isEggPath(f.path, folder)).map((f) => f.path);
     const diskSet = new Set(eggFilesOnDisk);
     const indexContent = await this.plugin.indexReader.getIndexContent();
     if (indexContent === "(No _index.md found)") {
       return { missingEggs: [], unindexedEggs: [], invalidEntries: [], totalDiffs: 0 };
     }
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent, { includeInvalid: true });
     const missingEggs = [];
     const invalidEntries = [];
     const indexedEggPaths = /* @__PURE__ */ new Set();
@@ -735,8 +761,8 @@ var IndexSync = class {
     if (indexContent === "(No _index.md found)") {
       return result;
     }
-    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent);
-    const norm = (p) => p.startsWith(folder + "/") ? p : `${folder}/${p.replace(/^\/+/, "")}`;
+    const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent, { includeInvalid: true });
+    const norm = (p) => resolveEggPath(p, folder) || "";
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
     );
@@ -787,8 +813,6 @@ var IndexSync = class {
     for (const entry of entries) {
       const target = norm(entry.fileName);
       if (await this.plugin.app.vault.adapter.exists(target))
-        continue;
-      if (await this.plugin.app.vault.adapter.exists(entry.fileName))
         continue;
       try {
         await this.createEggFromTemplate(target, entry);
@@ -921,6 +945,12 @@ ${line}
    * localizes concrete instructions to match the description's language.
    */
   async createEggFromTemplate(targetPath, entry) {
+    const assertTarget = () => {
+      if (resolveEggPath(targetPath, this.plugin.vaultFolder || "nutegg") !== targetPath) {
+        throw new Error(`Cannot create egg outside the egg folder: ${targetPath}`);
+      }
+    };
+    assertTarget();
     await this.ensureParentFolders(targetPath);
     const folder = this.plugin.vaultFolder || "nutegg";
     const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
@@ -967,6 +997,7 @@ ${line}
     if (detectedLanguage) {
       content = insertEggLanguage(content, detectedLanguage, { overwrite: true });
     }
+    assertTarget();
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);
     return { path: targetPath, language: detectedLanguage };
@@ -1318,6 +1349,7 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -1574,7 +1606,8 @@ var IndexReader = class {
       return "(No _index.md found)";
     return await this.plugin.app.vault.read(file);
   }
-  parseIndexContent(content) {
+  // Maintenance needs invalid entries to report/prune them; analysis excludes them by default.
+  parseIndexContent(content, options) {
     const entries = [];
     for (const rawLine of content.split("\n")) {
       const trimmed = rawLine.trim();
@@ -1586,9 +1619,11 @@ var IndexReader = class {
         continue;
       const fileName = line.substring(0, colonIdx).trim();
       const description = line.substring(colonIdx + 1).trim();
-      if (fileName.endsWith(".md")) {
-        entries.push({ fileName, description });
-      }
+      if (!fileName.toLowerCase().endsWith(".md"))
+        continue;
+      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || "nutegg"))
+        continue;
+      entries.push({ fileName, description });
     }
     return entries;
   }
@@ -1827,6 +1862,26 @@ function egg(topic) {
     import_strict.default.ok(created.includes("# Knowledge"));
     import_strict.default.ok(created.includes("# Unprocessed"));
     import_strict.default.match(created, /last_updated: "\d{4}-\d{2}-\d{2}"/);
+  });
+  (0, import_node_test.it)("creates the missing folder egg even when a root note has the same basename", async () => {
+    const root = "Private root note";
+    const { sync, files } = makeSync({ "nutegg/_index.md": "* investment.md: investment", "investment.md": root });
+    import_strict.default.deepEqual((await sync.getDiffStatus()).missingEggs, ["nutegg/investment.md"]);
+    const result = await sync.checkAndFix();
+    import_strict.default.deepEqual(result.createdEggs, ["nutegg/investment.md"]);
+    import_strict.default.equal(files.get("investment.md"), root);
+    import_strict.default.ok(files.get("nutegg/investment.md").includes("# Knowledge"));
+    import_strict.default.ok(files.get("nutegg/_index.md").includes("nutegg/investment.md"));
+  });
+  (0, import_node_test.it)("prunes external and absolute paths without creating or changing those notes", async () => {
+    const paths = ["outside/egg.md", "/egg.md", "/nutegg/egg.md", "nutegg/../egg.md"];
+    const { sync, files } = makeSync({ "nutegg/_index.md": paths.map((path) => `* ${path}: invalid`).join("\n"), "outside/egg.md": "Private" });
+    import_strict.default.deepEqual((await sync.getDiffStatus()).invalidEntries, paths);
+    const result = await sync.checkAndFix();
+    import_strict.default.deepEqual(result.prunedIndexEntries, paths);
+    import_strict.default.deepEqual(result.createdEggs, []);
+    import_strict.default.equal(files.get("outside/egg.md"), "Private");
+    import_strict.default.equal(files.has("nutegg/egg.md"), false);
   });
   (0, import_node_test.it)("leaves a consistent vault untouched", async () => {
     const { sync, files } = makeSync({

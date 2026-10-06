@@ -136,6 +136,28 @@ describe("IndexSync.checkAndFix", () => {
     assert.match(created, /last_updated: "\d{4}-\d{2}-\d{2}"/);
   });
 
+  it("creates the missing folder egg even when a root note has the same basename", async () => {
+    const root = "Private root note";
+    const { sync, files } = makeSync({ "nutegg/_index.md": "* investment.md: investment", "investment.md": root });
+    assert.deepEqual((await sync.getDiffStatus()).missingEggs, ["nutegg/investment.md"]);
+    const result = await sync.checkAndFix();
+    assert.deepEqual(result.createdEggs, ["nutegg/investment.md"]);
+    assert.equal(files.get("investment.md"), root);
+    assert.ok(files.get("nutegg/investment.md")!.includes("# Knowledge"));
+    assert.ok(files.get("nutegg/_index.md")!.includes("nutegg/investment.md"));
+  });
+
+  it("prunes external and absolute paths without creating or changing those notes", async () => {
+    const paths = ["outside/egg.md", "/egg.md", "/nutegg/egg.md", "nutegg/../egg.md"];
+    const { sync, files } = makeSync({ "nutegg/_index.md": paths.map(path => `* ${path}: invalid`).join("\n"), "outside/egg.md": "Private" });
+    assert.deepEqual((await sync.getDiffStatus()).invalidEntries, paths);
+    const result = await sync.checkAndFix();
+    assert.deepEqual(result.prunedIndexEntries, paths);
+    assert.deepEqual(result.createdEggs, []);
+    assert.equal(files.get("outside/egg.md"), "Private");
+    assert.equal(files.has("nutegg/egg.md"), false);
+  });
+
   it("leaves a consistent vault untouched", async () => {
     const { sync, files } = makeSync({
       "nutegg/_index.md": INDEX,

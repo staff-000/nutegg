@@ -466,6 +466,7 @@ var PROVIDER_CATALOG = {
     apiFormat: "anthropic",
     defaultModel: "claude-haiku-4-5-20251001",
     models: [
+      "claude-haiku-4-5-20251001",
       "claude-sonnet-5-5",
       "claude-opus-5-5",
       "claude-fable-5-1",
@@ -894,41 +895,77 @@ function parseListItems(text) {
 }
 
 // src/egg-parser.ts
+function resolveEggPath(fileName, vaultFolder = "nutegg") {
+  if (typeof fileName !== "string" || !fileName || fileName.includes("\\"))
+    return null;
+  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
+  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+  if (path.split("/").some((part) => !part || part === "." || part === ".."))
+    return null;
+  return isEggPath(path, folder) ? path : null;
+}
 var EggParser = class {
   plugin;
   constructor(plugin) {
     this.plugin = plugin;
   }
-  async findFile(path) {
-    const vault = this.plugin.app.vault;
-    if (!await vault.adapter.exists(path))
+  async findFile(fileName) {
+    const folder = this.plugin.vaultFolder || "nutegg";
+    const path = resolveEggPath(fileName, folder);
+    if (!path)
       return null;
-    return vault.getMarkdownFiles().find((file) => file.path === path) || null;
+    const vault = this.plugin.app.vault;
+    const exists = await vault.adapter.exists(path);
+    const files = vault.getMarkdownFiles().filter((file2) => resolveEggPath(file2.path, folder) === file2.path);
+    const exact = exists && files.find((file2) => file2.path === path);
+    if (exact)
+      return { file: exact, path: exact.path };
+    const matches = files.filter((file2) => file2.path.toLowerCase() === path.toLowerCase());
+    if (matches.length !== 1)
+      return null;
+    const file = matches[0];
+    const matchedPath = file.path;
+    if (!await vault.adapter.exists(matchedPath))
+      return null;
+    this.assertEggFile(file, matchedPath);
+    return { file, path: matchedPath };
+  }
+  assertEggFile(file, path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+      throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
+    }
+  }
+  async processFile(target, transform) {
+    const { file, path } = target;
+    this.assertEggFile(file, path);
+    const guardedTransform = (content) => {
+      this.assertEggFile(file, path);
+      return transform(content);
+    };
+    const vault = this.plugin.app.vault;
+    if (vault.process)
+      await vault.process(file, guardedTransform);
+    else
+      await vault.modify(file, guardedTransform(await vault.read(file)));
+  }
+  /** All egg mutations, including language metadata and editor saves, use this boundary. */
+  async processEgg(fileName, transform) {
+    const file = await this.findFile(fileName);
+    if (!file)
+      throw new Error(`Cannot update \u2014 egg file not found or outside the egg folder: ${fileName}`);
+    await this.processFile(file, transform);
   }
   async readEgg(fileName, fallbackDescription) {
-    let file = await this.findFile(fileName);
-    if (!file && !fileName.includes("/")) {
-      const parentDir = this.plugin.settings.indexFile.replace(/\/[^/]+$/, "");
-      file = await this.findFile(`${parentDir}/${fileName}`);
-    }
-    if (!file) {
-      const folder = this.plugin.vaultFolder || "nutegg";
-      const allFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(
-        (f) => isEggPath(f.path, folder)
-      );
-      const base = fileName.split("/").pop().toLowerCase();
-      const match = allFiles.find(
-        (f) => f.path.split("/").pop().toLowerCase() === base
-      );
-      if (match)
-        file = match;
-    }
-    if (!file) {
+    const target = await this.findFile(fileName);
+    if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
       return null;
     }
+    const { file, path } = target;
+    this.assertEggFile(file, path);
     const content = await this.plugin.app.vault.read(file);
-    const parsed = this.parseEggFile(file.path || fileName, content);
+    this.assertEggFile(file, path);
+    const parsed = this.parseEggFile(path, content);
     if (fallbackDescription && !parsed.indexDescription) {
       parsed.indexDescription = fallbackDescription;
     }
@@ -969,10 +1006,6 @@ var EggParser = class {
    * `_author` / `_source` lines for provenance.
    */
   async appendUnprocessed(fileName, content, author, sourceTitle, sourceUrl) {
-    const file = await this.findFile(fileName);
-    if (!file) {
-      throw new Error(`Cannot append \u2014 egg file not found: ${fileName}`);
-    }
     const transform = (existing) => {
       const lines = existing.replace(/\n+$/, "").split("\n");
       const section = findSection(lines, "unprocessed");
@@ -993,10 +1026,7 @@ var EggParser = class {
         return existing;
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
   }
   /**
@@ -1066,10 +1096,7 @@ var EggParser = class {
       }
       return lines.join("\n") + "\n";
     };
-    if (this.plugin.app.vault.process)
-      await this.plugin.app.vault.process(file, transform);
-    else
-      await this.plugin.app.vault.modify(file, transform(await this.plugin.app.vault.read(file)));
+    await this.processFile(file, transform);
     return applied;
   }
 };
@@ -1747,6 +1774,11 @@ var NutEggServer = class {
         );
         return;
       }
+      if ((confirm.newKnowledge || []).some((entry) => !resolveEggPath(entry.egg, this.plugin.vaultFolder || "nutegg"))) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Knowledge destination must be an egg in the configured egg folder" }));
+        return;
+      }
       const normalizedUrl = this.normalizeUrl(confirm.url);
       releaseConfirmation = await this.lockConfirmation(confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`);
       const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
@@ -1808,16 +1840,7 @@ var NutEggServer = class {
               try {
                 const egg = await this.plugin.eggParser.readEgg(perEgg.egg);
                 if (egg && !egg.language) {
-                  const file = this.plugin.app.vault.getMarkdownFiles().find((file2) => file2.path === egg.fileName);
-                  if (file) {
-                    const vault = this.plugin.app.vault;
-                    const language = perEgg.language;
-                    const transform = (content) => insertEggLanguage(content, language);
-                    if (vault.process)
-                      await vault.process(file, transform);
-                    else
-                      await vault.modify(file, transform(await vault.read(file)));
-                  }
+                  await this.plugin.eggParser.processEgg(egg.fileName, (content) => insertEggLanguage(content, perEgg.language));
                 }
               } catch (err) {
                 console.warn(`[NutEgg] Failed to persist egg language on confirm:`, err);
@@ -3941,7 +3964,8 @@ var IndexReader = class {
       return "(No _index.md found)";
     return await this.plugin.app.vault.read(file);
   }
-  parseIndexContent(content) {
+  // Maintenance needs invalid entries to report/prune them; analysis excludes them by default.
+  parseIndexContent(content, options) {
     const entries = [];
     for (const rawLine of content.split("\n")) {
       const trimmed = rawLine.trim();
@@ -3953,9 +3977,11 @@ var IndexReader = class {
         continue;
       const fileName = line.substring(0, colonIdx).trim();
       const description = line.substring(colonIdx + 1).trim();
-      if (fileName.endsWith(".md")) {
-        entries.push({ fileName, description });
-      }
+      if (!fileName.toLowerCase().endsWith(".md"))
+        continue;
+      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || "nutegg"))
+        continue;
+      entries.push({ fileName, description });
     }
     return entries;
   }
@@ -4356,6 +4382,56 @@ function makeRes() {
     import_strict.default.equal(appended[1], "Article Title");
     import_strict.default.equal(appended[2], "https://x.com/a");
     import_strict.default.equal(appended[3], "Jane Doe");
+  });
+  (0, import_node_test.it)("rejects unsafe egg destinations before any archive, append or database write", async () => {
+    const effects = [];
+    const s = makeServer({
+      knowledgeBase: {
+        saveRaw: async () => {
+          effects.push("archive");
+          return "raw.md";
+        },
+        appendKnowledge: async () => {
+          effects.push("append");
+        }
+      },
+      db: { insertNut: () => effects.push("database") }
+    });
+    for (const path of ["outside/egg.md", "../egg.md", "/nutegg/egg.md", "nutegg/_index.md", "nutegg/_raw/egg.md"]) {
+      const res = makeRes();
+      await s.handleConfirm(makeReq(JSON.stringify({
+        ...baseConfirm,
+        skipRaw: false,
+        newKnowledge: [{ egg: "nutegg/valid.md", content: "valid" }, { egg: path, content: "unsafe" }]
+      })), res);
+      import_strict.default.equal(res.statusCode, 400, path);
+      import_strict.default.match(JSON.parse(res.body).error, /configured egg folder/);
+    }
+    import_strict.default.deepEqual(effects, []);
+  });
+  (0, import_node_test.it)("hatches basename selections and language metadata only into the actual egg folder", async () => {
+    const rootNote = "# Knowledge\n- private root note";
+    const externalNote = "# Knowledge\n- private external note";
+    const { vault, files } = makeFakeVault({
+      "egg.md": rootNote,
+      "outside/egg.md": externalNote,
+      "nutegg/egg.md": "# Knowledge\n- tree"
+    });
+    const plugin = makeFakePlugin({ vault });
+    plugin.eggParser = new EggParser(plugin);
+    plugin.knowledgeBase = new KnowledgeBase(plugin);
+    const s = new NutEggServer(plugin, 27123);
+    const res = makeRes();
+    await s.handleConfirm(makeReq(JSON.stringify({
+      ...baseConfirm,
+      newKnowledge: [{ egg: "egg.md", content: "new insight" }],
+      analysis: { eggResults: [{ egg: "egg.md", language: "English" }, { egg: "outside/egg.md", language: "Chinese" }] }
+    })), res);
+    import_strict.default.equal(res.statusCode, 200, res.body);
+    import_strict.default.ok(files.get("nutegg/egg.md").includes("- new insight"));
+    import_strict.default.ok(files.get("nutegg/egg.md").includes('language: "English"'));
+    import_strict.default.equal(files.get("egg.md"), rootNote);
+    import_strict.default.equal(files.get("outside/egg.md"), externalNote);
   });
   (0, import_node_test.it)("archives Stage 2 originals on an already-collected nut and schedules merge after acknowledgement", async () => {
     const events = [];

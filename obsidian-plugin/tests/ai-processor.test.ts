@@ -555,7 +555,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
   it("does nothing below the threshold (no AI call)", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(19) },
+      { "nutegg/egg.md": unprocessedEgg(19) },
       { aiClient: { chat: async () => (calls++, "{}") } }
     );
     const out = await p.maybeMergeEgg("egg.md");
@@ -566,7 +566,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
   it("merges 20 entries into the tree via one AI call", async () => {
     let seenPrompt = "";
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       {
         aiClient: {
           chat: async (prompt: string) => {
@@ -581,7 +581,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
     );
     const out = await p.maybeMergeEgg("egg.md");
     assert.deepEqual(out, { egg: "egg.md", entries: 20 });
-    const content = files.get("egg.md")!;
+    const content = files.get("nutegg/egg.md")!;
     assert.ok(
       content.includes("# Knowledge\n\n- existing\n  - merged 1\n  - merged 2"),
       "Knowledge tree replaced with the merged output"
@@ -594,19 +594,19 @@ describe("AIProcessor.maybeMergeEgg", () => {
 
   it("leaves the egg untouched when the AI returns no knowledge", async () => {
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       { aiClient: { chat: async () => JSON.stringify({ unprocessed: "x" }) } }
     );
-    const before = files.get("egg.md")!;
+    const before = files.get("nutegg/egg.md")!;
     const out = await p.maybeMergeEgg("egg.md");
     assert.equal(out, null);
-    assert.equal(files.get("egg.md"), before);
+    assert.equal(files.get("nutegg/egg.md"), before);
   });
 
   it("skips the merge without an API key", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(20) },
+      { "nutegg/egg.md": unprocessedEgg(20) },
       {
         settings: { aiApiKey: "" },
         aiClient: { chat: async () => (calls++, "{}") },
@@ -623,7 +623,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
 
   it("mergeEgg merges on demand even with few entries (e.g. 3 entries)", async () => {
     const { p, files } = makeProcessor(
-      { "egg.md": unprocessedEgg(3) },
+      { "nutegg/egg.md": unprocessedEgg(3) },
       {
         aiClient: {
           chat: async () =>
@@ -636,7 +636,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
     );
     const out = await p.mergeEgg("egg.md");
     assert.deepEqual(out, { egg: "egg.md", entries: 3 });
-    const content = files.get("egg.md")!;
+    const content = files.get("nutegg/egg.md")!;
     assert.ok(content.includes("- merged item"));
     assert.ok(!content.includes("- entry 1"));
   });
@@ -644,7 +644,7 @@ describe("AIProcessor.maybeMergeEgg", () => {
   it("mergeEgg returns null when there are 0 unprocessed entries", async () => {
     let calls = 0;
     const { p } = makeProcessor(
-      { "egg.md": unprocessedEgg(0) },
+      { "nutegg/egg.md": unprocessedEgg(0) },
       { aiClient: { chat: async () => (calls++, "{}") } }
     );
     const out = await p.mergeEgg("egg.md");

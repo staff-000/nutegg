@@ -4,6 +4,7 @@ import {
   EggParser,
   extractEggLanguage,
   insertEggLanguage,
+  resolveEggPath,
 } from "../src/egg-parser";
 import { makeFakePlugin, makeFakeVault } from "./helpers";
 
@@ -184,10 +185,10 @@ describe("EggParser.appendUnprocessed", () => {
 
   it("appends the entry with author and source to # Unprocessed", async () => {
     const store = await append(
-      { "egg.md": baseEgg },
+      { "nutegg/egg.md": baseEgg },
       "- insight\n  - 🎯 Example: case"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.includes("# Unprocessed\n\n- insight"));
     assert.ok(out.includes("  - 🎯 Example: case"));
     assert.ok(out.includes("_author: Jane Doe_"));
@@ -195,27 +196,27 @@ describe("EggParser.appendUnprocessed", () => {
   });
 
   it("does not touch the Knowledge tree", async () => {
-    const store = await append({ "egg.md": baseEgg }, "- insight");
-    const out = store.files.get("egg.md")!;
+    const store = await append({ "nutegg/egg.md": baseEgg }, "- insight");
+    const out = store.files.get("nutegg/egg.md")!;
     const knowledge = out.split("# Unprocessed")[0];
     assert.ok(knowledge.includes("- existing knowledge"));
     assert.ok(!knowledge.includes("- insight"));
   });
 
   it("prefixes a bullet when the content has none", async () => {
-    const store = await append({ "egg.md": baseEgg }, "bare insight text");
-    assert.ok(store.files.get("egg.md")!.includes("- bare insight text"));
+    const store = await append({ "nutegg/egg.md": baseEgg }, "bare insight text");
+    assert.ok(store.files.get("nutegg/egg.md")!.includes("- bare insight text"));
   });
 
   it("omits the _author line when the author is unknown", async () => {
-    const store = await append({ "egg.md": baseEgg }, "- insight", "");
-    const out = store.files.get("egg.md")!;
+    const store = await append({ "nutegg/egg.md": baseEgg }, "- insight", "");
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(!out.includes("_author:"));
     assert.ok(out.includes("_source: [Post](https://example.com/post)_"));
   });
 
   it("separates consecutive entries with a blank line", async () => {
-    const store = makeFakeVault({ "egg.md": baseEgg });
+    const store = makeFakeVault({ "nutegg/egg.md": baseEgg });
     const fake = makeFakePlugin({ vault: store.vault });
     const parser = new EggParser(fake as any);
     await parser.appendUnprocessed(
@@ -224,7 +225,7 @@ describe("EggParser.appendUnprocessed", () => {
     await parser.appendUnprocessed(
       "egg.md", "- second", "Jane Doe", "Post", "https://example.com/post"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(
       /_source: \[Post\]\(https:\/\/example\.com\/post\)_\n\n- second/.test(out)
     );
@@ -232,10 +233,10 @@ describe("EggParser.appendUnprocessed", () => {
 
   it("creates the Unprocessed section when the egg has none", async () => {
     const store = await append(
-      { "egg.md": "# Knowledge\n\n- tree\n" },
+      { "nutegg/egg.md": "# Knowledge\n\n- tree\n" },
       "- first"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.includes("# Unprocessed"));
     assert.ok(out.includes("- first"));
     assert.ok(out.includes("# Knowledge\n\n- tree\n\n# Unprocessed"));
@@ -243,13 +244,13 @@ describe("EggParser.appendUnprocessed", () => {
 
   it("sanitizes link brackets out of the source title", async () => {
     const store = await append(
-      { "egg.md": baseEgg },
+      { "nutegg/egg.md": baseEgg },
       "- insight",
       "Jane",
       "A [bracket] title"
     );
     assert.ok(
-      store.files.get("egg.md")!.includes("_source: [A bracket title](https://example.com/post)_")
+      store.files.get("nutegg/egg.md")!.includes("_source: [A bracket title](https://example.com/post)_")
     );
   });
 
@@ -332,11 +333,11 @@ describe("EggParser.applyMerge", () => {
 
   it("replaces both sections while preserving frontmatter and instructions", async () => {
     const store = await merge(
-      { "egg.md": fullEgg },
+      { "nutegg/egg.md": fullEgg },
       "### Old Branch\n  - old stuff\n  - merged entry",
       "- leftover entry"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.includes("topic: X"));
     assert.ok(out.includes("> **Scope:** s"));
     assert.ok(out.includes("### Old Branch\n  - old stuff\n  - merged entry"));
@@ -348,19 +349,19 @@ describe("EggParser.applyMerge", () => {
   });
 
   it("empties the Unprocessed section when nothing is left over", async () => {
-    const store = await merge({ "egg.md": fullEgg }, "- all merged", "");
-    const out = store.files.get("egg.md")!;
+    const store = await merge({ "nutegg/egg.md": fullEgg }, "- all merged", "");
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.includes("# Unprocessed"));
     assert.ok(!out.includes("- stale entry"));
   });
 
   it("creates missing sections", async () => {
     const store = await merge(
-      { "egg.md": "---\ntopic: X\n---\n" },
+      { "nutegg/egg.md": "---\ntopic: X\n---\n" },
       "- new tree",
       "- leftover"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.includes("# Knowledge\n\n- new tree"));
     assert.ok(out.includes("# Unprocessed\n\n- leftover"));
   });
@@ -375,11 +376,11 @@ describe("EggParser.applyMerge", () => {
   it("strips a leading '# Knowledge' heading from the AI output", async () => {
     // The model sometimes includes the section heading in its answer
     const store = await merge(
-      { "egg.md": fullEgg },
+      { "nutegg/egg.md": fullEgg },
       "# Knowledge\n\n- merged entry",
       ""
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     // exactly one heading survives
     assert.equal(out.split("\n").filter((l) => l === "# Knowledge").length, 1);
     assert.ok(out.includes("# Knowledge\n\n- merged entry"));
@@ -387,22 +388,22 @@ describe("EggParser.applyMerge", () => {
 
   it("strips a leading '# Unprocessed' heading from the AI leftovers", async () => {
     const store = await merge(
-      { "egg.md": fullEgg },
+      { "nutegg/egg.md": fullEgg },
       "- merged entry",
       "# Unprocessed\n\n- leftover entry"
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.equal(out.split("\n").filter((l) => l === "# Unprocessed").length, 1);
     assert.ok(out.includes("- leftover entry"));
   });
 
   it("cuts an embedded Unprocessed section out of the knowledge field", async () => {
     const store = await merge(
-      { "egg.md": fullEgg },
+      { "nutegg/egg.md": fullEgg },
       "- merged entry\n\n# Unprocessed\n- leftover entry",
       ""
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.equal(out.split("\n").filter((l) => l === "# Unprocessed").length, 1);
     assert.ok(out.includes("- merged entry"));
     assert.ok(out.includes("- leftover entry"));
@@ -415,8 +416,8 @@ describe("EggParser.applyMerge", () => {
       "# Knowledge\n",
       "# Knowledge\n\n# Knowledge\n"
     );
-    const store = await merge({ "egg.md": broken }, "- fresh tree", "");
-    const out = store.files.get("egg.md")!;
+    const store = await merge({ "nutegg/egg.md": broken }, "- fresh tree", "");
+    const out = store.files.get("nutegg/egg.md")!;
     assert.equal(out.split("\n").filter((l) => l === "# Knowledge").length, 1);
     // the old tree (under the stray heading) is replaced, not left dangling
     assert.ok(!out.includes("### Old Branch"));
@@ -425,11 +426,11 @@ describe("EggParser.applyMerge", () => {
 
   it("inserts a missing Knowledge section before Unprocessed", async () => {
     const store = await merge(
-      { "egg.md": "# Unprocessed\n\n- stale entry" },
+      { "nutegg/egg.md": "# Unprocessed\n\n- stale entry" },
       "- new tree",
       ""
     );
-    const out = store.files.get("egg.md")!;
+    const out = store.files.get("nutegg/egg.md")!;
     assert.ok(out.indexOf("# Knowledge") < out.indexOf("# Unprocessed"));
     assert.ok(out.includes("- new tree"));
   });
@@ -537,6 +538,107 @@ describe("insertEggLanguage", () => {
   });
 });
 
+describe("EggParser path isolation", () => {
+  it("resolves only basenames and canonical paths in the configured folder", () => {
+    assert.equal(resolveEggPath("egg.md"), "nutegg/egg.md");
+    assert.equal(resolveEggPath("nutegg/egg.md"), "nutegg/egg.md");
+    assert.equal(resolveEggPath("egg.md", "custom/eggs"), "custom/eggs/egg.md");
+    for (const name of ["outside/egg.md", "/nutegg/egg.md", "../egg.md", "nutegg/../egg.md", "nutegg//egg.md", "nutegg/./egg.md", "nutegg\\egg.md", "_index.md", "nutegg/_raw/egg.md", "nutegg/_workflow/egg.md", "nutegg/sub/egg.md", "egg.txt"]) {
+      assert.equal(resolveEggPath(name), null, name);
+    }
+  });
+
+  it("reads, appends and merges the folder egg when a root note shares its basename", async () => {
+    const original = "# Knowledge\n\n- private root note\n";
+    const { vault, files } = makeFakeVault({ "egg.md": original, "nutegg/egg.md": "# Knowledge\n\n- egg tree\n" });
+    const parser = new EggParser(makeFakePlugin({ vault }) as any);
+    const egg = await parser.readEgg("egg.md");
+    assert.equal(egg?.fileName, "nutegg/egg.md");
+    assert.ok(egg?.knowledge.includes("egg tree"));
+    await parser.appendUnprocessed("egg.md", "- new insight", "Author", "Title", "https://example.com");
+    assert.ok(files.get("nutegg/egg.md")!.includes("new insight"));
+    assert.equal(await parser.applyMerge("egg.md", "- merged tree", ""), true);
+    assert.ok(files.get("nutegg/egg.md")!.includes("merged tree"));
+    assert.equal(files.get("egg.md"), original);
+  });
+
+  it("does not fall back to a root note when the actual egg is missing", async () => {
+    const { vault, files } = makeFakeVault({ "egg.md": "private" });
+    const parser = new EggParser(makeFakePlugin({ vault }) as any);
+    assert.equal(await parser.readEgg("egg.md"), null);
+    await assert.rejects(parser.appendUnprocessed("egg.md", "new", "", "", ""), /egg file not found/);
+    assert.equal(await parser.applyMerge("egg.md", "new", ""), false);
+    assert.equal(files.get("egg.md"), "private");
+  });
+
+  it("rejects external and system paths rather than remapping their basename to a real egg", async () => {
+    const paths = ["outside/egg.md", "nutegg/_index.md", "nutegg/_raw/egg.md", "nutegg/_workflow/egg.md", "nutegg/sub/egg.md"];
+    const initial = Object.fromEntries(paths.map(path => [path, "private"]));
+    const { vault, files } = makeFakeVault({ ...initial, "nutegg/egg.md": "# Knowledge\n- tree" });
+    const parser = new EggParser(makeFakePlugin({ vault }) as any);
+    for (const path of paths) {
+      assert.equal(await parser.readEgg(path), null);
+      await assert.rejects(parser.appendUnprocessed(path, "new", "", "", ""), /outside the egg folder/);
+      assert.equal(await parser.applyMerge(path, "new", ""), false);
+      assert.equal(files.get(path), "private");
+    }
+    assert.equal(files.get("nutegg/egg.md"), "# Knowledge\n- tree");
+  });
+
+  it("keeps case-insensitive aliases inside the configured folder", async () => {
+    const { vault, files } = makeFakeVault({ "custom/eggs/Egg.md": "# Knowledge\n- tree", "egg.md": "private" });
+    const parser = new EggParser(makeFakePlugin({ vault, vaultFolder: "custom/eggs" }) as any);
+    assert.equal((await parser.readEgg("egg.md"))?.fileName, "custom/eggs/Egg.md");
+    await parser.appendUnprocessed("egg.md", "new", "", "", "");
+    assert.ok(files.get("custom/eggs/Egg.md")!.includes("- new"));
+    assert.equal(files.get("egg.md"), "private");
+    assert.equal(await parser.readEgg("nutegg/egg.md"), null);
+  });
+
+  it("does not choose between ambiguous case-insensitive names", async () => {
+    const { vault } = makeFakeVault({ "nutegg/Egg.md": "first", "nutegg/EGG.md": "second" });
+    const parser = new EggParser(makeFakePlugin({ vault }) as any);
+    assert.equal(await parser.readEgg("egg.md"), null);
+  });
+
+  for (const operation of ["append", "merge", "metadata"] as const) {
+    for (const atomic of [false, true]) {
+      it(`blocks ${operation} if the file moves outside the folder while ${atomic ? "process" : "read"} waits`, async () => {
+        const original = "# Knowledge\n- original";
+        const { vault, files } = makeFakeVault({ "nutegg/egg.md": original });
+        const move = (file: { path: string }) => {
+          files.delete(file.path);
+          file.path = "outside/egg.md";
+          files.set(file.path, original);
+        };
+        if (atomic) {
+          (vault as any).process = async (file: any, transform: (content: string) => string) => {
+            await Promise.resolve();
+            move(file);
+            await vault.modify(file, transform(original));
+          };
+        } else {
+          vault.read = async file => { await Promise.resolve(); move(file); return original; };
+        }
+        const parser = new EggParser(makeFakePlugin({ vault }) as any);
+        const operationPromise = operation === "append"
+          ? parser.appendUnprocessed("egg.md", "new", "", "", "")
+          : operation === "merge" ? parser.applyMerge("egg.md", "new", "")
+          : parser.processEgg("egg.md", () => "language: English");
+        await assert.rejects(operationPromise, /moved or is outside/);
+        assert.equal(files.get("outside/egg.md"), original);
+      });
+    }
+  }
+
+  it("discards a read if the file is moved while content loads", async () => {
+    const { vault } = makeFakeVault({ "nutegg/egg.md": "# Knowledge\n- tree" });
+    vault.read = async file => { file.path = "outside/egg.md"; return "private"; };
+    const parser = new EggParser(makeFakePlugin({ vault }) as any);
+    await assert.rejects(parser.readEgg("egg.md"), /moved or is outside/);
+  });
+});
+
 describe("EggParser.readEgg language handling", () => {
   it("reads egg language from frontmatter when present", async () => {
     const original = `---\ntopic: "Trading"\nlanguage: "English"\n---\n\n# Knowledge\n- risk\n`;
@@ -576,5 +678,3 @@ describe("EggParser.readEgg language handling", () => {
     assert.equal(await vault.adapter.read("nutegg/ml.md"), original);
   });
 });
-
-
