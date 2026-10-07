@@ -41,13 +41,14 @@ class TabAction {
       const tab = await chrome.tabs.get(lease.tabId);
       if (!this.store.isActivationCurrent(lease)) return;
       this.store.dispatch({ type: 'pageInfo', tabId: lease.tabId, url: tab.url, title: tab.title, loading: tab.status === 'loading' });
+      const statusPromise = this.envService.checkServerStatus();
       const current = this.store.getTab(lease.tabId);
       if (!current.extractedContent || current.operations.extraction?.running) {
         // Extraction is shared per page generation, including across A → B → A.
         await this.operations.extract(lease.tabId, options);
         if (!this.store.isActivationCurrent(lease)) return;
       }
-      await this.envService.checkServerStatus();
+      await statusPromise;
       if (!this.store.isActivationCurrent(lease)) return;
       if (this.settings.serverOnline) {
         void this.operations.catalog();

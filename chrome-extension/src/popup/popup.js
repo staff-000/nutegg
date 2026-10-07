@@ -34,6 +34,7 @@ async function initPopup() {
   tabStateManager.subscribe(event => renderer.handle(event));
   tabStateManager.subscribe(event => { if (event.type === 'receipt' && event.receipt.success) void envService.fetchMetrics(); });
   tabStateManager.diagnosticsEnabled = stored?.popupDiagnostics === true;
+  void envService.checkServerStatus();
   // Useful for local debugging; contains IDs and transition metadata only.
   globalThis.NutEggPopupDiagnostics = () => tabStateManager.diagnostics.map(row => ({ ...row }));
 
