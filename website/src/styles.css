@@ -802,6 +802,10 @@ footer {
   padding-bottom: 80px;
 }
 
+.showcase-section .section-header {
+  max-width: 760px;
+}
+
 .showcase-tabs {
   display: flex;
   justify-content: center;
