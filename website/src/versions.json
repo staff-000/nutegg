@@ -1,0 +1,15 @@
+{
+  "chromeExtension": {
+    "storeVersion": "0.2.3",
+    "githubVersion": "0.3.0",
+    "storeUrl": "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
+    "githubZipUrl": "https://github.com/staff-000/nutegg-chrome-extension-release/releases/download/0.3.0/nutegg-chrome-extension-0.3.0.zip",
+    "githubReleaseUrl": "https://github.com/staff-000/nutegg-chrome-extension-release/releases/latest"
+  },
+  "obsidianPlugin": {
+    "communityVersion": "0.3.0",
+    "githubVersion": "0.3.0",
+    "communityUrl": "https://community.obsidian.md/plugins/nutegg",
+    "githubReleaseUrl": "https://github.com/staff-000/nutegg-obsidian-release/releases/latest"
+  }
+}

@@ -20,7 +20,8 @@
     "preview:website": "./preview-website.sh",
     "deploy": "./deploy.sh",
     "deploy:remote": "./deploy.sh --remote",
-    "release": "./release.sh"
+    "release": "./release.sh",
+    "update:version": "node scripts/update-download-version.js"
   }
 }
 

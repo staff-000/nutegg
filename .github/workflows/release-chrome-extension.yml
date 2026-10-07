@@ -151,3 +151,27 @@ jobs:
               --title "NutEgg Chrome Extension $RELEASE_TAG" \
               --notes "Automated release triggered by tag \`$TAG\` in [${{ github.repository }}](https://github.com/${{ github.repository }})." || echo "gh release create skipped or failed"
           fi
+
+      - name: Update website release version on main
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#nutegg-chrome-extension-}"
+          echo "Updating website release version for Chrome Extension to $VERSION..."
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main || true
+          git checkout main 2>/dev/null || true
+          git pull origin main --rebase 2>/dev/null || true
+          if [ -f "scripts/update-download-version.js" ]; then
+            node scripts/update-download-version.js --chrome "$VERSION" --no-build
+            if git diff --quiet website/src/versions.json; then
+              echo "Website version is already up to date."
+            else
+              git add website/src/versions.json
+              git commit -m "chore(release): update Chrome extension version to $VERSION on website"
+              git push origin main || echo "⚠️ Direct push to main skipped (branch protected or permissions required)"
+            fi
+          fi

@@ -14,6 +14,8 @@ set -euo pipefail
 #   ./release.sh 0.2.4
 #   ./release.sh 0.2.4 --deploy
 #   ./release.sh 0.2.4 --deploy --vault "/path/to/vault"
+#  npm run update:version -- --chrome-store 0.3.0
+#  npm run update:version -- --obsidian-community 0.3.1
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -255,13 +257,18 @@ node -e "
   m.version = '$CLEAN_VERSION';
   require('fs').writeFileSync('./chrome-extension/manifest.json', JSON.stringify(m, null, 2) + '\n');
 "
+
+# website/src/versions.json
+if [[ -f "$SCRIPT_DIR/scripts/update-download-version.js" ]]; then
+  node "$SCRIPT_DIR/scripts/update-download-version.js" "$CLEAN_VERSION" --no-build
+fi
 echo "   ✅ Version numbers updated"
 echo ""
 
 # --- 8. Commit and push changes if any ---
-if git -C "$SCRIPT_DIR" status --porcelain | grep -E "(package|manifest)\.json" >/dev/null; then
+if git -C "$SCRIPT_DIR" status --porcelain | grep -E "(package|manifest|versions)\.json" >/dev/null; then
   echo "💾 Committing version bump..."
-  git -C "$SCRIPT_DIR" add obsidian-plugin/package.json obsidian-plugin/manifest.json chrome-extension/package.json chrome-extension/manifest.json
+  git -C "$SCRIPT_DIR" add obsidian-plugin/package.json obsidian-plugin/manifest.json chrome-extension/package.json chrome-extension/manifest.json website/src/versions.json
   git -C "$SCRIPT_DIR" commit -m "chore: release $TAG" --author="$REPO_OWNER <staffhacker.000@gmail.com>"
   git -C "$SCRIPT_DIR" push origin main
   echo "   ✅ Pushed version commit to main"

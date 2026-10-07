@@ -55,14 +55,36 @@
         </p>
 
         <div class="cta-group">
-          <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary">
-            <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
-            <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
-          </a>
-          <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary">
-            <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
-            <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
-          </a>
+          <div class="download-action-card">
+            <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary" id="hero-chrome-btn">
+              <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
+              <span class="btn-text-content">
+                <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
+                <span class="version-badge" id="chrome-version-hero">v{{CHROME_STORE_VERSION}}</span>
+              </span>
+            </a>
+            <div class="download-release-sub">
+              <a href="{{CHROME_ZIP_URL}}" target="_blank" rel="noopener" id="chrome-zip-hero" title="Download standalone .zip for Chrome">
+                <span data-i18n="downloadGithubZip">📦 Download .zip</span> <span class="release-ver-tag" id="chrome-zip-ver-hero">(v{{CHROME_GITHUB_VERSION}})</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="download-action-card">
+            <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary" id="hero-obsidian-btn">
+              <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
+              <span class="btn-text-content">
+                <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
+                <span class="version-badge version-badge-secondary" id="obsidian-version-hero">v{{OBSIDIAN_COMMUNITY_VERSION}}</span>
+              </span>
+            </a>
+            <div class="download-release-sub">
+              <a href="{{OBSIDIAN_RELEASE_URL}}" target="_blank" rel="noopener" id="obsidian-release-hero" title="Get release assets from GitHub">
+                <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span> <span class="release-ver-tag" id="obsidian-release-ver-hero">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
+              </a>
+            </div>
+          </div>
+
           <a href="#promo-video" class="btn-secondary">
             <span data-i18n="watchVideoBtn">🎬 Watch Promo</span>
           </a>
@@ -419,14 +441,36 @@
         <h2 data-i18n="ctaTitle">Start Hatching Knowledge Today</h2>
         <p data-i18n="ctaSubtitle">Take back your reading time and build an Obsidian knowledge base that actually grows with you.</p>
         <div class="cta-group" style="margin-bottom: 0;">
-          <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary">
-            <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
-            <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
-          </a>
-          <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary">
-            <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
-            <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
-          </a>
+          <div class="download-action-card">
+            <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary" id="banner-chrome-btn">
+              <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
+              <span class="btn-text-content">
+                <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
+                <span class="version-badge" id="chrome-version-banner">v{{CHROME_STORE_VERSION}}</span>
+              </span>
+            </a>
+            <div class="download-release-sub">
+              <a href="{{CHROME_ZIP_URL}}" target="_blank" rel="noopener" id="chrome-zip-banner" title="Download standalone .zip for Chrome">
+                <span data-i18n="downloadGithubZip">📦 Download .zip</span> <span class="release-ver-tag" id="chrome-zip-ver-banner">(v{{CHROME_GITHUB_VERSION}})</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="download-action-card">
+            <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary" id="banner-obsidian-btn">
+              <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
+              <span class="btn-text-content">
+                <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
+                <span class="version-badge version-badge-secondary" id="obsidian-version-banner">v{{OBSIDIAN_COMMUNITY_VERSION}}</span>
+              </span>
+            </a>
+            <div class="download-release-sub">
+              <a href="{{OBSIDIAN_RELEASE_URL}}" target="_blank" rel="noopener" id="obsidian-release-banner" title="Get release assets from GitHub">
+                <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span> <span class="release-ver-tag" id="obsidian-release-ver-banner">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
+              </a>
+            </div>
+          </div>
+
           <a href="docs/index.html" class="btn-secondary">
             <span data-i18n="navGetStarted">🚀 Get Started</span>
           </a>
@@ -449,6 +493,7 @@
         <a href="docs/index.html" data-i18n="footerDocs">Docs</a>
         <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" data-i18n="chromeStoreBtn">Chrome Web Store</a>
         <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" data-i18n="obsidianPluginBtn">Obsidian Plugin</a>
+        <a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener" data-i18n="githubReleases">GitHub Releases</a>
         <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener" data-i18n="footerPrivacy">Privacy Policy</a>
         <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
       </div>

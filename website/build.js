@@ -53,7 +53,54 @@ function build() {
     console.warn('   ⚠️  Warning: chrome-extension/icons/ not found');
   }
 
-  // 4. Create .nojekyll for GitHub Pages
+  // 4. Inject versions into HTML files
+  const versionsFile = path.join(SRC_DIR, 'versions.json');
+  let versions = null;
+  if (fs.existsSync(versionsFile)) {
+    try {
+      versions = JSON.parse(fs.readFileSync(versionsFile, 'utf8'));
+    } catch (e) {
+      console.warn('   ⚠️ Could not parse versions.json:', e.message);
+    }
+  }
+
+  // Fallbacks if versions.json missing or partial
+  const chromeStoreVer = versions?.chromeExtension?.storeVersion || versions?.chromeExtension?.version || '0.2.3';
+  const chromeGithubVer = versions?.chromeExtension?.githubVersion || versions?.chromeExtension?.version || '0.3.0';
+  const chromeZipUrl = versions?.chromeExtension?.githubZipUrl || `https://github.com/staff-000/nutegg-chrome-extension-release/releases/download/${chromeGithubVer}/nutegg-chrome-extension-${chromeGithubVer}.zip`;
+  const chromeReleaseUrl = versions?.chromeExtension?.githubReleaseUrl || 'https://github.com/staff-000/nutegg-chrome-extension-release/releases/latest';
+
+  const obsidianCommunityVer = versions?.obsidianPlugin?.communityVersion || versions?.obsidianPlugin?.version || '0.3.0';
+  const obsidianGithubVer = versions?.obsidianPlugin?.githubVersion || versions?.obsidianPlugin?.version || '0.3.0';
+  const obsidianReleaseUrl = versions?.obsidianPlugin?.githubReleaseUrl || 'https://github.com/staff-000/nutegg-obsidian-release/releases/latest';
+
+  function templateHtmlFile(filePath) {
+    if (!fs.existsSync(filePath)) return;
+    let content = fs.readFileSync(filePath, 'utf8');
+    content = content
+      .replaceAll('{{CHROME_STORE_VERSION}}', chromeStoreVer)
+      .replaceAll('{{CHROME_GITHUB_VERSION}}', chromeGithubVer)
+      .replaceAll('{{CHROME_VERSION}}', chromeStoreVer)
+      .replaceAll('{{CHROME_ZIP_URL}}', chromeZipUrl)
+      .replaceAll('{{CHROME_RELEASE_URL}}', chromeReleaseUrl)
+      .replaceAll('{{OBSIDIAN_COMMUNITY_VERSION}}', obsidianCommunityVer)
+      .replaceAll('{{OBSIDIAN_GITHUB_VERSION}}', obsidianGithubVer)
+      .replaceAll('{{OBSIDIAN_VERSION}}', obsidianCommunityVer)
+      .replaceAll('{{OBSIDIAN_RELEASE_URL}}', obsidianReleaseUrl);
+    fs.writeFileSync(filePath, content, 'utf8');
+  }
+
+  templateHtmlFile(path.join(DIST_DIR, 'index.html'));
+  const docsDir = path.join(DIST_DIR, 'docs');
+  if (fs.existsSync(docsDir)) {
+    const docFiles = fs.readdirSync(docsDir).filter(f => f.endsWith('.html'));
+    for (const f of docFiles) {
+      templateHtmlFile(path.join(docsDir, f));
+    }
+  }
+  console.log(`   ✅ Interpolated versions (Chrome Store: v${chromeStoreVer}, Chrome GitHub: v${chromeGithubVer}, Obsidian Community: v${obsidianCommunityVer}, Obsidian GitHub: v${obsidianGithubVer}) into HTML`);
+
+  // 5. Create .nojekyll for GitHub Pages
   fs.writeFileSync(path.join(DIST_DIR, '.nojekyll'), '');
   console.log('   ✅ Added .nojekyll configuration');
 

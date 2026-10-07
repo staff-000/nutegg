@@ -193,11 +193,18 @@ a {
 
 .cta-group {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 16px;
   flex-wrap: wrap;
   margin-bottom: 48px;
+}
+
+.download-action-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-primary {
@@ -205,14 +212,15 @@ a {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  width: 220px;
+  min-width: 220px;
+  width: auto;
   max-width: 100%;
   box-sizing: border-box;
   white-space: nowrap;
   background: var(--egg-gradient);
   border: 1px solid transparent;
   color: #fff;
-  padding: 14px 18px;
+  padding: 14px 20px;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
@@ -230,14 +238,15 @@ a {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  width: 220px;
+  min-width: 220px;
+  width: auto;
   max-width: 100%;
   box-sizing: border-box;
   white-space: nowrap;
   background: #ffffff;
   border: 1px solid var(--border-subtle);
   color: var(--text-main);
-  padding: 14px 18px;
+  padding: 14px 20px;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
@@ -249,6 +258,63 @@ a {
   background: #f8fafc;
   border-color: #cbd5e1;
   transform: translateY(-1px);
+}
+
+.btn-text-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.02em;
+}
+
+.version-badge-secondary {
+  background: rgba(168, 86, 30, 0.08);
+  color: var(--nut-brown, #a8561e);
+  border: 1px solid rgba(168, 86, 30, 0.22);
+}
+
+.download-release-sub {
+  font-size: 0.8rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.download-release-sub a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted, #64748b);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.release-ver-tag {
+  font-weight: 600;
+  opacity: 0.88;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+}
+
+.download-release-sub a:hover {
+  color: var(--primary, #d97706);
+  background: rgba(217, 119, 6, 0.08);
+  text-decoration: underline;
 }
 
 /* Interactive Mock Preview */
