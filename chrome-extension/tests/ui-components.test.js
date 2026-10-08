@@ -136,7 +136,7 @@ describe("Modular UI Components", () => {
       for (const stage of ["stage1", "stage2"]) {
         const session = { analysisResult: { stage, matchedEggs: ["a.md"] }, selectedEggs: new Set(["a.md"]),
           isStage1: () => stage === "stage1" };
-        controls.render(session, { analysisMode: mode, isChromeMode: () => false });
+        controls.render(session, { connectionMode: 'obsidian', analysisMode: mode, isChromeMode: () => false });
         assert.equal(controls.stage1ConfirmBox.classList.contains("hidden"), false);
         assert.equal(controls.stage1ProceedBtn.disabled, false);
         assert.equal(controls.stage1SkipBtn.disabled, false);
@@ -269,38 +269,11 @@ describe("Modular UI Components", () => {
     assert.strictEqual(banners.warningBanner.classList.contains("hidden"), true);
     assert.strictEqual(banners.getWarning(), null);
 
-    // Test Enable Chrome AI button and Open Settings button clicks
-    let optionsPageOpened = false;
-    let storageSaved = null;
-    globalThis.chrome = globalThis.chrome || {};
-    globalThis.chrome.runtime = globalThis.chrome.runtime || {};
-    globalThis.chrome.runtime.openOptionsPage = () => { optionsPageOpened = true; };
-    globalThis.chrome.storage = globalThis.chrome.storage || {};
-    globalThis.chrome.storage.local = {
-      set: async (obj) => { storageSaved = obj; },
-    };
-
-    // When offline & Chrome AI off: renders enable Chrome AI button
+    // Setup is presented once in the setup hub, never as a duplicate warning.
     banners.updateCaptureBanners({ serverOnline: false, chromeAiConfigured: false, chromeAiEnabled: false });
-    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), false);
-    assert.ok(banners.aiKeyMissingBanner.innerHTML.includes("open-settings-enable-ai-btn"));
+    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.chromeModeTipBanner.classList.contains("hidden"), true);
 
-    // Simulate click on enable button inside aiKeyMissingBanner
-    optionsPageOpened = false;
-    storageSaved = null;
-    const enableBtnTarget = { id: "open-settings-enable-ai-btn" };
-    banners.aiKeyMissingBanner._listeners.click.forEach((fn) => fn({ target: enableBtnTarget, preventDefault() {} }));
-    assert.strictEqual(optionsPageOpened, true);
-    assert.deepStrictEqual(storageSaved, { chromeAiEnabled: true });
-
-    // When offline & Chrome AI on but unconfigured: renders open settings key button
-    banners.updateCaptureBanners({ serverOnline: false, chromeAiConfigured: false, chromeAiEnabled: true });
-    assert.ok(banners.aiKeyMissingBanner.innerHTML.includes("open-settings-key-btn"));
-
-    optionsPageOpened = false;
-    const keyBtnTarget = { id: "open-settings-key-btn" };
-    banners.aiKeyMissingBanner._listeners.click.forEach((fn) => fn({ target: keyBtnTarget, preventDefault() {} }));
-    assert.strictEqual(optionsPageOpened, true);
   });
 
   it("CaptureViewComponent renders extracted content and provenance", () => {
@@ -794,23 +767,25 @@ describe("Modular UI Components", () => {
     const settings = new SettingsState();
 
     // 1. Obsidian online
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true, version: "0.2.0", aiConfigured: true });
     header.render(null, settings);
     assert.strictEqual(header.serverStatus.className, "status-dot online");
 
     // 2. Chrome AI mode
+    settings.setConnectionMode("chrome", false);
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: true, provider: "Gemini" });
     header.render(null, settings);
     assert.strictEqual(header.serverStatus.className, "status-dot chrome-ai");
 
-    // 3. Offline
+    // 3. Chrome setup needed; no Obsidian offline warning
     settings.setChromeAiStatus({ enabled: false, configured: false });
     header.render(null, settings);
-    assert.strictEqual(header.serverStatus.className, "status-dot offline");
+    assert.strictEqual(header.serverStatus.className, "status-dot warning");
   });
 
-  it("BannersComponent.render synchronizes capture and chrome result banners", () => {
+  it("BannersComponent.render keeps removed setup duplicates and Obsidian pitches hidden", () => {
     const root = createMockRoot();
     const banners = new BannersComponent(root);
     const session = testView();
@@ -820,14 +795,14 @@ describe("Modular UI Components", () => {
     settings.setServerStatus({ online: false });
     settings.setChromeAiStatus({ enabled: true, configured: false });
     banners.render(session, settings);
-    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), false);
+    assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), true);
 
     // Chrome mode with results
     session.analysisResult = { stage: "stage1", coreSummary: "Hello" };
     settings.setChromeAiStatus({ enabled: true, configured: true });
     banners.render(session, settings);
-    assert.strictEqual(banners.chromeResultBanner.classList.contains("hidden"), false);
-    assert.strictEqual(banners.chromeActionsCard.classList.contains("hidden"), false);
+    assert.strictEqual(banners.chromeResultBanner.classList.contains("hidden"), true);
+    assert.strictEqual(banners.chromeActionsCard.classList.contains("hidden"), true);
   });
 
   it("ResultsViewComponent.render toggles view and displays summary/provenance", () => {
@@ -914,6 +889,7 @@ describe("Modular UI Components", () => {
     assert.strictEqual(verdict.verdictAnswer.textContent, "Direct answer in Chrome AI");
 
     // Obsidian mode - Stage 1 confirm: decision verdict hidden, title verdict shown!
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });
     settings.setAnalysisMode("preview");
     session.analysisResult = { stage: "stage1", titleVerdict: "Title verdict in confirm mode" };
@@ -943,6 +919,7 @@ describe("Modular UI Components", () => {
     const actions = new ActionControlsComponent(root);
     const session = testView();
     const settings = new SettingsState();
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });
 
     settings.setAnalysisMode("preview");
@@ -964,6 +941,7 @@ describe("Modular UI Components", () => {
     const settings = new SettingsState();
 
     // Obsidian mode, no eggs matched
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });
     session.analysisResult = { matchedEggs: [], eggResults: [] };
     eggs.render(session, settings);
@@ -989,6 +967,7 @@ describe("Modular UI Components", () => {
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
 
     // Re-analyzing with selected eggs hides existing eggs
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });
     session.isAnalyzing = true;
     session.analysisResult = {
@@ -1007,6 +986,7 @@ describe("Modular UI Components", () => {
     const actions = new ActionControlsComponent(root);
     const session = testView();
     const settings = new SettingsState();
+    settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });
 
     // Case 1: Preview mode with matched eggs

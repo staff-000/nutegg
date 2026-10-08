@@ -77,14 +77,16 @@ class BannersComponent {
 
     if (this.errorHint) {
       const hints = {
-        no_api_key: t("errorHintNoApiKey"),
-        auth_failed: t("errorHintAuthFailed"),
+        no_api_key: t(this.connectionMode === 'obsidian' ? "errorHintNoApiKey" : "readerChromeKeyHint"),
+        auth_failed: t(this.connectionMode === 'obsidian' ? "errorHintAuthFailed" : "readerChromeKeyHint"),
         forbidden: t("errorHintForbidden"),
         model_not_found: t("errorHintModelNotFound"),
         rate_limited: t("errorHintRateLimited"),
         quota_exceeded: t("errorHintQuotaExceeded"),
         network_error: t("errorHintNetwork"),
         server_error: t("errorHintServerError"),
+        obsidian_offline: t("obsidianOfflineStart"),
+        obsidian_mode_required: t("settingsUseObsidian"),
       };
       if (errorCode && hints[errorCode]) {
         this.errorHint.innerHTML = hints[errorCode];
@@ -163,45 +165,10 @@ class BannersComponent {
     return null;
   }
 
-  updateCaptureBanners({ serverOnline, chromeAiConfigured, chromeAiEnabled }) {
-    if (serverOnline) {
-      this.aiKeyMissingBanner?.classList.add("hidden");
-      this.chromeModeTipBanner?.classList.add("hidden");
-      return;
-    }
-
-    if (chromeAiConfigured) {
-      this.aiKeyMissingBanner?.classList.add("hidden");
-      this.chromeModeTipBanner?.classList.remove("hidden");
-    } else {
-      this.chromeModeTipBanner?.classList.add("hidden");
-      if (this.aiKeyMissingBanner) {
-        this.aiKeyMissingBanner.classList.remove("hidden");
-        if (chromeAiEnabled) {
-          this.aiKeyMissingBanner.innerHTML = `
-            <span class="key-banner-icon">🔑</span>
-            <div class="key-banner-content">
-              ${t("aiKeyRequiredChrome")}
-              <div class="key-banner-actions">
-                <button id="open-settings-key-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(t("openSettingsKeyBtn"))}</button>
-                <span>${_bannersEscapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
-              </div>
-            </div>
-          `;
-        } else {
-          this.aiKeyMissingBanner.innerHTML = `
-            <span class="key-banner-icon">⚪</span>
-            <div class="key-banner-content">
-              ${t("obsidianOfflineBanner")}
-              <div class="key-banner-actions">
-                <button id="open-settings-enable-ai-btn" type="button" class="key-banner-link-btn">${_bannersEscapeHtml(t("enableChromeAiBtn"))}</button>
-                <span>${_bannersEscapeHtml(t("orStartObsidian"))} <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="key-banner-link">Obsidian</a></span>
-              </div>
-            </div>
-          `;
-        }
-      }
-    }
+  updateCaptureBanners() {
+    // First-use setup is presented once by PopupRenderer's setup hub.
+    this.aiKeyMissingBanner?.classList.add("hidden");
+    this.chromeModeTipBanner?.classList.add("hidden");
   }
 
   setChromeResultBanner(visible) {
@@ -216,27 +183,13 @@ class BannersComponent {
 
   render(session, settings) {
     if (!settings) return;
-    const hasResult = Boolean(session?.analysisResult);
-    const isChrome = settings.isChromeMode(session?.analysisResult);
+    this.connectionMode = settings.connectionMode;
 
-    if (hasResult && isChrome) {
-      this.setChromeResultBanner(true);
-      this.setChromeActionsCard(true);
-    } else {
-      this.setChromeResultBanner(false);
-      this.setChromeActionsCard(false);
-    }
+    this.setChromeResultBanner(false);
+    this.setChromeActionsCard(false);
 
-    if (!hasResult) {
-      this.updateCaptureBanners({
-        serverOnline: settings.serverOnline,
-        chromeAiConfigured: settings.chromeAiConfigured,
-        chromeAiEnabled: settings.chromeAiEnabled,
-      });
-    } else {
-      this.aiKeyMissingBanner?.classList.add("hidden");
-      this.chromeModeTipBanner?.classList.add("hidden");
-    }
+    this.aiKeyMissingBanner?.classList.add("hidden");
+    this.chromeModeTipBanner?.classList.add("hidden");
   }
 }
 

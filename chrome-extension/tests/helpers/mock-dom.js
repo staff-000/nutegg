@@ -47,6 +47,7 @@ function createMockElement(id = "") {
 function createMockRoot() {
   const elements = new Map();
   return {
+    body: createMockElement("body"),
     getElementById(id) {
       if (!elements.has(id)) {
         elements.set(id, createMockElement(id));

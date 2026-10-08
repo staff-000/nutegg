@@ -189,17 +189,21 @@ test("getAnalyzeNotReadyReason - reports appropriate readiness blocks", () => {
   assert.equal(
     getAnalyzeNotReadyReason(
       { extractedContent: { content: "text" } },
-      { serverOnline: false, chromeAiEnabled: false }
+      { connectionMode: "obsidian", serverOnline: false, chromeAiConfigured: true }
     ),
     "obsidianOfflineStart"
   );
   assert.equal(
     getAnalyzeNotReadyReason(
       { extractedContent: { content: "text" } },
-      { serverOnline: true }
+      { connectionMode: "obsidian", serverOnline: true }
     ),
     null
   );
+  assert.equal(getAnalyzeNotReadyReason({ extractedContent: { content: "text" } },
+    { serverOnline: true, chromeAiConfigured: false }), "chromeAiNoKeyConfig");
+  assert.equal(getAnalyzeNotReadyReason({ extractedContent: { content: "text" } },
+    { connectionMode: "chrome", serverOnline: false, chromeAiEnabled: false, chromeAiConfigured: true }), null);
 });
 
 test("buildGitHubBugReportUrl & openGitHubBugReport - builds correct issue url", () => {

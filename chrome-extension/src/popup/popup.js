@@ -104,9 +104,15 @@ async function initPopup() {
   for (const input of [e.eggsNewDesc, e.newEggDescription]) input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
   click(e.createEggBtn, () => saveAction.handleCreateEgg(false));
   click(e.eggsCreateBtn, () => saveAction.handleCreateEgg(true));
-  for (const button of [h.serverStatus, h.statusIndicatorWrap, h.settingsBtn, h.aiCreditPill, document.getElementById('setup-open-settings-btn')]) click(button, () => {
-    if (button?.id === 'setup-open-settings-btn' && chrome?.storage?.local?.set) chrome.storage.local.set({ chromeAiEnabled: true });
+  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn')]) click(button, () => {
     chrome.runtime.openOptionsPage();
+  });
+  click(h.aiCreditPill, () => {
+    h.setCheckingCredit();
+    void envService.checkServerStatus(true);
+  });
+  h.statusIndicatorWrap?.addEventListener('keydown', event => {
+    if (['Enter', ' '].includes(event.key)) { event.preventDefault(); chrome.runtime.openOptionsPage(); }
   });
   click(document.getElementById('report-bug-link'), event => { event.preventDefault(); interactionAction.openGitHubBugReport(); });
   click(ui.bannersUI.errorReportBug, event => { event.preventDefault(); interactionAction.openGitHubBugReport(tabStateManager.viewModel().error || ''); });
@@ -131,8 +137,10 @@ async function initPopup() {
   }, { passive: true });
   chrome.storage?.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
+    if (changes.connectionMode) settings.setConnectionMode(changes.connectionMode.newValue, false);
     if (changes.analysisMode) settings.setAnalysisMode(changes.analysisMode.newValue, false);
     if (changes.outputLanguage) settings.setOutputLanguage(changes.outputLanguage.newValue, false);
+    if (changes.uiDensity) settings.setUiDensity(changes.uiDensity.newValue, false);
     if (changes.enabledSections) settings.setEnabledSections(changes.enabledSections.newValue);
     if (changes.generateKnowledgeEntries) settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
     if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; void operations.refreshDebugInfo(); }
@@ -142,7 +150,7 @@ async function initPopup() {
     });
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     if (changes.popupDiagnostics) tabStateManager.diagnosticsEnabled = changes.popupDiagnostics.newValue === true;
-    if (Object.keys(changes).some(key => key === 'serverPort' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
+    if (Object.keys(changes).some(key => key === 'connectionMode' || key === 'serverPort' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
     tabStateManager.emit({ type: 'settings' });
   });
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });

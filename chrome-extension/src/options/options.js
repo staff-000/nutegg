@@ -23,7 +23,13 @@ const shortcutsLink = document.getElementById("shortcuts-link");
 // AI configuration elements
 const aiConfigSection = document.getElementById("ai-config-section");
 const aiStatusBanner = document.getElementById("ai-status-banner");
-const aiEnableStandalone = document.getElementById("ai-enable-standalone");
+const obsidianModeEnabled = document.getElementById("obsidian-mode-enabled");
+const obsidianConfig = document.getElementById("obsidian-config");
+const obsidianActiveCard = document.getElementById("obsidian-active-card");
+const connectionModeBadge = document.getElementById("connection-mode-badge");
+const connectionModeStatus = document.getElementById("connection-mode-status");
+const chromeAdvancedSettings = document.getElementById("chrome-advanced-settings");
+const aiAdvancedStatus = document.getElementById("ai-advanced-status");
 const aiProviderSelect = document.getElementById("ai-provider-select");
 const aiModelSelect = document.getElementById("ai-model-select");
 const aiModelCustom = document.getElementById("ai-model-custom");
@@ -47,6 +53,7 @@ const sectionKnowledge = document.getElementById("section-knowledge");
 const sectionDiscussion = document.getElementById("section-discussion");
 const sectionsSaveBtn = document.getElementById("sections-save-btn");
 const sectionsStatus = document.getElementById("sections-status");
+const uiDensitySelect = document.getElementById("ui-density-select");
 const debugInfoEnabled = document.getElementById('debug-info-enabled');
 
 const DEFAULT_SECTIONS = {
@@ -76,11 +83,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     "analysisMode",
     "enabledSections",
     "generateKnowledgeEntries",
+    "uiDensity",
+    "connectionMode",
     "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
     "chromeAiModel",
     "chromeAiLocalEndpoint",
+    "chromeAiEndpoint",
     "outputLanguage",
     "chromeAiPromptOverrides",
     "debugInfo",
@@ -146,11 +156,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 2. Content Analysis Sections initialization
   initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries);
 
+  if (uiDensitySelect) {
+    uiDensitySelect.value = stored.uiDensity || "compact";
+    uiDensitySelect.addEventListener("change", async () => {
+      await chrome.storage.local.set({ uiDensity: uiDensitySelect.value });
+    });
+  }
+
   // 3. AI Settings initialization
   initAiSettings(stored);
 
-  // 4. Check Obsidian connection status for the AI banner
-  checkObsidianForAiBanner(port);
+  // Chrome is ready to configure without probing for another application.
+  initConnectionMode(stored);
 
   // 4. Report bug button
   const reportBugBtn = document.getElementById("report-bug-btn");
@@ -181,66 +198,60 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-async function checkObsidianForAiBanner(port) {
-  if (!aiStatusBanner) return;
+function renderConnectionMode(mode) {
+  const usesObsidian = mode === "obsidian";
+  obsidianModeEnabled.checked = usesObsidian;
+  obsidianModeEnabled.setAttribute("aria-expanded", String(usesObsidian));
+  obsidianConfig.classList.toggle("hidden", !usesObsidian);
+  obsidianActiveCard.classList.toggle("hidden", !usesObsidian);
+  aiConfigSection.classList.toggle("hidden", usesObsidian);
+  chromeAdvancedSettings.classList.toggle("hidden", usesObsidian);
+  connectionModeBadge.textContent = t(usesObsidian ? "settingsObsidianMode" : "settingsChromeMode");
+  connectionModeBadge.classList.toggle("obsidian", usesObsidian);
+  if (usesObsidian) document.getElementById("obsidian-settings").open = true;
+}
 
+async function setConnectionMode(mode) {
+  await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
+  renderConnectionMode(mode);
+  connectionModeStatus.textContent = t(mode === "obsidian" ? "settingsObsidianSelected" : "settingsChromeSelected");
+  connectionModeStatus.className = "test-result ok";
+  if (mode === "obsidian") checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+}
+
+function initConnectionMode(stored) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceChrome = ["1", "true"].includes(urlParams.get("enableAi"));
+  renderConnectionMode(forceChrome ? "chrome" : stored.connectionMode);
+  if (forceChrome) chrome.storage.local.set({ connectionMode: "chrome", chromeAiEnabled: true });
+  obsidianModeEnabled.addEventListener("change", () => setConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome"));
+  document.getElementById("use-chrome-btn").addEventListener("click", async () => {
+    await setConnectionMode("chrome");
+    aiProviderSelect.focus();
+  });
+  if (obsidianModeEnabled.checked) checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+}
+
+async function checkObsidianForAiBanner(port) {
+  if (!aiStatusBanner || !obsidianModeEnabled.checked) return;
+  aiStatusBanner.textContent = t("settingsObsidianChecking");
+  aiStatusBanner.className = "connection-status";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2000);
-
-  const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
-
   try {
-    const resp = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
+    const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
+    if (!obsidianModeEnabled.checked) return;
+    aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
+    aiStatusBanner.classList.toggle("connected", response.ok);
+  } catch {
+    if (obsidianModeEnabled.checked) aiStatusBanner.textContent = t("settingsObsidianWaiting");
+  } finally {
     clearTimeout(timeout);
-    if (resp.ok) {
-      aiStatusBanner.className = "ai-status-banner obsidian-online";
-      aiStatusBanner.innerHTML = t("aiBannerConnected") + (isEnabled ? t("aiBannerConnectedFallback") : "");
-      return;
-    }
-  } catch {}
-
-  aiStatusBanner.className = "ai-status-banner obsidian-offline";
-  if (isEnabled) {
-    aiStatusBanner.innerHTML = t("aiBannerOfflineStandalone");
-  } else {
-    aiStatusBanner.innerHTML = t("aiBannerOfflineDisabled");
   }
 }
 
 function initAiSettings(stored) {
   if (!aiProviderSelect || typeof PROVIDER_CATALOG === "undefined") return;
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const forceEnableAi = urlParams.get("enableAi") === "1" || urlParams.get("enableAi") === "true";
-
-  // Standalone mode toggle
-  const isEnabled = forceEnableAi || Boolean(stored.chromeAiEnabled);
-  if (aiEnableStandalone) {
-    aiEnableStandalone.checked = isEnabled;
-    if (isEnabled) {
-      aiConfigSection?.classList.remove("hidden");
-      if (forceEnableAi) {
-        chrome.storage.local.set({ chromeAiEnabled: true });
-        setTimeout(() => {
-          aiConfigSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 150);
-      }
-    } else {
-      aiConfigSection?.classList.add("hidden");
-    }
-
-    aiEnableStandalone.addEventListener("change", async () => {
-      const checked = aiEnableStandalone.checked;
-      if (checked) {
-        aiConfigSection?.classList.remove("hidden");
-        aiConfigSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        aiConfigSection?.classList.add("hidden");
-      }
-      await chrome.storage.local.set({ chromeAiEnabled: checked });
-      checkObsidianForAiBanner(stored.serverPort || DEFAULT_PORT);
-    });
-  }
 
   // Populate providers
   aiProviderSelect.innerHTML = "";
@@ -260,9 +271,7 @@ function initAiSettings(stored) {
     aiKeyInput.value = stored.chromeAiApiKey;
   }
 
-  if (stored.chromeAiLocalEndpoint) {
-    aiLocalEndpoint.value = stored.chromeAiLocalEndpoint;
-  }
+  aiLocalEndpoint.value = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint || "";
 
   if (outputLangSelect) {
     outputLangSelect.value = stored.outputLanguage || "same-as-content";
@@ -292,13 +301,19 @@ function initAiSettings(stored) {
     if (aiKeyInput.type === "password") {
       aiKeyInput.type = "text";
       aiKeyToggle.textContent = t("hideKeyBtn");
+      aiKeyToggle.setAttribute("aria-pressed", "true");
     } else {
       aiKeyInput.type = "password";
       aiKeyToggle.textContent = t("showKeyBtn");
+      aiKeyToggle.setAttribute("aria-pressed", "false");
     }
   });
 
-  aiSaveBtn.addEventListener("click", handleAiSave);
+  aiConfigSection.addEventListener("submit", event => {
+    event.preventDefault();
+    handleAiSave();
+  });
+  document.getElementById("ai-advanced-save-btn").addEventListener("click", () => handleAiSave(true));
   aiTestBtn.addEventListener("click", handleAiTest);
 
   if (aiPromptSelect && aiPromptTextarea) {
@@ -319,10 +334,8 @@ function initAiSettings(stored) {
         delete savedPromptOverrides[activePromptKey];
         loadPromptIntoTextarea(activePromptKey);
         chrome.storage.local.set({ chromeAiPromptOverrides: savedPromptOverrides });
-        showAiResult(t("resetPromptDefault", { key: activePromptKey }), "ok");
-        setTimeout(() => {
-          aiTestResult.classList.add("hidden");
-        }, 2000);
+        showAiResult(t("resetPromptDefault", { key: activePromptKey }), "ok", true);
+
       });
     }
   }
@@ -387,6 +400,8 @@ function updateModelOptions(providerId, savedModel) {
     aiModelCustom.style.display = defaultModel ? "none" : "block";
   }
 
+  aiKeyInput.required = providerId !== "local";
+
   // Local endpoint visibility
   if (providerId === "local") {
     aiLocalEndpointRow.style.display = "block";
@@ -408,87 +423,97 @@ function updateProviderHints(providerId) {
   }
 
   if (aiKeyInput) {
-    aiKeyInput.placeholder = provider.keyPlaceholder || "API Key";
+    aiKeyInput.placeholder = provider.keyPlaceholder || t("settingsKeyLabel");
   }
 }
 
-async function handleAiSave() {
-  const providerId = aiProviderSelect.value;
-  let model = aiModelSelect.value;
-  if (model === "__custom__") {
-    model = aiModelCustom.value.trim();
-  }
-
-  const apiKey = aiKeyInput.value.trim();
-  const localEndpoint = aiLocalEndpoint ? aiLocalEndpoint.value.trim() : "";
-
-  saveActivePromptToState();
-  const isEnabled = aiEnableStandalone ? aiEnableStandalone.checked : false;
-  await chrome.storage.local.set({
-    chromeAiEnabled: isEnabled,
-    chromeAiProvider: providerId,
+function getAiFormSettings() {
+  const model = aiModelSelect.value === "__custom__" ? aiModelCustom.value.trim() : aiModelSelect.value;
+  const endpoint = aiLocalEndpoint.value.trim();
+  return {
+    chromeAiProvider: aiProviderSelect.value,
     chromeAiModel: model,
-    chromeAiApiKey: apiKey,
-    chromeAiLocalEndpoint: localEndpoint,
-    chromeAiPromptOverrides: savedPromptOverrides,
-  });
+    chromeAiApiKey: aiKeyInput.value.trim(),
+    chromeAiEndpoint: endpoint,
+    chromeAiLocalEndpoint: endpoint,
+  };
+}
 
-  showAiResult(t("aiSettingsSaved"), "ok");
-  setTimeout(() => {
-    aiTestResult.classList.add("hidden");
-  }, 3000);
+async function handleAiSave(advanced = false) {
+  const settings = getAiFormSettings();
+  if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
+    showAiResult(t("settingsKeyRequired"), "error", advanced);
+    aiKeyInput.focus();
+    return;
+  }
+  if (!settings.chromeAiModel) {
+    showAiResult(t("settingsModelRequired"), "error", advanced);
+    if (aiModelSelect.value === "__custom__") {
+      aiModelCustom.focus();
+    } else {
+      aiModelSelect.focus();
+    }
+    return;
+  }
+  saveActivePromptToState();
+  aiSaveBtn.disabled = true;
+  try {
+    await chrome.storage.local.set({
+      ...settings,
+      connectionMode: "chrome",
+      chromeAiEnabled: true,
+      chromeAiPromptOverrides: savedPromptOverrides,
+    });
+    renderConnectionMode("chrome");
+    showAiResult(t(advanced ? "aiSettingsSaved" : "settingsSetupSaved"), "ok", advanced);
+  } catch (error) {
+    showAiResult(t("aiError", { error: error.message }), "error", advanced);
+  } finally {
+    aiSaveBtn.disabled = false;
+  }
 }
 
 async function handleAiTest() {
-  aiTestResult.textContent = t("testingAiConnection");
-  aiTestResult.className = "test-result";
-  aiTestResult.classList.remove("hidden");
-
-  const providerId = aiProviderSelect.value;
-  let model = aiModelSelect.value;
-  if (model === "__custom__") {
-    model = aiModelCustom.value.trim();
+  const settings = getAiFormSettings();
+  if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
+    showAiResult(t("settingsKeyRequired"), "error", true);
+    aiKeyInput.focus();
+    return;
   }
-  const apiKey = aiKeyInput.value.trim();
-  const localEndpoint = aiLocalEndpoint ? aiLocalEndpoint.value.trim() : "";
-
-  const tempSettings = {
-    chromeAiProvider: providerId,
-    chromeAiModel: model,
-    chromeAiApiKey: apiKey,
-    chromeAiLocalEndpoint: localEndpoint,
-  };
-
+  aiTestBtn.disabled = true;
+  showAiResult(t("testingAiConnection"), "", true);
   try {
-    const info = await checkCreditAI(tempSettings);
+    const info = await checkCreditAI(settings);
     if (info.error) {
-      showAiResult(t("aiConnectionFailed", { error: info.error, status: info.statusText }), "error");
+      showAiResult(t("aiConnectionFailed", { error: info.error, status: info.statusText }), "error", true);
     } else if (info.hasBalance) {
-      showAiResult(t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted }), "ok");
+      showAiResult(t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted }), "ok", true);
     } else {
-      showAiResult(t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText }), "ok");
+      showAiResult(t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText }), "ok", true);
     }
   } catch (err) {
-    showAiResult(t("aiError", { error: err.message }), "error");
+    showAiResult(t("aiError", { error: err.message }), "error", true);
+  } finally {
+    aiTestBtn.disabled = false;
   }
 }
 
-function showAiResult(msg, type) {
-  aiTestResult.textContent = msg;
-  aiTestResult.className = `test-result ${type}`;
-  aiTestResult.classList.remove("hidden");
+function showAiResult(msg, type, advanced = false) {
+  const result = advanced ? aiAdvancedStatus : aiTestResult;
+  result.textContent = msg;
+  result.className = `test-result ${type}`;
 }
 
 // Server save & test
 async function handleSave() {
   const port = parseInt(portInput.value, 10);
-  if (!port || port < 1 || port > 65535) {
+  if (!portInput.reportValidity() || !Number.isInteger(Number(portInput.value)) || !port || port < 1 || port > 65535) {
     showResult(t("invalidPortNumber"), "error");
     return;
   }
 
   const mode = modeSelect ? modeSelect.value : "full";
-  await chrome.storage.local.set({ serverPort: port, analysisMode: mode });
+  await chrome.storage.local.set({ serverPort: port, analysisMode: mode, generateKnowledgeEntries: sectionKnowledge.checked });
   // Notify background
   await chrome.runtime.sendMessage({ action: "set-port", port });
   showResult(t("serverPortSaved"), "ok");
@@ -498,7 +523,7 @@ async function handleSave() {
 
 async function handleTest() {
   const port = parseInt(portInput.value, 10);
-  if (!port || port < 1 || port > 65535) {
+  if (!portInput.reportValidity() || !Number.isInteger(Number(portInput.value)) || !port || port < 1 || port > 65535) {
     showResult(t("invalidPortNumber"), "error");
     return;
   }
@@ -558,7 +583,10 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
   if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
-  if (sectionKnowledge) sectionKnowledge.checked = savedGenerateKnowledgeEntries !== false;
+  if (sectionKnowledge) {
+    sectionKnowledge.checked = savedGenerateKnowledgeEntries !== false;
+    sectionKnowledge.addEventListener("change", () => chrome.storage.local.set({ generateKnowledgeEntries: sectionKnowledge.checked }));
+  }
   if (sectionDiscussion) sectionDiscussion.checked = sections.discussion === true;
 
   const contentCheckboxes = [
@@ -594,10 +622,11 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
       mindMap: sectionMindmap ? sectionMindmap.checked : true,
       discussion: sectionDiscussion ? sectionDiscussion.checked : false,
     };
-    const genKnowledge = sectionKnowledge ? sectionKnowledge.checked : true;
     await chrome.storage.local.set({
       enabledSections: newConfig,
-      generateKnowledgeEntries: genKnowledge,
+      generateKnowledgeEntries: sectionKnowledge ? sectionKnowledge.checked : true,
+      outputLanguage: outputLangSelect ? outputLangSelect.value : "same-as-content",
+      uiDensity: uiDensitySelect ? uiDensitySelect.value : "compact",
     });
     showSectionStatus(t("sectionPreferencesSaved"), "ok");
     setTimeout(() => {

@@ -11,7 +11,7 @@ for (const file of ['header', 'banners', 'capture-view', 'section-chips', 'verdi
 function setup(t) {
   const f = fixture(); const root = createMockRoot(); root.querySelectorAll = () => [];
   const original = globalThis.document; globalThis.document = root; t.after(() => { globalThis.document = original; });
-  const settings = new SettingsState(); settings.serverOnline = true; settings.obsidianAiConfigured = true; settings.analysisMode = 'preview';
+  const settings = new SettingsState(); settings.setConnectionMode('obsidian', false); settings.serverOnline = true; settings.obsidianAiConfigured = true; settings.analysisMode = 'preview';
   const ui = Object.fromEntries([['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'], ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'], ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'], ['discussionUI', 'DiscussionComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent']].map(([key, type]) => [key, new globalThis.NutEggUI[type](root)]));
   const renderer = new PopupRenderer({ store: f.store, settings, ui, root });
   f.store.subscribe(event => renderer.handle(event)); renderer.render();
@@ -378,7 +378,8 @@ test('when offline and unconfigured, setup hub is shown and capture-state is not
   assert.equal(setupHub.classList.contains('hidden'), true);
   assert.equal(captureState.classList.contains('not-functional'), false);
 
-  // Configuring Chrome AI makes it functional even if Obsidian is offline
+  // Selecting Chrome mode uses its key without an Obsidian connection.
+  f.settings.setConnectionMode('chrome', false);
   f.settings.serverOnline = false;
   f.settings.chromeAiConfigured = true;
   f.renderer.render();
@@ -393,4 +394,84 @@ test('when offline and unconfigured, setup hub is shown and capture-state is not
 
   assert.equal(setupHub.classList.contains('hidden'), true);
   assert.equal(captureState.classList.contains('not-functional'), false);
+});
+
+
+test('Chrome first-use has one setup action, hides vault controls, and becomes ready when a key is saved', context => {
+  const f = setup(context);
+  f.settings.setConnectionMode('chrome', false);
+  f.settings.serverOnline = false;
+  f.settings.chromeAiConfigured = false;
+  f.renderer.render();
+  const element = id => f.root.getElementById(id);
+  assert.equal(element('setup-hub').classList.contains('hidden'), false);
+  assert.equal(element('setup-open-settings-btn').textContent, t('readerSetupAction'));
+  assert.equal(element('capture-state').classList.contains('not-functional'), true);
+  for (const id of ['metrics-bar', 'obsidian-analysis-mode', 'capture-eggs-accordion', 'obsidian-plugin-link']) {
+    assert.equal(element(id).classList.contains('hidden'), true, id);
+  }
+  assert.equal(element('chip-knowledge').classList.contains('hidden'), false);
+  assert.equal(element('reanalyze-chip-knowledge').classList.contains('hidden'), false);
+  assert.equal(f.ui.headerUI.serverStatus.className, 'status-dot warning');
+  assert.equal(f.ui.bannersUI.aiKeyMissingBanner.classList.contains('hidden'), true);
+  assert.equal(f.ui.bannersUI.chromeModeTipBanner.classList.contains('hidden'), true);
+
+  f.settings.setChromeAiStatus({ enabled: true, configured: true });
+  f.store.emit({ type: 'settings' });
+  assert.equal(element('setup-hub').classList.contains('hidden'), true);
+  assert.equal(element('capture-state').classList.contains('not-functional'), false);
+  assert.equal(f.ui.actionsUI.analyzeBtn.disabled, false);
+  assert.equal(f.ui.headerUI.serverStatus.className, 'status-dot chrome-ai');
+  assert.equal(f.ui.sectionsUI.sectionsBadge.textContent, '3/4');
+
+  seed(f.store, 1, { ...response(1), mode: 'chrome' });
+  for (const id of ['confirm-btn', 'collect-nut-btn', 'stage1-confirm-box', 'history-select', 'discard-btn', 'chrome-result-banner', 'chrome-actions-card']) {
+    assert.equal(element(id).classList.contains('hidden'), true, id);
+  }
+});
+
+test('content preview is displayed and UI density class is synchronized', context => {
+  const f = setup(context);
+  const preview = f.ui.captureUI.contentPreview;
+  assert.equal(preview.classList.contains('hidden'), false);
+  assert.equal(f.root.body.classList.contains('density-compact'), true);
+  assert.equal(f.root.body.classList.contains('density-comfortable'), false);
+  f.settings.setUiDensity('comfortable', false);
+  f.renderer.render();
+  assert.equal(f.root.body.classList.contains('density-comfortable'), true);
+  assert.equal(f.root.body.classList.contains('density-compact'), false);
+});
+
+test('Obsidian mode reveals its controls only after an explicit switch', context => {
+  const f = setup(context);
+  f.settings.setConnectionMode('chrome', false);
+  f.settings.chromeAiConfigured = true;
+  f.renderer.render();
+  assert.equal(f.root.getElementById('metrics-bar').classList.contains('hidden'), true);
+  f.settings.setConnectionMode('obsidian', false);
+  f.renderer.render();
+  assert.equal(f.root.getElementById('metrics-bar').classList.contains('hidden'), false);
+  assert.equal(f.root.getElementById('obsidian-analysis-mode').classList.contains('hidden'), false);
+  f.settings.serverOnline = false;
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), false);
+  assert.equal(f.root.getElementById('setup-title').textContent, t('readerObsSetupTitle'));
+});
+
+test('switching an existing Obsidian result to Chrome keeps the summary and hides vault actions', context => {
+  const f = setup(context);
+  seed(f.store, 1, { ...response(1), stage: 'stage1', mode: 'obsidian', matchedEggs: ['a.md'] });
+  assert.equal(f.ui.actionsUI.stage1ConfirmBox.classList.contains('hidden'), false);
+  f.settings.setConnectionMode('chrome', false);
+  f.settings.setChromeAiStatus({ enabled: true, configured: true });
+  f.renderer.render();
+  assert.equal(f.ui.resultsUI.resultsState.classList.contains('hidden'), false);
+  assert.equal(f.ui.verdictUI.verdictAnswer.textContent, 'Result 1');
+  for (const id of ['stage1-confirm-box', 'confirm-btn', 'collect-nut-btn', 'eggs-section', 'egg-knowledge-section', 'history-select']) {
+    assert.equal(f.root.getElementById(id).classList.contains('hidden'), true, id);
+  }
+  f.settings.setConnectionMode('obsidian', false);
+  f.settings.setServerStatus({ online: true, aiConfigured: true });
+  f.renderer.render();
+  assert.equal(f.ui.actionsUI.stage1ConfirmBox.classList.contains('hidden'), false);
 });

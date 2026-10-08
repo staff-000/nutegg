@@ -90,7 +90,8 @@ describe("SettingsState", () => {
     assert.equal(settings.serverOnline, false);
     assert.equal(settings.obsidianPluginVersion, null);
     assert.equal(settings.obsidianAiConfigured, false);
-    assert.equal(settings.chromeAiEnabled, false);
+    assert.equal(settings.connectionMode, "chrome");
+    assert.equal(settings.chromeAiEnabled, true);
     assert.equal(settings.chromeAiConfigured, false);
     assert.deepEqual(settings.enabledSections, DEFAULT_ANALYSIS_SECTIONS);
   });
@@ -132,9 +133,29 @@ describe("SettingsState", () => {
 
     assert.equal(settings.isChromeMode("chrome"), true);
 
-    // If server is offline, fallback is chrome mode
+    // Connectivity does not change the user's selected mode.
     settings.serverOnline = false;
     assert.equal(settings.isChromeMode(), true);
+  });
+
+  it("uses Chrome by default and keeps Obsidian opt-in across reloads", async () => {
+    const store = setupMockStorage({ chromeAiEnabled: false });
+    const settings = new SettingsState();
+    await settings.loadFromStorage();
+    settings.serverOnline = true;
+    assert.equal(settings.isChromeMode(), true, "An available server never opts a user into Obsidian");
+    settings.setConnectionMode("obsidian");
+    assert.equal(store.connectionMode, "obsidian");
+    assert.equal(settings.serverOnline, false);
+    assert.equal(settings.isChromeMode(), false, "An offline server never switches the selected backend");
+    assert.equal(settings.isChromeMode({ mode: "chrome" }), true, "Existing result retains its backend");
+    const restored = new SettingsState();
+    await restored.loadFromStorage();
+    assert.equal(restored.connectionMode, "obsidian");
+    assert.equal(restored.chromeAiEnabled, false);
+    restored.setConnectionMode("chrome");
+    assert.equal(restored.chromeAiEnabled, true);
+    assert.equal(restored.isChromeMode({ mode: "obsidian", matchedEggs: [] }), false);
   });
 
   it("toggles enabled sections and enforces minimum 1 section", async () => {

@@ -32,7 +32,7 @@ test('auto-on remains per-page; manual off survives re-extraction and remains no
   ctx = store.beginOperation(1, 'extraction'); store.commitOperation(ctx.token, { type: 'extracted', content });
   assert.equal(store.getTab(1).enabledSections.discussion, false);
   assert.match(store.viewModel().warning, /little information/);
-  assert.equal(getAnalyzeNotReadyReason(store.viewModel(), { serverOnline: true }), null);
+  assert.equal(getAnalyzeNotReadyReason(store.viewModel(), { connectionMode: 'obsidian', serverOnline: true }), null);
 });
 
 test('metrics count original IDs, exclusive author positions, missing reactions and scores separately', () => {

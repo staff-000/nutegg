@@ -9,6 +9,9 @@ class PopupRenderer {
   render() {
     const view = this.store.viewModel();
     const { ui, settings, root } = this;
+    const obsidianMode = settings.connectionMode === 'obsidian';
+    root.body?.classList.toggle('chrome-reader', !obsidianMode);
+    root.body?.classList.toggle('obsidian-reader', obsidianMode);
     const changedTab = view.activeTabId !== this.tabId;
     if (changedTab) { this.keys = {}; this.tabId = view.activeTabId; ui.actionsUI.toggleEggAnalysisMenu(false); }
     const draft = values => this.store.dispatch({ type: 'draft', tabId: view.activeTabId, values });
@@ -21,14 +24,22 @@ class PopupRenderer {
     const warning = view.warning || this.store.environment?.issues?.join('\n');
     if (warning) ui.bannersUI.showWarning(warning); else ui.bannersUI.hideWarning();
     if (view.success) ui.bannersUI.showSuccess(view.success); else ui.bannersUI.hideSuccess();
-    ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries);
+    ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries, true);
     ui.sectionsUI.renderPresentation(view.presentation);
     ui.resultsUI.render(view, settings);
-    const isFunctional = settings.serverOnline || settings.chromeAiConfigured || !!view.analysisResult;
+    const isFunctional = (obsidianMode ? settings.serverOnline && settings.obsidianAiConfigured : settings.chromeAiConfigured) || !!view.analysisResult;
     const setupHub = root.getElementById?.('setup-hub');
     const captureState = root.getElementById?.('capture-state');
     if (setupHub) setupHub.classList.toggle('hidden', isFunctional);
     if (captureState) captureState.classList.toggle('not-functional', !isFunctional);
+    for (const [id, chromeKey, obsidianKey] of [
+      ['setup-title', 'readerSetupTitle', 'readerObsSetupTitle'],
+      ['setup-description', 'readerSetupBody', 'readerObsSetupBody'],
+      ['setup-open-settings-btn', 'readerSetupAction', 'readerObsSetupAction'],
+    ]) {
+      const element = root.getElementById?.(id);
+      if (element) element.textContent = t(obsidianMode ? obsidianKey : chromeKey);
+    }
     keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.stage1Payload?.discussion, view.extractedContent?.discussion, view.presentation.discussionComments, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);
@@ -40,6 +51,9 @@ class PopupRenderer {
     ui.qaUI.setScope(view.followupScope);
     ui.captureUI.questionsArea?.classList.toggle('hidden', !view.presentation.questionsExpanded);
     ui.captureUI.questionsToggle?.setAttribute('aria-expanded', String(view.presentation.questionsExpanded));
+    const isComfortable = settings?.uiDensity === 'comfortable';
+    root.body?.classList?.toggle('density-compact', !isComfortable);
+    root.body?.classList?.toggle('density-comfortable', isComfortable);
     const questionsChevron = ui.captureUI.questionsToggle?.querySelector('.questions-toggle-chevron');
     if (questionsChevron) questionsChevron.textContent = view.presentation.questionsExpanded ? '▾' : '▸';
     ui.captureUI.refreshBtn.disabled = view.busy || view.extractionPending;
@@ -56,12 +70,12 @@ class PopupRenderer {
     keyed('mindmap', [view.analysisResult?.mindMap, view.enabledSections.mindMap], () => ui.mindmapUI.render(view.analysisResult?.mindMap, view.enabledSections.mindMap !== false));
     keyed('qa', [view.resultRevision, view.followUpQa], () => ui.qaUI.render(view.analysisResult || {}, view.followUpQa));
     ui.qaUI.setFollowupLoading(view.busy);
-    keyed('eggs', [view.resultRevision, view.operations.analysis, view.selectedEggs.size, [...view.selectedEggs], view.activeEggTab, view.allEggs, view.presentation.eggsExpanded, settings.serverOnline, settings.analysisMode], () => {
+    keyed('eggs', [view.resultRevision, view.operations.analysis, view.selectedEggs.size, [...view.selectedEggs], view.activeEggTab, view.allEggs, view.presentation.eggsExpanded, settings.serverOnline, settings.analysisMode, settings.connectionMode], () => {
       ui.eggsUI.render(view, settings, { onSelectChange: eggs => draft({ selectedEggs: [...eggs] }), onTabChange: activeEggTab => draft({ activeEggTab }) });
     });
     keyed('captureEggs', [view.allEggs, [...view.preSelectedEggs]], () => ui.eggsUI.renderCaptureList({ allEggs: view.allEggs, preSelectedEggs: new Set(view.preSelectedEggs), onSelectChange: eggs => draft({ preSelectedEggs: [...eggs] }) }));
     ui.eggsUI.expandCaptureEggs(view.presentation.captureEggsExpanded);
-    const eggSelectorVisible = !!view.analysisResult && !settings.isChromeMode(view.analysisResult);
+    const eggSelectorVisible = obsidianMode && !!view.analysisResult && !settings.isChromeMode(view.analysisResult);
     const emptyEggCatalog = !(view.allEggs.length || view.analysisResult?.matchedEggs?.length);
     const createFormOpen = eggSelectorVisible && (view.presentation.createFormOpen || emptyEggCatalog);
     ui.eggsUI.eggsCreateForm?.classList.toggle('hidden', !createFormOpen);
@@ -72,8 +86,13 @@ class PopupRenderer {
       if (button) { button.disabled = view.busy; button.title = ''; }
     }
     ui.eggsUI.clearError();
-    if (settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);
-    ui.metricsUI.showPluginLink(!settings.serverOnline);
+    if (obsidianMode && settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);
+    ui.metricsUI.showPluginLink(false);
+    for (const id of ['obsidian-analysis-mode', 'metrics-bar']) {
+      root.getElementById?.(id)?.classList.toggle('hidden', !obsidianMode);
+    }
+    if (!obsidianMode) root.getElementById?.('capture-eggs-accordion')?.classList.add('hidden');
+    if (!obsidianMode) for (const id of ['eggs-section', 'egg-knowledge-section', 'no-egg-section']) root.getElementById?.(id)?.classList.add('hidden');
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
     const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;
     keyed('debug', [settings.debugInfo, debugMode, debugInfo], () => ui.metricsUI.renderDebug?.(debugInfo, settings.debugInfo));

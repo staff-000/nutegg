@@ -35,13 +35,34 @@ async function getServerUrl() {
   return `http://127.0.0.1:${serverPort}`;
 }
 
+async function getConnectionMode() {
+  const stored = await chrome.storage.local.get(["connectionMode"]);
+  return stored.connectionMode === "obsidian" ? "obsidian" : "chrome";
+}
+
+function obsidianOfflineError() {
+  return {
+    error: "Obsidian is not connected. Open Obsidian with NutEgg enabled, or switch to Chrome in Settings.",
+    errorCode: "obsidian_offline",
+    mode: "obsidian",
+  };
+}
+
+function obsidianModeRequiredError() {
+  return {
+    error: "Enable Obsidian mode in Settings to save to your vault.",
+    errorCode: "obsidian_mode_required",
+    mode: "chrome",
+  };
+}
+
 async function loadChromeAiSettings() {
   const stored = await chrome.storage.local.get([
-    "chromeAiEnabled",
     "chromeAiProvider",
     "chromeAiApiKey",
     "chromeAiModel",
     "chromeAiModelFamily",
+    "chromeAiEndpoint",
     "chromeAiLocalEndpoint",
     "outputLanguage",
     "contentOutputLanguage",
@@ -49,6 +70,9 @@ async function loadChromeAiSettings() {
     "chromeAiMaxTokens",
     "chromeAiPromptOverrides",
   ]);
+  // Chrome AI is available by default; the legacy enable toggle is no longer required.
+  stored.chromeAiEnabled = true;
+  stored.chromeAiEndpoint = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint;
   const lang = stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
   stored.outputLanguage = lang;
   stored.contentOutputLanguage = lang;
@@ -67,6 +91,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!scope) { sendResponse({ unavailable: true, mode: message.mode }); return false; }
     if (message.mode === 'chrome') { sendResponse({ ...NutEggAI.getAIDebugInfo(scope), mode: 'chrome' }); return false; }
     (async () => {
+      if (await getConnectionMode() !== 'obsidian') return { unavailable: true, mode: 'obsidian' };
       const response = await fetch(`${await getServerUrl()}/debug-info?scope=${encodeURIComponent(scope)}`, { signal: AbortSignal.timeout(2500), cache: 'no-store' });
       if (!response.ok) throw new Error('Debug info unavailable');
       return { ...await response.json(), mode: 'obsidian' };
@@ -124,13 +149,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "check-chrome-ai") {
     loadChromeAiSettings().then((settings) => {
-      const enabled = Boolean(settings.chromeAiEnabled);
       const provider = settings.chromeAiProvider || "gemini";
       const isLocal = provider === "local";
       const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
       sendResponse({
-        enabled,
-        configured: enabled && hasKey,
+        enabled: true,
+        configured: hasKey,
         provider,
         model: settings.chromeAiModel || (typeof PROVIDER_CATALOG !== "undefined" ? PROVIDER_CATALOG[provider]?.defaultModel : "") || "",
       });
@@ -215,9 +239,9 @@ chrome.runtime.onConnect.addListener((port) => {
 // --- Server communication ---
 
 async function handleAnalyze(payload) {
-  const server = await checkServer();
-
-  if (server.online) {
+  if (await getConnectionMode() === "obsidian") {
+    const server = await checkServer();
+    if (!server.online) return obsidianOfflineError();
     try {
       const serverUrl = await getServerUrl();
       const response = await fetch(`${serverUrl}/analyze`, {
@@ -247,22 +271,14 @@ async function handleAnalyze(payload) {
     }
   }
 
-  // Obsidian is offline -> Fall back to Chrome Standalone AI
   const aiSettings = await loadChromeAiSettings();
-  if (!aiSettings.chromeAiEnabled) {
-    return {
-      error: "Obsidian is offline and Chrome-only AI is disabled. Please start Obsidian or enable Chrome-only AI in Settings.",
-      errorCode: "chrome_ai_disabled",
-      mode: "offline",
-    };
-  }
 
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Obsidian is offline and no AI key is configured in Chrome settings.",
+      error: "Add your AI API key in Settings to start analyzing.",
       errorCode: "no_api_key",
       mode: "chrome",
     };
@@ -288,6 +304,7 @@ async function handleAnalyze(payload) {
 }
 
 async function handleConfirm(payload) {
+  if (await getConnectionMode() !== "obsidian") return obsidianModeRequiredError();
   const serverUrl = await getServerUrl();
   const response = await fetch(`${serverUrl}/confirm`, {
     method: "POST",
@@ -305,6 +322,7 @@ async function handleConfirm(payload) {
 }
 
 async function fetchHistory(url) {
+  if (await getConnectionMode() !== "obsidian") return { history: [], latest: null };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -322,6 +340,7 @@ async function fetchHistory(url) {
 }
 
 async function handleCreateEgg({ name, description }) {
+  if (await getConnectionMode() !== "obsidian") return obsidianModeRequiredError();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 6000);
   try {
@@ -347,6 +366,7 @@ async function handleCreateEgg({ name, description }) {
 }
 
 async function fetchEggs() {
+  if (await getConnectionMode() !== "obsidian") return { eggs: [] };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -363,9 +383,9 @@ async function fetchEggs() {
 }
 
 async function handleAsk(payload) {
-  const server = await checkServer();
-
-  if (server.online) {
+  if (await getConnectionMode() === "obsidian") {
+    const server = await checkServer();
+    if (!server.online) return { ...obsidianOfflineError(), answers: [] };
     const serverUrl = await getServerUrl();
     const response = await fetch(`${serverUrl}/ask`, {
       method: "POST",
@@ -385,22 +405,14 @@ async function handleAsk(payload) {
     return data;
   }
 
-  // Obsidian is offline -> Chrome AI
   const aiSettings = await loadChromeAiSettings();
-  if (!aiSettings.chromeAiEnabled) {
-    return {
-      error: "Obsidian is offline and Chrome-only AI is disabled.",
-      errorCode: "chrome_ai_disabled",
-      answers: [],
-    };
-  }
 
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Obsidian is offline and no AI key is configured in Chrome settings.",
+      error: "Add your AI API key in Settings to ask a question.",
       errorCode: "no_api_key",
       answers: [],
     };
@@ -423,6 +435,7 @@ async function handleAsk(payload) {
 }
 
 async function checkConfigStatus() {
+  if (await getConnectionMode() !== "obsidian") return { status: "ok", issues: [], mode: "chrome" };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -442,6 +455,7 @@ async function checkConfigStatus() {
 }
 
 async function fetchCredit() {
+  if (await getConnectionMode() !== "obsidian") return checkCreditAI(await loadChromeAiSettings());
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -456,6 +470,7 @@ async function fetchCredit() {
 }
 
 async function fetchMetrics() {
+  if (await getConnectionMode() !== "obsidian") return { nuts: 0, eggs: 0, timeSaved: "0m", timeSavedMinutes: 0 };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -470,6 +485,7 @@ async function fetchMetrics() {
 }
 
 async function checkServer() {
+  if (await getConnectionMode() !== "obsidian") return { online: false, mode: "chrome" };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {

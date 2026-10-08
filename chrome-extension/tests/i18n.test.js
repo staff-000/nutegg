@@ -115,3 +115,31 @@ it('all discussion and debug UI keys are translated in every supported locale', 
     for (const [locale, dictionary] of Object.entries(translations)) assert.ok(dictionary[key], `${locale}: ${key}`);
   }
 });
+
+it('Chrome setup and reader copy is available in every supported locale', () => {
+  const keys = Object.keys(translations.en).filter(key => key.startsWith('settings') || key.startsWith('reader'));
+  for (const [locale, dictionary] of Object.entries(translations)) {
+    for (const key of keys) assert.ok(dictionary[key], `${locale}: ${key}`);
+  }
+});
+
+it('applies localized accessible labels to settings controls', () => {
+  const { JSDOM } = require('jsdom');
+  const { applyI18n } = require('../src/i18n.js');
+  const dom = new JSDOM('<input data-i18n-aria-label="settingsModelLabel">');
+  try {
+    initI18n('zh_CN');
+    applyI18n(dom.window.document);
+    assert.equal(dom.window.document.querySelector('input').getAttribute('aria-label'), 'AI 模型');
+  } finally { initI18n('en'); dom.window.close(); }
+});
+
+it('every settings and popup markup label resolves to translated copy', () => {
+  const fs = require('node:fs');
+  for (const file of ['../src/options/options.html', '../src/popup/popup.html']) {
+    const html = fs.readFileSync(require.resolve(file), 'utf8');
+    for (const [, key] of html.matchAll(/data-i18n(?:-html|-placeholder|-title|-aria-label)?="([^"]+)"/g)) {
+      assert.ok(translations.en[key], `${file}: ${key}`);
+    }
+  }
+});

@@ -9,34 +9,47 @@ class EnvironmentService {
     this.task = task; return task;
   }
   async loadStatus(version) {
+    const connectionMode = this.settings.connectionMode === 'obsidian' ? 'obsidian' : 'chrome';
+    if (connectionMode === 'chrome') {
+      let ai = {};
+      try { ai = await this.chromeApi.runtime.sendMessage({ action: 'check-chrome-ai' }); } catch {}
+      if (version !== this.version || this.settings.connectionMode === 'obsidian') return;
+      this.settings.setServerStatus();
+      this.settings.setChromeAiStatus({ enabled: true, configured: !!ai.configured, provider: ai.provider, model: ai.model });
+      this.store.dispatch({ type: 'environment', value: { issues: [], credit: null } });
+      if (ai.configured) void this.fetchCredit(version, false);
+      return;
+    }
     let status;
     try { status = await this.chromeApi.runtime.sendMessage({ action: 'check-server' }); } catch { status = { online: false }; }
-    if (version !== this.version) return;
-    let config = {}, ai = {};
+    if (version !== this.version || this.settings.connectionMode !== 'obsidian') return;
+    let config = {};
     try {
       if (status.online) config = await this.chromeApi.runtime.sendMessage({ action: 'config-status' });
-      else ai = await this.chromeApi.runtime.sendMessage({ action: 'check-chrome-ai' });
     } catch {}
-    if (version !== this.version) return;
+    if (version !== this.version || this.settings.connectionMode !== 'obsidian') return;
     const issues = config.issues || [];
-    this.settings.setServerStatus({ online: !!status.online, version: status.version, aiConfigured: !issues.some(i => /no api key|not configured/i.test(i)) });
-    this.settings.setChromeAiStatus({ enabled: !!ai.enabled, configured: !!ai.configured, provider: ai.provider || '', model: ai.model || '' });
+    this.settings.setServerStatus({ online: !!status.online, version: status.version, aiConfigured: !!status.online && !issues.some(i => /no api key|not configured/i.test(i)) });
+    this.settings.setChromeAiStatus();
     this.store.dispatch({ type: 'environment', value: { issues, credit: config.credit || null } });
-    void this.fetchMetrics();
-    if (status.online || ai.configured) void this.fetchCredit(version, !!status.online);
+    if (status.online) {
+      void this.fetchMetrics();
+      void this.fetchCredit(version, true);
+    }
   }
   async fetchCredit(version, online) {
     try {
       const credit = await this.chromeApi.runtime.sendMessage({ action: online ? 'get-credit' : 'check-chrome-credit' });
-      if (version !== this.version) return;
+      if (version !== this.version || online !== (this.settings.connectionMode === 'obsidian')) return;
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: { ...credit, isChromeAi: !online } } });
     } catch {}
   }
   async fetchMetrics() {
+    if (this.settings.connectionMode !== 'obsidian') return;
     const version = this.metricsVersion = (this.metricsVersion || 0) + 1;
     try {
       const metrics = await this.chromeApi.runtime.sendMessage({ action: 'metrics' });
-      if (metrics?.nuts == null || version !== this.metricsVersion) return;
+      if (metrics?.nuts == null || version !== this.metricsVersion || this.settings.connectionMode !== 'obsidian') return;
       this.store.dispatch({ type: 'metrics', value: metrics });
       void this.chromeApi.storage?.local?.set?.({ cachedMetrics: metrics });
     } catch {}

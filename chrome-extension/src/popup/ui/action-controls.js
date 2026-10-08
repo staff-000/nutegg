@@ -426,7 +426,7 @@ class ActionControlsComponent {
 
   render(view, settings) {
     const result = view.analysisResult;
-    const chromeMode = settings.isChromeMode(result);
+    const chromeMode = settings.connectionMode !== 'obsidian' || settings.isChromeMode(result);
     const stage1 = view.isStage1?.() || false;
     const busy = !!view.busy;
     const analyzing = !!view.isAnalyzing;
@@ -504,12 +504,14 @@ class ActionControlsComponent {
     set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
     set(this.stage1SkipBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'), false, nutReason, this.stage1SkipBtnWrap);
     set(this.historySelect, busy, null, (view.captureHistory?.length || 0) < 2);
-    set(this.backBtn, false, t('back'));
+    set(this.backBtn, false, t('readerBack'));
+    this.discardBtn?.classList.toggle('hidden', settings.connectionMode !== 'obsidian');
     this.showProcessedNote(result ? t(analyzing ? 'analyzingContent' : 'analysisCompleteAdjust') : '');
     this.processedNote?.classList.toggle('hidden', !result);
     const key = JSON.stringify([view.currentNutId, view.captureHistory]);
     if (key !== this.historyKey) { this.historyKey = key; this.renderHistory(view.captureHistory || [], view.currentNutId); }
     if (this.historySelect) this.historySelect.disabled = busy;
+    if (settings.connectionMode !== 'obsidian') this.historySelect?.classList.add('hidden');
   }
 
 }

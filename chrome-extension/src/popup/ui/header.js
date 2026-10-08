@@ -38,7 +38,12 @@ class HeaderComponent {
 
   render(session, settings) {
     if (!settings) return;
-    this.updateVersion(null, settings.obsidianPluginVersion);
+    const obsidianMode = settings.connectionMode === 'obsidian';
+    this.updateVersion(null, obsidianMode ? settings.obsidianPluginVersion : null);
+    if (!obsidianMode) {
+      this.updateServerStatus(settings.chromeAiConfigured ? 'chrome-ai' : 'chrome-no-key', null, settings.chromeAiProvider);
+      return;
+    }
     const extVersion = typeof chrome !== "undefined" ? chrome.runtime?.getManifest?.()?.version : null;
     const hasMismatch = settings.obsidianPluginVersion && extVersion && settings.obsidianPluginVersion !== extVersion;
 
@@ -50,10 +55,6 @@ class HeaderComponent {
       } else {
         this.updateServerStatus("obsidian-online", settings.obsidianPluginVersion);
       }
-    } else if (settings.chromeAiConfigured) {
-      this.updateServerStatus("chrome-ai", null, settings.chromeAiProvider || "standalone");
-    } else if (settings.chromeAiEnabled) {
-      this.updateServerStatus("chrome-no-key", null, settings.chromeAiProvider);
     } else {
       this.updateServerStatus("offline");
     }
@@ -91,18 +92,18 @@ class HeaderComponent {
       this.serverStatus?.setAttribute("aria-label", extra || t("versionMismatch"));
     } else if (state === "chrome-ai") {
       this.tooltip.className = "status-tooltip chrome-ai";
-      this.tooltipTitle.textContent = t("usingChromeAi");
-      this.tooltipSub.textContent = t("usingChromeAiSub", { extra: extra || t("standalone") });
-      this.serverStatus?.setAttribute("aria-label", `${t("usingChromeAi")} (${extra || t("standalone")})`);
+      this.tooltipTitle.textContent = t("readerReady");
+      this.tooltipSub.textContent = t("readerIntroBody");
+      this.serverStatus?.setAttribute("aria-label", t("readerReady"));
     } else if (state === "chrome-no-key") {
       this.tooltip.className = "status-tooltip warning";
-      this.tooltipTitle.textContent = t("chromeAiNoKey");
-      this.tooltipSub.textContent = t("addKeyInChrome");
-      this.serverStatus?.setAttribute("aria-label", t("chromeAiNoKeyConfig"));
+      this.tooltipTitle.textContent = t("readerNeedsSetup");
+      this.tooltipSub.textContent = t("readerSetupBody");
+      this.serverStatus?.setAttribute("aria-label", t("readerNeedsSetup"));
     } else {
       this.tooltip.className = "status-tooltip offline";
       this.tooltipTitle.textContent = t("obsidianOffline");
-      this.tooltipSub.textContent = t("startObsidianOrChromeAi");
+      this.tooltipSub.textContent = t("obsidianOfflineStart");
       this.serverStatus?.setAttribute("aria-label", t("obsidianOfflineStart"));
     }
   }

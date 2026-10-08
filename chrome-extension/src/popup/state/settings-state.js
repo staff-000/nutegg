@@ -18,6 +18,7 @@ class SettingsState {
     this.DEFAULT_ANALYSIS_SECTIONS = DEFAULT_ANALYSIS_SECTIONS;
 
     // User preferences
+    this.connectionMode = "chrome"; // "chrome" | "obsidian"
     this.analysisMode = "full"; // "full" | "preview"
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
@@ -25,6 +26,7 @@ class SettingsState {
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
+    this.uiDensity = "compact"; // "compact" | "comfortable"
 
     // Obsidian server status
     this.serverOnline = false;
@@ -32,7 +34,7 @@ class SettingsState {
     this.obsidianAiConfigured = false;
 
     // Chrome AI status
-    this.chromeAiEnabled = false;
+    this.chromeAiEnabled = true;
     this.chromeAiConfigured = false;
     this.chromeAiProvider = "";
     this.chromeAiModel = "";
@@ -45,10 +47,11 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs"],
+          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity"],
           resolve
         );
       });
+      this.setConnectionMode(stored?.connectionMode, false);
       if (stored?.analysisMode === "preview" || stored?.analysisMode === "full") {
         this.analysisMode = stored.analysisMode;
       } else if (stored?.analysisMode === "confirm") {
@@ -58,6 +61,9 @@ class SettingsState {
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       this.debugInfo = stored?.debugInfo === true;
+      if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "compact") {
+        this.uiDensity = stored.uiDensity;
+      }
       this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
         this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof stored.enabledSections[key] === "boolean" ? stored.enabledSections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
@@ -68,6 +74,15 @@ class SettingsState {
       return stored;
     } catch {
       return null;
+    }
+  }
+
+  setConnectionMode(mode, persist = true) {
+    this.connectionMode = mode === "obsidian" ? "obsidian" : "chrome";
+    this.setServerStatus();
+    this.setChromeAiStatus({ enabled: this.connectionMode === "chrome" });
+    if (persist && typeof chrome !== "undefined") {
+      chrome.storage?.local?.set?.({ connectionMode: this.connectionMode });
     }
   }
 
@@ -93,6 +108,15 @@ class SettingsState {
       this.outputLanguage = lang;
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ outputLanguage: lang });
+      }
+    }
+  }
+
+  setUiDensity(density, persist = true) {
+    if (density === "comfortable" || density === "compact") {
+      this.uiDensity = density;
+      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+        chrome.storage.local.set({ uiDensity: density });
       }
     }
   }
@@ -145,18 +169,14 @@ class SettingsState {
   }
 
   /**
-   * Determine whether Chrome AI fallback mode is active for analysis or results.
-   * Without a result, uses the global server connection status.
+   * Existing results retain their backend; new analysis uses the selected mode.
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
     const res = resultOrMode;
     const mode = typeof res === "string" ? res : res?.mode;
     if (mode === "chrome") return true;
-    if (!this.serverOnline) {
-      const eggsCount = matchedEggsCount || (Array.isArray(res?.matchedEggs) ? res.matchedEggs.length : 0);
-      return !eggsCount;
-    }
-    return false;
+    if (mode === "obsidian") return false;
+    return this.connectionMode !== "obsidian";
   }
 }
 

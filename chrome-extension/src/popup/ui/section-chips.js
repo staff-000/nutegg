@@ -132,7 +132,7 @@ class SectionChipsComponent {
     }
   }
 
-  updateUI(enabledSections = {}, generateKnowledgeEntries = true) {
+  updateUI(enabledSections = {}, generateKnowledgeEntries = true, showKnowledge = true) {
     enabledSections = { ...enabledSections, generateKnowledgeEntries, verdictSummary: enabledSections.titleVerdict !== false && enabledSections.coreSummary !== false };
     this.enabledSections = enabledSections;
     if (!this.chipVerdictSummary && (this.root || typeof document !== "undefined")) {
@@ -163,7 +163,7 @@ class SectionChipsComponent {
       }
     });
 
-    const hasKnowledgeChip = Boolean(this.chipKnowledge || this.reanalyzeChipKnowledge);
+    const hasKnowledgeChip = showKnowledge && Boolean(this.chipKnowledge || this.reanalyzeChipKnowledge);
     const hasDiscussionChip = Boolean(this.chipDiscussion || this.reanalyzeChipDiscussion);
     const total = (hasKnowledgeChip ? 3 : 2) + (hasDiscussionChip ? 1 : 0);
     const activeCount = [

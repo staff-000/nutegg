@@ -4,27 +4,30 @@ const { EnvironmentService } = require('../src/popup/services/environment-servic
 const { SettingsState } = require('../src/popup/state/settings-state.js');
 const { TabStateManager } = require('../src/popup/state/tab-state.js');
 const { deferred } = require('./helpers/popup-fixture');
-for (const online of [true, false]) test(`readiness for online=${online} does not wait for balance`, async () => {
+for (const connectionMode of ['chrome', 'obsidian']) test(`readiness for ${connectionMode} does not wait for balance`, async () => {
   const credit = deferred(); const calls = [];
   const chromeApi = { runtime: { sendMessage: async ({ action }) => {
     calls.push(action);
-    if (action === 'check-server') return { online };
+    if (action === 'check-server') return { online: true };
     if (action === 'config-status') return { issues: [] };
     if (action === 'check-chrome-ai') return { enabled: true, configured: true };
     if (action === 'get-credit' || action === 'check-chrome-credit') return credit.promise;
     return {};
   } } };
   const settings = new SettingsState(), store = new TabStateManager();
+  settings.setConnectionMode(connectionMode, false);
   const env = new EnvironmentService({ settings, store, chromeApi });
   await env.checkServerStatus();
-  assert.equal(settings.serverOnline, online); assert.equal(store.environment.credit, null);
-  assert(calls.includes(online ? 'get-credit' : 'check-chrome-credit'));
+  assert.equal(settings.serverOnline, connectionMode === 'obsidian'); assert.equal(store.environment.credit, null);
+  assert(calls.includes(connectionMode === 'obsidian' ? 'get-credit' : 'check-chrome-credit'));
+  if (connectionMode === 'chrome') assert.deepEqual(calls, ['check-chrome-ai', 'check-chrome-credit']);
   credit.resolve({ balanceFormatted: '$10' }); await new Promise(resolve => setImmediate(resolve));
   assert.equal(store.environment.credit.balanceFormatted, '$10');
 });
 test('environment requests are deduplicated, and superseded status/credit never commits', async () => {
   const a = deferred(), b = deferred(); let requests = 0;
   const store = new TabStateManager(), settings = new SettingsState();
+  settings.setConnectionMode('obsidian', false);
   const env = new EnvironmentService({ store, settings, chromeApi: { runtime: { sendMessage: ({ action }) => {
     if (action === 'check-server') return ++requests === 1 ? a.promise : b.promise;
     return Promise.resolve(action === 'check-chrome-ai' ? { enabled: true, configured: true } : { issues: [] });
@@ -32,6 +35,40 @@ test('environment requests are deduplicated, and superseded status/credit never 
   const first = env.checkServerStatus(); assert.equal(first, env.checkServerStatus());
   const second = env.checkServerStatus(true); b.resolve({ online: false }); await second;
   a.resolve({ online: true }); await first; assert.equal(settings.serverOnline, false);
+});
+
+test('offline Obsidian mode does not check Chrome credentials or credit', async () => {
+  const settings = new SettingsState(), store = new TabStateManager(), calls = [];
+  settings.setConnectionMode('obsidian', false);
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+    calls.push(action); return { online: false };
+  } } } });
+  await env.checkServerStatus();
+  assert.deepEqual(calls, ['check-server']);
+  assert.equal(settings.serverOnline, false);
+  assert.equal(settings.obsidianAiConfigured, false);
+  assert.equal(settings.chromeAiConfigured, false);
+  assert.equal(settings.isChromeMode(), false);
+});
+
+test('switching to Chrome discards pending Obsidian status, credit and metrics', async () => {
+  const settings = new SettingsState(), store = new TabStateManager(), credit = deferred(), metrics = deferred();
+  settings.setConnectionMode('obsidian', false);
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+    if (action === 'check-server') return { online: true };
+    if (action === 'config-status') return { issues: [] };
+    if (action === 'get-credit') return credit.promise;
+    if (action === 'metrics') return metrics.promise;
+    return { configured: false };
+  } } } });
+  await env.checkServerStatus();
+  settings.setConnectionMode('chrome', false);
+  await env.checkServerStatus(true);
+  credit.resolve({ balanceFormatted: '$10' }); metrics.resolve({ nuts: 500 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settings.serverOnline, false);
+  assert.equal(store.environment.credit, null);
+  assert.notEqual(store.metrics?.nuts, 500);
 });
 for (const cachedStyles of [false, true]) {
   test(`startup frame remains available while ${cachedStyles ? 'cached' : 'pending'} styles initialize`, () => {
@@ -88,13 +125,13 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   } },
     tabs: { query: async () => [{ id: 1, windowId: 7 }], get: async id => ({ id, title: 'Page', url: 'https://one.test', status: 'complete' }),
       onActivated: { addListener() {} }, onUpdated: { addListener() {} }, onRemoved: { addListener() {} }, onAttached: { addListener() {} }, onDetached: { addListener() {} } },
-    storage: { local: { get: (keys, callback) => callback({}), set() {} }, onChanged: { addListener() {} } } };
+    storage: { local: { get: (keys, callback) => callback({ connectionMode: 'obsidian' }), set() {} }, onChanged: { addListener() {} } } };
   const intervals = new Set(); t.after(() => { for (const timer of intervals) clearInterval(timer); });
   const context = vm.createContext({ console, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
     setInterval: (...args) => { const timer = setInterval(...args); intervals.add(timer); return timer; }, clearInterval, document: root,
     chrome: api, navigator: { language: 'en' }, window: { addEventListener() {}, scrollTo() {}, scrollY: 0 }, module: { exports: {} } });
   vm.runInContext('Object.assign(globalThis, window); window = globalThis;', context);
-  root.body = { classList: { remove() {} } };
+  root.body = { classList: { remove() {}, toggle() {} } };
   const popupPath = require.resolve('../src/popup/popup.html');
   const scripts = [...fs.readFileSync(popupPath, 'utf8').matchAll(/<script defer src="([^"]+)"/g)].map(match => match[1]);
   for (const script of scripts) vm.runInContext(fs.readFileSync(path.resolve(path.dirname(popupPath), script), 'utf8'), context, { filename: script });
