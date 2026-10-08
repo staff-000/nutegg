@@ -198,21 +198,32 @@ test('URL-only navigation extracts the new route after settling; fragments retai
   assert.equal(extractions, 1);
 });
 
-test('A → B → A during extraction waits for the shared extraction before restoring history', async t => {
+test('activation checks cache first and loads cached analysis without extracting content', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
-  const f = actions(), extraction = deferred(); let extractions = 0, histories = 0;
+  const f = actions(); let extractions = 0, histories = 0;
   globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
   f.store.invalidateTab(1, 'https://tab1.test');
-  f.extractor.extractPage = () => { extractions++; return extraction.promise; };
+  f.extractor.extractPage = () => { extractions++; return { title: 'Fresh page', url: 'https://tab1.test', content: 'Fresh content' }; };
   f.service.loadHistory = async () => { histories++; return [{ nutId: 99, title: 'Saved capture', content: 'Old content', result: { titleVerdict: 'Saved history' } }]; };
-  const first = f.tab.handleTabActivated({ tabId: 1 }); await new Promise(resolve => setImmediate(resolve));
-  f.store.activateTab(2);
-  const returning = f.tab.handleTabActivated({ tabId: 1 }); await new Promise(resolve => setImmediate(resolve));
-  assert.equal(histories, 0);
-  extraction.resolve({ title: 'Fresh page', url: 'https://tab1.test', content: 'Fresh content' });
-  await Promise.all([first, returning]);
-  assert.equal(extractions, 1); assert.equal(histories, 1);
+  await f.tab.handleTabActivated({ tabId: 1 });
+  assert.equal(histories, 1);
+  assert.equal(extractions, 0, 'No extraction needed when cached result is present');
   assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Saved history');
+  assert.equal(f.store.getTab(1).currentView, 'results');
+});
+
+test('activation extracts content only when no cache or history is available', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(); let extractions = 0, histories = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.extractor.extractPage = async () => { extractions++; return { title: 'Fresh page', url: 'https://tab1.test', content: 'Fresh content' }; };
+  f.service.loadHistory = async () => { histories++; return []; };
+  await f.tab.handleTabActivated({ tabId: 1 });
+  assert.equal(histories, 1);
+  assert.equal(extractions, 1, 'Extraction runs when no history is present');
+  assert.equal(f.store.getTab(1).currentView, 'capture');
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Fresh content');
 });
 
 test('reanalyze refreshes content by default before running analysis', async t => {

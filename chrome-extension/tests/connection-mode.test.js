@@ -7,7 +7,7 @@ function worker(initial = {}, { online = true } = {}) {
   const stored = { ...initial }, http = [], ai = [];
   let listener;
   const context = vm.createContext({
-    importScripts() {}, console: { log() {} }, AbortController, AbortSignal, setTimeout, clearTimeout,
+    importScripts() {}, console: { log() {} }, URL, AbortController, AbortSignal, setTimeout, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
       normalizeAIDebugScope: value => value,
@@ -140,5 +140,59 @@ test('Obsidian mode fetches history from server and does not use Chrome tab cach
   const hist = await app.send('history', { url: 'https://obsidian.test/page' });
   assert.equal(app.http.some(call => call.url.includes('/history')), true);
   assert.equal(hist.coreSummary[0], 'Obsidian summary');
+});
+
+test('Chrome mode matches cache by video ID across Bilibili and YouTube URL variants', async () => {
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test-key', chromeCacheTabLimit: 10 });
+
+  // 1. Bilibili watchlater cached, then visited via /video/... with tracking parameters
+  const biliWatchlater = 'https://www.bilibili.com/list/watchlater/?bvid=BV1WS8v6DEJT&oid=117148923988962';
+  const biliVideoPage = 'https://www.bilibili.com/video/BV1WS8v6DEJT/?spm_id_from=333.1245.0.0&vd_source=e0b9ac349802cc71b68bc73bc6344bc7';
+
+  await app.send('analyze', {
+    payload: {
+      url: biliWatchlater,
+      title: 'Bilibili Test Video',
+      content: 'Bilibili Content',
+      sourceType: 'bilibili',
+      metadata: { video_id: 'BV1WS8v6DEJT', platform: 'bilibili' },
+    },
+  });
+
+  const biliHist = await app.send('history', { url: biliVideoPage });
+  assert.equal(biliHist.history.length, 1);
+  assert.equal(biliHist.history[0].title, 'Bilibili Test Video');
+  assert.equal(biliHist.history[0].videoId, 'BV1WS8v6DEJT');
+
+  // 2. YouTube watch URL cached, then visited via youtu.be or shorts
+  const ytWatch = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&si=tracking';
+  const ytShortLink = 'https://youtu.be/dQw4w9WgXcQ?si=other_tracking';
+
+  await app.send('analyze', {
+    payload: {
+      url: ytWatch,
+      title: 'YouTube Test Video',
+      content: 'YouTube Content',
+      sourceType: 'youtube',
+    },
+  });
+
+  const ytHist = await app.send('history', { url: ytShortLink });
+  assert.equal(ytHist.history.length, 1);
+  assert.equal(ytHist.history[0].title, 'YouTube Test Video');
+  assert.equal(ytHist.history[0].videoId, 'dQw4w9WgXcQ');
+
+  // 3. Re-analyzing on the second variant replaces the existing cache entry without duplicates
+  await app.send('analyze', {
+    payload: {
+      url: biliVideoPage,
+      title: 'Bilibili Test Video Re-analyzed',
+      content: 'Bilibili Content 2',
+      sourceType: 'bilibili',
+    },
+  });
+  assert.equal(app.stored.chromeTabCache.filter(item => item.videoId === 'BV1WS8v6DEJT').length, 1);
+  const updatedHist = await app.send('history', { url: biliWatchlater });
+  assert.equal(updatedHist.history[0].title, 'Bilibili Test Video Re-analyzed');
 });
 

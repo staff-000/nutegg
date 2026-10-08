@@ -23,6 +23,9 @@ const {
   getAnalyzeNotReadyReason,
   buildGitHubBugReportUrl,
   openGitHubBugReport,
+  BUG_REPORT_EMAIL,
+  buildBugReportEmailUrl,
+  openEmailBugReport,
 } = require("../src/popup/helpers.js");
 
 test("helper namespace object - allows calling methods directly on helper", () => {
@@ -216,6 +219,21 @@ test("buildGitHubBugReportUrl & openGitHubBugReport - builds correct issue url",
   assert.ok(url.includes("Unexpected%20500%20error"));
   assert.ok(url.includes("https%3A%2F%2Fexample.com%2Ftest"));
   assert.ok(url.includes("1.0.5"));
+});
+
+test("buildBugReportEmailUrl & openEmailBugReport - builds correct mailto url with fallback email", () => {
+  assert.equal(BUG_REPORT_EMAIL, "staffhacker.000@gmail.com");
+  const emailUrl = buildBugReportEmailUrl("Unexpected 500 error", {
+    url: "https://example.com/test",
+    version: "1.0.5",
+    userAgent: "Chrome/128",
+  });
+  assert.ok(emailUrl.startsWith("mailto:staffhacker.000@gmail.com?subject="));
+  assert.ok(emailUrl.includes("Unexpected%20500%20error"));
+  assert.ok(emailUrl.includes("https%3A%2F%2Fexample.com%2Ftest"));
+  assert.ok(emailUrl.includes("1.0.5"));
+  const returnedUrl = openEmailBugReport("Unexpected 500 error", { url: "https://example.com/test" });
+  assert.ok(returnedUrl.startsWith("mailto:staffhacker.000@gmail.com"));
 });
 
 test("countWords - accurately counts words across Latin, CJK, and mixed languages", () => {

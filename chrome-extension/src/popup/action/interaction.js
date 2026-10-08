@@ -32,6 +32,7 @@ class InteractionAction {
     return globalThis.NutEggUI.handleSourcePillClick(event, { onSeek: s => this.seekToChapter(s), onScroll: (h, q, id) => this.scrollToSection(h, q, id) });
   }
   openGitHubBugReport(error = '') { return globalThis.NutEggHelpers.openGitHubBugReport(error, { url: this.store.getTab(this.store.activeTabId)?.url || '' }); }
+  openEmailBugReport(error = '') { return globalThis.NutEggHelpers.openEmailBugReport(error, { url: this.store.getTab(this.store.activeTabId)?.url || '' }); }
 }
 globalThis.NutEggActions = globalThis.NutEggActions || {};
 globalThis.NutEggActions.InteractionAction = InteractionAction;

@@ -43,7 +43,7 @@ class TabAction {
       this.store.dispatch({ type: 'pageInfo', tabId: lease.tabId, url: tab.url, title: tab.title, loading: tab.status === 'loading' });
       const statusPromise = this.envService.checkServerStatus();
       const current = this.store.getTab(lease.tabId);
-      if (!current.extractedContent || current.operations.extraction?.running) {
+      if (current.operations.extraction?.running) {
         // Extraction is shared per page generation, including across A → B → A.
         await this.operations.extract(lease.tabId, options);
         if (!this.store.isActivationCurrent(lease)) return;
@@ -55,7 +55,13 @@ class TabAction {
         if (this.settings.serverOnline && !isChrome) void this.operations.catalog();
         if (!this.store.getTab(lease.tabId).analysisResult && !this.store.isBusy(lease.tabId)) {
           await this.operations.history(lease.tabId, true, record.selectionRevision);
+          if (!this.store.isActivationCurrent(lease)) return;
         }
+      }
+      const afterHistory = this.store.getTab(lease.tabId);
+      if (!afterHistory.analysisResult && (!afterHistory.extractedContent || afterHistory.operations.extraction?.running)) {
+        await this.operations.extract(lease.tabId, options);
+        if (!this.store.isActivationCurrent(lease)) return;
       }
     } catch (error) {
       if (this.store.isActivationCurrent(lease)) this.store.dispatch({ type: 'notice', tabId: lease.tabId, message: error.message });

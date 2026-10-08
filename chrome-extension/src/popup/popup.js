@@ -113,8 +113,15 @@ async function initPopup() {
     if (['Enter', ' '].includes(event.key)) { event.preventDefault(); chrome.runtime.openOptionsPage(); }
   });
   click(document.getElementById('report-bug-link'), event => { event.preventDefault(); interactionAction.openGitHubBugReport(); });
+  click(document.getElementById('report-email-link'), event => { event.preventDefault(); interactionAction.openEmailBugReport(); });
   click(ui.bannersUI.errorReportBug, event => { event.preventDefault(); interactionAction.openGitHubBugReport(tabStateManager.viewModel().error || ''); });
   document.addEventListener('click', event => {
+    const mailto = event.target.closest?.('a[href^="mailto:"]');
+    if (mailto && typeof chrome !== 'undefined' && chrome.tabs?.create) {
+      event.preventDefault();
+      chrome.tabs.create({ url: mailto.href });
+      return;
+    }
     if (!event.target.closest?.('.egg-analysis-selector')) a.toggleEggAnalysisMenu(false);
     if (event.target.closest?.('.source-pill')) interactionAction.handleSourcePillClick(event);
     const header = event.target.closest?.('#results-state .section-header');

@@ -322,19 +322,137 @@ async function handleAnalyze(payload) {
 
 const DEFAULT_CHROME_CACHE_LIMIT = 100;
 
-function normalizeCacheUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== "string") return "";
+function extractVideoIdentity(rawUrl, metadata = null) {
+  if (typeof NutEggAI !== "undefined" && typeof NutEggAI.getVideoIdentity === "function") {
+    try {
+      const vid = NutEggAI.getVideoIdentity(rawUrl);
+      if (vid) return vid;
+    } catch {}
+  }
+  if (!rawUrl || typeof rawUrl !== "string") return null;
   try {
-    const parsed = new URL(rawUrl);
-    parsed.hash = "";
-    let pathname = parsed.pathname;
-    if (pathname.length > 1 && pathname.endsWith("/")) {
-      pathname = pathname.slice(0, -1);
+    const u = new URL(rawUrl);
+    const host = u.hostname.toLowerCase();
+    const segments = u.pathname.split("/").filter(Boolean);
+
+    // YouTube
+    const youtubeHosts = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"];
+    let ytId = null;
+    if (youtubeHosts.includes(host)) {
+      if (segments[0] === "watch") ytId = u.searchParams.get("v");
+      else if (["shorts", "live", "embed", "v"].includes(segments[0])) ytId = segments[1];
+    } else if (host === "youtu.be" || host === "www.youtu.be") {
+      ytId = segments[0];
+    } else if (["youtube-nocookie.com", "www.youtube-nocookie.com"].includes(host) && segments[0] === "embed") {
+      ytId = segments[1];
     }
-    return parsed.toString();
+    if (ytId && /^[A-Za-z0-9_-]{11}$/.test(ytId)) {
+      return { platform: "youtube", id: ytId, canonicalUrl: `https://www.youtube.com/watch?v=${ytId}` };
+    }
+
+    // Bilibili
+    const bilibiliHosts = ["bilibili.com", "www.bilibili.com", "m.bilibili.com", "player.bilibili.com"];
+    if (bilibiliHosts.some(h => host === h || host.endsWith("." + h))) {
+      let bvid = segments[0] === "video" ? segments[1] : u.searchParams.get("bvid");
+      if (!bvid && u.searchParams.get("aid")) bvid = `av${u.searchParams.get("aid")}`;
+      if (!bvid && segments[0] === "video" && /^av\d+$/i.test(segments[1])) bvid = segments[1];
+      if (bvid) {
+        const cleanBvid = bvid.split("?")[0].split("/")[0];
+        const part = Number(u.searchParams.get("p") || (host === "player.bilibili.com" ? u.searchParams.get("page") : null) || 1);
+        const partSuffix = Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : "";
+        return {
+          platform: "bilibili",
+          id: cleanBvid,
+          canonicalUrl: `https://www.bilibili.com/video/${cleanBvid}${partSuffix}`,
+        };
+      }
+    }
+  } catch {}
+
+  if (metadata?.video_id && (metadata.platform === "youtube" || metadata.platform === "bilibili")) {
+    const id = metadata.video_id;
+    const platform = metadata.platform;
+    const part = Number(metadata.part || 1);
+    const canonicalUrl = platform === "youtube"
+      ? `https://www.youtube.com/watch?v=${id}`
+      : `https://www.bilibili.com/video/${id}${Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : ""}`;
+    return { platform, id, canonicalUrl };
+  }
+
+  return null;
+}
+
+function normalizeCacheUrl(rawUrl, metadata = null) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  const video = extractVideoIdentity(rawUrl, metadata);
+  if (video) return video.canonicalUrl;
+
+  if (typeof NutEggAI !== "undefined" && typeof NutEggAI.normalizeContentUrl === "function") {
+    try {
+      return NutEggAI.normalizeContentUrl(rawUrl);
+    } catch {}
+  }
+
+  try {
+    const u = new URL(rawUrl);
+    u.hash = "";
+    if (["twitter.com", "www.twitter.com", "mobile.twitter.com", "x.com", "www.x.com"].includes(u.hostname.toLowerCase())) {
+      u.hostname = "x.com";
+      if (/\/status\/\d+/.test(u.pathname)) {
+        u.search = "";
+        return u.toString().replace(/\/$/, "");
+      }
+    }
+    for (const param of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "source", "fbclid", "gclid", "si", "pp", "feature", "spm", "vd_source", "spm_id_from"]) {
+      u.searchParams.delete(param);
+    }
+    u.searchParams.sort();
+    let pathname = u.pathname;
+    if (pathname.length > 1 && pathname.endsWith("/")) {
+      u.pathname = pathname.slice(0, -1);
+    }
+    return u.toString().replace(/\/$/, "");
   } catch {
     return rawUrl.split("#")[0].replace(/\/+$/, "");
   }
+}
+
+function matchesCacheEntry(entry, targetUrl) {
+  if (!entry || !targetUrl) return false;
+  const targetNorm = normalizeCacheUrl(targetUrl);
+  const targetVideo = extractVideoIdentity(targetUrl);
+
+  // 1. Direct canonical URL match
+  if (entry.canonicalUrl && targetNorm && entry.canonicalUrl === targetNorm) {
+    return true;
+  }
+  if (targetNorm && normalizeCacheUrl(entry.url) === targetNorm) {
+    return true;
+  }
+
+  // 2. Video ID & platform match
+  const entryVideo = (entry.videoPlatform && entry.videoId)
+    ? { platform: entry.videoPlatform, id: entry.videoId }
+    : extractVideoIdentity(entry.url, entry.capturePayload?.metadata);
+
+  if (targetVideo && entryVideo) {
+    if (targetVideo.platform === entryVideo.platform && targetVideo.id === entryVideo.id) {
+      if (targetVideo.platform === "bilibili") {
+        return (entry.canonicalUrl || normalizeCacheUrl(entry.url)) === targetNorm;
+      }
+      return true;
+    }
+  }
+
+  // 3. Fallback URL match
+  if (entry.url && entry.url.split("#")[0] === targetUrl.split("#")[0]) {
+    return true;
+  }
+  if (entry.capturePayload?.url && entry.capturePayload.url.split("#")[0] === targetUrl.split("#")[0]) {
+    return true;
+  }
+
+  return false;
 }
 
 async function getChromeCacheLimit() {
@@ -346,11 +464,10 @@ async function getChromeCacheLimit() {
 }
 
 async function getChromeCacheHistory(url) {
-  const norm = normalizeCacheUrl(url);
-  if (!norm) return { history: [], latest: null };
+  if (!url) return { history: [], latest: null };
   const stored = await chrome.storage.local.get(["chromeTabCache"]);
   const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
-  const entry = cache.find((item) => normalizeCacheUrl(item.url) === norm);
+  const entry = cache.find((item) => matchesCacheEntry(item, url));
   if (!entry) return { history: [], latest: null };
   return { history: [entry], latest: entry };
 }
@@ -360,21 +477,27 @@ async function saveChromeCacheEntry(payload, result) {
     const limit = await getChromeCacheLimit();
     if (limit <= 0) return;
     const url = payload?.url;
-    const norm = normalizeCacheUrl(url);
-    if (!norm) return;
+    if (!url) return;
+
+    const norm = normalizeCacheUrl(url, payload?.metadata);
+    const video = extractVideoIdentity(url, payload?.metadata);
 
     const stored = await chrome.storage.local.get(["chromeTabCache"]);
     let cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
 
-    cache = cache.filter((item) => normalizeCacheUrl(item.url) !== norm);
+    // Remove existing entry for the same video or URL
+    cache = cache.filter((item) => !matchesCacheEntry(item, url));
 
     const entry = {
       nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       url,
+      canonicalUrl: norm,
+      videoId: video?.id || null,
+      videoPlatform: video?.platform || null,
       title: payload.title || result.titleVerdict?.title || "",
       result,
       saved: null,
-      sourceType: payload.sourceType || "generic",
+      sourceType: payload.sourceType || video?.platform || "generic",
       author: payload.author || payload.metadata?.author || "",
       publishedAt: payload.publishedAt || payload.metadata?.published || "",
       content: typeof payload.content === "string" ? payload.content.slice(0, 30000) : "",
