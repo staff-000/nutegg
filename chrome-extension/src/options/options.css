@@ -71,8 +71,10 @@ select { padding-right: 30px; }
 .summary-copy strong { display: block; font-size: 13px; font-weight: 600; line-height: 1.5; }
 .summary-copy > span { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.5; }
 .chevron { width: 7px; height: 7px; flex-shrink: 0; border-right: 1.5px solid #a18d7b; border-bottom: 1.5px solid #a18d7b; transform: rotate(45deg); margin: -3px 12px 0 14px; }
-.settings-disclosure[open] .chevron { transform: rotate(225deg); margin: 4px 12px 0 14px; }
 .settings-disclosure[open] > summary { border-bottom: 1px solid var(--line); }
+.checkbox-disclosure > summary { padding: 18px 21px; cursor: pointer; }
+.disclosure-checkbox { width: 18px !important; height: 18px !important; accent-color: var(--primary); margin: 0 !important; cursor: pointer; flex-shrink: 0; }
+.checkbox-disclosure > summary .summary-copy { cursor: pointer; }
 .disclosure-content { padding: 23px 28px 25px; }
 .optional-tag { color: #947b66; font-size: 10px; font-weight: 400; background: var(--accent-wash); padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: 1px; }
 fieldset { border: 0; padding: 0; margin: 0 0 20px; min-width: 0; }

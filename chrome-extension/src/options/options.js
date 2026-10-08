@@ -216,7 +216,8 @@ function renderConnectionMode(mode) {
   chromeAdvancedSettings.classList.toggle("hidden", usesObsidian);
   connectionModeBadge.textContent = t(usesObsidian ? "settingsObsidianMode" : "settingsChromeMode");
   connectionModeBadge.classList.toggle("obsidian", usesObsidian);
-  if (usesObsidian) document.getElementById("obsidian-settings").open = true;
+  const obsidianSettings = document.getElementById("obsidian-settings");
+  if (obsidianSettings) obsidianSettings.open = usesObsidian;
 }
 
 async function setConnectionMode(mode) {
@@ -233,6 +234,16 @@ function initConnectionMode(stored) {
   renderConnectionMode(forceChrome ? "chrome" : stored.connectionMode);
   if (forceChrome) chrome.storage.local.set({ connectionMode: "chrome", chromeAiEnabled: true });
   obsidianModeEnabled.addEventListener("change", () => setConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome"));
+  const obsidianSummary = document.querySelector("#obsidian-settings > summary");
+  if (obsidianSummary) {
+    obsidianSummary.addEventListener("click", (e) => {
+      if (e.target !== obsidianModeEnabled) {
+        e.preventDefault();
+        obsidianModeEnabled.checked = !obsidianModeEnabled.checked;
+        obsidianModeEnabled.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+  }
   document.getElementById("use-chrome-btn").addEventListener("click", async () => {
     await setConnectionMode("chrome");
     aiProviderSelect.focus();

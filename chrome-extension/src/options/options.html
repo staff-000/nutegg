@@ -94,10 +94,16 @@
       </div>
     </details>
 
-    <details class="settings-disclosure" id="obsidian-settings">
-      <summary><span class="disclosure-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span><span class="summary-copy"><strong><span data-i18n="settingsObsidianTitle">Connect Obsidian</span><span class="optional-tag" data-i18n="settingsObsidianOptional">Optional</span></strong><span data-i18n="settingsObsidianDesc">Save to your vault and connect ideas with your existing knowledge.</span></span><span class="chevron" aria-hidden="true"></span></summary>
+    <details class="settings-disclosure checkbox-disclosure" id="obsidian-settings">
+      <summary>
+        <input type="checkbox" id="obsidian-mode-enabled" class="disclosure-checkbox" aria-controls="obsidian-config">
+        <span class="disclosure-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span>
+        <label class="summary-copy" for="obsidian-mode-enabled">
+          <strong><span data-i18n="settingsObsidianTitle">Connect Obsidian</span><span class="optional-tag" data-i18n="settingsObsidianOptional">Optional</span></strong>
+          <span data-i18n="settingsObsidianDesc">Save to your vault and connect ideas with your existing knowledge.</span>
+        </label>
+      </summary>
       <div class="disclosure-content">
-        <label class="toggle-checkbox-label mode-toggle" for="obsidian-mode-enabled"><input type="checkbox" id="obsidian-mode-enabled" aria-controls="obsidian-config"><span><strong data-i18n="settingsUseObsidian">Use Obsidian mode</strong><small data-i18n="settingsUseObsidianHint">Requires Obsidian with the NutEgg plugin running on this computer.</small></span></label>
         <p id="connection-mode-status" class="test-result hidden" role="status"></p>
         <div id="obsidian-config" class="hidden">
           <p class="hint plugin-link"><a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" data-i18n="installNutEggObsidian">Install NutEgg for Obsidian ↗</a></p>
