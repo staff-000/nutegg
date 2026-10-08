@@ -425,7 +425,7 @@ test('Chrome first-use has one setup action, hides vault controls, and becomes r
   assert.equal(f.ui.sectionsUI.sectionsBadge.textContent, '3/4');
 
   seed(f.store, 1, { ...response(1), mode: 'chrome' });
-  for (const id of ['confirm-btn', 'collect-nut-btn', 'stage1-confirm-box', 'history-select', 'discard-btn', 'chrome-result-banner', 'chrome-actions-card']) {
+  for (const id of ['confirm-btn', 'collect-nut-btn', 'stage1-confirm-box', 'history-select', 'chrome-result-banner', 'chrome-actions-card']) {
     assert.equal(element(id).classList.contains('hidden'), true, id);
   }
 });

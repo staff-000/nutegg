@@ -127,7 +127,11 @@ class SectionChipsComponent {
       [this.reanalyzeSectionsBody, this.reanalyzeSectionsChevron, this.reanalyzeSectionsToggle, presentation.reanalyzeSectionsExpanded],
     ]) {
       body?.classList.toggle('hidden', !expanded);
-      if (chevron) chevron.textContent = expanded ? '▾' : '▸';
+      chevron?.classList.toggle('expanded', !!expanded);
+      const svg = chevron?.querySelector?.('svg');
+      if (!svg && chevron) {
+        chevron.textContent = expanded ? '▾' : '▸';
+      }
       toggle?.setAttribute('aria-expanded', String(!!expanded));
     }
   }

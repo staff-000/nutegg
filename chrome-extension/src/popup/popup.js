@@ -68,7 +68,6 @@ async function initPopup() {
   click(a.modeConfirmBtn, () => analyzeAction.setAnalysisMode('preview'));
   click(a.analyzeBtn, () => analyzeAction.handleAnalyze());
   click(a.reanalyzeBtn, () => analyzeAction.handleAnalyze(true, null, true));
-  click(a.reanalyzeRefreshBtn, () => tabAction.refreshForCurrentTab(true));
   click(c.refreshBtn, () => tabAction.refreshCaptureForCurrentTab());
   click(a.stage1ProceedBtn, event => a.handleEggAnalysisClick(event, mode => analyzeAction.handleEggAnalysis(mode)));
   click(a.eggAnalysisOnlyBtn, () => {
@@ -85,7 +84,6 @@ async function initPopup() {
   click(a.confirmBtn, () => saveAction.handleConfirm());
   click(a.backBtn, () => analyzeAction.handleBackToContent());
   click(a.viewAnalysisBtn, () => analyzeAction.handleViewAnalysis());
-  click(a.discardBtn, () => window.close());
   a.historySelect?.addEventListener('change', () => historyAction.onHistorySelected(a.historySelect.value));
   c.customQuestionsEl?.addEventListener('input', () => activeDraft({ customQuestions: c.customQuestionsEl.value }));
   q.followupInput?.addEventListener('input', () => activeDraft({ followupDraft: q.followupInput.value }));

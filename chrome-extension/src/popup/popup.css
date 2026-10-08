@@ -770,16 +770,33 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  color: #374151;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  margin-right: 6px;
+  flex-shrink: 0;
   line-height: 1;
   transition: all 0.15s ease;
+}
+
+.sections-toggle-chevron svg {
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.sections-toggle-chevron.expanded svg {
+  transform: rotate(180deg);
+}
+
+.sections-toggle-btn:hover .sections-toggle-chevron {
+  color: #111827;
+  background-color: #e5e7eb;
+  border-color: #9ca3af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .sections-body {
@@ -2867,7 +2884,7 @@ body {
 .analyze-btn.inactive, .analyze-btn:disabled { background: #e8e0d6; color: #897b6c; box-shadow: none; }
 #questions-toggle, #sections-toggle { min-height: 40px; margin: 0; padding: 10px 12px 10px 4px; background: transparent; border: 0; border-radius: 0; color: #766457; font-size: 12px; font-weight: 500; }
 #questions-toggle:hover, #sections-toggle:hover { color: #a8561e; }
-.questions-toggle-chevron, .sections-toggle-chevron { border: 0; background: none; color: #a39181; width: 18px; height: 18px; margin-right: 6px; }
+.questions-toggle-chevron { border: 0; background: none; color: #a39181; width: 18px; height: 18px; margin-right: 6px; }
 #questions-area { margin: 4px 0 12px; }
 .questions-area textarea { padding: 12px; border-color: #e6dbce; font-size: 13px; }
 .scope-select { max-width: 160px; }

@@ -214,3 +214,22 @@ test('A → B → A during extraction waits for the shared extraction before res
   assert.equal(extractions, 1); assert.equal(histories, 1);
   assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Saved history');
 });
+
+test('reanalyze refreshes content by default before running analysis', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(); seed(f.store, 1, { titleVerdict: 'Previous analysis' });
+  let extractedCount = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.extractor.extractPage = async id => {
+    extractedCount++;
+    return { title: 'Updated Tab 1', content: 'Fresh Extracted Content', url: 'https://tab1.test' };
+  };
+  const job = f.analyze.handleAnalyze(true, null, true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(extractedCount, 1);
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].payload.content, 'Fresh Extracted Content');
+  f.calls[0].resolve({ titleVerdict: 'Refreshed analysis' });
+  await job;
+  assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Refreshed analysis');
+});

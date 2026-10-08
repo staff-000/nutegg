@@ -149,7 +149,7 @@
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
             <span class="sections-badge" id="sections-badge">3/4</span>
           </div>
-          <span class="sections-toggle-chevron" id="sections-chevron">▸</span>
+          <span class="section-chevron sections-toggle-chevron" id="sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </button>
         <div class="sections-body hidden" id="sections-body">
           <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
@@ -367,18 +367,10 @@
                   <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
                   <span class="sections-badge" id="reanalyze-sections-badge">3/4</span>
                 </div>
-                <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
+                <span class="section-chevron sections-toggle-chevron" id="reanalyze-sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
               </button>
               <div class="processed-actions">
                 <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button></span>
-                <button id="reanalyze-refresh-btn" class="refresh-btn" type="button" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-i18n-title="refreshTooltip">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                    <path d="M3 3v5h5"></path>
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                    <path d="M21 21v-5h-5"></path>
-                  </svg>
-                </button>
                 <select id="history-select" class="history-select hidden"></select>
               </div>
             </div>
@@ -419,7 +411,6 @@
       <div class="action-buttons">
         <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🐣 Hatch Egg</button></span>
         <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button></span>
-        <button id="discard-btn" class="discard-btn" data-obsidian-only data-i18n="discard">Discard</button>
         <button id="back-btn" class="back-btn" data-i18n="back">← Back</button>
       </div>
     </div>
