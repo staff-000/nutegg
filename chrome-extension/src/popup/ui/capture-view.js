@@ -14,6 +14,11 @@ class CaptureViewComponent {
     this.pageCaptionSourceEl = root.getElementById("page-caption-source");
     this.contentPreview = root.getElementById("content-preview");
     this.refreshBtn = root.getElementById("refresh-btn");
+    this.previewRefreshBtn = root.getElementById("preview-refresh-btn");
+    this.previewRefreshBtn?.addEventListener('click', () => {
+      if (this.refreshBtn && !this.refreshBtn.disabled) this.refreshBtn.click();
+    });
+    this.transcriptRefreshHint = root.getElementById("transcript-refresh-hint");
     this.questionsToggle = root.getElementById("questions-toggle");
     this.questionsArea = root.getElementById("questions-area");
     this.customQuestionsEl = root.getElementById("custom-questions");
@@ -145,8 +150,11 @@ class CaptureViewComponent {
       + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}👤 ${this.commentAuthor(item)}\n${item.text}`
         + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
       + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
-    const warning = globalThis.NutEggHelpers?.getExtractionWarning?.(content);
-    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning);
+    const transcriptMissing = Boolean(globalThis.NutEggHelpers?.isTranscriptBlocked?.(content));
+    const warning = transcriptMissing ? t('transcriptRefreshPreview')
+      : !content?.content?.trim() ? t('contentRefreshPreview')
+      : globalThis.NutEggHelpers?.getExtractionWarning?.(content);
+    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning, Boolean(warning));
   }
 
   commentAuthor(item) {
@@ -162,7 +170,12 @@ class CaptureViewComponent {
     return t('discussionUnknownAuthor');
   }
 
-  setPreviewText(text, warning = null) {
+  setPreviewText(text, warning = null, needsRefresh = false) {
+    this.previewRefreshBtn?.classList.toggle('hidden', !needsRefresh);
+    if (this.transcriptRefreshHint) {
+      this.transcriptRefreshHint.textContent = needsRefresh ? t('contentRefreshHint') : '';
+      this.transcriptRefreshHint.classList.toggle('hidden', !needsRefresh);
+    }
     if (!this.contentPreview) return;
     this.contentPreview.classList.toggle('incomplete', !!warning);
     if (warning) text = `⚠️ ${warning}\n\n${text}`;
@@ -206,7 +219,7 @@ class CaptureViewComponent {
   }
 
   setError(message) {
-    this.setPreviewText(message);
+    this.setPreviewText(message, t('contentRefreshPreview'), true);
     this.clearAuthorAndPublished();
   }
 
@@ -257,6 +270,7 @@ class CaptureViewComponent {
 
   setRefreshDisabled(disabled) {
     if (this.refreshBtn) this.refreshBtn.disabled = Boolean(disabled);
+    if (this.previewRefreshBtn) this.previewRefreshBtn.disabled = Boolean(disabled);
   }
 
   toggleQuestionsArea() {

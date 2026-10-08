@@ -61,7 +61,7 @@ class PopupRenderer {
     root.body?.classList?.toggle('density-comfortable', isMargin);
     const questionsChevron = ui.captureUI.questionsToggle?.querySelector('.questions-toggle-chevron');
     if (questionsChevron) questionsChevron.textContent = view.presentation.questionsExpanded ? '▾' : '▸';
-    ui.captureUI.refreshBtn.disabled = view.busy || view.extractionPending;
+    ui.captureUI.setRefreshDisabled(view.busy || view.extractionPending);
     const content = view.extractedContent;
     const captureProgress = view.extractionPending && view.operations.extraction?.progress;
     keyed('capture', [content?.content, content?.title, content?.url, content?.sourceType, content?.mediaType, content?.isVideo, content?.transcriptAvailable, content?.extractionStatus, content?.metadata, content?.discussion?.items, content?.discussion?.truncated, view.errors.extraction, view.extractionPending, captureProgress, view.title, view.url], () => {

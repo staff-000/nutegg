@@ -102,7 +102,7 @@ test('missing-transcript notices appear in the warning and preview, survive tab 
     content: body, transcriptAvailable: false });
   await f.operations.extract(1);
   assert.match(f.ui.bannersUI.warningMessage.textContent, /Could not fetch the video transcript/);
-  assert.match(f.ui.captureUI.contentPreview.textContent, /^⚠️ Could not fetch the video transcript/);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /^⚠️ Transcript not loaded/);
   assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), false);
   assert.equal(f.ui.captureUI.contentPreview.classList.contains('incomplete'), true);
   f.ui.captureUI.contentPreview.scrollTop = 100;
@@ -110,7 +110,7 @@ test('missing-transcript notices appear in the warning and preview, survive tab 
   f.store.activateTab(2);
   assert.ok(!f.ui.captureUI.contentPreview.textContent.includes('video transcript'));
   f.store.activateTab(1);
-  assert.match(f.ui.captureUI.contentPreview.textContent, /Could not fetch the video transcript/);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Transcript not loaded/);
   assert.equal(f.ui.captureUI.contentPreview.scrollTop, 0);
 
   // The same text with a corrected transcript flag must invalidate the renderer cache.
@@ -130,7 +130,7 @@ test('history restores extraction notices from its own capture rather than the p
     capturePayload: { sourceType: 'youtube', transcriptAvailable: false, content: body },
   } });
   assert.match(f.ui.bannersUI.warningMessage.textContent, /Could not fetch the video transcript/);
-  assert.match(f.ui.captureUI.contentPreview.textContent, /Could not fetch the video transcript/);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Transcript not loaded/);
   f.store.dispatch({ type: 'historySelected', tabId: 1, entry: {
     result: response(1), title: 'Article', url: 'https://tab1.test', sourceType: 'article', content: body,
   } });

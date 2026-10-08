@@ -309,34 +309,80 @@ describe("Modular UI Components", () => {
     capture.previewUrl = content.url;
     capture.contentPreview.scrollTop = 150;
     capture.render(content);
-    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Could not fetch the video transcript."));
+    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Transcript not loaded."));
     assert.ok(capture.contentPreview.textContent.includes("not the spoken content"));
     assert.ok(capture.contentPreview.textContent.endsWith(content.content));
     assert.equal(capture.contentPreview.classList.contains("incomplete"), true);
     assert.equal(capture.contentPreview.scrollTop, 0);
     assert.deepEqual(content, original);
+    assert.equal(capture.transcriptRefreshHint.textContent, "Refresh content");
+    assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), false);
+    assert.ok(capture.contentPreview.textContent.includes("click Refresh to try again"));
+
 
     capture.render({ ...content, content: "", transcriptAvailable: false });
-    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Could not fetch the video transcript."));
+    assert.ok(capture.contentPreview.textContent.startsWith("⚠️ Transcript not loaded."));
 
     capture.render({ ...content, transcriptAvailable: true });
     assert.equal(capture.contentPreview.textContent, content.content);
+    assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), true);
     assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
   });
 
-  it("CaptureViewComponent clears extraction notices on loading, errors and tab changes", () => {
+  it("CaptureViewComponent clears extraction notices on loading and tab changes", () => {
     const capture = new CaptureViewComponent(createMockRoot());
     const missing = { sourceType: "youtube", transcriptAvailable: false, content: "Description" };
-    for (const reset of [() => capture.setLoading(), () => capture.setError("Fetch failed"), () => capture.clear()]) {
+    for (const reset of [() => capture.setLoading(), () => capture.clear()]) {
       capture.render(missing);
       reset();
-      assert.ok(!capture.contentPreview.textContent.includes("Could not fetch the video transcript"));
+      assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), true);
+      assert.ok(!capture.contentPreview.textContent.includes("Transcript not loaded"));
       assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
     }
     capture.render(missing);
     capture.render({ sourceType: "article", content: "article ".repeat(250) });
+    assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), true);
     assert.ok(!capture.contentPreview.textContent.includes("transcript"));
     assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
+  });
+
+  it("CaptureViewComponent offers refresh for extraction errors and incomplete content on any page", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    for (const showProblem of [
+      () => capture.setError(t("couldNotExtractContent")),
+      () => capture.render({ sourceType: "article", content: "" }),
+      () => capture.render({ sourceType: "article", content: "Partial article", extractionStatus: "transient" }),
+    ]) {
+      showProblem();
+      assert.equal(capture.transcriptRefreshHint.textContent, "Refresh content");
+      assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), false);
+      assert.ok(/refresh|retry/i.test(capture.contentPreview.textContent));
+      assert.equal(capture.contentPreview.classList.contains("incomplete"), true);
+    }
+    capture.setError(t("couldNotExtractContent"));
+    assert.ok(capture.contentPreview.textContent.includes("click Refresh to try again"));
+    assert.ok(capture.contentPreview.textContent.includes("(Could not extract content)"));
+    capture.setLoading();
+    assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), true);
+    capture.render({ sourceType: "article", content: "Complete article ".repeat(250) });
+    assert.equal(capture.transcriptRefreshHint.classList.contains("hidden"), true);
+    assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
+  });
+
+  it("CaptureViewComponent refreshes from inside the content box and respects busy state", () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    let refreshes = 0;
+    capture.refreshBtn.addEventListener("click", () => refreshes++);
+    capture.setError("Could not extract content");
+    assert.equal(capture.previewRefreshBtn.classList.contains("hidden"), false);
+    capture.previewRefreshBtn.click();
+    assert.equal(refreshes, 1);
+    capture.setRefreshDisabled(true);
+    assert.equal(capture.previewRefreshBtn.disabled, true);
+    capture.previewRefreshBtn.click();
+    assert.equal(refreshes, 1);
+    capture.setLoading();
+    assert.equal(capture.previewRefreshBtn.classList.contains("hidden"), true);
   });
 
   it("CaptureViewComponent shows the caption route and clears it across refreshes and pages", () => {
@@ -613,7 +659,8 @@ describe("Modular UI Components", () => {
     assert.strictEqual(capture.pageAuthorEl.textContent, "");
 
     capture.setError("Error message");
-    assert.strictEqual(capture.contentPreview.textContent, "Error message");
+    assert.ok(capture.contentPreview.textContent.endsWith("Error message"));
+    assert.ok(capture.contentPreview.textContent.includes("click Refresh to try again"));
 
     capture.setRefreshDisabled(true);
     assert.strictEqual(capture.refreshBtn.disabled, true);
