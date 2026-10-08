@@ -2878,10 +2878,12 @@ body {
 .chrome-reader [data-obsidian-only] { display: none !important; }
 .not-functional #analyze-btn-wrap, .not-functional #questions-toggle, .not-functional #questions-area, .not-functional #sections-accordion, .not-functional #obsidian-analysis-mode { display: none !important; }
 #result-page-info { border: 0; border-bottom: 1px solid #e8dfd4; padding: 0 0 17px; border-radius: 0; background: transparent; }
-#processed-note { padding: 0; background: transparent; border: 0; margin-bottom: 20px; }
+#processed-note { padding: 0; background: transparent; border: 0; margin-top: 14px; margin-bottom: 20px; }
 #processed-note > .duplicate-icon, #processed-message { display: none; }
 .processed-info { width: 100%; }
-.processed-actions { margin-top: 0; }
+.processed-actions { margin-top: 0; flex-shrink: 0; }
+.reanalyze-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 4px 6px; }
+.reanalyze-header-row #reanalyze-sections-toggle { flex: 1; min-width: 0; padding: 4px 6px; }
 .reanalyze-btn { background: #f4ede3; border: 1px solid #e9dccb; color: #986032; }
 .reanalyze-btn:hover:not(:disabled):not(.inactive) { background: #eaddc9; }
 #reanalyze-sections-accordion { margin-top: 8px; border-color: #e9e1d7; background: #fffdf9; }
@@ -2902,6 +2904,11 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, select:foc
 body.density-margin .brand-tagline,
 body.density-comfortable .brand-tagline { display: inline-block; }
 
+body.density-margin .reanalyze-header-row,
+body.density-comfortable .reanalyze-header-row { padding: 6px 10px; gap: 12px; }
+body.density-margin .reanalyze-header-row .processed-actions,
+body.density-comfortable .reanalyze-header-row .processed-actions { gap: 10px; }
+
 body.density-compact .popup-container { padding: 12px 14px; }
 body.density-compact .header { margin-bottom: 12px; }
 body.density-compact .brand-tagline { display: none; }
@@ -2921,6 +2928,7 @@ body.density-compact .section-chip { padding: 4px 8px; font-size: 11.5px; }
 body.density-compact #core-summary-section { padding: 10px 12px; margin-bottom: 12px; }
 body.density-compact .core-summary li { padding: 5px 0; }
 body.density-compact .result-section { margin-bottom: 10px; }
+body.density-compact .reanalyze-header-row { padding: 3px 4px; gap: 6px; }
 body.density-compact .footer { margin-top: 14px; padding-top: 10px; }
 
 /* Density ultra-compact mode styles */

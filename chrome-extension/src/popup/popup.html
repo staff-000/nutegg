@@ -210,66 +210,6 @@
         </div>
       </div>
 
-      <div id="processed-note" class="duplicate-banner hidden">
-        <span class="duplicate-icon">📎</span>
-        <div class="processed-info">
-          <span id="processed-message"></span>
-          <div class="processed-actions">
-            <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button></span>
-            <button id="reanalyze-refresh-btn" class="refresh-btn" type="button" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-i18n-title="refreshTooltip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                <path d="M3 3v5h5"></path>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                <path d="M21 21v-5h-5"></path>
-              </svg>
-            </button>
-            <select id="history-select" class="history-select hidden"></select>
-          </div>
-          <!-- Re-analysis Section Selector (expandable) -->
-          <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
-            <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections" data-i18n-title="customizeReanalyzeSectionsTooltip">
-              <div class="sections-toggle-left">
-                <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
-                <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-                <span class="sections-badge" id="reanalyze-sections-badge">3/4</span>
-              </div>
-              <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
-            </button>
-            <div class="sections-body hidden" id="reanalyze-sections-body">
-              <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
-                <button type="button" class="section-chip active" id="reanalyze-chip-verdict-summary" data-section="verdictSummary" title="Toggle Verdict and Summary" data-i18n-title="toggleVerdictSummaryTooltip">
-              <span class="chip-icon">📋</span>
-              <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
-            </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
-                  <span class="chip-icon">🧠</span>
-                  <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
-                </button>
-            <button type="button" class="section-chip active" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
-              <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
-            </button>
-            <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
-              </div>
-          <div id="discussion-reanalyze" class="discussion-controls hidden">
-            <div class="discussion-status-bar">
-              <span id="discussion-reanalyze-indicator" class="discussion-status-indicator"></span>
-              <p id="discussion-reanalyze-status" class="discussion-status-text" role="status" aria-live="polite"></p>
-            </div>
-            <div class="discussion-actions">
-              <button type="button" id="discussion-reanalyze-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad">Load discussion</button>
-              <button type="button" id="discussion-reanalyze-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh">Refresh comments</button>
-            </div>
-            <div class="discussion-tip">
-              <span class="discussion-tip-icon">💡</span>
-              <small data-i18n="discussionLoadingHint">Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured comments at any time.</small>
-            </div>
-          </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div id="success-banner" class="success-banner hidden">
         <span class="success-icon">✅</span>
         <span id="success-message"></span>
@@ -362,30 +302,6 @@
         </div>
       </div>
 
-      <div class="result-section hidden" id="discussion-section">
-        <div class="section-header" role="button" tabindex="0"><div class="section-label"><span class="section-icon">💬</span> <span data-i18n="discussionSection">Discussion</span></div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
-        <div class="section-content" id="discussion-result"></div>
-      </div>
-      <div id="custom-questions-section" class="result-section hidden">
-        <div class="section-header">
-          <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="custom-questions-list" class="keyquestions-list"></div>
-          <div class="followup-area">
-            <div class="followup-input-row">
-              <input id="followup-input" type="text" data-i18n-placeholder="askQuestionPlaceholder" placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)" />
-              <select id="followup-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
-                <option value="within" data-i18n="scopeWithin">Content only</option>
-                <option value="beyond" data-i18n="readerScopeBeyond">Use broader knowledge</option>
-              </select>
-              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" title="Ask (⌘/Ctrl+Enter)">Ask</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Unified Egg Knowledge Section with Tabs -->
       <div id="egg-knowledge-section" data-obsidian-only class="result-section hidden">
         <div class="section-header">
@@ -409,6 +325,93 @@
             <input id="new-egg-description" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="new-egg-hint" />
             <p id="new-egg-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
             <button id="create-egg-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create Egg</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-section hidden" id="discussion-section">
+        <div class="section-header" role="button" tabindex="0"><div class="section-label"><span class="section-icon">💬</span> <span data-i18n="discussionSection">Discussion</span></div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+        <div class="section-content" id="discussion-result"></div>
+      </div>
+
+      <div id="custom-questions-section" class="result-section hidden">
+        <div class="section-header">
+          <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
+          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        </div>
+        <div class="section-content">
+          <div id="custom-questions-list" class="keyquestions-list"></div>
+          <div class="followup-area">
+            <div class="followup-input-row">
+              <input id="followup-input" type="text" data-i18n-placeholder="askQuestionPlaceholder" placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)" />
+              <select id="followup-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
+                <option value="within" data-i18n="scopeWithin">Content only</option>
+                <option value="beyond" data-i18n="readerScopeBeyond">Use broader knowledge</option>
+              </select>
+              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" title="Ask (⌘/Ctrl+Enter)">Ask</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="processed-note" class="duplicate-banner hidden">
+        <span class="duplicate-icon">📎</span>
+        <div class="processed-info">
+          <span id="processed-message"></span>
+          <!-- Re-analysis Section Selector (expandable) with inline processed-actions -->
+          <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
+            <div class="reanalyze-header-row">
+              <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections" data-i18n-title="customizeReanalyzeSectionsTooltip">
+                <div class="sections-toggle-left">
+                  <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
+                  <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
+                  <span class="sections-badge" id="reanalyze-sections-badge">3/4</span>
+                </div>
+                <span class="sections-toggle-chevron" id="reanalyze-sections-chevron">▸</span>
+              </button>
+              <div class="processed-actions">
+                <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button></span>
+                <button id="reanalyze-refresh-btn" class="refresh-btn" type="button" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-i18n-title="refreshTooltip">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                    <path d="M21 21v-5h-5"></path>
+                  </svg>
+                </button>
+                <select id="history-select" class="history-select hidden"></select>
+              </div>
+            </div>
+            <div class="sections-body hidden" id="reanalyze-sections-body">
+              <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
+                <button type="button" class="section-chip active" id="reanalyze-chip-verdict-summary" data-section="verdictSummary" title="Toggle Verdict and Summary" data-i18n-title="toggleVerdictSummaryTooltip">
+                  <span class="chip-icon">📋</span>
+                  <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
+                </button>
+                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
+                  <span class="chip-icon">🧠</span>
+                  <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
+                </button>
+                <button type="button" class="section-chip active" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
+                  <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
+                </button>
+                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
+              </div>
+              <div id="discussion-reanalyze" class="discussion-controls hidden">
+                <div class="discussion-status-bar">
+                  <span id="discussion-reanalyze-indicator" class="discussion-status-indicator"></span>
+                  <p id="discussion-reanalyze-status" class="discussion-status-text" role="status" aria-live="polite"></p>
+                </div>
+                <div class="discussion-actions">
+                  <button type="button" id="discussion-reanalyze-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad">Load discussion</button>
+                  <button type="button" id="discussion-reanalyze-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh">Refresh comments</button>
+                </div>
+                <div class="discussion-tip">
+                  <span class="discussion-tip-icon">💡</span>
+                  <small data-i18n="discussionLoadingHint">Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured comments at any time.</small>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

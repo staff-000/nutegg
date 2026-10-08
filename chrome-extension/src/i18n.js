@@ -17,7 +17,7 @@
 const translations = {
   "en": {
     "cancel": "Cancel",
-    "settingsHeadline": "Read smarter in Chrome",
+    "settingsHeadline": "Read less, hatch more, save time",
     "settingsIntro": "Connect your AI once, then get summaries, mind maps, and answers right in Chrome.",
     "settingsChromeMode": "Works in Chrome",
     "settingsSetupTitle": "Connect your AI",
