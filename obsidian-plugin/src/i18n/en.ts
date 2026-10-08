@@ -5,7 +5,7 @@ export const en = {
   chromeCompanionDesc: "Capture and analyze articles, YouTube videos, and tweets directly from your browser into Obsidian.",
   getChromeExtension: "Get Chrome Extension ↗",
   reportBugName: "Report a Bug",
-  reportBugDesc: "Found an issue, unexpected behavior, or need help? Report it on GitHub issues.",
+  reportBugDesc: "Found an issue, unexpected behavior, or need help? Report it on GitHub issues (or email staffhacker.000@gmail.com if you don't have a GitHub account).",
   reportBugBtn: "🐛 Report Bug on GitHub ↗",
   vaultPathsHeader: "Vault Paths",
   rawFolder: "Raw Content Folder",

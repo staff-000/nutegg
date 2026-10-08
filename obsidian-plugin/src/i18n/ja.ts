@@ -4,7 +4,7 @@ export const ja = {
   "chromeCompanionDesc": "ブラウザから記事、YouTube動画、ツイートを直接Obsidianにキャプチャ・分析します。",
   "getChromeExtension": "Chrome拡張機能を入手 ↗",
   "reportBugName": "バグ報告",
-  "reportBugDesc": "問題の発生や予期しない動作を見つけた場合、GitHubのIssueからお知らせください。",
+  "reportBugDesc": "問題の発生や予期しない動作を見つけた場合、GitHubのIssueからお知らせください（GitHubアカウントをお持ちでない場合は staffhacker.000@gmail.com までメール）。",
   "reportBugBtn": "🐛 GitHubでバグを報告 ↗",
   "vaultPathsHeader": "保管庫のパス設定",
   "rawFolder": "生コンテンツフォルダ",

@@ -4,7 +4,7 @@ export const de = {
   "chromeCompanionDesc": "Erfasse und analysiere Artikel, YouTube-Videos und Tweets direkt aus deinem Browser in Obsidian.",
   "getChromeExtension": "Chrome-Erweiterung herunterladen ↗",
   "reportBugName": "Fehler melden",
-  "reportBugDesc": "Hast du ein Problem gefunden oder benötigst Hilfe? Melde es auf GitHub.",
+  "reportBugDesc": "Hast du ein Problem gefunden oder benötigst Hilfe? Melde es auf GitHub (oder per E-Mail an staffhacker.000@gmail.com, falls kein GitHub-Konto vorhanden).",
   "reportBugBtn": "🐛 Fehler auf GitHub melden ↗",
   "vaultPathsHeader": "Vault-Pfade",
   "rawFolder": "Rohinhalte-Ordner",

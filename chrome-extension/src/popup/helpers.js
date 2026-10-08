@@ -354,6 +354,51 @@ function buildGitHubBugReportUrl(errorContext = "", context = {}) {
   return `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
 
+const BUG_REPORT_EMAIL = "staffhacker.000@gmail.com";
+
+/**
+ * Builds a mailto: URL prefilled with bug report template.
+ */
+function buildBugReportEmailUrl(errorContext = "", context = {}) {
+  const contentUrl = context.url || "";
+  const version = context.version || (typeof chrome !== "undefined" && chrome.runtime?.getManifest?.()?.version) || "0.0.0";
+  const userAgent = context.userAgent || (typeof navigator !== "undefined" && navigator.userAgent) || "Chrome";
+  const observed = errorContext
+    ? `Encountered error: ${errorContext}`
+    : "[Describe what actually happened]";
+
+  const body = [
+    "URL: " + (contentUrl || "[Enter URL if applicable]"),
+    "",
+    "Expected behavior:",
+    "[What you expected to happen]",
+    "",
+    "Observed behavior:",
+    observed,
+    "",
+    "Environment:",
+    `- NutEgg Extension Version: v${version}`,
+    `- Browser: ${userAgent}`,
+  ].join("\n");
+
+  const subject = errorContext ? `[NutEgg Bug]: ${errorContext.slice(0, 60)}` : "[NutEgg Bug Report]";
+  return `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * Redirect to email client prefilled with bug report template.
+ */
+function openEmailBugReport(errorContext = "", context = {}) {
+  const mailUrl = buildBugReportEmailUrl(errorContext, context);
+  if (typeof chrome !== "undefined" && chrome.tabs?.create) {
+    chrome.tabs.create({ url: mailUrl });
+  } else if (typeof window !== "undefined" && window.open) {
+    window.open(mailUrl, "_blank");
+  }
+  return mailUrl;
+}
+
+
 /**
  * Redirect to GitHub issues prefilled with bug report template.
  */
@@ -392,6 +437,9 @@ const NutEggHelpers = {
   selectedEggsNeedAnalysis,
   buildGitHubBugReportUrl,
   openGitHubBugReport,
+  BUG_REPORT_EMAIL,
+  buildBugReportEmailUrl,
+  openEmailBugReport,
 };
 
 // Browser global namespace attachment

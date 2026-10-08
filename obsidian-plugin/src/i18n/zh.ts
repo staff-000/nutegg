@@ -7,7 +7,7 @@ export const zh: Record<TranslationKey, string> = {
   chromeCompanionDesc: "从浏览器直接提取并分析文章、YouTube 视频与推文，结构化存入 Obsidian。",
   getChromeExtension: "获取 Chrome 扩展 ↗",
   reportBugName: "反馈问题",
-  reportBugDesc: "遇到异常、问题或需要帮助？欢迎在 GitHub 提交反馈。",
+  reportBugDesc: "遇到异常、问题或需要帮助？欢迎在 GitHub 提交反馈（若无 GitHub 账号可发邮件至 staffhacker.000@gmail.com）。",
   reportBugBtn: "🐛 在 GitHub 提交反馈 ↗",
   vaultPathsHeader: "库路径设置",
   rawFolder: "原始素材目录",

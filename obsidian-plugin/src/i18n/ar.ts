@@ -4,7 +4,7 @@ export const ar = {
   "chromeCompanionDesc": "التقط المقالات وفيديوهات YouTube والتغريدات وحللها مباشرة من متصفحك إلى Obsidian.",
   "getChromeExtension": "الحصول على إضافة Chrome ↗",
   "reportBugName": "الإبلاغ عن خطأ",
-  "reportBugDesc": "هل واجهت مشكلة أو خطأ غير متوقع؟ تواصل معنا عبر GitHub.",
+  "reportBugDesc": "هل واجهت مشكلة أو خطأ غير متوقع؟ تواصل معنا عبر GitHub (أو عبر البريد الإلكتروني staffhacker.000@gmail.com إذا لم يكن لديك حساب GitHub).",
   "reportBugBtn": "🐛 الإبلاغ عن خطأ في GitHub ↗",
   "vaultPathsHeader": "مسارات الخزانة",
   "rawFolder": "مجلد المحتوى الخام",

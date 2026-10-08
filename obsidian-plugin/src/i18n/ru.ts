@@ -4,7 +4,7 @@ export const ru = {
   "chromeCompanionDesc": "Сохраняйте и анализируйте статьи, видео YouTube и посты прямо из браузера в Obsidian.",
   "getChromeExtension": "Скачать расширение для Chrome ↗",
   "reportBugName": "Сообщить об ошибке",
-  "reportBugDesc": "Нашли ошибку или нужна помощь? Сообщите нам на GitHub.",
+  "reportBugDesc": "Нашли ошибку или нужна помощь? Сообщите нам на GitHub (или по почте staffhacker.000@gmail.com, если нет аккаунта GitHub).",
   "reportBugBtn": "🐛 Сообщить об ошибке на GitHub ↗",
   "vaultPathsHeader": "Пути в хранилище",
   "rawFolder": "Папка исходных материалов",

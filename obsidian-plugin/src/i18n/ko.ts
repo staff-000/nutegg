@@ -4,7 +4,7 @@ export const ko = {
   "chromeCompanionDesc": "브라우저에서 기사, YouTube 비디오, 트윗을 Obsidian으로 직접 캡처하고 분석합니다.",
   "getChromeExtension": "Chrome 확장 프로그램 받기 ↗",
   "reportBugName": "버그 보고",
-  "reportBugDesc": "문제나 예기치 않은 오류가 발생했거나 도움이 필요하신가요? GitHub 이슈를 통해 알려주세요.",
+  "reportBugDesc": "문제나 예기치 않은 오류가 발생했거나 도움이 필요하신가요? GitHub 이슈를 통해 알려주세요 (GitHub 계정이 없는 경우 staffhacker.000@gmail.com 으로 이메일 문의).",
   "reportBugBtn": "🐛 GitHub에 버그 보고 ↗",
   "vaultPathsHeader": "볼트 경로 설정",
   "rawFolder": "원시 콘텐츠 폴더",
