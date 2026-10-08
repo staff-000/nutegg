@@ -51,9 +51,14 @@ class PopupRenderer {
     ui.qaUI.setScope(view.followupScope);
     ui.captureUI.questionsArea?.classList.toggle('hidden', !view.presentation.questionsExpanded);
     ui.captureUI.questionsToggle?.setAttribute('aria-expanded', String(view.presentation.questionsExpanded));
-    const isComfortable = settings?.uiDensity === 'comfortable';
-    root.body?.classList?.toggle('density-compact', !isComfortable);
-    root.body?.classList?.toggle('density-comfortable', isComfortable);
+    const density = settings?.uiDensity || 'compact';
+    const isUltraCompact = density === 'ultra-compact';
+    const isMargin = density === 'margin' || density === 'comfortable';
+    const isCompact = density === 'compact' || (!isUltraCompact && !isMargin);
+    root.body?.classList?.toggle('density-ultra-compact', isUltraCompact);
+    root.body?.classList?.toggle('density-compact', isCompact);
+    root.body?.classList?.toggle('density-margin', isMargin);
+    root.body?.classList?.toggle('density-comfortable', isMargin);
     const questionsChevron = ui.captureUI.questionsToggle?.querySelector('.questions-toggle-chevron');
     if (questionsChevron) questionsChevron.textContent = view.presentation.questionsExpanded ? '▾' : '▸';
     ui.captureUI.refreshBtn.disabled = view.busy || view.extractionPending;

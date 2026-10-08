@@ -52,6 +52,8 @@ select { padding-right: 30px; }
 .secondary-btn:hover { background: var(--accent-wash); }
 .setup-save { width: 100%; min-height: 45px; font-size: 13px; margin-top: 2px; }
 .privacy-note { margin: 14px 0 0; text-align: center; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.density-card { padding: 16px 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+.density-card .option-row { margin: 0; }
 .settings-disclosure { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
 .settings-disclosure > summary { display: flex; gap: 14px; align-items: center; list-style: none; padding: 18px 21px; }
 .settings-disclosure > summary::-webkit-details-marker { display: none; }

@@ -26,7 +26,7 @@ class SettingsState {
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
-    this.uiDensity = "compact"; // "compact" | "comfortable"
+    this.uiDensity = "compact"; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
 
     // Obsidian server status
     this.serverOnline = false;
@@ -61,8 +61,8 @@ class SettingsState {
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
       this.debugInfo = stored?.debugInfo === true;
-      if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "compact") {
-        this.uiDensity = stored.uiDensity;
+      if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "margin" || stored?.uiDensity === "compact" || stored?.uiDensity === "ultra-compact") {
+        this.uiDensity = stored.uiDensity === "comfortable" ? "margin" : stored.uiDensity;
       }
       this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
@@ -113,10 +113,10 @@ class SettingsState {
   }
 
   setUiDensity(density, persist = true) {
-    if (density === "comfortable" || density === "compact") {
-      this.uiDensity = density;
+    if (density === "comfortable" || density === "margin" || density === "compact" || density === "ultra-compact") {
+      this.uiDensity = density === "comfortable" ? "margin" : density;
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
-        chrome.storage.local.set({ uiDensity: density });
+        chrome.storage.local.set({ uiDensity: this.uiDensity });
       }
     }
   }

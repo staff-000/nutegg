@@ -436,10 +436,28 @@ test('content preview is displayed and UI density class is synchronized', contex
   assert.equal(preview.classList.contains('hidden'), false);
   assert.equal(f.root.body.classList.contains('density-compact'), true);
   assert.equal(f.root.body.classList.contains('density-comfortable'), false);
+  assert.equal(f.root.body.classList.contains('density-ultra-compact'), false);
+
   f.settings.setUiDensity('comfortable', false);
   f.renderer.render();
   assert.equal(f.root.body.classList.contains('density-comfortable'), true);
+  assert.equal(f.root.body.classList.contains('density-margin'), true);
   assert.equal(f.root.body.classList.contains('density-compact'), false);
+  assert.equal(f.root.body.classList.contains('density-ultra-compact'), false);
+
+  f.settings.setUiDensity('ultra-compact', false);
+  f.renderer.render();
+  assert.equal(f.root.body.classList.contains('density-ultra-compact'), true);
+  assert.equal(f.root.body.classList.contains('density-compact'), false);
+  assert.equal(f.root.body.classList.contains('density-margin'), false);
+  assert.equal(f.root.body.classList.contains('density-comfortable'), false);
+
+  f.settings.setUiDensity('margin', false);
+  f.renderer.render();
+  assert.equal(f.root.body.classList.contains('density-margin'), true);
+  assert.equal(f.root.body.classList.contains('density-comfortable'), true);
+  assert.equal(f.root.body.classList.contains('density-compact'), false);
+  assert.equal(f.root.body.classList.contains('density-ultra-compact'), false);
 });
 
 test('Obsidian mode reveals its controls only after an explicit switch', context => {

@@ -157,9 +157,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries);
 
   if (uiDensitySelect) {
-    uiDensitySelect.value = stored.uiDensity || "compact";
+    const savedDensity = stored.uiDensity || "compact";
+    uiDensitySelect.value = savedDensity === "comfortable" ? "margin" : savedDensity;
     uiDensitySelect.addEventListener("change", async () => {
       await chrome.storage.local.set({ uiDensity: uiDensitySelect.value });
+      const status = document.getElementById("ui-density-status");
+      if (status) {
+        status.textContent = t("saved");
+        status.className = "test-result ok";
+        status.classList.remove("hidden");
+        setTimeout(() => { status.classList.add("hidden"); }, 1500);
+      }
     });
   }
 
