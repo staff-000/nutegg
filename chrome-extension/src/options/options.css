@@ -105,6 +105,10 @@ input[type="checkbox"] { accent-color: var(--primary); width: 16px; height: 16px
 .prompt-header-container label { margin: 0; }
 #ai-model-custom { margin-top: 8px; }
 textarea { resize: vertical; min-height: 140px; margin-top: 10px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; line-height: 1.6; }
+.cache-params-row { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.cache-params-row .option-row { margin-bottom: 0; }
+.cache-params-row input { max-width: 120px; }
+.cache-info-row { display: flex; align-items: center; gap: 14px; margin-top: 8px; font-size: 12px; }
 .advanced-subsection { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 26px; }
 .settings-footer { display: flex; justify-content: center; align-items: center; gap: 16px; padding-top: 17px; color: #c0b3a8; font-size: 11px; }
 .settings-footer a, .settings-footer .text-btn { color: #8f7b6a; font-size: 11px; text-decoration: none; }

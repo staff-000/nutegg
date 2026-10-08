@@ -152,3 +152,27 @@ test('reading preferences preserve the last content section and save independent
   assert.equal(values.enabledSections.coreSummary, true);
   assert.equal(values.generateKnowledgeEntries, false);
 });
+
+test('chrome cache options load defaults, display cached count, save custom limit, and clear cache', async t => {
+  const cachedEntries = [{ url: 'https://example.com/1' }, { url: 'https://example.com/2' }];
+  const { values, el } = await setup(t, { chromeCacheTabLimit: 50, chromeTabCache: cachedEntries });
+  
+  assert.equal(el('chrome-cache-limit-input').value, '50');
+  assert.match(el('chrome-cache-count').textContent, /2/);
+
+  // Update limit to 1
+  el('chrome-cache-limit-input').value = '1';
+  el('chrome-cache-save-btn').click();
+  await flush();
+  assert.equal(values.chromeCacheTabLimit, 1);
+  assert.equal(values.chromeTabCache.length, 1);
+  assert.match(el('chrome-cache-count').textContent, /1/);
+  assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
+
+  // Clear cache
+  el('chrome-cache-clear-btn').click();
+  await flush();
+  assert.equal(values.chromeTabCache.length, 0);
+  assert.match(el('chrome-cache-count').textContent, /0/);
+  assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
+});

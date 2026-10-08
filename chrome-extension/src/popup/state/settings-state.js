@@ -27,6 +27,7 @@ class SettingsState {
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
     this.uiDensity = "compact"; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
+    this.chromeCacheTabLimit = 100;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -47,7 +48,7 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity"],
+          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit"],
           resolve
         );
       });
@@ -63,6 +64,9 @@ class SettingsState {
       this.debugInfo = stored?.debugInfo === true;
       if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "margin" || stored?.uiDensity === "compact" || stored?.uiDensity === "ultra-compact") {
         this.uiDensity = stored.uiDensity === "comfortable" ? "margin" : stored.uiDensity;
+      }
+      if (typeof stored?.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0) {
+        this.chromeCacheTabLimit = Math.min(1000, Math.round(stored.chromeCacheTabLimit));
       }
       this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
@@ -117,6 +121,15 @@ class SettingsState {
       this.uiDensity = density === "comfortable" ? "margin" : density;
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ uiDensity: this.uiDensity });
+      }
+    }
+  }
+
+  setChromeCacheTabLimit(limit, persist = true) {
+    if (typeof limit === "number" && limit >= 0) {
+      this.chromeCacheTabLimit = Math.min(1000, Math.round(limit));
+      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+        chrome.storage.local.set({ chromeCacheTabLimit: this.chromeCacheTabLimit });
       }
     }
   }

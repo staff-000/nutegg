@@ -99,3 +99,46 @@ test('local AI uses the saved endpoint and needs no API key', async () => {
   assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'chrome');
   assert.equal(app.ai[0].settings.chromeAiEndpoint, 'http://localhost:11434/v1');
 });
+
+test('Chrome mode caches analyzed tabs and returns cached history first on revisit', async () => {
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test-key', chromeCacheTabLimit: 2 });
+  
+  // 1. Initial analysis for page 1
+  const res1 = await app.send('analyze', { payload: { url: 'https://example.com/page1', title: 'Page 1', content: 'Content 1' } });
+  assert.equal(res1.mode, 'chrome');
+  assert.ok(app.stored.chromeTabCache?.length === 1);
+  assert.equal(app.stored.chromeTabCache[0].url, 'https://example.com/page1');
+  assert.equal(app.stored.chromeTabCache[0].title, 'Page 1');
+
+  // 2. Fetch history for page 1 (even with hash fragment)
+  const hist1 = await app.send('history', { url: 'https://example.com/page1#section' });
+  assert.equal(hist1.history.length, 1);
+  assert.equal(hist1.history[0].url, 'https://example.com/page1');
+  assert.deepEqual(hist1.history[0].result.coreSummary, ['Summary']);
+
+  // 3. Analysis for page 2
+  await app.send('analyze', { payload: { url: 'https://example.com/page2', title: 'Page 2', content: 'Content 2' } });
+  assert.equal(app.stored.chromeTabCache.length, 2);
+
+  // 4. Analysis for page 3 evicts page 1 (LRU limit is 2)
+  await app.send('analyze', { payload: { url: 'https://example.com/page3', title: 'Page 3', content: 'Content 3' } });
+  assert.equal(app.stored.chromeTabCache.length, 2);
+  assert.equal(app.stored.chromeTabCache[0].url, 'https://example.com/page3');
+  assert.equal(app.stored.chromeTabCache[1].url, 'https://example.com/page2');
+
+  const evicted = await app.send('history', { url: 'https://example.com/page1' });
+  assert.equal(evicted.history.length, 0);
+
+  // 5. Clear cache
+  const clearRes = await app.send('clear-chrome-cache');
+  assert.equal(clearRes.success, true);
+  assert.equal(app.stored.chromeTabCache.length, 0);
+});
+
+test('Obsidian mode fetches history from server and does not use Chrome tab cache', async () => {
+  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key', serverPort: 27123 });
+  const hist = await app.send('history', { url: 'https://obsidian.test/page' });
+  assert.equal(app.http.some(call => call.url.includes('/history')), true);
+  assert.equal(hist.coreSummary[0], 'Obsidian summary');
+});
+

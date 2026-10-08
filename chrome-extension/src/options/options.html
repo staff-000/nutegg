@@ -135,6 +135,23 @@
           </div>
           <div class="option-actions"><button id="ai-advanced-save-btn" type="button" class="secondary-btn" data-i18n="settingsSaveAdvanced">Save AI preferences</button><button id="ai-test-btn" type="button" class="text-btn" data-i18n="testAiBtn">Test AI Connection</button></div>
           <p id="ai-advanced-status" class="test-result hidden" role="status"></p>
+          <div class="advanced-subsection" id="chrome-cache-group">
+            <h3 data-i18n="chromeCacheLimitLabel">Tabs cache limit</h3>
+            <p class="hint" data-i18n="chromeCacheLimitHint">Number of analyzed tabs to cache in Chrome mode (shows cached analysis first). Default is 100 tabs.</p>
+            <div class="cache-params-row">
+              <div class="option-row">
+                <input id="chrome-cache-limit-input" type="number" min="0" max="1000" step="1" value="100" required>
+              </div>
+              <div class="option-actions">
+                <button id="chrome-cache-save-btn" type="button" class="secondary-btn" data-i18n="saveBtn">Save</button>
+                <button id="chrome-cache-clear-btn" type="button" class="text-btn" data-i18n="clearCacheBtn">Clear Cache</button>
+              </div>
+            </div>
+            <div class="cache-info-row">
+              <span id="chrome-cache-count" class="hint"></span>
+              <span id="chrome-cache-status" class="test-result hidden" role="status"></span>
+            </div>
+          </div>
         </div>
         <div class="advanced-subsection" id="content-loading-group">
           <h3 data-i18n="captureRetrySettings">Content loading</h3>

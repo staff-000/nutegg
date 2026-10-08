@@ -140,6 +140,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === "clear-chrome-cache") {
+    clearChromeCache()
+      .then(() => sendResponse({ success: true }))
+      .catch((err) => sendResponse({ error: err.message }));
+    return true;
+  }
+
+  if (message.action === "get-chrome-cache-info") {
+    getChromeCacheInfo()
+      .then((info) => sendResponse(info))
+      .catch(() => sendResponse({ count: 0, limit: 100 }));
+    return true;
+  }
+
   if (message.action === "check-server") {
     checkServer()
       .then((r) => sendResponse(r))
@@ -286,13 +300,16 @@ async function handleAnalyze(payload) {
 
   try {
     const result = await analyzeContentStandalone(payload, aiSettings);
-    return {
+    const finalResult = {
       ...result,
+      nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       stage: "stage1",
       mode: "chrome",
       matchedEggs: [],
       allEggs: [],
     };
+    await saveChromeCacheEntry(payload, finalResult);
+    return finalResult;
   } catch (err) {
     return {
       error: err.message || "Chrome AI analysis failed",
@@ -301,6 +318,95 @@ async function handleAnalyze(payload) {
       mode: "chrome",
     };
   }
+}
+
+const DEFAULT_CHROME_CACHE_LIMIT = 100;
+
+function normalizeCacheUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  try {
+    const parsed = new URL(rawUrl);
+    parsed.hash = "";
+    let pathname = parsed.pathname;
+    if (pathname.length > 1 && pathname.endsWith("/")) {
+      pathname = pathname.slice(0, -1);
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl.split("#")[0].replace(/\/+$/, "");
+  }
+}
+
+async function getChromeCacheLimit() {
+  const stored = await chrome.storage.local.get(["chromeCacheTabLimit"]);
+  if (typeof stored.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0) {
+    return Math.min(1000, Math.round(stored.chromeCacheTabLimit));
+  }
+  return DEFAULT_CHROME_CACHE_LIMIT;
+}
+
+async function getChromeCacheHistory(url) {
+  const norm = normalizeCacheUrl(url);
+  if (!norm) return { history: [], latest: null };
+  const stored = await chrome.storage.local.get(["chromeTabCache"]);
+  const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+  const entry = cache.find((item) => normalizeCacheUrl(item.url) === norm);
+  if (!entry) return { history: [], latest: null };
+  return { history: [entry], latest: entry };
+}
+
+async function saveChromeCacheEntry(payload, result) {
+  try {
+    const limit = await getChromeCacheLimit();
+    if (limit <= 0) return;
+    const url = payload?.url;
+    const norm = normalizeCacheUrl(url);
+    if (!norm) return;
+
+    const stored = await chrome.storage.local.get(["chromeTabCache"]);
+    let cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+
+    cache = cache.filter((item) => normalizeCacheUrl(item.url) !== norm);
+
+    const entry = {
+      nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      url,
+      title: payload.title || result.titleVerdict?.title || "",
+      result,
+      saved: null,
+      sourceType: payload.sourceType || "generic",
+      author: payload.author || payload.metadata?.author || "",
+      publishedAt: payload.publishedAt || payload.metadata?.published || "",
+      content: typeof payload.content === "string" ? payload.content.slice(0, 30000) : "",
+      capturePayload: {
+        url,
+        title: payload.title,
+        sourceType: payload.sourceType,
+        enabledSections: payload.enabledSections,
+        metadata: payload.metadata,
+      },
+      timestamp: Date.now(),
+    };
+
+    cache.unshift(entry);
+    if (cache.length > limit) {
+      cache = cache.slice(0, limit);
+    }
+    await chrome.storage.local.set({ chromeTabCache: cache });
+  } catch (err) {
+    console.warn?.("[NutEgg] Failed to save Chrome cache entry:", err);
+  }
+}
+
+async function clearChromeCache() {
+  await chrome.storage.local.set({ chromeTabCache: [] });
+}
+
+async function getChromeCacheInfo() {
+  const stored = await chrome.storage.local.get(["chromeTabCache", "chromeCacheTabLimit"]);
+  const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+  const limit = typeof stored.chromeCacheTabLimit === "number" ? stored.chromeCacheTabLimit : DEFAULT_CHROME_CACHE_LIMIT;
+  return { count: cache.length, limit };
 }
 
 async function handleConfirm(payload) {
@@ -322,7 +428,9 @@ async function handleConfirm(payload) {
 }
 
 async function fetchHistory(url) {
-  if (await getConnectionMode() !== "obsidian") return { history: [], latest: null };
+  if (await getConnectionMode() !== "obsidian") {
+    return await getChromeCacheHistory(url);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {

@@ -96,6 +96,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     "debugInfo",
     "captureRetryCount",
     "captureRetryDelayMs",
+    "chromeCacheTabLimit",
+    "chromeTabCache",
   ]);
   const captureSettings = new window.SettingsState();
   captureSettings.setCaptureRetries(stored);
@@ -173,6 +175,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 3. AI Settings initialization
   initAiSettings(stored);
+  initChromeCacheSettings(stored);
 
   // Chrome is ready to configure without probing for another application.
   initConnectionMode(stored);
@@ -659,4 +662,64 @@ function showSectionStatus(msg, type) {
   sectionsStatus.textContent = msg;
   sectionsStatus.className = `test-result ${type}`;
   sectionsStatus.classList.remove("hidden");
+}
+
+function initChromeCacheSettings(stored) {
+  const limitInput = document.getElementById("chrome-cache-limit-input");
+  const saveBtn = document.getElementById("chrome-cache-save-btn");
+  const clearBtn = document.getElementById("chrome-cache-clear-btn");
+  const countDisplay = document.getElementById("chrome-cache-count");
+  const statusDisplay = document.getElementById("chrome-cache-status");
+  if (!limitInput) return;
+
+  const initialLimit = (typeof stored?.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0)
+    ? Math.min(1000, Math.round(stored.chromeCacheTabLimit))
+    : 100;
+  limitInput.value = initialLimit;
+
+  const updateCountDisplay = (cache) => {
+    if (countDisplay) {
+      const count = Array.isArray(cache) ? cache.length : 0;
+      countDisplay.textContent = t("cachedTabsCount", { count });
+    }
+  };
+
+  updateCountDisplay(stored?.chromeTabCache);
+
+  const saveLimit = async () => {
+    const val = Math.min(1000, Math.max(0, Math.round(Number(limitInput.value) || 0)));
+    limitInput.value = val;
+    const current = await chrome.storage.local.get(["chromeTabCache"]);
+    let cache = Array.isArray(current.chromeTabCache) ? current.chromeTabCache : [];
+    if (cache.length > val) {
+      cache = cache.slice(0, val);
+      await chrome.storage.local.set({ chromeCacheTabLimit: val, chromeTabCache: cache });
+    } else {
+      await chrome.storage.local.set({ chromeCacheTabLimit: val });
+    }
+    updateCountDisplay(cache);
+    if (statusDisplay) {
+      statusDisplay.textContent = t("saved");
+      statusDisplay.className = "test-result ok";
+      statusDisplay.classList.remove("hidden");
+      setTimeout(() => { statusDisplay.classList.add("hidden"); }, 2000);
+    }
+  };
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveLimit);
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", async () => {
+      await chrome.storage.local.set({ chromeTabCache: [] });
+      updateCountDisplay([]);
+      if (statusDisplay) {
+        statusDisplay.textContent = t("cacheCleared");
+        statusDisplay.className = "test-result ok";
+        statusDisplay.classList.remove("hidden");
+        setTimeout(() => { statusDisplay.classList.add("hidden"); }, 2000);
+      }
+    });
+  }
 }

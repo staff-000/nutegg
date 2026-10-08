@@ -50,9 +50,12 @@ class TabAction {
       }
       await statusPromise;
       if (!this.store.isActivationCurrent(lease)) return;
-      if (this.settings.serverOnline) {
-        void this.operations.catalog();
-        if (!this.store.getTab(lease.tabId).analysisResult && !this.store.isBusy(lease.tabId)) await this.operations.history(lease.tabId, true, record.selectionRevision);
+      const isChrome = this.settings.isChromeMode();
+      if (this.settings.serverOnline || isChrome) {
+        if (this.settings.serverOnline && !isChrome) void this.operations.catalog();
+        if (!this.store.getTab(lease.tabId).analysisResult && !this.store.isBusy(lease.tabId)) {
+          await this.operations.history(lease.tabId, true, record.selectionRevision);
+        }
       }
     } catch (error) {
       if (this.store.isActivationCurrent(lease)) this.store.dispatch({ type: 'notice', tabId: lease.tabId, message: error.message });
