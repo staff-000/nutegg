@@ -2933,10 +2933,11 @@ body {
 .reanalyze-btn:hover:not(:disabled):not(.inactive) { background: #eaddc9; }
 #reanalyze-sections-accordion { margin-top: 8px; border-color: #e9e1d7; background: #fffdf9; }
 #reanalyze-sections-toggle { background: transparent; }
-#core-summary-section { background: #fffdf8; padding: 15px; border: 1px solid #e8dccb; border-radius: 13px; margin-bottom: 18px; }
 .section-label { color: #76614c; letter-spacing: .2px; }
-.core-summary { color: #493d31; line-height: 1.75; }
-.core-summary li { border: 0; border-radius: 0; background: transparent; padding: 8px 0; color: inherit; line-height: 1.65; }
+.core-summary { color: #374151; line-height: 1.5; }
+.core-summary li { border: 0; border-radius: 0; background: transparent; padding: 8px 0; color: inherit; line-height: 1.5; }
+.core-summary li:first-child { padding-top: 0; }
+.core-summary li:last-child { padding-bottom: 0; }
 .core-summary li + li { border-top: 1px solid #eee6da; }
 .followup-input-row { flex-wrap: wrap; }
 .followup-input-row > input { flex: 1 1 100%; }
@@ -2970,7 +2971,6 @@ body.density-compact #questions-area { margin: 2px 0 8px; }
 body.density-compact .questions-area textarea { padding: 8px 10px; }
 body.density-compact #sections-body { padding: 8px; margin-bottom: 8px; }
 body.density-compact .section-chip { padding: 4px 8px; font-size: 11.5px; }
-body.density-compact #core-summary-section { padding: 10px 12px; margin-bottom: 12px; }
 body.density-compact .core-summary li { padding: 5px 0; }
 body.density-compact .result-section { margin-bottom: 10px; }
 body.density-compact .reanalyze-header-row { padding: 3px 4px; gap: 6px; }
@@ -2999,7 +2999,6 @@ body.density-ultra-compact #questions-area { margin: 2px 0 6px; }
 body.density-ultra-compact .questions-area textarea { padding: 6px 8px; font-size: 11px; }
 body.density-ultra-compact #sections-body { padding: 5px 6px; margin-bottom: 6px; gap: 4px; }
 body.density-ultra-compact .section-chip { padding: 2px 6px; font-size: 10.5px; }
-body.density-ultra-compact #core-summary-section { padding: 7px 9px; margin-bottom: 8px; border-radius: 6px; }
 body.density-ultra-compact .core-summary li { padding: 3px 0; font-size: 12px; line-height: 1.45; }
 body.density-ultra-compact .result-section { margin-bottom: 6px; }
 body.density-ultra-compact .verdict-box { padding: 7px 9px; margin-bottom: 6px; border-radius: 6px; }
