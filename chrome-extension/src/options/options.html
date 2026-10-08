@@ -56,8 +56,14 @@
     </section>
 
     <section class="density-card" id="ui-density-card">
-      <div class="option-row" id="ui-density-group">
-        <label for="ui-density-select" data-i18n="uiDensityLabel">UI Density</label>
+      <div class="density-card-header">
+        <span class="disclosure-icon" aria-hidden="true">🎨</span>
+        <div class="summary-copy">
+          <label for="ui-density-select"><strong data-i18n="uiDensityLabel">UI Density</strong></label>
+          <span data-i18n="uiDensityDesc">Margin, compact, and ultra-compact display modes</span>
+        </div>
+      </div>
+      <div class="density-select-wrap">
         <select id="ui-density-select">
           <option value="margin" data-i18n="uiDensityMargin">Margin mode (relaxed &amp; spacious)</option>
           <option value="compact" data-i18n="uiDensityCompact">Compact mode (balanced density)</option>
@@ -68,21 +74,21 @@
     </section>
 
     <details class="settings-disclosure" id="reading-preferences">
-      <summary><span class="disclosure-icon" aria-hidden="true">📋</span><span class="summary-copy"><strong data-i18n="settingsReadingTitle">Make it yours</strong><span data-i18n="settingsReadingDesc">Language, summaries, mind maps, and discussion</span></span><span class="chevron" aria-hidden="true"></span></summary>
+      <summary><span class="disclosure-icon" aria-hidden="true">🌺</span><span class="summary-copy"><strong data-i18n="settingsReadingTitle">Make it yours</strong><span data-i18n="settingsReadingDesc">Language, summaries, mind maps, and discussion</span></span><span class="chevron" aria-hidden="true"></span></summary>
       <div class="disclosure-content">
         <div class="option-row" id="language-config-group">
-          <label for="output-lang-select" data-i18n="preferredLanguage">Preferred Language</label>
+          <label for="output-lang-select"><span class="label-emoji" aria-hidden="true">🌐</span> <span data-i18n="preferredLanguage">Preferred Language</span></label>
           <select id="output-lang-select">
             <option value="same-as-content" data-i18n="sameAsContent">Same as content (follow captured text)</option>
             <option value="English">English</option><option value="Chinese">Chinese (中文)</option><option value="Spanish">Spanish (Español)</option><option value="Japanese">Japanese (日本語)</option><option value="Korean">Korean (한국어)</option><option value="Arabic">Arabic (العربية)</option><option value="French">French (Français)</option><option value="German">German (Deutsch)</option><option value="Portuguese">Portuguese (Português)</option><option value="Russian">Russian (Русский)</option>
           </select>
         </div>
         <fieldset id="sections-config-group">
-          <legend data-i18n="sectionsConfigSection">Content Analysis Sections</legend>
-          <label class="toggle-checkbox-label" for="section-verdict-summary"><input type="checkbox" id="section-verdict-summary" checked><span><strong data-i18n="chipVerdictSummary">Verdict &amp; Summary</strong><small data-i18n="sectionSummaryOpt">Top 3 bullet points of core insights</small></span></label>
-          <label class="toggle-checkbox-label" for="section-mindmap"><input type="checkbox" id="section-mindmap" checked><span><strong data-i18n="chipMindmap">Mind Map</strong><small data-i18n="sectionMindmapOpt">Concept tree &amp; outline</small></span></label>
-          <label class="toggle-checkbox-label" for="section-knowledge"><input type="checkbox" id="section-knowledge" checked><span><strong data-i18n="knowledgePanel">Knowledge</strong><small data-i18n="sectionKnowledgeOpt">Extract knowledge entries and compare against matched eggs</small></span></label>
-          <label class="toggle-checkbox-label" for="section-discussion"><input type="checkbox" id="section-discussion"><span><strong data-i18n="discussionSection">Discussion</strong><small data-i18n="sectionDiscussionOpt">Analyze community comments, user debates, and counterarguments</small></span></label>
+          <legend><span class="label-emoji" aria-hidden="true">🎯</span> <span data-i18n="sectionsConfigSection">Content Analysis Sections</span></legend>
+          <label class="toggle-checkbox-label" for="section-verdict-summary"><input type="checkbox" id="section-verdict-summary" checked><span><strong><span class="label-emoji" aria-hidden="true">📋</span> <span data-i18n="chipVerdictSummary">Verdict &amp; Summary</span></strong><small data-i18n="sectionSummaryOpt">Top 3 bullet points of core insights</small></span></label>
+          <label class="toggle-checkbox-label" for="section-mindmap"><input type="checkbox" id="section-mindmap" checked><span><strong><span class="label-emoji" aria-hidden="true">🧠</span> <span data-i18n="chipMindmap">Mind Map</span></strong><small data-i18n="sectionMindmapOpt">Concept tree &amp; outline</small></span></label>
+          <label class="toggle-checkbox-label" for="section-knowledge"><input type="checkbox" id="section-knowledge" checked><span><strong><span class="label-emoji" aria-hidden="true">🍃</span> <span data-i18n="knowledgePanel">Knowledge</span></strong><small data-i18n="sectionKnowledgeOpt">Extract knowledge entries and compare against matched eggs</small></span></label>
+          <label class="toggle-checkbox-label" for="section-discussion"><input type="checkbox" id="section-discussion"><span><strong><span class="label-emoji" aria-hidden="true">💬</span> <span data-i18n="discussionSection">Discussion</span></strong><small data-i18n="sectionDiscussionOpt">Analyze community comments, user debates, and counterarguments</small></span></label>
         </fieldset>
         <div class="option-actions"><button id="sections-save-btn" class="secondary-btn" type="button" data-i18n="saveSectionsBtn">Save Section Preferences</button><span id="sections-status" class="test-result hidden" role="status"></span></div>
       </div>

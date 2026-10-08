@@ -925,7 +925,7 @@ body {
   justify-content: space-between;
   cursor: pointer;
   user-select: none;
-  padding: 3px 0;
+  padding: 3px 10px 3px 4px;
   margin-bottom: 6px;
   border-radius: 4px;
   transition: opacity 0.15s ease;
@@ -950,6 +950,7 @@ body {
   border: 1px solid #d1d5db;
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  margin-right: 6px;
   flex-shrink: 0;
   transition: all 0.15s ease;
   line-height: 1;
@@ -2864,9 +2865,9 @@ body {
 .analyze-btn-wrap { position: static; margin: 0 0 17px; }
 .analyze-btn { position: static; border-radius: 10px; padding: 13px 16px; font-size: 14px; letter-spacing: .1px; box-shadow: 0 3px 8px #a8561e18; margin-bottom: 0; }
 .analyze-btn.inactive, .analyze-btn:disabled { background: #e8e0d6; color: #897b6c; box-shadow: none; }
-#questions-toggle, #sections-toggle { min-height: 40px; margin: 0; padding: 10px 1px; background: transparent; border: 0; border-radius: 0; color: #766457; font-size: 12px; font-weight: 500; }
+#questions-toggle, #sections-toggle { min-height: 40px; margin: 0; padding: 10px 12px 10px 4px; background: transparent; border: 0; border-radius: 0; color: #766457; font-size: 12px; font-weight: 500; }
 #questions-toggle:hover, #sections-toggle:hover { color: #a8561e; }
-.questions-toggle-chevron, .sections-toggle-chevron { border: 0; background: none; color: #a39181; width: 18px; height: 18px; }
+.questions-toggle-chevron, .sections-toggle-chevron { border: 0; background: none; color: #a39181; width: 18px; height: 18px; margin-right: 6px; }
 #questions-area { margin: 4px 0 12px; }
 .questions-area textarea { padding: 12px; border-color: #e6dbce; font-size: 13px; }
 .scope-select { max-width: 160px; }
