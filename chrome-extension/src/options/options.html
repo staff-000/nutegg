@@ -137,7 +137,7 @@
           <p id="ai-advanced-status" class="test-result hidden" role="status"></p>
           <div class="advanced-subsection" id="chrome-cache-group">
             <h3 data-i18n="chromeCacheLimitLabel">Tabs cache limit</h3>
-            <p class="hint" data-i18n="chromeCacheLimitHint">Number of analyzed tabs to cache in Chrome mode (shows cached analysis first). Default is 100 tabs.</p>
+            <p class="hint" data-i18n="chromeCacheLimitHint">Number of analyzed tabs to cache in Chrome mode (shows cached analysis first). Default is 100 tabs. Also capped at 8 MB; oldest entries are removed first.</p>
             <div class="cache-params-row">
               <div class="option-row">
                 <input id="chrome-cache-limit-input" type="number" min="0" max="1000" step="1" value="100" required>

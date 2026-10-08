@@ -7,7 +7,7 @@ function worker(initial = {}, { online = true } = {}) {
   const stored = { ...initial }, http = [], ai = [];
   let listener;
   const context = vm.createContext({
-    importScripts() {}, console: { log() {} }, URL, AbortController, AbortSignal, setTimeout, clearTimeout,
+    importScripts() {}, console: { log() {} }, TextEncoder, URL, AbortController, AbortSignal, setTimeout, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
       normalizeAIDebugScope: value => value,
@@ -135,6 +135,33 @@ test('Chrome mode caches analyzed tabs and returns cached history first on revis
   assert.equal(app.stored.chromeTabCache.length, 0);
 });
 
+test('Chrome cache enforces its byte cap on existing entries and subsequent saves', async () => {
+  const entry = i => ({ url: `https://example.com/${i}`, content: '字'.repeat(1000000), result: {} });
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'key', chromeTabCache: [entry(3), entry(2), entry(1)] });
+  const info = await app.send('get-chrome-cache-info');
+  assert.equal(info.count, 2, 'UTF-8 bytes, rather than character count, determine the limit');
+  assert.deepEqual(Array.from(app.stored.chromeTabCache, e => e.url), ['https://example.com/3', 'https://example.com/2']);
+  const bytes = () => Buffer.byteLength('chromeTabCache') + Buffer.byteLength(JSON.stringify(app.stored.chromeTabCache));
+  assert.ok(bytes() <= 8 * 1024 * 1024);
+  app.stored.chromeTabCache = [entry(3), entry(2), entry(1)];
+  await app.send('analyze', { payload: { url: 'https://example.com/new', content: 'New article' } });
+  assert.equal(app.stored.chromeTabCache[0].url, 'https://example.com/new');
+  assert.ok(bytes() <= 8 * 1024 * 1024);
+  assert.equal((await app.send('history', { url: 'https://example.com/1' })).history.length, 0);
+});
+
+test('Chrome cache accounts for JSON overhead and drops a single oversized entry', async () => {
+  const cap = 8 * 1024 * 1024;
+  const url = 'https://example.com/large';
+  const entry = { url, result: {} };
+  const overhead = Buffer.byteLength('chromeTabCache') + Buffer.byteLength(JSON.stringify([{ ...entry, content: '' }]));
+  const app = worker({ chromeTabCache: [{ ...entry, content: 'a'.repeat(cap - overhead) }] });
+  assert.equal((await app.send('get-chrome-cache-info')).count, 1, 'An entry exactly at the cap is retained');
+  app.stored.chromeTabCache[0].content += 'a';
+  assert.equal((await app.send('history', { url })).history.length, 0);
+  assert.equal(app.stored.chromeTabCache.length, 0, 'Even a single entry cannot exceed the cap');
+});
+
 test('Obsidian mode fetches history from server and does not use Chrome tab cache', async () => {
   const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key', serverPort: 27123 });
   const hist = await app.send('history', { url: 'https://obsidian.test/page' });
@@ -195,4 +222,3 @@ test('Chrome mode matches cache by video ID across Bilibili and YouTube URL vari
   const updatedHist = await app.send('history', { url: biliWatchlater });
   assert.equal(updatedHist.history[0].title, 'Bilibili Test Video Re-analyzed');
 });
-

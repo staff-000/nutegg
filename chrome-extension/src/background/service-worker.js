@@ -321,6 +321,29 @@ async function handleAnalyze(payload) {
 }
 
 const DEFAULT_CHROME_CACHE_LIMIT = 100;
+const CHROME_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+
+// The newest entries come first. Include the storage key and JSON array overhead.
+function trimChromeCache(cache, limit) {
+  const encoder = new TextEncoder();
+  let bytes = encoder.encode('chromeTabCache').length + 2;
+  const kept = [];
+  for (const entry of cache.slice(0, limit)) {
+    const entryBytes = encoder.encode(JSON.stringify(entry)).length + (kept.length ? 1 : 0);
+    if (bytes + entryBytes > CHROME_CACHE_MAX_BYTES) break;
+    kept.push(entry);
+    bytes += entryBytes;
+  }
+  return kept;
+}
+
+async function loadChromeCache() {
+  const stored = await chrome.storage.local.get(["chromeTabCache"]);
+  const existing = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+  const cache = trimChromeCache(existing, await getChromeCacheLimit());
+  if (cache.length !== existing.length) await chrome.storage.local.set({ chromeTabCache: cache });
+  return cache;
+}
 
 function extractVideoIdentity(rawUrl, metadata = null) {
   if (typeof NutEggAI !== "undefined" && typeof NutEggAI.getVideoIdentity === "function") {
@@ -465,8 +488,7 @@ async function getChromeCacheLimit() {
 
 async function getChromeCacheHistory(url) {
   if (!url) return { history: [], latest: null };
-  const stored = await chrome.storage.local.get(["chromeTabCache"]);
-  const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+  const cache = await loadChromeCache();
   const entry = cache.find((item) => matchesCacheEntry(item, url));
   if (!entry) return { history: [], latest: null };
   return { history: [entry], latest: entry };
@@ -512,9 +534,7 @@ async function saveChromeCacheEntry(payload, result) {
     };
 
     cache.unshift(entry);
-    if (cache.length > limit) {
-      cache = cache.slice(0, limit);
-    }
+    cache = trimChromeCache(cache, limit);
     await chrome.storage.local.set({ chromeTabCache: cache });
   } catch (err) {
     console.warn?.("[NutEgg] Failed to save Chrome cache entry:", err);
@@ -526,8 +546,8 @@ async function clearChromeCache() {
 }
 
 async function getChromeCacheInfo() {
+  const cache = await loadChromeCache();
   const stored = await chrome.storage.local.get(["chromeTabCache", "chromeCacheTabLimit"]);
-  const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
   const limit = typeof stored.chromeCacheTabLimit === "number" ? stored.chromeCacheTabLimit : DEFAULT_CHROME_CACHE_LIMIT;
   return { count: cache.length, limit };
 }
