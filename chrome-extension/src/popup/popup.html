@@ -150,7 +150,7 @@
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-            <span class="sections-badge" id="sections-badge">3/4</span>
+            <span class="sections-badge" id="sections-badge">2/4</span>
           </div>
           <span class="section-chevron sections-toggle-chevron" id="sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </button>
@@ -164,7 +164,7 @@
               <span class="chip-icon">🧠</span>
               <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
             </button>
-            <button type="button" class="section-chip active" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
+            <button type="button" class="section-chip inactive" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false">
               <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
             </button>
             <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
@@ -230,8 +230,8 @@
           <div id="egg-analysis-selector" class="egg-analysis-selector">
             <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
             <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
-              <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisOnly">🥚 Analysis only</button>
-              <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisWithKnowledge">🍃 Include knowledge</button>
+              <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly">🥚 Analysis only</button>
+              <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge">🍃 Include knowledge</button>
             </div>
           </div>
           <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly">🌰 Collect Nut Only</button></span>
@@ -368,7 +368,7 @@
                 <div class="sections-toggle-left">
                   <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
                   <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-                  <span class="sections-badge" id="reanalyze-sections-badge">3/4</span>
+                  <span class="sections-badge" id="reanalyze-sections-badge">2/4</span>
                 </div>
                 <span class="section-chevron sections-toggle-chevron" id="reanalyze-sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
               </button>
@@ -387,7 +387,7 @@
                   <span class="chip-icon">🧠</span>
                   <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
                 </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="true">
+                <button type="button" class="section-chip inactive" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false">
                   <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
                 </button>
                 <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>

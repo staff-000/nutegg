@@ -64,6 +64,7 @@ for (const order of [[0, 1], [1, 0]]) test(`concurrent analysis completes indepe
 });
 test('full Stage 1 → Stage 2 is continuous, reuses captured settings and opens background results', async () => {
   const { store, operations, calls } = fixture();
+  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: true } });
   const job = operations.analyze(1, { ...options, analysisMode: 'full' });
   store.activateTab(2); store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: false } });
   calls[0].resolve({ stage: 'stage1', titleVerdict: 'Stage 1', matchedEggs: ['a.md'] });

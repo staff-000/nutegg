@@ -179,7 +179,7 @@ test('Stage 2 loading resets every button dimension on B; background A cleanup l
   assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, false);
   assert.equal(f.ui.actionsUI.eggAnalysisOnlyBtn.disabled, false);
   assert.equal(f.ui.actionsUI.eggAnalysisWithKnowledgeBtn.disabled, false);
-  assert.equal(f.ui.actionsUI.eggAnalysisLabel.textContent, `${t('eggAnalysis')} 🍃`);
+  assert.equal(f.ui.actionsUI.eggAnalysisLabel.textContent, t('eggAnalysis'));
   const b = f.analyze.handleReanalyzeEggs();
   f.calls[0].resolve({ eggResults: [{ egg: 'a.md', extractedEntries: [] }] }); await a;
   assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, true);
@@ -422,7 +422,7 @@ test('Chrome first-use has one setup action, hides vault controls, and becomes r
   assert.equal(element('capture-state').classList.contains('not-functional'), false);
   assert.equal(f.ui.actionsUI.analyzeBtn.disabled, false);
   assert.equal(f.ui.headerUI.serverStatus.className, 'status-dot chrome-ai');
-  assert.equal(f.ui.sectionsUI.sectionsBadge.textContent, '3/4');
+  assert.equal(f.ui.sectionsUI.sectionsBadge.textContent, '2/4');
 
   seed(f.store, 1, { ...response(1), mode: 'chrome' });
   for (const id of ['confirm-btn', 'collect-nut-btn', 'stage1-confirm-box', 'history-select', 'chrome-result-banner', 'chrome-actions-card']) {

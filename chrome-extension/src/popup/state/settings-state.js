@@ -22,7 +22,7 @@ class SettingsState {
     this.analysisMode = "full"; // "full" | "preview"
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
-    this.generateKnowledgeEntries = true;
+    this.generateKnowledgeEntries = false;
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
@@ -60,7 +60,7 @@ class SettingsState {
       } else if (stored?.analysisMode === "fast") {
         this.analysisMode = "full";
       }
-      this.generateKnowledgeEntries = stored?.generateKnowledgeEntries !== false;
+      this.generateKnowledgeEntries = stored?.generateKnowledgeEntries === true;
       this.debugInfo = stored?.debugInfo === true;
       if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "margin" || stored?.uiDensity === "compact" || stored?.uiDensity === "ultra-compact") {
         this.uiDensity = stored.uiDensity === "comfortable" ? "margin" : stored.uiDensity;
@@ -135,7 +135,7 @@ class SettingsState {
   }
 
   setGenerateKnowledgeEntries(enabled, persist = true) {
-    this.generateKnowledgeEntries = enabled !== false;
+    this.generateKnowledgeEntries = Boolean(enabled);
     if (persist && typeof chrome !== "undefined") {
       chrome.storage?.local?.set?.({ generateKnowledgeEntries: this.generateKnowledgeEntries });
     }

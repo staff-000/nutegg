@@ -129,10 +129,10 @@ test('discussion UI distinguishes not analyzed from empty and escapes sources an
 test('both Discussion chips default off and synchronize when enabled', () => {
   const root = createMockRoot(), ui = new SectionChipsComponent(root); let key;
   ui.init({ onToggle: k => { key = k; } }); ui.updateUI({ titleVerdict: true, coreSummary: true, mindMap: true });
-  assert.equal(ui.chipDiscussion['aria-pressed'], 'false'); assert.equal(ui.sectionsBadge.textContent, '3/4');
+  assert.equal(ui.chipDiscussion['aria-pressed'], 'false'); assert.equal(ui.sectionsBadge.textContent, '2/4');
   ui.chipDiscussion.click(); assert.equal(key, 'discussion');
   ui.updateUI({ titleVerdict: true, coreSummary: true, mindMap: true, discussion: true });
-  assert.equal(ui.reanalyzeChipDiscussion['aria-pressed'], 'true'); assert.equal(ui.sectionsBadge.textContent, '4/4');
+  assert.equal(ui.reanalyzeChipDiscussion['aria-pressed'], 'true'); assert.equal(ui.sectionsBadge.textContent, '3/4');
 });
 
 test('history replays the discussion selector and exact sources without changing defaults', () => {

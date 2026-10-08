@@ -136,7 +136,7 @@ class SectionChipsComponent {
     }
   }
 
-  updateUI(enabledSections = {}, generateKnowledgeEntries = true, showKnowledge = true) {
+  updateUI(enabledSections = {}, generateKnowledgeEntries = false, showKnowledge = true) {
     enabledSections = { ...enabledSections, generateKnowledgeEntries, verdictSummary: enabledSections.titleVerdict !== false && enabledSections.coreSummary !== false };
     this.enabledSections = enabledSections;
     if (!this.chipVerdictSummary && (this.root || typeof document !== "undefined")) {

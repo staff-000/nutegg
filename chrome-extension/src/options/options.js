@@ -606,7 +606,7 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
   if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
   if (sectionKnowledge) {
-    sectionKnowledge.checked = savedGenerateKnowledgeEntries !== false;
+    sectionKnowledge.checked = savedGenerateKnowledgeEntries === true;
     sectionKnowledge.addEventListener("change", () => chrome.storage.local.set({ generateKnowledgeEntries: sectionKnowledge.checked }));
   }
   if (sectionDiscussion) sectionDiscussion.checked = sections.discussion === true;
@@ -646,7 +646,7 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
     };
     await chrome.storage.local.set({
       enabledSections: newConfig,
-      generateKnowledgeEntries: sectionKnowledge ? sectionKnowledge.checked : true,
+      generateKnowledgeEntries: sectionKnowledge ? sectionKnowledge.checked : false,
       outputLanguage: outputLangSelect ? outputLangSelect.value : "same-as-content",
       uiDensity: uiDensitySelect ? uiDensitySelect.value : "compact",
     });

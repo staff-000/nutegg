@@ -46,6 +46,7 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.equal(el('ai-provider-select').value, 'gemini');
   assert.equal(el('ai-model-select').value, 'gemini-default');
   assert.equal(el('section-mindmap').checked, true);
+  assert.equal(el('section-knowledge').checked, false);
   assert.equal(el('section-discussion').checked, false);
   assert.deepEqual(requests, []);
   assert.deepEqual(values, {});

@@ -194,7 +194,7 @@ describe("Modular UI Components", () => {
     assert.equal(controls.stage1ProceedBtn.disabled, false);
     assert.equal(controls.stage1ProceedBtn.title, "");
     assert.equal(controls.eggAnalysisSelector.title, "");
-    assert.equal(controls.eggAnalysisLabel.textContent, `${t("eggAnalysis")} 🍃`);
+    assert.equal(controls.eggAnalysisLabel.textContent, t("eggAnalysis"));
     assert.ok(controls.eggAnalysisLabel.textContent.startsWith("🥚"));
     const eggs = controls;
     eggs.toggleEggAnalysisMenu(true);
@@ -205,7 +205,7 @@ describe("Modular UI Components", () => {
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, true);
     eggs.setEggAnalysisLoading(false);
     assert.equal(eggs.eggAnalysisWithKnowledgeBtn.disabled, false);
-    assert.equal(eggs.eggAnalysisLabel.textContent, `${t("eggAnalysis")} 🍃`);
+    assert.equal(eggs.eggAnalysisLabel.textContent, t("eggAnalysis"));
   });
 
   it("HeaderComponent binds DOM and updates version & server status", () => {
@@ -438,17 +438,18 @@ describe("Modular UI Components", () => {
     });
     assert.strictEqual(chips.chipMindmap.classList.contains("inactive"), true);
     assert.strictEqual(chips.chipVerdictSummary.classList.contains("active"), true);
-    assert.strictEqual(chips.sectionsBadge.textContent, "2/4");
-    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "2/4");
+    assert.strictEqual(chips.chipKnowledge.classList.contains("inactive"), true);
+    assert.strictEqual(chips.sectionsBadge.textContent, "1/4");
+    assert.strictEqual(chips.reanalyzeSectionsBadge.textContent, "1/4");
 
     chips.chipKnowledge.click();
     assert.equal(toggledKey, "generateKnowledgeEntries");
     chips.reanalyzeChipKnowledge.click();
     assert.equal(toggledKey, "generateKnowledgeEntries");
-    chips.updateUI({ titleVerdict: true, coreSummary: true, mindMap: false }, false);
-    assert.equal(chips.chipKnowledge.classList.contains("inactive"), true);
-    assert.equal(chips.reanalyzeChipKnowledge.classList.contains("inactive"), true);
-    assert.equal(chips.sectionsBadge.textContent, "1/4");
+    chips.updateUI({ titleVerdict: true, coreSummary: true, mindMap: false }, true);
+    assert.equal(chips.chipKnowledge.classList.contains("active"), true);
+    assert.equal(chips.reanalyzeChipKnowledge.classList.contains("active"), true);
+    assert.equal(chips.sectionsBadge.textContent, "2/4");
 
     // Test onSectionToggle fallback
     let fallbackResult = null;

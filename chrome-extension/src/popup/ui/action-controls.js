@@ -24,7 +24,7 @@ class ActionControlsComponent {
     this.eggAnalysisMenu = root.getElementById("egg-analysis-menu");
     this.eggAnalysisOnlyBtn = root.getElementById("egg-analysis-only");
     this.eggAnalysisWithKnowledgeBtn = root.getElementById("egg-analysis-with-knowledge");
-    this.generateKnowledgeEntries = true;
+    this.generateKnowledgeEntries = false;
     this.stage1SkipBtn = root.getElementById("stage1-skip-btn");
     this.stage1SkipBtnWrap = root.getElementById("stage1-skip-btn-wrap");
 

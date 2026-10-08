@@ -73,11 +73,11 @@ describe("SettingsState", () => {
   it("persists the last Knowledge choice as the default after reopening", async () => {
     const store = setupMockStorage();
     const settings = new SettingsState();
-    settings.setGenerateKnowledgeEntries(false);
-    assert.equal(store.generateKnowledgeEntries, false);
+    settings.setGenerateKnowledgeEntries(true);
+    assert.equal(store.generateKnowledgeEntries, true);
     const restored = new SettingsState();
     await restored.loadFromStorage();
-    assert.equal(restored.generateKnowledgeEntries, false);
+    assert.equal(restored.generateKnowledgeEntries, true);
   });
   beforeEach(() => {
     setupMockStorage();
@@ -94,6 +94,7 @@ describe("SettingsState", () => {
     assert.equal(settings.chromeAiEnabled, true);
     assert.equal(settings.chromeAiConfigured, false);
     assert.deepEqual(settings.enabledSections, DEFAULT_ANALYSIS_SECTIONS);
+    assert.equal(settings.generateKnowledgeEntries, false);
   });
 
   it("updates mode and language and persists to storage", () => {

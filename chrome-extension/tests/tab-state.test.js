@@ -84,9 +84,9 @@ test('failure keeps the old successful result and view, without unread completio
 });
 test('restoration does not rewrite global defaults; diagnostics omit input data and are bounded', () => {
   const { store } = fixture();
-  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: false } });
-  store.activateTab(2); assert.equal(store.viewModel().generateKnowledgeEntries, true);
-  store.activateTab(1); assert.equal(store.viewModel().generateKnowledgeEntries, false);
+  store.dispatch({ type: 'draft', tabId: 1, values: { generateKnowledgeEntries: true } });
+  store.activateTab(2); assert.equal(store.viewModel().generateKnowledgeEntries, false);
+  store.activateTab(1); assert.equal(store.viewModel().generateKnowledgeEntries, true);
   store.diagnosticsEnabled = true;
   for (let i = 0; i < 210; i++) { const ctx = store.beginOperation(1, 'extraction', { secret: 'SECRET' }); store.commitOperation(ctx.token, { type: 'operationFinished' }); }
   assert.equal(store.diagnostics.length, 200); assert(!JSON.stringify(store.diagnostics).includes('SECRET'));
