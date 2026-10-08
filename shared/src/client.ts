@@ -478,10 +478,10 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
 }
 
 export class AIClient {
-  private config: ResolvedConfig & { extraHeaders: Record<string, string> };
+  private settings: NutEggAISettings;
 
   constructor(settings: NutEggAISettings) {
-    this.config = resolveConfig(settings);
+    this.settings = settings;
   }
 
   async checkCredit(settings: NutEggAISettings): Promise<AICreditInfo> {
@@ -489,6 +489,7 @@ export class AIClient {
   }
 
   async chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> {
-    return chatAI(prompt, maxTokens, this.config, debugScope);
+    // Settings can change after startup, including a new user's first API key.
+    return chatAI(prompt, maxTokens, resolveConfig(this.settings), debugScope);
   }
 }

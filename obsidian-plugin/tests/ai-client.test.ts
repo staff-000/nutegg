@@ -40,6 +40,61 @@ describe("isAIConfigured", () => {
   });
 });
 
+describe("AIClient settings changes", () => {
+  it("uses a newly entered key for both credit checks and chat without recreating the client", async () => {
+    const settings: NutEggSettings = { ...DEFAULT_SETTINGS, aiProvider: "openrouter", aiApiKey: "" };
+    const client = new AIClient(settings);
+    const originalFetch = globalThis.fetch;
+    const requests: string[] = [];
+    try {
+      globalThis.fetch = (async (url: string, init?: any) => {
+        requests.push(url);
+        assert.equal(init.headers.Authorization, "Bearer new-user-key");
+        if (url === "https://openrouter.ai/api/v1/credits") {
+          return new Response(JSON.stringify({ data: { total_credits: 10, total_usage: 2 } }), { status: 200 });
+        }
+        assert.equal(url, PROVIDER_CATALOG.openrouter.officialEndpoint);
+        return new Response(JSON.stringify({ choices: [{ message: { content: "Summary" } }] }), { status: 200 });
+      }) as any;
+
+      settings.aiApiKey = "new-user-key";
+      const credit = await client.checkCredit(settings);
+      assert.equal(credit.hasBalance, true);
+      assert.equal(await client.chat("Summarize this article", 500), "Summary");
+      assert.equal(requests.length, 2);
+
+      settings.aiApiKey = "";
+      await assert.rejects(client.chat("Summarize again", 500), { code: "no_api_key" });
+      assert.equal(requests.length, 2, "clearing the key prevents further API calls");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("uses the current provider, model and key after settings are changed", async () => {
+    const settings: NutEggSettings = { ...DEFAULT_SETTINGS, aiApiKey: "old-key" };
+    const client = new AIClient(settings);
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (url: string, init?: any) => {
+        assert.equal(url, PROVIDER_CATALOG.openai.officialEndpoint);
+        assert.equal(init.headers.Authorization, "Bearer updated-key");
+        const body = JSON.parse(init.body);
+        assert.equal(body.model, "selected-model");
+        assert.equal(body.max_completion_tokens, 500);
+        return new Response(JSON.stringify({ choices: [{ message: { content: "Updated response" } }] }), { status: 200 });
+      }) as any;
+
+      settings.aiProvider = "openai";
+      settings.aiModel = "selected-model";
+      settings.aiApiKey = "updated-key";
+      assert.equal(await client.chat("Hello", 500), "Updated response");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
 describe("AIClient Local LLM execution", () => {
   it("executes chat against local OpenAI-compatible endpoint without requiring an API key or explicit model", async () => {
     let capturedUrl = "";
@@ -270,4 +325,3 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     assert.equal(fallbackFam?.id, "openai");
   });
 });
-
