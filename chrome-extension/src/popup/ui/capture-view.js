@@ -86,7 +86,7 @@ class CaptureViewComponent {
       this.clearAuthorAndPublished();
     } else {
       this.setPreviewContent(content, options.previewPlaceholder);
-      this.showProvenance(content?.metadata || {}, content?.content);
+      this.showProvenance(content?.metadata || {}, content?.content, content?.discussion);
     }
 
     if (isSession) {
@@ -94,7 +94,7 @@ class CaptureViewComponent {
     }
   }
 
-  showProvenance(metadata = {}, rawContent = "") {
+  showProvenance(metadata = {}, rawContent = "", discussion = null) {
     if (this.pageCaptionSourceEl) {
       const sourceKeys = {
         page_tracks: "captionSourcePageTracks",
@@ -125,12 +125,9 @@ class CaptureViewComponent {
     }
     if (this.pageWordCountEl) {
       const text = rawContent || metadata?.content || "";
-      if (text) {
-        const countWordsFn = typeof helper !== "undefined" && helper.countWords
-          ? helper.countWords
-          : (typeof globalThis !== "undefined" && globalThis.helper?.countWords) ||
-            ((t) => (t ? t.trim().split(/\s+/).filter(Boolean).length : 0));
-        const count = countWordsFn(text);
+      const count = globalThis.NutEggHelpers?.countCapturedWords?.({ content: text, discussion })
+        ?? (text.trim().split(/\s+/).filter(Boolean).length);
+      if (count) {
         this.pageWordCountEl.textContent = `📝 ${t("wordCount", { count: count.toLocaleString() })}`;
         this.pageWordCountEl.classList.remove("hidden");
       } else {
@@ -152,7 +149,7 @@ class CaptureViewComponent {
       + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
     const transcriptMissing = Boolean(globalThis.NutEggHelpers?.isTranscriptBlocked?.(content));
     const warning = transcriptMissing ? t('transcriptRefreshPreview')
-      : !content?.content?.trim() ? t('contentRefreshPreview')
+      : !content?.content?.trim() && !(content?.discussion?.kind === 'forum' && items.some(item => item.text?.trim())) ? t('contentRefreshPreview')
       : globalThis.NutEggHelpers?.getExtractionWarning?.(content);
     this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning, Boolean(warning));
   }

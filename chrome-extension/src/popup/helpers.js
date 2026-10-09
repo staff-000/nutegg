@@ -206,6 +206,12 @@ function countWords(text) {
   return cjkCount + latinWords.length;
 }
 
+/** Count the captured body and discussion text shown in the content preview. */
+function countCapturedWords(capture) {
+  return countWords(capture?.content) + (capture?.discussion?.items || [])
+    .reduce((total, item) => total + countWords(item.text), 0);
+}
+
 /**
  * Detects if extracted content has an unexpectedly low word count,
  * typically caused by extracting before client-side hydration or rendering finished.
@@ -238,7 +244,7 @@ function provenanceFromExtraction(content) {
     author: m.author || m.authorHandle || m.channelName || "",
     published: formatPublishedDate(m.publishedTime || m.date || ""),
     url: target.url || "",
-    wordCount: countWords(target.content || ""),
+    wordCount: countCapturedWords(target),
   };
 }
 
@@ -286,7 +292,10 @@ function getExtractionWarning(content) {
   // A long description cannot substitute for a missing transcript.
   if (isTranscriptBlocked(content)) return t("transcriptBlockedWarning");
   if (['not_ready', 'transient'].includes(content.extractionStatus)) return t('captureRetryIncomplete');
-  const words = countWords(content.content || "");
+  // On question/forum pages the answers are the substance of the page.
+  // Article comments must not hide an incomplete article or missing transcript.
+  const words = content.discussion?.kind === 'forum'
+    ? countCapturedWords(content) : countWords(content.content || "");
   const sourceType = isVideoMediaSource(content) ? "video" : content.sourceType;
   return isContentSuspiciouslyLow(words, sourceType)
     ? t("contentLowWarning", { count: words.toLocaleString() }) : null;
@@ -428,6 +437,7 @@ const NutEggHelpers = {
   detectPageTypeFromUrl,
   provenanceFromExtraction,
   countWords,
+  countCapturedWords,
   isContentSuspiciouslyLow,
   getExtractionWarning,
   getVersionMismatchIssue,

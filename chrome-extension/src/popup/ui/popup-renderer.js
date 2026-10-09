@@ -68,7 +68,7 @@ class PopupRenderer {
       ui.captureUI.setPageInfo({ title: content?.title || view.title || t('loading'), url: content?.url || view.url, sourceType: content?.sourceType || '' });
       ui.captureUI.clearProvenance();
       if (captureProgress) ui.captureUI.setLoading(t(captureProgress.captions ? 'captureRetryCaptions' : 'captureRetryLoading', { attempt: captureProgress.attempt, count: captureProgress.retryCount }));
-      else if (content) { ui.captureUI.setPreviewContent(content); ui.captureUI.showProvenance(content.metadata || {}, content.content); }
+      else if (content) { ui.captureUI.setPreviewContent(content); ui.captureUI.showProvenance(content.metadata || {}, content.content, content.discussion); }
       else if (view.errors.extraction) ui.captureUI.setError(view.errors.extraction.message);
       else ui.captureUI.setLoading(t('retrievingPageContent'));
     });

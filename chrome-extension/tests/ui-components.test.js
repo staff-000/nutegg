@@ -329,6 +329,17 @@ describe("Modular UI Components", () => {
     assert.equal(capture.contentPreview.classList.contains("incomplete"), false);
   });
 
+  it('CaptureViewComponent counts the question and loaded Zhihu answers shown in its preview', () => {
+    const capture = new CaptureViewComponent(createMockRoot());
+    const content = { sourceType: 'zhihu', content: '这是一个很短的问题只有十四字',
+      discussion: { kind: 'forum', items: [{ id: 'answer1', text: '这是已加载的完整回答。'.repeat(40) }] } };
+    capture.render(content);
+    assert.equal(capture.pageWordCountEl.textContent, '📝 414 words');
+    assert.equal(capture.contentPreview.classList.contains('incomplete'), false);
+    assert.equal(capture.previewRefreshBtn.classList.contains('hidden'), true);
+    assert.ok(capture.contentPreview.textContent.includes(content.discussion.items[0].text));
+  });
+
   it("CaptureViewComponent clears extraction notices on loading and tab changes", () => {
     const capture = new CaptureViewComponent(createMockRoot());
     const missing = { sourceType: "youtube", transcriptAvailable: false, content: "Description" };

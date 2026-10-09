@@ -193,6 +193,7 @@ class TabStateManager {
           bodyLength: previous.bodyLength, autoEnable: previous.autoEnable || (previous.kind === 'forum' && previous.bodyLength < 500 && items.length >= 3 && items.reduce((n, item) => n + item.text.replace(/\s/g, '').length, 0) >= Math.max(800, previous.bodyLength * 3)),
           truncated: previous.truncated || event.discussion.truncated || byId.size > 300 || characters > 150000 };
         if (next.discussionOverride === null && next.extractedContent.discussion.autoEnable) next.enabledSections.discussion = true;
+        next.warning = globalThis.NutEggHelpers?.getExtractionWarning?.(next.extractedContent) || null;
         if (!event.loading) finish();
         break;
       }

@@ -15,6 +15,7 @@ const {
   detectPageTypeFromUrl,
   provenanceFromExtraction,
   countWords,
+  countCapturedWords,
   isContentSuspiciouslyLow,
   getExtractionWarning,
   getVersionMismatchIssue,
@@ -284,6 +285,18 @@ test("getExtractionWarning - prioritizes missing transcripts independently of de
     assert.equal(getExtractionWarning({ ...content, transcriptAvailable: true, content: longText }), null);
   }
   assert.equal(getExtractionWarning({ sourceType: "tiktok", mediaType: "article", transcriptAvailable: false, content: longText }), null);
+});
+
+test('forum capture counts include Chinese answers, while comments cannot hide missing article content', () => {
+  const capture = { sourceType: 'zhihu', content: '这是一个很短的问题只有十四字',
+    discussion: { kind: 'forum', items: [{ text: '这是已加载的完整回答。'.repeat(40) }] } };
+  assert.equal(countWords(capture.content), 14);
+  assert.equal(countCapturedWords(capture), 414);
+  assert.equal(getExtractionWarning(capture), null);
+  assert.equal(provenanceFromExtraction(capture).wordCount, 414);
+  assert.equal(getExtractionWarning({ ...capture, discussion: { kind: 'forum', items: [] } }), 'contentLowWarning');
+  assert.equal(getExtractionWarning({ ...capture, sourceType: 'article', discussion: { ...capture.discussion, kind: 'comments' } }), 'contentLowWarning');
+  assert.equal(getExtractionWarning({ ...capture, sourceType: 'youtube', transcriptAvailable: false }), 'transcriptBlockedWarning');
 });
 
 test("provenanceFromExtraction - includes accurate wordCount", () => {

@@ -75,6 +75,28 @@ test('dynamic content still loading after retries warns even with a long page bo
   assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
 });
 
+test('loaded forum answers clear the short-question warning and remain isolated across tabs', context => {
+  const f = setup(context);
+  const content = { url: 'https://www.zhihu.com/question/60003550', sourceType: 'zhihu',
+    content: '这是一个很短的问题只有十四字', discussion: { kind: 'forum', items: [] } };
+  let job = f.store.beginOperation(1, 'extraction');
+  f.store.commitOperation(job.token, { type: 'extracted', content, warning: globalThis.NutEggHelpers.getExtractionWarning(content) });
+  assert.match(f.ui.bannersUI.warningMessage.textContent, /Only 14 words/);
+  job = f.store.beginOperation(1, 'discussion');
+  f.store.commitOperation(job.token, { type: 'discussionUpdated', passive: true, discussion: {
+    kind: 'forum', status: 'partial', items: [{ id: 'answer1', text: '这是已加载的完整回答。'.repeat(40) }],
+  } });
+  assert.equal(f.store.getTab(1).warning, null);
+  assert.equal(f.ui.captureUI.pageWordCountEl.textContent, '📝 414 words');
+  assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
+  assert.equal(f.ui.captureUI.previewRefreshBtn.classList.contains('hidden'), true);
+  f.store.activateTab(2);
+  assert.doesNotMatch(f.ui.captureUI.pageWordCountEl.textContent, /414/);
+  f.store.activateTab(1);
+  assert.equal(f.ui.captureUI.pageWordCountEl.textContent, '📝 414 words');
+  assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
+});
+
 test('comment usernames update as they load and stay with their own browser tab', context => {
   const f = setup(context);
   const update = author => {
