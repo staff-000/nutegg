@@ -227,49 +227,6 @@
         <span id="success-message"></span>
       </div>
 
-      <!-- Stage 1 Confirmation Card (Confirm Eggs Mode) -->
-      <div id="stage1-confirm-box" data-obsidian-only class="stage1-confirm-box hidden">
-        <div class="stage1-confirm-header">
-          <span class="stage1-confirm-icon">🎯</span>
-          <div class="stage1-confirm-text" id="stage1-confirm-text" data-i18n="stage1Complete">
-            <strong>Stage 1 Complete:</strong> Review matching eggs below to run egg analysis and decide if worth reading.
-          </div>
-        </div>
-        <div class="stage1-confirm-actions">
-          <div id="egg-analysis-selector" class="egg-analysis-selector" data-hints="self-off">
-            <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu" data-hints="off"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
-            <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
-              <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly" title="🥚 Analysis only" data-i18n-title="eggAnalysisOnly">🥚 Analysis only</button>
-              <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge" title="Generate knowledge entries" data-i18n-title="generateKnowledgeEntries">🍃 Include knowledge</button>
-            </div>
-          </div>
-          <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut Only</button></span>
-        </div>
-      </div>
-
-      <div id="eggs-section" data-obsidian-only class="result-section hidden">
-        <button id="eggs-toggle" class="questions-toggle" aria-expanded="false" data-hints="off">
-          <span>🥚 <span data-i18n="eggsHeader">Eggs</span> <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
-          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
-        </button>
-        <div id="eggs-expanded" class="hidden">
-          <div id="eggs-list" class="eggs-list"></div>
-          <div id="eggs-create-inline" class="create-egg-inline">
-            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg" data-hints="off">➕ Create a new egg</button>
-            <div id="eggs-create-form" class="create-egg-box hidden">
-              <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
-              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="eggs-create-hint" />
-              <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
-              <div class="create-egg-actions">
-                <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn" title="Create Egg" data-i18n-title="createEggBtn">Create an Egg</button>
-                <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel" title="Cancel" data-i18n-title="cancel">Cancel</button>
-              </div>
-            </div>
-          </div>
-          <div id="eggs-error" class="eggs-error hidden"></div>
-        </div>
-      </div>
-
       <div class="result-section" id="verdict-section">
         <div class="section-header">
           <div class="section-label" data-i18n="verdictReadSection">📖 Should you read it?</div>
@@ -419,7 +376,46 @@
         </div>
       </div>
 
+      <div id="eggs-section" data-obsidian-only class="result-section hidden">
+        <button id="eggs-toggle" class="questions-toggle" aria-expanded="false" data-hints="off">
+          <span>🥚 <span data-i18n="eggsHeader">Eggs</span> <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
+          <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
+        </button>
+        <div id="eggs-expanded" class="hidden">
+          <div id="eggs-list" class="eggs-list"></div>
+          <div id="eggs-create-inline" class="create-egg-inline">
+            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg" data-hints="off">➕ Create a new egg</button>
+            <div id="eggs-create-form" class="create-egg-box hidden">
+              <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
+              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="eggs-create-hint" />
+              <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
+              <div class="create-egg-actions">
+                <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn" title="Create Egg" data-i18n-title="createEggBtn">Create an Egg</button>
+                <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel" title="Cancel" data-i18n-title="cancel">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div id="eggs-error" class="eggs-error hidden"></div>
+        </div>
+      </div>
+
+      <!-- Stage 1 Slim Banner (Review eggs to proceed) -->
+      <div id="stage1-confirm-box" data-obsidian-only class="stage1-confirm-box hidden">
+        <div class="stage1-confirm-header">
+          <span class="stage1-confirm-icon">ℹ️</span>
+          <span class="stage1-confirm-text" id="stage1-confirm-text" data-i18n="stage1Complete">Review matching eggs to proceed</span>
+        </div>
+        <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap hidden" style="display: none;"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut Only</button></span>
+      </div>
+
       <div class="action-buttons">
+        <div id="egg-analysis-selector" class="egg-analysis-selector hidden" data-hints="self-off">
+          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu" data-hints="off"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
+          <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
+            <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly" title="🥚 Analysis only" data-i18n-title="eggAnalysisOnly">🥚 Analysis only</button>
+            <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge" title="Generate knowledge entries" data-i18n-title="generateKnowledgeEntries">🍃 Include knowledge</button>
+          </div>
+        </div>
         <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg" title="Save new knowledge to the selected eggs" data-i18n-title="buttonHatchHint">🐣 Hatch Egg</button></span>
         <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut</button></span>
         <button id="back-btn" class="back-btn" data-i18n="readerBack" title="Return to the captured page content" data-i18n-title="buttonBackHint">Back</button>

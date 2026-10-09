@@ -214,7 +214,7 @@ class ActionControlsComponent {
       }
       if (this.eggAnalysisLabel) this.eggAnalysisLabel.textContent = t("eggAnalysisSelectEgg");
       if (this.stage1ConfirmText) {
-        this.stage1ConfirmText.innerHTML = totalEggsCount === 0
+        this.stage1ConfirmText.textContent = totalEggsCount === 0
           ? t("stage1NoEggsNotice")
           : t("stage1NoSelectedNotice");
       }
@@ -228,7 +228,7 @@ class ActionControlsComponent {
       }
       this.updateEggAnalysisLabel();
       if (this.stage1ConfirmText) {
-        this.stage1ConfirmText.innerHTML = t("stage1SelectedNotice", { count: selectedCount });
+        this.stage1ConfirmText.textContent = t("stage1SelectedNotice", { count: selectedCount });
       }
     }
   }
@@ -245,12 +245,14 @@ class ActionControlsComponent {
       this.confirmBtnWrap?.classList.add("hidden");
       this.collectNutBtn?.classList.add("hidden");
       this.collectNutBtnWrap?.classList.add("hidden");
+      this.eggAnalysisSelector?.classList.add("hidden");
       return;
     }
 
     if (isStage1) {
       this.confirmBtn?.classList.add("hidden");
       this.confirmBtnWrap?.classList.add("hidden");
+      this.eggAnalysisSelector?.classList.remove("hidden");
       const nutTitle = nutCollected ? t("nutAlreadySaved") : t("buttonCollectHint");
       if (this.collectNutBtn) {
         this.collectNutBtn.disabled = nutCollected;
@@ -260,6 +262,7 @@ class ActionControlsComponent {
         else this.collectNutBtn.removeAttribute?.("data-tooltip");
       }
       if (this.collectNutBtnWrap) {
+        this.collectNutBtnWrap.classList.remove("hidden");
         this.collectNutBtnWrap.title = nutTitle;
         if (nutTitle) this.collectNutBtnWrap.setAttribute?.("data-tooltip", nutTitle);
         else this.collectNutBtnWrap.removeAttribute?.("data-tooltip");
@@ -277,15 +280,17 @@ class ActionControlsComponent {
         else this.stage1SkipBtnWrap.removeAttribute?.("data-tooltip");
       }
       if (this.stage1ConfirmText) {
-        this.stage1ConfirmText.innerHTML = t("stage1NutSavedNotice");
+        this.stage1ConfirmText.textContent = nutCollected ? t("stage1NutSavedNotice") : t("stage1Complete");
       }
       const confirmIconEl = this.root.querySelector?.(".stage1-confirm-icon");
       if (confirmIconEl) {
-        confirmIconEl.textContent = "✅";
+        confirmIconEl.textContent = nutCollected ? "✅" : "ℹ️";
       }
-      this.stage1ConfirmBox?.classList.add("stage1-saved");
+      this.stage1ConfirmBox?.classList.toggle("stage1-saved", !!nutCollected);
       return;
     }
+
+    this.eggAnalysisSelector?.classList.add("hidden");
 
     const nutTitle = nutCollected ? t("nutAlreadySaved") : t("buttonCollectHint");
     if (this.collectNutBtn) {
@@ -489,7 +494,8 @@ class ActionControlsComponent {
 
     const stage1ProceedDisabled = busy || !view.selectedEggs?.size;
     const stage1ProceedReason = busy ? t('analysisRunningHint') : !view.selectedEggs?.size ? t('selectEggToAnalyzeHint') : '';
-    set(this.stage1ProceedBtn, stage1ProceedDisabled, null, chromeMode || !result, stage1ProceedReason, this.eggAnalysisSelector);
+    const eggAnalysisHidden = chromeMode || !result || (!stage1 && (result.eggResults?.length || 0) > 0);
+    set(this.stage1ProceedBtn, stage1ProceedDisabled, null, eggAnalysisHidden, stage1ProceedReason, this.eggAnalysisSelector);
     if (this.eggAnalysisLabel) {
       this.eggAnalysisLabel.textContent = view.analyzingEggs
         ? t('analyzingEggs')
@@ -501,17 +507,26 @@ class ActionControlsComponent {
     }
     set(this.eggAnalysisOnlyBtn, busy, `${view.generateKnowledgeEntries ? '' : '✓ '}${t('eggAnalysisOnly')}`);
     set(this.eggAnalysisWithKnowledgeBtn, busy, `${view.generateKnowledgeEntries ? '✓ ' : ''}${t('eggAnalysisWithKnowledge')}`);
-    this.stage1ConfirmBox?.classList.toggle('hidden', chromeMode || !result);
+    const bannerHidden = chromeMode || !result || (!stage1 && (result.eggResults?.length || 0) > 0);
+    this.stage1ConfirmBox?.classList.toggle('hidden', bannerHidden);
     this.stage1ConfirmBox?.classList.toggle('stage1-saved', !!view.nutCollected);
-    if (this.stage1ConfirmText) this.stage1ConfirmText.innerHTML = t(view.nutCollected ? 'stage1NutSavedNotice' : view.selectedEggs?.size ? 'stage1SelectedNotice' : view.allEggs?.length ? 'stage1NoSelectedNotice' : 'stage1NoEggsNotice', { count: view.selectedEggs?.size || 0 });
+    if (this.stage1ConfirmText) {
+      this.stage1ConfirmText.textContent = view.nutCollected
+        ? t('stage1NutSavedNotice')
+        : view.selectedEggs?.size
+        ? t('stage1SelectedNotice', { count: view.selectedEggs?.size || 0 })
+        : view.allEggs?.length
+        ? t('stage1NoSelectedNotice')
+        : t('stage1NoEggsNotice');
+    }
     const icon = this.root.querySelector?.('.stage1-confirm-icon');
-    if (icon) icon.textContent = view.nutCollected ? '✅' : '🥚';
+    if (icon) icon.textContent = view.nutCollected ? '✅' : 'ℹ️';
     set(this.confirmBtn, !!hatchReason, t(hatching ? 'hatching' : hatched ? 'eggHatched' : 'hatchEgg'), hatchHidden, hatchReason, this.confirmBtnWrap);
 
     const nutDisabled = busy || view.nutCollected;
     const nutReason = view.nutCollected ? t('nutAlreadySaved') : busy ? t('operationInProgressHint') : '';
-    set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
-    set(this.stage1SkipBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'), false, nutReason, this.stage1SkipBtnWrap);
+    set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : stage1 ? 'collectNutOnly' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
+    set(this.stage1SkipBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'), true, nutReason, this.stage1SkipBtnWrap);
     set(this.historySelect, busy, null, (view.captureHistory?.length || 0) < 2);
     set(this.backBtn, false, t('readerBack'));
     this.discardBtn?.classList.toggle('hidden', settings.connectionMode !== 'obsidian');

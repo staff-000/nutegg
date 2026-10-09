@@ -684,16 +684,15 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Stage 1 Confirmation Card */
+/* Stage 1 Confirmation Card / Slim Banner */
 .stage1-confirm-box {
-  background: #fff8eb;
-  border: 1px solid #fed7aa;
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
   transition: all 0.2s ease;
 }
 
@@ -702,29 +701,34 @@ body {
   border-color: #bbf7d0;
 }
 
-.stage1-confirm-box.stage1-saved .stage1-confirm-header {
+.stage1-confirm-box.stage1-saved .stage1-confirm-header,
+.stage1-confirm-box.stage1-saved .stage1-confirm-text {
   color: #166534;
 }
 
 .stage1-confirm-header {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 12px;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
   line-height: 1.4;
-  color: #7c2d12;
+  color: #64748b;
 }
 
 .stage1-confirm-icon {
-  font-size: 14px;
+  font-size: 12px;
   flex-shrink: 0;
-  line-height: 1.2;
+  line-height: 1;
+}
+
+.stage1-confirm-text {
+  font-size: 11.5px;
+  font-weight: 450;
+  color: #64748b;
 }
 
 .stage1-confirm-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
+  display: none;
 }
 
 .stage1-proceed-btn {
@@ -732,7 +736,7 @@ body {
   color: #ffffff;
   font-weight: 600;
   font-size: 12px;
-  height: 32px;
+  height: 38px;
 }
 
 .stage1-proceed-btn:hover:not(:disabled) {
@@ -2711,7 +2715,7 @@ body {
 .egg-analysis-menu button:hover { background: #fff3e6; }
 .egg-analysis-menu button:disabled { opacity: .45; cursor: default; }
 
-.egg-analysis-selector > .stage1-proceed-btn { width: 100%; height: 36px; min-height: 36px; display: flex; align-items: center; padding: 0 0 0 6px; font-size: 12px; }
+.egg-analysis-selector > .stage1-proceed-btn { width: 100%; height: 38px; min-height: 38px; display: flex; align-items: center; padding: 0 0 0 6px; font-size: 12px; }
 #egg-analysis-label { flex: 1; min-width: 0; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 .egg-analysis-arrow { align-self: stretch; display: flex; align-items: center; justify-content: center; min-width: 22px; margin-left: 2px; padding: 0 2px; border-left: 1px solid rgba(255, 255, 255, 0.35); font-size: 11px; }
 .egg-analysis-arrow:hover { background: #ffffff25; }
@@ -3009,7 +3013,7 @@ body {
 .chrome-reader [data-obsidian-only] { display: none !important; }
 .not-functional #analyze-btn-wrap, .not-functional #questions-toggle, .not-functional #questions-area, .not-functional #sections-accordion, .not-functional #obsidian-analysis-mode { display: none !important; }
 #result-page-info { border: 0; border-bottom: 1px solid #e8dfd4; padding: 0 0 17px; border-radius: 0; background: transparent; }
-#processed-note { padding: 0; background: transparent; border: 0; margin-top: 14px; margin-bottom: 20px; }
+#processed-note { padding: 0; background: transparent; border: 0; margin-top: 14px; margin-bottom: 14px; }
 #processed-note > .duplicate-icon, #processed-message { display: none; }
 .processed-info { width: 100%; }
 .processed-actions { margin-top: 0; flex-shrink: 0; }
