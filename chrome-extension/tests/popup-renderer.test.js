@@ -487,7 +487,8 @@ test('Obsidian mode reveals its controls only after an explicit switch', context
   f.settings.setConnectionMode('chrome', false);
   f.settings.chromeAiConfigured = true;
   f.renderer.render();
-  assert.equal(f.root.getElementById('metrics-bar').classList.contains('hidden'), true);
+  assert.equal(f.root.getElementById('metrics-bar').classList.contains('hidden'), false);
+  assert.equal(f.root.getElementById('obsidian-analysis-mode').classList.contains('hidden'), true);
   f.settings.setConnectionMode('obsidian', false);
   f.renderer.render();
   assert.equal(f.root.getElementById('metrics-bar').classList.contains('hidden'), false);

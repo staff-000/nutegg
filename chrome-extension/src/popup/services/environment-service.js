@@ -45,11 +45,11 @@ class EnvironmentService {
     } catch {}
   }
   async fetchMetrics() {
-    if (this.settings.connectionMode !== 'obsidian') return;
     const version = this.metricsVersion = (this.metricsVersion || 0) + 1;
+    const mode = this.settings.connectionMode;
     try {
       const metrics = await this.chromeApi.runtime.sendMessage({ action: 'metrics' });
-      if (metrics?.nuts == null || version !== this.metricsVersion || this.settings.connectionMode !== 'obsidian') return;
+      if (metrics?.nuts == null || version !== this.metricsVersion || this.settings.connectionMode !== mode) return;
       this.store.dispatch({ type: 'metrics', value: metrics });
       void this.chromeApi.storage?.local?.set?.({ cachedMetrics: metrics });
     } catch {}

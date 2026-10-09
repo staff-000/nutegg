@@ -32,9 +32,14 @@ async function initPopup() {
   if (stored?.cachedMetrics) tabStateManager.dispatch({ type: 'metrics', value: stored.cachedMetrics });
   tabStateManager.dispatch({ type: 'visibility', visible: document.visibilityState === 'visible' });
   tabStateManager.subscribe(event => renderer.handle(event));
-  tabStateManager.subscribe(event => { if (event.type === 'receipt' && event.receipt.success) void envService.fetchMetrics(); });
+  tabStateManager.subscribe(event => {
+    if ((event.type === 'receipt' && event.receipt.success) || event.type === 'analysisComplete') {
+      void envService.fetchMetrics();
+    }
+  });
   tabStateManager.diagnosticsEnabled = stored?.popupDiagnostics === true;
   void envService.checkServerStatus();
+  void envService.fetchMetrics();
   // Useful for local debugging; contains IDs and transition metadata only.
   globalThis.NutEggPopupDiagnostics = () => tabStateManager.diagnostics.map(row => ({ ...row }));
 

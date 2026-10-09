@@ -91,11 +91,11 @@ class PopupRenderer {
       if (button) { button.disabled = view.busy; button.title = t(view.busy ? 'operationInProgressHint' : 'createEggBtn'); }
     }
     ui.eggsUI.clearError();
-    if (obsidianMode && settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);
+    if (this.store.metrics) ui.metricsUI.render(this.store.metrics);
     ui.metricsUI.showPluginLink(false);
-    for (const id of ['obsidian-analysis-mode', 'metrics-bar']) {
-      root.getElementById?.(id)?.classList.toggle('hidden', !obsidianMode);
-    }
+    root.getElementById?.('obsidian-analysis-mode')?.classList.toggle('hidden', !obsidianMode);
+    const hideMetrics = !obsidianMode && !settings.chromeAiConfigured && !view.analysisResult && !this.store.metrics;
+    root.getElementById?.('metrics-bar')?.classList.toggle('hidden', hideMetrics);
     if (!obsidianMode) root.getElementById?.('capture-eggs-accordion')?.classList.add('hidden');
     if (!obsidianMode) for (const id of ['eggs-section', 'egg-knowledge-section', 'no-egg-section']) root.getElementById?.(id)?.classList.add('hidden');
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';

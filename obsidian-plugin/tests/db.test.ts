@@ -116,6 +116,7 @@ describe("NutEggDatabase", { skip: !sqliteAvailable() }, () => {
   it("getStats counts every capture and sums time estimates", () => {
     const stats = db.getStats();
     assert.equal(stats.nuts, 3);
+    assert.equal(stats.eggs, 2);
     assert.equal(stats.timeSavedMinutes, 54);
   });
 

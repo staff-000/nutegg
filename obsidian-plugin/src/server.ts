@@ -514,13 +514,13 @@ export class NutEggServer {
   }
 
   /**
-   * GET /metrics — nuts + time saved from SQLite aggregates, eggs from a file scan.
+   * GET /metrics — nuts, knowledge generated (eggs), and time saved from SQLite aggregates.
    */
   private handleMetrics(_req: http.IncomingMessage, res: http.ServerResponse): void {
     try {
       const db = this.plugin.db;
-      const stats = db?.available ? db.getStats() : { nuts: 0, timeSavedMinutes: 0 };
-      const eggs = this.countEggs();
+      const stats = db?.available ? db.getStats() : { nuts: 0, eggs: 0, timeSavedMinutes: 0 };
+      const eggs = stats.eggs ?? 0;
       const totalMinutes = Math.round(stats.timeSavedMinutes);
       const hours = Math.floor(totalMinutes / 60);
       const mins = Math.round(totalMinutes % 60);

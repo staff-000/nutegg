@@ -1,6 +1,7 @@
 // Shared immediate hints for the popup and settings, including dynamic controls.
 (() => {
   const doc = document;
+  if (!doc || typeof doc.createElement !== 'function' || !doc.body) return;
   const bubble = doc.createElement('div');
   bubble.id = 'nutegg-tooltip';
   bubble.className = 'nutegg-tooltip';

@@ -271,15 +271,19 @@ export class NutEggDatabase {
     }
   }
 
-  /** Aggregate stats over the nuts table (RAG corpus size + time saved). */
-  getStats(): { nuts: number; timeSavedMinutes: number } {
-    if (!this.db) return { nuts: 0, timeSavedMinutes: 0 };
+  /** Aggregate stats over the nuts table (RAG corpus size, knowledge generated, time saved). */
+  getStats(): { nuts: number; eggs: number; timeSavedMinutes: number } {
+    if (!this.db) return { nuts: 0, eggs: 0, timeSavedMinutes: 0 };
     const row = this.db
       .prepare(
-        "SELECT COUNT(*) AS nuts, COALESCE(SUM(time_estimate_minutes), 0) AS timeSavedMinutes FROM nuts"
+        `SELECT 
+           COUNT(*) AS nuts, 
+           COUNT(CASE WHEN processing_result = 'analyzed' OR processing_result = 'saved' OR (analysis_result IS NOT NULL AND analysis_result != '') OR (confirmed_knowledge IS NOT NULL AND confirmed_knowledge != '' AND confirmed_knowledge != '[]') THEN 1 END) AS eggs,
+           COALESCE(SUM(time_estimate_minutes), 0) AS timeSavedMinutes 
+         FROM nuts`
       )
-      .get() as { nuts: number; timeSavedMinutes: number };
-    return { nuts: row.nuts, timeSavedMinutes: row.timeSavedMinutes };
+      .get() as { nuts: number; eggs: number; timeSavedMinutes: number };
+    return { nuts: row.nuts, eggs: row.eggs ?? 0, timeSavedMinutes: row.timeSavedMinutes };
   }
 
   /** BM25 keyword retrieval over saved nuts, ranked, with text snippets. */

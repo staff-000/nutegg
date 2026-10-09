@@ -312,6 +312,7 @@ async function handleAnalyze(payload) {
       allEggs: [],
     };
     await saveChromeCacheEntry(payload, finalResult);
+    await recordChromeAnalysisMetrics(payload, finalResult);
     return finalResult;
   } catch (err) {
     return {
@@ -725,8 +726,74 @@ async function fetchCredit() {
   }
 }
 
+function getReadingTimeMinutes(metadata, content) {
+  const fromMeta = parseInt(metadata?.time_estimate_minutes || "0", 10);
+  if (fromMeta > 0) return fromMeta;
+  const words = typeof content === "string" ? (content.split(/\s+/).length || 0) : 0;
+  return Math.max(1, Math.ceil(words / 200));
+}
+
+function formatTimeSaved(totalMinutes) {
+  const mins = Math.round(totalMinutes || 0);
+  const hours = Math.floor(mins / 60);
+  const remainingMins = Math.round(mins % 60);
+  return hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins}m`;
+}
+
+async function getChromeMetrics() {
+  const stored = await chrome.storage.local.get(["chromeMetrics", "chromeTabCache"]);
+  if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === "number") {
+    const m = stored.chromeMetrics;
+    const totalMinutes = Math.round(m.timeSavedMinutes || 0);
+    return {
+      nuts: m.nuts || 0,
+      eggs: m.eggs || 0,
+      timeSavedMinutes: totalMinutes,
+      timeSaved: formatTimeSaved(totalMinutes),
+    };
+  }
+  const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+  let timeSavedMinutes = 0;
+  for (const entry of cache) {
+    timeSavedMinutes += getReadingTimeMinutes(entry.capturePayload?.metadata, entry.content || entry.capturePayload?.content);
+  }
+  const initial = {
+    nuts: cache.length,
+    eggs: cache.length,
+    timeSavedMinutes: Math.round(timeSavedMinutes),
+  };
+  await chrome.storage.local.set({ chromeMetrics: initial });
+  return {
+    ...initial,
+    timeSaved: formatTimeSaved(initial.timeSavedMinutes),
+  };
+}
+
+async function recordChromeAnalysisMetrics(payload, _result) {
+  try {
+    const current = await getChromeMetrics();
+    const minutes = getReadingTimeMinutes(payload?.metadata, payload?.content);
+    const updated = {
+      nuts: (current.nuts || 0) + 1,
+      eggs: (current.eggs || 0) + 1,
+      timeSavedMinutes: (current.timeSavedMinutes || 0) + minutes,
+    };
+    await chrome.storage.local.set({
+      chromeMetrics: updated,
+      cachedMetrics: {
+        ...updated,
+        timeSaved: formatTimeSaved(updated.timeSavedMinutes),
+      },
+    });
+  } catch (err) {
+    console.warn("[NutEgg] Failed to record Chrome metrics:", err);
+  }
+}
+
 async function fetchMetrics() {
-  if (await getConnectionMode() !== "obsidian") return { nuts: 0, eggs: 0, timeSaved: "0m", timeSavedMinutes: 0 };
+  if (await getConnectionMode() !== "obsidian") {
+    return await getChromeMetrics();
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {

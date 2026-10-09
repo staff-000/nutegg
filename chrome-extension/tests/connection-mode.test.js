@@ -17,6 +17,7 @@ function worker(initial = {}, { online = true } = {}) {
       askFollowUpStandalone: async (payload, question, priorQa, settings, scope) => {
         ai.push({ action: 'ask', payload, question, priorQa, settings, scope }); return 'Answer';
       },
+      isSubscriptionProvider: provider => ['gemini-cli', 'codex-cli', 'claude-cli'].includes(provider),
     },
     chrome: {
       storage: { local: {
@@ -222,3 +223,46 @@ test('Chrome mode matches cache by video ID across Bilibili and YouTube URL vari
   const updatedHist = await app.send('history', { url: biliWatchlater });
   assert.equal(updatedHist.history[0].title, 'Bilibili Test Video Re-analyzed');
 });
+
+test('Chrome mode persists and increments metrics in Chrome storage on each analysis', async () => {
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test-key' });
+  const initial = await app.send('metrics');
+  assert.equal(initial.nuts, 0);
+  assert.equal(initial.eggs, 0);
+  assert.equal(initial.timeSaved, '0m');
+
+  await app.send('analyze', {
+    payload: {
+      url: 'https://example.test/article1',
+      title: 'Article 1',
+      content: 'This is a short article with several words.',
+      metadata: { time_estimate_minutes: 5 },
+    },
+  });
+
+  const afterFirst = await app.send('metrics');
+  assert.equal(afterFirst.nuts, 1);
+  assert.equal(afterFirst.eggs, 1);
+  assert.equal(afterFirst.timeSavedMinutes, 5);
+  assert.equal(afterFirst.timeSaved, '5m');
+  assert.equal(app.stored.chromeMetrics.nuts, 1);
+  assert.equal(app.stored.chromeMetrics.eggs, 1);
+
+  await app.send('analyze', {
+    payload: {
+      url: 'https://example.test/article2',
+      title: 'Article 2',
+      content: 'Second article text.',
+      metadata: { time_estimate_minutes: 10 },
+    },
+  });
+
+  const afterSecond = await app.send('metrics');
+  assert.equal(afterSecond.nuts, 2);
+  assert.equal(afterSecond.eggs, 2);
+  assert.equal(afterSecond.timeSavedMinutes, 15);
+  assert.equal(afterSecond.timeSaved, '15m');
+  assert.equal(app.stored.chromeMetrics.nuts, 2);
+  assert.equal(app.stored.chromeMetrics.eggs, 2);
+});
+
