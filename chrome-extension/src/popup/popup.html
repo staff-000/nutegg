@@ -118,18 +118,20 @@
         </button>
       </div>
 
-      <button id="questions-toggle" class="questions-toggle" type="button" aria-expanded="false" aria-controls="questions-area" data-hints="off"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
+      <button id="questions-toggle" class="sections-toggle-btn" type="button" aria-expanded="false" aria-controls="questions-area" data-hints="off">
+        <span class="sections-toggle-left"><span class="sections-toggle-title" data-i18n="askQuestionsToggle">❓ Ask your own questions</span></span>
+        <span class="sections-toggle-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      </button>
       <div id="questions-area" class="questions-area hidden">
-        <div class="questions-scope-row">
-          <label for="capture-questions-scope" class="questions-scope-label" data-i18n="scopeLabel">Scope:</label>
+        <div class="questions-composer">
+          <textarea id="custom-questions" rows="3" data-i18n-aria-label="readerOptionalQuestion"
+            data-i18n-placeholder="readerQuestionsPlaceholder"
+            placeholder="What would you like to understand about this page?"></textarea>
           <select id="capture-questions-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
             <option value="within" data-i18n="scopeWithin">Content only</option>
-            <option value="beyond" data-i18n="readerScopeBeyond">Use broader knowledge</option>
+            <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
           </select>
         </div>
-        <textarea id="custom-questions" rows="3" data-i18n-aria-label="readerOptionalQuestion"
-          data-i18n-placeholder="readerQuestionsPlaceholder"
-          placeholder="What would you like to understand about this page?"></textarea>
       </div>
 
       <div id="duplicate-banner" class="duplicate-banner hidden">
@@ -173,7 +175,7 @@
             <button type="button" class="section-chip inactive" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
               <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
             </button>
-            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
+            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">👥</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
           </div>
           <div id="discussion-capture" class="discussion-controls hidden">
             <div class="discussion-status-bar">
@@ -340,13 +342,13 @@
       </div>
 
       <div class="result-section hidden" id="discussion-section">
-        <div class="section-header" role="button" tabindex="0"><div class="section-label"><span class="section-icon">💬</span> <span data-i18n="discussionSection">Discussion</span></div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
+        <div class="section-header" role="button" tabindex="0"><div class="section-label"><span class="section-icon">👥</span> <span data-i18n="discussionSection">Discussion</span></div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
         <div class="section-content" id="discussion-result"></div>
       </div>
 
       <div id="custom-questions-section" class="result-section hidden">
         <div class="section-header">
-          <div class="section-label" data-i18n="yourQuestionsSection">💭 Your Questions</div>
+          <div class="section-label" data-i18n="yourQuestionsSection">❓ Your Questions</div>
           <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
         </div>
         <div class="section-content">
@@ -356,7 +358,7 @@
               <input id="followup-input" type="text" data-i18n-placeholder="askQuestionPlaceholder" placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)" />
               <select id="followup-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
                 <option value="within" data-i18n="scopeWithin">Content only</option>
-                <option value="beyond" data-i18n="readerScopeBeyond">Use broader knowledge</option>
+                <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
               </select>
               <button id="followup-btn" class="followup-btn" data-i18n="askBtn" data-hints="off">Ask</button>
             </div>
@@ -396,7 +398,7 @@
                 <button type="button" class="section-chip inactive" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
                   <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
                 </button>
-                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
+                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">👥</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
               </div>
               <div id="discussion-reanalyze" class="discussion-controls hidden">
                 <div class="discussion-status-bar">

@@ -2978,9 +2978,29 @@ body {
 .analyze-btn.inactive, .analyze-btn:disabled { background: #e8e0d6; color: #897b6c; box-shadow: none; }
 #questions-toggle, #sections-toggle { min-height: 40px; margin: 0; padding: 10px 12px 10px 4px; background: transparent; border: 0; border-radius: 0; color: #766457; font-size: 12px; font-weight: 500; }
 #questions-toggle:hover, #sections-toggle:hover { color: #a8561e; }
-.questions-toggle-chevron { border: 0; background: none; color: #a39181; width: 18px; height: 18px; margin-right: 6px; }
 #questions-area { margin: 4px 0 12px; }
 .questions-area textarea { padding: 12px; border-color: #e6dbce; font-size: 13px; }
+.questions-composer {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e6dbce;
+  border-radius: 8px;
+  background: #fffefa;
+  overflow: hidden;
+}
+.questions-composer:focus-within { border-color: var(--primary, #a8561e); }
+.questions-composer #custom-questions { border: 0; border-radius: 0; background: transparent; min-height: 72px; }
+.questions-composer .scope-select {
+  align-self: flex-end;
+  width: 124px;
+  max-width: calc(100% - 16px);
+  margin: 0 8px 8px;
+  padding: 4px 6px;
+  border-color: #e6dbce;
+  border-radius: 5px;
+  background: transparent;
+  color: #766457;
+}
 .scope-select { max-width: 160px; }
 #sections-accordion { border: 0; border-top: 1px solid #eae3da; border-radius: 0; box-shadow: none; margin: 0; overflow: visible; background: transparent; }
 .sections-toggle-title { font-size: 12px; font-weight: 500; }
@@ -3006,9 +3026,9 @@ body {
 .core-summary li:first-child { padding-top: 0; }
 .core-summary li:last-child { padding-bottom: 0; }
 .core-summary li + li { border-top: 1px solid #eee6da; }
-.followup-input-row { flex-wrap: wrap; }
-.followup-input-row > input { flex: 1 1 100%; }
-.followup-input-row .scope-select { flex: 1; max-width: none; }
+.followup-input-row { flex-wrap: nowrap; }
+.followup-input-row > input { flex: 1 1 0; }
+.followup-input-row .scope-select { flex: 0 1 124px; width: 124px; min-width: 0; max-width: 124px; padding-inline: 6px; }
 .footer { margin-top: 24px; padding-top: 15px; border-color: #eae3da; color: #b1a18f; }
 .footer-link { color: #9b8978; }
 button:focus-visible, a:focus-visible, [role="button"]:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid #a8561e; outline-offset: 3px; }
