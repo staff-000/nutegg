@@ -397,7 +397,7 @@ describe("Modular UI Components", () => {
     banners.render({ currentView: "capture" }, { connectionMode: "obsidian" });
     assert.strictEqual(captureBanners.children.includes(banners.warningBanner), true);
     assert.strictEqual(captureBanners.children.includes(banners.errorBanner), true);
-    assert.strictEqual(captureBanners.children.includes(banners.successBanner), true);
+    assert.strictEqual(root.getElementById("capture-success-banners").children.includes(banners.successBanner), true);
 
     banners.warningBanner.parentElement = captureBanners;
     banners.render({ currentView: "results" }, { connectionMode: "obsidian" });
