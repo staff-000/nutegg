@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, type ButtonComponent } from "obsidian";
 import type NutEggPlugin from "./main";
 import {
   type AIProviderId,
@@ -62,6 +62,10 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
 export class NutEggSettingTab extends PluginSettingTab {
   plugin: NutEggPlugin;
   private aiConfigSummary: Setting | null = null;
+  private aiChunkWindow: Setting | null = null;
+  private aiMaxTokens: Setting | null = null;
+  private aiCreditButton: ButtonComponent | null = null;
+  private aiCreditRequest = 0;
 
   constructor(app: App, plugin: NutEggPlugin) {
     super(app, plugin);
@@ -73,6 +77,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
 
     containerEl.empty();
+    this.aiConfigSummary = null;
+    this.aiChunkWindow = null;
+    this.aiMaxTokens = null;
+    this.aiCreditButton = null;
+    ++this.aiCreditRequest;
     containerEl.createEl("h2", { text: t("settingsTitle") });
 
     if (!isAIConfigured(settings)) {
@@ -89,10 +98,6 @@ export class NutEggSettingTab extends PluginSettingTab {
       const content = banner.createDiv({ cls: "callout-content" });
       content.createEl("p", { text: t("aiManagedInChrome") });
     }
-
-    containerEl.createEl("h3", { text: t("aiModelConfig") });
-    this.aiConfigSummary = new Setting(containerEl).setDesc(t("aiManagedInChrome"));
-    this.refreshAISettings();
 
     // Companion Chrome Extension Card
     new Setting(containerEl)
@@ -206,12 +211,50 @@ export class NutEggSettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
     const provider = PROVIDER_CATALOG[settings.aiProvider];
     this.aiConfigSummary?.setName(`${provider?.label || settings.aiProvider} · ${settings.aiModel}`);
+    this.aiChunkWindow?.setName(`${t("chunkWindowChars")}: ${settings.chunkWindowChars}`);
+    this.aiMaxTokens?.setName(`${t("maxTokens")}: ${settings.contentAnalysisMaxTokens}`);
+    if (this.aiCreditButton) void this.refreshAICredit();
+  }
+
+  async refreshAICredit(): Promise<void> {
+    const button = this.aiCreditButton;
+    if (!button) return;
+    const request = ++this.aiCreditRequest;
+    if (!isAIConfigured(this.plugin.settings)) {
+      button.setButtonText(t("setupAiKeyStatusBar")).setTooltip(t("aiManagedInChrome")).setDisabled(false);
+      return;
+    }
+    button.setDisabled(true).setButtonText(t("checking"));
+    try {
+      const credit = await this.plugin.aiClient.checkCredit(this.plugin.settings);
+      if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
+      const label = credit.balanceFormatted || credit.statusText.split(" · ")[0];
+      button.setButtonText(`🪙 ${label}`).setTooltip(`${credit.providerLabel}: ${credit.statusText} · ${t("refresh")}`);
+    } catch (error) {
+      if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
+      button.setButtonText(`🪙 ${t("refresh")}`).setTooltip(t("creditCheckFailed", { error: String(error) }));
+    } finally {
+      if (request === this.aiCreditRequest && button === this.aiCreditButton) button.setDisabled(false);
+    }
   }
 
   private displayAdvancedSettings(
     containerEl: HTMLElement,
     settings: NutEggSettings
   ): void {
+    containerEl.createEl("h3", { text: t("aiModelConfig") });
+    this.aiConfigSummary = new Setting(containerEl)
+      .setDesc(t("aiManagedInChrome"))
+      .addButton(button => {
+        this.aiCreditButton = button;
+        button.setButtonText(t("checking"))
+          .setTooltip(t("refresh"))
+          .onClick(() => { void this.refreshAICredit(); });
+      });
+    this.aiChunkWindow = new Setting(containerEl);
+    this.aiMaxTokens = new Setting(containerEl);
+    this.refreshAISettings();
+
     // ==========================================
     // Server
     // ==========================================

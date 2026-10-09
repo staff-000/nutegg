@@ -16,6 +16,9 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} characters/chunk · {tokens} max tokens",
+    "settingsObsidianAiMatch": "Matches Chrome settings",
+    "settingsObsidianAiMismatch": "Does not match Chrome settings",
     "chunkWindowChars": "General chunk window size",
     "chunkWindowCharsDesc": "Maximum character length per chunk (~30,000 chars ≈ 8,000 tokens). Long content exceeding this threshold is split into parts and processed with multi-stage map-reduce aggregation.",
     "maxTokens": "Max completion tokens",
@@ -505,6 +508,9 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "settingsObsidianAiConfig": "Obsidian：{provider} · {model} · 每块 {chunk} 字符 · 最大 {tokens} tokens",
+    "settingsObsidianAiMatch": "与 Chrome 设置一致",
+    "settingsObsidianAiMismatch": "与 Chrome 设置不一致",
     "chunkWindowChars": "分块窗口大小",
     "chunkWindowCharsDesc": "超长内容切分字符大小（~30,000 字符 ≈ 8,000 tokens）。超出此阈值的内容将分块处理并通过 Map-Reduce 聚合。",
     "maxTokens": "最大生成 Token 数",
@@ -994,6 +1000,9 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} caracteres/fragmento · {tokens} tokens máximos",
+    "settingsObsidianAiMatch": "Coincide con los ajustes de Chrome",
+    "settingsObsidianAiMismatch": "No coincide con los ajustes de Chrome",
     "chunkWindowChars": "Tamaño de ventana de fragmento",
     "chunkWindowCharsDesc": "Longitud máxima de caracteres por fragmento (~30.000 caracteres ≈ 8.000 tokens). Contenido más largo se divide en partes.",
     "maxTokens": "Tokens máximos de finalización",
@@ -1483,6 +1492,9 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · チャンクあたり {chunk} 文字 · 最大 {tokens} トークン",
+    "settingsObsidianAiMatch": "Chrome の設定と一致しています",
+    "settingsObsidianAiMismatch": "Chrome の設定と一致していません",
     "chunkWindowChars": "チャンクウィンドウサイズ",
     "chunkWindowCharsDesc": "チャンクあたりの最大文字数（約30,000文字 ≒ 8,000トークン）。これを超える長文は複数パートに分割処理されます。",
     "maxTokens": "最大出力トークン数",
@@ -1972,6 +1984,9 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · 청크당 {chunk}자 · 최대 {tokens} 토큰",
+    "settingsObsidianAiMatch": "Chrome 설정과 일치합니다",
+    "settingsObsidianAiMismatch": "Chrome 설정과 일치하지 않습니다",
     "chunkWindowChars": "청크 윈도우 크기",
     "chunkWindowCharsDesc": "청크당 최대 글자 수 (~30,000자 ≈ 8,000토큰). 초과하는 긴 콘텐츠는 여러 부분으로 나뉩니다.",
     "maxTokens": "최대 완료 토큰 수",
@@ -2461,6 +2476,9 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} حرفًا لكل جزء · {tokens} رمزًا كحد أقصى",
+    "settingsObsidianAiMatch": "تطابق إعدادات Chrome",
+    "settingsObsidianAiMismatch": "لا تطابق إعدادات Chrome",
     "chunkWindowChars": "حجم نافذة التقسيم العامة",
     "chunkWindowCharsDesc": "الحد الأقصى لعدد الأحرف لكل جزء (~30,000 حرف ≈ 8,000 توكن). المحتوى الأطول يُقسم إلى أجزاء.",
     "maxTokens": "الحد الأقصى لتوكنات الإخراج",
@@ -2950,6 +2968,9 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "settingsObsidianAiConfig": "Obsidian : {provider} · {model} · {chunk} caractères/fragment · {tokens} tokens maximum",
+    "settingsObsidianAiMatch": "Correspond aux paramètres de Chrome",
+    "settingsObsidianAiMismatch": "Ne correspond pas aux paramètres de Chrome",
     "chunkWindowChars": "Taille de fenêtre de découpage",
     "chunkWindowCharsDesc": "Longueur maximale de caractères par bloc (~30 000 caractères ≈ 8 000 tokens). Les longs contenus sont fractionnés.",
     "maxTokens": "Tokens de sortie max",
@@ -3439,6 +3460,9 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} Zeichen/Abschnitt · maximal {tokens} Tokens",
+    "settingsObsidianAiMatch": "Entspricht den Chrome-Einstellungen",
+    "settingsObsidianAiMismatch": "Entspricht nicht den Chrome-Einstellungen",
     "chunkWindowChars": "Chunk-Fenstergröße",
     "chunkWindowCharsDesc": "Maximale Zeichenanzahl pro Block (~30.000 Zeichen ≈ 8.000 Tokens). Längere Inhalte werden in Teile zerlegt.",
     "maxTokens": "Max. Ausgabetokens",
@@ -3928,6 +3952,9 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} caracteres/fragmento · {tokens} tokens máximos",
+    "settingsObsidianAiMatch": "Corresponde às configurações do Chrome",
+    "settingsObsidianAiMismatch": "Não corresponde às configurações do Chrome",
     "chunkWindowChars": "Tamanho da janela de divisão",
     "chunkWindowCharsDesc": "Comprimento máximo de caracteres por bloco (~30.000 caracteres ≈ 8.000 tokens). Conteúdos longos são particionados.",
     "maxTokens": "Tokens máximos de conclusão",
@@ -4417,6 +4444,9 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "settingsObsidianAiConfig": "Obsidian: {provider} · {model} · {chunk} символов/фрагмент · максимум {tokens} токенов",
+    "settingsObsidianAiMatch": "Совпадает с настройками Chrome",
+    "settingsObsidianAiMismatch": "Не совпадает с настройками Chrome",
     "chunkWindowChars": "Размер окна фрагмента",
     "chunkWindowCharsDesc": "Максимальное число символов на фрагмент (~30 000 символов ≈ 8 000 токенов). Длинные тексты делятся на части.",
     "maxTokens": "Максимум токенов вывода",

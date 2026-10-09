@@ -1070,3 +1070,24 @@ describe("Chrome AI configuration sync", () => {
     assert.equal(s.plugin.settings.aiProvider, "codex-cli");
   });
 });
+
+describe('Obsidian AI configuration comparison', () => {
+  it('compares provider, model, credentials and limits without exposing keys or changing settings', async () => {
+    const config = { aiProvider: 'gemini', aiApiKey: 'secret-key', aiModel: 'gemini-model', chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000 };
+    const s = makeServer({ settings: { ...config, rawFolder: 'nutegg/_raw' } });
+    const request = { headers: { origin: 'chrome-extension://nutegg', 'content-type': 'application/json' } };
+    for (const change of [{}, { aiProvider: 'deepseek' }, { aiModel: 'other-model' }, { aiApiKey: 'other-key' }, { chunkWindowChars: 30000 }, { contentAnalysisMaxTokens: 8000 }]) {
+      s.readBody = async () => JSON.stringify({ ...config, ...change });
+      const res = { statusCode: 0, body: '', writeHead(code: number) { this.statusCode = code; }, end(data: string) { this.body = data; } };
+      await s.handleAiConfigComparison(request, res);
+      assert.equal(res.statusCode, 200);
+      const result = JSON.parse(res.body);
+      assert.equal(result.matches, Object.keys(change).length === 0);
+      assert.equal(result.aiConfig.aiModel, config.aiModel);
+      assert.equal('aiApiKey' in result.aiConfig, false);
+      assert.doesNotMatch(res.body, /secret-key|other-key/);
+      assert.equal(s.plugin.settings.aiApiKey, 'secret-key');
+      assert.equal(s.plugin.settings.aiProvider, 'gemini');
+    }
+  });
+});

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const { JSDOM } = require('jsdom');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-async function setup(t, initial = {}, url = 'https://extension.test/options') {
+async function setup(t, initial = {}, url = 'https://extension.test/options', credit = {}) {
   const html = fs.readFileSync(require.resolve('../src/options/options.html'), 'utf8');
   const dom = new JSDOM(html, { url, runScripts: 'outside-only' });
   t.after(() => dom.window.close());
@@ -30,7 +30,11 @@ async function setup(t, initial = {}, url = 'https://extension.test/options') {
       local: { label: 'Local', models: ['local-model'], defaultModel: 'local-model' },
     },
     PROMPTS: { contentAnalysis: 'Default prompt', followUp: 'Default follow-up' },
-    checkCreditAI: async settings => { creditCalls.push(settings); return { providerLabel: 'Local', statusText: 'Ready' }; },
+    checkCreditAI: async settings => {
+      creditCalls.push(settings);
+      if (credit.throwError) throw new Error(credit.throwError);
+      return { providerLabel: 'Local', statusText: 'Ready', ...credit };
+    },
   };
   for (const file of ['i18n', 'popup/state/settings-state', 'options/options']) {
     win.eval(fs.readFileSync(require.resolve(`../src/${file}.js`), 'utf8'));
@@ -40,6 +44,44 @@ async function setup(t, initial = {}, url = 'https://extension.test/options') {
   const change = id => el(id).dispatchEvent(new win.Event('change', { bubbles: true }));
   return { win, values, requests, creditCalls, messages, el, change };
 }
+
+test('saving AI settings shows remaining credit for the saved provider in both save locations', async t => {
+  for (const advanced of [false, true]) {
+    const { values, creditCalls, el } = await setup(t, { chromeAiApiKey: 'saved-key' }, undefined, {
+      providerLabel: 'Google Gemini', hasBalance: true, balanceFormatted: '$12.34',
+    });
+    el(advanced ? 'ai-advanced-save-btn' : 'ai-save-btn').click();
+    await flush();
+    assert.equal(creditCalls.length, 1);
+    assert.equal(creditCalls[0].chromeAiApiKey, values.chromeAiApiKey);
+    assert.equal(creditCalls[0].chromeAiProvider, values.chromeAiProvider);
+    assert.equal(creditCalls[0].chromeAiModel, values.chromeAiModel);
+    const status = el(advanced ? 'ai-advanced-status' : 'ai-test-result');
+    assert.match(status.textContent, /saved/i);
+    assert.match(status.textContent, /Google Gemini · Balance: \$12\.34/);
+    assert.equal(status.classList.contains('ok'), true);
+  }
+});
+
+test('credit lookup failures preserve the save confirmation and saved settings', async t => {
+  for (const credit of [{ throwError: 'Credit service offline' }, { error: 'Invalid key', statusText: 'Unauthorized' }]) {
+    const { values, el } = await setup(t, { chromeAiApiKey: 'saved-key' }, undefined, credit);
+    el('ai-save-btn').click();
+    await flush();
+    assert.equal(values.chromeAiApiKey, 'saved-key');
+    assert.match(el('ai-test-result').textContent, /saved/i);
+    assert.match(el('ai-test-result').textContent, /Credit service offline|Invalid key/);
+    assert.equal(el('ai-save-btn').disabled, false);
+  }
+});
+
+test('saving a provider without balance support shows its status', async t => {
+  const { el } = await setup(t, { chromeAiProvider: 'local' });
+  el('ai-save-btn').click();
+  await flush();
+  assert.match(el('ai-test-result').textContent, /Local · Status: Ready/);
+  assert.doesNotMatch(el('ai-test-result').textContent, /Balance:/);
+});
 
 test('a fresh install shows Chrome setup and sensible defaults without contacting Obsidian', async t => {
   const { values, requests, el } = await setup(t);
@@ -266,4 +308,23 @@ test('opening or saving Chrome settings mirrors AI to Obsidian even with vault m
   await flush();
   assert.equal(messages.some(message => message.action === 'sync-ai-config'), true);
   assert.equal(values.connectionMode, 'chrome');
+});
+
+test('Obsidian AI card displays the actual configuration and colors matching and mismatching settings', async t => {
+  const { win, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiApiKey: 'key' });
+  const aiConfig = { aiProvider: 'gemini', aiModel: 'gemini-default', chunkWindowChars: 30000, contentAnalysisMaxTokens: 16384 };
+  win.chrome.runtime.sendMessage = async message => ({ aiConfig, matches: message.settings.chromeAiModel === aiConfig.aiModel });
+  await win.refreshObsidianAiConfig();
+  assert.match(el('obsidian-ai-config-text').textContent, /Google Gemini.*gemini-default.*30000.*16384/);
+  assert.equal(el('obsidian-ai-config').classList.contains('matched'), true);
+  assert.equal(el('obsidian-ai-match-status').textContent, 'Matches Chrome settings');
+  el('ai-model-select').value = 'gemini-pro';
+  change('ai-model-select');
+  await win.refreshObsidianAiConfig();
+  assert.equal(el('obsidian-ai-config').classList.contains('mismatched'), true);
+  assert.equal(el('obsidian-ai-match-status').textContent, 'Does not match Chrome settings');
+  assert.match(el('obsidian-ai-config-text').textContent, /gemini-default/, 'Displays Obsidian’s actual model, not the unsaved Chrome model');
+  win.chrome.runtime.sendMessage = async () => ({ error: 'Offline' });
+  await win.refreshObsidianAiConfig();
+  assert.equal(el('obsidian-ai-config').classList.contains('hidden'), true, 'Offline reads cannot retain a misleading green match');
 });

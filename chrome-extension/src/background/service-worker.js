@@ -89,22 +89,26 @@ async function loadChromeAiSettings() {
   return stored;
 }
 
+function getObsidianAiConfig(settings) {
+  const provider = settings.chromeAiProvider || "gemini";
+  return {
+    aiProvider: provider,
+    aiApiKey: settings.chromeAiApiKey || "",
+    aiModel: settings.chromeAiModel || PROVIDER_CATALOG[provider]?.defaultModel || "",
+    localEndpoint: settings.chromeAiEndpoint || settings.chromeAiLocalEndpoint || PROVIDER_CATALOG.local?.officialEndpoint || "http://127.0.0.1:11434/v1/chat/completions",
+    localApiType: "openai",
+    chunkWindowChars: settings.chunkWindowChars ?? 30000,
+    contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens ?? 16384,
+  };
+}
+
 // Send only AI configuration; Obsidian keeps its own vault and server settings.
 async function syncAiConfig(serverUrl = null, settings = null) {
   settings = settings || await loadChromeAiSettings();
-  const provider = settings.chromeAiProvider || "gemini";
   const response = await fetch(`${serverUrl || await getServerUrl()}/ai-config`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      aiProvider: provider,
-      aiApiKey: settings.chromeAiApiKey || "",
-      aiModel: settings.chromeAiModel || PROVIDER_CATALOG[provider]?.defaultModel || "",
-      localEndpoint: settings.chromeAiEndpoint || PROVIDER_CATALOG.local?.officialEndpoint || "http://127.0.0.1:11434/v1/chat/completions",
-      localApiType: "openai",
-      chunkWindowChars: settings.chunkWindowChars,
-      contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
-    }),
+    body: JSON.stringify(getObsidianAiConfig(settings)),
     signal: AbortSignal.timeout(3000),
   });
   if (!response.ok) throw new Error("Could not sync AI settings. Update the NutEgg Obsidian plugin and try again.");
@@ -127,6 +131,21 @@ function subscriptionModeError() {
 // --- Messages ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "get-obsidian-ai-config") {
+    (async () => {
+      const settings = message.settings || await loadChromeAiSettings();
+      const response = await fetch(`${await getServerUrl()}/ai-config-status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(getObsidianAiConfig(settings)),
+        signal: AbortSignal.timeout(2000),
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Could not read Obsidian AI settings. Update the NutEgg Obsidian plugin and try again.");
+      return await response.json();
+    })().then(sendResponse).catch(error => sendResponse({ error: error.message }));
+    return true;
+  }
   if (message.action === "sync-ai-config") {
     syncAiConfig().then(sendResponse).catch(err => sendResponse({ error: err.message, errorCode: "ai_config_sync_failed" }));
     return true;

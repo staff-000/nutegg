@@ -327,3 +327,15 @@ test('Chrome mirrors configuration in standalone mode when settings change or sy
   assert.equal(app.stored.connectionMode, 'chrome');
   assert(app.http.every(call => call.url.endsWith('/ai-config')));
 });
+
+test('reading Obsidian settings for comparison never changes them or triggers a sync', async () => {
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'stored-key' });
+  await app.send('get-obsidian-ai-config', { settings: { chromeAiProvider: 'deepseek', chromeAiModel: 'draft-model', chromeAiApiKey: 'draft-key', chunkWindowChars: 9000, contentAnalysisMaxTokens: 4000 } });
+  assert.equal(app.http.length, 1);
+  assert.equal(new URL(app.http[0].url).pathname, '/ai-config-status');
+  const sent = JSON.parse(app.http[0].options.body);
+  assert.equal(sent.aiModel, 'draft-model');
+  assert.equal(sent.aiApiKey, 'draft-key');
+  assert.equal(app.stored.chromeAiApiKey, 'stored-key');
+  assert.equal(app.ai.length, 0);
+});

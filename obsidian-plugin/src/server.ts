@@ -282,6 +282,11 @@ export class NutEggServer {
           return;
         }
 
+        if (req.method === "POST" && req.url === "/ai-config-status") {
+          await this.handleAiConfigComparison(req, res);
+          return;
+        }
+
         if (req.method === "POST" && req.url === "/ai-config") {
           await this.handleAiConfig(req, res);
           return;
@@ -363,6 +368,37 @@ export class NutEggServer {
         reject(err);
       });
     });
+  }
+
+  private async handleAiConfigComparison(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    if (!req.headers.origin?.startsWith("chrome-extension://") || !req.headers["content-type"]?.startsWith("application/json")) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "AI settings must be read from Chrome" }));
+      return;
+    }
+    let chromeConfig: any;
+    try {
+      chromeConfig = JSON.parse(await this.readBody(req, 64 * 1024));
+      if (!chromeConfig || typeof chromeConfig !== "object" || Array.isArray(chromeConfig)) throw new Error("Invalid configuration");
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid AI configuration" }));
+      return;
+    }
+    // Wait for any active sync before comparing; never return credentials.
+    await this.aiConfigQueue;
+    const settings = this.plugin.settings;
+    const aiConfig = {
+      aiProvider: settings.aiProvider,
+      aiModel: settings.aiModel,
+      chunkWindowChars: settings.chunkWindowChars,
+      contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
+    };
+    const matches = Object.entries(aiConfig).every(([key, value]) => chromeConfig[key] === value)
+      && typeof chromeConfig.aiApiKey === "string" && chromeConfig.aiApiKey.trim() === settings.aiApiKey.trim()
+      && (settings.aiProvider !== "local" || (chromeConfig.localEndpoint === settings.localEndpoint && chromeConfig.localApiType === settings.localApiType));
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ aiConfig, matches }));
   }
 
   private async handleAiConfig(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

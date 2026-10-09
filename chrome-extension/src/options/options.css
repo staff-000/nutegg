@@ -97,6 +97,11 @@ input[type="checkbox"] { accent-color: var(--primary); width: 16px; height: 16px
 .test-result.ok { color: #517040; }
 .test-result.error { color: #a63b32; }
 .test-result.warning { color: #8f6626; }
+#obsidian-active-card { margin-top: 28px; }
+.obsidian-ai-config { line-height: 1.6; }
+.obsidian-ai-config.matched { color: #517040; }
+.obsidian-ai-config.mismatched { color: #b33b32; }
+#obsidian-ai-match-status { display: block; margin-top: 4px; }
 .connection-status { margin: 0 0 17px; color: var(--muted); font-size: 12px; }
 .connection-status.connected { color: #517040; }
 .retry-params-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 15px; }

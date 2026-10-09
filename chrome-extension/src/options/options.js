@@ -68,6 +68,8 @@ const DEFAULT_SECTIONS = {
 
 let savedPromptOverrides = {};
 let subscriptionDraft = null;
+let obsidianConfigRequest = 0;
+let obsidianConfigTimer = null;
 let activePromptKey = "contentAnalysis";
 
 function updateModeDesc(mode) {
@@ -186,6 +188,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Chrome is ready to configure without probing for another application.
   initConnectionMode(stored);
+  for (const element of [aiProviderSelect, aiModelSelect, aiModelCustom, aiKeyInput, aiLocalEndpoint, chunkWindowInput, maxTokensInput]) {
+    element.addEventListener("input", scheduleObsidianAiConfigCheck);
+    element.addEventListener("change", scheduleObsidianAiConfigCheck);
+  }
+  setInterval(() => { if (obsidianModeEnabled.checked) void refreshObsidianAiConfig(); }, 5000);
 
   // 4. Report bug button
   const reportBugBtn = document.getElementById("report-bug-btn");
@@ -292,6 +299,34 @@ function initConnectionMode(stored) {
   else void chrome.runtime.sendMessage({ action: "sync-ai-config" }).catch(() => {});
 }
 
+function scheduleObsidianAiConfigCheck() {
+  clearTimeout(obsidianConfigTimer);
+  obsidianConfigRequest++;
+  obsidianConfigTimer = setTimeout(() => { void refreshObsidianAiConfig(); }, 200);
+}
+
+async function refreshObsidianAiConfig() {
+  if (!obsidianModeEnabled.checked) return;
+  const request = ++obsidianConfigRequest;
+  const row = document.getElementById("obsidian-ai-config");
+  try {
+    const result = await chrome.runtime.sendMessage({ action: "get-obsidian-ai-config", settings: getAiFormSettings() });
+    if (request !== obsidianConfigRequest || !obsidianModeEnabled.checked) return;
+    if (result?.error || !result?.aiConfig) throw new Error(result?.error || "Unavailable");
+    const config = result.aiConfig;
+    document.getElementById("obsidian-ai-config-text").textContent = t("settingsObsidianAiConfig", {
+      provider: PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider,
+      model: config.aiModel,
+      chunk: config.chunkWindowChars,
+      tokens: config.contentAnalysisMaxTokens,
+    });
+    document.getElementById("obsidian-ai-match-status").textContent = t(result.matches ? "settingsObsidianAiMatch" : "settingsObsidianAiMismatch");
+    row.className = `connection-status obsidian-ai-config ${result.matches ? "matched" : "mismatched"}`;
+  } catch {
+    if (request === obsidianConfigRequest) row.className = "connection-status obsidian-ai-config hidden";
+  }
+}
+
 async function checkObsidianForAiBanner(port) {
   if (!aiStatusBanner || !obsidianModeEnabled.checked) return;
   aiStatusBanner.textContent = t("settingsObsidianChecking");
@@ -306,6 +341,7 @@ async function checkObsidianForAiBanner(port) {
     if (response.ok) {
       const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
       if (result?.error && obsidianModeEnabled.checked) aiStatusBanner.textContent = t("aiError", { error: result.error });
+      await refreshObsidianAiConfig();
     }
   } catch {
     if (obsidianModeEnabled.checked) aiStatusBanner.textContent = t("settingsObsidianWaiting");
@@ -549,8 +585,16 @@ async function handleAiSave(advanced = false) {
     if (!obsidianModeEnabled.checked) subscriptionDraft = null;
     renderConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome");
     const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
+    await refreshObsidianAiConfig();
     if (obsidianModeEnabled.checked && result?.error) throw new Error(result.error);
-    showAiResult(t(advanced ? "aiSettingsSaved" : "settingsSetupSaved"), "ok", advanced);
+    const savedMessage = t(advanced ? "aiSettingsSaved" : "settingsSetupSaved");
+    showAiResult(`${savedMessage} ${t("testingAiConnection")}`, "ok", advanced);
+    try {
+      const info = await checkCreditAI(settings);
+      showAiResult(`${savedMessage} ${formatAiCreditResult(info)}`, info.error ? "error" : "ok", advanced);
+    } catch (error) {
+      showAiResult(`${savedMessage} ${t("aiError", { error: error.message })}`, "error", advanced);
+    }
   } catch (error) {
     showAiResult(t("aiError", { error: error.message }), "error", advanced);
   } finally {
@@ -569,18 +613,18 @@ async function handleAiTest() {
   showAiResult(t("testingAiConnection"), "", true);
   try {
     const info = await checkCreditAI(settings);
-    if (info.error) {
-      showAiResult(t("aiConnectionFailed", { error: info.error, status: info.statusText }), "error", true);
-    } else if (info.hasBalance) {
-      showAiResult(t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted }), "ok", true);
-    } else {
-      showAiResult(t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText }), "ok", true);
-    }
+    showAiResult(formatAiCreditResult(info), info.error ? "error" : "ok", true);
   } catch (err) {
     showAiResult(t("aiError", { error: err.message }), "error", true);
   } finally {
     aiTestBtn.disabled = false;
   }
+}
+
+function formatAiCreditResult(info) {
+  if (info.error) return t("aiConnectionFailed", { error: info.error, status: info.statusText });
+  if (info.hasBalance) return t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted });
+  return t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText });
 }
 
 function showAiResult(msg, type, advanced = false) {
