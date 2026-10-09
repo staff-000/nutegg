@@ -1,4 +1,9 @@
 export const ko = {
+  subscriptionBridgeToken: "로컬 연결 토큰",
+  subscriptionBridgeSetup: "{cli}를 설치하고 {login}을 실행하여 구독 계정으로 로그인하세요. NutEgg에서 npm run bridge:ai를 실행한 후 터미널의 토큰을 붙여넣으세요. 브리지를 계속 실행해야 하며 요금제의 CLI 사용 한도가 적용됩니다.",
+  subscriptionBridgeGuide: "AI 구독 설정 안내",
+  subscriptionBridgeTokenRequired: "NutEgg AI 브리지의 연결 토큰을 붙여넣으세요.",
+
   "settingsTitle": "NutEgg 설정",
   "chromeCompanionName": "Chrome 확장 프로그램 동반자",
   "chromeCompanionDesc": "브라우저에서 기사, YouTube 비디오, 트윗을 Obsidian으로 직접 캡처하고 분석합니다.",

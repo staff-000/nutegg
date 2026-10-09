@@ -19,7 +19,11 @@ async function setup(t, initial = {}, url = 'https://extension.test/options') {
   };
   win.fetch = async url => { requests.push(url); throw new Error('Offline'); };
   win.NutEggAI = {
+    isSubscriptionProvider: provider => ['gemini-cli', 'codex-cli', 'claude-cli'].includes(provider),
     PROVIDER_CATALOG: {
+      'gemini-cli': { label: 'Gemini subscription (local bridge)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Antigravity CLI', login: 'agy' } },
+      'codex-cli': { label: 'ChatGPT subscription (Codex CLI)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Codex CLI', login: 'codex login' } },
+      'claude-cli': { label: 'Claude subscription (Claude Code)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Claude Code', login: 'claude auth login' } },
       gemini: { label: 'Google Gemini', models: ['gemini-default', 'gemini-pro'], defaultModel: 'gemini-default', keyPlaceholder: 'AIza...' },
       openai: { label: 'OpenAI', models: ['openai-default'], defaultModel: 'openai-default' },
       local: { label: 'Local', models: ['local-model'], defaultModel: 'local-model' },
@@ -50,6 +54,36 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.equal(el('section-discussion').checked, false);
   assert.deepEqual(requests, []);
   assert.deepEqual(values, {});
+});
+
+test('subscription setup uses a pairing token and clears credentials across provider boundaries', async t => {
+  const { win, values, el, change } = await setup(t, { chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key' });
+  el('ai-provider-select').value = 'gemini-cli';
+  change('ai-provider-select');
+  assert.equal(el('ai-key-input').value, '');
+  assert.equal(el('ai-model-select').value, 'auto');
+  assert.equal(el('gemini-bridge-help').hidden, false);
+  assert.equal(win.document.querySelector('label[for="ai-key-input"]').textContent, 'Local pairing token');
+  el('ai-save-btn').click();
+  await flush();
+  assert.match(el('ai-test-result').textContent, /pairing token/);
+  el('ai-key-input').value = 'local-pairing-token';
+  el('ai-save-btn').click();
+  await flush();
+  assert.equal(values.chromeAiProvider, 'gemini-cli');
+  assert.equal(values.chromeAiApiKey, 'local-pairing-token');
+  for (const provider of ['codex-cli', 'claude-cli']) {
+    el('ai-provider-select').value = provider;
+    change('ai-provider-select');
+    assert.equal(el('ai-key-input').value, 'local-pairing-token');
+    assert.equal(el('ai-model-select').value, 'auto');
+    assert.match(el('ai-key-hint').textContent, provider === 'codex-cli' ? /codex login/ : /claude auth login/);
+    assert.doesNotMatch(el('ai-key-hint').textContent, /\{cli\}|\{login\}/);
+  }
+  el('ai-provider-select').value = 'openai';
+  change('ai-provider-select');
+  assert.equal(el('ai-key-input').value, '');
+  assert.equal(el('gemini-bridge-help').hidden, true);
 });
 
 test('saving setup rejects an empty key, then persists an immediately usable Chrome configuration', async t => {

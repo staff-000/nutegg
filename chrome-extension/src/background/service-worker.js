@@ -4,6 +4,7 @@ importScripts("../../dist/ai-core.js", "chinese-fetch.js");
 
 const {
   PROVIDER_CATALOG,
+  isSubscriptionProvider,
   checkCreditAI,
   analyzeContentStandalone,
   askFollowUpStandalone,
@@ -292,8 +293,10 @@ async function handleAnalyze(payload) {
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Add your AI API key in Settings to start analyzing.",
-      errorCode: "no_api_key",
+      error: isSubscriptionProvider(provider)
+        ? "Paste the local pairing token from the NutEgg AI bridge in Settings to start analyzing."
+        : "Add your AI API key in Settings to start analyzing.",
+      errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
       mode: "chrome",
     };
   }
@@ -663,8 +666,10 @@ async function handleAsk(payload) {
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Add your AI API key in Settings to ask a question.",
-      errorCode: "no_api_key",
+      error: isSubscriptionProvider(provider)
+        ? "Paste the local pairing token from the NutEgg AI bridge in Settings to ask a question."
+        : "Add your AI API key in Settings to ask a question.",
+      errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
       answers: [],
     };
   }

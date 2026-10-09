@@ -3,6 +3,7 @@
 const {
   PROVIDER_CATALOG = {},
   checkCreditAI,
+  isSubscriptionProvider,
 } = window.NutEggAI || {};
 
 const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
@@ -304,8 +305,11 @@ function initAiSettings(stored) {
     });
   }
 
+  let previousProvider = aiProviderSelect.value;
   aiProviderSelect.addEventListener("change", () => {
     const provId = aiProviderSelect.value;
+    if (isSubscriptionProvider(provId) !== isSubscriptionProvider(previousProvider)) aiKeyInput.value = "";
+    previousProvider = provId;
     updateModelOptions(provId);
     updateProviderHints(provId);
   });
@@ -435,9 +439,19 @@ function updateModelOptions(providerId, savedModel) {
 function updateProviderHints(providerId) {
   const provider = PROVIDER_CATALOG[providerId];
   if (!provider) return;
+  const isBridge = isSubscriptionProvider(providerId);
+  const keyLabel = document.querySelector('label[for="ai-key-input"]');
+  if (keyLabel) {
+    keyLabel.dataset.i18n = isBridge ? "subscriptionBridgeToken" : "settingsKeyLabel";
+    keyLabel.textContent = t(keyLabel.dataset.i18n);
+  }
+  const bridgeHelp = document.getElementById("gemini-bridge-help");
+  if (bridgeHelp) bridgeHelp.hidden = !isBridge;
 
   if (aiKeyHint) {
-    if (providerId === "local") {
+    if (isBridge) {
+      aiKeyHint.textContent = t("subscriptionBridgeSetup", provider.subscription);
+    } else if (providerId === "local") {
       aiKeyHint.textContent = t("aiKeyHintLocal");
     } else {
       aiKeyHint.textContent = t("aiKeyHintProvider", { provider: provider.label });
@@ -445,7 +459,7 @@ function updateProviderHints(providerId) {
   }
 
   if (aiKeyInput) {
-    aiKeyInput.placeholder = provider.keyPlaceholder || t("settingsKeyLabel");
+    aiKeyInput.placeholder = isBridge ? t("subscriptionBridgeToken") : provider.keyPlaceholder || t("settingsKeyLabel");
   }
 }
 
@@ -464,7 +478,7 @@ function getAiFormSettings() {
 async function handleAiSave(advanced = false) {
   const settings = getAiFormSettings();
   if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t("settingsKeyRequired"), "error", advanced);
+    showAiResult(t(isSubscriptionProvider(settings.chromeAiProvider) ? "subscriptionBridgeTokenRequired" : "settingsKeyRequired"), "error", advanced);
     aiKeyInput.focus();
     return;
   }
@@ -498,7 +512,7 @@ async function handleAiSave(advanced = false) {
 async function handleAiTest() {
   const settings = getAiFormSettings();
   if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t("settingsKeyRequired"), "error", true);
+    showAiResult(t(isSubscriptionProvider(settings.chromeAiProvider) ? "subscriptionBridgeTokenRequired" : "settingsKeyRequired"), "error", true);
     aiKeyInput.focus();
     return;
   }

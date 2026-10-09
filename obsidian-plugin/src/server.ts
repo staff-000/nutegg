@@ -5,7 +5,7 @@ import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import { createHash } from "crypto";
 import type NutEggPlugin from "./main";
-import { AIError, isAIConfigured } from "./ai-client";
+import { AIError, isAIConfigured, isSubscriptionProvider } from "./ai-client";
 import type {
   AnalysisResult,
   AnalysisSectionsConfig,
@@ -370,7 +370,9 @@ export class NutEggServer {
 
       if (!isAIConfigured(settings)) {
         issues.push(
-          settings.aiProvider === "local"
+          isSubscriptionProvider(settings.aiProvider)
+            ? "Bridge pairing token missing. Start npm run bridge:ai and paste its token in Obsidian Settings → NutEgg."
+            : settings.aiProvider === "local"
             ? "Local LLM endpoint or model not configured. Open Obsidian Settings → NutEgg to configure it."
             : "No API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key."
         );

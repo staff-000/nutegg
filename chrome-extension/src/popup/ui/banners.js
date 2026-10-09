@@ -77,6 +77,7 @@ class BannersComponent {
 
     if (this.errorHint) {
       const hints = {
+        pairing_token_missing: t("subscriptionBridgeTokenRequired"),
         no_api_key: t(this.connectionMode === 'obsidian' ? "errorHintNoApiKey" : "readerChromeKeyHint"),
         auth_failed: t(this.connectionMode === 'obsidian' ? "errorHintAuthFailed" : "readerChromeKeyHint"),
         forbidden: t("errorHintForbidden"),

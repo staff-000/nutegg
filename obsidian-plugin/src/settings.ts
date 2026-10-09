@@ -6,6 +6,7 @@ import {
   PROVIDER_CATALOG,
   findOpenRouterFamily,
   isAIConfigured,
+  isSubscriptionProvider,
 } from "./ai-client";
 import { t } from "./i18n";
 
@@ -90,7 +91,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       const titleText = titleWrap.createDiv({ cls: "callout-title-inner" });
       titleText.setText(t("setupAiBannerTitle"));
       const content = banner.createDiv({ cls: "callout-content" });
-      content.createEl("p", { text: t("setupAiBannerDesc") });
+      content.createEl("p", { text: t(isSubscriptionProvider(settings.aiProvider) ? "subscriptionBridgeSetup" : "setupAiBannerDesc", provider.subscription) });
     }
 
     // Companion Chrome Extension Card
@@ -197,7 +198,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       });
 
     // Advanced sections — visible when developer mode is on OR AI is not yet configured
-    if (settings.developerMode || !isAIConfigured(settings)) {
+    if (settings.developerMode || !isAIConfigured(settings) || isSubscriptionProvider(settings.aiProvider)) {
       this.displayAdvancedSettings(containerEl, settings, provider, isOpenRouter);
     }
   }
@@ -225,6 +226,7 @@ export class NutEggSettingTab extends PluginSettingTab {
         }
         dropdown.setValue(settings.aiProvider);
         dropdown.onChange(async (value) => {
+          if (isSubscriptionProvider(value) !== isSubscriptionProvider(settings.aiProvider)) settings.aiApiKey = "";
           settings.aiProvider = value as AIProviderId;
           if (settings.aiProvider === "local") {
             settings.aiModel = "";
@@ -484,11 +486,11 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       // API Key
       new Setting(containerEl)
-        .setName(t("aiApiKey"))
-        .setDesc(t("providerApiKeyDesc", { provider: provider.label }))
+        .setName(t(isSubscriptionProvider(settings.aiProvider) ? "subscriptionBridgeToken" : "aiApiKey"))
+        .setDesc(isSubscriptionProvider(settings.aiProvider) ? t("subscriptionBridgeSetup", provider.subscription) : t("providerApiKeyDesc", { provider: provider.label }))
         .addText((text) => {
           text
-            .setPlaceholder(provider.keyPlaceholder)
+            .setPlaceholder(isSubscriptionProvider(settings.aiProvider) ? t("subscriptionBridgeToken") : provider.keyPlaceholder)
             .setValue(settings.aiApiKey)
             .onChange(async (value) => {
               settings.aiApiKey = value.trim();
@@ -496,6 +498,13 @@ export class NutEggSettingTab extends PluginSettingTab {
             });
           return text;
         });
+      if (isSubscriptionProvider(settings.aiProvider)) {
+        new Setting(containerEl)
+          .setName(t("subscriptionBridgeGuide"))
+          .addButton(button => button.setButtonText(t("subscriptionBridgeGuide")).onClick(() => {
+            window.open("https://github.com/staff-000/nutegg/blob/main/docs/ai-subscriptions.md", "_blank");
+          }));
+      }
     }
 
     // Credit & Balance / Connection Monitor Setting

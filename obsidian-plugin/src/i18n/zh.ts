@@ -2,6 +2,10 @@ import type { TranslationKey } from "./en";
 
 export const zh: Record<TranslationKey, string> = {
   // Settings
+  subscriptionBridgeToken: "本地配对令牌",
+  subscriptionBridgeSetup: "安装 {cli}，运行 {login} 并登录订阅账号，然后在 NutEgg 目录运行 npm run bridge:ai。粘贴终端显示的配对令牌，并保持桥接服务运行。使用量受套餐的 CLI 额度限制。",
+  subscriptionBridgeGuide: "AI 订阅设置指南",
+  subscriptionBridgeTokenRequired: "请粘贴 NutEgg AI 桥接服务显示的配对令牌。",
   settingsTitle: "NutEgg 设置",
   chromeCompanionName: "Chrome 扩展配套",
   chromeCompanionDesc: "从浏览器直接提取并分析文章、YouTube 视频与推文，结构化存入 Obsidian。",

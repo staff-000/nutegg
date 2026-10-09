@@ -86,6 +86,39 @@ const OPENROUTER_FAMILIES: ModelFamily[] = [
 ];
 
 export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
+  "codex-cli": {
+    id: "codex-cli",
+    label: "ChatGPT subscription (Codex CLI)",
+    subscription: { cli: "Codex CLI", login: "codex login" },
+    officialEndpoint: "http://127.0.0.1:27124/codex/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "auto",
+    models: ["auto"],
+    keyPlaceholder: "NutEgg bridge pairing token",
+    openrouterPrefix: "",
+  },
+  "claude-cli": {
+    id: "claude-cli",
+    label: "Claude subscription (Claude Code)",
+    subscription: { cli: "Claude Code", login: "claude auth login" },
+    officialEndpoint: "http://127.0.0.1:27124/claude/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "auto",
+    models: ["auto"],
+    keyPlaceholder: "NutEgg bridge pairing token",
+    openrouterPrefix: "",
+  },
+  "gemini-cli": {
+    id: "gemini-cli",
+    label: "Gemini subscription (local bridge)",
+    subscription: { cli: "Antigravity CLI", login: "agy" },
+    officialEndpoint: "http://127.0.0.1:27124/v1/chat/completions",
+    apiFormat: "openai-compatible",
+    defaultModel: "auto",
+    models: ["auto"],
+    keyPlaceholder: "NutEgg bridge pairing token",
+    openrouterPrefix: "",
+  },
   local: {
     id: "local",
     label: "Local LLM (Ollama, LM Studio, etc.)",
@@ -222,6 +255,10 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     openrouterPrefix: "qwen/",
   },
 };
+
+export function isSubscriptionProvider(provider?: string): boolean {
+  return provider === "gemini-cli" || provider === "codex-cli" || provider === "claude-cli";
+}
 
 export function findOpenRouterFamily(modelName: string): ModelFamily | undefined {
   const families = PROVIDER_CATALOG.openrouter.families || [];

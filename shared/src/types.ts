@@ -8,6 +8,9 @@ export type AIProviderId =
   | "anthropic"
   | "deepseek"
   | "gemini"
+  | "gemini-cli"
+  | "codex-cli"
+  | "claude-cli"
   | "openai"
   | "kimi"
   | "zhipu"
@@ -32,6 +35,7 @@ export interface ProviderInfo {
   families?: ModelFamily[];
   keyPlaceholder: string;
   openrouterPrefix: string;
+  subscription?: { cli: string; login: string };
 }
 
 export interface ResolvedConfig {

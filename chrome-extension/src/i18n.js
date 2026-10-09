@@ -16,6 +16,10 @@
 })(typeof globalThis !== "undefined" ? globalThis : (typeof window !== "undefined" ? window : this), function () {
 const translations = {
   "en": {
+    "subscriptionBridgeToken": "Local pairing token",
+    "subscriptionBridgeSetup": "Install {cli}, run {login} and sign in with your subscription account, then run npm run bridge:ai from NutEgg. Paste the pairing token shown in the terminal. Keep the bridge running; your plan’s CLI limits apply.",
+    "subscriptionBridgeGuide": "AI subscription setup guide",
+    "subscriptionBridgeTokenRequired": "Paste the pairing token from the NutEgg AI bridge.",
     "buttonBackHint": "Return to the captured page content",
     "buttonCollectHint": "Save the captured content to your Obsidian vault",
     "buttonHatchHint": "Save new knowledge to the selected eggs",
@@ -31,7 +35,7 @@ const translations = {
     "settingsIntro": "Connect your AI once, then get summaries, mind maps, and answers right in Chrome.",
     "settingsChromeMode": "Works in Chrome",
     "settingsSetupTitle": "Connect your AI",
-    "settingsSetupDesc": "Choose a provider and add your API key. We’ll take care of the model and reading defaults.",
+    "settingsSetupDesc": "Choose an API provider, a Gemini / ChatGPT / Claude subscription, or a local model.",
     "settingsProviderLabel": "AI provider",
     "settingsKeyLabel": "API key",
     "settingsKeyPrivacy": "Your key is saved in this browser. Page content is sent to your chosen AI provider when you analyze it.",
@@ -496,6 +500,10 @@ const translations = {
     "errorHintServerError": "The AI service may be temporarily down. Try again in a minute."
   },
   "zh_CN": {
+    "subscriptionBridgeToken": "本地配对令牌",
+    "subscriptionBridgeSetup": "安装 {cli}，运行 {login} 并登录订阅账号，然后在 NutEgg 目录运行 npm run bridge:ai。粘贴终端显示的配对令牌，并保持桥接服务运行。使用量受套餐的 CLI 额度限制。",
+    "subscriptionBridgeGuide": "AI 订阅设置指南",
+    "subscriptionBridgeTokenRequired": "请粘贴 NutEgg AI 桥接服务显示的配对令牌。",
     "buttonBackHint": "返回已提取的页面内容",
     "buttonCollectHint": "将已提取的内容保存到 Obsidian 仓库",
     "buttonHatchHint": "将新知识保存到所选的蛋",
@@ -511,7 +519,7 @@ const translations = {
     "settingsIntro": "连接一次 AI，即可在 Chrome 中获取摘要、思维导图和问题解答。",
     "settingsChromeMode": "直接在 Chrome 中使用",
     "settingsSetupTitle": "连接 AI 服务",
-    "settingsSetupDesc": "选择服务商并添加 API 密钥。模型和阅读选项已有默认设置。",
+    "settingsSetupDesc": "选择 API 服务商、Gemini / ChatGPT / Claude 订阅或本地模型。",
     "settingsProviderLabel": "AI 服务商",
     "settingsKeyLabel": "API 密钥",
     "settingsKeyPrivacy": "密钥保存在当前浏览器中。分析时，页面内容会发送给你选择的 AI 服务商。",
@@ -976,6 +984,10 @@ const translations = {
     "errorHintServerError": "AI 服务可能暂时故障。请一分钟后重试。"
   },
   "es": {
+    "subscriptionBridgeToken": "Token de vinculación local",
+    "subscriptionBridgeSetup": "Instala {cli}, ejecuta {login} e inicia sesión con tu cuenta de suscripción. En NutEgg, ejecuta npm run bridge:ai y pega el token de la terminal. Mantén el puente abierto; se aplican los límites de CLI de tu plan.",
+    "subscriptionBridgeGuide": "Guía de suscripción AI",
+    "subscriptionBridgeTokenRequired": "Pega el token del puente AI de NutEgg.",
     "buttonBackHint": "Volver al contenido capturado",
     "buttonCollectHint": "Guardar el contenido capturado en tu bóveda de Obsidian",
     "buttonHatchHint": "Guardar nuevos conocimientos en los huevos seleccionados",
@@ -991,7 +1003,7 @@ const translations = {
     "settingsIntro": "Conecta tu IA una vez y obtén resúmenes, mapas mentales y respuestas en Chrome.",
     "settingsChromeMode": "Funciona en Chrome",
     "settingsSetupTitle": "Conecta tu IA",
-    "settingsSetupDesc": "Elige un proveedor y añade tu clave API. El modelo y las opciones de lectura ya están configurados.",
+    "settingsSetupDesc": "Elige un proveedor API, una suscripción Gemini / ChatGPT / Claude o un modelo local.",
     "settingsProviderLabel": "Proveedor de IA",
     "settingsKeyLabel": "Clave API",
     "settingsKeyPrivacy": "Tu clave se guarda en este navegador. Al analizar, el contenido se envía al proveedor de IA elegido.",
@@ -1456,6 +1468,10 @@ const translations = {
     "errorHintServerError": "El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto."
   },
   "ja": {
+    "subscriptionBridgeToken": "ローカル接続トークン",
+    "subscriptionBridgeSetup": "{cli} をインストールし、{login} を実行して契約中のアカウントでログインします。NutEgg で npm run bridge:ai を実行し、端末のトークンを貼り付けてください。ブリッジを起動したまま使用します。プランの CLI 利用制限が適用されます。",
+    "subscriptionBridgeGuide": "AI サブスクリプション設定ガイド",
+    "subscriptionBridgeTokenRequired": "NutEgg AI ブリッジの接続トークンを貼り付けてください。",
     "buttonBackHint": "取得したページ内容に戻る",
     "buttonCollectHint": "取得した内容を Obsidian の保管庫に保存",
     "buttonHatchHint": "新しい知識を選択したエッグに保存",
@@ -1471,7 +1487,7 @@ const translations = {
     "settingsIntro": "AI を一度接続すれば、Chrome で要約、マインドマップ、質問への回答を得られます。",
     "settingsChromeMode": "Chrome で使えます",
     "settingsSetupTitle": "AI を接続",
-    "settingsSetupDesc": "プロバイダーを選んで API キーを追加してください。モデルと読書オプションは設定済みです。",
+    "settingsSetupDesc": "API プロバイダー、Gemini / ChatGPT / Claude サブスクリプション、またはローカルモデルを選択します。",
     "settingsProviderLabel": "AI プロバイダー",
     "settingsKeyLabel": "API キー",
     "settingsKeyPrivacy": "キーはこのブラウザーに保存されます。分析時にはページの内容が選択した AI プロバイダーに送信されます。",
@@ -1936,6 +1952,10 @@ const translations = {
     "errorHintServerError": "AIサービスが一時的に停止している可能性があります。1分後に再試行してください。"
   },
   "ko": {
+    "subscriptionBridgeToken": "로컬 연결 토큰",
+    "subscriptionBridgeSetup": "{cli}를 설치하고 {login}을 실행하여 구독 계정으로 로그인하세요. NutEgg에서 npm run bridge:ai를 실행한 후 터미널의 토큰을 붙여넣으세요. 브리지를 계속 실행해야 하며 요금제의 CLI 사용 한도가 적용됩니다.",
+    "subscriptionBridgeGuide": "AI 구독 설정 안내",
+    "subscriptionBridgeTokenRequired": "NutEgg AI 브리지의 연결 토큰을 붙여넣으세요.",
     "buttonBackHint": "가져온 페이지 콘텐츠로 돌아가기",
     "buttonCollectHint": "가져온 콘텐츠를 Obsidian 보관함에 저장",
     "buttonHatchHint": "새 지식을 선택한 에그에 저장",
@@ -1951,7 +1971,7 @@ const translations = {
     "settingsIntro": "AI를 한 번 연결하면 Chrome에서 요약, 마인드맵, 답변을 바로 볼 수 있어요.",
     "settingsChromeMode": "Chrome에서 사용",
     "settingsSetupTitle": "AI 연결",
-    "settingsSetupDesc": "제공업체를 선택하고 API 키를 추가하세요. 모델과 읽기 옵션은 기본 설정이 준비되어 있어요.",
+    "settingsSetupDesc": "API 제공업체, Gemini / ChatGPT / Claude 구독 또는 로컬 모델을 선택하세요.",
     "settingsProviderLabel": "AI 제공업체",
     "settingsKeyLabel": "API 키",
     "settingsKeyPrivacy": "키는 이 브라우저에 저장됩니다. 분석할 때 페이지 내용이 선택한 AI 제공업체로 전송됩니다.",
@@ -2416,6 +2436,10 @@ const translations = {
     "errorHintServerError": "AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요."
   },
   "ar": {
+    "subscriptionBridgeToken": "رمز الاقتران المحلي",
+    "subscriptionBridgeSetup": "ثبّت {cli} وشغّل {login} وسجّل الدخول بحساب اشتراكك. شغّل npm run bridge:ai من NutEgg والصق الرمز الظاهر في الطرفية. أبقِ الجسر قيد التشغيل؛ تُطبّق حدود CLI الخاصة بخطتك.",
+    "subscriptionBridgeGuide": "دليل إعداد اشتراك AI",
+    "subscriptionBridgeTokenRequired": "الصق رمز الاقتران من جسر AI في NutEgg.",
     "buttonBackHint": "العودة إلى محتوى الصفحة الملتقط",
     "buttonCollectHint": "حفظ المحتوى الملتقط في خزنة Obsidian",
     "buttonHatchHint": "حفظ المعرفة الجديدة في البيض المحدد",
@@ -2431,7 +2455,7 @@ const translations = {
     "settingsIntro": "اربط الذكاء الاصطناعي مرة واحدة واحصل على ملخصات وخرائط ذهنية وإجابات في Chrome.",
     "settingsChromeMode": "يعمل في Chrome",
     "settingsSetupTitle": "اربط الذكاء الاصطناعي",
-    "settingsSetupDesc": "اختر مزوّدًا وأضف مفتاح API. إعدادات النموذج والقراءة الافتراضية جاهزة.",
+    "settingsSetupDesc": "اختر مزوّد API أو اشتراك Gemini / ChatGPT / Claude أو نموذجًا محليًا.",
     "settingsProviderLabel": "مزوّد الذكاء الاصطناعي",
     "settingsKeyLabel": "مفتاح API",
     "settingsKeyPrivacy": "يُحفظ مفتاحك في هذا المتصفح. عند التحليل يُرسل محتوى الصفحة إلى مزوّد الذكاء الاصطناعي الذي تختاره.",
@@ -2896,6 +2920,10 @@ const translations = {
     "errorHintServerError": "قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة."
   },
   "fr": {
+    "subscriptionBridgeToken": "Jeton de connexion locale",
+    "subscriptionBridgeSetup": "Installez {cli}, lancez {login} et connectez-vous avec votre compte abonné. Dans NutEgg, lancez npm run bridge:ai puis collez le jeton du terminal. Gardez le pont actif ; les limites CLI de votre forfait s’appliquent.",
+    "subscriptionBridgeGuide": "Guide de configuration AI",
+    "subscriptionBridgeTokenRequired": "Collez le jeton du pont AI de NutEgg.",
     "buttonBackHint": "Revenir au contenu capturé",
     "buttonCollectHint": "Enregistrer le contenu capturé dans votre coffre Obsidian",
     "buttonHatchHint": "Enregistrer les nouvelles connaissances dans les œufs sélectionnés",
@@ -2911,7 +2939,7 @@ const translations = {
     "settingsIntro": "Connectez votre IA une seule fois, puis obtenez résumés, cartes mentales et réponses dans Chrome.",
     "settingsChromeMode": "Fonctionne dans Chrome",
     "settingsSetupTitle": "Connectez votre IA",
-    "settingsSetupDesc": "Choisissez un fournisseur et ajoutez votre clé API. Le modèle et les options de lecture sont déjà configurés.",
+    "settingsSetupDesc": "Choisissez un fournisseur API, un abonnement Gemini / ChatGPT / Claude ou un modèle local.",
     "settingsProviderLabel": "Fournisseur IA",
     "settingsKeyLabel": "Clé API",
     "settingsKeyPrivacy": "Votre clé est enregistrée dans ce navigateur. Lors de l’analyse, le contenu est envoyé au fournisseur IA choisi.",
@@ -3376,6 +3404,10 @@ const translations = {
     "errorHintServerError": "Le service IA est temporairement indisponible. Réessayez dans une minute."
   },
   "de": {
+    "subscriptionBridgeToken": "Lokales Verbindungstoken",
+    "subscriptionBridgeSetup": "Installiere {cli}, starte {login} und melde dich mit deinem Abo-Konto an. Starte in NutEgg npm run bridge:ai und füge das Token aus dem Terminal ein. Lass die Brücke laufen; es gelten die CLI-Limits deines Abos.",
+    "subscriptionBridgeGuide": "AI-Abo einrichten",
+    "subscriptionBridgeTokenRequired": "Füge das Token der NutEgg-AI-Brücke ein.",
     "buttonBackHint": "Zum erfassten Seiteninhalt zurückkehren",
     "buttonCollectHint": "Erfassten Inhalt im Obsidian-Vault speichern",
     "buttonHatchHint": "Neues Wissen in den ausgewählten Eiern speichern",
@@ -3391,7 +3423,7 @@ const translations = {
     "settingsIntro": "Verbinde deine KI einmal und erhalte Zusammenfassungen, Mindmaps und Antworten direkt in Chrome.",
     "settingsChromeMode": "Funktioniert in Chrome",
     "settingsSetupTitle": "KI verbinden",
-    "settingsSetupDesc": "Wähle einen Anbieter und füge deinen API-Schlüssel hinzu. Modell und Leseoptionen sind bereits eingestellt.",
+    "settingsSetupDesc": "Wähle einen API-Anbieter, ein Gemini / ChatGPT / Claude-Abo oder ein lokales Modell.",
     "settingsProviderLabel": "KI-Anbieter",
     "settingsKeyLabel": "API-Schlüssel",
     "settingsKeyPrivacy": "Dein Schlüssel wird in diesem Browser gespeichert. Bei der Analyse wird der Seiteninhalt an deinen gewählten KI-Anbieter gesendet.",
@@ -3856,6 +3888,10 @@ const translations = {
     "errorHintServerError": "KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen."
   },
   "pt": {
+    "subscriptionBridgeToken": "Token de conexão local",
+    "subscriptionBridgeSetup": "Instale {cli}, execute {login} e entre com sua conta de assinatura. No NutEgg, execute npm run bridge:ai e cole o token do terminal. Mantenha a ponte aberta; aplicam-se os limites de CLI do seu plano.",
+    "subscriptionBridgeGuide": "Guia de configuração do AI",
+    "subscriptionBridgeTokenRequired": "Cole o token da ponte AI do NutEgg.",
     "buttonBackHint": "Voltar ao conteúdo capturado",
     "buttonCollectHint": "Salvar o conteúdo capturado no cofre do Obsidian",
     "buttonHatchHint": "Salvar novos conhecimentos nos ovos selecionados",
@@ -3871,7 +3907,7 @@ const translations = {
     "settingsIntro": "Conecte sua IA uma vez e veja resumos, mapas mentais e respostas diretamente no Chrome.",
     "settingsChromeMode": "Funciona no Chrome",
     "settingsSetupTitle": "Conecte sua IA",
-    "settingsSetupDesc": "Escolha um provedor e adicione sua chave de API. O modelo e as opções de leitura já estão configurados.",
+    "settingsSetupDesc": "Escolha um provedor API, uma assinatura Gemini / ChatGPT / Claude ou um modelo local.",
     "settingsProviderLabel": "Provedor de IA",
     "settingsKeyLabel": "Chave de API",
     "settingsKeyPrivacy": "Sua chave é salva neste navegador. Ao analisar, o conteúdo é enviado ao provedor de IA escolhido.",
@@ -4336,6 +4372,10 @@ const translations = {
     "errorHintServerError": "O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto."
   },
   "ru": {
+    "subscriptionBridgeToken": "Токен локального подключения",
+    "subscriptionBridgeSetup": "Установите {cli}, запустите {login} и войдите в аккаунт с подпиской. В NutEgg выполните npm run bridge:ai и вставьте токен из терминала. Не закрывайте мост; действуют лимиты CLI вашего плана.",
+    "subscriptionBridgeGuide": "Настройка подписки AI",
+    "subscriptionBridgeTokenRequired": "Вставьте токен моста AI для NutEgg.",
     "buttonBackHint": "Вернуться к захваченному содержимому страницы",
     "buttonCollectHint": "Сохранить захваченное содержимое в хранилище Obsidian",
     "buttonHatchHint": "Сохранить новые знания в выбранные яйца",
@@ -4351,7 +4391,7 @@ const translations = {
     "settingsIntro": "Подключите ИИ один раз и получайте резюме, интеллект-карты и ответы прямо в Chrome.",
     "settingsChromeMode": "Работает в Chrome",
     "settingsSetupTitle": "Подключите ИИ",
-    "settingsSetupDesc": "Выберите провайдера и добавьте API-ключ. Модель и параметры чтения уже настроены.",
+    "settingsSetupDesc": "Выберите API-провайдера, подписку Gemini / ChatGPT / Claude или локальную модель.",
     "settingsProviderLabel": "Провайдер ИИ",
     "settingsKeyLabel": "API-ключ",
     "settingsKeyPrivacy": "Ключ сохраняется в этом браузере. При анализе содержимое страницы отправляется выбранному провайдеру ИИ.",

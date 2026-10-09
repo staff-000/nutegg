@@ -1,4 +1,9 @@
 export const ru = {
+  subscriptionBridgeToken: "Токен локального подключения",
+  subscriptionBridgeSetup: "Установите {cli}, запустите {login} и войдите в аккаунт с подпиской. В NutEgg выполните npm run bridge:ai и вставьте токен из терминала. Не закрывайте мост; действуют лимиты CLI вашего плана.",
+  subscriptionBridgeGuide: "Настройка подписки AI",
+  subscriptionBridgeTokenRequired: "Вставьте токен моста AI для NutEgg.",
+
   "settingsTitle": "Настройки NutEgg",
   "chromeCompanionName": "Расширение-компаньон для Chrome",
   "chromeCompanionDesc": "Сохраняйте и анализируйте статьи, видео YouTube и посты прямо из браузера в Obsidian.",

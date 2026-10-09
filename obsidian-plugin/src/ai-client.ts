@@ -7,6 +7,7 @@ export {
   OPENROUTER_ENDPOINT,
   findOpenRouterFamily,
   isAIConfigured,
+  isSubscriptionProvider,
   resolveConfig,
 } from "../../shared/src/catalog";
 

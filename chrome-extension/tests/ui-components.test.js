@@ -234,6 +234,13 @@ describe("Modular UI Components", () => {
     assert.strictEqual(banners.getError(), "Failed to fetch");
     assert.strictEqual(banners.getErrorCode(), "network_error");
 
+    banners.showError("Invalid bridge pairing token.", "bridge_auth_failed");
+    assert.strictEqual(banners.errorMessage.textContent, "Invalid bridge pairing token.");
+    assert.strictEqual(banners.errorHint.classList.contains("hidden"), true);
+    banners.showError("Pairing token missing.", "pairing_token_missing");
+    assert.strictEqual(banners.errorHint.innerHTML, t("subscriptionBridgeTokenRequired"));
+    assert.strictEqual(banners.errorHint.classList.contains("hidden"), false);
+
     banners.showWarning("Low memory");
     assert.strictEqual(banners.warningMessage.textContent, "Low memory");
     assert.strictEqual(banners.getWarning(), "Low memory");

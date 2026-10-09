@@ -5,6 +5,7 @@
 import { trackAIRequest } from "./ai-diagnostics";
 import {
   PROVIDER_CATALOG,
+  isSubscriptionProvider,
   resolveConfig,
 } from "./catalog";
 import type {
@@ -17,6 +18,8 @@ import type {
 export type AIErrorCode =
   | "no_api_key"
   | "auth_failed"
+  | "bridge_auth_failed"
+  | "pairing_token_missing"
   | "forbidden"
   | "model_not_found"
   | "rate_limited"
@@ -243,6 +246,18 @@ async function chatOpenAICompatible(
 
   if (!response.ok) {
     const err = await response.text();
+    if (isSubscriptionProvider(config.provider)) {
+      const classified = classifyError(response.status, err);
+      const code = response.status === 401 || response.status === 403
+        ? "bridge_auth_failed" : classified.code;
+      try {
+        const message = JSON.parse(err)?.error?.message;
+        if (typeof message === "string" && message.trim()) throw new AIError(code, message, response.status);
+      } catch (error) {
+        if (error instanceof AIError) throw error;
+      }
+      throw new AIError(code, "AI bridge request failed. Check the local pairing token in NutEgg settings and the CLI sign-in in the bridge terminal.", response.status);
+    }
     throw classifyError(response.status, err);
   }
 
@@ -282,8 +297,10 @@ export async function chatAI(
 ): Promise<string> {
   if (config.provider !== "local" && !config.apiKey) {
     throw new AIError(
-      "no_api_key",
-      "No AI API key configured. Open settings and enter your API key."
+      isSubscriptionProvider(config.provider) ? "pairing_token_missing" : "no_api_key",
+      isSubscriptionProvider(config.provider)
+        ? "No bridge pairing token configured. Start the NutEgg AI bridge and paste its token in settings."
+        : "No AI API key configured. Open settings and enter your API key."
     );
   }
 
@@ -312,6 +329,28 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
     hasBalance: false,
     statusText: "Checking...",
   };
+
+  if (isSubscriptionProvider(providerId)) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(provider.officialEndpoint.replace("/chat/completions", "/models"), {
+        headers: { Authorization: `Bearer ${apiKey.trim()}` },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        return { ...baseInfo, statusText: "Bridge connection failed", error: detail?.error?.message || (response.status === 401
+          ? "Pairing token does not match. Copy the token shown by the NutEgg AI bridge."
+          : "The selected CLI is not ready. Check the bridge terminal and sign in.") };
+      }
+      return { ...baseInfo, statusText: "Bridge connected · subscription access is verified when you analyze · quota is managed by the selected CLI" };
+    } catch {
+      return { ...baseInfo, statusText: "Bridge offline", error: "Start the local bridge with npm run bridge:ai and keep it running." };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === "local") {

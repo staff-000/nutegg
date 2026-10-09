@@ -1,4 +1,9 @@
 export const ar = {
+  subscriptionBridgeToken: "رمز الاقتران المحلي",
+  subscriptionBridgeSetup: "ثبّت {cli} وشغّل {login} وسجّل الدخول بحساب اشتراكك. شغّل npm run bridge:ai من NutEgg والصق الرمز الظاهر في الطرفية. أبقِ الجسر قيد التشغيل؛ تُطبّق حدود CLI الخاصة بخطتك.",
+  subscriptionBridgeGuide: "دليل إعداد اشتراك AI",
+  subscriptionBridgeTokenRequired: "الصق رمز الاقتران من جسر AI في NutEgg.",
+
   "settingsTitle": "إعدادات NutEgg",
   "chromeCompanionName": "إضافة متصفح Chrome المرافقة",
   "chromeCompanionDesc": "التقط المقالات وفيديوهات YouTube والتغريدات وحللها مباشرة من متصفحك إلى Obsidian.",

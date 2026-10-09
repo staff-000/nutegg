@@ -1,4 +1,9 @@
 export const fr = {
+  subscriptionBridgeToken: "Jeton de connexion locale",
+  subscriptionBridgeSetup: "Installez {cli}, lancez {login} et connectez-vous avec votre compte abonné. Dans NutEgg, lancez npm run bridge:ai puis collez le jeton du terminal. Gardez le pont actif ; les limites CLI de votre forfait s’appliquent.",
+  subscriptionBridgeGuide: "Guide de configuration AI",
+  subscriptionBridgeTokenRequired: "Collez le jeton du pont AI de NutEgg.",
+
   "settingsTitle": "Paramètres NutEgg",
   "chromeCompanionName": "Compagnon extension Chrome",
   "chromeCompanionDesc": "Capturez et analysez des articles, vidéos YouTube et tweets directement depuis votre navigateur dans Obsidian.",

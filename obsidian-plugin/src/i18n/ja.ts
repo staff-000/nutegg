@@ -1,4 +1,9 @@
 export const ja = {
+  subscriptionBridgeToken: "ローカル接続トークン",
+  subscriptionBridgeSetup: "{cli} をインストールし、{login} を実行して契約中のアカウントでログインします。NutEgg で npm run bridge:ai を実行し、端末のトークンを貼り付けてください。ブリッジを起動したまま使用します。プランの CLI 利用制限が適用されます。",
+  subscriptionBridgeGuide: "AI サブスクリプション設定ガイド",
+  subscriptionBridgeTokenRequired: "NutEgg AI ブリッジの接続トークンを貼り付けてください。",
+
   "settingsTitle": "NutEgg 設定",
   "chromeCompanionName": "Chrome拡張機能連携",
   "chromeCompanionDesc": "ブラウザから記事、YouTube動画、ツイートを直接Obsidianにキャプチャ・分析します。",
