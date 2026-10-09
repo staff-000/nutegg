@@ -100,7 +100,10 @@ async function initPopup() {
   });
   click(c.questionsToggle, () => presentation({ questionsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.questionsExpanded }));
   click(e.captureEggsToggle, () => presentation({ captureEggsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.captureEggsExpanded }));
-  click(e.eggsToggle, () => presentation({ eggsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.eggsExpanded }));
+  click(e.eggsToggle, () => {
+    const currentlyExpanded = e.eggsExpanded ? !e.eggsExpanded.classList.contains("hidden") : Boolean(tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.eggsExpanded);
+    presentation({ eggsExpanded: !currentlyExpanded });
+  });
   click(e.eggsCreateToggle, () => presentation({ createFormOpen: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.createFormOpen }));
   click(e.eggsCreateCancelBtn, () => presentation({ createFormOpen: false }));
   for (const input of [e.eggsNewName, e.newEggName]) input?.addEventListener('input', () => activeDraft({ newEggName: input.value }));

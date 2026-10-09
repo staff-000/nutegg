@@ -45,7 +45,7 @@ class TabStateManager {
       enabledSections: { discussion: false, ...this.defaults.enabledSections }, generateKnowledgeEntries: Boolean(this.defaults.generateKnowledgeEntries),
       eggHatched: false, nutCollected: false, errors: {}, warning: null, success: null,
       operations: {}, completion: null, currentTabLoading: false,
-      presentation: { scroll: 0, eggsExpanded: false, captureEggsExpanded: false, questionsExpanded: false, createFormOpen: false, sectionsExpanded: false, reanalyzeSectionsExpanded: false, collapsible: {}, discussionComments: {} },
+      presentation: { scroll: 0, eggsExpanded: null, captureEggsExpanded: false, questionsExpanded: false, createFormOpen: false, sectionsExpanded: false, reanalyzeSectionsExpanded: false, collapsible: {}, discussionComments: {} },
     };
   }
   ensure(tabId, url = '') {

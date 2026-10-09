@@ -123,13 +123,21 @@ function _renderEggsSection(firstArg = [], options = {}) {
   const currentSelected = new Set(opts.selectedEggs || []);
 
   if (sectionEl) sectionEl.classList.remove("hidden");
-  const shouldExpand = opts.expand === true || (expandedEl && !expandedEl.classList.contains("hidden"));
+  const shouldExpand = opts.expand !== undefined ? Boolean(opts.expand) : (expandedEl && !expandedEl.classList.contains("hidden"));
   if (shouldExpand) {
     if (expandedEl) expandedEl.classList.remove("hidden");
-    if (chevronEl) chevronEl.textContent = "▾";
+    if (chevronEl) {
+      chevronEl.classList.add("expanded");
+      const svg = chevronEl.querySelector?.("svg");
+      if (!svg) chevronEl.textContent = "▾";
+    }
   } else {
     if (expandedEl) expandedEl.classList.add("hidden");
-    if (chevronEl) chevronEl.textContent = "▸";
+    if (chevronEl) {
+      chevronEl.classList.remove("expanded");
+      const svg = chevronEl.querySelector?.("svg");
+      if (!svg) chevronEl.textContent = "▸";
+    }
   }
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
@@ -436,11 +444,15 @@ class EggsComponent {
     }
     if (expanded) {
       this.eggsExpanded?.classList.remove("hidden");
-      if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▾";
+      this.eggsToggleChevron?.classList.add("expanded");
+      const svg = this.eggsToggleChevron?.querySelector?.("svg");
+      if (!svg && this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▾";
       this.eggsToggle?.setAttribute("aria-expanded", "true");
     } else {
       this.eggsExpanded?.classList.add("hidden");
-      if (this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▸";
+      this.eggsToggleChevron?.classList.remove("expanded");
+      const svg = this.eggsToggleChevron?.querySelector?.("svg");
+      if (!svg && this.eggsToggleChevron) this.eggsToggleChevron.textContent = "▸";
       this.eggsToggle?.setAttribute("aria-expanded", "false");
     }
   }
@@ -454,11 +466,15 @@ class EggsComponent {
   expandCaptureEggs(expanded = true) {
     if (expanded) {
       this.captureEggsArea?.classList.remove("hidden");
-      if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▾";
+      this.captureEggsChevron?.classList.add("expanded");
+      const svg = this.captureEggsChevron?.querySelector?.("svg");
+      if (!svg && this.captureEggsChevron) this.captureEggsChevron.textContent = "▾";
       this.captureEggsToggle?.setAttribute?.("aria-expanded", "true");
     } else {
       this.captureEggsArea?.classList.add("hidden");
-      if (this.captureEggsChevron) this.captureEggsChevron.textContent = "▸";
+      this.captureEggsChevron?.classList.remove("expanded");
+      const svg = this.captureEggsChevron?.querySelector?.("svg");
+      if (!svg && this.captureEggsChevron) this.captureEggsChevron.textContent = "▸";
       this.captureEggsToggle?.setAttribute?.("aria-expanded", "false");
     }
   }
@@ -540,9 +556,12 @@ class EggsComponent {
     this.setNoEggVisible(visible && !view.isAnalyzing && !(result.matchedEggs || []).length && !view.selectedEggs?.size);
     this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
     this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
-    this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange });
+    const isExpanded = typeof view.presentation?.eggsExpanded === 'boolean'
+      ? view.presentation.eggsExpanded
+      : Boolean(view.isStage1?.() && (settings.analysisMode === 'preview' || settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length));
+    this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange, expand: isExpanded });
     this.eggsSection?.classList.toggle('hidden', !visible);
-    this.expandEggsList(view.presentation?.eggsExpanded || (view.isStage1?.() && (settings.analysisMode === 'preview' || settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length)));
+    this.expandEggsList(isExpanded);
     this.eggsSection?.classList.toggle('hidden', !visible);
   }
 

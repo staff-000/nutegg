@@ -1093,6 +1093,16 @@ describe("Modular UI Components", () => {
     assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
     assert.strictEqual(eggs.eggsList.innerHTML.includes("eggs-empty-notice"), true);
     assert.strictEqual(eggs.eggsCreateForm.classList.contains("hidden"), false);
+
+    // Case 4: User collapses eggs list (presentation.eggsExpanded: false) in stage 1
+    session.presentation = { ...(session.presentation || {}), eggsExpanded: false };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), true);
+
+    // Case 5: User expands eggs list again (presentation.eggsExpanded: true)
+    session.presentation.eggsExpanded = true;
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.eggsExpanded.classList.contains("hidden"), false);
   });
 
   it("renderEggKnowledge handles polymorphic arguments and never throws 'eggResults.map is not a function'", () => {
