@@ -132,7 +132,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   portInput.value = port;
   portDisplay.textContent = port;
 
-  const rawMode = stored.analysisMode || "full";
+  const rawMode = stored.analysisMode || "preview";
   const mode = rawMode === "confirm" ? "preview" : rawMode === "fast" ? "full" : rawMode;
   if (modeSelect) {
     modeSelect.value = mode;

@@ -85,7 +85,7 @@ describe("SettingsState", () => {
 
   it("initializes with default values", () => {
     const settings = new SettingsState();
-    assert.equal(settings.analysisMode, "full");
+    assert.equal(settings.analysisMode, "preview");
     assert.equal(settings.outputLanguage, "same-as-content");
     assert.equal(settings.serverOnline, false);
     assert.equal(settings.obsidianPluginVersion, null);
@@ -101,9 +101,9 @@ describe("SettingsState", () => {
     const store = setupMockStorage();
     const settings = new SettingsState();
 
-    settings.setAnalysisMode("preview");
-    assert.equal(settings.analysisMode, "preview");
-    assert.equal(store.analysisMode, "preview");
+    settings.setAnalysisMode("full");
+    assert.equal(settings.analysisMode, "full");
+    assert.equal(store.analysisMode, "full");
 
     settings.setOutputLanguage("zh-CN");
     assert.equal(settings.outputLanguage, "zh-CN");

@@ -19,7 +19,7 @@ class SettingsState {
 
     // User preferences
     this.connectionMode = "chrome"; // "chrome" | "obsidian"
-    this.analysisMode = "full"; // "full" | "preview"
+    this.analysisMode = "preview"; // "full" | "preview"
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = false;
@@ -59,6 +59,8 @@ class SettingsState {
         this.analysisMode = "preview";
       } else if (stored?.analysisMode === "fast") {
         this.analysisMode = "full";
+      } else {
+        this.analysisMode = "preview";
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries === true;
       this.debugInfo = stored?.debugInfo === true;

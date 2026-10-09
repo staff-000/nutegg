@@ -118,6 +118,14 @@
         </button>
       </div>
 
+      <!-- Analysis Mode Selector -->
+      <div class="mode-toggle-wrap" id="obsidian-analysis-mode" data-obsidian-only>
+        <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
+          <button type="button" class="mode-pill-btn" id="mode-fast-btn" title="Full analysis: summary + knowledge comparison in one go" data-i18n="modeFast" data-i18n-title="modeFastTooltip">🌞 Full Mode</button>
+          <button type="button" class="mode-pill-btn active" id="mode-confirm-btn" title="Preview summary first, then choose eggs to compare" data-i18n="modeConfirm" data-i18n-title="modeConfirmTooltip">🌛 Preview Summary</button>
+        </div>
+      </div>
+
       <button id="questions-toggle" class="sections-toggle-btn" type="button" aria-expanded="false" aria-controls="questions-area" data-hints="off">
         <span class="sections-toggle-left"><span class="sections-toggle-title" data-i18n="askQuestionsToggle">❓ Ask your own questions</span></span>
         <span class="sections-toggle-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
@@ -142,14 +150,6 @@
       <div id="capture-credit-row" class="capture-credit-row hidden" title="Current AI provider & remaining balance (click to refresh)" data-i18n-title="aiCreditTooltip">
         <span class="capture-credit-icon">🪙</span>
         <span id="capture-credit-text" data-i18n="aiCredit">AI Credit</span>
-      </div>
-
-      <!-- Analysis Mode Selector -->
-      <div class="mode-toggle-wrap" id="obsidian-analysis-mode" data-obsidian-only>
-        <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
-          <button type="button" class="mode-pill-btn active" id="mode-fast-btn" title="Full analysis: summary + knowledge comparison in one go" data-i18n="modeFast" data-i18n-title="modeFastTooltip">🌞 Full Mode</button>
-          <button type="button" class="mode-pill-btn" id="mode-confirm-btn" title="Preview summary first, then choose eggs to compare" data-i18n="modeConfirm" data-i18n-title="modeConfirmTooltip">🌛 Preview Summary</button>
-        </div>
       </div>
 
       <!-- Expandable Sections Selector -->
