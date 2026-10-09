@@ -274,6 +274,65 @@ describe("Modular UI Components", () => {
     assert.strictEqual(header.serverStatus.className, "status-dot chrome-ai");
   });
 
+  it("Header signal shows Chrome fallback in amber and returns to green when Obsidian reconnects", () => {
+    const header = new HeaderComponent(createMockRoot());
+    const settings = new SettingsState();
+    settings.setConnectionMode('obsidian', false);
+    settings.setChromeAiStatus({ enabled: true, configured: true });
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot warning');
+    assert.equal(header.tooltipTitle.textContent, t('obsidianChromeFallback'));
+    settings.setServerStatus({ online: true, aiConfigured: true });
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot online');
+    settings.setServerStatus();
+    settings.setChromeAiStatus();
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot offline');
+    assert.equal(header.tooltipTitle.textContent, t('obsidianChromeFallbackUnavailable'));
+  });
+
+  it("Header distinguishes checking, sync errors, provider errors and vault warnings", () => {
+    const header = new HeaderComponent(createMockRoot());
+    const settings = new SettingsState();
+    settings.environmentChecked = false;
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot checking');
+    settings.environmentChecked = true;
+    settings.setConnectionMode('obsidian', false);
+    settings.setServerStatus({ online: true, error: 'Sync failed' });
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot offline');
+    assert.equal(header.tooltipSub.textContent, 'Sync failed');
+    settings.setServerStatus({ online: true, aiConfigured: true, warning: 'Missing index' });
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot warning');
+    assert.equal(header.tooltipSub.textContent, 'Missing index');
+    settings.setConnectionMode('chrome', false);
+    settings.setChromeAiStatus({ configured: true });
+    settings.aiStatusError = 'Invalid API key';
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot offline');
+    assert.equal(header.tooltipSub.textContent, 'Invalid API key');
+  });
+
+  it("Header shows confirmed analysis or question provider failures in red without leaking across tabs", () => {
+    const header = new HeaderComponent(createMockRoot());
+    const settings = new SettingsState();
+    settings.setChromeAiStatus({ configured: true });
+    for (const kind of ['analysis', 'followup']) {
+      for (const code of ['quota_exceeded', 'auth_failed', 'network_error', 'forbidden', 'model_not_found', 'rate_limited', 'server_error']) {
+        header.render({ errors: { [kind]: { code, message: 'Provider failed' } } }, settings);
+        assert.equal(header.serverStatus.className, 'status-dot offline');
+        assert.equal(header.tooltipSub.textContent, 'Provider failed');
+      }
+    }
+    header.render({ errors: { extraction: { code: 'network_error', message: 'Page failed' } } }, settings);
+    assert.equal(header.serverStatus.className, 'status-dot chrome-ai');
+    header.render({ errors: {} }, settings);
+    assert.equal(header.serverStatus.className, 'status-dot chrome-ai');
+  });
+
   it("BannersComponent manages error, warning, duplicate, and success banners", () => {
     const root = createMockRoot();
     const banners = new BannersComponent(root);

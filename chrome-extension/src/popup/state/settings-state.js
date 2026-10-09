@@ -170,10 +170,12 @@ class SettingsState {
     return true;
   }
 
-  setServerStatus({ online = false, version = null, aiConfigured = false } = {}) {
+  setServerStatus({ online = false, version = null, aiConfigured = false, error = null, warning = null } = {}) {
     this.serverOnline = !!online;
     this.obsidianPluginVersion = version;
     this.obsidianAiConfigured = !!aiConfigured;
+    this.serverError = error;
+    this.serverWarning = warning;
   }
 
   setChromeAiStatus({ enabled = false, configured = false, provider = "", model = "" } = {}) {
@@ -184,14 +186,15 @@ class SettingsState {
   }
 
   /**
-   * Existing results retain their backend; new analysis uses the selected mode.
+   * Existing results retain their backend; new analysis falls back while Obsidian is offline.
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
     const res = resultOrMode;
     const mode = typeof res === "string" ? res : res?.mode;
     if (mode === "chrome") return true;
     if (mode === "obsidian") return false;
-    return this.connectionMode !== "obsidian";
+    if (res && typeof res === "object") return this.connectionMode !== "obsidian";
+    return this.connectionMode !== "obsidian" || !this.serverOnline;
   }
 }
 

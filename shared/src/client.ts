@@ -109,6 +109,8 @@ export interface AICreditInfo {
   model: string;
   hasBalance: boolean;
   balanceFormatted?: string;
+  /** Unrounded remaining balance in the provider's billing currency. */
+  remainingCredits?: number;
   currency?: string;
   totalCredits?: number;
   totalUsage?: number;
@@ -387,6 +389,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
           ...baseInfo,
           hasBalance: false,
           statusText: `Local LLM (${resp.status} ${resp.statusText})`,
+          error: `Local LLM server returned HTTP ${resp.status}`,
         };
       }
     } catch {
@@ -427,6 +430,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
           hasBalance: true,
           balanceFormatted,
           currency: "USD",
+          remainingCredits: remaining,
           totalCredits,
           totalUsage,
           statusText: `${balanceFormatted} left ($${totalUsage.toFixed(2)} used / $${totalCredits.toFixed(2)} total)`,
@@ -473,6 +477,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
           hasBalance: true,
           balanceFormatted,
           currency: curr,
+          remainingCredits: balance,
           statusText: `${balanceFormatted} available`,
         };
       } else if (resp.status === 401) {
@@ -499,6 +504,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
           hasBalance: true,
           balanceFormatted,
           currency: "CNY",
+          remainingCredits: Number(balance),
           statusText: `${balanceFormatted} available`,
         };
       } else if (resp.status === 401) {

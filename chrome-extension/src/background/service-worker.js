@@ -322,7 +322,7 @@ chrome.runtime.onConnect.addListener((port) => {
 async function handleAnalyze(payload) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
-    if (!server.online) return obsidianOfflineError();
+    if (!server.online) return payload.stage === 2 ? obsidianOfflineError() : handleAnalyzeChrome(payload);
     if (server.error) return { ...server, mode: "obsidian" };
     try {
       const serverUrl = await getServerUrl();
@@ -335,6 +335,7 @@ async function handleAnalyze(payload) {
       const data = await response.json();
 
       if (!response.ok) {
+        if (payload.stage !== 2 && [502, 503, 504].includes(response.status)) return handleAnalyzeChrome(payload);
         return {
           error: data.error || `Server error (${response.status})`,
           errorCode: data.errorCode || "unknown",
@@ -345,6 +346,7 @@ async function handleAnalyze(payload) {
 
       return { ...data, mode: "obsidian" };
     } catch (err) {
+      if (payload.stage !== 2) return handleAnalyzeChrome(payload);
       return {
         error: `Failed to connect to Obsidian: ${err.message}`,
         errorCode: "network_error",
@@ -353,6 +355,10 @@ async function handleAnalyze(payload) {
     }
   }
 
+  return handleAnalyzeChrome(payload);
+}
+
+async function handleAnalyzeChrome(payload) {
   const aiSettings = await loadChromeAiSettings();
 
   const provider = aiSettings.chromeAiProvider || "gemini";
@@ -379,8 +385,8 @@ async function handleAnalyze(payload) {
       matchedEggs: [],
       allEggs: [],
     };
-    await saveChromeCacheEntry(payload, finalResult);
     await recordChromeAnalysisMetrics(payload, finalResult);
+    await saveChromeCacheEntry(payload, finalResult);
     return finalResult;
   } catch (err) {
     return {
@@ -655,10 +661,11 @@ async function fetchHistory(url) {
       { signal: controller.signal }
     );
     clearTimeout(timeout);
+    if (!response.ok) return await getChromeCacheHistory(url);
     return await response.json();
   } catch {
     clearTimeout(timeout);
-    return { history: [], latest: null };
+    return await getChromeCacheHistory(url);
   }
 }
 
@@ -708,27 +715,36 @@ async function fetchEggs() {
 async function handleAsk(payload) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
-    if (!server.online) return { ...obsidianOfflineError(), answers: [] };
+    if (!server.online) return handleAskChrome(payload);
     if (server.error) return { ...server, mode: "obsidian", answers: [] };
-    const serverUrl = await getServerUrl();
-    const response = await fetch(`${serverUrl}/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      const serverUrl = await getServerUrl();
+      const response = await fetch(`${serverUrl}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
-      return {
-        error: data.error || `Server error (${response.status})`,
-        errorCode: data.errorCode || "unknown",
-      };
+      if (!response.ok) {
+        if ([502, 503, 504].includes(response.status)) return handleAskChrome(payload);
+        return {
+          error: data.error || `Server error (${response.status})`,
+          errorCode: data.errorCode || "unknown",
+        };
+      }
+
+      return data;
+    } catch {
+      return handleAskChrome(payload);
     }
-
-    return data;
   }
 
+  return handleAskChrome(payload);
+}
+
+async function handleAskChrome(payload) {
   const aiSettings = await loadChromeAiSettings();
 
   const provider = aiSettings.chromeAiProvider || "gemini";
@@ -751,6 +767,7 @@ async function handleAsk(payload) {
     const answer = await askFollowUpStandalone(payload, question, payload.priorQa || [], aiSettings, scope);
     return {
       answers: [{ question, answer, scope }],
+      mode: "chrome",
     };
   } catch (err) {
     return {
@@ -815,7 +832,18 @@ function formatTimeSaved(totalMinutes) {
   return hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins}m`;
 }
 
-async function getChromeMetrics() {
+let chromeMetricsQueue = Promise.resolve();
+function queueChromeMetrics(task) {
+  const result = chromeMetricsQueue.then(task);
+  chromeMetricsQueue = result.catch(() => {});
+  return result;
+}
+
+function getChromeMetrics() {
+  return queueChromeMetrics(readChromeMetrics);
+}
+
+async function readChromeMetrics() {
   const stored = await chrome.storage.local.get(["chromeMetrics", "chromeTabCache"]);
   if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === "number") {
     const m = stored.chromeMetrics;
@@ -846,40 +874,58 @@ async function getChromeMetrics() {
 
 async function recordChromeAnalysisMetrics(payload, _result) {
   try {
-    const current = await getChromeMetrics();
-    const minutes = getReadingTimeMinutes(payload?.metadata, payload?.content);
-    const updated = {
-      nuts: (current.nuts || 0) + 1,
-      eggs: (current.eggs || 0) + 1,
-      timeSavedMinutes: (current.timeSavedMinutes || 0) + minutes,
-    };
-    await chrome.storage.local.set({
-      chromeMetrics: updated,
-      cachedMetrics: {
-        ...updated,
-        timeSaved: formatTimeSaved(updated.timeSavedMinutes),
-      },
+    await queueChromeMetrics(async () => {
+      const current = await readChromeMetrics();
+      const minutes = getReadingTimeMinutes(payload?.metadata, payload?.content);
+      const updated = {
+        nuts: (current.nuts || 0) + 1,
+        eggs: (current.eggs || 0) + 1,
+        timeSavedMinutes: (current.timeSavedMinutes || 0) + minutes,
+      };
+      await chrome.storage.local.set({
+        chromeMetrics: updated,
+      });
     });
   } catch (err) {
     console.warn("[NutEgg] Failed to record Chrome metrics:", err);
   }
 }
 
-async function fetchMetrics() {
-  if (await getConnectionMode() !== "obsidian") {
-    return await getChromeMetrics();
-  }
+let metricsFetchTask = null;
+function fetchMetrics() {
+  if (metricsFetchTask) return metricsFetchTask;
+  const task = refreshCombinedMetrics().finally(() => { if (metricsFetchTask === task) metricsFetchTask = null; });
+  metricsFetchTask = task;
+  return task;
+}
+
+async function refreshCombinedMetrics() {
+  // Read the vault snapshot in either mode. Replace it on refresh; never accumulate imports.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
     const serverUrl = await getServerUrl();
     const response = await fetch(`${serverUrl}/metrics`, { signal: controller.signal });
+    if (!response.ok) throw new Error('Metrics unavailable');
+    const snapshot = await response.json();
+    if (![snapshot.nuts, snapshot.eggs, snapshot.timeSavedMinutes].every(value => Number.isFinite(value) && value >= 0)) throw new Error('Invalid metrics');
+    await chrome.storage.local.set({ obsidianMetricsSnapshot: {
+      nuts: snapshot.nuts, eggs: snapshot.eggs, timeSavedMinutes: Math.round(snapshot.timeSavedMinutes),
+    } });
+  } catch { /* Keep the last known vault snapshot while offline. */ }
+  finally {
     clearTimeout(timeout);
-    return await response.json();
-  } catch {
-    clearTimeout(timeout);
-    return { nuts: 0, eggs: 0, timeSaved: "0m", timeSavedMinutes: 0 };
   }
+  const local = await getChromeMetrics();
+  const { obsidianMetricsSnapshot: vault = {} } = await chrome.storage.local.get(['obsidianMetricsSnapshot']);
+  const number = value => Number.isFinite(value) && value >= 0 ? value : 0;
+  const total = {
+    nuts: local.nuts + number(vault.nuts), eggs: local.eggs + number(vault.eggs),
+    timeSavedMinutes: local.timeSavedMinutes + number(vault.timeSavedMinutes),
+  };
+  const metrics = { ...total, timeSaved: formatTimeSaved(total.timeSavedMinutes) };
+  await chrome.storage.local.set({ cachedMetrics: metrics });
+  return metrics;
 }
 
 async function checkServer() {

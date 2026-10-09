@@ -24,6 +24,9 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 
 ## How It Works
 
+See [Connection signal colors and combined metrics](docs/connection-status.md) for
+readiness states, offline fallback, and how activity totals stay consistent across modes.
+
 ```
 Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Skip  →  Obsidian Knowledge Vault
 ```

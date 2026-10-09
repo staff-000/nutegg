@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-function worker(initial = {}, { online = true, syncOk = true } = {}) {
+function worker(initial = {}, availability = {}) {
   const stored = { ...initial }, http = [], ai = [];
   let listener, storageListener;
   const context = vm.createContext({
@@ -29,8 +29,9 @@ function worker(initial = {}, { online = true, syncOk = true } = {}) {
     },
     fetch: async (url, options) => {
       http.push({ url, options });
-      if (!online) throw new Error('Connection refused');
-      return { ok: !url.endsWith('/ai-config') || syncOk, json: async () => url.endsWith('/health') ? { version: '1' } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
+      if (availability.online === false || availability.offlinePaths?.some(path => url.endsWith(path))) throw new Error('Connection refused');
+      if (url.endsWith('/metrics')) return { ok: availability.metricsOk !== false, json: async () => availability.metrics || { nuts: 0, eggs: 0, timeSavedMinutes: 0 } };
+      return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1' } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
     },
   });
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
@@ -72,7 +73,7 @@ test('Chrome mode guards every Obsidian-only request and uses Chrome credit', as
   for (const action of ['confirm', 'create-egg']) {
     assert.equal((await app.send(action, { payload: {}, name: 'Egg' })).errorCode, 'obsidian_mode_required');
   }
-  assert.equal(app.http.length, 0);
+  assert(app.http.every(call => call.url.endsWith('/metrics')), 'Metrics may read the vault snapshot independently of mode');
   assert.deepEqual(app.ai.map(call => call.action), ['credit']);
 });
 
@@ -85,18 +86,37 @@ test('Obsidian mode routes both analysis and questions to the chosen server', as
   assert.equal(app.ai.length, 0);
 });
 
-test('offline Obsidian mode explains how to reconnect without silently using a saved Chrome key', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'unused' }, { online: false });
+test('offline Obsidian uses Chrome analysis, questions and cache, then reconnects without changing the selected mode', async () => {
+  const availability = { online: false };
+  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key' }, availability);
   for (const action of ['analyze', 'ask']) {
-    const result = await app.send(action, { payload: { content: 'Article', questions: ['Why?'] } });
-    assert.equal(result.mode, 'obsidian');
-    assert.equal(result.errorCode, 'obsidian_offline');
-    assert.match(result.error, /Open Obsidian.*switch to Chrome/);
+    const result = await app.send(action, { payload: { url: 'https://example.test', content: 'Article', questions: ['Why?'] } });
+    assert.equal(result.mode, 'chrome');
+    assert.equal(result.error, undefined);
   }
-  assert.equal(app.ai.length, 0);
-  app.stored.connectionMode = 'chrome';
+  assert.equal((await app.send('history', { url: 'https://example.test' })).history[0].result.mode, 'chrome');
+  assert.equal(app.ai.length, 2);
+  assert.equal(app.stored.connectionMode, 'obsidian');
+  availability.online = true;
+  assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'obsidian');
+  assert.equal(app.ai.length, 2);
+});
+
+test('Obsidian disconnecting after the health check falls back for reading and questions', async () => {
+  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key' }, { offlinePaths: ['/analyze', '/ask'] });
   assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'chrome');
-  assert.equal(app.ai.length, 1);
+  assert.equal((await app.send('ask', { payload: { questions: ['Why?'] } })).answers[0].answer, 'Answer');
+  assert.equal(app.ai.length, 2);
+});
+
+test('offline fallback still requires a Chrome-compatible provider and never substitutes vault egg analysis', async () => {
+  for (const settings of [{}, { chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing' }]) {
+    const app = worker({ connectionMode: 'obsidian', ...settings }, { online: false });
+    assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).errorCode,
+      settings.chromeAiProvider ? 'subscription_requires_obsidian' : 'no_api_key');
+    assert.equal((await app.send('analyze', { payload: { content: 'Article', stage: 2 } })).errorCode, 'obsidian_offline');
+    assert.equal(app.ai.length, 0);
+  }
 });
 
 test('local AI uses the saved endpoint and needs no API key', async () => {
@@ -271,6 +291,40 @@ test('Chrome mode persists and increments metrics in Chrome storage on each anal
   assert.equal(app.stored.chromeMetrics.eggs, 2);
 });
 
+
+test('combined metrics replace the vault snapshot, stay consistent across modes, and survive offline refreshes', async () => {
+  const availability = { metrics: { nuts: 100, eggs: 80, timeSavedMinutes: 200 } };
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'key', chromeMetrics: { nuts: 5, eggs: 5, timeSavedMinutes: 10 } }, availability);
+  const first = await app.send('metrics');
+  assert.equal(first.nuts, 105);
+  assert.equal(first.eggs, 85);
+  assert.equal(first.timeSavedMinutes, 210);
+  assert.equal((await app.send('metrics')).nuts, 105, 'Refreshing must not import the same vault twice');
+  app.stored.connectionMode = 'obsidian';
+  assert.equal((await app.send('metrics')).nuts, 105);
+  availability.metrics = { nuts: 101, eggs: 81, timeSavedMinutes: 205 };
+  assert.equal((await app.send('metrics')).nuts, 106);
+  availability.online = false;
+  await app.send('analyze', { payload: { content: 'Article', metadata: { time_estimate_minutes: 5 } } });
+  const offline = await app.send('metrics');
+  assert.equal(offline.nuts, 107);
+  assert.equal(offline.timeSavedMinutes, 220);
+  assert.equal(app.stored.obsidianMetricsSnapshot.nuts, 101);
+  availability.online = true;
+  availability.metricsOk = false;
+  assert.equal((await app.send('metrics')).nuts, 107, 'An HTTP error cannot replace the snapshot with zeros');
+  availability.metricsOk = true;
+  availability.metrics = { nuts: -1, eggs: 0, timeSavedMinutes: 0 };
+  assert.equal((await app.send('metrics')).nuts, 107, 'Malformed snapshots are ignored');
+});
+
+test('first Chrome analysis is counted once and concurrent completions cannot lose metric increments', async () => {
+  const app = worker({ chromeAiApiKey: 'key' });
+  await app.send('analyze', { payload: { url: 'https://example.test/first', content: 'Article' } });
+  assert.equal((await app.send('metrics')).nuts, 1);
+  await Promise.all([1, 2, 3].map(i => app.send('analyze', { payload: { url: `https://example.test/${i}`, content: 'Article' } })));
+  assert.equal((await app.send('metrics')).nuts, 4);
+});
 
 test('Obsidian receives Chrome AI configuration before requests and receives subsequent changes', async () => {
   const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing', chromeAiModel: 'auto', chunkWindowChars: 10000, contentAnalysisMaxTokens: 5000 });

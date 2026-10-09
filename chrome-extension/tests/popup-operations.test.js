@@ -3,6 +3,17 @@ const assert = require('node:assert/strict');
 const { fixture, deferred, seed } = require('./helpers/popup-fixture');
 const options = { analysisMode: 'preview', outputLanguage: 'same-as-content', chromeMode: false };
 
+test('Chrome fallback retains the reading result and skips vault analysis even with preselected eggs', async () => {
+  const { store, operations, calls } = fixture();
+  const job = operations.analyze(1, { ...options, analysisMode: 'full', eggs: ['selected.md'] });
+  calls[0].resolve({ mode: 'chrome', stage: 'stage1', shouldRead: true, shouldReadReason: 'Useful', coreSummary: ['Summary'] });
+  await job;
+  assert.equal(calls.length, 1);
+  assert.equal(store.getTab(1).analysisResult.mode, 'chrome');
+  assert.equal(store.getTab(1).analysisResult.shouldRead, true);
+  assert.equal(store.getTab(1).analysisResult.shouldReadReason, 'Useful');
+});
+
 test('capture retries use stored preferences and progress remains on the originating tab', async () => {
   const { store, operations, extractor } = fixture();
   store.settings = { captureRetryCount: 5, captureRetryDelayMs: 1500 };

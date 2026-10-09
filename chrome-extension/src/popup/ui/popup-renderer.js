@@ -9,7 +9,7 @@ class PopupRenderer {
   render() {
     const view = this.store.viewModel();
     const { ui, settings, root } = this;
-    const obsidianMode = settings.connectionMode === 'obsidian';
+    const obsidianMode = !settings.isChromeMode();
     root.body?.classList.toggle('chrome-reader', !obsidianMode);
     root.body?.classList.toggle('obsidian-reader', obsidianMode);
     const changedTab = view.activeTabId !== this.tabId;

@@ -131,14 +131,15 @@ class PopupOperations {
       if (!this.store.isOperationCurrent(token)) return { stale: true };
       if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
       const stage1 = { ...response, generateKnowledgeEntries: tab.generateKnowledgeEntries };
-      const eggs = inputs.eggs || response.matchedEggs || [];
-      if (!inputs.chromeMode && (inputs.analysisMode === 'full' || inputs.analysisMode === 'fast' || inputs.reanalyze) && eggs.length) {
+      const chromeMode = response.mode === 'chrome' || inputs.chromeMode;
+      const eggs = chromeMode ? [] : inputs.eggs || response.matchedEggs || [];
+      if (!chromeMode && (inputs.analysisMode === 'full' || inputs.analysisMode === 'fast' || inputs.reanalyze) && eggs.length) {
         this.store.commitOperation(token, { type: 'analysisInterim', result: stage1, payload, eggs });
         this.store.commitOperation(token, { type: 'phase', phase: 'stage2' });
         const result = await this.runEggs(ctx, stage1, payload, eggs, []);
         return result;
       }
-      if (!inputs.chromeMode) {
+      if (!chromeMode) {
         stage1.stage = 'stage1';
         for (const key of ['eggResults', 'shouldRead', 'shouldReadReason', 'newKnowledge']) delete stage1[key];
       }
@@ -245,7 +246,7 @@ class PopupOperations {
       const response = await this.service.sendMessage({ action: 'ask', payload: { ...(tab.stage1Payload || tab.extractedContent),
         debugScope: tab.debugScope,
         questions: [question], scope: tab.followupScope, priorQa, outputLanguage: ctx.inputs.outputLanguage } });
-      if (response?.error) throw new Error(response.error);
+      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
       this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: response.answers?.[0] || { answer: t('noContentExtracted') } });
     } catch (error) { return this.fail(ctx, error); }
   }

@@ -148,7 +148,8 @@ describe("SettingsState", () => {
     settings.setConnectionMode("obsidian");
     assert.equal(store.connectionMode, "obsidian");
     assert.equal(settings.serverOnline, false);
-    assert.equal(settings.isChromeMode(), false, "An offline server never switches the selected backend");
+    assert.equal(settings.isChromeMode(), true, "An offline server temporarily uses Chrome");
+    assert.equal(settings.connectionMode, 'obsidian', "Fallback retains the selected mode");
     assert.equal(settings.isChromeMode({ mode: "chrome" }), true, "Existing result retains its backend");
     const restored = new SettingsState();
     await restored.loadFromStorage();

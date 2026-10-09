@@ -35,6 +35,7 @@ async function initPopup() {
   tabStateManager.subscribe(event => {
     if ((event.type === 'receipt' && event.receipt.success) || event.type === 'analysisComplete') {
       void envService.fetchMetrics();
+      void envService.checkServerStatus(true);
     }
   });
   tabStateManager.diagnosticsEnabled = stored?.popupDiagnostics === true;
@@ -172,6 +173,9 @@ async function initPopup() {
   });
   void operations.refreshDebugInfo();
   setInterval(() => { void operations.refreshDebugInfo(); }, 1000);
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && settings.connectionMode === 'obsidian') void envService.checkServerStatus();
+  }, 15000);
   chrome.tabs.onActivated.addListener(info => {
     if (activityUI.windowId == null || activityUI.windowId === info.windowId) void tabAction.handleTabActivated(info);
   });

@@ -4,6 +4,39 @@ const { EnvironmentService } = require('../src/popup/services/environment-servic
 const { SettingsState } = require('../src/popup/state/settings-state.js');
 const { TabStateManager } = require('../src/popup/state/tab-state.js');
 const { deferred } = require('./helpers/popup-fixture');
+globalThis.t = require('../src/i18n.js').t;
+
+test('credit exhaustion uses the unrounded balance and clears after credit is restored', async () => {
+  for (const mode of ['chrome', 'obsidian']) {
+    const settings = new SettingsState(), store = new TabStateManager();
+    settings.setConnectionMode(mode, false);
+    let credit = { hasBalance: true, remainingCredits: 0, balanceFormatted: '$0.00' };
+    const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+      if (action === 'check-server') return { online: true };
+      if (action === 'config-status') return { issues: [] };
+      if (action === 'check-chrome-ai') return { configured: true };
+      if (action.endsWith('credit')) return credit;
+      return {};
+    } } } });
+    await env.checkServerStatus();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(settings.aiStatusError, /No remaining AI credit/);
+    credit = { hasBalance: true, remainingCredits: 0.001, balanceFormatted: '$0.00' };
+    await env.checkServerStatus();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(settings.aiStatusError, null, 'A rounded display value cannot imply exhaustion');
+  }
+});
+
+test('unknown balance is not treated as zero and thrown credit failures mark the provider inaccessible', async () => {
+  const settings = new SettingsState(), store = new TabStateManager();
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async () => ({ hasBalance: false }) } } });
+  await env.fetchCredit(0, false);
+  assert.equal(settings.aiStatusError, null);
+  env.chromeApi.runtime.sendMessage = async () => { throw new Error('Provider unavailable'); };
+  await env.fetchCredit(0, false);
+  assert.equal(settings.aiStatusError, 'Provider unavailable');
+});
 for (const connectionMode of ['chrome', 'obsidian']) test(`readiness for ${connectionMode} does not wait for balance`, async () => {
   const credit = deferred(); const calls = [];
   const chromeApi = { runtime: { sendMessage: async ({ action }) => {
@@ -20,7 +53,7 @@ for (const connectionMode of ['chrome', 'obsidian']) test(`readiness for ${conne
   await env.checkServerStatus();
   assert.equal(settings.serverOnline, connectionMode === 'obsidian'); assert.equal(store.environment.credit, null);
   assert(calls.includes(connectionMode === 'obsidian' ? 'get-credit' : 'check-chrome-credit'));
-  if (connectionMode === 'chrome') assert.deepEqual(calls, ['check-chrome-ai', 'check-chrome-credit']);
+  if (connectionMode === 'chrome') assert.deepEqual(calls, ['check-chrome-ai', 'metrics', 'check-chrome-credit']);
   credit.resolve({ balanceFormatted: '$10' }); await new Promise(resolve => setImmediate(resolve));
   assert.equal(store.environment.credit.balanceFormatted, '$10');
 });
@@ -37,21 +70,50 @@ test('environment requests are deduplicated, and superseded status/credit never 
   a.resolve({ online: true }); await first; assert.equal(settings.serverOnline, false);
 });
 
-test('offline Obsidian mode does not check Chrome credentials or credit', async () => {
+test('offline Obsidian mode checks Chrome readiness and uses Chrome credit', async () => {
   const settings = new SettingsState(), store = new TabStateManager(), calls = [];
   settings.setConnectionMode('obsidian', false);
   const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
-    calls.push(action); return { online: false };
+    calls.push(action);
+    if (action === 'check-chrome-ai') return { configured: true, provider: 'deepseek', model: 'deepseek-chat' };
+    if (action === 'check-chrome-credit') return { balanceFormatted: '¥8.33' };
+    return { online: false };
   } } } });
   await env.checkServerStatus();
-  assert.deepEqual(calls, ['check-server']);
+  assert.deepEqual(calls, ['check-server', 'check-chrome-ai', 'metrics', 'check-chrome-credit']);
   assert.equal(settings.serverOnline, false);
   assert.equal(settings.obsidianAiConfigured, false);
-  assert.equal(settings.chromeAiConfigured, false);
-  assert.equal(settings.isChromeMode(), false);
+  assert.equal(settings.chromeAiConfigured, true);
+  assert.equal(settings.isChromeMode(), true);
+  assert.equal(settings.connectionMode, 'obsidian');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(store.environment.credit.isChromeAi, true);
+  assert.equal(store.environment.credit.balanceFormatted, '¥8.33');
 });
 
-test('switching to Chrome discards pending Obsidian status, credit and metrics', async () => {
+test('Obsidian reconnects after fallback and ignores a late Chrome balance response', async () => {
+  const settings = new SettingsState(), store = new TabStateManager(), oldCredit = deferred();
+  let online = false;
+  settings.setConnectionMode('obsidian', false);
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+    if (action === 'check-server') return { online };
+    if (action === 'check-chrome-ai') return { configured: true };
+    if (action === 'check-chrome-credit') return oldCredit.promise;
+    if (action === 'config-status') return { issues: [] };
+    if (action === 'get-credit') return { balanceFormatted: '$20' };
+    return {};
+  } } } });
+  await env.checkServerStatus();
+  online = true;
+  await env.checkServerStatus();
+  oldCredit.resolve({ balanceFormatted: '$10' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settings.isChromeMode(), false);
+  assert.equal(store.environment.credit.balanceFormatted, '$20');
+  assert.equal(store.environment.credit.isChromeAi, false);
+});
+
+test('switching to Chrome discards pending Obsidian credit while combined metrics remain valid', async () => {
   const settings = new SettingsState(), store = new TabStateManager(), credit = deferred(), metrics = deferred();
   settings.setConnectionMode('obsidian', false);
   const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
@@ -68,7 +130,26 @@ test('switching to Chrome discards pending Obsidian status, credit and metrics',
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(settings.serverOnline, false);
   assert.equal(store.environment.credit, null);
-  assert.notEqual(store.metrics?.nuts, 500);
+  assert.equal(store.metrics?.nuts, 500);
+});
+
+test('sync failure or unreadable config cannot mark Obsidian AI ready', async () => {
+  for (const syncFailure of [false, true]) {
+    const settings = new SettingsState(), store = new TabStateManager();
+    settings.setConnectionMode('obsidian', false);
+    const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+      if (action === 'check-server') return { online: true, ...(syncFailure ? { error: 'Sync failed' } : {}) };
+      if (action === 'config-status') {
+        if (!syncFailure) throw new Error('Cannot read config');
+        return { issues: [] };
+      }
+      return {};
+    } } } });
+    await env.checkServerStatus();
+    assert.equal(settings.environmentChecked, true);
+    assert.equal(settings.obsidianAiConfigured, false);
+    assert.match(settings.serverError, /Sync failed|Cannot read config/);
+  }
 });
 for (const cachedStyles of [false, true]) {
   test(`startup frame remains available while ${cachedStyles ? 'cached' : 'pending'} styles initialize`, () => {

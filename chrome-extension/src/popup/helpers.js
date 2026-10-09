@@ -322,10 +322,7 @@ function getAnalyzeNotReadyReason(sessionState, settingsState) {
   if (isTranscriptBlocked(sessionState.extractedContent) && sessionState.enabledSections?.discussion !== true) {
     return t("transcriptUnavailableAnalyze");
   }
-  if (settingsState?.connectionMode === "obsidian" && !settingsState.serverOnline) {
-    return t("obsidianOfflineStart");
-  }
-  if (settingsState && settingsState.connectionMode !== "obsidian" && !settingsState.chromeAiConfigured) {
+  if (settingsState && (settingsState.connectionMode !== "obsidian" || !settingsState.serverOnline) && !settingsState.chromeAiConfigured) {
     return t("chromeAiNoKeyConfig");
   }
   return null;

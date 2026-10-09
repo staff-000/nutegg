@@ -36,11 +36,11 @@
             <span class="ai-credit-icon">🪙</span>
             <span id="ai-credit-text" class="ai-credit-text" data-i18n="aiCredit">AI Credit</span>
           </button>
-          <div class="status-indicator-wrap" id="status-indicator-wrap" role="button" tabindex="0">
-            <span id="server-status" class="status-dot warning" aria-label="Add your AI key"></span>
-            <div id="server-status-tooltip" class="status-tooltip offline">
-              <div class="status-tooltip-title" id="status-tooltip-title" data-i18n="readerNeedsSetup">Add your AI key</div>
-              <div class="status-tooltip-sub" id="status-tooltip-sub" data-i18n="readerSetupBody">Connect an AI provider once, then analyze pages right here in Chrome.</div>
+          <div class="status-indicator-wrap" id="status-indicator-wrap" role="button" tabindex="0" aria-describedby="server-status-tooltip">
+            <span id="server-status" class="status-dot checking" aria-label="Checking..." data-i18n-aria-label="checking"></span>
+            <div id="server-status-tooltip" class="status-tooltip checking" role="tooltip">
+              <div class="status-tooltip-title" id="status-tooltip-title" data-i18n="checking">Checking...</div>
+              <div class="status-tooltip-sub" id="status-tooltip-sub"></div>
             </div>
           </div>
           <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Settings" data-i18n-title="settingsTooltip">

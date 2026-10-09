@@ -11,6 +11,25 @@ const bundlePath = path.join(__dirname, "../dist/ai-core.js");
 const bundleCode = fs.readFileSync(bundlePath, "utf8");
 const NutEggAI = new Function(bundleCode + "\nreturn NutEggAI;")();
 
+test('credit providers report unrounded remaining balances and local HTTP failures report errors', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const [provider, body, expected] of [
+      ['openrouter', { data: { total_credits: 1, total_usage: 1 } }, 0],
+      ['deepseek', { balance_infos: [{ currency: 'USD', total_balance: '0.001' }] }, 0.001],
+      ['kimi', { data: { available_balance: -1 } }, -1],
+    ]) {
+      globalThis.fetch = async () => new Response(JSON.stringify(body), { status: 200 });
+      const credit = await NutEggAI.checkCreditAI({ chromeAiProvider: provider, chromeAiApiKey: 'key' });
+      assert.equal(credit.hasBalance, true);
+      assert.equal(credit.remainingCredits, expected);
+    }
+    globalThis.fetch = async () => new Response('', { status: 503 });
+    const credit = await NutEggAI.checkCreditAI({ chromeAiProvider: 'local' });
+    assert.match(credit.error, /HTTP 503/);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 const {
   renderPrompt,
   chunkContent,

@@ -38,25 +38,35 @@ class HeaderComponent {
 
   render(session, settings) {
     if (!settings) return;
+    if (settings.environmentChecked === false) { this.updateServerStatus('checking'); return; }
+    const providerError = [session?.errors?.analysis, session?.errors?.followup].find(error =>
+      ['auth_failed', 'bridge_auth_failed', 'forbidden', 'model_not_found', 'rate_limited', 'quota_exceeded', 'network_error', 'server_error'].includes(error?.code));
+    if (providerError) { this.updateServerStatus('connection-error', null, providerError.message); return; }
     const obsidianMode = settings.connectionMode === 'obsidian';
     this.updateVersion(null, obsidianMode ? settings.obsidianPluginVersion : null);
     if (!obsidianMode) {
-      this.updateServerStatus(settings.chromeAiConfigured ? 'chrome-ai' : 'chrome-no-key', null, settings.chromeAiProvider);
+      this.updateServerStatus(settings.chromeAiConfigured && settings.aiStatusError ? 'connection-error' : settings.chromeAiConfigured ? 'chrome-ai' : 'chrome-no-key', null, settings.aiStatusError || settings.chromeAiProvider);
       return;
     }
     const extVersion = typeof chrome !== "undefined" ? chrome.runtime?.getManifest?.()?.version : null;
     const hasMismatch = settings.obsidianPluginVersion && extVersion && settings.obsidianPluginVersion !== extVersion;
 
     if (settings.serverOnline) {
-      if (hasMismatch) {
+      if (settings.serverError) {
+        this.updateServerStatus('connection-error', null, settings.serverError);
+      } else if (hasMismatch) {
         this.updateServerStatus("obsidian-mismatch", settings.obsidianPluginVersion);
       } else if (!settings.obsidianAiConfigured) {
         this.updateServerStatus("obsidian-no-key", settings.obsidianPluginVersion);
+      } else if (settings.aiStatusError) {
+        this.updateServerStatus('connection-error', null, settings.aiStatusError);
+      } else if (settings.serverWarning) {
+        this.updateServerStatus('obsidian-warning', settings.obsidianPluginVersion, settings.serverWarning);
       } else {
         this.updateServerStatus("obsidian-online", settings.obsidianPluginVersion);
       }
     } else {
-      this.updateServerStatus("offline");
+      this.updateServerStatus(settings.chromeAiConfigured && settings.aiStatusError ? 'connection-error' : settings.chromeAiConfigured ? "chrome-fallback" : "chrome-fallback-unavailable", null, settings.aiStatusError || settings.chromeAiProvider);
     }
   }
 
@@ -64,7 +74,9 @@ class HeaderComponent {
     if (this.serverStatus) {
       if (state === "obsidian-online") {
         this.serverStatus.className = "status-dot online";
-      } else if (state === "obsidian-mismatch" || state === "obsidian-no-key" || state === "chrome-no-key") {
+      } else if (state === "checking") {
+        this.serverStatus.className = "status-dot checking";
+      } else if (["obsidian-mismatch", "obsidian-no-key", "obsidian-warning", "chrome-no-key", "chrome-fallback"].includes(state)) {
         this.serverStatus.className = "status-dot warning";
       } else if (state === "chrome-ai") {
         this.serverStatus.className = "status-dot chrome-ai";
@@ -75,15 +87,33 @@ class HeaderComponent {
 
     if (!this.tooltip || !this.tooltipTitle || !this.tooltipSub) return;
 
-    if (state === "obsidian-online") {
+    if (state === "checking" || state === "connection-error") {
+      const title = t(state === "checking" ? "checking" : "connectionFailed");
+      this.tooltip.className = `status-tooltip ${state === "checking" ? "checking" : "offline"}`;
+      this.tooltipTitle.textContent = title;
+      this.tooltipSub.textContent = state === "checking" ? "" : extra;
+      this.serverStatus?.setAttribute("aria-label", title);
+    } else if (state === "chrome-fallback" || state === "chrome-fallback-unavailable") {
+      const ready = state === "chrome-fallback";
+      const title = t(ready ? "obsidianChromeFallback" : "obsidianChromeFallbackUnavailable");
+      this.tooltip.className = `status-tooltip ${ready ? "warning" : "offline"}`;
+      this.tooltipTitle.textContent = title;
+      this.tooltipSub.textContent = t(ready ? "obsidianChromeFallbackDesc" : "readerSetupBody");
+      this.serverStatus?.setAttribute("aria-label", title);
+    } else if (state === "obsidian-online") {
       this.tooltip.className = "status-tooltip online";
       this.tooltipTitle.textContent = t("obsidianOnline");
       this.tooltipSub.textContent = version ? t("pluginVersionFull", { version }) : t("readyToCapture");
       this.serverStatus?.setAttribute("aria-label", t("obsidianOnlineAria", { version: version ? ` (v${version})` : "" }));
+    } else if (state === "obsidian-warning") {
+      this.tooltip.className = 'status-tooltip warning';
+      this.tooltipTitle.textContent = t('obsidianOnline');
+      this.tooltipSub.textContent = extra;
+      this.serverStatus?.setAttribute('aria-label', extra);
     } else if (state === "obsidian-no-key") {
       this.tooltip.className = "status-tooltip warning";
       this.tooltipTitle.textContent = t("obsidianOnlineNoKey");
-      this.tooltipSub.textContent = t("addKeyInObsidian");
+      this.tooltipSub.textContent = t("readerChromeKeyHint");
       this.serverStatus?.setAttribute("aria-label", t("obsidianNoKeyConfig"));
     } else if (state === "obsidian-mismatch") {
       this.tooltip.className = "status-tooltip warning";
