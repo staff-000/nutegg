@@ -1,4 +1,5 @@
 export const en = {
+  aiManagedInChrome: "AI settings can only be changed in the NutEgg Chrome extension. Obsidian reads the synced configuration from Chrome.",
   // Settings
   subscriptionBridgeToken: "Local pairing token",
   subscriptionBridgeSetup: "Install {cli}, run {login} and sign in with your subscription account, then run npm run bridge:ai from NutEgg. Paste the pairing token shown in the terminal. Keep the bridge running; your plan’s CLI limits apply.",
@@ -23,7 +24,7 @@ export const en = {
   useDefaultsBtn: "Use Defaults",
   devMode: "Developer mode",
   devModeOn: "Advanced settings are visible below",
-  devModeOff: "Show advanced settings (AI provider, API key, server port)",
+  devModeOff: "Show advanced server settings",
   aiModelConfig: "AI Model Configuration",
   localModelConfig: "Local LLM Configuration",
   aiProvider: "1. AI Provider",
@@ -127,7 +128,7 @@ export const en = {
   setupAiKeyStatusBar: "⚠️ NutEgg: Setup AI Key",
   setupAiKeyTooltip: "NutEgg: AI API key not configured. Click to open Settings.",
   setupAiBannerTitle: "AI Setup Required",
-  setupAiBannerDesc: "Configure an AI Provider and API key to enable content analysis, egg synthesis, and automated merging.",
+  setupAiBannerDesc: "AI settings can only be changed in the NutEgg Chrome extension. Obsidian reads the synced configuration from Chrome.",
   configureAiBtn: "Configure AI Settings",
 };
 

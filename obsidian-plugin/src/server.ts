@@ -5,7 +5,7 @@ import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import { createHash } from "crypto";
 import type NutEggPlugin from "./main";
-import { AIError, isAIConfigured, isSubscriptionProvider } from "./ai-client";
+import { AIError, isAIConfigured, PROVIDER_CATALOG } from "./ai-client";
 import type {
   AnalysisResult,
   AnalysisSectionsConfig,
@@ -123,6 +123,7 @@ interface CaptureEntry {
 }
 
 export class NutEggServer {
+  private aiConfigQueue: Promise<void> = Promise.resolve();
   private confirmationQueues = new Map<string, Promise<void>>();
   private server: http.Server | null = null;
   private plugin: NutEggPlugin;
@@ -281,6 +282,11 @@ export class NutEggServer {
           return;
         }
 
+        if (req.method === "POST" && req.url === "/ai-config") {
+          await this.handleAiConfig(req, res);
+          return;
+        }
+
         if (req.method === "GET" && req.url === "/config-status") {
           await this.handleConfigStatus(res);
           return;
@@ -359,6 +365,53 @@ export class NutEggServer {
     });
   }
 
+  private async handleAiConfig(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    // Only the extension can replace the mirrored AI config.
+    if (!req.headers.origin?.startsWith("chrome-extension://") || !req.headers["content-type"]?.startsWith("application/json")) {
+      res.writeHead(403, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "AI settings must be synced from Chrome" }));
+      return;
+    }
+    let config: any;
+    try {
+      config = JSON.parse(await this.readBody(req, 64 * 1024));
+      if (!config || !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider)
+        || typeof config.aiApiKey !== "string" || typeof config.aiModel !== "string"
+        || typeof config.localEndpoint !== "string" || config.localApiType !== "openai"
+        || !Number.isSafeInteger(config.chunkWindowChars) || config.chunkWindowChars < 1000
+        || !Number.isSafeInteger(config.contentAnalysisMaxTokens) || config.contentAnalysisMaxTokens < 500) {
+        throw new Error("Invalid AI configuration");
+      }
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid AI configuration" }));
+      return;
+    }
+    const settings = this.plugin.settings;
+    const next = {
+      aiProvider: config.aiProvider,
+      aiApiKey: config.aiApiKey.trim(),
+      aiModel: config.aiModel.trim(),
+      localEndpoint: config.localEndpoint.trim(),
+      localApiType: config.localApiType,
+      chunkWindowChars: config.chunkWindowChars,
+      contentAnalysisMaxTokens: config.contentAnalysisMaxTokens,
+    };
+    const update = this.aiConfigQueue.then(async () => {
+      if (Object.entries(next).some(([key, value]) => (settings as any)[key] !== value)) {
+        const previous = Object.fromEntries(Object.keys(next).map(key => [key, (settings as any)[key]]));
+        // Keep the settings object used by AIClient and AIProcessor alive.
+        Object.assign(settings, next);
+        try { await this.plugin.saveSettings(); }
+        catch (error) { Object.assign(settings, previous); throw error; }
+      }
+    });
+    this.aiConfigQueue = update.catch(() => {});
+    await update;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: true }));
+  }
+
   /**
    * GET /config-status — Returns AI configuration status for the popup to show warnings and credit info.
    */
@@ -369,13 +422,7 @@ export class NutEggServer {
       let status: "ok" | "warning" | "error" = "ok";
 
       if (!isAIConfigured(settings)) {
-        issues.push(
-          isSubscriptionProvider(settings.aiProvider)
-            ? "Bridge pairing token missing. Start npm run bridge:ai and paste its token in Obsidian Settings → NutEgg."
-            : settings.aiProvider === "local"
-            ? "Local LLM endpoint or model not configured. Open Obsidian Settings → NutEgg to configure it."
-            : "No API key configured. Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key."
-        );
+        issues.push("AI is not configured. Open NutEgg settings in Chrome to choose a provider and configure AI.");
         status = "error";
       }
 

@@ -69,8 +69,13 @@ async function loadChromeAiSettings() {
     "contentOutputLanguage",
     "chromeAiOutputLanguage",
     "chromeAiMaxTokens",
+    "chunkWindowChars",
+    "contentAnalysisMaxTokens",
     "chromeAiPromptOverrides",
   ]);
+  stored.chunkWindowChars = Number.isSafeInteger(stored.chunkWindowChars) && stored.chunkWindowChars >= 1000 ? stored.chunkWindowChars : 30000;
+  const maxTokens = stored.contentAnalysisMaxTokens ?? stored.chromeAiMaxTokens;
+  stored.contentAnalysisMaxTokens = Number.isSafeInteger(maxTokens) && maxTokens >= 500 ? maxTokens : 16384;
   // Chrome AI is available by default; the legacy enable toggle is no longer required.
   stored.chromeAiEnabled = true;
   stored.chromeAiEndpoint = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint;
@@ -84,9 +89,48 @@ async function loadChromeAiSettings() {
   return stored;
 }
 
+// Send only AI configuration; Obsidian keeps its own vault and server settings.
+async function syncAiConfig(serverUrl = null, settings = null) {
+  settings = settings || await loadChromeAiSettings();
+  const provider = settings.chromeAiProvider || "gemini";
+  const response = await fetch(`${serverUrl || await getServerUrl()}/ai-config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      aiProvider: provider,
+      aiApiKey: settings.chromeAiApiKey || "",
+      aiModel: settings.chromeAiModel || PROVIDER_CATALOG[provider]?.defaultModel || "",
+      localEndpoint: settings.chromeAiEndpoint || PROVIDER_CATALOG.local?.officialEndpoint || "http://127.0.0.1:11434/v1/chat/completions",
+      localApiType: "openai",
+      chunkWindowChars: settings.chunkWindowChars,
+      contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
+    }),
+    signal: AbortSignal.timeout(3000),
+  });
+  if (!response.ok) throw new Error("Could not sync AI settings. Update the NutEgg Obsidian plugin and try again.");
+  return { success: true };
+}
+
+chrome.storage.onChanged?.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes.serverPort) serverPort = changes.serverPort.newValue || DEFAULT_PORT;
+  const keys = ["connectionMode", "serverPort", "chromeAiProvider", "chromeAiApiKey", "chromeAiModel", "chromeAiEndpoint", "chromeAiLocalEndpoint", "chunkWindowChars", "contentAnalysisMaxTokens"];
+  if (keys.some(key => key in changes)) {
+    void syncAiConfig().catch(() => {});
+  }
+});
+
+function subscriptionModeError() {
+  return { error: "Subscription providers are available only in Obsidian mode. Switch modes or choose an API provider in Chrome Settings.", errorCode: "subscription_requires_obsidian", mode: "chrome" };
+}
+
 // --- Messages ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === "sync-ai-config") {
+    syncAiConfig().then(sendResponse).catch(err => sendResponse({ error: err.message, errorCode: "ai_config_sync_failed" }));
+    return true;
+  }
   if (message.action === 'get-debug-info') {
     const scope = NutEggAI.normalizeAIDebugScope(message.debugScope);
     if (!scope) { sendResponse({ unavailable: true, mode: message.mode }); return false; }
@@ -164,12 +208,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "check-chrome-ai") {
     loadChromeAiSettings().then((settings) => {
+      // Mirroring configuration is independent of where analysis runs.
+      void syncAiConfig(null, settings).catch(() => {});
       const provider = settings.chromeAiProvider || "gemini";
       const isLocal = provider === "local";
       const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
       sendResponse({
         enabled: true,
-        configured: hasKey,
+        configured: hasKey && !isSubscriptionProvider(provider),
         provider,
         model: settings.chromeAiModel || (typeof PROVIDER_CATALOG !== "undefined" ? PROVIDER_CATALOG[provider]?.defaultModel : "") || "",
       });
@@ -179,6 +225,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === "check-chrome-credit") {
     loadChromeAiSettings().then((settings) => {
+      if (isSubscriptionProvider(settings.chromeAiProvider)) { sendResponse(subscriptionModeError()); return; }
       checkCreditAI(settings)
         .then((credit) => sendResponse(credit))
         .catch((err) => sendResponse({ error: String(err), hasBalance: false, statusText: "Credit check failed" }));
@@ -257,6 +304,7 @@ async function handleAnalyze(payload) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
+    if (server.error) return { ...server, mode: "obsidian" };
     try {
       const serverUrl = await getServerUrl();
       const response = await fetch(`${serverUrl}/analyze`, {
@@ -290,6 +338,7 @@ async function handleAnalyze(payload) {
 
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
+  if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
@@ -641,6 +690,7 @@ async function handleAsk(payload) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
     if (!server.online) return { ...obsidianOfflineError(), answers: [] };
+    if (server.error) return { ...server, mode: "obsidian", answers: [] };
     const serverUrl = await getServerUrl();
     const response = await fetch(`${serverUrl}/ask`, {
       method: "POST",
@@ -664,6 +714,7 @@ async function handleAsk(payload) {
 
   const provider = aiSettings.chromeAiProvider || "gemini";
   const isLocal = provider === "local";
+  if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
@@ -697,6 +748,7 @@ async function checkConfigStatus() {
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
     const serverUrl = await getServerUrl();
+    await syncAiConfig(serverUrl);
     const response = await fetch(`${serverUrl}/config-status`, { signal: controller.signal });
     clearTimeout(timeout);
     const data = await response.json();
@@ -705,18 +757,22 @@ async function checkConfigStatus() {
       chrome.storage.local.set({ serverPort: data.port });
     }
     return data;
-  } catch {
+  } catch (error) {
     clearTimeout(timeout);
-    return { status: "error", issues: ["Cannot reach server"] };
+    return { status: "error", issues: [error.message || "Cannot reach server"] };
   }
 }
 
 async function fetchCredit() {
-  if (await getConnectionMode() !== "obsidian") return checkCreditAI(await loadChromeAiSettings());
+  if (await getConnectionMode() !== "obsidian") {
+    const settings = await loadChromeAiSettings();
+    return isSubscriptionProvider(settings.chromeAiProvider) ? subscriptionModeError() : checkCreditAI(settings);
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
     const serverUrl = await getServerUrl();
+    await syncAiConfig(serverUrl);
     const response = await fetch(`${serverUrl}/credit`, { signal: controller.signal });
     clearTimeout(timeout);
     return await response.json();
@@ -819,6 +875,10 @@ async function checkServer() {
     if (data.port && data.port !== serverPort) {
       serverPort = data.port;
       chrome.storage.local.set({ serverPort: data.port });
+    }
+    if (response.ok) {
+      try { await syncAiConfig(await getServerUrl()); }
+      catch (error) { return { online: true, error: error.message, errorCode: "ai_config_sync_failed" }; }
     }
     return { online: response.ok, port: data.port, version: data.version };
   } catch {

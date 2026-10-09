@@ -995,3 +995,78 @@ it('discussion capture snapshot excludes unselected comments and preserves selec
   payload.enabledSections.discussion = true;
   assert.equal(s.captureSnapshot(payload).discussion.items[0].id, 'a');
 });
+
+describe("Chrome AI configuration sync", () => {
+  const config = {
+    aiProvider: "codex-cli", aiApiKey: " pairing-token ", aiModel: " auto ",
+    localEndpoint: "http://localhost:11434/v1/chat/completions", localApiType: "openai",
+    chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000,
+    serverPort: 1234, rawFolder: "other-folder", developerMode: true,
+  };
+  const request = { headers: { origin: "chrome-extension://nutegg", "content-type": "application/json" } };
+  const response = () => ({ statusCode: 0, body: "", writeHead(code: number) { this.statusCode = code; }, end(data: string) { this.body = data; } });
+
+  it("mirrors only AI fields, preserves settings references, and skips repeated saves", async () => {
+    let saves = 0;
+    const s = makeServer({ saveSettings: async () => { saves++; } });
+    const original = s.plugin.settings;
+    s.readBody = async () => JSON.stringify(config);
+    const res = response();
+    await s.handleAiConfig(request, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(s.plugin.settings, original);
+    assert.equal(original.aiProvider, "codex-cli");
+    assert.equal(original.aiApiKey, "pairing-token");
+    assert.equal(original.aiModel, "auto");
+    assert.equal(original.chunkWindowChars, 12000);
+    assert.equal(original.contentAnalysisMaxTokens, 6000);
+    assert.equal(original.localApiType, "openai");
+    assert.equal(original.rawFolder, "nutegg/_raw");
+    assert.equal(original.serverPort, 27123);
+    assert.doesNotMatch(res.body, /pairing-token/);
+    await s.handleAiConfig(request, response());
+    assert.equal(saves, 1);
+    s.readBody = async () => JSON.stringify({ ...config, aiProvider: "local", aiApiKey: "", aiModel: "local-model" });
+    await s.handleAiConfig(request, response());
+    assert.equal(original.aiApiKey, "");
+    assert.equal(original.aiProvider, "local");
+    assert.equal(saves, 2);
+  });
+
+  it("rejects invalid providers and limits without changing configuration", async () => {
+    const s = makeServer({ saveSettings: async () => { throw new Error("Must not save"); } });
+    const before = JSON.stringify(s.plugin.settings);
+    for (const change of [{ aiProvider: "__proto__" }, { aiApiKey: 3 }, { chunkWindowChars: 999 }, { chunkWindowChars: 1200.5 }, { contentAnalysisMaxTokens: 499 }, { localApiType: "invalid" }]) {
+      s.readBody = async () => JSON.stringify({ ...config, ...change });
+      const res = response();
+      await s.handleAiConfig(request, res);
+      assert.equal(res.statusCode, 400);
+      assert.equal(JSON.stringify(s.plugin.settings), before);
+    }
+  });
+
+  it("rejects non-extension origins and non-JSON requests before reading credentials", async () => {
+    const s = makeServer();
+    s.readBody = async () => { throw new Error("Must not read"); };
+    for (const headers of [{}, { origin: "https://example.com", "content-type": "application/json" }, { origin: "http://localhost:1234", "content-type": "application/json" }, { origin: "chrome-extension://nutegg", "content-type": "text/plain" }]) {
+      const res = response();
+      await s.handleAiConfig({ headers }, res);
+      assert.equal(res.statusCode, 403);
+    }
+  });
+
+  it("restores old settings when saving fails and allows a later retry", async () => {
+    let fail = true;
+    const s = makeServer({ saveSettings: async () => { if (fail) throw new Error("Disk failure"); } });
+    const before = { ...s.plugin.settings };
+    s.readBody = async () => JSON.stringify(config);
+    await assert.rejects(s.handleAiConfig(request, response()), /Disk failure/);
+    assert.equal(s.plugin.settings.aiApiKey, before.aiApiKey);
+    assert.equal(s.plugin.settings.chunkWindowChars, before.chunkWindowChars);
+    fail = false;
+    const res = response();
+    await s.handleAiConfig(request, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(s.plugin.settings.aiProvider, "codex-cli");
+  });
+});

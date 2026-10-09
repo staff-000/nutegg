@@ -1,4 +1,5 @@
 export const pt = {
+  aiManagedInChrome: "As configurações de IA só podem ser alteradas na extensão NutEgg para Chrome. O Obsidian lê a configuração sincronizada do Chrome.",
   subscriptionBridgeToken: "Token de conexão local",
   subscriptionBridgeSetup: "Instale {cli}, execute {login} e entre com sua conta de assinatura. No NutEgg, execute npm run bridge:ai e cole o token do terminal. Mantenha a ponte aberta; aplicam-se os limites de CLI do seu plano.",
   subscriptionBridgeGuide: "Guia de configuração do AI",
@@ -23,7 +24,7 @@ export const pt = {
   "useDefaultsBtn": "Restaurar padrões",
   "devMode": "Modo desenvolvedor",
   "devModeOn": "Configurações avançadas visíveis abaixo",
-  "devModeOff": "Mostrar configurações avançadas (provedor de IA, chave de API, porta do servidor)",
+  "devModeOff": "Mostrar configurações avançadas do servidor",
   "aiModelConfig": "Configuração do modelo de IA",
   "localModelConfig": "Configuração de LLM local",
   "aiProvider": "1. Provedor de IA",
@@ -121,6 +122,6 @@ export const pt = {
   "setupAiKeyStatusBar": "⚠️ NutEgg: Configurar chave de IA",
   "setupAiKeyTooltip": "NutEgg: A chave de API de IA não está configurada. Clique para abrir as configurações.",
   "setupAiBannerTitle": "Configuração de IA necessária",
-  "setupAiBannerDesc": "Configure um provedor de IA e uma chave de API para ativar a análise de conteúdo, síntese de Egg e mesclagem automática.",
+  "setupAiBannerDesc": "As configurações de IA só podem ser alteradas na extensão NutEgg para Chrome. O Obsidian lê a configuração sincronizada do Chrome.",
   "configureAiBtn": "Configurar definições de IA"
 };

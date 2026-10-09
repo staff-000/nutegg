@@ -1,7 +1,9 @@
 # AI subscriptions in NutEgg
 
-Chrome standalone and Obsidian can use your own local CLI sign-in. One bridge and
-one pairing token work with all three providers:
+Subscriptions are available in Obsidian mode. Configure AI in the NutEgg Chrome
+extension; Obsidian reads the synced configuration. Chrome standalone mode uses
+API providers or local models. One bridge and one pairing token work with all
+three subscription providers:
 
 | NutEgg provider | Install | Sign in |
 | --- | --- | --- |
@@ -23,11 +25,12 @@ models and usage limits are determined by the CLI and your account.
    npm run bridge:ai
    ```
 
-3. Copy the **pairing token** printed by the bridge. In Chrome → NutEgg settings,
+3. Open Obsidian with the NutEgg plugin enabled. In Chrome → NutEgg settings,
+   enable **Obsidian mode** to show subscription providers.
+4. Copy the **pairing token** printed by the bridge. In the Chrome AI settings,
    choose a subscription provider, paste the token under **Local pairing token**,
-   leave the model as **auto**, then save. Obsidian is not required for Chrome mode.
-4. To use Obsidian-connected mode, make the same selection in Obsidian → Settings →
-   NutEgg. Enable Developer mode if the AI settings are hidden.
+   leave the model as **auto**, then save. Obsidian receives these settings
+   automatically; its AI settings are read-only.
 5. Analyze a short page to verify inference access. Connection checks do not
    consume model quota. Codex and Claude checks also reject missing or API-based
    sign-ins; Gemini checks its executable, with sign-in verified during analysis.
@@ -35,6 +38,10 @@ models and usage limits are determined by the CLI and your account.
 Switching between subscription providers retains the pairing token. Switching
 between a subscription and an API provider clears the credential field so tokens
 cannot accidentally be sent to an API provider.
+
+Chunk window size and max completion tokens are also configured in Chrome under
+**Advanced settings** and synced to Obsidian whenever it is open. Configuration
+sync works in both modes; the mode determines where analysis runs.
 
 ## Existing Gemini setup
 
@@ -47,7 +54,8 @@ Stop the old bridge with Ctrl+C, then run `npm run bridge:ai`. The old
 `npm run bridge:gemini` command remains an alias for the same service. Your token
 and Gemini provider selection remain valid. The token stays at
 `~/.nutegg/gemini-bridge/pairing-token` for compatibility. Reload the rebuilt Chrome
-extension and updated Obsidian plugin to see the new providers.
+extension and updated Obsidian plugin, then enable Obsidian mode to select a
+subscription provider in Chrome.
 
 For Gemini-specific troubleshooting:
 

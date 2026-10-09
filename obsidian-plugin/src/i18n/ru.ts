@@ -1,4 +1,5 @@
 export const ru = {
+  aiManagedInChrome: "Настройки ИИ можно изменить только в расширении NutEgg для Chrome. Obsidian читает конфигурацию, синхронизированную из Chrome.",
   subscriptionBridgeToken: "Токен локального подключения",
   subscriptionBridgeSetup: "Установите {cli}, запустите {login} и войдите в аккаунт с подпиской. В NutEgg выполните npm run bridge:ai и вставьте токен из терминала. Не закрывайте мост; действуют лимиты CLI вашего плана.",
   subscriptionBridgeGuide: "Настройка подписки AI",
@@ -23,7 +24,7 @@ export const ru = {
   "useDefaultsBtn": "Восстановить по умолчанию",
   "devMode": "Режим разработчика",
   "devModeOn": "Расширенные настройки отображаются ниже",
-  "devModeOff": "Показать расширенные настройки (провайдер ИИ, API-ключ, порт сервера)",
+  "devModeOff": "Показать расширенные настройки сервера",
   "aiModelConfig": "Конфигурация модели ИИ",
   "localModelConfig": "Конфигурация локальной LLM",
   "aiProvider": "1. Провайдер ИИ",
@@ -121,6 +122,6 @@ export const ru = {
   "setupAiKeyStatusBar": "⚠️ NutEgg: Настройте ключ AI",
   "setupAiKeyTooltip": "NutEgg: Ключ API для AI не настроен. Нажмите, чтобы открыть настройки.",
   "setupAiBannerTitle": "Требуется настройка AI",
-  "setupAiBannerDesc": "Настройте поставщика AI и ключ API, чтобы включить анализ контента, синтез Egg и автоматическое слияние.",
+  "setupAiBannerDesc": "Настройки ИИ можно изменить только в расширении NutEgg для Chrome. Obsidian читает конфигурацию, синхронизированную из Chrome.",
   "configureAiBtn": "Настроить параметры AI"
 };

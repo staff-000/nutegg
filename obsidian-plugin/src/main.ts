@@ -30,6 +30,8 @@ export default class NutEggPlugin extends Plugin {
   workflowManager!: WorkflowManager;
   db!: NutEggDatabase;
   creditStatusBarItem: HTMLElement | null = null;
+  private settingsTab: NutEggSettingTab | null = null;
+  private creditStatusVersion = 0;
 
   get vaultFolder(): string {
     return this.settings?.indexFile
@@ -69,7 +71,8 @@ export default class NutEggPlugin extends Plugin {
     }
 
     // Add settings tab
-    this.addSettingTab(new NutEggSettingTab(this.app, this));
+    this.settingsTab = new NutEggSettingTab(this.app, this);
+    this.addSettingTab(this.settingsTab);
 
     // Vault-dependent initializations (folder/file creation, index consistency)
     // MUST wait until onLayoutReady. On cold Obsidian startup, vault indexing
@@ -244,6 +247,7 @@ export default class NutEggPlugin extends Plugin {
    */
   async updateCreditStatusBar(showNotice = false): Promise<void> {
     if (!this.creditStatusBarItem) return;
+    const version = ++this.creditStatusVersion;
 
     if (!isAIConfigured(this.settings)) {
       this.creditStatusBarItem.setText(t("setupAiKeyStatusBar"));
@@ -263,6 +267,7 @@ export default class NutEggPlugin extends Plugin {
     this.creditStatusBarItem.removeClass("mod-warning");
     try {
       const credit = await this.aiClient.checkCredit(this.settings);
+      if (version !== this.creditStatusVersion) return;
       if (credit.hasBalance && credit.balanceFormatted) {
         this.creditStatusBarItem.setText(`🪙 ${credit.balanceFormatted}`);
         this.creditStatusBarItem.setAttribute(
@@ -287,6 +292,7 @@ export default class NutEggPlugin extends Plugin {
         }
       }
     } catch {
+      if (version !== this.creditStatusVersion) return;
       this.creditStatusBarItem.setText("🪙 AI");
     }
   }
@@ -343,6 +349,7 @@ export default class NutEggPlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    this.settingsTab?.refreshAISettings();
     this.updateCreditStatusBar();
   }
 

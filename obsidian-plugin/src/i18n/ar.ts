@@ -1,4 +1,5 @@
 export const ar = {
+  aiManagedInChrome: "لا يمكن تغيير إعدادات AI إلا من إضافة NutEgg في Chrome. يقرأ Obsidian الإعدادات المتزامنة من Chrome.",
   subscriptionBridgeToken: "رمز الاقتران المحلي",
   subscriptionBridgeSetup: "ثبّت {cli} وشغّل {login} وسجّل الدخول بحساب اشتراكك. شغّل npm run bridge:ai من NutEgg والصق الرمز الظاهر في الطرفية. أبقِ الجسر قيد التشغيل؛ تُطبّق حدود CLI الخاصة بخطتك.",
   subscriptionBridgeGuide: "دليل إعداد اشتراك AI",
@@ -23,7 +24,7 @@ export const ar = {
   "useDefaultsBtn": "استعادة الافتراضي",
   "devMode": "وضع المطور",
   "devModeOn": "الإعدادات المتقدمة مرئية أدناه",
-  "devModeOff": "إظهار الإعدادات المتقدمة (مزود الذكاء الاصطناعي، مفتاح API، منفذ الخادم)",
+  "devModeOff": "عرض إعدادات الخادم المتقدمة",
   "aiModelConfig": "تكوين نموذج الذكاء الاصطناعي",
   "localModelConfig": "تكوين النموذج المحلي (Local LLM)",
   "aiProvider": "1. مزود الذكاء الاصطناعي",
@@ -121,6 +122,6 @@ export const ar = {
   "setupAiKeyStatusBar": "⚠️ NutEgg: إعداد مفتاح AI",
   "setupAiKeyTooltip": "NutEgg: مفتاح واجهة برمجة تطبيقات AI غير مهيأ. انقر لفتح الإعدادات.",
   "setupAiBannerTitle": "إعداد AI مطلوب",
-  "setupAiBannerDesc": "قم بتكوين مزود AI ومفتاح API لتمكين تحليل المحتوى وتوليف Egg والدمج التلقائي.",
+  "setupAiBannerDesc": "لا يمكن تغيير إعدادات AI إلا من إضافة NutEgg في Chrome. يقرأ Obsidian الإعدادات المتزامنة من Chrome.",
   "configureAiBtn": "تهيئة إعدادات AI"
 };

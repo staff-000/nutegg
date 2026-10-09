@@ -12,9 +12,10 @@ async function setup(t, initial = {}, url = 'https://extension.test/options') {
   const values = { ...initial };
   const requests = [];
   const creditCalls = [];
+  const messages = [];
   win.chrome = {
     storage: { local: { get: async () => ({ ...values }), set: async data => Object.assign(values, data) } },
-    runtime: { sendMessage: async () => ({}), getManifest: () => ({ version: '1.0' }) },
+    runtime: { sendMessage: async message => { messages.push(message); return {}; }, getManifest: () => ({ version: '1.0' }) },
     tabs: { create: () => {} },
   };
   win.fetch = async url => { requests.push(url); throw new Error('Offline'); };
@@ -37,7 +38,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options') {
   await flush();
   const el = id => win.document.getElementById(id);
   const change = id => el(id).dispatchEvent(new win.Event('change', { bubbles: true }));
-  return { win, values, requests, creditCalls, el, change };
+  return { win, values, requests, creditCalls, messages, el, change };
 }
 
 test('a fresh install shows Chrome setup and sensible defaults without contacting Obsidian', async t => {
@@ -57,7 +58,7 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
 });
 
 test('subscription setup uses a pairing token and clears credentials across provider boundaries', async t => {
-  const { win, values, el, change } = await setup(t, { chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key' });
+  const { win, values, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key' });
   el('ai-provider-select').value = 'gemini-cli';
   change('ai-provider-select');
   assert.equal(el('ai-key-input').value, '');
@@ -111,10 +112,11 @@ test('Obsidian is an explicit opt-in and switching back restores the saved Chrom
   change('obsidian-mode-enabled');
   await flush();
   assert.equal(values.connectionMode, 'obsidian');
-  assert.equal(el('ai-config-section').classList.contains('hidden'), true);
+  assert.equal(el('ai-config-section').classList.contains('hidden'), false);
   assert.equal(el('obsidian-active-card').classList.contains('hidden'), false);
   assert.equal(el('obsidian-config').classList.contains('hidden'), false);
-  assert.equal(el('chrome-advanced-settings').classList.contains('hidden'), true);
+  assert.equal(el('chrome-advanced-settings').classList.contains('hidden'), false);
+  assert.equal(el('chrome-cache-group').classList.contains('hidden'), true);
   assert.deepEqual(requests, ['http://127.0.0.1:27123/health']);
   el('use-chrome-btn').click();
   await flush();
@@ -210,4 +212,58 @@ test('chrome cache options load defaults, display cached count, save custom limi
   assert.equal(values.chromeTabCache.length, 0);
   assert.match(el('chrome-cache-count').textContent, /0/);
   assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
+});
+
+test('subscription providers appear only in Obsidian mode and pairing tokens never become API keys', async t => {
+  const { values, el, change } = await setup(t, { chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token', chromeAiModel: 'auto' });
+  assert.equal(el('ai-provider-select').value, 'gemini');
+  assert.equal(el('ai-key-input').value, '');
+  assert.equal([...el('ai-provider-select').options].some(option => option.value.endsWith('-cli')), false);
+  el('obsidian-mode-enabled').checked = true;
+  change('obsidian-mode-enabled');
+  await flush();
+  assert.equal([...el('ai-provider-select').options].filter(option => option.value.endsWith('-cli')).length, 3);
+  assert.equal(el('ai-provider-select').value, 'codex-cli');
+  assert.equal(el('ai-key-input').value, 'pairing-token');
+  el('ai-provider-select').value = 'codex-cli';
+  change('ai-provider-select');
+  el('ai-key-input').value = 'new-pairing-token';
+  el('ai-save-btn').click();
+  await flush();
+  assert.equal(values.connectionMode, 'obsidian');
+  assert.equal(values.chromeAiProvider, 'codex-cli');
+  el('use-chrome-btn').click();
+  await flush();
+  assert.equal(el('ai-provider-select').value, 'gemini');
+  assert.equal(el('ai-key-input').value, '');
+});
+
+test('processing limits load and save in Chrome for both modes and reject invalid values', async t => {
+  const { values, el, change } = await setup(t, { chromeAiApiKey: 'key', chunkWindowChars: 20000, contentAnalysisMaxTokens: 8000 });
+  assert.equal(el('chunk-window-chars').value, '20000');
+  assert.equal(el('max-completion-tokens').value, '8000');
+  el('chunk-window-chars').value = '999';
+  el('ai-advanced-save-btn').click();
+  await flush();
+  assert.equal(values.chunkWindowChars, 20000);
+  el('chunk-window-chars').value = '12000';
+  el('max-completion-tokens').value = '6000';
+  el('obsidian-mode-enabled').checked = true;
+  change('obsidian-mode-enabled');
+  await flush();
+  el('ai-advanced-save-btn').click();
+  await flush();
+  assert.equal(values.chunkWindowChars, 12000);
+  assert.equal(values.contentAnalysisMaxTokens, 6000);
+  assert.equal(values.connectionMode, 'obsidian');
+});
+
+test('opening or saving Chrome settings mirrors AI to Obsidian even with vault mode off', async t => {
+  const { messages, values, el } = await setup(t, { chromeAiApiKey: 'key' });
+  assert.equal(messages.some(message => message.action === 'sync-ai-config'), true);
+  messages.length = 0;
+  el('ai-save-btn').click();
+  await flush();
+  assert.equal(messages.some(message => message.action === 'sync-ai-config'), true);
+  assert.equal(values.connectionMode, 'chrome');
 });

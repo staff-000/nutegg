@@ -1,4 +1,5 @@
 export const de = {
+  aiManagedInChrome: "KI-Einstellungen können nur in der NutEgg-Erweiterung für Chrome geändert werden. Obsidian liest die synchronisierte Konfiguration aus Chrome.",
   subscriptionBridgeToken: "Lokales Verbindungstoken",
   subscriptionBridgeSetup: "Installiere {cli}, starte {login} und melde dich mit deinem Abo-Konto an. Starte in NutEgg npm run bridge:ai und füge das Token aus dem Terminal ein. Lass die Brücke laufen; es gelten die CLI-Limits deines Abos.",
   subscriptionBridgeGuide: "AI-Abo einrichten",
@@ -23,7 +24,7 @@ export const de = {
   "useDefaultsBtn": "Standards wiederherstellen",
   "devMode": "Entwicklermodus",
   "devModeOn": "Erweiterte Einstellungen sind unten sichtbar",
-  "devModeOff": "Erweiterte Einstellungen anzeigen (KI-Anbieter, API-Schlüssel, Server-Port)",
+  "devModeOff": "Erweiterte Servereinstellungen anzeigen",
   "aiModelConfig": "KI-Modell-Konfiguration",
   "localModelConfig": "Lokale LLM-Konfiguration",
   "aiProvider": "1. KI-Anbieter",
@@ -121,6 +122,6 @@ export const de = {
   "setupAiKeyStatusBar": "⚠️ NutEgg: KI-Schlüssel einrichten",
   "setupAiKeyTooltip": "NutEgg: KI-API-Schlüssel nicht konfiguriert. Klicken Sie hier, um die Einstellungen zu öffnen.",
   "setupAiBannerTitle": "KI-Einrichtung erforderlich",
-  "setupAiBannerDesc": "Konfigurieren Sie einen KI-Anbieter und API-Schlüssel, um Inhaltsanalyse, Egg-Synthese und automatische Zusammenführung zu aktivieren.",
+  "setupAiBannerDesc": "KI-Einstellungen können nur in der NutEgg-Erweiterung für Chrome geändert werden. Obsidian liest die synchronisierte Konfiguration aus Chrome.",
   "configureAiBtn": "KI-Einstellungen konfigurieren"
 };

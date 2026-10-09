@@ -4,16 +4,14 @@ import {
   type AIProviderId,
   type AISource,
   PROVIDER_CATALOG,
-  findOpenRouterFamily,
   isAIConfigured,
-  isSubscriptionProvider,
 } from "./ai-client";
 import { t } from "./i18n";
 
 export type LocalApiType = "openai" | "ollama";
 
 export interface NutEggSettings {
-  /** Show advanced AI/server configuration */
+  /** Show advanced server configuration */
   developerMode: boolean;
   /** Which model family to use */
   aiProvider: AIProviderId;
@@ -41,8 +39,7 @@ export interface NutEggSettings {
   workflowHashes: Record<string, string>;
   /** General chunk window size in characters for splitting long content (default: 30000) */
   chunkWindowChars: number;
-  /** Section grid interval in seconds for videos without chapters (default: 300) */
-  /** Max completion tokens for Stage 1 content analysis and mind map (default: 2500) */
+  /** Max completion tokens for Stage 1 content analysis and mind map (default: 16384) */
   contentAnalysisMaxTokens: number;
 }
 
@@ -64,6 +61,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
 
 export class NutEggSettingTab extends PluginSettingTab {
   plugin: NutEggPlugin;
+  private aiConfigSummary: Setting | null = null;
 
   constructor(app: App, plugin: NutEggPlugin) {
     super(app, plugin);
@@ -73,8 +71,6 @@ export class NutEggSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     const settings = this.plugin.settings;
-    const provider = PROVIDER_CATALOG[settings.aiProvider];
-    const isOpenRouter = settings.aiProvider === "openrouter";
 
     containerEl.empty();
     containerEl.createEl("h2", { text: t("settingsTitle") });
@@ -91,8 +87,12 @@ export class NutEggSettingTab extends PluginSettingTab {
       const titleText = titleWrap.createDiv({ cls: "callout-title-inner" });
       titleText.setText(t("setupAiBannerTitle"));
       const content = banner.createDiv({ cls: "callout-content" });
-      content.createEl("p", { text: t(isSubscriptionProvider(settings.aiProvider) ? "subscriptionBridgeSetup" : "setupAiBannerDesc", provider.subscription) });
+      content.createEl("p", { text: t("aiManagedInChrome") });
     }
+
+    containerEl.createEl("h3", { text: t("aiModelConfig") });
+    this.aiConfigSummary = new Setting(containerEl).setDesc(t("aiManagedInChrome"));
+    this.refreshAISettings();
 
     // Companion Chrome Extension Card
     new Setting(containerEl)
@@ -197,390 +197,21 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       });
 
-    // Advanced sections — visible when developer mode is on OR AI is not yet configured
-    if (settings.developerMode || !isAIConfigured(settings) || isSubscriptionProvider(settings.aiProvider)) {
-      this.displayAdvancedSettings(containerEl, settings, provider, isOpenRouter);
+    if (settings.developerMode) {
+      this.displayAdvancedSettings(containerEl, settings);
     }
+  }
+
+  refreshAISettings(): void {
+    const settings = this.plugin.settings;
+    const provider = PROVIDER_CATALOG[settings.aiProvider];
+    this.aiConfigSummary?.setName(`${provider?.label || settings.aiProvider} · ${settings.aiModel}`);
   }
 
   private displayAdvancedSettings(
     containerEl: HTMLElement,
-    settings: NutEggSettings,
-    provider: (typeof PROVIDER_CATALOG)[AIProviderId],
-    isOpenRouter: boolean
+    settings: NutEggSettings
   ): void {
-    const isLocal = settings.aiProvider === "local";
-
-    // ==========================================
-    // AI Model Configuration
-    // ==========================================
-    containerEl.createEl("h3", { text: isLocal ? t("localModelConfig") : t("aiModelConfig") });
-
-    // 1. AI Provider
-    new Setting(containerEl)
-      .setName(t("aiProvider"))
-      .setDesc(t("aiProviderDesc"))
-      .addDropdown((dropdown) => {
-        for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
-          dropdown.addOption(id, info.label);
-        }
-        dropdown.setValue(settings.aiProvider);
-        dropdown.onChange(async (value) => {
-          if (isSubscriptionProvider(value) !== isSubscriptionProvider(settings.aiProvider)) settings.aiApiKey = "";
-          settings.aiProvider = value as AIProviderId;
-          if (settings.aiProvider === "local") {
-            settings.aiModel = "";
-            settings.aiModelFamily = undefined;
-          } else if (settings.aiProvider === "openrouter") {
-            const families = PROVIDER_CATALOG.openrouter.families || [];
-            const firstFamily = families[0];
-            settings.aiModelFamily = firstFamily?.id || "openai";
-            settings.aiModel = firstFamily?.defaultModel || PROVIDER_CATALOG.openrouter.defaultModel!;
-          } else {
-            const newProvider = PROVIDER_CATALOG[settings.aiProvider];
-            settings.aiModelFamily = undefined;
-            settings.aiModel = newProvider?.defaultModel || newProvider?.models?.[0] || "";
-          }
-          await this.plugin.saveSettings();
-          this.display();
-        });
-        return dropdown;
-      });
-
-    if (isLocal) {
-      // Local LLM API Type
-      new Setting(containerEl)
-        .setName(t("localApiType"))
-        .setDesc(t("localApiTypeDesc"))
-        .addDropdown((dropdown) => {
-          dropdown.addOption("openai", "OpenAI-compatible (LM Studio, llama.cpp, vLLM, Ollama /v1)");
-          dropdown.addOption("ollama", "Ollama Native (/api/chat)");
-          dropdown.setValue(settings.localApiType || "openai");
-          dropdown.onChange(async (value) => {
-            settings.localApiType = value as LocalApiType;
-            if (settings.localApiType === "ollama") {
-              if (!settings.localEndpoint || settings.localEndpoint.includes("/v1/chat/completions")) {
-                settings.localEndpoint = "http://127.0.0.1:11434/api/chat";
-              }
-            } else {
-              if (!settings.localEndpoint || settings.localEndpoint.includes("/api/chat")) {
-                settings.localEndpoint = "http://127.0.0.1:11434/v1/chat/completions";
-              }
-            }
-            await this.plugin.saveSettings();
-            this.display();
-          });
-          return dropdown;
-        });
-
-      // Local Server Endpoint
-      new Setting(containerEl)
-        .setName(t("localEndpoint"))
-        .setDesc(
-          settings.localApiType === "ollama"
-            ? t("localEndpointOllamaDesc")
-            : t("localEndpointOpenAiDesc")
-        )
-        .addText((text) => {
-          text
-            .setPlaceholder(
-              settings.localApiType === "ollama"
-                ? "http://127.0.0.1:11434/api/chat"
-                : "http://127.0.0.1:11434/v1/chat/completions"
-            )
-            .setValue(
-              settings.localEndpoint ||
-                (settings.localApiType === "ollama"
-                  ? "http://127.0.0.1:11434/api/chat"
-                  : "http://127.0.0.1:11434/v1/chat/completions")
-            )
-            .onChange(async (value) => {
-              settings.localEndpoint = value.trim();
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
-
-      // Quick preset buttons for local endpoints
-      const presetContainer = containerEl.createDiv({
-        cls: "setting-item",
-        attr: { style: "padding-top: 0; margin-top: -10px; border-top: none;" },
-      });
-      const presetInfo = presetContainer.createDiv({
-        cls: "setting-item-description",
-        text: t("localPresets"),
-      });
-      presetInfo.style.fontSize = "0.85em";
-      presetInfo.style.color = "var(--text-muted)";
-
-      const presets =
-        settings.localApiType === "ollama"
-          ? [
-              { label: "Ollama Native (11434)", url: "http://127.0.0.1:11434/api/chat" },
-            ]
-          : [
-              { label: "Ollama /v1 (11434)", url: "http://127.0.0.1:11434/v1/chat/completions" },
-              { label: "LM Studio (1234)", url: "http://127.0.0.1:1234/v1/chat/completions" },
-              { label: "llama.cpp / vLLM (8080)", url: "http://127.0.0.1:8080/v1/chat/completions" },
-            ];
-
-      for (const preset of presets) {
-        const btn = presetInfo.createEl("button", {
-          text: preset.label,
-        });
-        btn.style.marginLeft = "6px";
-        btn.style.padding = "2px 8px";
-        btn.style.fontSize = "0.85em";
-        btn.style.cursor = "pointer";
-        btn.addEventListener("click", async (e) => {
-          e.preventDefault();
-          settings.localEndpoint = preset.url;
-          await this.plugin.saveSettings();
-          this.display();
-        });
-      }
-
-      // API Key (Optional)
-      new Setting(containerEl)
-        .setName(t("aiApiKey"))
-        .setDesc(t("localApiKeyDesc"))
-        .addText((text) => {
-          text
-            .setPlaceholder("Optional for local LLMs")
-            .setValue(settings.aiApiKey)
-            .onChange(async (value) => {
-              settings.aiApiKey = value.trim();
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
-    } else if (isOpenRouter) {
-      // ==========================================
-      // OpenRouter (Multi-Provider)
-      // ==========================================
-      const families = PROVIDER_CATALOG.openrouter.families || [];
-      let currentFamily = families.find((f) => f.id === settings.aiModelFamily);
-      if (!currentFamily) {
-        currentFamily = findOpenRouterFamily(settings.aiModel) || families[0];
-        if (currentFamily) {
-          settings.aiModelFamily = currentFamily.id;
-        }
-      }
-
-      // 2. Model Family (Vendor filter on OpenRouter)
-      new Setting(containerEl)
-        .setName(t("aiModelFamily"))
-        .setDesc(t("aiModelFamilyDesc"))
-        .addDropdown((dropdown) => {
-          for (const fam of families) {
-            dropdown.addOption(fam.id, fam.label);
-          }
-          if (currentFamily) {
-            dropdown.setValue(currentFamily.id);
-          }
-          dropdown.onChange(async (value) => {
-            settings.aiModelFamily = value;
-            const selectedFam = families.find((f) => f.id === value);
-            if (selectedFam) {
-              settings.aiModel = selectedFam.defaultModel;
-            }
-            await this.plugin.saveSettings();
-            this.display();
-          });
-          return dropdown;
-        });
-
-      // 3. Model Version
-      const versionSetting = new Setting(containerEl)
-        .setName(t("modelVersion"))
-        .setDesc(t("modelVersionDesc", { model: settings.aiModel }));
-
-      const familyModels = currentFamily?.models || [];
-      if (familyModels.length > 0) {
-        versionSetting.addDropdown((dropdown) => {
-          for (const model of familyModels) {
-            dropdown.addOption(model, model);
-          }
-          if (!familyModels.includes(settings.aiModel)) {
-            dropdown.addOption(settings.aiModel, `${settings.aiModel} (custom)`);
-          }
-          dropdown.setValue(settings.aiModel);
-          dropdown.onChange(async (value) => {
-            settings.aiModel = value;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-          return dropdown;
-        });
-      }
-
-      versionSetting.addText((text) => {
-        text
-          .setPlaceholder(currentFamily?.defaultModel || "Custom model tag (e.g. vendor/model-name)")
-          .setValue(settings.aiModel)
-          .onChange(async (value) => {
-            const trimmed = value.trim();
-            if (trimmed) {
-              settings.aiModel = trimmed;
-              await this.plugin.saveSettings();
-            }
-          });
-        return text;
-      });
-
-      // API Key
-      new Setting(containerEl)
-        .setName(t("aiApiKey"))
-        .setDesc(t("openRouterApiKeyDesc"))
-        .addText((text) => {
-          text
-            .setPlaceholder("sk-or-...")
-            .setValue(settings.aiApiKey)
-            .onChange(async (value) => {
-              settings.aiApiKey = value.trim();
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
-    } else {
-      // ==========================================
-      // Direct Cloud Providers (Anthropic, OpenAI, Gemini, DeepSeek, Kimi, Zhipu, Qwen)
-      // Direct Model selection without artificial family middleman
-      // ==========================================
-      const providerModels = provider.models || [];
-      const versionSetting = new Setting(containerEl)
-        .setName(t("aiModel"))
-        .setDesc(t("aiModelDesc", { provider: provider.label }));
-
-      if (providerModels.length > 0) {
-        versionSetting.addDropdown((dropdown) => {
-          for (const model of providerModels) {
-            dropdown.addOption(model, model);
-          }
-          if (!providerModels.includes(settings.aiModel)) {
-            dropdown.addOption(settings.aiModel, `${settings.aiModel} (custom)`);
-          }
-          dropdown.setValue(settings.aiModel);
-          dropdown.onChange(async (value) => {
-            settings.aiModel = value;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-          return dropdown;
-        });
-      }
-
-      versionSetting.addText((text) => {
-        text
-          .setPlaceholder(provider.defaultModel || "Custom model tag")
-          .setValue(settings.aiModel)
-          .onChange(async (value) => {
-            const trimmed = value.trim();
-            if (trimmed) {
-              settings.aiModel = trimmed;
-              await this.plugin.saveSettings();
-            }
-          });
-        return text;
-      });
-
-      // API Key
-      new Setting(containerEl)
-        .setName(t(isSubscriptionProvider(settings.aiProvider) ? "subscriptionBridgeToken" : "aiApiKey"))
-        .setDesc(isSubscriptionProvider(settings.aiProvider) ? t("subscriptionBridgeSetup", provider.subscription) : t("providerApiKeyDesc", { provider: provider.label }))
-        .addText((text) => {
-          text
-            .setPlaceholder(isSubscriptionProvider(settings.aiProvider) ? t("subscriptionBridgeToken") : provider.keyPlaceholder)
-            .setValue(settings.aiApiKey)
-            .onChange(async (value) => {
-              settings.aiApiKey = value.trim();
-              await this.plugin.saveSettings();
-            });
-          return text;
-        });
-      if (isSubscriptionProvider(settings.aiProvider)) {
-        new Setting(containerEl)
-          .setName(t("subscriptionBridgeGuide"))
-          .addButton(button => button.setButtonText(t("subscriptionBridgeGuide")).onClick(() => {
-            window.open("https://github.com/staff-000/nutegg/blob/main/docs/ai-subscriptions.md", "_blank");
-          }));
-      }
-    }
-
-    // Credit & Balance / Connection Monitor Setting
-    const creditSetting = new Setting(containerEl)
-      .setName(isLocal ? t("creditStatusTitleLocal") : t("creditStatusTitleCloud"))
-      .setDesc(isLocal ? t("creditCheckingLocal") : t("creditCheckingCloud"))
-      .addButton((btn) => {
-        btn
-          .setButtonText(t("refresh"))
-          .setCta()
-          .onClick(async () => {
-            btn.setDisabled(true);
-            btn.setButtonText(t("checking"));
-            await updateCreditDisplay();
-            btn.setDisabled(false);
-            btn.setButtonText(t("refresh"));
-          });
-        return btn;
-      });
-
-    const updateCreditDisplay = async () => {
-      try {
-        const credit = await this.plugin.aiClient.checkCredit(settings);
-        if (credit.hasBalance && credit.balanceFormatted) {
-          creditSetting.setDesc(
-            t("remainingBalance", { balance: credit.balanceFormatted, status: credit.statusText })
-          );
-        } else {
-          creditSetting.setDesc(
-            t("providerStatus", { provider: credit.providerLabel, status: credit.statusText })
-          );
-        }
-      } catch (err) {
-        creditSetting.setDesc(t("creditCheckFailed", { error: String(err) }));
-      }
-    };
-
-    updateCreditDisplay();
-
-    // ==========================================
-    // Processing & Chunking
-    // ==========================================
-    containerEl.createEl("h3", { text: t("processingHeader") });
-
-    new Setting(containerEl)
-      .setName(t("chunkWindowChars"))
-      .setDesc(t("chunkWindowCharsDesc"))
-      .addText((text) =>
-        text
-          .setPlaceholder("30000")
-          .setValue(String(settings.chunkWindowChars || 30000))
-          .onChange(async (value) => {
-            const num = parseInt(value, 10);
-            if (!isNaN(num) && num >= 1000) {
-              settings.chunkWindowChars = num;
-              await this.plugin.saveSettings();
-            }
-          })
-      );
-
-    new Setting(containerEl)
-      .setName(t("maxTokens"))
-      .setDesc(t("maxTokensDesc"))
-      .addText((text) =>
-        text
-          .setPlaceholder("16384")
-          .setValue(String(settings.contentAnalysisMaxTokens || 16384))
-          .onChange(async (value) => {
-            const num = parseInt(value, 10);
-            if (!isNaN(num) && num >= 500) {
-              settings.contentAnalysisMaxTokens = num;
-              await this.plugin.saveSettings();
-            }
-          })
-      );
-
     // ==========================================
     // Server
     // ==========================================

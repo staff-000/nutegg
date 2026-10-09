@@ -3,7 +3,7 @@
 const {
   PROVIDER_CATALOG = {},
   checkCreditAI,
-  isSubscriptionProvider,
+  isSubscriptionProvider = () => false,
 } = window.NutEggAI || {};
 
 const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
@@ -38,6 +38,8 @@ const aiLocalEndpointRow = document.getElementById("ai-local-endpoint-row");
 const aiLocalEndpoint = document.getElementById("ai-local-endpoint");
 const aiKeyInput = document.getElementById("ai-key-input");
 const aiKeyToggle = document.getElementById("ai-key-toggle");
+const chunkWindowInput = document.getElementById("chunk-window-chars");
+const maxTokensInput = document.getElementById("max-completion-tokens");
 const aiKeyHint = document.getElementById("ai-key-hint");
 const outputLangSelect = document.getElementById("output-lang-select");
 const aiSaveBtn = document.getElementById("ai-save-btn");
@@ -65,6 +67,7 @@ const DEFAULT_SECTIONS = {
 };
 
 let savedPromptOverrides = {};
+let subscriptionDraft = null;
 let activePromptKey = "contentAnalysis";
 
 function updateModeDesc(mode) {
@@ -94,6 +97,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiEndpoint",
     "outputLanguage",
     "chromeAiPromptOverrides",
+    "chunkWindowChars",
+    "contentAnalysisMaxTokens",
+    "chromeAiMaxTokens",
     "debugInfo",
     "captureRetryCount",
     "captureRetryDelayMs",
@@ -216,8 +222,38 @@ function renderConnectionMode(mode) {
   obsidianModeEnabled.setAttribute("aria-expanded", String(usesObsidian));
   obsidianConfig.classList.toggle("hidden", !usesObsidian);
   obsidianActiveCard.classList.toggle("hidden", !usesObsidian);
-  aiConfigSection.classList.toggle("hidden", usesObsidian);
-  chromeAdvancedSettings.classList.toggle("hidden", usesObsidian);
+  aiConfigSection.classList.remove("hidden");
+  chromeAdvancedSettings.classList.remove("hidden");
+  document.getElementById("chrome-cache-group").classList.toggle("hidden", usesObsidian);
+  const selectedProvider = aiProviderSelect.value;
+  if (!usesObsidian && isSubscriptionProvider(selectedProvider)) subscriptionDraft = getAiFormSettings();
+  for (const option of [...aiProviderSelect.options]) {
+    if (isSubscriptionProvider(option.value)) option.remove();
+  }
+  if (usesObsidian) {
+    for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
+      if (!isSubscriptionProvider(id)) continue;
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = info.label;
+      aiProviderSelect.appendChild(option);
+    }
+  }
+  if (selectedProvider && (!isSubscriptionProvider(selectedProvider) || usesObsidian)) {
+    aiProviderSelect.value = selectedProvider;
+  } else {
+    aiProviderSelect.value = "gemini";
+    aiProviderSelect.dispatchEvent(new Event("change"));
+  }
+  if (usesObsidian && subscriptionDraft) {
+    const draft = subscriptionDraft;
+    subscriptionDraft = null;
+    aiProviderSelect.value = draft.chromeAiProvider;
+    aiProviderSelect.dispatchEvent(new Event("change"));
+    updateModelOptions(draft.chromeAiProvider, draft.chromeAiModel);
+    aiKeyInput.value = draft.chromeAiApiKey;
+    aiLocalEndpoint.value = draft.chromeAiEndpoint;
+  }
   connectionModeBadge.textContent = t(usesObsidian ? "settingsObsidianMode" : "settingsChromeMode");
   connectionModeBadge.classList.toggle("obsidian", usesObsidian);
   const obsidianSettings = document.getElementById("obsidian-settings");
@@ -253,6 +289,7 @@ function initConnectionMode(stored) {
     aiProviderSelect.focus();
   });
   if (obsidianModeEnabled.checked) checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+  else void chrome.runtime.sendMessage({ action: "sync-ai-config" }).catch(() => {});
 }
 
 async function checkObsidianForAiBanner(port) {
@@ -266,6 +303,10 @@ async function checkObsidianForAiBanner(port) {
     if (!obsidianModeEnabled.checked) return;
     aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
     aiStatusBanner.classList.toggle("connected", response.ok);
+    if (response.ok) {
+      const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
+      if (result?.error && obsidianModeEnabled.checked) aiStatusBanner.textContent = t("aiError", { error: result.error });
+    }
   } catch {
     if (obsidianModeEnabled.checked) aiStatusBanner.textContent = t("settingsObsidianWaiting");
   } finally {
@@ -285,6 +326,8 @@ function initAiSettings(stored) {
     aiProviderSelect.appendChild(opt);
   }
 
+  chunkWindowInput.value = stored.chunkWindowChars || 30000;
+  maxTokensInput.value = stored.contentAnalysisMaxTokens || stored.chromeAiMaxTokens || 16384;
   const selectedProvider = stored.chromeAiProvider || "gemini";
   aiProviderSelect.value = selectedProvider;
 
@@ -472,10 +515,13 @@ function getAiFormSettings() {
     chromeAiApiKey: aiKeyInput.value.trim(),
     chromeAiEndpoint: endpoint,
     chromeAiLocalEndpoint: endpoint,
+    chunkWindowChars: Number(chunkWindowInput.value),
+    contentAnalysisMaxTokens: Number(maxTokensInput.value),
   };
 }
 
 async function handleAiSave(advanced = false) {
+  if (!chunkWindowInput.reportValidity() || !maxTokensInput.reportValidity()) return;
   const settings = getAiFormSettings();
   if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
     showAiResult(t(isSubscriptionProvider(settings.chromeAiProvider) ? "subscriptionBridgeTokenRequired" : "settingsKeyRequired"), "error", advanced);
@@ -496,11 +542,14 @@ async function handleAiSave(advanced = false) {
   try {
     await chrome.storage.local.set({
       ...settings,
-      connectionMode: "chrome",
+      connectionMode: obsidianModeEnabled.checked ? "obsidian" : "chrome",
       chromeAiEnabled: true,
       chromeAiPromptOverrides: savedPromptOverrides,
     });
-    renderConnectionMode("chrome");
+    if (!obsidianModeEnabled.checked) subscriptionDraft = null;
+    renderConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome");
+    const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
+    if (obsidianModeEnabled.checked && result?.error) throw new Error(result.error);
     showAiResult(t(advanced ? "aiSettingsSaved" : "settingsSetupSaved"), "ok", advanced);
   } catch (error) {
     showAiResult(t("aiError", { error: error.message }), "error", advanced);

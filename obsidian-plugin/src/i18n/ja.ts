@@ -1,4 +1,5 @@
 export const ja = {
+  aiManagedInChrome: "AI 設定は NutEgg Chrome 拡張機能でのみ変更できます。Obsidian は Chrome から同期された設定を読み取ります。",
   subscriptionBridgeToken: "ローカル接続トークン",
   subscriptionBridgeSetup: "{cli} をインストールし、{login} を実行して契約中のアカウントでログインします。NutEgg で npm run bridge:ai を実行し、端末のトークンを貼り付けてください。ブリッジを起動したまま使用します。プランの CLI 利用制限が適用されます。",
   subscriptionBridgeGuide: "AI サブスクリプション設定ガイド",
@@ -23,7 +24,7 @@ export const ja = {
   "useDefaultsBtn": "初期設定に戻す",
   "devMode": "開発者モード",
   "devModeOn": "高度な設定が表示されています",
-  "devModeOff": "高度な設定を表示（AIプロバイダー、APIキー、サーバーポート）",
+  "devModeOff": "サーバーの詳細設定を表示",
   "aiModelConfig": "AIモデル設定",
   "localModelConfig": "ローカルLLM設定",
   "aiProvider": "1. AIプロバイダー",
@@ -121,6 +122,6 @@ export const ja = {
   "setupAiKeyStatusBar": "⚠️ NutEgg: AI キーを設定",
   "setupAiKeyTooltip": "NutEgg: AI API キーが設定されていません。クリックして設定を開きます。",
   "setupAiBannerTitle": "AI の設定が必要です",
-  "setupAiBannerDesc": "コンテンツ分析、Egg 合成、および自動マージを有効にするには、AI プロバイダーと API キーを設定してください。",
+  "setupAiBannerDesc": "AI 設定は NutEgg Chrome 拡張機能でのみ変更できます。Obsidian は Chrome から同期された設定を読み取ります。",
   "configureAiBtn": "AI 設定を構成"
 };

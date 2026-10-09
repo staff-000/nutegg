@@ -1,6 +1,7 @@
 import type { TranslationKey } from "./en";
 
 export const zh: Record<TranslationKey, string> = {
+  aiManagedInChrome: "AI 设置只能在 NutEgg Chrome 扩展中更改。Obsidian 读取从 Chrome 同步的配置。",
   // Settings
   subscriptionBridgeToken: "本地配对令牌",
   subscriptionBridgeSetup: "安装 {cli}，运行 {login} 并登录订阅账号，然后在 NutEgg 目录运行 npm run bridge:ai。粘贴终端显示的配对令牌，并保持桥接服务运行。使用量受套餐的 CLI 额度限制。",
@@ -25,7 +26,7 @@ export const zh: Record<TranslationKey, string> = {
   useDefaultsBtn: "恢复默认",
   devMode: "开发者模式",
   devModeOn: "已显示下方的高级配置项",
-  devModeOff: "显示高级设置（AI 供应商、API Key、本地端口等）",
+  devModeOff: "显示高级服务器设置",
   aiModelConfig: "AI 模型设置",
   localModelConfig: "本地模型设置",
   aiProvider: "1. AI 供应商",
@@ -129,6 +130,6 @@ export const zh: Record<TranslationKey, string> = {
   setupAiKeyStatusBar: "⚠️ NutEgg: 设置 AI 密钥",
   setupAiKeyTooltip: "NutEgg：未配置 AI API 密钥。点击打开设置。",
   setupAiBannerTitle: "需要配置 AI",
-  setupAiBannerDesc: "配置 AI 提供商和 API 密钥以启用内容分析、Egg 合成和自动合并。",
+  setupAiBannerDesc: "AI 设置只能在 NutEgg Chrome 扩展中更改。Obsidian 读取从 Chrome 同步的配置。",
   configureAiBtn: "配置 AI 设置",
 };
