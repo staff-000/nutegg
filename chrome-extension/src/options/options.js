@@ -314,12 +314,19 @@ async function refreshObsidianAiConfig() {
     if (request !== obsidianConfigRequest || !obsidianModeEnabled.checked) return;
     if (result?.error || !result?.aiConfig) throw new Error(result?.error || "Unavailable");
     const config = result.aiConfig;
-    document.getElementById("obsidian-ai-config-text").textContent = t("settingsObsidianAiConfig", {
-      provider: PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider,
-      model: config.aiModel,
-      chunk: config.chunkWindowChars,
-      tokens: config.contentAnalysisMaxTokens,
-    });
+    const values = document.getElementById("obsidian-ai-config-text");
+    values.replaceChildren();
+    for (const [label, value] of [
+      ["settingsProviderLabel", PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider],
+      ["settingsModelLabel", config.aiModel],
+      ["chunkWindowChars", config.chunkWindowChars],
+      ["maxTokens", config.contentAnalysisMaxTokens],
+    ]) {
+      const chip = document.createElement("span");
+      chip.className = "config-chip";
+      chip.textContent = `${t(label)}: ${value}`;
+      values.append(chip);
+    }
     document.getElementById("obsidian-ai-match-status").textContent = t(result.matches ? "settingsObsidianAiMatch" : "settingsObsidianAiMismatch");
     row.className = `connection-status obsidian-ai-config ${result.matches ? "matched" : "mismatched"}`;
   } catch {
@@ -526,6 +533,7 @@ function updateProviderHints(providerId) {
   }
   const bridgeHelp = document.getElementById("gemini-bridge-help");
   if (bridgeHelp) bridgeHelp.hidden = !isBridge;
+  document.getElementById("ai-setup-help").open = isBridge;
 
   if (aiKeyHint) {
     if (isBridge) {
@@ -587,7 +595,7 @@ async function handleAiSave(advanced = false) {
     const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
     await refreshObsidianAiConfig();
     if (obsidianModeEnabled.checked && result?.error) throw new Error(result.error);
-    const savedMessage = t(advanced ? "aiSettingsSaved" : "settingsSetupSaved");
+    const savedMessage = t("settingsSavedShort");
     showAiResult(`${savedMessage} ${t("testingAiConnection")}`, "ok", advanced);
     try {
       const info = await checkCreditAI(settings);

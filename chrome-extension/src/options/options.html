@@ -20,16 +20,14 @@
     <section class="setup-card" aria-labelledby="setup-heading">
       <form id="ai-config-section" novalidate>
         <div class="card-heading"><h2 id="setup-heading" data-i18n="settingsSetupTitle">Connect your AI</h2></div>
-        <p class="section-desc" data-i18n="settingsSetupDesc">Choose a provider and add your API key. We’ll take care of the model and reading defaults.</p>
         <div class="option-row">
           <label for="ai-provider-select" data-i18n="settingsProviderLabel">AI provider</label>
           <select id="ai-provider-select"></select>
         </div>
         <div class="option-row" id="ai-model-row">
           <label for="ai-model-select" data-i18n="settingsModelLabel">AI model</label>
-          <select id="ai-model-select"></select>
+          <select id="ai-model-select" data-i18n-title="settingsModelHint"></select>
           <input id="ai-model-custom" type="text" placeholder="Custom model tag" data-i18n-placeholder="customModelTag" style="display:none" aria-label="Custom model tag" data-i18n-aria-label="customModelTag">
-          <p class="hint" data-i18n="settingsModelHint">The default model is ready to use. Change it only if you have a preference.</p>
         </div>
         <div class="option-row" id="ai-local-endpoint-row" style="display:none">
           <label for="ai-local-endpoint" data-i18n="localEndpointLabel">Local Server Endpoint</label>
@@ -41,19 +39,25 @@
             <input id="ai-key-input" type="password" autocomplete="off" spellcheck="false" aria-describedby="ai-key-hint" placeholder="AIza...">
             <button id="ai-key-toggle" type="button" class="toggle-key-btn" data-i18n="showKeyBtn" aria-pressed="false" title="Show or hide your API key" data-i18n-title="buttonKeyHint">Show</button>
           </div>
-          <p class="hint" id="ai-key-hint"></p>
         </div>
-        <p id="gemini-bridge-help" class="hint" hidden><a href="https://github.com/staff-000/nutegg/blob/main/docs/ai-subscriptions.md" target="_blank" rel="noopener noreferrer" data-i18n="subscriptionBridgeGuide">AI subscription setup guide</a></p>
         <button id="ai-save-btn" class="primary-btn setup-save" type="submit" data-i18n="settingsSaveContinue" data-hints="off">Save &amp; continue</button>
         <p id="ai-test-result" class="test-result hidden" role="status" aria-live="polite"></p>
-        <p class="privacy-note" data-i18n="settingsKeyPrivacy">Your key is saved in this browser. Page content is sent to your chosen AI provider when you analyze it.</p>
+        <details class="setup-help" id="ai-setup-help">
+          <summary data-i18n="settingsHowItWorks">How it works</summary>
+          <p class="hint" data-i18n="settingsSetupDesc">Choose an API provider or a local model. Subscription providers are available only in Obsidian mode.</p>
+          <p class="hint" id="ai-key-hint"></p>
+          <p id="gemini-bridge-help" class="hint" hidden><a href="https://github.com/staff-000/nutegg/blob/main/docs/ai-subscriptions.md" target="_blank" rel="noopener noreferrer" data-i18n="subscriptionBridgeGuide">AI subscription setup guide</a></p>
+          <p class="hint" data-i18n="settingsKeyPrivacy">Your key is saved in this browser. Page content is sent to your chosen AI provider when you analyze it.</p>
+        </details>
       </form>
       <div id="obsidian-active-card" class="hidden">
-        <div class="card-heading"><span class="connection-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span><h2 data-i18n="settingsObsidianActive">Obsidian uses your Chrome AI settings</h2></div>
-        <p class="section-desc" data-i18n="settingsObsidianActiveDesc">Configure AI above. Keep Obsidian open to sync these settings and use subscription providers.</p>
-        <p id="obsidian-ai-config" class="connection-status obsidian-ai-config hidden" role="status" aria-live="polite"><span id="obsidian-ai-config-text"></span><strong id="obsidian-ai-match-status"></strong></p>
+        <div class="card-heading"><span class="connection-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span><h2 data-i18n="settingsObsidianMode">Obsidian mode</h2></div>
         <p id="ai-status-banner" class="connection-status" role="status" aria-live="polite"></p>
-        <button id="use-chrome-btn" type="button" class="secondary-btn" data-i18n="settingsUseChrome" title="Connect an AI provider once, then analyze pages right here in Chrome." data-i18n-title="readerSetupBody">Use Chrome instead</button>
+        <div id="obsidian-ai-config" class="connection-status obsidian-ai-config hidden" role="status" aria-live="polite"><strong id="obsidian-ai-match-status"></strong><div id="obsidian-ai-config-text"></div></div>
+        <div class="sync-actions">
+          <details class="setup-help"><summary data-i18n="settingsHowItWorks">How it works</summary><p class="hint" data-i18n="settingsObsidianActive">Obsidian uses your Chrome AI settings</p><p class="hint" data-i18n="settingsObsidianActiveDesc">Configure AI above. Keep Obsidian open to sync these settings and use subscription providers.</p></details>
+          <button id="use-chrome-btn" type="button" class="chrome-mode-btn" title="Connect an AI provider once, then analyze pages right here in Chrome." data-i18n-title="readerSetupBody"><img src="../../icons/chrome-icon.png" alt=""><span data-i18n="settingsUseChrome">Use Chrome mode instead</span><span class="mode-switch-arrow" aria-hidden="true">→</span></button>
+        </div>
       </div>
     </section>
 
