@@ -1401,6 +1401,35 @@ describe("Modular UI Components", () => {
     // 4. Hidden when error or no active mode
     header.renderCredit({ error: "Failed" }, true);
     assert.strictEqual(header.aiCreditPill.classList.contains("hidden"), true);
+
+    // 5. Shows model in hover message when model is present
+    header.renderCredit({
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      hasBalance: true,
+      balanceFormatted: "$10.00",
+    }, true);
+    assert.strictEqual(header.aiCreditText.textContent, "Gemini: $10.00");
+    assert(header.aiCreditPill.title.includes("gemini-2.5-flash"));
+
+    // 6. Shows model in hover message for namespaced model (e.g. OpenRouter)
+    header.renderCredit({
+      source: "openrouter",
+      model: "anthropic/claude-3.5-sonnet",
+      hasBalance: true,
+      balanceFormatted: "$5.00",
+    }, true);
+    assert.strictEqual(header.aiCreditText.textContent, "OpenRouter: $5.00");
+    assert(header.aiCreditPill.title.includes("anthropic/claude-3.5-sonnet"));
+
+    // 7. Shows model in hover message when model is passed as argument
+    header.renderCredit({
+      provider: "openai",
+      hasBalance: true,
+      balanceFormatted: "$2.00",
+    }, true, "gpt-4o-mini");
+    assert.strictEqual(header.aiCreditText.textContent, "OpenAI: $2.00");
+    assert(header.aiCreditPill.title.includes("gpt-4o-mini"));
   });
 
   it("renderEggKnowledge renders refined entries with kind badges, copy button, and markdown formatting", () => {

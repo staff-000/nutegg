@@ -101,7 +101,7 @@ class PopupRenderer {
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
     const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;
     keyed('debug', [settings.debugInfo, debugMode, debugInfo], () => ui.metricsUI.renderDebug?.(debugInfo, settings.debugInfo));
-    if (this.store.environment?.credit) ui.headerUI.renderCredit(this.store.environment.credit, settings.serverOnline);
+    if (this.store.environment?.credit) ui.headerUI.renderCredit(this.store.environment.credit, settings.serverOnline, settings?.chromeAiModel);
     else ui.headerUI.hideCredit();
     keyed('collapse', [view.presentation.collapsible], () => {
       root.querySelectorAll?.('#results-state .result-section').forEach(section => {

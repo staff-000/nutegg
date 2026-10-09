@@ -117,7 +117,7 @@ class HeaderComponent {
     if (this.aiCreditText) this.aiCreditText.textContent = t("checking");
   }
 
-  renderCredit(credit, serverOnline) {
+  renderCredit(credit, serverOnline, model = null) {
     if (!this.aiCreditPill || !this.aiCreditText) return;
 
     if (!credit || credit.error || (!serverOnline && !credit.isChromeAi)) {
@@ -156,6 +156,12 @@ class HeaderComponent {
       } else {
         this.aiCreditPill.classList.remove("has-warning");
       }
+    }
+
+    const modelName = (credit.model || model || "").trim();
+    if (modelName) {
+      const baseTitle = this.aiCreditPill.title || t("aiCreditTooltip");
+      this.aiCreditPill.title = `Model: ${modelName} · ${baseTitle}`;
     }
   }
 
