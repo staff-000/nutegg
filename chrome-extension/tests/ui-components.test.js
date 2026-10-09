@@ -56,6 +56,8 @@ function createMockElement(id = "") {
     scrollIntoView() {},
     querySelector() { return null; },
     querySelectorAll() { return []; },
+    children: [],
+    appendChild(child) { this.children = this.children || []; this.children.push(child); if (child) child.parentElement = this; },
   };
 }
 
@@ -329,6 +331,20 @@ describe("Modular UI Components", () => {
     assert.strictEqual(banners.aiKeyMissingBanner.classList.contains("hidden"), true);
     assert.strictEqual(banners.chromeModeTipBanner.classList.contains("hidden"), true);
 
+    // Banners relocation
+    const resultsBanners = root.getElementById("results-banners");
+    const captureBanners = root.getElementById("capture-banners");
+    banners.warningBanner.parentElement = resultsBanners;
+    banners.render({ currentView: "capture" }, { connectionMode: "obsidian" });
+    assert.strictEqual(captureBanners.children.includes(banners.warningBanner), true);
+    assert.strictEqual(captureBanners.children.includes(banners.errorBanner), true);
+    assert.strictEqual(captureBanners.children.includes(banners.successBanner), true);
+
+    banners.warningBanner.parentElement = captureBanners;
+    banners.render({ currentView: "results" }, { connectionMode: "obsidian" });
+    assert.strictEqual(resultsBanners.children.includes(banners.warningBanner), true);
+    assert.strictEqual(resultsBanners.children.includes(banners.errorBanner), true);
+    assert.strictEqual(resultsBanners.children.includes(banners.successBanner), true);
   });
 
   it("CaptureViewComponent renders extracted content and provenance", () => {

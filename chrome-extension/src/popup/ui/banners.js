@@ -191,6 +191,17 @@ class BannersComponent {
 
     this.aiKeyMissingBanner?.classList.add("hidden");
     this.chromeModeTipBanner?.classList.add("hidden");
+
+    if (this.root && this.warningBanner?.parentElement) {
+      const target = (session?.currentView === "capture")
+        ? (this.root.getElementById?.("capture-banners") || this.root.querySelector?.("#capture-banners"))
+        : (this.root.getElementById?.("results-banners") || this.root.querySelector?.("#results-banners"));
+      if (target && typeof target.appendChild === "function" && this.warningBanner.parentElement !== target) {
+        if (this.successBanner) target.appendChild(this.successBanner);
+        if (this.warningBanner) target.appendChild(this.warningBanner);
+        if (this.errorBanner) target.appendChild(this.errorBanner);
+      }
+    }
   }
 }
 

@@ -57,23 +57,6 @@
       <div id="analysis-activity-list" class="analysis-activity-list hidden"></div>
     </div>
 
-    <div id="warning-banner" class="warning-banner hidden">
-      <span class="warning-icon">⚠️</span>
-      <div id="warning-message"></div>
-    </div>
-
-    <div id="error-banner" class="error-banner hidden">
-      <span class="error-icon">❌</span>
-      <div>
-        <div id="error-message"></div>
-        <div id="error-hint" class="error-hint hidden"></div>
-        <div class="error-report-row">
-          <a href="#" id="error-report-bug" class="error-report-link" data-i18n="reportBug">🐛 Report Bug</a>
-          <span class="error-report-email-fallback" data-i18n-html="reportBugEmailHint">or Email <a href="mailto:staffhacker.000@gmail.com">staffhacker.000@gmail.com</a></span>
-        </div>
-      </div>
-    </div>
-
     <!-- State 1: Capture -->
     <div id="capture-state">
       <section id="setup-hub" class="setup-hub hidden" aria-labelledby="setup-title">
@@ -208,6 +191,7 @@
           <div id="capture-eggs-list" class="eggs-list"></div>
         </div>
       </div>
+      <div id="capture-banners" class="capture-banners"></div>
     </div>
 
     <!-- State 2: Results -->
@@ -220,11 +204,6 @@
           <span id="result-page-word-count"></span>
           <select id="history-select" class="history-select hidden" aria-label="Analysis history" data-i18n-aria-label="analysisHistory"></select>
         </div>
-      </div>
-
-      <div id="success-banner" class="success-banner hidden">
-        <span class="success-icon">✅</span>
-        <span id="success-message"></span>
       </div>
 
       <div class="result-section" id="verdict-section">
@@ -400,6 +379,31 @@
             </div>
           </div>
           <div id="eggs-error" class="eggs-error hidden"></div>
+        </div>
+      </div>
+
+      <!-- Notification & Error Banners (Bottom, above egg-analysis and hatch-egg buttons) -->
+      <div id="results-banners" class="results-banners">
+        <div id="success-banner" class="success-banner hidden">
+          <span class="success-icon">✅</span>
+          <span id="success-message"></span>
+        </div>
+
+        <div id="warning-banner" class="warning-banner hidden">
+          <span class="warning-icon">⚠️</span>
+          <div id="warning-message"></div>
+        </div>
+
+        <div id="error-banner" class="error-banner hidden">
+          <span class="error-icon">❌</span>
+          <div>
+            <div id="error-message"></div>
+            <div id="error-hint" class="error-hint hidden"></div>
+            <div class="error-report-row">
+              <a href="#" id="error-report-bug" class="error-report-link" data-i18n="reportBug">🐛 Report Bug</a>
+              <span class="error-report-email-fallback" data-i18n-html="reportBugEmailHint">or Email <a href="mailto:staffhacker.000@gmail.com">staffhacker.000@gmail.com</a></span>
+            </div>
+          </div>
         </div>
       </div>
 
