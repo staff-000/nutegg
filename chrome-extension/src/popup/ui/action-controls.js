@@ -450,7 +450,8 @@ class ActionControlsComponent {
     const hatchReason = hatched ? t('hatchAlreadySaved') : busy ? t('hatchWaitForOperation', { operation: operationLabel })
       : selectionNeedsAnalysis ? t('hatchAnalyzeSelectedEggs')
       : !entries ? t('noNewKnowledgeToAdd') : '';
-    const hatchHidden = chromeMode || !result || stage1;
+    const needsEggAnalysis = stage1 || Boolean(selectionNeedsAnalysis) || !view.selectedEggs?.size;
+    const hatchHidden = chromeMode || !result || needsEggAnalysis;
     const defaultHints = new Map([
       [this.analyzeBtn, 'readerIntroBody'], [this.reanalyzeBtn, 'buttonReanalyzeHint'],
       [this.reanalyzeRefreshBtn, 'refreshTooltip'], [this.viewAnalysisBtn, 'viewAnalysis'],
@@ -494,7 +495,7 @@ class ActionControlsComponent {
 
     const stage1ProceedDisabled = busy || !view.selectedEggs?.size;
     const stage1ProceedReason = busy ? t('analysisRunningHint') : !view.selectedEggs?.size ? t('selectEggToAnalyzeHint') : '';
-    const eggAnalysisHidden = chromeMode || !result || (!stage1 && (result.eggResults?.length || 0) > 0);
+    const eggAnalysisHidden = chromeMode || !result || !needsEggAnalysis;
     set(this.stage1ProceedBtn, stage1ProceedDisabled, null, eggAnalysisHidden, stage1ProceedReason, this.eggAnalysisSelector);
     if (this.eggAnalysisLabel) {
       this.eggAnalysisLabel.textContent = view.analyzingEggs
@@ -507,7 +508,7 @@ class ActionControlsComponent {
     }
     set(this.eggAnalysisOnlyBtn, busy, `${view.generateKnowledgeEntries ? '' : '✓ '}${t('eggAnalysisOnly')}`);
     set(this.eggAnalysisWithKnowledgeBtn, busy, `${view.generateKnowledgeEntries ? '✓ ' : ''}${t('eggAnalysisWithKnowledge')}`);
-    const bannerHidden = chromeMode || !result || (!stage1 && (result.eggResults?.length || 0) > 0);
+    const bannerHidden = chromeMode || !result || !needsEggAnalysis;
     this.stage1ConfirmBox?.classList.toggle('hidden', bannerHidden);
     this.stage1ConfirmBox?.classList.toggle('stage1-saved', !!view.nutCollected);
     if (this.stage1ConfirmText) {
@@ -525,7 +526,7 @@ class ActionControlsComponent {
 
     const nutDisabled = busy || view.nutCollected;
     const nutReason = view.nutCollected ? t('nutAlreadySaved') : busy ? t('operationInProgressHint') : '';
-    set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : stage1 ? 'collectNutOnly' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
+    set(this.collectNutBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : needsEggAnalysis ? 'collectNutOnly' : 'collectNut'), chromeMode || !result, nutReason, this.collectNutBtnWrap);
     set(this.stage1SkipBtn, nutDisabled, t(collecting ? 'collecting' : view.nutCollected ? 'nutCollected' : 'collectNutOnly'), true, nutReason, this.stage1SkipBtnWrap);
     set(this.historySelect, busy, null, (view.captureHistory?.length || 0) < 2);
     set(this.backBtn, false, t('readerBack'));

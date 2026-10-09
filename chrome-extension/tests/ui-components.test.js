@@ -144,6 +144,50 @@ describe("Modular UI Components", () => {
     }
   });
 
+  it("switches between egg analysis and hatch egg when egg selection changes", () => {
+    const root = createMockRoot();
+    const controls = new ActionControlsComponent(root);
+    const settings = { connectionMode: 'obsidian', analysisMode: 'preview', isChromeMode: () => false };
+
+    const session = {
+      analysisResult: {
+        stage: 'stage2',
+        matchedEggs: ['a.md', 'b.md'],
+        eggResults: [{ egg: 'a.md', extractedEntries: [{ title: 'Note 1' }] }],
+      },
+      selectedEggs: new Set(['a.md']),
+      isStage1: () => false,
+    };
+
+    controls.render(session, settings);
+    assert.equal(controls.confirmBtnWrap.classList.contains('hidden'), false);
+    assert.equal(controls.eggAnalysisSelector.classList.contains('hidden'), true);
+    assert.equal(controls.stage1ConfirmBox.classList.contains('hidden'), true);
+    assert.equal(controls.collectNutBtn.textContent, t('collectNut'));
+
+    session.selectedEggs = new Set(['a.md', 'b.md']);
+    controls.render(session, settings);
+    assert.equal(controls.confirmBtnWrap.classList.contains('hidden'), true);
+    assert.equal(controls.eggAnalysisSelector.classList.contains('hidden'), false);
+    assert.equal(controls.stage1ConfirmBox.classList.contains('hidden'), false);
+    assert.equal(controls.collectNutBtn.textContent, t('collectNutOnly'));
+
+    session.selectedEggs = new Set();
+    controls.render(session, settings);
+    assert.equal(controls.confirmBtnWrap.classList.contains('hidden'), true);
+    assert.equal(controls.eggAnalysisSelector.classList.contains('hidden'), false);
+    assert.equal(controls.stage1ProceedBtn.disabled, true);
+    assert.equal(controls.stage1ConfirmBox.classList.contains('hidden'), false);
+    assert.equal(controls.collectNutBtn.textContent, t('collectNutOnly'));
+
+    session.selectedEggs = new Set(['a.md']);
+    controls.render(session, settings);
+    assert.equal(controls.confirmBtnWrap.classList.contains('hidden'), false);
+    assert.equal(controls.eggAnalysisSelector.classList.contains('hidden'), true);
+    assert.equal(controls.stage1ConfirmBox.classList.contains('hidden'), true);
+    assert.equal(controls.collectNutBtn.textContent, t('collectNut'));
+  });
+
   it("does not reveal the analysis menu when egg selection changes", () => {
     const root = createMockRoot();
     const eggs = new EggsComponent(root);
