@@ -143,3 +143,29 @@ it('every settings and popup markup label resolves to translated copy', () => {
     }
   }
 });
+
+it('popup and settings buttons have localized hints unless explicitly disabled', () => {
+  const fs = require('node:fs');
+  const { JSDOM } = require('jsdom');
+  for (const file of ['../src/options/options.html', '../src/popup/popup.html']) {
+    const dom = new JSDOM(fs.readFileSync(require.resolve(file), 'utf8'));
+    try {
+      for (const button of dom.window.document.querySelectorAll('button')) {
+        if (button.closest('[data-hints="off"]')) {
+          assert.ok(!button.title && !button.dataset.i18nTitle, `${file}: ${button.id} opts out of hints`);
+          continue;
+        }
+        const key = button.dataset.i18nTitle;
+        assert.ok(button.title && key, `${file}: ${button.id} needs a hint`);
+        for (const [locale, dictionary] of Object.entries(translations)) {
+          assert.ok(dictionary[key], `${locale}: ${key}`);
+        }
+      }
+    } finally { dom.window.close(); }
+  }
+  for (const [locale, dictionary] of Object.entries(translations)) {
+    for (const key of Object.keys(translations.en).filter(key => key.startsWith('button'))) {
+      assert.ok(dictionary[key], `${locale}: ${key}`);
+    }
+  }
+});

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NutEgg Settings</title>
   <link rel="stylesheet" href="options.css">
+  <link rel="stylesheet" href="../tooltips.css">
 </head>
 <body>
   <main class="options-container">
@@ -38,11 +39,11 @@
           <label for="ai-key-input" data-i18n="settingsKeyLabel">API key</label>
           <div class="ai-input-group key-input-group">
             <input id="ai-key-input" type="password" autocomplete="off" spellcheck="false" aria-describedby="ai-key-hint" placeholder="AIza...">
-            <button id="ai-key-toggle" type="button" class="toggle-key-btn" data-i18n="showKeyBtn" aria-pressed="false">Show</button>
+            <button id="ai-key-toggle" type="button" class="toggle-key-btn" data-i18n="showKeyBtn" aria-pressed="false" title="Show or hide your API key" data-i18n-title="buttonKeyHint">Show</button>
           </div>
           <p class="hint" id="ai-key-hint"></p>
         </div>
-        <button id="ai-save-btn" class="primary-btn setup-save" type="submit" data-i18n="settingsSaveContinue">Save &amp; continue</button>
+        <button id="ai-save-btn" class="primary-btn setup-save" type="submit" data-i18n="settingsSaveContinue" data-hints="off">Save &amp; continue</button>
         <p id="ai-test-result" class="test-result hidden" role="status" aria-live="polite"></p>
         <p class="privacy-note" data-i18n="settingsKeyPrivacy">Your key is saved in this browser. Page content is sent to your chosen AI provider when you analyze it.</p>
       </form>
@@ -50,7 +51,7 @@
         <div class="card-heading"><span class="connection-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span><h2 data-i18n="settingsObsidianActive">AI is managed in Obsidian</h2></div>
         <p class="section-desc" data-i18n="settingsObsidianActiveDesc">Add your AI key in Obsidian → Settings → NutEgg. Keep Obsidian open while you read in Chrome.</p>
         <p id="ai-status-banner" class="connection-status" role="status" aria-live="polite"></p>
-        <button id="use-chrome-btn" type="button" class="secondary-btn" data-i18n="settingsUseChrome">Use Chrome instead</button>
+        <button id="use-chrome-btn" type="button" class="secondary-btn" data-i18n="settingsUseChrome" title="Connect an AI provider once, then analyze pages right here in Chrome." data-i18n-title="readerSetupBody">Use Chrome instead</button>
       </div>
     </section>
 
@@ -89,7 +90,7 @@
           <label class="toggle-checkbox-label" for="section-knowledge"><input type="checkbox" id="section-knowledge"><span><strong><span class="label-emoji" aria-hidden="true">🍃</span> <span data-i18n="knowledgePanel">Knowledge</span></strong><small data-i18n="sectionKnowledgeOpt">Extract knowledge entries and compare against matched eggs</small></span></label>
           <label class="toggle-checkbox-label" for="section-discussion"><input type="checkbox" id="section-discussion"><span><strong><span class="label-emoji" aria-hidden="true">💬</span> <span data-i18n="discussionSection">Discussion</span></strong><small data-i18n="sectionDiscussionOpt">Analyze community comments, user debates, and counterarguments</small></span></label>
         </fieldset>
-        <div class="option-actions"><button id="sections-save-btn" class="secondary-btn" type="button" data-i18n="saveSectionsBtn">Save Section Preferences</button><span id="sections-status" class="test-result hidden" role="status"></span></div>
+        <div class="option-actions"><button id="sections-save-btn" class="secondary-btn" type="button" data-i18n="saveSectionsBtn" data-hints="off">Save Section Preferences</button><span id="sections-status" class="test-result hidden" role="status"></span></div>
       </div>
     </details>
 
@@ -117,7 +118,7 @@
             <p class="hint mode-desc" id="fast-desc" data-i18n="fastDescText">NutEgg summarizes page content, creates a mind map, automatically matches relevant eggs from your vault, and analyzes them to give you a reading recommendation.</p>
             <p class="hint mode-desc" id="confirm-desc" data-i18n="confirmDescText">NutEgg summarizes the page and identifies relevant eggs, then pauses so you can review matched eggs, select or uncheck topics, or skip comparison before proceeding.</p>
           </div>
-          <div class="option-actions"><button id="save-btn" class="primary-btn" type="button" data-i18n="saveBtn">Save</button><button id="test-btn" class="secondary-btn" type="button" data-i18n="testConnBtn">Test Connection</button></div>
+          <div class="option-actions"><button id="save-btn" class="primary-btn" type="button" data-i18n="saveBtn" data-hints="off">Save</button><button id="test-btn" class="secondary-btn" type="button" data-i18n="testConnBtn" data-hints="off">Test Connection</button></div>
           <p id="test-result" class="test-result hidden" role="status"></p>
         </div>
       </div>
@@ -128,12 +129,12 @@
       <div class="disclosure-content">
         <div id="chrome-advanced-settings">
           <div class="option-row" id="ai-prompt-row">
-            <div class="prompt-header-container"><label for="ai-prompt-select" data-i18n="settingsPromptsLabel">Custom prompts</label><button id="ai-prompt-reset-btn" type="button" class="text-btn" data-i18n="resetDefaultPrompt">Reset to Default</button></div>
+            <div class="prompt-header-container"><label for="ai-prompt-select" data-i18n="settingsPromptsLabel">Custom prompts</label><button id="ai-prompt-reset-btn" type="button" class="text-btn" data-i18n="resetDefaultPrompt" title="Reset to Default" data-i18n-title="resetDefaultPrompt">Reset to Default</button></div>
             <select id="ai-prompt-select"><option value="contentAnalysis" data-i18n="promptOptContentAnalysis">Content Analysis (Stage 1 Summary &amp; Mind Map)</option><option value="contentTaskDefault" data-i18n="promptOptContentTask">Default Content Task Instructions</option><option value="followUp" data-i18n="promptOptFollowUp">Follow-up Q&amp;A</option></select>
             <textarea id="ai-prompt-textarea" rows="8" spellcheck="false" aria-label="Custom prompts" data-i18n-aria-label="settingsPromptsLabel"></textarea>
             <p class="hint" data-i18n="settingsPromptsHint">Adjust how your Chrome AI responds. Leave the defaults for the standard NutEgg experience.</p>
           </div>
-          <div class="option-actions"><button id="ai-advanced-save-btn" type="button" class="secondary-btn" data-i18n="settingsSaveAdvanced">Save AI preferences</button><button id="ai-test-btn" type="button" class="text-btn" data-i18n="testAiBtn">Test AI Connection</button></div>
+          <div class="option-actions"><button id="ai-advanced-save-btn" type="button" class="secondary-btn" data-i18n="settingsSaveAdvanced" data-hints="off">Save AI preferences</button><button id="ai-test-btn" type="button" class="text-btn" data-i18n="testAiBtn" data-hints="off">Test AI Connection</button></div>
           <p id="ai-advanced-status" class="test-result hidden" role="status"></p>
           <div class="advanced-subsection" id="chrome-cache-group">
             <h3 data-i18n="chromeCacheLimitLabel">Tabs cache limit</h3>
@@ -143,8 +144,8 @@
                 <input id="chrome-cache-limit-input" type="number" min="0" max="1000" step="1" value="100" required>
               </div>
               <div class="option-actions">
-                <button id="chrome-cache-save-btn" type="button" class="secondary-btn" data-i18n="saveBtn">Save</button>
-                <button id="chrome-cache-clear-btn" type="button" class="text-btn" data-i18n="clearCacheBtn">Clear Cache</button>
+                <button id="chrome-cache-save-btn" type="button" class="secondary-btn" data-i18n="saveBtn" data-hints="off">Save</button>
+                <button id="chrome-cache-clear-btn" type="button" class="text-btn" data-i18n="clearCacheBtn" title="Remove all cached analyses from this browser" data-i18n-title="buttonClearCacheHint">Clear Cache</button>
               </div>
             </div>
             <div class="cache-info-row">
@@ -157,7 +158,7 @@
           <h3 data-i18n="captureRetrySettings">Content loading</h3>
           <p class="hint" data-i18n="captureRetryDescription">Retry when captions or dynamically loaded content are missing. Successful captures finish immediately.</p>
           <div class="retry-params-row"><div class="option-row"><label for="capture-retry-count" data-i18n="captureRetryCountLabel">Maximum retries</label><input id="capture-retry-count" type="number" min="0" max="10" step="1" value="3" required></div><div class="option-row"><label for="capture-retry-delay" data-i18n="captureRetryDelayLabel">Delay before retries (seconds)</label><input id="capture-retry-delay" type="number" min="0.1" max="10" step="0.1" value="3" required></div></div>
-          <div class="option-actions"><button id="capture-retry-save" type="button" class="secondary-btn" data-i18n="captureRetrySave">Save preferences</button><span id="capture-retry-status" class="test-result hidden" role="status"></span></div>
+          <div class="option-actions"><button id="capture-retry-save" type="button" class="secondary-btn" data-i18n="captureRetrySave" data-hints="off">Save preferences</button><span id="capture-retry-status" class="test-result hidden" role="status"></span></div>
         </div>
         <div class="advanced-subsection"><h3 data-i18n="debugInfo">Debug info</h3><label class="toggle-checkbox-label" for="debug-info-enabled"><input type="checkbox" id="debug-info-enabled"><span data-i18n="debugInfoDescription">Show active AI calls and approximate prompt word counts for the current tab only.</span></label></div>
       </div>
@@ -168,5 +169,6 @@
   <script src="../i18n.js"></script>
   <script src="../popup/state/settings-state.js"></script>
   <script src="options.js"></script>
+  <script src="../tooltips.js"></script>
 </body>
 </html>

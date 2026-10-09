@@ -50,7 +50,7 @@ class DiscussionComponent {
         (globalThis.NutEggHelpers?.extractTimestamp ? globalThis.NutEggHelpers.extractTimestamp(text) : /(?:^|[^\d:])\d{1,3}(?::\d{2}){1,2}(?:[^\d:]|$)/.test(text))
       );
     };
-    const sourceTag = h => (h.commentId && !hasTimestamp(h)) ? `<button type="button" class="source-pill source-section discussion-source" data-source-id="${escape(h.commentId)}" data-heading="${escape(t('discussionComment'))}" title="${escape(t('jumpToSource'))}">📍 ${escape(t('jumpToSource'))}</button>` : '';
+    const sourceTag = h => (h.commentId && !hasTimestamp(h)) ? `<button type="button" class="source-pill source-section discussion-source" data-source-id="${escape(h.commentId)}" data-heading="${escape(t('discussionComment'))}" title="${escape(t('sourceTooltip'))}">📍 ${escape(t('jumpToSource'))}</button>` : '';
     const unique = values => [...new Map(values.map(h => [h.summary, h])).values()];
     const stanceIcons = { agree: '👍', disagree: '👎', mixed: '🤔', neutral: '⚖️', unclear: '❓' };
     // Prefer the analyzed snapshot over comments refreshed after analysis.

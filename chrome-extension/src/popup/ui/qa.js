@@ -70,9 +70,9 @@ function renderQaSources(sources) {
       const sourceAttr = s.sourceId ? ` data-source-id="${_qaEscapeHtml(String(s.sourceId))}"` : "";
       const quoteText = s.quote ? String(s.quote).trim() : "";
       const quoteAttr = quoteText ? ` data-quote="${_qaEscapeHtml(quoteText)}"` : "";
-      const quoteTitle = quoteText
-        ? ` title="${_qaEscapeHtml(quoteText)}"`
-        : (isTime ? ` title="${_qaEscapeHtml(t("jumpToVideoTime", { time: timestamp }))}"` : ` title="${_qaEscapeHtml(t("scrollToSection", { ref }))}"`);
+      const quoteTitle = isTime
+        ? ` title="${_qaEscapeHtml(t("jumpToVideoTime", { time: timestamp }))}"`
+        : ` title="${_qaEscapeHtml(t("sourceTooltip"))}"`;
 
       const quoteHtml = quoteText
         ? `<span class="source-quote" title="${_qaEscapeHtml(quoteText)}">“${_qaEscapeHtml(quoteText)}”</span>`
@@ -285,7 +285,7 @@ class QaComponent {
   setFollowupLoading(isLoading) {
     if (this.followupBtn) {
       this.followupBtn.disabled = isLoading;
-      const title = isLoading ? t("operationInProgressHint") : "";
+      const title = isLoading ? t("operationInProgressHint") : t("buttonAskHint");
       this.followupBtn.title = title;
       if (title) this.followupBtn.setAttribute?.("data-tooltip", title);
       else this.followupBtn.removeAttribute?.("data-tooltip");

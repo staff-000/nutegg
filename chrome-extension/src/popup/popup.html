@@ -23,6 +23,7 @@
     .booting #capture-state > :not(.page-info):not(.content-preview) { display: none; }
   </style>
   <link id="popup-styles" rel="stylesheet" href="popup.css" media="print">
+  <link rel="stylesheet" href="../tooltips.css">
 </head>
 <body class="booting chrome-reader">
   <div class="popup-container" id="popup-app" inert aria-busy="true">
@@ -52,7 +53,7 @@
       </div>
     </header>
     <div id="analysis-activity" class="analysis-activity hidden">
-      <button type="button" id="analysis-activity-toggle" aria-expanded="false" aria-controls="analysis-activity-list" aria-live="polite"></button>
+      <button type="button" id="analysis-activity-toggle" aria-expanded="false" aria-controls="analysis-activity-list" aria-live="polite" title="Show running analyses and unread results" data-i18n-title="buttonActivityHint"></button>
       <div id="analysis-activity-list" class="analysis-activity-list hidden"></div>
     </div>
 
@@ -79,14 +80,14 @@
         <span class="setup-mark" aria-hidden="true">✦</span>
         <h1 id="setup-title" data-i18n="readerSetupTitle">Start with your AI key</h1>
         <p id="setup-description" data-i18n="readerSetupBody">Connect an AI provider once, then analyze pages right here in Chrome.</p>
-        <button type="button" id="setup-open-settings-btn" class="setup-primary" data-i18n="readerSetupAction">Add API key</button>
+        <button type="button" id="setup-open-settings-btn" class="setup-primary" data-i18n="readerSetupAction" title="Connect an AI provider once, then analyze pages right here in Chrome." data-i18n-title="readerSetupBody">Add API key</button>
       </section>
       <div id="page-info" class="page-info">
         <div class="page-info-top">
           <div class="page-title" id="page-title" data-i18n="loading">Loading...</div>
           <div class="page-refresh-control">
             <span id="transcript-refresh-hint" class="transcript-refresh-hint hidden" role="status"></span>
-            <button id="refresh-btn" class="refresh-btn" title="Refresh content extraction" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-i18n-title="refreshTooltip">
+            <button id="refresh-btn" class="refresh-btn" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-hints="off">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
                 <path d="M3 3v5h5"></path>
@@ -107,17 +108,17 @@
       </div>
       <div class="content-fetch-box">
         <div id="content-preview" class="content-preview" data-i18n="loadingContent">Loading content…</div>
-        <button type="button" id="preview-refresh-btn" class="preview-refresh-btn hidden" data-i18n="contentRefreshHint">Refresh content</button>
+        <button type="button" id="preview-refresh-btn" class="preview-refresh-btn hidden" data-i18n="contentRefreshHint" data-hints="off">Refresh content</button>
       </div>
 
-      <button type="button" id="view-analysis-btn" class="back-btn view-analysis-btn hidden"><span class="btn-icon">👁️</span> <span data-i18n="viewAnalysis">View analysis →</span></button>
-      <div id="analyze-btn-wrap" class="analyze-btn-wrap">
-        <button id="analyze-btn" class="analyze-btn inactive">
+      <button type="button" id="view-analysis-btn" class="back-btn view-analysis-btn hidden" title="View analysis →" data-i18n-title="viewAnalysis"><span class="btn-icon">👁️</span> <span data-i18n="viewAnalysis">View analysis →</span></button>
+      <div id="analyze-btn-wrap" class="analyze-btn-wrap" data-hints="off">
+        <button id="analyze-btn" class="analyze-btn inactive" data-hints="off">
           <span class="btn-icon">⚡</span> <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
         </button>
       </div>
 
-      <button id="questions-toggle" class="questions-toggle" type="button" aria-expanded="false" aria-controls="questions-area"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
+      <button id="questions-toggle" class="questions-toggle" type="button" aria-expanded="false" aria-controls="questions-area" data-hints="off"><span data-i18n="askQuestionsToggle">💭 Ask your own questions</span> <span class="questions-toggle-chevron">▾</span></button>
       <div id="questions-area" class="questions-area hidden">
         <div class="questions-scope-row">
           <label for="capture-questions-scope" class="questions-scope-label" data-i18n="scopeLabel">Scope:</label>
@@ -151,7 +152,7 @@
 
       <!-- Expandable Sections Selector -->
       <div class="sections-accordion" id="sections-accordion">
-        <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" title="Click to customize analysis sections" data-i18n-title="customizeSectionsTooltip">
+        <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" data-hints="off">
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
             <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
@@ -161,18 +162,18 @@
         </button>
         <div class="sections-body hidden" id="sections-body">
           <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
-            <button type="button" class="section-chip active" id="chip-verdict-summary" data-section="verdictSummary" title="Toggle Verdict and Summary" data-i18n-title="toggleVerdictSummaryTooltip">
+            <button type="button" class="section-chip active" id="chip-verdict-summary" data-section="verdictSummary" data-hints="off">
               <span class="chip-icon">📋</span>
               <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
             </button>
-            <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
+            <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" data-hints="off">
               <span class="chip-icon">🧠</span>
               <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
             </button>
-            <button type="button" class="section-chip inactive" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false">
+            <button type="button" class="section-chip inactive" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
               <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
             </button>
-            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
+            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
           </div>
           <div id="discussion-capture" class="discussion-controls hidden">
             <div class="discussion-status-bar">
@@ -180,8 +181,8 @@
               <p id="discussion-capture-status" class="discussion-status-text" role="status" aria-live="polite"></p>
             </div>
             <div class="discussion-actions">
-              <button type="button" id="discussion-capture-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad">Load discussion</button>
-              <button type="button" id="discussion-capture-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh">Refresh comments</button>
+              <button type="button" id="discussion-capture-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad" title="Load discussion" data-i18n-title="discussionLoad">Load discussion</button>
+              <button type="button" id="discussion-capture-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh" title="Refresh comments" data-i18n-title="discussionRefresh">Refresh comments</button>
             </div>
             <div class="discussion-tip">
               <span class="discussion-tip-icon">💡</span>
@@ -193,7 +194,7 @@
 
       <!-- Target Egg Selector (Content-Fetch View) -->
       <div class="sections-accordion capture-eggs-accordion hidden" id="capture-eggs-accordion" data-obsidian-only>
-        <button type="button" class="sections-toggle-btn" id="capture-eggs-toggle" aria-expanded="false" title="Target eggs to compare against" data-i18n-title="targetEggsTooltip">
+        <button type="button" class="sections-toggle-btn" id="capture-eggs-toggle" aria-expanded="false" data-hints="off">
           <div class="sections-toggle-left">
             <span class="sections-toggle-icon">🥚</span>
             <span class="sections-toggle-title" data-i18n="targetEggHeader">Target eggs (auto-select by default)</span>
@@ -232,33 +233,33 @@
           </div>
         </div>
         <div class="stage1-confirm-actions">
-          <div id="egg-analysis-selector" class="egg-analysis-selector">
-            <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
+          <div id="egg-analysis-selector" class="egg-analysis-selector" data-hints="self-off">
+            <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu" data-hints="off"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
             <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
-              <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly">🥚 Analysis only</button>
-              <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge">🍃 Include knowledge</button>
+              <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly" title="🥚 Analysis only" data-i18n-title="eggAnalysisOnly">🥚 Analysis only</button>
+              <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge" title="Generate knowledge entries" data-i18n-title="generateKnowledgeEntries">🍃 Include knowledge</button>
             </div>
           </div>
-          <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly">🌰 Collect Nut Only</button></span>
+          <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut Only</button></span>
         </div>
       </div>
 
       <div id="eggs-section" data-obsidian-only class="result-section hidden">
-        <button id="eggs-toggle" class="questions-toggle" aria-expanded="false">
+        <button id="eggs-toggle" class="questions-toggle" aria-expanded="false" data-hints="off">
           <span>🥚 <span data-i18n="eggsHeader">Eggs</span> <span id="eggs-toggle-label" class="eggs-toggle-label"></span></span>
           <span id="eggs-toggle-chevron" class="questions-toggle-chevron">▸</span>
         </button>
         <div id="eggs-expanded" class="hidden">
           <div id="eggs-list" class="eggs-list"></div>
           <div id="eggs-create-inline" class="create-egg-inline">
-            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg">➕ Create a new egg</button>
+            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg" data-hints="off">➕ Create a new egg</button>
             <div id="eggs-create-form" class="create-egg-box hidden">
               <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
               <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="eggs-create-hint" />
               <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
               <div class="create-egg-actions">
-                <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create an Egg</button>
-                <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel">Cancel</button>
+                <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn" title="Create Egg" data-i18n-title="createEggBtn">Create an Egg</button>
+                <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel" title="Cancel" data-i18n-title="cancel">Cancel</button>
               </div>
             </div>
           </div>
@@ -332,7 +333,7 @@
             <input id="new-egg-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
             <input id="new-egg-description" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="new-egg-hint" />
             <p id="new-egg-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
-            <button id="create-egg-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn">Create Egg</button>
+            <button id="create-egg-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn" title="Create Egg" data-i18n-title="createEggBtn">Create Egg</button>
           </div>
         </div>
       </div>
@@ -356,7 +357,7 @@
                 <option value="within" data-i18n="scopeWithin">Content only</option>
                 <option value="beyond" data-i18n="readerScopeBeyond">Use broader knowledge</option>
               </select>
-              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" title="Ask (⌘/Ctrl+Enter)">Ask</button>
+              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" data-hints="off">Ask</button>
             </div>
           </div>
         </div>
@@ -369,7 +370,7 @@
           <!-- Re-analysis Section Selector (expandable) with inline processed-actions -->
           <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
             <div class="reanalyze-header-row">
-              <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" title="Click to customize re-analysis sections" data-i18n-title="customizeReanalyzeSectionsTooltip">
+              <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" data-hints="off">
                 <div class="sections-toggle-left">
                   <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
                   <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
@@ -378,24 +379,24 @@
                 <span class="section-chevron sections-toggle-chevron" id="reanalyze-sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
               </button>
               <div class="processed-actions">
-                <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze">🔄 Re-analyze</button></span>
+                <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze" title="Run a new analysis with the selected sections" data-i18n-title="buttonReanalyzeHint">🔄 Re-analyze</button></span>
                 <select id="history-select" class="history-select hidden"></select>
               </div>
             </div>
             <div class="sections-body hidden" id="reanalyze-sections-body">
               <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
-                <button type="button" class="section-chip active" id="reanalyze-chip-verdict-summary" data-section="verdictSummary" title="Toggle Verdict and Summary" data-i18n-title="toggleVerdictSummaryTooltip">
+                <button type="button" class="section-chip active" id="reanalyze-chip-verdict-summary" data-section="verdictSummary" data-hints="off">
                   <span class="chip-icon">📋</span>
                   <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
                 </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" title="Toggle Mind Map" data-i18n-title="toggleMindmapTooltip">
+                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" data-hints="off">
                   <span class="chip-icon">🧠</span>
                   <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
                 </button>
-                <button type="button" class="section-chip inactive" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false">
+                <button type="button" class="section-chip inactive" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
                   <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
                 </button>
-                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
+                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">💬</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
               </div>
               <div id="discussion-reanalyze" class="discussion-controls hidden">
                 <div class="discussion-status-bar">
@@ -403,8 +404,8 @@
                   <p id="discussion-reanalyze-status" class="discussion-status-text" role="status" aria-live="polite"></p>
                 </div>
                 <div class="discussion-actions">
-                  <button type="button" id="discussion-reanalyze-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad">Load discussion</button>
-                  <button type="button" id="discussion-reanalyze-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh">Refresh comments</button>
+                  <button type="button" id="discussion-reanalyze-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad" title="Load discussion" data-i18n-title="discussionLoad">Load discussion</button>
+                  <button type="button" id="discussion-reanalyze-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh" title="Refresh comments" data-i18n-title="discussionRefresh">Refresh comments</button>
                 </div>
                 <div class="discussion-tip">
                   <span class="discussion-tip-icon">💡</span>
@@ -417,9 +418,9 @@
       </div>
 
       <div class="action-buttons">
-        <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg">🐣 Hatch Egg</button></span>
-        <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut">🌰 Collect Nut</button></span>
-        <button id="back-btn" class="back-btn" data-i18n="readerBack">Back</button>
+        <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg" title="Save new knowledge to the selected eggs" data-i18n-title="buttonHatchHint">🐣 Hatch Egg</button></span>
+        <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut</button></span>
+        <button id="back-btn" class="back-btn" data-i18n="readerBack" title="Return to the captured page content" data-i18n-title="buttonBackHint">Back</button>
       </div>
     </div>
 
@@ -432,7 +433,7 @@
     <div id="debug-info" class="debug-info hidden" role="status" aria-live="polite"></div>
 
     <footer class="footer">
-      <small id="version-tag">NutEgg 0.0.0</small>
+      <small id="version-tag" data-hints="off">NutEgg 0.0.0</small>
       <div class="footer-links">
         <a href="#" class="footer-link" id="report-bug-link" title="Report a Bug on GitHub (or email staffhacker.000@gmail.com if no GitHub account)" data-i18n-title="reportBugTooltip">
           <span data-i18n="reportBug">🐛 Report Bug</span>
@@ -444,6 +445,7 @@
     </footer>
   </div>
 
+  <script defer src="../tooltips.js"></script>
   <script defer src="startup-frame.js"></script>
   <script defer src="../i18n.js"></script>
   <script defer src="helpers.js"></script>

@@ -88,7 +88,7 @@ class PopupRenderer {
     if (ui.eggsUI.eggsCreateToggle) ui.eggsUI.eggsCreateToggle.textContent = t('createNewEgg');
     ui.eggsUI.setCreateButtonLoading(!!view.operations.creation?.running);
     for (const button of [ui.eggsUI.eggsCreateBtn, ui.eggsUI.createEggBtn]) {
-      if (button) { button.disabled = view.busy; button.title = ''; }
+      if (button) { button.disabled = view.busy; button.title = t(view.busy ? 'operationInProgressHint' : 'createEggBtn'); }
     }
     ui.eggsUI.clearError();
     if (obsidianMode && settings.serverOnline && this.store.metrics) ui.metricsUI.render(this.store.metrics);

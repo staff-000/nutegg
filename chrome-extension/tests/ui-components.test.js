@@ -174,8 +174,8 @@ describe("Modular UI Components", () => {
     assert.equal(controls.confirmBtnWrap.title, t("hatchAlreadySaved"));
     controls.updateActionButtons({ hasDelta: true });
     assert.equal(controls.confirmBtn.disabled, false);
-    assert.equal(controls.confirmBtn.title, "");
-    assert.equal(controls.confirmBtnWrap.title, "");
+    assert.equal(controls.confirmBtn.title, t("buttonHatchHint"));
+    assert.equal(controls.confirmBtnWrap.title, t("buttonHatchHint"));
     controls.updateActionButtons({ isStage1: true, nutCollected: true });
     assert.equal(controls.stage1SkipBtn.disabled, true);
     assert.equal(controls.stage1SkipBtn.title, t("nutAlreadySaved"));
@@ -192,8 +192,8 @@ describe("Modular UI Components", () => {
     assert.equal(controls.eggAnalysisLabel.textContent, "🥚 Select an Egg...");
     controls.updateStage1ProceedBtn({ selectedCount: 1 });
     assert.equal(controls.stage1ProceedBtn.disabled, false);
-    assert.equal(controls.stage1ProceedBtn.title, "");
-    assert.equal(controls.eggAnalysisSelector.title, "");
+    assert.equal(controls.stage1ProceedBtn.title, t("targetEggsTooltip"));
+    assert.equal(controls.eggAnalysisSelector.title, t("targetEggsTooltip"));
     assert.equal(controls.eggAnalysisLabel.textContent, t("eggAnalysis"));
     assert.ok(controls.eggAnalysisLabel.textContent.startsWith("🥚"));
     const eggs = controls;

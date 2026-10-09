@@ -203,7 +203,7 @@ test('fresh and cached question-only Stage 2 results show knowledge and can be h
     assert.equal(f.store.getTab(1).analysisResult.stage, 'stage2');
     assert.equal(f.ui.actionsUI.confirmBtn.classList.contains('hidden'), false);
     assert.equal(f.ui.actionsUI.confirmBtn.disabled, false);
-    assert.equal(f.ui.actionsUI.confirmBtn.title, '');
+    assert.equal(f.ui.actionsUI.confirmBtn.title, t("buttonHatchHint"));
     assert.equal(f.ui.eggsUI.eggKnowledgeSection.classList.contains('hidden'), false);
     assert(f.ui.eggsUI.eggKnowledgeContent.innerHTML.includes('Important answer.'));
   };
@@ -244,14 +244,14 @@ test('Hatch hover explains each running operation, saved results, and clears acr
     assert.equal(f.ui.actionsUI.confirmBtn.disabled, true);
     assert.equal(f.ui.actionsUI.confirmBtnWrap.title, t('hatchWaitForOperation', { operation: t(label) }));
     f.store.activateTab(2);
-    assert.equal(f.ui.actionsUI.confirmBtn.disabled, false); assert.equal(f.ui.actionsUI.confirmBtnWrap.title, '');
+    assert.equal(f.ui.actionsUI.confirmBtn.disabled, false); assert.equal(f.ui.actionsUI.confirmBtnWrap.title, t("buttonHatchHint"));
     f.store.activateTab(1); f.store.commitOperation(ctx.token, { type: 'operationFinished' });
   }
   const save = f.store.beginOperation(1, 'saving', { hatch: true });
   f.store.commitOperation(save.token, { type: 'saved', hatch: true, message: 'Saved' });
   assert.equal(f.ui.actionsUI.confirmBtnWrap.title, t('hatchAlreadySaved'));
   f.store.activateTab(2);
-  assert.equal(f.ui.actionsUI.confirmBtnWrap.title, ''); assert.equal(f.ui.actionsUI.confirmBtn.title, '');
+  assert.equal(f.ui.actionsUI.confirmBtnWrap.title, t("buttonHatchHint")); assert.equal(f.ui.actionsUI.confirmBtn.title, t("buttonHatchHint"));
   seed(f.store, 2, { stage: 'stage1' });
   assert.equal(f.ui.actionsUI.confirmBtnWrap.classList.contains('hidden'), true);
 });

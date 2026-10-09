@@ -48,6 +48,7 @@ function renderMindMap(nodes, container) {
       toggleBtn.type = "button";
       toggleBtn.className = "mindmap-toggle-btn";
       toggleBtn.setAttribute("aria-label", t("toggleBranch"));
+      toggleBtn.title = t("toggleBranch");
       toggleBtn.innerHTML = `<span class="mindmap-toggle-icon">▾</span>`;
       headerEl.appendChild(toggleBtn);
     } else {
@@ -70,7 +71,7 @@ function renderMindMap(nodes, container) {
     const source = node.sources?.find(s => s && typeof s.ref === 'string' && (s.sourceId || !/^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref)) && (s.quote || s.sourceId || s.ref));
     nameEl.innerHTML = renderText(node.name);
     if (source && !hasTime) {
-      nameEl.insertAdjacentHTML("beforeend", ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('jumpToSource'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`);
+      nameEl.insertAdjacentHTML("beforeend", ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('sourceTooltip'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`);
     }
     if (typeof node.time === "string" && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) {
       nameEl.insertAdjacentHTML("beforeend", " " + renderText(node.time));
@@ -149,4 +150,3 @@ if (typeof module !== "undefined" && module.exports) {
     MindmapComponent,
   };
 }
-

@@ -231,7 +231,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
     const total = eggResults.reduce((n, r) => n + count(r), 0);
     tabs.innerHTML = eggResults.length < 2 ? "" : [...eggResults.map(r => ({ name: r.egg, label: cleanEggName(r.egg), count: count(r) })),
       { name: "all", label: t("allEggsTab"), count: total }].map(tab =>
-      `<button type="button" class="egg-tab-btn${active === tab.name ? " active" : ""}" data-tab="${_eggEscapeHtml(tab.name)}"><span class="egg-tab-name">${_eggEscapeHtml(tab.label)}</span><span class="egg-tab-badge badge-tab-covered">${tab.count}</span></button>`).join("");
+      `<button type="button" class="egg-tab-btn${active === tab.name ? " active" : ""}" data-tab="${_eggEscapeHtml(tab.name)}" title="${_eggEscapeHtml(t('buttonEggTabHint', { name: tab.label }))}"><span class="egg-tab-name">${_eggEscapeHtml(tab.label)}</span><span class="egg-tab-badge badge-tab-covered">${tab.count}</span></button>`).join("");
     tabs.querySelectorAll(".egg-tab-btn").forEach(btn => btn.addEventListener("click", () => {
       opts.onTabChange?.(btn.dataset.tab);
       _renderEggKnowledge(eggResults, { ...opts, activeEggTab: btn.dataset.tab });
@@ -262,7 +262,7 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
             <span class="kind-icon">${meta.icon}</span>
             <span class="kind-label">${meta.label}</span>
           </span>
-          <button type="button" class="entry-copy-btn" title="Copy entry" aria-label="Copy entry" data-content="${_eggEscapeHtml(text)}">
+          <button type="button" class="entry-copy-btn" title="${_eggEscapeHtml(t('buttonCopyHint'))}" aria-label="${_eggEscapeHtml(t('buttonCopyHint'))}" data-content="${_eggEscapeHtml(text)}">
             <span class="copy-icon">📋</span>
             <span class="copy-feedback hidden">✓</span>
           </button>
@@ -392,7 +392,7 @@ class EggsComponent {
   setCreateButtonLoading(isLoading) {
     const loadingText = t("creatingEgg") || t("creating") || "Creating…";
     const normalText = t("createEggBtn") || "Create Egg";
-    const title = isLoading ? t("operationInProgressHint") : "";
+    const title = isLoading ? t("operationInProgressHint") : t("createEggBtn");
     if (this.eggsCreateBtn) {
       this.eggsCreateBtn.disabled = Boolean(isLoading);
       this.eggsCreateBtn.textContent = isLoading ? loadingText : normalText;

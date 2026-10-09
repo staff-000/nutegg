@@ -170,12 +170,12 @@ class ActionControlsComponent {
       if (this.analyzeBtnText) {
         this.analyzeBtnText.textContent = hasAnalysisResult ? t("analyzeAgain") : t("analyze");
       }
-      this.analyzeBtn.title = "";
+      this.analyzeBtn.title = t("readerIntroBody");
 
       if (this.reanalyzeBtn) {
         this.reanalyzeBtn.disabled = false;
         this.reanalyzeBtn.classList.remove("inactive");
-        this.reanalyzeBtn.title = "";
+        this.reanalyzeBtn.title = t("buttonReanalyzeHint");
         this.reanalyzeBtn.textContent = t("reanalyze");
       }
     }
@@ -220,10 +220,10 @@ class ActionControlsComponent {
       }
     } else {
       this.stage1ProceedBtn.disabled = false;
-      this.stage1ProceedBtn.title = "";
+      this.stage1ProceedBtn.title = t("targetEggsTooltip");
       this.stage1ProceedBtn.removeAttribute?.("data-tooltip");
       if (this.eggAnalysisSelector) {
-        this.eggAnalysisSelector.title = "";
+        this.eggAnalysisSelector.title = t("targetEggsTooltip");
         this.eggAnalysisSelector.removeAttribute?.("data-tooltip");
       }
       this.updateEggAnalysisLabel();
@@ -251,7 +251,7 @@ class ActionControlsComponent {
     if (isStage1) {
       this.confirmBtn?.classList.add("hidden");
       this.confirmBtnWrap?.classList.add("hidden");
-      const nutTitle = nutCollected ? t("nutAlreadySaved") : "";
+      const nutTitle = nutCollected ? t("nutAlreadySaved") : t("buttonCollectHint");
       if (this.collectNutBtn) {
         this.collectNutBtn.disabled = nutCollected;
         this.collectNutBtn.textContent = t(nutCollected ? "nutCollected" : "collectNutOnly");
@@ -287,7 +287,7 @@ class ActionControlsComponent {
       return;
     }
 
-    const nutTitle = nutCollected ? t("nutAlreadySaved") : "";
+    const nutTitle = nutCollected ? t("nutAlreadySaved") : t("buttonCollectHint");
     if (this.collectNutBtn) {
       this.collectNutBtn.disabled = nutCollected;
       this.collectNutBtn.textContent = t(nutCollected ? "nutCollected" : "collectNut");
@@ -307,7 +307,7 @@ class ActionControlsComponent {
       const hatchTitle = eggHatched
         ? t("hatchAlreadySaved")
         : hasDelta
-        ? ""
+        ? t("buttonHatchHint")
         : t("noNewKnowledgeToAdd");
 
       if (eggHatched) {
@@ -317,7 +317,7 @@ class ActionControlsComponent {
       } else if (hasDelta) {
         this.confirmBtn.disabled = false;
         this.confirmBtn.textContent = t("hatchEgg");
-        this.confirmBtn.title = "";
+        this.confirmBtn.title = t("buttonHatchHint");
       } else {
         this.confirmBtn.disabled = true;
         this.confirmBtn.textContent = t("hatchEgg");
@@ -446,8 +446,17 @@ class ActionControlsComponent {
       : selectionNeedsAnalysis ? t('hatchAnalyzeSelectedEggs')
       : !entries ? t('noNewKnowledgeToAdd') : '';
     const hatchHidden = chromeMode || !result || stage1;
+    const defaultHints = new Map([
+      [this.analyzeBtn, 'readerIntroBody'], [this.reanalyzeBtn, 'buttonReanalyzeHint'],
+      [this.reanalyzeRefreshBtn, 'refreshTooltip'], [this.viewAnalysisBtn, 'viewAnalysis'],
+      [this.stage1ProceedBtn, 'targetEggsTooltip'], [this.eggAnalysisOnlyBtn, 'eggAnalysisOnly'],
+      [this.eggAnalysisWithKnowledgeBtn, 'generateKnowledgeEntries'], [this.confirmBtn, 'buttonHatchHint'],
+      [this.collectNutBtn, 'buttonCollectHint'], [this.stage1SkipBtn, 'buttonCollectHint'],
+      [this.backBtn, 'buttonBackHint'],
+    ]);
     const set = (element, disabled, text, hidden = false, title = '', wrap = null) => {
       if (!element) return;
+      if (!title && defaultHints.has(element)) title = t(defaultHints.get(element));
       element.disabled = !!disabled; element.title = title;
       if (title) {
         element.setAttribute?.('data-tooltip', title);
