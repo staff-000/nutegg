@@ -179,6 +179,22 @@ describe("PageExtractor", () => {
         quote: "Quote here",
       });
     });
+
+    it("sends page-position query message", async () => {
+      let sentMessage = null;
+      globalThis.chrome = {
+        tabs: {
+          sendMessage: async (tabId, msg) => {
+            sentMessage = msg;
+            return { success: true, type: "video", currentTime: 125, duration: 600 };
+          },
+        },
+      };
+
+      const result = await extractor.getPagePosition(42);
+      assert.deepEqual(result, { success: true, type: "video", currentTime: 125, duration: 600 });
+      assert.deepEqual(sentMessage, { action: "nutegg-page-position" });
+    });
   });
 
   describe("tryExtract timeout budgets", () => {

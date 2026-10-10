@@ -171,10 +171,17 @@ async function initPopup() {
   });
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });
   tabStateManager.subscribe(event => {
-    if (['activated', 'invalidated'].includes(event.type)) void operations.refreshDebugInfo();
+    if (['activated', 'invalidated'].includes(event.type)) {
+      void operations.refreshDebugInfo();
+      if (event.type === 'activated') void interactionAction.updateMindmapPosition();
+    }
   });
   void operations.refreshDebugInfo();
-  setInterval(() => { void operations.refreshDebugInfo(); }, 1000);
+  void interactionAction.updateMindmapPosition();
+  setInterval(() => {
+    void operations.refreshDebugInfo();
+    if (document.visibilityState === 'visible') void interactionAction.updateMindmapPosition();
+  }, 1000);
   setInterval(() => {
     if (document.visibilityState === 'visible' && settings.connectionMode === 'obsidian') void envService.checkServerStatus();
   }, 15000);

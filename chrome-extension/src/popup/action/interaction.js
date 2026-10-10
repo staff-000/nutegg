@@ -5,7 +5,21 @@ class InteractionAction {
     if (!question) return;
     return this.operations.followup(this.store.activeTabId, question, { outputLanguage: this.settings.outputLanguage });
   }
-  seekToChapter(seconds) { return this.pageExtractor.seekToChapter(this.store.activeTabId, seconds); }
+  seekToChapter(seconds) {
+    const secs = typeof seconds === 'number' ? seconds : this.pageExtractor?.toSeconds?.(seconds) ?? seconds;
+    const res = this.pageExtractor.seekToChapter(this.store.activeTabId, seconds);
+    this.ui?.mindmapUI?.updateProgress?.({ type: 'video', currentTime: secs });
+    return res;
+  }
+  async updateMindmapPosition() {
+    const tabId = this.store.activeTabId;
+    if (tabId == null || !this.pageExtractor?.getPagePosition) return null;
+    const pos = await this.pageExtractor.getPagePosition(tabId);
+    if (pos) {
+      this.ui?.mindmapUI?.updateProgress?.(pos);
+    }
+    return pos;
+  }
   toggleDiscussionComments(topicId, stance) {
     const tabId = this.store.activeTabId, tab = this.store.getTab(tabId);
     const topic = tab?.analysisResult?.discussion?.topics?.find(topic => topic.id === topicId);
@@ -26,6 +40,7 @@ class InteractionAction {
     if (this.sourceJumpRequest === request && this.store.getTab(tabId)?.pageGeneration === tab.pageGeneration) {
       this.store.dispatch({ type: 'sourceJumpNotice', tabId, message: ok ? null : t('sourceJumpUnavailable') });
     }
+    if (ok) void this.updateMindmapPosition();
     return ok;
   }
   handleSourcePillClick(event) {

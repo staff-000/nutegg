@@ -177,6 +177,65 @@ if (!window.__nutegg_listener_attached) {
       return false;
     }
 
+    if (message.action === "nutegg-page-position") {
+      const video =
+        document.querySelector(".html5-main-video") ||
+        document.querySelector("video.video-stream") ||
+        document.querySelector("video");
+      if (video && !isNaN(video.currentTime) && (video.duration > 0 || video.currentTime > 0)) {
+        sendResponse({
+          success: true,
+          type: "video",
+          currentTime: video.currentTime,
+          duration: video.duration || 0,
+          paused: Boolean(video.paused),
+        });
+        return false;
+      }
+
+      const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const scrollHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body?.scrollHeight || 0
+      );
+      const clientHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+      const maxScroll = Math.max(1, scrollHeight - clientHeight);
+      const scrollRatio = Math.min(1, Math.max(0, scrollY / maxScroll));
+
+      let targets = null;
+      if (Array.isArray(message.targets) && window.NutEggSources?.resolve) {
+        targets = message.targets.map(target => {
+          try {
+            const match = window.NutEggSources.resolve(target);
+            if (match?.element) {
+              const rect = match.element.getBoundingClientRect();
+              const top = rect.top + scrollY;
+              return {
+                id: target.id,
+                found: true,
+                top,
+                ratio: Math.min(1, Math.max(0, top / Math.max(1, scrollHeight))),
+                inViewport: rect.top <= clientHeight && rect.bottom >= 0,
+                passed: rect.top <= clientHeight * 0.35,
+              };
+            }
+          } catch {}
+          return { id: target.id, found: false };
+        });
+      }
+
+      sendResponse({
+        success: true,
+        type: "text",
+        scrollY,
+        scrollHeight,
+        clientHeight,
+        scrollRatio,
+        targets,
+      });
+      return false;
+    }
+
     if (message.action === "nutegg-scroll-to") {
       Promise.resolve().then(() => window.NutEggSources.jump(message))
         .then(sendResponse).catch(() => sendResponse({ success: false, reason: 'not_found' }));

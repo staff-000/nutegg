@@ -1272,6 +1272,59 @@ body {
   display: none;
 }
 
+/* Mind Map - Current position highlight ("where are we") */
+.mindmap-node.is-current > .mindmap-node-header {
+  background: rgba(168, 86, 30, 0.08);
+  border-left: 3px solid var(--primary, #a8561e);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-left: -6px;
+  transition: all 0.2s ease;
+}
+
+.mindmap-node.is-current > .mindmap-node-header .mindmap-node-name {
+  color: var(--primary, #a8561e);
+  font-weight: 700;
+}
+
+.mindmap-node.is-current > .mindmap-node-header .mindmap-bullet {
+  background-color: var(--primary, #a8561e);
+  box-shadow: 0 0 0 2.5px rgba(168, 86, 30, 0.25);
+  transform: scale(1.25);
+}
+
+.mindmap-current-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  background: var(--primary, #a8561e);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(168, 86, 30, 0.2);
+}
+
+.mindmap-current-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  display: inline-block;
+  animation: mindmap-dot-pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes mindmap-dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
 /* Question Scope Selector & Badges */
 .qa-scope-selector {
   display: inline-flex;

@@ -106,3 +106,110 @@ test('mind-map nodes omit source tag when there is a timestamp', t => {
   assert.equal(timestamps[0].dataset.time, '05:30');
   assert.equal(timestamps[1].dataset.time, '06:00');
 });
+
+test('video uses current timestamp to determine current node when linear in progress', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  const nodes = [
+    { name: 'Intro', time: '01:00' },
+    { name: 'Key Mechanism', time: '03:00' },
+    { name: 'Conclusion', time: '06:00' },
+  ];
+  component.render(nodes, true, { type: 'video', currentTime: 240 }); // 04:00 (between 03:00 and 06:00)
+
+  const currentNodes = document.querySelectorAll('.mindmap-node.is-current');
+  assert.equal(currentNodes.length, 1);
+  assert.ok(currentNodes[0].querySelector('.mindmap-node-name').textContent.includes('Key Mechanism'));
+  assert.ok(currentNodes[0].querySelector('.mindmap-current-badge'));
+});
+
+test('if video mindmap is not exactly linear in progress, show the first one', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  // Timestamps jump backwards from 05:00 to 02:00 -> not linear
+  const nodes = [
+    { name: 'Overview at five min', time: '05:00' },
+    { name: 'Background at two min', time: '02:00' },
+    { name: 'Deep dive at eight min', time: '08:00' },
+  ];
+  component.render(nodes, true, { type: 'video', currentTime: 360 }); // 06:00
+
+  const currentNodes = document.querySelectorAll('.mindmap-node.is-current');
+  assert.equal(currentNodes.length, 1);
+  // Both 05:00 and 02:00 have passed <= 06:00, but progress is non-linear -> must show the first one
+  assert.ok(currentNodes[0].querySelector('.mindmap-node-name').textContent.includes('Overview at five min'));
+  assert.ok(currentNodes[0].querySelector('.mindmap-current-badge'));
+});
+
+test('long text uses position to determine current node when linear in progress', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  const nodes = [
+    { name: 'Part 1', position: 0.1 },
+    { name: 'Part 2', position: 0.4 },
+    { name: 'Part 3', position: 0.8 },
+  ];
+  component.render(nodes, true, { type: 'text', position: 0.5 });
+
+  const currentNodes = document.querySelectorAll('.mindmap-node.is-current');
+  assert.equal(currentNodes.length, 1);
+  assert.ok(currentNodes[0].querySelector('.mindmap-node-name').textContent.includes('Part 2'));
+  assert.ok(currentNodes[0].querySelector('.mindmap-current-badge'));
+});
+
+test('if long text mindmap is not exactly linear in progress, show the first one', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  // Non-linear positions: 0.6 -> 0.2 -> 0.9
+  const nodes = [
+    { name: 'High-level concept', position: 0.6 },
+    { name: 'Early premise', position: 0.2 },
+    { name: 'Late conclusion', position: 0.9 },
+  ];
+  component.render(nodes, true, { type: 'text', position: 0.7 });
+
+  const currentNodes = document.querySelectorAll('.mindmap-node.is-current');
+  assert.equal(currentNodes.length, 1);
+  // Both 0.6 and 0.2 qualify <= 0.7, but progress is non-linear -> must show the first one
+  assert.ok(currentNodes[0].querySelector('.mindmap-node-name').textContent.includes('High-level concept'));
+  assert.ok(currentNodes[0].querySelector('.mindmap-current-badge'));
+});
+
+test('updateProgress dynamically shifts current node and uncollapses parent branches', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  const nodes = [
+    { name: 'Root 1', time: '00:00', children: [{ name: 'Child 1.1', time: '01:30' }] },
+    { name: 'Root 2', time: '03:00', children: [{ name: 'Child 2.1', time: '04:30' }] },
+  ];
+  component.render(nodes, true, { type: 'video', currentTime: 10 }); // 00:10
+  assert.ok(document.querySelector('.is-current .mindmap-node-name').textContent.includes('Root 1'));
+
+  // Manually collapse the second root
+  const children = document.querySelectorAll('.mindmap-children');
+  children[1].classList.add('collapsed');
+
+  // Progress advances to 05:00 -> Child 2.1
+  component.updateProgress({ type: 'video', currentTime: 300 });
+
+  const current = document.querySelector('.is-current');
+  assert.ok(current.querySelector('.mindmap-node-name').textContent.includes('Child 2.1'));
+  // The collapsed parent branch was automatically uncollapsed so the current child is visible
+  assert.equal(children[1].classList.contains('collapsed'), false);
+});
+

@@ -396,6 +396,20 @@ class PageExtractor {
       } catch { return false; }
     }
   }
+
+  /**
+   * Get current playback timestamp or scroll position from the tab.
+   */
+  async getPagePosition(tabId, targets = null) {
+    if (tabId == null) return null;
+    const message = { action: "nutegg-page-position", ...(targets ? { targets } : {}) };
+    try {
+      const response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
+      return response?.success ? response : null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 const _servicesScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
