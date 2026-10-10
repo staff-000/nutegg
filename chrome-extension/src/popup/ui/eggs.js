@@ -141,7 +141,13 @@ function _renderEggsSection(firstArg = [], options = {}) {
   }
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
-    toggleLabelEl.textContent = matchedEggs.length > 0 ? t("countMatched", { count: matchedEggs.length }) : t("noneMatched");
+    if (matchedEggs.length > 0 && currentSelected.size === matchedEggs.length) {
+      toggleLabelEl.textContent = t("countMatched", { count: matchedEggs.length });
+    } else if (currentSelected.size > 0) {
+      toggleLabelEl.textContent = t("countSelected", { count: currentSelected.size });
+    } else {
+      toggleLabelEl.textContent = t("noneMatched");
+    }
   }
 
   if (listEl) {
@@ -160,6 +166,15 @@ function _renderEggsSection(firstArg = [], options = {}) {
         const name = ev.target.dataset.egg;
         if (ev.target.checked) currentSelected.add(name);
         else currentSelected.delete(name);
+        if (toggleLabelEl) {
+          if (matchedEggs.length > 0 && currentSelected.size === matchedEggs.length) {
+            toggleLabelEl.textContent = t("countMatched", { count: matchedEggs.length });
+          } else if (currentSelected.size > 0) {
+            toggleLabelEl.textContent = t("countSelected", { count: currentSelected.size });
+          } else {
+            toggleLabelEl.textContent = t("noneMatched");
+          }
+        }
         if (opts.onSelectChange) {
           opts.onSelectChange(new Set(currentSelected));
         }
@@ -553,7 +568,7 @@ class EggsComponent {
     const result = view.analysisResult;
     const visible = !!result && !settings.isChromeMode(result);
     this.eggsSection?.classList.toggle('hidden', !visible);
-    this.setNoEggVisible(visible && !view.isAnalyzing && !(result.matchedEggs || []).length && !view.selectedEggs?.size);
+    this.setNoEggVisible(false);
     this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
     this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
     const isExpanded = typeof view.presentation?.eggsExpanded === 'boolean'

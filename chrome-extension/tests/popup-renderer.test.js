@@ -368,14 +368,14 @@ test('a created egg stays selected until manual Egg Analysis, then Hatch include
   assert.ok(saved.newKnowledge.some(entry => entry.egg === 'nutegg/new.md' && entry.content.includes('New insight')));
 });
 
-test('creating an egg after no matches hides the empty creation prompt and enables manual Egg Analysis', async context => {
+test('creating an egg after no matches enables manual Egg Analysis in eggs section', async context => {
   const f = setup(context);
   seed(f.store, 1, { stage: 'stage1', matchedEggs: [] });
-  assert.equal(f.ui.eggsUI.noEggSection.classList.contains('hidden'), false);
-  f.service.createEgg = async () => ({ success: true, path: 'nutegg/new.md' });
-  await f.operations.create(1, { name: 'New', inline: false });
-  assert.equal(f.calls.length, 0);
   assert.equal(f.ui.eggsUI.noEggSection.classList.contains('hidden'), true);
+  assert.equal(f.ui.eggsUI.eggsSection.classList.contains('hidden'), false);
+  f.service.createEgg = async () => ({ success: true, path: 'nutegg/new.md' });
+  await f.operations.create(1, { name: 'New', inline: true });
+  assert.equal(f.calls.length, 0);
   assert.equal(f.ui.actionsUI.stage1ProceedBtn.disabled, false);
   assert.ok(f.ui.eggsUI.eggsList.innerHTML.includes('nutegg/new.md'));
 });

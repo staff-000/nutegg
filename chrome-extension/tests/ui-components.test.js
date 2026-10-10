@@ -1155,7 +1155,8 @@ describe("Modular UI Components", () => {
     settings.setServerStatus({ online: true });
     session.analysisResult = { matchedEggs: [], eggResults: [] };
     eggs.render(session, settings);
-    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), false);
+    assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
+    assert.strictEqual(eggs.eggsSection.classList.contains("hidden"), false);
 
     // A skip recommendation leaves useful results visible and matched.
     session.analysisResult = { matchedEggs: ["a.md"], eggResults: [{ egg: "a.md", readAction: "skip", readVerdict: false,
