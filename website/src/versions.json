@@ -1,6 +1,6 @@
 {
   "chromeExtension": {
-    "storeVersion": "0.2.3",
+    "storeVersion": "0.3.0",
     "githubVersion": "0.3.0",
     "storeUrl": "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
     "githubZipUrl": "https://github.com/staff-000/nutegg-chrome-extension-release/releases/download/0.3.0/nutegg-chrome-extension-0.3.0.zip",
