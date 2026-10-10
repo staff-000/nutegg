@@ -11,12 +11,14 @@ export const en = {
   subscriptionAccountProvider: "Provider account",
   subscriptionAccountSetup: "Authorize your subscription provider below. Account and AI models are managed here, and Chrome automatically syncs with this configuration.",
 
-  subscriptionEnableCommand: "Enable experimental AI connections",
+  subscriptionEnableCommand: "Enable subscription mode",
   subscriptionDisableCommand: "Disable subscription mode",
   subscriptionEnabledTitle: "Subscription mode enabled",
-  subscriptionDisabledTitle: "Experimental AI connections disabled",
-  subscriptionEnableInstructions: "In Obsidian, open the command palette (Cmd/Ctrl+P) and run \u201cNutEgg: Enable experimental AI connections\u201d. You can assign a hotkey in Settings \u2192 Hotkeys. Chrome cannot enable this feature.",
-  subscriptionSetupInstructions: "Subscription mode is enabled. Open Obsidian Settings → NutEgg → Subscription mode enabled to install and sign in to your provider. Then in Chrome, enable Obsidian mode, choose OpenAI, Anthropic, or Google Gemini → Connection: Subscription → Model → Save. Click Connect NutEgg Chrome to connect automatically. Unknown development extensions need a first approval in Obsidian. Test connection and account setup stay in Obsidian. Run NutEgg: Disable subscription mode to turn it off.",
+  subscriptionDisabledTitle: "Subscription mode disabled",
+  subscriptionEnableInstructions: "In Obsidian Settings → NutEgg, enable “Subscription mode”. You can also use the Command Palette (Cmd/Ctrl+P).",
+  subscriptionSetupInstructions: "Subscription mode is enabled. Choose your provider below to install and sign in. Chrome will automatically sync with this configuration.",
+  subscriptionModeSettingName: "Subscription mode",
+  subscriptionModeSettingDesc: "Use local Claude, Codex, or Gemini CLI subscription instead of API key.",
   subscriptionUsageUnavailable: "Remaining usage is not reported by this provider.",
   subscriptionGuideTitle: "How to enable and authorize subscriptions",
 

@@ -98,7 +98,16 @@ export class SubscriptionService implements SubscriptionExecutor {
   }
 
   async test(provider: SubscriptionProvider, model: string) {
-    await this.chat(provider, model, 'Reply with exactly OK.');
+    try {
+      await this.chat(provider, model, 'Reply with exactly OK.');
+    } catch (err: any) {
+      if (model !== 'auto' && (err?.code === 'model_not_found' || err?.status === 400 || /model.*unavailable|invalid.*model/i.test(err?.message || ''))) {
+        this.clearModelFailure(provider);
+        await this.chat(provider, 'auto', 'Reply with exactly OK.');
+      } else {
+        throw err;
+      }
+    }
     await this.cancelLogin(provider);
     return this.status(provider);
   }

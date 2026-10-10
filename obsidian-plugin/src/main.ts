@@ -259,12 +259,16 @@ export default class NutEggPlugin extends Plugin {
       id: enabled ? 'nutegg-enable-subscriptions' : 'nutegg-disable-subscriptions',
       name: t(enabled ? 'subscriptionEnableCommand' : 'subscriptionDisableCommand'),
       checkCallback: checking => {
-        if (this.settings.subscriptionEnabled === enabled) return false;
+        if (this.settings.subscriptionEnabled === enabled && (this.settings.aiAuthMethod === 'subscription') === enabled) return false;
         if (!checking) void (async () => {
           this.settings.subscriptionEnabled = enabled;
+          this.settings.aiAuthMethod = enabled ? 'subscription' : 'apiKey';
           if (!enabled) await this.subscriptions.cancelWork();
           await this.saveSettings();
+          this.aiClient = new AIClient(this.settings, this.subscriptions);
+          this.aiProcessor = new AIProcessor(this);
           this.settingsTab?.display();
+          this.updateCreditStatusBar?.();
           new Notice(t(enabled ? 'subscriptionSetupInstructions' : 'subscriptionDisabledTitle'), 12000);
           if (enabled) this.openSettings();
         })();

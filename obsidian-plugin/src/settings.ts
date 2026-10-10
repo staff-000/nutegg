@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
 const DEFAULT_SUBSCRIPTION_MODELS: Record<SubscriptionProvider, string[]> = {
   gemini: ['auto', 'gemini-2.5-flash', 'gemini-2.5-pro'],
   openai: ['auto', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4.5-preview'],
-  anthropic: ['auto', 'claude-3-7-sonnet', 'claude-3-5-haiku', 'claude-3-5-sonnet'],
+  anthropic: ['auto', 'sonnet', 'opus', 'haiku', 'claude-3-7-sonnet', 'claude-3-5-sonnet'],
 };
 
 export class NutEggSettingTab extends PluginSettingTab {
@@ -232,6 +232,29 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       this.refreshAISettings();
     }
+
+    new Setting(containerEl)
+      .setName(t("subscriptionModeSettingName"))
+      .setDesc(t("subscriptionModeSettingDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription');
+        toggle.onChange(async (val) => {
+          if (val) {
+            settings.subscriptionEnabled = true;
+            settings.aiAuthMethod = 'subscription';
+            if (!['openai', 'anthropic', 'gemini'].includes(settings.aiProvider)) {
+              settings.aiProvider = 'gemini';
+            }
+            settings.aiModel = 'auto';
+            await this.plugin.saveSettings();
+            this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+            this.plugin.aiProcessor = new AIProcessor(this.plugin);
+            this.plugin.updateCreditStatusBar?.();
+            this.display();
+            new Notice(t("subscriptionSetupInstructions"), 8000);
+          }
+        });
+      });
   }
 
   refreshAISettings(): void {
@@ -271,6 +294,25 @@ export class NutEggSettingTab extends PluginSettingTab {
     const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
     card.createEl('h3', { text: t('subscriptionEnabledTitle') });
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
+
+    new Setting(card)
+      .setName(t("subscriptionModeSettingName"))
+      .setDesc(t("subscriptionModeSettingDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(true);
+        toggle.onChange(async (val) => {
+          if (!val) {
+            this.plugin.settings.aiAuthMethod = 'apiKey';
+            await this.plugin.subscriptions.cancelWork();
+            await this.plugin.saveSettings();
+            this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+            this.plugin.aiProcessor = new AIProcessor(this.plugin);
+            this.plugin.updateCreditStatusBar?.();
+            this.display();
+            new Notice(t("subscriptionDisabledTitle"));
+          }
+        });
+      });
 
     let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
       ? this.plugin.settings.aiProvider as SubscriptionProvider : 'gemini';
@@ -342,19 +384,33 @@ export class NutEggSettingTab extends PluginSettingTab {
             button.onClick(async () => {
               clearTimeout(this.setupTimer);
               for (const item of buttons) item.setDisabled(true);
-              const isTest = ['ready', 'unverified'].includes(status.state);
+              const isTest = ['ready', 'unverified'].includes(status.state) || status.errorCode === 'model_not_found';
               result.setText(t(isTest ? 'subscriptionTesting' : 'checking'));
               result.style.color = 'var(--text-muted)';
               try {
                 let outcome: { state?: string; message?: string } | undefined;
                 if (isTest) {
-                  outcome = await this.plugin.subscriptions.test(current,
-                    this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription' ? this.plugin.settings.aiModel || 'auto' : 'auto');
+                  this.plugin.subscriptions.clearModelFailure(current);
+                  let testModel = this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription'
+                    ? (this.plugin.settings.aiModel || 'auto')
+                    : 'auto';
+                  try {
+                    outcome = await this.plugin.subscriptions.test(current, testModel);
+                  } catch (err: any) {
+                    if (testModel !== 'auto' && (err?.code === 'model_not_found' || err?.status === 400 || /model.*unavailable|invalid.*model/i.test(err?.message || ''))) {
+                      this.plugin.subscriptions.clearModelFailure(current);
+                      testModel = 'auto';
+                      this.plugin.settings.aiModel = 'auto';
+                      outcome = await this.plugin.subscriptions.test(current, 'auto');
+                    } else {
+                      throw err;
+                    }
+                  }
                   const passed = outcome?.state === 'ready';
                   if (passed) {
                     this.plugin.settings.aiProvider = current;
                     this.plugin.settings.aiAuthMethod = 'subscription';
-                    if (!this.plugin.settings.aiModel) this.plugin.settings.aiModel = 'auto';
+                    this.plugin.settings.aiModel = testModel;
                     await this.plugin.saveSettings();
                     this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
                     this.plugin.aiProcessor = new AIProcessor(this.plugin);
@@ -390,6 +446,7 @@ export class NutEggSettingTab extends PluginSettingTab {
         button.setButtonText(t('refresh')).onClick(async () => {
           clearTimeout(this.setupTimer);
           for (const item of buttons) item.setDisabled(true);
+          this.plugin.subscriptions.clearModelFailure(current);
           feedback = undefined;
           await refresh();
         });
@@ -426,7 +483,7 @@ export class NutEggSettingTab extends PluginSettingTab {
           .setDesc(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
       }
 
-      if (status.state === 'ready') {
+      if (status.state === 'ready' || status.errorCode === 'model_not_found') {
         const cached = this.plugin.settings.subscriptionModels?.[current];
         let models: string[] = (cached && cached.length > 0)
           ? [...cached]
@@ -452,6 +509,7 @@ export class NutEggSettingTab extends PluginSettingTab {
             dropdown.addOption('__custom__', t('customModelTag'));
             dropdown.setValue(isCustom ? '__custom__' : currentModel);
             dropdown.onChange(async (val) => {
+              this.plugin.subscriptions.clearModelFailure(current);
               if (val === '__custom__') {
                 if (customInputSetting) customInputSetting.settingEl.show();
               } else {
@@ -463,6 +521,8 @@ export class NutEggSettingTab extends PluginSettingTab {
                 this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
                 this.plugin.aiProcessor = new AIProcessor(this.plugin);
                 this.refreshAISettings();
+                feedback = undefined;
+                void refresh();
               }
             });
           });
@@ -475,6 +535,7 @@ export class NutEggSettingTab extends PluginSettingTab {
               .onChange(async (val) => {
                 const trimmed = val.trim();
                 if (trimmed) {
+                  this.plugin.subscriptions.clearModelFailure(current);
                   this.plugin.settings.aiProvider = current;
                   this.plugin.settings.aiAuthMethod = 'subscription';
                   this.plugin.settings.aiModel = trimmed;
@@ -482,6 +543,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                   this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
                   this.plugin.aiProcessor = new AIProcessor(this.plugin);
                   this.refreshAISettings();
+                  feedback = undefined;
                 }
               });
           });
