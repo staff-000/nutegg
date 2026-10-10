@@ -17,7 +17,6 @@ class PopupRenderer {
     const draft = values => this.store.dispatch({ type: 'draft', tabId: view.activeTabId, values });
     const keyed = (name, value, fn) => { const key = JSON.stringify(value); if (this.keys[name] !== key) { this.keys[name] = key; fn(); } };
     const value = (element, text) => { if (element && element.value !== text) element.value = text; };
-    root.getElementById?.('subscription-recovery')?.classList.toggle('hidden', !(settings.chromeAiAuthMethod === 'subscription' && !settings.serverOnline));
     ui.headerUI.render(view, settings);
     ui.bannersUI.hideAll();
     ui.bannersUI.render(view, settings);
@@ -31,8 +30,15 @@ class PopupRenderer {
     const isFunctional = (obsidianMode ? settings.serverOnline && settings.obsidianAiConfigured : settings.chromeAiConfigured) || !!view.analysisResult;
     const setupHub = root.getElementById?.('setup-hub');
     const captureState = root.getElementById?.('capture-state');
-    if (setupHub) setupHub.classList.toggle('hidden', isFunctional);
-    if (captureState) captureState.classList.toggle('not-functional', !isFunctional);
+    const showSetupHub = !isFunctional;
+    if (setupHub) setupHub.classList.toggle('hidden', !showSetupHub);
+    if (captureState) captureState.classList.toggle('not-functional', showSetupHub);
+    const showRecovery = !showSetupHub && (settings.chromeAiAuthMethod === 'subscription' && !settings.serverOnline);
+    const recoveryEl = root.getElementById?.('subscription-recovery');
+    if (recoveryEl) {
+      recoveryEl.classList.toggle('hidden', !showRecovery);
+      root.getElementById?.('subscription-open-obsidian')?.classList.toggle('hidden', !obsidianMode);
+    }
     for (const [id, chromeKey, obsidianKey] of [
       ['setup-title', 'readerSetupTitle', 'readerObsSetupTitle'],
       ['setup-description', 'readerSetupBody', 'readerObsSetupBody'],

@@ -105,7 +105,7 @@ const translations = {
     "connectChromeDescription": "Allow this NutEgg Chrome extension to sync AI settings and access NutEgg in this vault?",
     "subscriptionConnection": "Connection",
     "subscriptionLabel": "Subscription",
-    "aiConnectionRecovery": "Open Obsidian or configure a Chrome API connection.",
+    "aiConnectionRecovery": "Set up an AI API key in Chrome Settings.",
     "aiConnectionReady": "Connected",
     "aiConnectionUnavailable": "AI connection unavailable",
     "aiConnectionSetupNeeded": "Authorize subscription in Obsidian",
@@ -115,7 +115,7 @@ const translations = {
 
     "subscriptionUsageUnavailable": "Remaining usage is not reported by this provider." ,
 
-    "subscriptionOffline": "Open Obsidian to use your subscription, or set up a Chrome API key.",
+    "subscriptionOffline": "Set up an AI API key in Chrome Settings.",
     "subscriptionOpenObsidian": "Open Obsidian",
     "subscriptionApiSetup": "Set up Chrome API key",
     "subscriptionAuto": "Auto — provider default",

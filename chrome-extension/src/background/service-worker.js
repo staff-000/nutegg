@@ -135,7 +135,7 @@ chrome.storage.onChanged?.addListener((changes, area) => {
 });
 
 function subscriptionModeError() {
-  return { error: "AI connection requires Obsidian. Open Obsidian or configure a Chrome API connection.", errorCode: "subscription_requires_obsidian", mode: "chrome" };
+  return { error: "Set up an AI API key in Chrome Settings.", errorCode: "subscription_requires_obsidian", mode: "chrome" };
 }
 
 
@@ -462,9 +462,7 @@ async function handleAnalyzeChrome(payload) {
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: isSubscriptionProvider(provider)
-        ? "Open Obsidian with NutEgg enabled to start analyzing."
-        : "Add your AI API key in Settings to start analyzing.",
+      error: "Add your AI API key in Settings to start analyzing.",
       errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
       mode: "chrome",
     };
@@ -849,9 +847,7 @@ async function handleAskChrome(payload) {
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: isSubscriptionProvider(provider)
-        ? "Open Obsidian with NutEgg enabled to ask a question."
-        : "Add your AI API key in Settings to ask a question.",
+      error: "Add your AI API key in Settings to ask a question.",
       errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
       answers: [],
     };

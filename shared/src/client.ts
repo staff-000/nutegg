@@ -302,7 +302,7 @@ export async function chatAI(
   config: ResolvedConfig & { extraHeaders?: Record<string, string> },
   debugScope?: string
 ): Promise<string> {
-  if (config.authMethod === 'subscription') throw new AIError('subscription_requires_obsidian', 'Open Obsidian to use your subscription, or set up a Chrome API key.');
+  if (config.authMethod === 'subscription') throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
   if (config.provider !== "local" && !config.apiKey) {
     throw new AIError(
       isSubscriptionProvider(config.provider) ? "pairing_token_missing" : "no_api_key",
@@ -338,7 +338,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
     statusText: "Checking...",
   };
 
-  if (isSubscriptionProvider(settings)) return { ...baseInfo, statusText: 'Obsidian required', error: 'Open Obsidian to use your subscription, or set up a Chrome API key.' };
+  if (isSubscriptionProvider(settings)) return { ...baseInfo, statusText: 'Key required', error: 'Set up an AI API key in Chrome Settings.' };
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === "local") {

@@ -429,9 +429,10 @@ test('Chrome first-use has one setup action, hides vault controls, and becomes r
   assert.equal(element('setup-hub').classList.contains('hidden'), false);
   assert.equal(element('setup-open-settings-btn').textContent, t('readerSetupAction'));
   assert.equal(element('capture-state').classList.contains('not-functional'), true);
-  for (const id of ['metrics-bar', 'obsidian-analysis-mode', 'capture-eggs-accordion', 'obsidian-plugin-link']) {
+  for (const id of ['metrics-bar', 'obsidian-analysis-mode', 'capture-eggs-accordion', 'obsidian-plugin-link', 'subscription-recovery']) {
     assert.equal(element(id).classList.contains('hidden'), true, id);
   }
+  assert.equal(element('subscription-open-obsidian').classList.contains('hidden'), true);
   assert.equal(element('chip-knowledge').classList.contains('hidden'), false);
   assert.equal(element('reanalyze-chip-knowledge').classList.contains('hidden'), false);
   assert.equal(f.ui.headerUI.serverStatus.className, 'status-dot warning');
