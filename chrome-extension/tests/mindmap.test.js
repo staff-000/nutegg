@@ -213,3 +213,55 @@ test('updateProgress dynamically shifts current node and uncollapses parent bran
   assert.equal(children[1].classList.contains('collapsed'), false);
 });
 
+test('mindmap auto scroll rules: avoids scroll on fresh analysis, short mindmaps, or reading other sections', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const previousDocument = global.document;
+  global.document = dom.window.document;
+  t.after(() => { global.document = previousDocument; dom.window.close(); });
+
+  const component = new MindmapComponent(document);
+  const nodes = [
+    { name: 'Node 1', time: '00:00' },
+    { name: 'Node 2', time: '02:00' },
+    { name: 'Node 3', time: '04:00' },
+  ];
+  component.render(nodes, true);
+
+  const nodeEl = document.querySelector('.mindmap-node');
+  let scrolled = false;
+  nodeEl.scrollIntoView = () => { scrolled = true; };
+
+  // Case 3: Fresh analysis, nothing touched -> should not auto scroll
+  assert.equal(component.userTouched, false);
+  assert.equal(component.shouldAutoScroll(nodeEl), false);
+
+  // Mark user touched
+  component.markUserTouched();
+  assert.equal(component.userTouched, true);
+
+  // Case 2: Mindmap is too short to scroll (e.g. height 300 <= vh 600)
+  const section = document.getElementById('mindmap-section');
+  section.getBoundingClientRect = () => ({
+    top: 50, bottom: 350, left: 0, right: 300, width: 300, height: 300,
+  });
+  assert.equal(component.shouldAutoScroll(nodeEl), false);
+
+  // Case 1: Long mindmap (height 1200), but user is reading others (< 2/3 screen filled)
+  // vh = 600. Mindmap is scrolled down so visible from top: 450 to bottom: 600 (visibleHeight = 150 -> 150/600 = 25% < 66.7%)
+  section.getBoundingClientRect = () => ({
+    top: 450, bottom: 1650, left: 0, right: 300, width: 300, height: 1200,
+  });
+  assert.equal(component.shouldAutoScroll(nodeEl), false);
+
+  // When mindmap fills >= 2/3 of screen (e.g. top: -200, bottom: 1000 -> visible 0 to 600 -> 600/600 = 100% >= 66.7%)
+  // and node is outside the visible area:
+  section.getBoundingClientRect = () => ({
+    top: -200, bottom: 1000, left: 0, right: 300, width: 300, height: 1200,
+  });
+  nodeEl.getBoundingClientRect = () => ({
+    top: 800, bottom: 830, left: 0, right: 300, width: 300, height: 30, // outside bottom of screen (vh 768)
+  });
+  assert.equal(component.shouldAutoScroll(nodeEl), true);
+});
+
+

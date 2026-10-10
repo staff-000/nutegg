@@ -272,6 +272,27 @@ class MindmapComponent {
     this.nodes = null;
     this.lastProgress = null;
     this.currentNode = null;
+    this.userTouched = false;
+    this.bindUserTouchEvents();
+  }
+
+  bindUserTouchEvents() {
+    const win = this.root.defaultView || (typeof window !== "undefined" ? window : null);
+    if (!win || this._touchBound) return;
+    this._touchBound = true;
+    const mark = () => { this.userTouched = true; };
+    const opts = { passive: true, capture: true };
+    for (const evt of ["wheel", "touchstart", "pointerdown", "keydown"]) {
+      try { win.addEventListener(evt, mark, opts); } catch {}
+    }
+    try {
+      this.mindmapSection?.addEventListener("click", mark, opts);
+      this.mindmapTree?.addEventListener("click", mark, opts);
+    } catch {}
+  }
+
+  markUserTouched() {
+    this.userTouched = true;
   }
 
   show() {
@@ -293,6 +314,55 @@ class MindmapComponent {
     this.currentNode = current;
     this.highlightCurrentNode(current);
     return current;
+  }
+
+  shouldAutoScroll(nodeEl) {
+    if (!nodeEl) return false;
+
+    // Condition 3: The page is just analyzed, nothing touched -> avoid auto scroll
+    if (!this.userTouched) return false;
+
+    const mindmapEl = this.mindmapSection || this.mindmapTree;
+    if (!mindmapEl) return false;
+
+    const win = this.root.defaultView || (typeof window !== "undefined" ? window : null);
+    const vh = win?.innerHeight || this.root.documentElement?.clientHeight || 600;
+
+    let rect = null;
+    try {
+      rect = mindmapEl.getBoundingClientRect?.();
+    } catch {}
+    if (!rect || (rect.width === 0 && rect.height === 0)) {
+      return false;
+    }
+
+    // Condition 2: If mindmap is too short to scroll -> avoid auto scroll
+    if (rect.height <= vh || (rect.top >= 0 && rect.bottom <= vh)) {
+      return false;
+    }
+
+    // Condition 1: When user is reading others (only consider 2/3 of the screen is filled with mindmap)
+    const visibleTop = Math.max(0, rect.top);
+    const visibleBottom = Math.min(vh, rect.bottom);
+    const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+    const screenFilledRatio = visibleHeight / vh;
+
+    if (screenFilledRatio < 2 / 3) {
+      return false;
+    }
+
+    // Don't auto scroll if the active node is already comfortably visible
+    let nodeRect = null;
+    try {
+      nodeRect = nodeEl.getBoundingClientRect?.();
+    } catch {}
+    if (nodeRect && (nodeRect.width > 0 || nodeRect.height > 0)) {
+      if (nodeRect.top >= visibleTop + 10 && nodeRect.bottom <= visibleBottom - 10) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   highlightCurrentNode(targetNode) {
@@ -347,12 +417,18 @@ class MindmapComponent {
       parentBranch = parentBranch.parentElement?.closest(".mindmap-children");
     }
 
-    try {
-      nodeEl.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-    } catch {}
+    if (this.shouldAutoScroll(nodeEl)) {
+      try {
+        nodeEl.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      } catch {}
+    }
   }
 
   render(nodes, enabled = true, progress = null) {
+    if (this.nodes !== nodes) {
+      // New analysis result: reset user touched status
+      this.userTouched = false;
+    }
     this.nodes = nodes;
     if (progress != null) this.lastProgress = progress;
     if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {

@@ -6,6 +6,7 @@ class InteractionAction {
     return this.operations.followup(this.store.activeTabId, question, { outputLanguage: this.settings.outputLanguage });
   }
   seekToChapter(seconds) {
+    this.ui?.mindmapUI?.markUserTouched?.();
     const secs = typeof seconds === 'number' ? seconds : this.pageExtractor?.toSeconds?.(seconds) ?? seconds;
     const res = this.pageExtractor.seekToChapter(this.store.activeTabId, seconds);
     this.ui?.mindmapUI?.updateProgress?.({ type: 'video', currentTime: secs });
@@ -29,6 +30,7 @@ class InteractionAction {
       discussionComments: { ...expanded, [topicId]: expanded[topicId] === stance ? null : stance } } } });
   }
   async scrollToSection(heading, quote, sourceId) {
+    this.ui?.mindmapUI?.markUserTouched?.();
     const tabId = this.store.activeTabId, tab = this.store.getTab(tabId);
     if (!tab) return false;
     const request = this.sourceJumpRequest = (this.sourceJumpRequest || 0) + 1;
