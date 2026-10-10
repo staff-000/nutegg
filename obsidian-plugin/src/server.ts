@@ -8,13 +8,14 @@ import type { CapturePayload, DiscussionCapture } from "../../shared/src/types";
 import * as http from "http";
 import { createHash } from "crypto";
 import type NutEggPlugin from "./main";
-import { AIError, isAIConfigured, PROVIDER_CATALOG } from "./ai-client";
-import type {
-  AnalysisResult,
-  AnalysisSectionsConfig,
-  ContentAnalysis,
-  MergeResult,
-  QuestionScope,
+import { AIClient, AIError, isAIConfigured, PROVIDER_CATALOG } from "./ai-client";
+import {
+  AIProcessor,
+  type AnalysisResult,
+  type AnalysisSectionsConfig,
+  type ContentAnalysis,
+  type MergeResult,
+  type QuestionScope,
 } from "./ai-processor";
 import { sanitizeEggName } from "./index-sync";
 import { composeEggResults } from "../../shared/src/analysis-results";
@@ -442,9 +443,12 @@ export class NutEggServer {
       chunkWindowChars: settings.chunkWindowChars,
       contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
     };
-    const matches = Object.entries(aiConfig).every(([key, value]) => chromeConfig[key] === value)
+    const isSub = settings.aiAuthMethod === "subscription" && chromeConfig.aiAuthMethod === "subscription";
+    const matches = isSub || (
+      Object.entries(aiConfig).every(([key, value]) => chromeConfig[key] === value)
       && typeof chromeConfig.aiApiKey === "string" && chromeConfig.aiApiKey.trim() === settings.aiApiKey.trim()
-      && (settings.aiProvider !== "local" || (chromeConfig.localEndpoint === settings.localEndpoint && chromeConfig.localApiType === settings.localApiType));
+      && (settings.aiProvider !== "local" || (chromeConfig.localEndpoint === settings.localEndpoint && chromeConfig.localApiType === settings.localApiType))
+    );
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ aiConfig, matches }));
   }
@@ -461,7 +465,6 @@ export class NutEggServer {
       config = JSON.parse(await this.readBody(req, 64 * 1024));
       if (config && typeof config === "object") config.aiAuthMethod ||= "apiKey";
       if (!config || !["apiKey", "subscription"].includes(config.aiAuthMethod)
-        || (config.aiAuthMethod === "subscription" && !supportsSubscription(config.aiProvider))
         || !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider)
         || typeof config.aiApiKey !== "string" || typeof config.aiModel !== "string"
         || typeof config.localEndpoint !== "string" || config.localApiType !== "openai"
@@ -478,11 +481,23 @@ export class NutEggServer {
       res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return;
     }
     const settings = this.plugin.settings;
+    let targetProvider = config.aiProvider;
+    let targetModel = config.aiModel.trim();
+    if (config.aiAuthMethod === 'subscription') {
+      if (!supportsSubscription(targetProvider)) {
+        targetProvider = supportsSubscription(settings.aiProvider) ? settings.aiProvider : 'gemini';
+        targetModel = targetProvider === settings.aiProvider && settings.aiModel ? settings.aiModel : 'auto';
+      } else if (supportsSubscription(settings.aiProvider) && targetProvider === 'gemini' && settings.aiProvider !== 'gemini' && (!config.aiModel || config.aiModel === 'auto')) {
+        targetProvider = settings.aiProvider;
+        targetModel = settings.aiModel || 'auto';
+      }
+      if (!targetModel) targetModel = 'auto';
+    }
     const next = {
-      aiProvider: config.aiProvider,
+      aiProvider: targetProvider,
       aiAuthMethod: config.aiAuthMethod,
       aiApiKey: config.aiAuthMethod === "subscription" ? "" : config.aiApiKey.trim(),
-      aiModel: config.aiModel.trim(),
+      aiModel: targetModel,
       localEndpoint: config.localEndpoint.trim(),
       localApiType: config.localApiType,
       chunkWindowChars: config.chunkWindowChars,
@@ -494,7 +509,13 @@ export class NutEggServer {
         // Keep the settings object used by AIClient and AIProcessor alive.
         Object.assign(settings, next);
         if (previous.aiModel !== next.aiModel && supportsSubscription(next.aiProvider)) this.plugin.subscriptions?.clearModelFailure(next.aiProvider as SubscriptionProvider);
-        try { await this.plugin.saveSettings(); }
+        try {
+          await this.plugin.saveSettings();
+          this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+          this.plugin.aiProcessor = new AIProcessor(this.plugin);
+          this.plugin.refreshSettingsTab?.();
+          this.plugin.updateCreditStatusBar?.();
+        }
         catch (error) { Object.assign(settings, previous); throw error; }
       }
     });

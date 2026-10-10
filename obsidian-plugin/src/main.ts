@@ -271,7 +271,10 @@ export default class NutEggPlugin extends Plugin {
         return true;
       },
     });
+  }
 
+  refreshSettingsTab(): void {
+    this.settingsTab?.display();
   }
 
   /** Update the status bar with live balance or connection status. */
@@ -302,7 +305,7 @@ export default class NutEggPlugin extends Plugin {
         this.creditStatusBarItem.setText(t('aiConnectionUnavailable'));
         this.creditStatusBarItem.setAttribute('aria-label', t('aiConnectionUnavailable'));
       } else if (credit.subscriptionState) {
-        this.creditStatusBarItem.setText(`${t('subscriptionLabel')}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`);
+        this.creditStatusBarItem.setText(`${credit.providerLabel} · ${t('subscriptionLabel')}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`);
         this.creditStatusBarItem.setAttribute('aria-label', `${credit.providerLabel}: ${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')} · ${t('refresh')}`);
         if (credit.subscriptionState !== 'ready') this.creditStatusBarItem.addClass('mod-warning');
         if (showNotice) new Notice(`${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')}`);
@@ -387,7 +390,7 @@ export default class NutEggPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    if (typeof this.saveData === 'function') await this.saveData(this.settings);
     this.settingsTab?.refreshAISettings();
     this.updateCreditStatusBar();
   }

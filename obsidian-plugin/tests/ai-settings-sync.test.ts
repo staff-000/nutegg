@@ -23,7 +23,7 @@ test('a delayed balance response from the previous provider cannot overwrite the
   await current;
   pending[0]({ hasBalance: true, providerLabel: 'DeepSeek', balanceFormatted: '¥8.33', statusText: 'Available' });
   await old;
-  assert.equal(bar.text, 'Subscription');
+  assert.equal(bar.text, 'Google Gemini · Subscription');
   assert.match(bar.attrs['aria-label'], /Connected/);
 });
 
@@ -79,7 +79,7 @@ test('model settings show credit, refresh it, and ignore results for the previou
   await latest;
   pending[1]({ balanceFormatted: '¥8.30', providerLabel: 'DeepSeek', statusText: 'Available' });
   await old;
-  assert.equal(button.text, 'Subscription');
+  assert.equal(button.text, 'Google Gemini · Subscription');
   assert.match(button.tooltip, /Google Gemini.*Refresh/);
   assert.equal(button.disabled, false);
 });
@@ -125,6 +125,7 @@ test('subscription tests show progress and preserve success or failure after sta
   const buttons: any[] = [];
   const setting = Setting.prototype as any;
   t.mock.method(setting, 'setName', function () { return this; });
+  t.mock.method(setting, 'setDesc', function () { return this; });
   t.mock.method(setting, 'addDropdown', function (configure: any) {
     const dropdown = { addOption() { return this; }, setValue() { return this; }, onChange() { return this; } };
     configure(dropdown); return this;
@@ -150,15 +151,81 @@ test('subscription tests show progress and preserve success or failure after sta
   const container = dom.window.document.querySelector('main')!;
   (tab as any).displaySubscriptionSetup(container);
   await new Promise(resolve => setImmediate(resolve));
-  let testButton = buttons.find(button => button.text === 'Test connection');
+  let testButton = buttons.find(button => button.text === 'Authorize subscription');
   const pending = testButton.click();
   assert.match(container.textContent!, /Testing AI connection.*three minutes/);
   assert.equal(testButton.disabled, true);
   assert.equal(model, 'auto');
   resolveTest!({ state: 'ready' }); await pending;
   assert.match(container.textContent!, /AI connection test passed/);
-  testButton = buttons.filter(button => button.text === 'Test connection').at(-1);
+  testButton = buttons.filter(button => button.text === 'Authorize subscription').at(-1);
   const failed = testButton.click(); rejectTest!(new Error('Selected model is unavailable. Choose another model.')); await failed;
   assert.match(container.textContent!, /Selected model is unavailable.*Choose another model/);
   assert.doesNotMatch(container.textContent!, /test passed/);
+});
+
+test('ready subscription renders default models immediately and updates in background', async t => {
+  const dom = new JSDOM('<body><main></main></body>');
+  const proto = dom.window.HTMLElement.prototype as any;
+  proto.empty = function () { this.replaceChildren(); };
+  proto.setText = function (value: string) { this.textContent = value; };
+  proto.createEl = function (tag: string, options: any = {}) {
+    const element = dom.window.document.createElement(tag);
+    element.textContent = options.text || '';
+    for (const [name, value] of Object.entries(options.attr || {})) element.setAttribute(name, String(value));
+    this.appendChild(element); return element;
+  };
+  proto.createDiv = function () { return this.createEl('div'); };
+  const capturedOptions: string[] = [];
+  const setting = Setting.prototype as any;
+  t.mock.method(setting, 'setName', function () { return this; });
+  t.mock.method(setting, 'setDesc', function () { return this; });
+  t.mock.method(setting, 'addDropdown', function (configure: any) {
+    const dropdown = {
+      selectEl: dom.window.document.createElement('select'),
+      addOption(val: string) { capturedOptions.push(val); return this; },
+      setValue() { return this; },
+      getValue() { return 'auto'; },
+      onChange() { return this; },
+    };
+    configure(dropdown); return this;
+  });
+  t.mock.method(setting, 'addButton', function (configure: any) {
+    const button = { text: '', disabled: false, click: undefined as any,
+      setButtonText(text: string) { this.text = text; return this; },
+      setDisabled(value: boolean) { this.disabled = value; return this; },
+      onClick(callback: any) { this.click = callback; return this; } };
+    configure(button); return this;
+  });
+  t.mock.method(setting, 'addText', function (configure: any) {
+    const text = { setPlaceholder() { return this; }, setValue() { return this; }, onChange() { return this; } };
+    configure(text); return this;
+  });
+
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription' };
+  let resolveModels: (val: string[]) => void;
+  const modelsPromise = new Promise<string[]>(resolve => { resolveModels = resolve; });
+  plugin.subscriptions = {
+    status: async () => ({ state: 'ready', message: 'Ready' }),
+    models: async () => modelsPromise,
+  } as any;
+
+  const tab = new NutEggSettingTab({} as any, plugin);
+  t.after(() => { tab.hide(); dom.window.close(); });
+  const container = dom.window.document.querySelector('main')!;
+  (tab as any).displaySubscriptionSetup(container);
+
+  // Default models should be rendered immediately without waiting for modelsPromise
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(capturedOptions.includes('auto'));
+  assert.ok(capturedOptions.includes('gemini-2.5-flash'));
+  assert.ok(capturedOptions.includes('gemini-2.5-pro'));
+
+  // Background models resolve
+  resolveModels!(['auto', 'gemini-custom-model']);
+  await modelsPromise;
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.deepEqual(plugin.settings.subscriptionModels?.gemini, ['auto', 'gemini-custom-model']);
 });

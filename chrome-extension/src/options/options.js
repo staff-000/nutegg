@@ -75,6 +75,7 @@ const subscriptionModelRefresh = {};
 let subscriptionEnabled = false;
 let subscriptionAccessKnown = false;
 let subscriptionFeatureRequest = 0;
+let activeSubscriptionModel = 'auto';
 let healthProbe;
 function probeHealth(port) {
   if (healthProbe?.port === port) return healthProbe.task;
@@ -101,17 +102,44 @@ function restoreProfile() {
   updateProviderHints(aiProviderSelect.value);
   void refreshSubscription();
 }
+let lastKnownSubscriptionProvider = 'gemini';
+let lastApiKeyProvider = null;
+let lastSubscriptionState = null;
+function syncSubscriptionToggle() {
+  const toggle = document.getElementById('use-subscription-toggle');
+  if (!toggle) return;
+  toggle.checked = aiAuthMethod.value === 'subscription';
+  toggle.disabled = !subscriptionEnabled;
+}
 function renderSubscriptionAccess() {
   if (subscriptionAccessKnown && !subscriptionEnabled && subscriptionSelected() && profileKey) {
     rememberProfile(); aiAuthMethod.value = 'apiKey'; restoreProfile();
   }
-  const supported = (window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value);
+  const isSub = subscriptionSelected() && subscriptionEnabled;
+  if (isSub) {
+    if (aiTestResult) {
+      aiTestResult.textContent = "";
+      aiTestResult.className = "test-result hidden";
+    }
+    if (aiAdvancedStatus) {
+      aiAdvancedStatus.textContent = "";
+      aiAdvancedStatus.className = "test-result hidden";
+    }
+  }
   document.getElementById('ai-auth-row').hidden = !obsidianModeEnabled.checked || !subscriptionEnabled;
   const option = aiAuthMethod.querySelector('option[value="subscription"]');
   option.hidden = !subscriptionEnabled;
-  option.disabled = !subscriptionEnabled || !supported;
+  option.disabled = !subscriptionEnabled;
+  syncSubscriptionToggle();
   document.getElementById('subscription-card').hidden = !subscriptionEnabled || !subscriptionSelected();
+  document.getElementById('ai-model-row').hidden = isSub;
+  document.getElementById('ai-key-row').hidden = isSub;
+  if (isSub) aiLocalEndpointRow.style.display = 'none';
+  aiSaveBtn.hidden = isSub;
   aiTestBtn.hidden = subscriptionSelected();
+  aiProviderSelect.disabled = isSub;
+  const badge = document.getElementById('subscription-model-badge');
+  if (badge && activeSubscriptionModel) badge.textContent = activeSubscriptionModel;
 }
 function subscriptionStatusText(info) {
   return t(info?.state === 'ready' ? 'aiConnectionReady' : info?.state === 'error' || info?.error ? 'aiConnectionUnavailable' : 'aiConnectionSetupNeeded');
@@ -131,8 +159,12 @@ async function refreshSubscriptionAccess() {
   } catch { if (request === subscriptionFeatureRequest) { subscriptionEnabled = false; subscriptionAccessKnown = true; renderSubscriptionAccess(); } }
 }
 async function subscriptionControl(operation, extra = {}) {
-  return chrome.runtime.sendMessage({ action: 'subscription-control', operation, provider: aiProviderSelect.value,
-    model: getAiFormSettings().chromeAiModel, ...extra });
+  let provider = aiProviderSelect.value;
+  if (!(window.NutEggAI?.supportsSubscription?.(provider))) {
+    provider = lastKnownSubscriptionProvider || 'gemini';
+  }
+  return chrome.runtime.sendMessage({ action: 'subscription-control', operation, provider,
+    model: activeSubscriptionModel || 'auto', ...extra });
 }
 async function refreshSubscription() {
   clearTimeout(subscriptionTimer);
@@ -143,21 +175,29 @@ async function refreshSubscription() {
   try {
     const status = await subscriptionControl('status');
     if (request !== subscriptionRequest || provider !== aiProviderSelect.value || !subscriptionEnabled || !subscriptionSelected()) return;
+    lastSubscriptionState = status?.state || 'error';
     const card = document.getElementById('subscription-card');
     const previousState = card.dataset.state;
-    card.dataset.state = status?.state || 'error';
+    card.dataset.state = lastSubscriptionState;
     document.getElementById('subscription-status').textContent = subscriptionStatusText(status);
+    if (status?.model) activeSubscriptionModel = status.model;
+    const badge = document.getElementById('subscription-model-badge');
+    if (badge) badge.textContent = activeSubscriptionModel || 'auto';
     if (['ready', 'unverified', 'login_required'].includes(status?.state) &&
         (previousState !== status.state || Date.now() - (subscriptionModelRefresh[provider] || 0) >= 60000)) {
       const result = await subscriptionControl('models');
       if (request !== subscriptionRequest || !subscriptionEnabled) return;
       if (result.models) {
         subscriptionModelRefresh[provider] = Date.now();
-        const model = getAiFormSettings().chromeAiModel;
+        const model = activeSubscriptionModel || getAiFormSettings().chromeAiModel;
         subscriptionModels[provider] = result.models;
         await chrome.storage.local.set({ subscriptionModels });
         updateModelOptions(provider, model);
+        if (badge) badge.textContent = activeSubscriptionModel || model || 'auto';
       }
+    }
+    if (previousState !== lastSubscriptionState && obsidianModeEnabled.checked) {
+      void checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
     }
   } catch {
     if (request === subscriptionRequest) {
@@ -405,15 +445,34 @@ function scheduleObsidianAiConfigCheck() {
 }
 
 async function refreshObsidianAiConfig() {
-  if (!obsidianModeEnabled.checked) return;
+  if (typeof document === 'undefined' || !document || !obsidianModeEnabled?.checked) return;
   const request = ++obsidianConfigRequest;
-  const row = document.getElementById("obsidian-ai-config");
+  const row = document?.getElementById?.("obsidian-ai-config");
   try {
     const result = await chrome.runtime.sendMessage({ action: "get-obsidian-ai-config", settings: getAiFormSettings() });
-    if (request !== obsidianConfigRequest || !obsidianModeEnabled.checked) return;
+    if (request !== obsidianConfigRequest || typeof document === 'undefined' || !document || !obsidianModeEnabled?.checked) return;
     if (result?.error || !result?.aiConfig) throw new Error(result?.error || "Unavailable");
     const config = result.aiConfig;
-    const values = document.getElementById("obsidian-ai-config-text");
+    if (config.aiAuthMethod === 'subscription') {
+      activeSubscriptionModel = config.aiModel || 'auto';
+      const badge = document?.getElementById?.('subscription-model-badge');
+      if (badge) badge.textContent = activeSubscriptionModel;
+      if (config.aiProvider) {
+        lastKnownSubscriptionProvider = config.aiProvider;
+      }
+      if (subscriptionSelected()) {
+        if (config.aiProvider && aiProviderSelect.value !== config.aiProvider) {
+          aiProviderSelect.value = config.aiProvider;
+        }
+        await chrome.storage.local.set({
+          chromeAiAuthMethod: 'subscription',
+          chromeAiProvider: config.aiProvider || aiProviderSelect.value,
+          chromeAiModel: activeSubscriptionModel,
+        });
+      }
+    }
+    const values = document?.getElementById?.("obsidian-ai-config-text");
+    if (!values) return;
     values.replaceChildren();
     for (const [label, value] of [
       ["settingsProviderLabel", PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider],
@@ -427,10 +486,16 @@ async function refreshObsidianAiConfig() {
       chip.textContent = `${t(label)}: ${value}`;
       values.append(chip);
     }
-    document.getElementById("obsidian-ai-match-status").textContent = t(result.matches ? "settingsObsidianAiMatch" : "settingsObsidianAiMismatch");
-    row.className = `connection-status obsidian-ai-config ${result.matches ? "matched" : "mismatched"}`;
+    const matchStatus = document?.getElementById?.("obsidian-ai-match-status");
+    if (subscriptionSelected() && subscriptionEnabled && lastSubscriptionState !== 'ready') {
+      if (matchStatus) matchStatus.textContent = t("aiConnectionSetupNeeded");
+      if (row) row.className = "connection-status obsidian-ai-config mismatched";
+    } else {
+      if (matchStatus) matchStatus.textContent = t(result.matches ? "settingsObsidianAiMatch" : "settingsObsidianAiMismatch");
+      if (row) row.className = `connection-status obsidian-ai-config ${result.matches ? "matched" : "mismatched"}`;
+    }
   } catch {
-    if (request === obsidianConfigRequest) row.className = "connection-status obsidian-ai-config hidden";
+    if (request === obsidianConfigRequest && row) row.className = "connection-status obsidian-ai-config hidden";
   }
 }
 
@@ -443,8 +508,13 @@ async function checkObsidianForAiBanner(port) {
   try {
     const response = await probeHealth(port);
     if (!obsidianModeEnabled.checked) return;
-    aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
-    aiStatusBanner.classList.toggle("connected", response.ok);
+    if (subscriptionSelected() && subscriptionEnabled && lastSubscriptionState !== 'ready') {
+      aiStatusBanner.textContent = t("aiConnectionSetupNeeded");
+      aiStatusBanner.className = "connection-status error";
+    } else {
+      aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
+      aiStatusBanner.classList.toggle("connected", response.ok);
+    }
     if (response.ok) {
       const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
       if (result?.error && obsidianModeEnabled.checked) aiStatusBanner.textContent = t("aiError", { error: result.error });
@@ -473,9 +543,18 @@ function initAiSettings(stored) {
   maxTokensInput.value = stored.contentAnalysisMaxTokens || stored.chromeAiMaxTokens || 16384;
   aiProfiles = stored.aiProfiles || {};
   subscriptionModels = stored.subscriptionModels || {};
+  activeSubscriptionModel = stored.chromeAiModel || 'auto';
+  const subModelBadge = document.getElementById('subscription-model-badge');
+  if (subModelBadge) subModelBadge.textContent = activeSubscriptionModel;
   aiAuthMethod.value = new URLSearchParams(window.location.search).has('setupApi') ? 'apiKey' : stored.chromeAiAuthMethod || 'apiKey';
   const selectedProvider = stored.chromeAiProvider || "gemini";
   aiProviderSelect.value = selectedProvider;
+  if ((window.NutEggAI?.supportsSubscription || (() => false))(selectedProvider)) {
+    lastKnownSubscriptionProvider = selectedProvider;
+  }
+  if (stored.chromeAiAuthMethod !== 'subscription') {
+    lastApiKeyProvider = selectedProvider;
+  }
 
   updateModelOptions(selectedProvider, stored.chromeAiModel);
 
@@ -498,17 +577,63 @@ function initAiSettings(stored) {
   rememberProfile();
   aiProviderSelect.addEventListener('change', () => {
     rememberProfile();
-    if (!(window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value)) aiAuthMethod.value = 'apiKey';
+    if (aiAuthMethod.value === 'apiKey') {
+      lastApiKeyProvider = aiProviderSelect.value;
+    }
+    if ((window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value)) {
+      lastKnownSubscriptionProvider = aiProviderSelect.value;
+    }
     renderSubscriptionAccess();
     restoreProfile();
   });
-  aiAuthMethod.addEventListener('change', () => {
+  aiAuthMethod.addEventListener('change', async () => {
+    const supportsSub = (window.NutEggAI?.supportsSubscription || (() => false));
+    if (aiAuthMethod.value === 'subscription') {
+      if (!supportsSub(aiProviderSelect.value)) {
+        if (!lastApiKeyProvider) lastApiKeyProvider = aiProviderSelect.value;
+        aiProviderSelect.value = lastKnownSubscriptionProvider || 'gemini';
+      }
+    } else if (aiAuthMethod.value === 'apiKey') {
+      if (lastApiKeyProvider) {
+        aiProviderSelect.value = lastApiKeyProvider;
+      }
+    }
     // The old profile's credential belongs to its previous connection method.
     const priorMethod = profileKey.split(':')[1];
     aiProfiles[profileKey] = { model: getAiFormSettings().chromeAiModel, apiKey: priorMethod === 'apiKey' ? aiKeyInput.value : '', endpoint: aiLocalEndpoint.value };
     restoreProfile();
+    await chrome.storage.local.set({
+      chromeAiAuthMethod: aiAuthMethod.value,
+      chromeAiProvider: aiProviderSelect.value,
+      chromeAiModel: getAiFormSettings().chromeAiModel,
+    });
+    if (obsidianModeEnabled.checked) {
+      await chrome.runtime.sendMessage({ action: "sync-ai-config" });
+      await refreshObsidianAiConfig();
+    }
   });
-  document.getElementById('obsidian-connect-btn').addEventListener('click', connectChrome);
+  const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
+  if (useSubscriptionToggle) {
+    useSubscriptionToggle.checked = aiAuthMethod.value === 'subscription';
+    useSubscriptionToggle.addEventListener('change', () => {
+      const willBeSub = useSubscriptionToggle.checked;
+      const supportsSub = (window.NutEggAI?.supportsSubscription || (() => false));
+      if (willBeSub) {
+        if (!supportsSub(aiProviderSelect.value)) {
+          lastApiKeyProvider = aiProviderSelect.value;
+          aiProviderSelect.value = lastKnownSubscriptionProvider || 'gemini';
+        }
+        aiAuthMethod.value = 'subscription';
+      } else {
+        if (lastApiKeyProvider) {
+          aiProviderSelect.value = lastApiKeyProvider;
+        }
+        aiAuthMethod.value = 'apiKey';
+      }
+      aiAuthMethod.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+  document.getElementById('obsidian-connect-btn')?.addEventListener('click', connectChrome);
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(subscriptionTimer); else void refreshSubscription(); });
   aiModelSelect.addEventListener("change", () => {
     if (aiModelSelect.value === "__custom__") {

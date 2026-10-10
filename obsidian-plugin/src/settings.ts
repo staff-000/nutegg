@@ -1,11 +1,13 @@
 import { App, Notice, PluginSettingTab, Setting, type ButtonComponent } from "obsidian";
 import type NutEggPlugin from "./main";
 import {
+  AIClient,
   type AIProviderId,
   type AISource,
   PROVIDER_CATALOG,
   isAIConfigured,
 } from "./ai-client";
+import { AIProcessor } from "./ai-processor";
 import { t } from "./i18n";
 import type { SubscriptionProvider } from "../../shared/src/types";
 
@@ -18,6 +20,7 @@ export interface NutEggSettings {
   aiAuthMethod?: 'apiKey' | 'subscription';
   chromeConnections?: Record<string, string>;
   subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'gemini', string>>;
+  subscriptionModels?: Partial<Record<SubscriptionProvider, string[]>>;
   /** Which model family to use */
   aiProvider: AIProviderId;
   /** Legacy API source (kept optional for backwards compatibility with saved data) */
@@ -52,6 +55,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
   subscriptionEnabled: false,
   aiAuthMethod: "apiKey",
+  subscriptionModels: {},
   aiProvider: "anthropic",
   aiApiKey: "",
   aiModel: PROVIDER_CATALOG.anthropic.defaultModel!,
@@ -64,6 +68,12 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   workflowHashes: {},
   chunkWindowChars: 30000,
   contentAnalysisMaxTokens: 16384,
+};
+
+const DEFAULT_SUBSCRIPTION_MODELS: Record<SubscriptionProvider, string[]> = {
+  gemini: ['auto', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+  openai: ['auto', 'gpt-4o', 'gpt-4o-mini', 'o1', 'o3-mini', 'gpt-4.5-preview'],
+  anthropic: ['auto', 'claude-3-7-sonnet', 'claude-3-5-haiku', 'claude-3-5-sonnet'],
 };
 
 export class NutEggSettingTab extends PluginSettingTab {
@@ -93,50 +103,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiCreditButton = null;
     ++this.aiCreditRequest;
     containerEl.createEl("h2", { text: t("settingsTitle") });
-    if (settings.subscriptionEnabled) this.displaySubscriptionSetup(containerEl);
-
-    if (!isAIConfigured(settings)) {
-      const banner = containerEl.createDiv({
-        cls: "callout nutegg-setup-callout",
-        attr: { "data-callout": "warning" },
-      });
-      banner.style.cssText = "margin: 12px 0 16px 0;";
-      const titleWrap = banner.createDiv({ cls: "callout-title" });
-      const icon = titleWrap.createDiv({ cls: "callout-icon" });
-      icon.setText("⚠️");
-      const titleText = titleWrap.createDiv({ cls: "callout-title-inner" });
-      titleText.setText(t("setupAiBannerTitle"));
-      const content = banner.createDiv({ cls: "callout-content" });
-      content.createEl("p", { text: t("aiManagedInChrome") });
+    if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
+      this.displaySubscriptionSetup(containerEl);
+    } else {
+      this.displaySyncedAiSettings(containerEl, settings);
     }
-
-    // Companion Chrome Extension Card
-    new Setting(containerEl)
-      .setName(t("chromeCompanionName"))
-      .setDesc(t("chromeCompanionDesc"))
-      .addButton((btn) =>
-        btn
-          .setButtonText(t("getChromeExtension"))
-          .setCta()
-          .onClick(() => {
-            window.open(
-              "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
-              "_blank"
-            );
-          })
-      );
-
-    // Bug Report & Feedback Card
-    new Setting(containerEl)
-      .setName(t("reportBugName"))
-      .setDesc(t("reportBugDesc"))
-      .addButton((btn) =>
-        btn
-          .setButtonText(t("reportBugBtn"))
-          .onClick(() => {
-            this.plugin.openBugReport();
-          })
-      );
 
     // ==========================================
     // Vault Paths (always visible)
@@ -216,6 +187,51 @@ export class NutEggSettingTab extends PluginSettingTab {
     if (settings.developerMode) {
       this.displayAdvancedSettings(containerEl, settings);
     }
+
+    // ==========================================
+    // Bug Report & Feedback (at the bottom)
+    // ==========================================
+    new Setting(containerEl)
+      .setName(t("reportBugName"))
+      .setDesc(t("reportBugDesc"))
+      .addButton((btn) =>
+        btn
+          .setButtonText(t("reportBugBtn"))
+          .onClick(() => {
+            this.plugin.openBugReport();
+          })
+      );
+  }
+
+  private displaySyncedAiSettings(containerEl: HTMLElement, settings: NutEggSettings): void {
+    if (!isAIConfigured(settings)) {
+      const banner = containerEl.createDiv({
+        cls: "callout nutegg-setup-callout",
+        attr: { "data-callout": "warning" },
+      });
+      banner.style.cssText = "margin: 12px 0 16px 0;";
+      const titleWrap = banner.createDiv({ cls: "callout-title" });
+      const icon = titleWrap.createDiv({ cls: "callout-icon" });
+      icon.setText("⚠️");
+      const titleText = titleWrap.createDiv({ cls: "callout-title-inner" });
+      titleText.setText(t("setupAiBannerTitle"));
+      const content = banner.createDiv({ cls: "callout-content" });
+      content.createEl("p", { text: t("aiManagedInChrome") });
+    } else {
+      this.aiConfigSummary = new Setting(containerEl)
+        .setName(`${PROVIDER_CATALOG[settings.aiProvider]?.label || settings.aiProvider} · ${t("subscriptionApiKey")} · ${settings.aiModel}`)
+        .setDesc(t("aiManagedInChrome"))
+        .addButton((button) => {
+          this.aiCreditButton = button;
+          button
+            .setButtonText(t("checking"))
+            .setTooltip(t("refresh"))
+            .onClick(() => {
+              void this.refreshAICredit();
+            });
+        });
+      this.refreshAISettings();
+    }
   }
 
   refreshAISettings(): void {
@@ -239,7 +255,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     try {
       const credit = await this.plugin.aiClient.checkCredit(this.plugin.settings);
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
-      const label = credit.subscriptionState === 'disabled' ? t('aiConnectionUnavailable') : credit.subscriptionState ? `${t("subscriptionLabel")}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ""}` : credit.balanceFormatted || credit.statusText.split(" · ")[0];
+      const label = credit.subscriptionState === 'disabled' ? t('aiConnectionUnavailable') : credit.subscriptionState ? `${credit.providerLabel} · ${t("subscriptionLabel")}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ""}` : credit.balanceFormatted || credit.statusText.split(" · ")[0];
       button.setButtonText(credit.subscriptionState ? label : `🪙 ${label}`).setTooltip(`${credit.providerLabel}: ${credit.statusText} · ${t("refresh")}`);
     } catch (error) {
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
@@ -252,83 +268,265 @@ export class NutEggSettingTab extends PluginSettingTab {
   hide(): void { clearTimeout(this.setupTimer); ++this.setupRequest; }
 
   private displaySubscriptionSetup(containerEl: HTMLElement): void {
-    containerEl.createEl('h3', { text: t('subscriptionEnabledTitle') });
-    containerEl.createEl('p', { text: t('subscriptionAccountSetup') });
+    const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
+    card.createEl('h3', { text: t('subscriptionEnabledTitle') });
+    card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
+
     let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
-      ? this.plugin.settings.aiProvider as SubscriptionProvider : 'openai';
+      ? this.plugin.settings.aiProvider as SubscriptionProvider : 'gemini';
+    if (!['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)) {
+      this.plugin.settings.aiProvider = provider;
+      this.plugin.settings.aiAuthMethod = 'subscription';
+      if (!this.plugin.settings.aiModel) this.plugin.settings.aiModel = 'auto';
+      void this.plugin.saveSettings();
+    }
     let feedback: { text: string; error?: boolean } | undefined;
-    const controls = containerEl.createDiv();
+
+    const providerRow = card.createDiv();
+    const controls = card.createDiv();
+
     const refresh = async () => {
       clearTimeout(this.setupTimer);
       const request = ++this.setupRequest;
       const current = provider;
-      controls.empty(); controls.createEl('p', { text: t('checking') });
+      providerRow.empty();
+      controls.empty();
+      controls.createEl('p', { text: t('checking'), cls: 'setting-item-description' });
       let status;
       try { status = await this.plugin.subscriptions.status(current); }
       catch (error) { status = { state: 'error' as const, message: String(error) }; }
       if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || !controls.isConnected) return;
       controls.empty();
-      new Setting(controls).setName(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
-      if (status.installUrl) controls.createEl('a', { text: t('subscriptionInstall'), href: status.installUrl, attr: { target: '_blank', rel: 'noopener noreferrer' } });
-      const command = status.installCommand || status.command;
-      if (command) {
-        controls.createEl('pre').createEl('code', { text: command });
-        new Setting(controls).addButton(button => button.setButtonText(t('subscriptionCopy')).onClick(() => { void navigator.clipboard.writeText(command).catch(() => new Notice(command)); }));
+
+      const buttons: ButtonComponent[] = [];
+      const isMissing = status.state === 'missing';
+      const isSigningIn = Boolean(status.loginId || status.state === 'signing_in');
+
+      const providerSetting = new Setting(providerRow)
+        .setName(t('subscriptionAccountProvider'))
+        .addDropdown(dropdown => {
+          for (const id of ['openai', 'anthropic', 'gemini'] as const) dropdown.addOption(id, PROVIDER_CATALOG[id].label);
+          dropdown.setValue(provider).onChange(async value => {
+            provider = value as SubscriptionProvider;
+            this.plugin.settings.aiProvider = provider;
+            this.plugin.settings.aiAuthMethod = 'subscription';
+            this.plugin.settings.aiModel = 'auto';
+            await this.plugin.saveSettings();
+            this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+            this.plugin.aiProcessor = new AIProcessor(this.plugin);
+            this.refreshAISettings();
+            this.plugin.updateCreditStatusBar?.();
+            feedback = undefined;
+            void refresh();
+          });
+        });
+
+      // 1. Authorize subscription (or cancel)
+      if (isSigningIn) {
+        providerSetting.addButton(button => {
+          buttons.push(button);
+          button.setButtonText(t('cancel')).onClick(async () => {
+            clearTimeout(this.setupTimer);
+            for (const item of buttons) item.setDisabled(true);
+            await this.plugin.subscriptions.cancelLogin(current);
+            await refresh();
+          });
+        });
+      } else {
+        providerSetting.addButton(button => {
+          buttons.push(button);
+          button.setButtonText(t('subscriptionAuthorize'));
+          if (isMissing) {
+            button.setDisabled(true);
+          } else {
+            button.onClick(async () => {
+              clearTimeout(this.setupTimer);
+              for (const item of buttons) item.setDisabled(true);
+              const isTest = ['ready', 'unverified'].includes(status.state);
+              result.setText(t(isTest ? 'subscriptionTesting' : 'checking'));
+              result.style.color = 'var(--text-muted)';
+              try {
+                let outcome: { state?: string; message?: string } | undefined;
+                if (isTest) {
+                  outcome = await this.plugin.subscriptions.test(current,
+                    this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription' ? this.plugin.settings.aiModel || 'auto' : 'auto');
+                  const passed = outcome?.state === 'ready';
+                  if (passed) {
+                    this.plugin.settings.aiProvider = current;
+                    this.plugin.settings.aiAuthMethod = 'subscription';
+                    if (!this.plugin.settings.aiModel) this.plugin.settings.aiModel = 'auto';
+                    await this.plugin.saveSettings();
+                    this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+                    this.plugin.aiProcessor = new AIProcessor(this.plugin);
+                    this.refreshAISettings();
+                    this.plugin.updateCreditStatusBar?.();
+                  }
+                  feedback = passed
+                    ? { text: t('subscriptionTestPassed') }
+                    : { text: outcome?.message || t('aiConnectionUnavailable'), error: true };
+                  new Notice(feedback.text);
+                } else {
+                  outcome = await this.plugin.subscriptions.startLogin(current);
+                  feedback = undefined;
+                }
+              } catch (error) {
+                if (request !== this.setupRequest) return;
+                feedback = { text: String(error), error: true };
+                new Notice(feedback.text);
+              } finally {
+                if (request === this.setupRequest) {
+                  showFeedback();
+                  await refresh();
+                }
+              }
+            });
+          }
+        });
       }
-      const actions = new Setting(controls);
-      const result = controls.createEl('p', { attr: { role: 'status', 'aria-live': 'polite' } });
+
+      // 2. Refresh button
+      providerSetting.addButton(button => {
+        buttons.push(button);
+        button.setButtonText(t('refresh')).onClick(async () => {
+          clearTimeout(this.setupTimer);
+          for (const item of buttons) item.setDisabled(true);
+          feedback = undefined;
+          await refresh();
+        });
+      });
+
+      const result = controls.createEl('p', { cls: 'setting-item-description', attr: { role: 'status', 'aria-live': 'polite' } });
       const showFeedback = () => {
         result.setText(feedback?.text || '');
         result.style.color = feedback?.error ? 'var(--text-error)' : 'var(--text-success)';
       };
       showFeedback();
-      const buttons: ButtonComponent[] = [];
-      const action = (label: Parameters<typeof t>[0], task: () => Promise<unknown>) => actions.addButton(button => {
-        buttons.push(button);
-        button.setButtonText(t(label)).onClick(async () => {
-          clearTimeout(this.setupTimer);
-          for (const item of buttons) item.setDisabled(true);
-          result.setText(t(label === 'subscriptionTest' ? 'subscriptionTesting' : 'checking'));
-          result.style.color = 'var(--text-muted)';
+
+      if (isMissing) {
+        const missingNotice = controls.createDiv({ cls: 'callout nutegg-setup-callout' });
+        missingNotice.setAttribute('data-callout', 'warning');
+        missingNotice.style.cssText = 'margin: 10px 0 14px 0;';
+        const noticeTitle = missingNotice.createDiv({ cls: 'callout-title' });
+        noticeTitle.createDiv({ cls: 'callout-icon' }).setText('⚠️');
+        noticeTitle.createDiv({ cls: 'callout-title-inner' }).setText(status.message);
+        const command = status.installCommand || status.command;
+        if (command) {
+          const noticeBody = missingNotice.createDiv({ cls: 'callout-content' });
+          noticeBody.createEl('pre').createEl('code', { text: command });
+          new Setting(noticeBody).addButton(btn =>
+            btn.setButtonText(t('subscriptionCopy')).onClick(() => {
+              void navigator.clipboard.writeText(command).catch(() => new Notice(command));
+              new Notice(command);
+            })
+          );
+        }
+      } else {
+        new Setting(controls)
+          .setName(t('subscriptionConnection'))
+          .setDesc(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
+      }
+
+      if (status.state === 'ready') {
+        const cached = this.plugin.settings.subscriptionModels?.[current];
+        let models: string[] = (cached && cached.length > 0)
+          ? [...cached]
+          : [...(DEFAULT_SUBSCRIPTION_MODELS[current] || ['auto'])];
+        if (!models.includes('auto')) models.unshift('auto');
+
+        const currentModel = (this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription')
+          ? (this.plugin.settings.aiModel || 'auto')
+          : 'auto';
+        const isCustom = !models.includes(currentModel) && currentModel !== '';
+
+        let customInputSetting: Setting | null = null;
+        let dropdownComponent: any = null;
+
+        new Setting(controls)
+          .setName(t('subscriptionModelChoice'))
+          .setDesc(t('subscriptionModelChoiceDesc'))
+          .addDropdown(dropdown => {
+            dropdownComponent = dropdown;
+            for (const m of models) {
+              dropdown.addOption(m, m === 'auto' ? t('subscriptionAuto') : m);
+            }
+            dropdown.addOption('__custom__', t('customModelTag'));
+            dropdown.setValue(isCustom ? '__custom__' : currentModel);
+            dropdown.onChange(async (val) => {
+              if (val === '__custom__') {
+                if (customInputSetting) customInputSetting.settingEl.show();
+              } else {
+                if (customInputSetting) customInputSetting.settingEl.hide();
+                this.plugin.settings.aiProvider = current;
+                this.plugin.settings.aiAuthMethod = 'subscription';
+                this.plugin.settings.aiModel = val;
+                await this.plugin.saveSettings();
+                this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+                this.plugin.aiProcessor = new AIProcessor(this.plugin);
+                this.refreshAISettings();
+              }
+            });
+          });
+
+        customInputSetting = new Setting(controls)
+          .setName(t('customModelTag'))
+          .addText(text => {
+            text.setPlaceholder('gpt-4o, claude-3-5-sonnet, etc.')
+              .setValue(isCustom ? currentModel : '')
+              .onChange(async (val) => {
+                const trimmed = val.trim();
+                if (trimmed) {
+                  this.plugin.settings.aiProvider = current;
+                  this.plugin.settings.aiAuthMethod = 'subscription';
+                  this.plugin.settings.aiModel = trimmed;
+                  await this.plugin.saveSettings();
+                  this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
+                  this.plugin.aiProcessor = new AIProcessor(this.plugin);
+                  this.refreshAISettings();
+                }
+              });
+          });
+        if (!isCustom) {
+          customInputSetting.settingEl.hide();
+        }
+
+        // Fetch fresh model list in background and update dropdown & settings
+        void (async () => {
           try {
-            const outcome = await task() as { state?: string; message?: string } | undefined;
-            if (request !== this.setupRequest) return;
-            if (label === 'subscriptionTest') {
-              feedback = outcome?.state === 'ready'
-                ? { text: t('subscriptionTestPassed') }
-                : { text: outcome?.message || t('aiConnectionUnavailable'), error: true };
-              new Notice(feedback.text);
-            } else feedback = undefined;
-          } catch (error) {
-            if (request !== this.setupRequest) return;
-            feedback = { text: String(error), error: true };
-            new Notice(feedback.text);
-          } finally {
-            if (request === this.setupRequest) { showFeedback(); await refresh(); }
+            const fetched = await this.plugin.subscriptions.models(current);
+            if (request !== this.setupRequest || !controls.isConnected || !Array.isArray(fetched) || fetched.length === 0) return;
+            const normalized = fetched.includes('auto') ? fetched : ['auto', ...fetched];
+            const hasDiff = normalized.length !== models.length || normalized.some((m, i) => m !== models[i]);
+            if (hasDiff) {
+              (this.plugin.settings.subscriptionModels ||= {})[current] = normalized;
+              await this.plugin.saveSettings();
+              models = normalized;
+              if (dropdownComponent && controls.isConnected) {
+                const selectEl = dropdownComponent.selectEl;
+                if (selectEl) {
+                  const activeVal = dropdownComponent.getValue();
+                  selectEl.innerHTML = '';
+                  for (const m of normalized) {
+                    dropdownComponent.addOption(m, m === 'auto' ? t('subscriptionAuto') : m);
+                  }
+                  dropdownComponent.addOption('__custom__', t('customModelTag'));
+                  dropdownComponent.setValue(activeVal);
+                }
+              }
+            }
+          } catch {
+            // Keep existing default / cached list
           }
-        });
-      });
-      action('refresh', () => Promise.resolve());
-      if (!['missing', 'signing_in', 'ready'].includes(status.state)) {
-        action('subscriptionSignIn', () => this.plugin.subscriptions.startLogin(current));
-        if (current === 'openai') action('subscriptionDevice', () => this.plugin.subscriptions.startLogin(current, true));
+        })();
       }
-      if (status.loginId) action('cancel', () => this.plugin.subscriptions.cancelLogin(current));
-      if (!['missing', 'signing_in'].includes(status.state)) {
-        action('subscriptionTest', () => this.plugin.subscriptions.test(current,
-          this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription' ? this.plugin.settings.aiModel || 'auto' : 'auto'));
-        controls.createEl('p', { text: t('subscriptionTestHint') });
+
+      if (status.installUrl) {
+        const links = controls.createDiv({ cls: 'nutegg-subscription-links' });
+        links.createEl('a', { text: t('subscriptionInstall'), href: status.installUrl, attr: { target: '_blank', rel: 'noopener noreferrer' } });
       }
-      controls.createEl('a', { text: t('subscriptionManage'), href: {
-        openai: 'https://learn.chatgpt.com/docs/auth', anthropic: 'https://code.claude.com/docs/en/authentication', gemini: 'https://antigravity.google/docs/cli/install',
-      }[current], attr: { target: '_blank', rel: 'noopener noreferrer' } });
+
       if (status.loginId || status.state === 'signing_in') this.setupTimer = setTimeout(() => { void refresh(); }, 3000);
     };
-    new Setting(containerEl).setName(t('subscriptionAccountProvider')).addDropdown(dropdown => {
-      for (const id of ['openai', 'anthropic', 'gemini'] as const) dropdown.addOption(id, PROVIDER_CATALOG[id].label);
-      dropdown.setValue(provider).onChange(value => { provider = value as SubscriptionProvider; feedback = undefined; void refresh(); });
-    });
-    containerEl.appendChild(controls);
+
     void refresh();
   }
 
@@ -337,22 +535,38 @@ export class NutEggSettingTab extends PluginSettingTab {
     settings: NutEggSettings
   ): void {
     containerEl.createEl("h3", { text: t("aiModelConfig") });
-    this.aiConfigSummary = new Setting(containerEl)
-      .setDesc(t("aiManagedInChrome"))
-      .addButton(button => {
-        this.aiCreditButton = button;
-        button.setButtonText(t("checking"))
-          .setTooltip(t("refresh"))
-          .onClick(() => { void this.refreshAICredit(); });
-      });
+    if (!this.aiConfigSummary) {
+      this.aiConfigSummary = new Setting(containerEl)
+        .setDesc(t("aiManagedInChrome"))
+        .addButton(button => {
+          this.aiCreditButton = button;
+          button.setButtonText(t("checking"))
+            .setTooltip(t("refresh"))
+            .onClick(() => { void this.refreshAICredit(); });
+        });
+    }
     this.aiChunkWindow = new Setting(containerEl);
     this.aiMaxTokens = new Setting(containerEl);
     this.refreshAISettings();
 
     if (settings.subscriptionEnabled) for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
       new Setting(containerEl).setName(`${PROVIDER_CATALOG[provider].label} · ${t('subscriptionPath')}`)
-        .setDesc(t('subscriptionPathHint')).addText(text => text.setValue(settings.subscriptionPaths?.[provider] || '')
-          .onChange(async value => { (settings.subscriptionPaths ||= {})[provider] = value.trim(); await this.plugin.saveSettings(); }));
+        .setDesc(t('subscriptionPathHint')).addText(text => {
+          let currentVal = settings.subscriptionPaths?.[provider] || '';
+          if (!currentVal && this.plugin.subscriptions) {
+            void this.plugin.subscriptions.resolve(provider).then(autoPath => {
+              if (autoPath && !text.inputEl.value) {
+                text.setValue(autoPath);
+                (settings.subscriptionPaths ||= {})[provider] = autoPath;
+                void this.plugin.saveSettings();
+              }
+            }).catch(() => {});
+          }
+          text.setValue(currentVal).onChange(async value => {
+            (settings.subscriptionPaths ||= {})[provider] = value.trim();
+            await this.plugin.saveSettings();
+          });
+        });
     }
 
     // ==========================================

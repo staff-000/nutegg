@@ -316,13 +316,14 @@ describe("Modular UI Components", () => {
     assert.equal(header.tooltipSub.textContent, 'Invalid API key');
   });
 
-  it("Subscription setup is amber, failures are red, and offline never falls back", () => {
+  it("Subscription setup and failures are red, and offline never falls back", () => {
     const header = new HeaderComponent(createMockRoot());
     const settings = { connectionMode: 'obsidian', environmentChecked: true, serverOnline: true, obsidianAiConfigured: true, chromeAiAuthMethod: 'subscription' };
     for (const state of ['disabled', 'missing', 'login_required', 'signing_in', 'unverified']) {
       settings.subscriptionState = state;
       header.render({}, settings);
-      assert.equal(header.serverStatus.className, 'status-dot warning');
+      assert.equal(header.serverStatus.className, 'status-dot offline');
+      assert.equal(header.tooltipSub.textContent, t('aiConnectionSetupNeeded'));
     }
     settings.subscriptionState = 'ready';
     header.render({}, settings);

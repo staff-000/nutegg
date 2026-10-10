@@ -93,12 +93,18 @@ async function loadChromeAiSettings() {
 }
 
 function getObsidianAiConfig(settings) {
-  const provider = settings.chromeAiProvider || "gemini";
+  let provider = settings.chromeAiProvider || "gemini";
+  const authMethod = settings.chromeAiAuthMethod || "apiKey";
+  if (authMethod === "subscription" && !NutEggAI.supportsSubscription(provider)) {
+    provider = "gemini";
+  }
   return {
     aiProvider: provider,
-    aiAuthMethod: settings.chromeAiAuthMethod || "apiKey",
+    aiAuthMethod: authMethod,
     aiApiKey: isSubscriptionProvider(settings) ? "" : settings.chromeAiApiKey || "",
-    aiModel: settings.chromeAiModel || PROVIDER_CATALOG[provider]?.defaultModel || "",
+    aiModel: (authMethod === "subscription" && !NutEggAI.supportsSubscription(settings.chromeAiProvider))
+      ? (PROVIDER_CATALOG[provider]?.defaultModel || "")
+      : (settings.chromeAiModel || PROVIDER_CATALOG[provider]?.defaultModel || ""),
     localEndpoint: settings.chromeAiEndpoint || settings.chromeAiLocalEndpoint || PROVIDER_CATALOG.local?.officialEndpoint || "http://127.0.0.1:11434/v1/chat/completions",
     localApiType: "openai",
     chunkWindowChars: settings.chunkWindowChars ?? 30000,

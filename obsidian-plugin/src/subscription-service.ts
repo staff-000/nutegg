@@ -31,7 +31,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (!this.enabled()) throw new AIError('forbidden', 'AI connection unavailable.');
   }
 
-  private resolve(provider: SubscriptionProvider) {
+  resolve(provider: SubscriptionProvider) {
     return provider === 'gemini' ? resolveAgyCommand(this.paths[provider]) : resolveSubscriptionCommand(cli[provider], this.paths[provider]);
   }
 
@@ -235,14 +235,14 @@ export class SubscriptionService implements SubscriptionExecutor {
     await writeFile(activeFile, 'active');
     const body = process.platform === 'win32'
       ? unset.map(key => `Remove-Item Env:${key} -ErrorAction SilentlyContinue`).join('\n')
-        + `\nif (!(Test-Path ${quote(activeFile)})) { exit }\n$cliProcess = Start-Process -FilePath ${quote(executable)} ${args.length ? '-ArgumentList @(' + args.map(quote).join(',') + ')' : ''} -NoNewWindow -PassThru\n$cliProcess.Id | Set-Content ${quote(pidFile)}\nif (!(Test-Path ${quote(activeFile)})) { $cliProcess.Kill(); exit }\n$cliProcess.WaitForExit()\nRemove-Item ${quote(pidFile)} -ErrorAction SilentlyContinue\n`
+        + `\nif (!(Test-Path ${quote(activeFile)})) { exit }\n$cliProcess = Start-Process -FilePath ${quote(executable)} ${args.length ? '-ArgumentList @(' + args.map(quote).join(',') + ')' : ''} -NoNewWindow -PassThru\n$cliProcess.Id | Set-Content ${quote(pidFile)}\nif (!(Test-Path ${quote(activeFile)})) { $cliProcess.Kill(); exit }\n$cliProcess.WaitForExit()\nRemove-Item ${quote(pidFile)} -ErrorAction SilentlyContinue\nif ($cliProcess.ExitCode -eq 0) { exit 0 }\n`
       : '#!/bin/sh\n' + unset.map(key => `unset ${key}`).join('\n')
-        + `\ncleanup() { rm -f ${quote(pidFile)}; }\ntrap cleanup EXIT\ntrap 'kill "$cli_pid" 2>/dev/null; exit' HUP INT TERM\n[ -f ${quote(activeFile)} ] || exit\n${[executable, ...args].map(quote).join(' ')} < /dev/tty &\ncli_pid=$!\necho "$cli_pid" > ${quote(pidFile)}\n[ -f ${quote(activeFile)} ] || { kill "$cli_pid" 2>/dev/null; exit; }\nwait "$cli_pid"\n`;
+        + `\ncleanup() { rm -f ${quote(pidFile)}; }\ntrap cleanup EXIT\ntrap 'kill "$cli_pid" 2>/dev/null; exit' HUP INT TERM\n[ -f ${quote(activeFile)} ] || exit\n${[executable, ...args].map(quote).join(' ')} < /dev/tty &\ncli_pid=$!\necho "$cli_pid" > ${quote(pidFile)}\n[ -f ${quote(activeFile)} ] || { kill "$cli_pid" 2>/dev/null; exit; }\nwait "$cli_pid"\ncli_status=$?\nif [ $cli_status -eq 0 ]; then\n  osascript -e 'tell application "Terminal" to close (every window whose name contains "login.command")' 2>/dev/null &\n  exit 0\nfi\n`;
     await writeFile(script, body, { mode: 0o700 }); await chmod(script, 0o700);
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) { await this.cancelLogin(provider); throw new Error('Login cancelled.'); }
     let child: ChildProcess;
     if (process.platform === 'darwin') child = spawn('/usr/bin/open', ['-a', 'Terminal', script], { shell: false });
-    else if (process.platform === 'win32') child = spawn('powershell.exe', ['-NoProfile', '-NoExit', '-File', script], { shell: false, windowsHide: false });
+    else if (process.platform === 'win32') child = spawn('powershell.exe', ['-NoProfile', '-File', script], { shell: false, windowsHide: false });
     else {
       let terminal = 'x-terminal-emulator';
       for (const candidate of ['x-terminal-emulator', 'gnome-terminal', 'konsole', 'xterm']) {
@@ -268,6 +268,9 @@ export class SubscriptionService implements SubscriptionExecutor {
         const pid = Number((await readFile(join(login.directory, 'pid'), 'utf8')).trim());
         if (Number.isSafeInteger(pid) && pid > 1) process.kill(pid, 'SIGTERM');
       } catch { /* The login process already exited, or terminal launch failed. */ }
+    }
+    if (process.platform === 'darwin') {
+      try { spawn('/usr/bin/osascript', ['-e', 'tell application "Terminal" to close (every window whose name contains "login.command")'], { stdio: 'ignore' }); } catch {}
     }
     login.child?.kill(); this.logins.delete(provider);
     if (login.directory) await rm(login.directory, { recursive: true, force: true });

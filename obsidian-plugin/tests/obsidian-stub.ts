@@ -18,8 +18,10 @@ export class SuggestModal {}
 export class PluginSettingTab {}
 export class Setting {
   setName(_name: string) { return this; }
+  setDesc(_desc: string) { return this; }
   addDropdown(_configure: unknown) { return this; }
   addButton(_configure: unknown) { return this; }
+  addText(_configure: unknown) { return this; }
 }
 export class TAbstractFile {
   path: string = "";

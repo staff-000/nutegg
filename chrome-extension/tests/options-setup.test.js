@@ -100,21 +100,43 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.deepEqual(values, {});
 });
 
-test('subscription shares its provider and preserves API credentials and separate model choices', async t => {
+test('subscription shares its provider and preserves API credentials while hiding Chrome model edits', async t => {
   const { values, el, change, creditCalls, messages } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key', chromeAiModel: 'gemini-pro' });
   el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
-  assert.equal(el('ai-model-select').value, 'auto');
-  assert.equal(el('ai-key-input').value, ''); assert.equal(el('ai-key-row').hidden, true);
-  el('ai-model-select').value = '__custom__'; change('ai-model-select'); el('ai-model-custom').value = 'cli-model';
-  el('ai-save-btn').click(); await flush();
-  assert.equal(values.chromeAiProvider, 'gemini'); assert.equal(values.chromeAiAuthMethod, 'subscription');
-  assert.equal(values.chromeAiApiKey, ''); assert.equal(values.chromeAiModel, 'cli-model');
-  assert.equal(values.aiProfiles['gemini:apiKey'].apiKey, 'cloud-key'); assert.equal(creditCalls.length, 0);
-  assert(!messages.some(m => m.operation === 'test'), 'saving must not use inference');
+  assert.equal(el('ai-key-input').value, '');
+  assert.equal(el('ai-key-row').hidden, true);
+  assert.equal(el('ai-model-row').hidden, true);
+  assert.equal(el('ai-save-btn').hidden, true);
+  assert.equal(el('ai-provider-select').disabled, true);
+  assert.equal(el('subscription-model-badge').textContent, 'gemini-pro');
   el('ai-auth-method').value = 'apiKey'; change('ai-auth-method');
-  assert.equal(el('ai-key-input').value, 'cloud-key'); assert.equal(el('ai-model-select').value, 'gemini-pro');
-  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
-  assert.equal(el('ai-model-custom').value, 'cli-model');
+  assert.equal(el('ai-key-row').hidden, false);
+  assert.equal(el('ai-model-row').hidden, false);
+  assert.equal(el('ai-save-btn').hidden, false);
+  assert.equal(el('ai-provider-select').disabled, false);
+  assert.equal(el('ai-key-input').value, 'cloud-key');
+  assert.equal(el('ai-model-select').value, 'gemini-pro');
+});
+
+test('switching to non-subscription provider in apiKey mode keeps use-subscription enabled and toggling switches to subscription', async t => {
+  const { values, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'gemini-key' });
+  el('ai-provider-select').value = 'local'; change('ai-provider-select');
+  assert.equal(el('ai-auth-method').querySelector('option[value="subscription"]').disabled, false);
+  assert.equal(el('use-subscription-toggle').disabled, false);
+  assert.equal(el('use-subscription-toggle').checked, false);
+  el('ai-test-result').textContent = 'Saved. ✅ Connected: DeepSeek · Balance: ¥8.23';
+  el('ai-test-result').className = 'test-result ok';
+  el('use-subscription-toggle').checked = true; change('use-subscription-toggle');
+  assert.equal(el('ai-test-result').textContent, '');
+  assert.equal(el('ai-test-result').classList.contains('hidden'), true);
+  assert.equal(el('ai-auth-method').value, 'subscription');
+  assert.equal(el('ai-provider-select').disabled, true);
+  assert.equal(el('ai-key-row').hidden, true);
+  el('use-subscription-toggle').checked = false; change('use-subscription-toggle');
+  assert.equal(el('ai-auth-method').value, 'apiKey');
+  assert.equal(el('ai-provider-select').value, 'local');
+  assert.equal(el('ai-provider-select').disabled, false);
+  assert.equal(el('ai-key-row').hidden, false);
 });
 
 test('saving setup rejects an empty key, then persists an immediately usable Chrome configuration', async t => {

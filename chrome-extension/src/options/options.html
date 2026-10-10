@@ -19,16 +19,32 @@
 
     <section class="setup-card" aria-labelledby="setup-heading">
       <form id="ai-config-section" novalidate>
-        <div class="card-heading"><h2 id="setup-heading" data-i18n="settingsSetupTitle">Connect your AI</h2></div>
+        <div class="card-heading ai-card-heading">
+          <h2 id="setup-heading" data-i18n="settingsSetupTitle">Connect your AI</h2>
+          <div id="ai-auth-row" class="use-subscription-wrap" hidden>
+            <label class="switch-toggle" for="use-subscription-toggle" data-hints="off">
+              <input type="checkbox" id="use-subscription-toggle" role="switch">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-text" data-i18n="useSubscriptionSwitch">Use Subscription</span>
+            </label>
+            <select id="ai-auth-method" style="display:none"><option value="apiKey" data-i18n="settingsKeyLabel">API key</option><option value="subscription" data-i18n="subscriptionLabel">Subscription</option></select>
+          </div>
+        </div>
         <div class="option-row">
           <label for="ai-provider-select" data-i18n="settingsProviderLabel">AI provider</label>
           <select id="ai-provider-select"></select>
         </div>
-        <div class="option-row" id="ai-auth-row" hidden>
-          <label for="ai-auth-method" data-i18n="subscriptionConnection">Connection</label>
-          <select id="ai-auth-method"><option value="apiKey" data-i18n="settingsKeyLabel">API key</option><option value="subscription" data-i18n="subscriptionLabel">Subscription</option></select>
+        <div id="subscription-card" class="subscription-card" hidden>
+          <div class="subscription-status-row">
+            <span class="status-indicator-dot" aria-hidden="true"></span>
+            <span id="subscription-status" role="status" aria-live="polite"></span>
+          </div>
+          <div id="subscription-model-display" class="subscription-model-display">
+            <span class="subscription-model-label" data-i18n="settingsModelLabel">AI model</span>:
+            <strong id="subscription-model-badge" class="subscription-model-badge">auto</strong>
+            <span class="subscription-obsidian-hint" data-i18n="subscriptionManagedInObsidian">Managed in Obsidian</span>
+          </div>
         </div>
-        <div id="subscription-card" class="subscription-card" hidden><p id="subscription-status" role="status" aria-live="polite"></p></div>
         <div class="option-row" id="ai-model-row">
           <label for="ai-model-select" data-i18n="settingsModelLabel">AI model</label>
           <select id="ai-model-select" data-i18n-title="settingsModelHint"></select>
@@ -49,14 +65,13 @@
         <p id="ai-test-result" class="test-result hidden" role="status" aria-live="polite"></p>
         <details class="setup-help" id="ai-setup-help">
           <summary data-i18n="settingsHowItWorks">How it works</summary>
-          <p class="hint" data-i18n="settingsSetupDesc">Choose an API provider or a local model. Subscription providers are available only in Obsidian mode.</p>
+          <p class="hint" data-i18n="settingsSetupDesc">Choose an API provider or a local model.</p>
           <p class="hint" id="ai-key-hint"></p>
           <p class="hint" data-i18n="settingsKeyPrivacy">Your key is saved in this browser. Page content is sent to your chosen AI provider when you analyze it.</p>
         </details>
       </form>
       <div id="obsidian-active-card" class="hidden">
         <div class="card-heading"><span class="connection-icon" aria-hidden="true"><img src="../../icons/obsidian-icon.png" alt="" class="obsidian-icon"></span><h2 data-i18n="settingsObsidianMode">Obsidian mode</h2></div>
-        <button id="obsidian-connect-btn" type="button" data-i18n="connectChromeTitle">Connect NutEgg Chrome</button>
         <p id="ai-status-banner" class="connection-status" role="status" aria-live="polite"></p>
         <div id="obsidian-ai-config" class="connection-status obsidian-ai-config hidden" role="status" aria-live="polite"><strong id="obsidian-ai-match-status"></strong><div id="obsidian-ai-config-text"></div></div>
         <div class="sync-actions">

@@ -46,7 +46,7 @@ class HeaderComponent {
     if (!settings.serverOnline && settings.chromeAiAuthMethod === 'subscription') { this.updateServerStatus('connection-error', null, t('aiConnectionRecovery')); return; }
     if (settings.serverError || settings.aiStatusError) { this.updateServerStatus('connection-error', null, settings.serverError || settings.aiStatusError); return; }
     if (settings.subscriptionState === 'error') { this.updateServerStatus('connection-error', null, t('connectionFailed')); return; }
-    if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) { this.updateServerStatus('obsidian-warning', null, t('aiConnectionSetupNeeded')); return; }
+    if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) { this.updateServerStatus('connection-error', null, t('aiConnectionSetupNeeded')); return; }
     this.updateVersion(null, obsidianMode ? settings.obsidianPluginVersion : null);
     if (!obsidianMode) {
       this.updateServerStatus(settings.chromeAiConfigured && settings.aiStatusError ? 'connection-error' : settings.chromeAiConfigured ? 'chrome-ai' : 'chrome-no-key', null, settings.aiStatusError || settings.chromeAiProvider);
