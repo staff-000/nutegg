@@ -511,7 +511,25 @@ async function handleAnalyzeChrome(payload) {
       mode: "chrome",
       matchedEggs: [],
       allEggs: [],
+      extractedEntries: result.extractedEntries || [],
+      generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
     };
+    if (result.extractedEntries?.length) {
+      finalResult.eggResults = [{
+        egg: "Knowledge",
+        generateKnowledgeEntries: true,
+        keyQuestionAnswers: [],
+        extractedEntries: result.extractedEntries,
+        readAction: "highlights",
+        readVerdict: true,
+        readVerdictReason: "",
+        readingSources: [],
+      }];
+      finalResult.newKnowledge = result.extractedEntries.map((e) => ({
+        egg: "Knowledge",
+        content: e.content,
+      }));
+    }
     await recordChromeAnalysisMetrics(payload, finalResult);
     await saveChromeCacheEntry(payload, finalResult);
     return finalResult;

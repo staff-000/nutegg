@@ -1177,6 +1177,17 @@ describe("Modular UI Components", () => {
     assert.strictEqual(eggs.noEggSection.classList.contains("hidden"), true);
     assert.strictEqual(eggs.eggKnowledgeSection.classList.contains("hidden"), true);
 
+    // Chrome mode with knowledge entries renders into chromeKnowledgeSection
+    session.analysisResult = {
+      mode: 'chrome',
+      matchedEggs: [],
+      extractedEntries: [{ kind: 'concept', content: '- [concept] **Active Inference**\n  - Brain is inference machine.' }]
+    };
+    eggs.render(session, settings);
+    assert.strictEqual(eggs.chromeKnowledgeSection.classList.contains("hidden"), false);
+    assert.ok(eggs.chromeKnowledgeContent.innerHTML.includes("Active Inference"));
+    assert.ok(eggs.chromeKnowledgeContent.innerHTML.includes("kind-concept"));
+
     // Re-analyzing with selected eggs hides existing eggs
     settings.setConnectionMode("obsidian", false);
     settings.setServerStatus({ online: true });

@@ -14,6 +14,7 @@ import aggregateContentTpl from "../workflow/aggregate-content.md";
 import aggregateEggTpl from "../workflow/aggregate-egg.md";
 import localizeEggTpl from "../workflow/localize-egg.md";
 import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
+import chromeKnowledgeTpl from "../workflow/chrome-knowledge.md";
 
 export const PROMPTS = {
   discussionAnalysis: discussionAnalysisTpl,
@@ -38,6 +39,8 @@ export const PROMPTS = {
   localizeEgg: localizeEggTpl,
   /** Shared output rules (grounding + language reference) injected into prompts. */
   sharedOutputRules: sharedOutputRulesTpl.trim(),
+  /** Default knowledge generation prompt for Chrome standalone mode. */
+  chromeKnowledge: chromeKnowledgeTpl,
 };
 
 /** Substitute {{placeholder}} variables in a template. */

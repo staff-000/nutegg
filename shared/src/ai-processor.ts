@@ -444,7 +444,11 @@ export class AIProcessor {
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const needsBody = sections.titleVerdict || sections.coreSummary || sections.mindMap || capture.questions?.length;
     const contentAnalysis = needsBody ? await this.analyzeBody(bodyCapture) : { titleVerdict: '', coreSummary: [], mindMap: [], customQuestionAnswers: [] };
-    return discussion ? { ...contentAnalysis, discussion } : contentAnalysis;
+    const result: ContentAnalysis = discussion ? { ...contentAnalysis, discussion } : contentAnalysis;
+    if (capture.generateKnowledgeEntries) {
+      result.extractedEntries = await this.extractChromeKnowledge(bodyCapture);
+    }
+    return result;
   }
 
   private discussionCacheKey(capture: CapturePayload, discussion: DiscussionCapture): string {
@@ -740,9 +744,74 @@ export class AIProcessor {
   }
 
   private parseExtractedEntries(raw: any): ExtractedKnowledgeEntry[] {
-    return Array.isArray(raw) ? raw.filter(e => e && typeof e.content === "string" && e.content.trim()).map(e => ({
-      kind: e.kind === "list" || e.kind === "answer" ? e.kind : "insight", content: e.content.trim(), sources: this.parseSources(e.sources),
-    })) : [];
+    const validKinds = ["concept", "method", "opinion", "fact", "insight", "list", "answer"];
+    return Array.isArray(raw)
+      ? raw
+          .filter((e) => e && typeof e.content === "string" && e.content.trim())
+          .map((e) => {
+            const content = e.content.trim();
+            let kind = typeof e.kind === "string" ? e.kind.toLowerCase() : "";
+            if (!validKinds.includes(kind)) {
+              const tagMatch = content.match(/^\s*-\s*\[(concept|method|opinion|fact|insight|list|answer)\]/i);
+              kind = tagMatch ? tagMatch[1].toLowerCase() : "insight";
+            }
+            return {
+              kind,
+              content,
+              sources: this.parseSources(e.sources),
+            };
+          })
+      : [];
+  }
+
+  /**
+   * Extract high-signal knowledge entries in Chrome-only mode using the default Chrome knowledge prompt.
+   */
+  async extractChromeKnowledge(capture: CapturePayload): Promise<ExtractedKnowledgeEntry[]> {
+    if (!isAIConfigured(this.host?.settings)) {
+      return [];
+    }
+    const chunks = this.chunkContent(capture.content, capture.chapters || []);
+    if (chunks.length === 1) {
+      return this.callChromeKnowledgeChunk(capture, "");
+    }
+    const partResults = await Promise.all(
+      chunks.map((chunk) =>
+        this.callChromeKnowledgeChunk(
+          {
+            ...capture,
+            content: chunk.content,
+            chapters: chunk.chapters,
+          },
+          partNote(chunk)
+        )
+      )
+    );
+    return partResults.flat();
+  }
+
+  private async callChromeKnowledgeChunk(
+    capture: CapturePayload,
+    partNoteStr = ""
+  ): Promise<ExtractedKnowledgeEntry[]> {
+    const prompt = renderPrompt(this.getPrompt("chromeKnowledge"), {
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      part_note: partNoteStr,
+      content: this.truncate(capture.content, this.chunkWindowChars),
+      shared_output_rules: this.getContentOutputRules(capture as any, "within"),
+    });
+
+    const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
+    try {
+      const response = await this.callAI(prompt, configuredMax);
+      const parsed = this.parseJson(response, "chrome-knowledge");
+      return this.parseExtractedEntries(parsed.extractedEntries);
+    } catch (err) {
+      console.warn("[NutEgg] Chrome knowledge extraction failed:", err);
+      return [];
+    }
   }
 
   /** Aggregate the per-part content summaries into one result. */

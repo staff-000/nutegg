@@ -190,6 +190,10 @@ function _renderEggsSection(firstArg = [], options = {}) {
 }
 
 const KIND_METADATA = {
+  concept: { icon: "💡", label: "Concept", className: "kind-concept" },
+  method: { icon: "⚡", label: "Method", className: "kind-method" },
+  opinion: { icon: "💭", label: "Opinion", className: "kind-opinion" },
+  fact: { icon: "📌", label: "Fact", className: "kind-fact" },
   insight: { icon: "💡", label: "Insight", className: "kind-insight" },
   list: { icon: "📋", label: "Framework", className: "kind-list" },
   answer: { icon: "💬", label: "Takeaway", className: "kind-answer" },
@@ -274,7 +278,11 @@ function _renderEggKnowledge(firstArg = [], options = {}) {
 
     const entries = (r.extractedEntries || []).map(entry => {
       const text = typeof entry === "string" ? entry : (entry?.content || "");
-      const rawKind = typeof entry === "object" && entry?.kind ? String(entry.kind).toLowerCase() : "insight";
+      let rawKind = typeof entry === "object" && entry?.kind ? String(entry.kind).toLowerCase() : "";
+      if (!rawKind || !KIND_METADATA[rawKind]) {
+        const tagMatch = text.match(/^\s*-\s*\[(concept|method|opinion|fact|insight|list|answer)\]/i);
+        rawKind = tagMatch ? tagMatch[1].toLowerCase() : "insight";
+      }
       const meta = KIND_METADATA[rawKind] || KIND_METADATA.insight;
       const formatted = _formatEntryMarkdown(text, linkify);
       const sourcesHtml = typeof entry === "object" ? sources(entry.sources) : "";
@@ -352,6 +360,8 @@ class EggsComponent {
     this.eggKnowledgeHint = getEl("egg-knowledge-hint");
     this.eggTabsBar = getEl("egg-tabs-bar");
     this.eggKnowledgeContent = getEl("egg-knowledge-content");
+    this.chromeKnowledgeSection = getEl("chrome-knowledge-section");
+    this.chromeKnowledgeContent = getEl("chrome-knowledge-content");
     this.noEggSection = getEl("no-egg-section");
     this.newEggName = getEl("new-egg-name");
     this.newEggDescription = getEl("new-egg-description");
@@ -564,13 +574,94 @@ class EggsComponent {
     }
   }
 
+  renderChromeKnowledge(entries = [], linkify = (t) => t) {
+    if (!this.chromeKnowledgeContent) return;
+    const sources = (srcList) => {
+      if (!Array.isArray(srcList) || !srcList.length) return "";
+      return srcList.map(s => `<span class="source-pill" data-source-ref="${_eggEscapeHtml(s.ref)}" title="${_eggEscapeHtml(s.quote || s.ref)}">📍 ${_eggEscapeHtml(s.ref)}</span>`).join(" ");
+    };
+
+    this.chromeKnowledgeContent.innerHTML = entries.map(entry => {
+      const text = typeof entry === "string" ? entry : (entry?.content || "");
+      let rawKind = typeof entry === "object" && entry?.kind ? String(entry.kind).toLowerCase() : "";
+      if (!rawKind || !KIND_METADATA[rawKind]) {
+        const tagMatch = text.match(/^\s*-\s*\[(concept|method|opinion|fact|insight|list|answer)\]/i);
+        rawKind = tagMatch ? tagMatch[1].toLowerCase() : "insight";
+      }
+      const meta = KIND_METADATA[rawKind] || KIND_METADATA.insight;
+      const formatted = _formatEntryMarkdown(text, linkify);
+      const sourcesHtml = typeof entry === "object" ? sources(entry.sources) : "";
+
+      return `<div class="delta-item delta-knowledge-entry ${meta.className}" data-kind="${_eggEscapeHtml(rawKind)}">
+        <div class="delta-header">
+          <span class="delta-kind-badge ${meta.className}">
+            <span class="kind-icon">${meta.icon}</span>
+            <span class="kind-label">${meta.label}</span>
+          </span>
+          <button type="button" class="entry-copy-btn" title="${_eggEscapeHtml(t('buttonCopyHint'))}" aria-label="${_eggEscapeHtml(t('buttonCopyHint'))}" data-content="${_eggEscapeHtml(text)}">
+            <span class="copy-icon">📋</span>
+            <span class="copy-feedback hidden">✓</span>
+          </button>
+        </div>
+        <div class="delta-content">${formatted}</div>
+        ${sourcesHtml ? `<div class="entry-sources-footer">${sourcesHtml}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    this.chromeKnowledgeContent.querySelectorAll?.(".entry-copy-btn")?.forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const text = btn.getAttribute("data-content") || "";
+        if (!text) return;
+        try {
+          if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else if (typeof document !== "undefined") {
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+          }
+          const feedback = btn.querySelector(".copy-feedback");
+          const icon = btn.querySelector(".copy-icon");
+          if (feedback && icon) {
+            feedback.classList.remove("hidden");
+            icon.classList.add("hidden");
+            setTimeout(() => {
+              feedback.classList.add("hidden");
+              icon.classList.remove("hidden");
+            }, 1200);
+          }
+        } catch (err) {
+          console.warn("[NutEgg] Copy failed:", err);
+        }
+      });
+    });
+  }
+
   render(view, settings, callbacks = {}) {
     const result = view.analysisResult;
-    const visible = !!result && !settings.isChromeMode(result);
+    const isChrome = settings.isChromeMode(result);
+    const visible = !!result && !isChrome;
     this.eggsSection?.classList.toggle('hidden', !visible);
     this.setNoEggVisible(false);
     this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
     this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
+
+    // Render Chrome Mode Knowledge
+    const chromeEntries = isChrome && (result?.extractedEntries?.length ? result.extractedEntries : (result?.eggResults?.[0]?.extractedEntries || []));
+    if (this.chromeKnowledgeSection && this.chromeKnowledgeContent) {
+      if (chromeEntries && chromeEntries.length > 0 && !view.isAnalyzing) {
+        this.renderChromeKnowledge(chromeEntries);
+        this.chromeKnowledgeSection.classList.remove('hidden');
+      } else {
+        this.chromeKnowledgeSection.classList.add('hidden');
+        this.chromeKnowledgeContent.innerHTML = '';
+      }
+    }
+
     const isExpanded = typeof view.presentation?.eggsExpanded === 'boolean'
       ? view.presentation.eggsExpanded
       : Boolean(view.isStage1?.() && (settings.analysisMode === 'preview' || settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length));

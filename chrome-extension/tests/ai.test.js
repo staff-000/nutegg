@@ -584,3 +584,105 @@ test('text mind-map and Q&A parsers preserve original excerpts and discussion ID
   assert.deepEqual(processor.parseMindMap([{ name: 'Translated topic', sources }])[0].sources, sources);
   assert.deepEqual(processor.parseKeyAnswers([{ question: 'Q', answer: 'A', sources }])[0].sources, sources);
 });
+
+test('Chrome Knowledge prompt contains all 6 required rules and egg template structure', () => {
+  const { PROMPTS } = NutEggAI;
+  assert.ok(PROMPTS.chromeKnowledge, 'chromeKnowledge prompt template exists');
+  const tpl = PROMPTS.chromeKnowledge;
+
+  // Rule 1: Outstanding insights / reader may not know
+  assert.ok(tpl.includes('Outstanding Insights') || tpl.includes('insights'));
+  assert.ok(tpl.includes('reader') && tpl.includes('not'));
+
+  // Rule 2: Contradicts common sense
+  assert.ok(tpl.includes('Common Sense') || tpl.includes('common sense'));
+  assert.ok(tpl.includes('counter-intuitive') || tpl.includes('contradicting'));
+
+  // Rule 3: [concept] for knowledge that defines something
+  assert.ok(tpl.includes('[concept]'));
+  assert.ok(tpl.includes('definition') || tpl.includes('defines'));
+
+  // Rule 4: [method] for actionable knowledge
+  assert.ok(tpl.includes('[method]'));
+  assert.ok(tpl.includes('actionable') || tpl.includes('step-by-step'));
+
+  // Rule 5: [opinion] for subjective knowledge
+  assert.ok(tpl.includes('[opinion]'));
+  assert.ok(tpl.includes('subjective'));
+
+  // Rule 6: [fact] for objective factual knowledge
+  assert.ok(tpl.includes('[fact]'));
+  assert.ok(tpl.includes('objective') || tpl.includes('factually true'));
+
+  // Egg template structure: Concept -> Explanation -> Example
+  assert.ok(tpl.includes('Concept Name'));
+  assert.ok(tpl.includes('🎯 Example'));
+});
+
+test('Chrome mode knowledge extraction is invoked when generateKnowledgeEntries is enabled', async () => {
+  const processor = new NutEggAI.AIProcessor({
+    settings: { chromeAiProvider: 'openai', chromeAiApiKey: 'test-key' },
+  });
+
+  const promptCalls = [];
+  processor.callAI = async (prompt) => {
+    promptCalls.push(prompt);
+    if (prompt.includes('Knowledge Extraction Instructions')) {
+      return JSON.stringify({
+        extractedEntries: [
+          {
+            kind: 'concept',
+            content: '- [concept] **Active Inference**\n  - A theoretical framework stating the brain acts as an inference engine.\n  - 🎯 Example: Friston (2010) predictive coding models.',
+            sources: [{ ref: '12:34', quote: 'prediction error minimization' }],
+          },
+          {
+            content: '- [method] **Fine-tuning Recipe**\n  - 1. Prepare dataset.\n  - 2. Run LoRA.',
+          },
+          {
+            content: '- [opinion] **Future of Agents**\n  - The author believes autonomous agents will replace traditional UI.',
+          },
+          {
+            content: '- [fact] **Parameter Scaling**\n  - The model has 70 billion parameters.',
+          },
+        ],
+      });
+    }
+    return JSON.stringify({
+      titleVerdict: 'Verdict text',
+      coreSummary: ['Takeaway 1'],
+      mindMap: [],
+      customQuestionAnswers: [],
+    });
+  };
+
+  // Test with generateKnowledgeEntries = true
+  const result = await processor.analyzeContent({
+    url: 'https://example.com/test',
+    title: 'Test Article',
+    sourceType: 'article',
+    content: 'Article content about neuroscience and AI.',
+    generateKnowledgeEntries: true,
+  });
+
+  assert.equal(promptCalls.length, 2);
+  assert.ok(result.extractedEntries);
+  assert.equal(result.extractedEntries.length, 4);
+  assert.equal(result.extractedEntries[0].kind, 'concept');
+  assert.equal(result.extractedEntries[1].kind, 'method');
+  assert.equal(result.extractedEntries[2].kind, 'opinion');
+  assert.equal(result.extractedEntries[3].kind, 'fact');
+
+  // Test with generateKnowledgeEntries = false
+  promptCalls.length = 0;
+  const resultNoKnowledge = await processor.analyzeContent({
+    url: 'https://example.com/test',
+    title: 'Test Article',
+    sourceType: 'article',
+    content: 'Article content.',
+    generateKnowledgeEntries: false,
+  });
+
+  assert.equal(promptCalls.length, 1);
+  assert.equal(resultNoKnowledge.extractedEntries, undefined);
+});
+

@@ -219,6 +219,8 @@ export interface ContentAnalysis {
   customQuestionAnswers: KeyAnswer[];
   /** Hierarchical concept mind-map / outline tree. */
   mindMap?: MindMapNode[];
+  /** Substantive knowledge entries extracted in Chrome mode. */
+  extractedEntries?: ExtractedKnowledgeEntry[];
 }
 
 export interface CapturePayload {
@@ -280,7 +282,7 @@ export type ReadAction = "full" | "highlights" | "summary" | "skip" | "uncertain
 
 /** Instruction-formatted result, not a claim of novelty. */
 export interface ExtractedKnowledgeEntry {
-  kind?: "insight" | "list" | "answer";
+  kind?: "insight" | "list" | "answer" | "concept" | "method" | "opinion" | "fact" | string;
   content: string;
   sources?: SourceRef[];
 }
@@ -336,7 +338,8 @@ export type WorkflowPromptKey =
   | "aggregateContent"
   | "aggregateEgg"
   | "localizeEgg"
-  | "sharedOutputRules";
+  | "sharedOutputRules"
+  | "chromeKnowledge";
 
 /**
  * Host interface providing environment-specific services (Obsidian vault, custom prompt overrides, etc.)

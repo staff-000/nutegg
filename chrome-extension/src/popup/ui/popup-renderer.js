@@ -105,6 +105,7 @@ class PopupRenderer {
     root.getElementById?.('metrics-bar')?.classList.toggle('hidden', hideMetrics);
     if (!obsidianMode) root.getElementById?.('capture-eggs-accordion')?.classList.add('hidden');
     if (!obsidianMode) for (const id of ['eggs-section', 'egg-knowledge-section', 'no-egg-section']) root.getElementById?.(id)?.classList.add('hidden');
+    if (obsidianMode) root.getElementById?.('chrome-knowledge-section')?.classList.add('hidden');
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
     const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;
     keyed('debug', [settings.debugInfo, debugMode, debugInfo], () => ui.metricsUI.renderDebug?.(debugInfo, settings.debugInfo));

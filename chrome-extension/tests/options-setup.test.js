@@ -30,7 +30,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
       openai: { label: 'OpenAI', models: ['openai-default'], defaultModel: 'openai-default' },
       local: { label: 'Local', models: ['local-model'], defaultModel: 'local-model' },
     },
-    PROMPTS: { contentAnalysis: 'Default prompt', followUp: 'Default follow-up' },
+    PROMPTS: { contentAnalysis: 'Default prompt', followUp: 'Default follow-up', chromeKnowledge: 'Default Chrome knowledge prompt' },
     checkCreditAI: async settings => {
       creditCalls.push(settings);
       if (credit.throwError) throw new Error(credit.throwError);
@@ -408,5 +408,36 @@ test('save and continue button is removed on chrome AI setting when using subscr
   el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
   assert.equal(el('ai-save-btn').hidden, true);
   assert.equal(el('ai-save-btn').classList.contains('hidden'), true);
+});
+
+test('chromeKnowledge prompt option is selectable, editable, and resets to default in settings', async t => {
+  const { win, el, change, values } = await setup(t, { chromeAiApiKey: 'test-key' });
+  const select = el('ai-prompt-select');
+  const textarea = el('ai-prompt-textarea');
+  const resetBtn = el('ai-prompt-reset-btn');
+
+  // Verify chromeKnowledge option exists
+  const chromeOpt = select.querySelector('option[value="chromeKnowledge"]');
+  assert.ok(chromeOpt, 'chromeKnowledge option exists in select');
+
+  // Select chromeKnowledge
+  select.value = 'chromeKnowledge';
+  change('ai-prompt-select');
+  assert.equal(textarea.value, 'Default Chrome knowledge prompt');
+
+  // Edit prompt
+  textarea.value = 'My custom Chrome knowledge prompt';
+  textarea.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+  // Save AI preferences
+  el('ai-advanced-save-btn').click();
+  await flush();
+  assert.equal(values.chromeAiPromptOverrides?.chromeKnowledge, 'My custom Chrome knowledge prompt');
+
+  // Reset to default
+  resetBtn.click();
+  await flush();
+  assert.equal(textarea.value, 'Default Chrome knowledge prompt');
+  assert.equal(values.chromeAiPromptOverrides?.chromeKnowledge, undefined);
 });
 

@@ -1871,6 +1871,22 @@ body {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
 }
 
+.delta-item.kind-concept {
+  border-left-color: #3b82f6;
+}
+
+.delta-item.kind-method {
+  border-left-color: #10b981;
+}
+
+.delta-item.kind-opinion {
+  border-left-color: #a855f7;
+}
+
+.delta-item.kind-fact {
+  border-left-color: #f59e0b;
+}
+
 .delta-item.kind-insight {
   border-left-color: #f59e0b;
 }
@@ -1915,6 +1931,30 @@ body {
   line-height: 1.25;
   letter-spacing: 0.2px;
   text-transform: uppercase;
+}
+
+.delta-kind-badge.kind-concept {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.delta-kind-badge.kind-method {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.delta-kind-badge.kind-opinion {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.delta-kind-badge.kind-fact {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
 }
 
 .delta-kind-badge.kind-insight {
