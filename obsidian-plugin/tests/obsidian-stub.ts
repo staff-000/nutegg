@@ -16,7 +16,11 @@ export class Modal {
 }
 export class SuggestModal {}
 export class PluginSettingTab {}
-export class Setting {}
+export class Setting {
+  setName(_name: string) { return this; }
+  addDropdown(_configure: unknown) { return this; }
+  addButton(_configure: unknown) { return this; }
+}
 export class TAbstractFile {
   path: string = "";
   name: string = "";

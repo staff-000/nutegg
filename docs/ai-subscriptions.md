@@ -1,115 +1,66 @@
 # AI subscriptions in NutEgg
 
-Subscriptions are available in Obsidian mode. Configure AI in the NutEgg Chrome
-extension; Obsidian reads the synced configuration. Chrome standalone mode uses
-API providers or local models. One bridge and one pairing token work with all
-three subscription providers:
+Chrome owns AI configuration. In **Obsidian mode**, choose **Provider → Subscription → Model → Save**. Obsidian executes requests through your installed provider CLI. Chrome mode offers API keys and local models.
 
-| NutEgg provider | Install | Sign in |
-| --- | --- | --- |
-| ChatGPT subscription (Codex CLI) | [Codex CLI](https://developers.openai.com/codex/cli/) | `codex login` → ChatGPT |
-| Claude subscription (Claude Code) | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login` → Claude account |
-| Gemini subscription (local bridge) | [Antigravity CLI](https://antigravity.google/docs/cli/install/) | `agy` → Google account |
+## Guided setup
 
-Install only the CLI you intend to use. Use an account whose plan includes access
-to that CLI; a website subscription is not a general-purpose API key. Available
-models and usage limits are determined by the CLI and your account.
+1. Open Obsidian with the updated NutEgg plugin enabled. Subscriptions are **off by default**, including existing installations. Open the command palette (**Cmd/Ctrl+P**) and run **NutEgg: Enable experimental AI connections**. Optionally assign a shortcut in **Settings → Hotkeys**. This opt-in lives in Obsidian; Chrome cannot enable it. Run **NutEgg: Disable subscription mode** to turn it off and cancel pending work.
+2. In Chrome NutEgg settings, enable **Obsidian mode**. Choose **OpenAI**, **Anthropic**, or **Google Gemini** to reveal the **Connection** selector. **Subscription** becomes selectable after Obsidian reports that the feature is enabled. Chrome shows no account setup instructions. All installation, authorization, cancellation, and testing controls live in **Obsidian Settings → NutEgg → Subscription mode enabled**. While the feature is off, neither app displays subscription settings or hints; activation uses only the generic advanced command.
+3. Click **Connect NutEgg Chrome**. Approve the requesting extension once in Obsidian. NutEgg exchanges its local connection credential automatically; there is no token to copy or bridge to start.
+4. Choose OpenAI, Anthropic, or Google Gemini, then **Subscription**. Obsidian’s settings guide you through installation and sign-in.
+5. In Obsidian, select the provider account. If the CLI is missing, open its official installation guide or copy the displayed command into your terminal. NutEgg does not install software automatically. Click **Refresh** in Obsidian to check again.
+6. In Obsidian, click **Sign in** to open your native terminal and the provider's authentication flow. If terminal launch fails, copy the displayed command. Complete sign-in in your browser/terminal, then refresh.
+7. Choose **Auto — provider default**, a listed model, or **Custom model ID**, and save. Saving checks status without generating a response. **Test connection** is explicit and uses a small amount of subscription quota.
 
-## Connect
+| Provider | CLI / installation | Authentication | Models |
+| --- | --- | --- | --- |
+| OpenAI | [Codex](https://learn.chatgpt.com/docs/cli), `npm install -g @openai/codex` | `codex login`; device-code fallback uses `codex login --device-auth` | Discovered using [app-server model/list](https://learn.chatgpt.com/docs/app-server) |
+| Anthropic | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login --claudeai` | `sonnet`, `opus`, `haiku`, and custom IDs; choices are not verified account entitlements |
+| Google Gemini | [Antigravity](https://antigravity.google/docs/cli/install) | Open `agy` and complete its browser flow | Discovered using `agy models`; identifiers differ from Gemini API models |
 
-1. Complete sign-in in the provider's own CLI using the command above. NutEgg does
-   not copy or store your subscription credentials.
-2. From the NutEgg checkout, start the bridge and keep its terminal open:
+Codex and Claude readiness is verified through their authentication-status commands, not login-process exit. Antigravity displays **Sign-in needs verification** until an explicit test or analysis succeeds. Its status refresh does not generate inference. Account credentials stay in the provider CLI and never enter Chrome settings, sync responses, or NutEgg logs. Manage sign-in opens provider account instructions; NutEgg does not sign out a CLI shared with other applications.
 
-   ```sh
-   npm run bridge:ai
-   ```
+Completed installation/sign-in controls hide automatically. One pending login per provider is reused; reopening settings resumes checks. Cancel stops NutEgg's login operation. Native terminal handoff supports macOS Terminal, Windows PowerShell, and Linux x-terminal-emulator, GNOME Terminal, Konsole, or xterm. An exact command remains available when handoff fails.
 
-3. Open Obsidian with the NutEgg plugin enabled. In Chrome → NutEgg settings,
-   enable **Obsidian mode** to show subscription providers.
-4. Copy the **pairing token** printed by the bridge. In the Chrome AI settings,
-   choose a subscription provider, paste the token under **Local pairing token**,
-   leave the model as **auto**, then save. Obsidian receives these settings
-   automatically; its AI settings are read-only.
-5. Analyze a short page to verify inference access. Connection checks do not
-   consume model quota. Codex and Claude checks also reject missing or API-based
-   sign-ins; Gemini checks its executable, with sign-in verified during analysis.
+## Configuration and migration
 
-Switching between subscription providers retains the pairing token. Switching
-between a subscription and an API provider clears the credential field so tokens
-cannot accidentally be sent to an API provider.
+API key and subscription preferences are stored separately for each provider, preserving the key and both model choices when switching methods. Only the active configuration syncs to Obsidian. Subscription sync contains no API key. Obsidian displays the synced provider, method, model, and live connection status read-only under Developer Mode.
 
-Chunk window size and max completion tokens are also configured in Chrome under
-**Advanced settings** and synced to Obsidian whenever it is open. Configuration
-sync works in both modes; the mode determines where analysis runs.
+Legacy `codex-cli`, `claude-cli`, and `gemini-cli` settings migrate to OpenAI, Anthropic, and Gemini with Subscription selected. Custom models survive migration; bridge endpoints and pairing tokens are cleared from active settings. Existing API configurations default to API key. Migration is repeatable. Legacy files and CLI credentials in your home directory are untouched; the separate bridge scripts and port 27124 are retired.
 
-## Existing Gemini setup
+Model discovery refreshes after login and on demand. Chrome retains cached choices and the selected model if discovery fails; Auto and Custom remain available. A rejected model reports **Choose another model**, with no automatic substitution.
 
-Gemini subscription access uses **Antigravity CLI (`agy`)** with your Google AI
-Pro / Ultra account. Google ended individual account access through the old
-Gemini CLI on June 18, 2026. Run `agy` interactively to sign in, then exit before
-starting the bridge. No Gemini API key is needed.
+## Offline and error recovery
 
-Stop the old bridge with Ctrl+C, then run `npm run bridge:ai`. The old
-`npm run bridge:gemini` command remains an alias for the same service. Your token
-and Gemini provider selection remain valid. The token stays at
-`~/.nutegg/gemini-bridge/pairing-token` for compatibility. Reload the rebuilt Chrome
-extension and updated Obsidian plugin, then enable Obsidian mode to select a
-subscription provider in Chrome.
+A subscription selection with Obsidian offline pauses analysis and shows a red light. Open Obsidian or choose **Set up Chrome API key**. That action opens an API configuration draft; the execution mode changes only when you save. NutEgg never silently falls back to API billing.
 
-For Gemini-specific troubleshooting:
+The AI credit pill says **Subscription** in both apps. Codex can report remaining percentages for its usage windows through the non-generating **account/rateLimits/read** interface; NutEgg displays those percentages and caches the result for 30 seconds. If a CLI does not expose usable quota information (currently Claude and Antigravity), the tooltip says remaining usage is not reported. Saving and refreshing never generate a quota test. [Codex rate-limit interface](https://learn.chatgpt.com/docs/app-server).
 
-- The bridge also checks `~/.local/bin/agy` on macOS/Linux and
-  `%LOCALAPPDATA%/agy/bin/agy.exe` on Windows. The legacy
-  `NUTEGG_GEMINI_COMMAND` override remains supported but must point to `agy`.
-- Run `agy models` to find available custom models. Leave NutEgg's model as
-  `auto` to use the CLI's default.
-- Run `agy` interactively to verify sign-in. If your CLI settings use
-  `modelProvider: gemini`, follow Google's
-  [account authentication instructions](https://antigravity.google/docs/cli/install/)
-  to return to account-based authentication.
+Subscription status describes connection and provider-reported quota errors, not a monetary balance. Expired authentication, rejected models, exhausted quota, or inaccessible providers turn the light red. Initial missing installation/sign-in/verification is amber. See the [complete signal matrix](connection-status.md).
 
-## Requirements and limits
+## Runtime and local access
 
-- Use current CLI versions. Codex needs `exec --ignore-user-config` and
-  `--ephemeral`; Claude Code needs `--safe-mode` and `--tools`. Unsupported flags
-  produce an update instruction.
-- If a CLI isn't on PATH, set `NUTEGG_CODEX_COMMAND`, `NUTEGG_CLAUDE_COMMAND`, or
-  `NUTEGG_AGY_COMMAND` to its absolute executable path before starting the bridge.
-  Standard `~/.local/bin` installations are also detected. Use native executables
-  on Windows, not shell aliases or `.cmd` wrappers.
-- The bridge uses subscription sign-in only. It strips API credentials and
-  endpoint overrides from child environments rather than silently using paid API
-  billing. If Claude was authenticated only through an environment-supplied API
-  credential or gateway, sign in to your Claude account separately.
-- `auto` uses the CLI's default model. Custom models must be supported by your
-  CLI account. API model names and CLI model names can differ.
-- Up to 32 requests queue locally and run one at a time. Each running inference
-  has a three-minute timeout. CLI output limits apply; NutEgg's API Max Tokens
-  setting is not a hard output limit for subscription calls.
-- The bridge listens only on `127.0.0.1:27124` and requires the local pairing
-  token. It must run on the same computer as Chrome or Obsidian.
-  Restart it if NutEgg reports Bridge offline. To rotate the token, stop the
-  bridge, delete `~/.nutegg/gemini-bridge/pairing-token`, restart, and save the
-  newly printed token in NutEgg.
-- Captured content is sent to the selected provider. Codex uses an ephemeral,
-  read-only run with user configuration, shell tools, apps, plugins, and web search
-  disabled. Claude uses safe mode with an empty tool list and no session
-  persistence. Antigravity uses a temporary workspace and a dedicated primary
-  agent with an empty tool allowlist. Slash command expansion is disabled, and
-  prompts travel via structured stdin. Antigravity's account settings, user
-  customizations, session storage, and privacy terms still apply.
+Use current CLI versions: Codex requires restricted ephemeral execution flags; Claude requires safe mode and an empty tool list. Unsupported flags produce an update instruction. Executables are detected through PATH and standard native installation locations. An absolute executable-path override is available in Obsidian Developer Mode; restart the plugin after changing it. Windows uses native executables rather than `.cmd` wrappers.
 
-Claude support runs the user's unmodified local Claude Code installation. It does
-not offer Claude.ai OAuth sign-in inside NutEgg or intermediate account tokens.
-Anthropic distinguishes personal CLI use from offering Claude-backed products;
-review its [integration and credential-use terms](https://code.claude.com/docs/en/legal-and-compliance)
-before distributing or hosting this integration. It is not a hosted subscription
-proxy or a replacement for an API agreement.
+Requests use isolated temporary workspaces, restricted tools, sanitized environments, bounded output, a serial queue of at most 32 jobs, and a three-minute inference timeout. Plugin shutdown cancels queued and running work. Login processes are tracked separately. API Max Tokens is not a hard output limit for subscription calls.
 
-References: [Codex authentication](https://learn.chatgpt.com/docs/auth),
-[Codex non-interactive execution](https://learn.chatgpt.com/docs/non-interactive-mode),
-[Claude Code authentication](https://code.claude.com/docs/en/authentication),
-[Claude Code programmatic execution](https://code.claude.com/docs/en/headless),
-[Gemini to Antigravity migration](https://github.com/google-gemini/gemini-cli/discussions/28017),
-[Antigravity headless protocol](https://antigravity.google/docs/cli/headless/).
+The existing Obsidian server advertises subscription and connection-approval capabilities through `/health`. Host and Origin are validated before dispatch. Chrome sends its extension identity in `X-NutEgg-Extension-Origin` because browser-generated Origin can be absent on extension requests. Any browser Origin must match that identity; the identity header alone grants no access. Sensitive requests—including configuration writes, subscription inference, models, and login controls—require an approved extension identity and its automatically exchanged credential. Approval challenges expire after two minutes, are origin-bound, and can be consumed once. An outdated plugin produces an update instruction.
+
+Chrome refreshes connection readiness while settings are visible, allowing CLI status checks up to 20 seconds. Obsidian's explicit connection test shows progress immediately, allows up to three minutes for inference, and retains a success or failure message after refreshing account status.
+
+Captured content goes to the selected provider. Provider account settings and privacy terms still apply. NutEgg invokes the user's installed CLI; it does not embed provider OAuth or host a subscription proxy.
+
+References: [Codex authentication](https://learn.chatgpt.com/docs/auth), [Claude authentication](https://code.claude.com/docs/en/authentication), [Claude model configuration](https://code.claude.com/docs/en/model-config), [Antigravity installation and authentication](https://antigravity.google/docs/cli/install).
+
+## Release smoke tests
+
+Run the following with real accounts on **macOS, Windows, and Linux** before claiming end-to-end platform validation. Automated adapter tests use controlled CLI fixtures and do not verify provider accounts or native terminal behavior.
+
+- Start with an unapproved Chrome installation: confirm analysis/config/login requests fail, approve one **Connect NutEgg Chrome** dialog, then verify Save/sync.
+- For each provider, verify missing-installation guidance, native installation detection, and the Developer Mode path override.
+- Launch sign-in, confirm browser/terminal handoff, repeat the click to verify one operation, cancel it, and reopen settings to verify pending-operation recovery.
+- Refresh models, choose Auto and a custom model, disconnect model discovery, and confirm the saved selection remains available.
+- Save without an inference request; explicitly test/perform one short analysis. Verify rejected models, expired authentication, quota failures, and timeouts produce actionable red status.
+- Close Obsidian during running/queued inference: confirm processes stop, the light becomes red, and no API request occurs. Open the API recovery flow and confirm mode/billing changes only after Save.
+
+Windows requires native CLI executables; Linux requires a supported terminal. Provider sign-in must be completed by the account holder.

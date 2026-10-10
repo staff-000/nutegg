@@ -21,6 +21,8 @@ class EnvironmentService {
       try { ai = await this.chromeApi.runtime.sendMessage({ action: 'check-chrome-ai' }); } catch {}
       if (version !== this.version || this.settings.connectionMode !== connectionMode) return;
       this.settings.setServerStatus();
+      this.settings.chromeAiAuthMethod = ai.authMethod;
+      this.settings.subscriptionState = null;
       this.settings.setChromeAiStatus({ enabled: true, configured: !!ai.configured, provider: ai.provider, model: ai.model });
       this.settings.environmentChecked = true;
       this.store.dispatch({ type: 'environment', value: { issues: [], credit: null } });
@@ -48,6 +50,7 @@ class EnvironmentService {
     try {
       const credit = await this.chromeApi.runtime.sendMessage({ action: online ? 'get-credit' : 'check-chrome-credit' });
       if (version !== this.version || online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)) return;
+      this.settings.subscriptionState = credit?.subscriptionState;
       this.settings.aiStatusError = credit?.error || (credit?.hasBalance && Number.isFinite(credit.remainingCredits) && credit.remainingCredits <= 0 ? globalThis.t('aiNoRemainingCredit') : null);
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: { ...credit, isChromeAi: !online } } });
     } catch (error) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chmod, mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runSubscription, parseSubscriptionOutput, subscriptionEnvironment, executeSubscriptionCli, resolveSubscriptionCommand } from '../scripts/subscription-cli.mjs';
+import { runSubscription, parseSubscriptionOutput, subscriptionEnvironment, executeSubscriptionCli, resolveSubscriptionCommand } from '../src/subscription-cli.mjs';
 
 async function fixture(t, provider, auth = 'subscription') {
   const dir = await mkdtemp(join(tmpdir(), `nutegg-${provider}-test-`));

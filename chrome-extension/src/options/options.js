@@ -67,7 +67,122 @@ const DEFAULT_SECTIONS = {
 };
 
 let savedPromptOverrides = {};
-let subscriptionDraft = null;
+const aiAuthMethod = document.getElementById('ai-auth-method');
+let aiProfiles = {};
+let profileKey = '';
+let subscriptionModels = {};
+const subscriptionModelRefresh = {};
+let subscriptionEnabled = false;
+let subscriptionAccessKnown = false;
+let subscriptionFeatureRequest = 0;
+let healthProbe;
+function probeHealth(port) {
+  if (healthProbe?.port === port) return healthProbe.task;
+  // Share parsed data, not a Response whose body can only be consumed once.
+  const task = fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) })
+    .then(async response => ({ ok: response.ok, health: response.ok ? await response.json() : {} }))
+    .finally(() => { if (healthProbe?.task === task) healthProbe = null; });
+  healthProbe = { port, task }; return task;
+}
+let subscriptionRequest = 0;
+let subscriptionTimer;
+const subscriptionSelected = () => aiAuthMethod.value === 'subscription';
+function rememberProfile() {
+  if (!profileKey) return;
+  aiProfiles[profileKey] = { model: aiModelSelect.value === '__custom__' ? aiModelCustom.value.trim() : aiModelSelect.value,
+    apiKey: subscriptionSelected() ? '' : aiKeyInput.value, endpoint: aiLocalEndpoint.value };
+}
+function restoreProfile() {
+  profileKey = `${aiProviderSelect.value}:${aiAuthMethod.value}`;
+  const profile = aiProfiles[profileKey] || {};
+  aiKeyInput.value = subscriptionSelected() ? '' : profile.apiKey || '';
+  aiLocalEndpoint.value = profile.endpoint || '';
+  updateModelOptions(aiProviderSelect.value, profile.model);
+  updateProviderHints(aiProviderSelect.value);
+  void refreshSubscription();
+}
+function renderSubscriptionAccess() {
+  if (subscriptionAccessKnown && !subscriptionEnabled && subscriptionSelected() && profileKey) {
+    rememberProfile(); aiAuthMethod.value = 'apiKey'; restoreProfile();
+  }
+  const supported = (window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value);
+  document.getElementById('ai-auth-row').hidden = !obsidianModeEnabled.checked || !subscriptionEnabled;
+  const option = aiAuthMethod.querySelector('option[value="subscription"]');
+  option.hidden = !subscriptionEnabled;
+  option.disabled = !subscriptionEnabled || !supported;
+  document.getElementById('subscription-card').hidden = !subscriptionEnabled || !subscriptionSelected();
+  aiTestBtn.hidden = subscriptionSelected();
+}
+function subscriptionStatusText(info) {
+  return t(info?.state === 'ready' ? 'aiConnectionReady' : info?.state === 'error' || info?.error ? 'aiConnectionUnavailable' : 'aiConnectionSetupNeeded');
+}
+async function refreshSubscriptionAccess() {
+  const request = ++subscriptionFeatureRequest;
+  if (!obsidianModeEnabled.checked) { subscriptionEnabled = false; subscriptionAccessKnown = true; renderSubscriptionAccess(); return; }
+  try {
+    const response = await probeHealth(Number(portInput.value) || DEFAULT_PORT);
+    const health = response.health;
+    if (request !== subscriptionFeatureRequest) return;
+    const previous = subscriptionEnabled;
+    subscriptionEnabled = health.subscriptionEnabled === true;
+    subscriptionAccessKnown = true;
+    renderSubscriptionAccess();
+    if (previous !== subscriptionEnabled) void refreshSubscription();
+  } catch { if (request === subscriptionFeatureRequest) { subscriptionEnabled = false; subscriptionAccessKnown = true; renderSubscriptionAccess(); } }
+}
+async function subscriptionControl(operation, extra = {}) {
+  return chrome.runtime.sendMessage({ action: 'subscription-control', operation, provider: aiProviderSelect.value,
+    model: getAiFormSettings().chromeAiModel, ...extra });
+}
+async function refreshSubscription() {
+  clearTimeout(subscriptionTimer);
+  const request = ++subscriptionRequest;
+  renderSubscriptionAccess();
+  if (!subscriptionSelected() || !subscriptionEnabled || document.hidden) return;
+  const provider = aiProviderSelect.value;
+  try {
+    const status = await subscriptionControl('status');
+    if (request !== subscriptionRequest || provider !== aiProviderSelect.value || !subscriptionEnabled || !subscriptionSelected()) return;
+    const card = document.getElementById('subscription-card');
+    const previousState = card.dataset.state;
+    card.dataset.state = status?.state || 'error';
+    document.getElementById('subscription-status').textContent = subscriptionStatusText(status);
+    if (['ready', 'unverified', 'login_required'].includes(status?.state) &&
+        (previousState !== status.state || Date.now() - (subscriptionModelRefresh[provider] || 0) >= 60000)) {
+      const result = await subscriptionControl('models');
+      if (request !== subscriptionRequest || !subscriptionEnabled) return;
+      if (result.models) {
+        subscriptionModelRefresh[provider] = Date.now();
+        const model = getAiFormSettings().chromeAiModel;
+        subscriptionModels[provider] = result.models;
+        await chrome.storage.local.set({ subscriptionModels });
+        updateModelOptions(provider, model);
+      }
+    }
+  } catch {
+    if (request === subscriptionRequest) {
+      document.getElementById('subscription-card').dataset.state = 'error';
+      document.getElementById('subscription-status').textContent = t('aiConnectionUnavailable');
+    }
+  } finally {
+    // Refresh after the previous request finishes: CLI status checks may take
+    // longer than a fixed polling interval. Never discard every slow result.
+    if (request === subscriptionRequest && subscriptionEnabled && subscriptionSelected() && !document.hidden) {
+      subscriptionTimer = setTimeout(() => { void refreshSubscription(); }, 5000);
+    }
+  }
+}
+async function connectChrome() {
+  document.getElementById('ai-status-banner').textContent = t('checking');
+  const result = await chrome.runtime.sendMessage({ action: 'connect-obsidian' });
+  if (result?.error) showAiResult(result.error, 'error');
+  else {
+    await refreshSubscriptionAccess();
+    await checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+  }
+  await refreshSubscription();
+}
+
 let obsidianConfigRequest = 0;
 let obsidianConfigTimer = null;
 let activePromptKey = "contentAnalysis";
@@ -84,7 +199,7 @@ function updateModeDesc(mode) {
 
 // Load saved settings
 document.addEventListener("DOMContentLoaded", async () => {
-  const stored = await chrome.storage.local.get([
+  let stored = await chrome.storage.local.get([
     "serverPort",
     "analysisMode",
     "enabledSections",
@@ -93,6 +208,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     "connectionMode",
     "chromeAiEnabled",
     "chromeAiProvider",
+    "chromeAiAuthMethod",
+    "aiProfiles",
+    "subscriptionModels",
     "chromeAiApiKey",
     "chromeAiModel",
     "chromeAiLocalEndpoint",
@@ -108,6 +226,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeCacheTabLimit",
     "chromeTabCache",
   ]);
+  const migrated = (window.NutEggAI?.migrateAISettings || (value => value))(stored);
+  if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
+  stored = migrated;
   const captureSettings = new window.SettingsState();
   captureSettings.setCaptureRetries(stored);
   const retryCount = document.getElementById('capture-retry-count');
@@ -188,11 +309,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Chrome is ready to configure without probing for another application.
   initConnectionMode(stored);
+  renderSubscriptionAccess();
+  if (obsidianModeEnabled.checked) await refreshSubscriptionAccess();
   for (const element of [aiProviderSelect, aiModelSelect, aiModelCustom, aiKeyInput, aiLocalEndpoint, chunkWindowInput, maxTokensInput]) {
     element.addEventListener("input", scheduleObsidianAiConfigCheck);
     element.addEventListener("change", scheduleObsidianAiConfigCheck);
   }
-  setInterval(() => { if (obsidianModeEnabled.checked) void refreshObsidianAiConfig(); }, 5000);
+  setInterval(() => { if (obsidianModeEnabled.checked) { void refreshSubscriptionAccess(); void refreshObsidianAiConfig(); } }, 5000);
 
   // 4. Report bug button
   const reportBugBtn = document.getElementById("report-bug-btn");
@@ -232,35 +355,10 @@ function renderConnectionMode(mode) {
   aiConfigSection.classList.remove("hidden");
   chromeAdvancedSettings.classList.remove("hidden");
   document.getElementById("chrome-cache-group").classList.toggle("hidden", usesObsidian);
-  const selectedProvider = aiProviderSelect.value;
-  if (!usesObsidian && isSubscriptionProvider(selectedProvider)) subscriptionDraft = getAiFormSettings();
-  for (const option of [...aiProviderSelect.options]) {
-    if (isSubscriptionProvider(option.value)) option.remove();
-  }
-  if (usesObsidian) {
-    for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
-      if (!isSubscriptionProvider(id)) continue;
-      const option = document.createElement("option");
-      option.value = id;
-      option.textContent = info.label;
-      aiProviderSelect.appendChild(option);
-    }
-  }
-  if (selectedProvider && (!isSubscriptionProvider(selectedProvider) || usesObsidian)) {
-    aiProviderSelect.value = selectedProvider;
-  } else {
-    aiProviderSelect.value = "gemini";
-    aiProviderSelect.dispatchEvent(new Event("change"));
-  }
-  if (usesObsidian && subscriptionDraft) {
-    const draft = subscriptionDraft;
-    subscriptionDraft = null;
-    aiProviderSelect.value = draft.chromeAiProvider;
-    aiProviderSelect.dispatchEvent(new Event("change"));
-    updateModelOptions(draft.chromeAiProvider, draft.chromeAiModel);
-    aiKeyInput.value = draft.chromeAiApiKey;
-    aiLocalEndpoint.value = draft.chromeAiEndpoint;
-  }
+  rememberProfile();
+  aiAuthMethod.value = usesObsidian ? aiAuthMethod.value : 'apiKey';
+  renderSubscriptionAccess();
+  if (profileKey) restoreProfile();
   connectionModeBadge.textContent = t(usesObsidian ? "settingsObsidianMode" : "settingsChromeMode");
   connectionModeBadge.classList.toggle("obsidian", usesObsidian);
   const obsidianSettings = document.getElementById("obsidian-settings");
@@ -270,6 +368,7 @@ function renderConnectionMode(mode) {
 async function setConnectionMode(mode) {
   await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
   renderConnectionMode(mode);
+  void refreshSubscriptionAccess();
   connectionModeStatus.textContent = t(mode === "obsidian" ? "settingsObsidianSelected" : "settingsChromeSelected");
   connectionModeStatus.className = "test-result ok";
   if (mode === "obsidian") checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
@@ -318,6 +417,7 @@ async function refreshObsidianAiConfig() {
     values.replaceChildren();
     for (const [label, value] of [
       ["settingsProviderLabel", PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider],
+      ["subscriptionConnection", t(config.aiAuthMethod === "subscription" ? subscriptionEnabled ? "subscriptionLabel" : "aiConnectionUnavailable" : "settingsKeyLabel")],
       ["settingsModelLabel", config.aiModel],
       ["chunkWindowChars", config.chunkWindowChars],
       ["maxTokens", config.contentAnalysisMaxTokens],
@@ -341,7 +441,7 @@ async function checkObsidianForAiBanner(port) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2000);
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/health`, { signal: controller.signal });
+    const response = await probeHealth(port);
     if (!obsidianModeEnabled.checked) return;
     aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
     aiStatusBanner.classList.toggle("connected", response.ok);
@@ -371,6 +471,9 @@ function initAiSettings(stored) {
 
   chunkWindowInput.value = stored.chunkWindowChars || 30000;
   maxTokensInput.value = stored.contentAnalysisMaxTokens || stored.chromeAiMaxTokens || 16384;
+  aiProfiles = stored.aiProfiles || {};
+  subscriptionModels = stored.subscriptionModels || {};
+  aiAuthMethod.value = new URLSearchParams(window.location.search).has('setupApi') ? 'apiKey' : stored.chromeAiAuthMethod || 'apiKey';
   const selectedProvider = stored.chromeAiProvider || "gemini";
   aiProviderSelect.value = selectedProvider;
 
@@ -391,15 +494,22 @@ function initAiSettings(stored) {
     });
   }
 
-  let previousProvider = aiProviderSelect.value;
-  aiProviderSelect.addEventListener("change", () => {
-    const provId = aiProviderSelect.value;
-    if (isSubscriptionProvider(provId) !== isSubscriptionProvider(previousProvider)) aiKeyInput.value = "";
-    previousProvider = provId;
-    updateModelOptions(provId);
-    updateProviderHints(provId);
+  profileKey = `${selectedProvider}:${aiAuthMethod.value}`;
+  rememberProfile();
+  aiProviderSelect.addEventListener('change', () => {
+    rememberProfile();
+    if (!(window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value)) aiAuthMethod.value = 'apiKey';
+    renderSubscriptionAccess();
+    restoreProfile();
   });
-
+  aiAuthMethod.addEventListener('change', () => {
+    // The old profile's credential belongs to its previous connection method.
+    const priorMethod = profileKey.split(':')[1];
+    aiProfiles[profileKey] = { model: getAiFormSettings().chromeAiModel, apiKey: priorMethod === 'apiKey' ? aiKeyInput.value : '', endpoint: aiLocalEndpoint.value };
+    restoreProfile();
+  });
+  document.getElementById('obsidian-connect-btn').addEventListener('click', connectChrome);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(subscriptionTimer); else void refreshSubscription(); });
   aiModelSelect.addEventListener("change", () => {
     if (aiModelSelect.value === "__custom__") {
       aiModelCustom.style.display = "block";
@@ -481,8 +591,8 @@ function updateModelOptions(providerId, savedModel) {
   const provider = PROVIDER_CATALOG[providerId];
   if (!provider) return;
 
-  const models = provider.models || [];
-  const defaultModel = provider.defaultModel || models[0] || "";
+  const models = subscriptionSelected() ? subscriptionModels[providerId] || (providerId === 'anthropic' ? ['auto', 'sonnet', 'opus', 'haiku'] : ['auto']) : provider.models || [];
+  const defaultModel = subscriptionSelected() ? 'auto' : provider.defaultModel || models[0] || '';
   const activeModel = savedModel || defaultModel;
 
   aiModelSelect.innerHTML = "";
@@ -490,7 +600,7 @@ function updateModelOptions(providerId, savedModel) {
   for (const m of models) {
     const opt = document.createElement("option");
     opt.value = m;
-    opt.textContent = m;
+    opt.textContent = m === 'auto' ? t('subscriptionAuto') : m;
     aiModelSelect.appendChild(opt);
   }
 
@@ -512,7 +622,7 @@ function updateModelOptions(providerId, savedModel) {
     aiModelCustom.style.display = defaultModel ? "none" : "block";
   }
 
-  aiKeyInput.required = providerId !== "local";
+  aiKeyInput.required = !subscriptionSelected() && providerId !== "local";
 
   // Local endpoint visibility
   if (providerId === "local") {
@@ -525,29 +635,13 @@ function updateModelOptions(providerId, savedModel) {
 function updateProviderHints(providerId) {
   const provider = PROVIDER_CATALOG[providerId];
   if (!provider) return;
-  const isBridge = isSubscriptionProvider(providerId);
-  const keyLabel = document.querySelector('label[for="ai-key-input"]');
-  if (keyLabel) {
-    keyLabel.dataset.i18n = isBridge ? "subscriptionBridgeToken" : "settingsKeyLabel";
-    keyLabel.textContent = t(keyLabel.dataset.i18n);
-  }
-  const bridgeHelp = document.getElementById("gemini-bridge-help");
-  if (bridgeHelp) bridgeHelp.hidden = !isBridge;
-  document.getElementById("ai-setup-help").open = isBridge;
+  document.getElementById('ai-key-row').hidden = subscriptionSelected();
+  aiKeyInput.required = !subscriptionSelected() && providerId !== 'local';
+  renderSubscriptionAccess();
+  document.getElementById('ai-setup-help').open = false;
+  aiKeyHint.textContent = providerId === 'local' ? t('aiKeyHintLocal') : t('aiKeyHintProvider', { provider: provider.label });
+  aiKeyInput.placeholder = provider.keyPlaceholder || t('settingsKeyLabel');
 
-  if (aiKeyHint) {
-    if (isBridge) {
-      aiKeyHint.textContent = t("subscriptionBridgeSetup", provider.subscription);
-    } else if (providerId === "local") {
-      aiKeyHint.textContent = t("aiKeyHintLocal");
-    } else {
-      aiKeyHint.textContent = t("aiKeyHintProvider", { provider: provider.label });
-    }
-  }
-
-  if (aiKeyInput) {
-    aiKeyInput.placeholder = isBridge ? t("subscriptionBridgeToken") : provider.keyPlaceholder || t("settingsKeyLabel");
-  }
 }
 
 function getAiFormSettings() {
@@ -555,10 +649,11 @@ function getAiFormSettings() {
   const endpoint = aiLocalEndpoint.value.trim();
   return {
     chromeAiProvider: aiProviderSelect.value,
+    chromeAiAuthMethod: aiAuthMethod.value,
     chromeAiModel: model,
-    chromeAiApiKey: aiKeyInput.value.trim(),
-    chromeAiEndpoint: endpoint,
-    chromeAiLocalEndpoint: endpoint,
+    chromeAiApiKey: subscriptionSelected() ? '' : aiKeyInput.value.trim(),
+    chromeAiEndpoint: subscriptionSelected() ? '' : endpoint,
+    chromeAiLocalEndpoint: subscriptionSelected() ? '' : endpoint,
     chunkWindowChars: Number(chunkWindowInput.value),
     contentAnalysisMaxTokens: Number(maxTokensInput.value),
   };
@@ -567,8 +662,9 @@ function getAiFormSettings() {
 async function handleAiSave(advanced = false) {
   if (!chunkWindowInput.reportValidity() || !maxTokensInput.reportValidity()) return;
   const settings = getAiFormSettings();
-  if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t(isSubscriptionProvider(settings.chromeAiProvider) ? "subscriptionBridgeTokenRequired" : "settingsKeyRequired"), "error", advanced);
+  if (subscriptionSelected() && !subscriptionEnabled) { showAiResult(t('aiConnectionUnavailable'), 'error', advanced); return; }
+  if (!subscriptionSelected() && settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
+    showAiResult(t("settingsKeyRequired"), "error", advanced);
     aiKeyInput.focus();
     return;
   }
@@ -582,15 +678,18 @@ async function handleAiSave(advanced = false) {
     return;
   }
   saveActivePromptToState();
+  rememberProfile();
   aiSaveBtn.disabled = true;
   try {
     await chrome.storage.local.set({
       ...settings,
-      connectionMode: obsidianModeEnabled.checked ? "obsidian" : "chrome",
+      aiProfiles,
+      connectionMode: new URLSearchParams(window.location.search).has("setupApi") && !subscriptionSelected() ? "chrome" : obsidianModeEnabled.checked ? "obsidian" : "chrome",
       chromeAiEnabled: true,
       chromeAiPromptOverrides: savedPromptOverrides,
     });
-    if (!obsidianModeEnabled.checked) subscriptionDraft = null;
+
+    if (new URLSearchParams(window.location.search).has("setupApi") && !subscriptionSelected()) obsidianModeEnabled.checked = false;
     renderConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome");
     const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
     await refreshObsidianAiConfig();
@@ -598,8 +697,8 @@ async function handleAiSave(advanced = false) {
     const savedMessage = t("settingsSavedShort");
     showAiResult(`${savedMessage} ${t("testingAiConnection")}`, "ok", advanced);
     try {
-      const info = await checkCreditAI(settings);
-      showAiResult(`${savedMessage} ${formatAiCreditResult(info)}`, info.error ? "error" : "ok", advanced);
+      const info = subscriptionSelected() ? await subscriptionControl('status') : await checkCreditAI(settings);
+      showAiResult(`${savedMessage} ${subscriptionSelected() ? subscriptionStatusText(info) : formatAiCreditResult(info)}`, info.error || info.state === 'error' ? "error" : "ok", advanced);
     } catch (error) {
       showAiResult(`${savedMessage} ${t("aiError", { error: error.message })}`, "error", advanced);
     }
@@ -611,9 +710,10 @@ async function handleAiSave(advanced = false) {
 }
 
 async function handleAiTest() {
+  if (subscriptionSelected()) return;
   const settings = getAiFormSettings();
-  if (settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t(isSubscriptionProvider(settings.chromeAiProvider) ? "subscriptionBridgeTokenRequired" : "settingsKeyRequired"), "error", true);
+  if (!subscriptionSelected() && settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
+    showAiResult(t("settingsKeyRequired"), "error", true);
     aiKeyInput.focus();
     return;
   }
@@ -687,9 +787,8 @@ async function handleTest() {
       }
       let creditInfo = "";
       try {
-        const creditResp = await fetch(`http://127.0.0.1:${port}/credit`);
-        if (creditResp.ok) {
-          const credit = await creditResp.json();
+        const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
+        if (!credit.error) {
           if (credit.hasBalance && credit.balanceFormatted) {
             creditInfo = ` | 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;
           } else if (credit.providerLabel) {

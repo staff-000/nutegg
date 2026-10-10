@@ -154,3 +154,9 @@ textarea { resize: vertical; min-height: 140px; margin-top: 10px; font-family: u
   .settings-footer { gap: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+.subscription-card { grid-column: 1 / -1; border: 1px solid #d8cbbb; border-radius: 12px; padding: 16px; background: #fffefa; }
+.subscription-card[hidden], #ai-auth-row[hidden] { display: none; }
+.subscription-card p { margin: 10px 0; }
+.subscription-card[data-state="ready"] { border-color: #79a879; }
+.subscription-card[data-state="error"] { border-color: #ce7474; }

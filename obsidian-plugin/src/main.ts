@@ -1,3 +1,7 @@
+import { SubscriptionService } from './subscription-service';
+import { ConnectionAccess } from './connection-access';
+import { approveChromeConnection } from './connection-modal';
+import { migrateAISettings } from '../../shared/src/catalog';
 import { MarkdownView, Notice, Plugin } from "obsidian";
 import {
   NutEggSettings,
@@ -21,6 +25,8 @@ import { t } from "./i18n";
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
   aiClient!: AIClient;
+  subscriptions!: SubscriptionService;
+  connectionAccess!: ConnectionAccess;
   server!: NutEggServer;
   aiProcessor!: AIProcessor;
   knowledgeBase!: KnowledgeBase;
@@ -44,7 +50,10 @@ export default class NutEggPlugin extends Plugin {
 
     // Initialize workflow manager and subsystems
     this.workflowManager = new WorkflowManager(this);
-    this.aiClient = new AIClient(this.settings);
+    this.subscriptions = new SubscriptionService(this.settings.subscriptionPaths, () => this.settings.subscriptionEnabled === true);
+    this.connectionAccess = new ConnectionAccess(this.settings.chromeConnections ||= {},
+      origin => approveChromeConnection(this.app, origin), () => this.saveSettings());
+    this.aiClient = new AIClient(this.settings, this.subscriptions);
     this.aiProcessor = new AIProcessor(this);
     this.knowledgeBase = new KnowledgeBase(this);
     this.indexReader = new IndexReader(this);
@@ -114,6 +123,8 @@ export default class NutEggPlugin extends Plugin {
     this.addRibbonIcon("coins", t("ribbonCheckCredit"), async () => {
       await this.updateCreditStatusBar(true);
     });
+
+    this.registerSubscriptionCommands();
 
     // Command: Create a new egg file
     this.addCommand({
@@ -242,9 +253,28 @@ export default class NutEggPlugin extends Plugin {
     }
   }
 
-  /**
-   * Update the status bar credit item with live balance or status.
-   */
+  private registerSubscriptionCommands(): void {
+    // Off-state activation stays an advanced, generic command.
+    for (const enabled of [true, false]) this.addCommand({
+      id: enabled ? 'nutegg-enable-subscriptions' : 'nutegg-disable-subscriptions',
+      name: t(enabled ? 'subscriptionEnableCommand' : 'subscriptionDisableCommand'),
+      checkCallback: checking => {
+        if (this.settings.subscriptionEnabled === enabled) return false;
+        if (!checking) void (async () => {
+          this.settings.subscriptionEnabled = enabled;
+          if (!enabled) await this.subscriptions.cancelWork();
+          await this.saveSettings();
+          this.settingsTab?.display();
+          new Notice(t(enabled ? 'subscriptionSetupInstructions' : 'subscriptionDisabledTitle'), 12000);
+          if (enabled) this.openSettings();
+        })();
+        return true;
+      },
+    });
+
+  }
+
+  /** Update the status bar with live balance or connection status. */
   async updateCreditStatusBar(showNotice = false): Promise<void> {
     if (!this.creditStatusBarItem) return;
     const version = ++this.creditStatusVersion;
@@ -268,7 +298,15 @@ export default class NutEggPlugin extends Plugin {
     try {
       const credit = await this.aiClient.checkCredit(this.settings);
       if (version !== this.creditStatusVersion) return;
-      if (credit.hasBalance && credit.balanceFormatted) {
+      if (credit.subscriptionState === 'disabled') {
+        this.creditStatusBarItem.setText(t('aiConnectionUnavailable'));
+        this.creditStatusBarItem.setAttribute('aria-label', t('aiConnectionUnavailable'));
+      } else if (credit.subscriptionState) {
+        this.creditStatusBarItem.setText(`${t('subscriptionLabel')}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`);
+        this.creditStatusBarItem.setAttribute('aria-label', `${credit.providerLabel}: ${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')} · ${t('refresh')}`);
+        if (credit.subscriptionState !== 'ready') this.creditStatusBarItem.addClass('mod-warning');
+        if (showNotice) new Notice(`${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')}`);
+      } else if (credit.hasBalance && credit.balanceFormatted) {
         this.creditStatusBarItem.setText(`🪙 ${credit.balanceFormatted}`);
         this.creditStatusBarItem.setAttribute(
           "aria-label",
@@ -337,6 +375,7 @@ export default class NutEggPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    await this.subscriptions?.dispose();
     await this.server.stop();
     this.db.close();
     console.log("[NutEgg] Plugin unloaded");
@@ -344,7 +383,7 @@ export default class NutEggPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const data = await this.loadData() || {};
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+    this.settings = migrateAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
   }
 
   async saveSettings(): Promise<void> {

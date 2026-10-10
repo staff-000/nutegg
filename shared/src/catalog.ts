@@ -85,40 +85,7 @@ const OPENROUTER_FAMILIES: ModelFamily[] = [
   },
 ];
 
-export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
-  "codex-cli": {
-    id: "codex-cli",
-    label: "ChatGPT subscription (Codex CLI)",
-    subscription: { cli: "Codex CLI", login: "codex login" },
-    officialEndpoint: "http://127.0.0.1:27124/codex/v1/chat/completions",
-    apiFormat: "openai-compatible",
-    defaultModel: "auto",
-    models: ["auto"],
-    keyPlaceholder: "NutEgg bridge pairing token",
-    openrouterPrefix: "",
-  },
-  "claude-cli": {
-    id: "claude-cli",
-    label: "Claude subscription (Claude Code)",
-    subscription: { cli: "Claude Code", login: "claude auth login" },
-    officialEndpoint: "http://127.0.0.1:27124/claude/v1/chat/completions",
-    apiFormat: "openai-compatible",
-    defaultModel: "auto",
-    models: ["auto"],
-    keyPlaceholder: "NutEgg bridge pairing token",
-    openrouterPrefix: "",
-  },
-  "gemini-cli": {
-    id: "gemini-cli",
-    label: "Gemini subscription (local bridge)",
-    subscription: { cli: "Antigravity CLI", login: "agy" },
-    officialEndpoint: "http://127.0.0.1:27124/v1/chat/completions",
-    apiFormat: "openai-compatible",
-    defaultModel: "auto",
-    models: ["auto"],
-    keyPlaceholder: "NutEgg bridge pairing token",
-    openrouterPrefix: "",
-  },
+export const PROVIDER_CATALOG = {
   local: {
     id: "local",
     label: "Local LLM (Ollama, LM Studio, etc.)",
@@ -254,14 +221,40 @@ export const PROVIDER_CATALOG: Record<AIProviderId, ProviderInfo> = {
     keyPlaceholder: "sk-...",
     openrouterPrefix: "qwen/",
   },
-};
+} as Record<AIProviderId, ProviderInfo>;
 
-export function isSubscriptionProvider(provider?: string): boolean {
-  return provider === "gemini-cli" || provider === "codex-cli" || provider === "claude-cli";
+export function isSubscriptionProvider(provider?: string | NutEggAISettings): boolean {
+  if (typeof provider === 'object') return (provider.chromeAiAuthMethod || provider.aiAuthMethod) === 'subscription'
+    || ['codex-cli', 'claude-cli', 'gemini-cli'].includes(provider.chromeAiProvider || provider.aiProvider || '');
+  return ['codex-cli', 'claude-cli', 'gemini-cli'].includes(provider || '');
+}
+
+export function supportsSubscription(provider?: string): boolean {
+  return ['openai', 'anthropic', 'gemini'].includes(provider || '');
+}
+
+/** Idempotent migration; bridge tokens must never become provider API keys. */
+export function migrateAISettings<T extends NutEggAISettings>(settings: T): T {
+  const next: NutEggAISettings = { ...settings };
+  const aliases: Record<string, string> = { 'codex-cli': 'openai', 'claude-cli': 'anthropic', 'gemini-cli': 'gemini' };
+  for (const prefix of ['ai', 'chromeAi']) {
+    if (!next[prefix + 'Provider'] && !next[prefix + 'AuthMethod']) continue;
+    const old = next[prefix + 'Provider'];
+    if (aliases[old]) {
+      next[prefix + 'Provider'] = aliases[old];
+      next[prefix + 'AuthMethod'] = 'subscription';
+      next[prefix + 'ApiKey'] = '';
+      next[prefix + 'Endpoint'] = '';
+      if (prefix === 'chromeAi') next.chromeAiLocalEndpoint = '';
+    }
+    next[prefix + 'AuthMethod'] ||= 'apiKey';
+    if (next[prefix + 'AuthMethod'] === 'subscription') next[prefix + 'ApiKey'] = '';
+  }
+  return next as T;
 }
 
 export function findOpenRouterFamily(modelName: string): ModelFamily | undefined {
-  const families = PROVIDER_CATALOG.openrouter.families || [];
+  const families = PROVIDER_CATALOG.openrouter!.families || [];
   if (families.length === 0) return undefined;
   const exact = families.find((f) => f.models.includes(modelName));
   if (exact) return exact;
@@ -283,11 +276,12 @@ export function isAIConfigured(settings?: NutEggAISettings): boolean {
   const provider = (settings.chromeAiProvider || settings.aiProvider || "gemini") as AIProviderId;
   const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || "";
 
+  if (isSubscriptionProvider(settings)) return supportsSubscription(provider);
   if (provider === "local") {
     const localEndpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint;
     return Boolean(
       (localEndpoint && localEndpoint.trim().length > 0) ||
-        PROVIDER_CATALOG.local.officialEndpoint
+        PROVIDER_CATALOG.local!.officialEndpoint
     );
   }
   return Boolean(apiKey && apiKey.trim().length > 0);
@@ -301,6 +295,10 @@ export function resolveConfig(settings: NutEggAISettings): ResolvedConfig & {
   extraHeaders: Record<string, string>;
 } {
   const providerId = (settings.chromeAiProvider || settings.aiProvider || "anthropic") as AIProviderId;
+  if (isSubscriptionProvider(settings)) return {
+    provider: providerId, authMethod: 'subscription', endpoint: '', apiKey: '',
+    model: settings.chromeAiModel || settings.aiModel || 'auto', apiFormat: 'openai-compatible', extraHeaders: {},
+  };
   const isLocal = providerId === "local";
   const isOpenRouter = providerId === "openrouter";
 
@@ -331,7 +329,7 @@ export function resolveConfig(settings: NutEggAISettings): ResolvedConfig & {
       provider: "openrouter",
       endpoint: OPENROUTER_ENDPOINT,
       apiKey,
-      model: settings.chromeAiModel || settings.openrouterModel || settings.aiModel || PROVIDER_CATALOG.openrouter.defaultModel!,
+      model: settings.chromeAiModel || settings.openrouterModel || settings.aiModel || PROVIDER_CATALOG.openrouter!.defaultModel!,
       apiFormat: "openai-compatible",
       isLocal: false,
       extraHeaders: {
@@ -341,7 +339,7 @@ export function resolveConfig(settings: NutEggAISettings): ResolvedConfig & {
     };
   }
 
-  const catalog = PROVIDER_CATALOG[providerId] || PROVIDER_CATALOG.anthropic;
+  const catalog = PROVIDER_CATALOG[providerId] || PROVIDER_CATALOG.anthropic!;
   const model = (settings.chromeAiModel || settings.aiModel || catalog.defaultModel || "").trim();
 
   return {

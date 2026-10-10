@@ -43,6 +43,10 @@ class HeaderComponent {
       ['auth_failed', 'bridge_auth_failed', 'forbidden', 'model_not_found', 'rate_limited', 'quota_exceeded', 'network_error', 'server_error'].includes(error?.code));
     if (providerError) { this.updateServerStatus('connection-error', null, providerError.message); return; }
     const obsidianMode = settings.connectionMode === 'obsidian';
+    if (!settings.serverOnline && settings.chromeAiAuthMethod === 'subscription') { this.updateServerStatus('connection-error', null, t('aiConnectionRecovery')); return; }
+    if (settings.serverError || settings.aiStatusError) { this.updateServerStatus('connection-error', null, settings.serverError || settings.aiStatusError); return; }
+    if (settings.subscriptionState === 'error') { this.updateServerStatus('connection-error', null, t('connectionFailed')); return; }
+    if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) { this.updateServerStatus('obsidian-warning', null, t('aiConnectionSetupNeeded')); return; }
     this.updateVersion(null, obsidianMode ? settings.obsidianPluginVersion : null);
     if (!obsidianMode) {
       this.updateServerStatus(settings.chromeAiConfigured && settings.aiStatusError ? 'connection-error' : settings.chromeAiConfigured ? 'chrome-ai' : 'chrome-no-key', null, settings.aiStatusError || settings.chromeAiProvider);
@@ -150,7 +154,7 @@ class HeaderComponent {
   renderCredit(credit, serverOnline, model = null) {
     if (!this.aiCreditPill || !this.aiCreditText) return;
 
-    if (!credit || credit.error || (!serverOnline && !credit.isChromeAi)) {
+    if (!credit || credit.subscriptionState === 'disabled' || (credit.error && !credit.subscriptionState) || (!serverOnline && !credit.isChromeAi)) {
       this.aiCreditPill.classList.add("hidden");
       return;
     }
@@ -174,7 +178,11 @@ class HeaderComponent {
         ? (credit.model ? `Local (${credit.model})` : "Local LLM")
         : credit.providerLabel || credit.provider || "AI";
 
-    if (credit.hasBalance && credit.balanceFormatted) {
+    if (credit.subscriptionState) {
+      this.aiCreditText.textContent = `${providerName} · ${t('subscriptionLabel')}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`;
+      this.aiCreditPill.title = `${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')}`;
+      this.aiCreditPill.classList.toggle('has-warning', credit.subscriptionState !== 'ready');
+    } else if (credit.hasBalance && credit.balanceFormatted) {
       this.aiCreditText.textContent = `${providerName}: ${credit.balanceFormatted}`;
       this.aiCreditPill.title = t("aiCreditTooltip");
       this.aiCreditPill.classList.remove("has-warning");

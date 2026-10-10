@@ -114,6 +114,8 @@ async function initPopup() {
   for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn')]) click(button, () => {
     chrome.runtime.openOptionsPage();
   });
+  click(document.getElementById('subscription-open-obsidian'), () => chrome.tabs.create({ url: 'obsidian://open' }));
+  click(document.getElementById('subscription-api-setup'), () => chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html?setupApi=1') }));
   click(h.aiCreditPill, () => {
     h.setCheckingCredit();
     void envService.checkServerStatus(true);

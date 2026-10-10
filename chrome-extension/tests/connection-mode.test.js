@@ -4,10 +4,11 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 function worker(initial = {}, availability = {}) {
-  const stored = { ...initial }, http = [], ai = [];
+  const stored = { [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
   let listener, storageListener;
   const context = vm.createContext({
-    importScripts() {}, console: { log() {} }, TextEncoder, URL, AbortController, AbortSignal, setTimeout, clearTimeout,
+    importScripts() {}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
+    setTimeout: (callback, delay) => { timeouts.push(delay); return setTimeout(callback, delay); }, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
       normalizeAIDebugScope: value => value,
@@ -17,25 +18,28 @@ function worker(initial = {}, availability = {}) {
       askFollowUpStandalone: async (payload, question, priorQa, settings, scope) => {
         ai.push({ action: 'ask', payload, question, priorQa, settings, scope }); return 'Answer';
       },
-      isSubscriptionProvider: provider => ['gemini-cli', 'codex-cli', 'claude-cli'].includes(provider),
+      isSubscriptionProvider: value => typeof value === 'object' ? value.chromeAiAuthMethod === 'subscription' || ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value.chromeAiProvider) : ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value),
+      migrateAISettings: value => value,
     },
     chrome: {
       storage: { onChanged: { addListener(fn) { storageListener = fn; } }, local: {
         get: async keys => Object.fromEntries(keys.map(key => [key, stored[key]])),
         set: async values => Object.assign(stored, values),
+        remove: async key => { delete stored[key]; },
       } },
       action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
-      runtime: { onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } },
+      runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } },
     },
     fetch: async (url, options) => {
       http.push({ url, options });
+      if (availability.respond) return availability.respond(url, options);
       if (availability.online === false || availability.offlinePaths?.some(path => url.endsWith(path))) throw new Error('Connection refused');
       if (url.endsWith('/metrics')) return { ok: availability.metricsOk !== false, json: async () => availability.metrics || { nuts: 0, eggs: 0, timeSavedMinutes: 0 } };
       return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1' } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
     },
   });
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
-  return { stored, http, ai, change: async values => {
+  return { stored, http, ai, timeouts, change: async values => {
     const changes = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }]));
     Object.assign(stored, values);
     storageListener(changes, 'local');
@@ -61,6 +65,39 @@ test('a saved Chrome key works immediately while configuration mirroring never r
   assert(app.http.every(call => call.url.endsWith('/ai-config')), 'Only configuration mirroring may contact Obsidian');
 });
 
+test('a stale unauthorized response cannot erase a newly approved connection credential', async () => {
+  let finish;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: () => new Promise(resolve => { finish = resolve; }) });
+  const request = app.send('sync-ai-config');
+  await new Promise(resolve => setImmediate(resolve));
+  app.stored['obsidianConnection:http://127.0.0.1:27123'] = 'new-approved-credential';
+  finish({ status: 401, ok: false });
+  assert((await request).error);
+  assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], 'new-approved-credential');
+});
+
+test('approval exchanges a credential and includes extension identity on subsequent sync', async () => {
+  const key = 'obsidianConnection:http://127.0.0.1:27123';
+  const app = worker({ connectionMode: 'obsidian', [key]: undefined }, { respond: async url => ({ ok: true, json: async () =>
+    url.endsWith('/health') ? { capabilities: ['connection-approval-v1'] } :
+    url.endsWith('/connection/finish') ? { state: 'approved', credential: 'new-approved-credential' } : { success: true }
+  }) });
+  assert.equal((await app.send('connect-obsidian')).success, true);
+  assert.equal(app.stored[key], 'new-approved-credential');
+  for (const call of app.http.filter(call => !call.url.endsWith('/health'))) {
+    assert.equal(call.options.headers['X-NutEgg-Extension-Origin'], `chrome-extension://${'a'.repeat(32)}`);
+  }
+  assert.equal(app.http.at(-1).options.headers.Authorization, 'Bearer new-approved-credential');
+});
+
+test('subscription readiness and credit allow slow CLI checks without lengthening API checks', async () => {
+  for (const method of ['apiKey', 'subscription']) {
+    const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiAuthMethod: method });
+    await app.send('config-status'); await app.send('get-credit');
+    assert.deepEqual(app.timeouts, [method === 'subscription' ? 20000 : 3000, method === 'subscription' ? 20000 : 3000]);
+  }
+});
+
 test('Chrome mode guards every Obsidian-only request and uses Chrome credit', async () => {
   const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test' });
   assert.equal((await app.send('check-server')).online, false);
@@ -83,6 +120,10 @@ test('Obsidian mode routes both analysis and questions to the chosen server', as
   assert.equal((await app.send('ask', { payload: { questions: ['Why?'] } })).answers[0], 'Obsidian answer');
   assert.deepEqual(app.http.map(call => new URL(call.url).pathname), ['/health', '/ai-config', '/analyze', '/health', '/ai-config', '/ask']);
   assert(app.http.every(call => new URL(call.url).port === '27124'));
+  for (const call of app.http.filter(call => !call.url.endsWith('/health'))) {
+    assert.equal(call.options.headers['X-NutEgg-Extension-Origin'], `chrome-extension://${'a'.repeat(32)}`);
+    assert.equal(call.options.headers.Authorization, 'Bearer approved-test-credential');
+  }
   assert.equal(app.ai.length, 0);
 });
 
@@ -331,7 +372,7 @@ test('Obsidian receives Chrome AI configuration before requests and receives sub
   await app.send('analyze', { payload: { content: 'Article' } });
   const config = () => JSON.parse(app.http.filter(call => call.url.endsWith('/ai-config')).at(-1).options.body);
   assert.equal(config().aiProvider, 'codex-cli');
-  assert.equal(config().aiApiKey, 'pairing');
+  assert.equal(config().aiApiKey, '');
   assert.equal(config().chunkWindowChars, 10000);
   assert.equal(config().contentAnalysisMaxTokens, 5000);
   assert.equal(config().localApiType, 'openai');
@@ -392,4 +433,13 @@ test('reading Obsidian settings for comparison never changes them or triggers a 
   assert.equal(sent.aiApiKey, 'draft-key');
   assert.equal(app.stored.chromeAiApiKey, 'stored-key');
   assert.equal(app.ai.length, 0);
+});
+
+test('canonical subscriptions never fall back to API billing while Obsidian is offline', async () => {
+  const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiAuthMethod: 'subscription', chromeAiApiKey: 'must-not-use' }, { online: false });
+  for (const action of ['analyze', 'ask']) {
+    const result = await app.send(action, { payload: { content: 'Article', questions: ['Why?'] } });
+    assert.equal(result.errorCode, 'subscription_requires_obsidian');
+  }
+  assert.equal(app.ai.length, 0); assert.equal(app.stored.connectionMode, 'obsidian');
 });

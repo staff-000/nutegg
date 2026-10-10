@@ -8,8 +8,6 @@
     "website"
   ],
   "scripts": {
-    "bridge:ai": "node scripts/ai-bridge.mjs",
-    "bridge:gemini": "node scripts/ai-bridge.mjs",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "dev:plugin": "npm run dev --workspace=@nutegg/obsidian-plugin",
@@ -26,4 +24,3 @@
     "update:version": "node scripts/update-download-version.js"
   }
 }
-

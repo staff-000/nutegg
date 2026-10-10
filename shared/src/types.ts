@@ -17,6 +17,25 @@ export type AIProviderId =
   | "qwen";
 
 export type AISource = "official" | "openrouter";
+export type AIAuthMethod = "apiKey" | "subscription";
+export type SubscriptionProvider = "openai" | "anthropic" | "gemini";
+
+export interface SubscriptionStatus {
+  state: "disabled" | "missing" | "login_required" | "signing_in" | "unverified" | "ready" | "error";
+  message: string;
+  errorCode?: string;
+  usageRemaining?: string;
+  models?: string[];
+  loginId?: string;
+  command?: string;
+  installUrl?: string;
+  installCommand?: string;
+}
+
+export interface SubscriptionExecutor {
+  chat(provider: SubscriptionProvider, model: string, prompt: string): Promise<string>;
+  status(provider: SubscriptionProvider): Promise<SubscriptionStatus>;
+}
 
 export interface ModelFamily {
   id: string;
@@ -39,6 +58,7 @@ export interface ProviderInfo {
 }
 
 export interface ResolvedConfig {
+  authMethod?: AIAuthMethod;
   endpoint: string;
   apiKey: string;
   model: string;
@@ -48,6 +68,8 @@ export interface ResolvedConfig {
 }
 
 export interface NutEggAISettings {
+  aiAuthMethod?: AIAuthMethod;
+  chromeAiAuthMethod?: AIAuthMethod;
   aiProvider?: AIProviderId;
   aiSource?: AISource;
   aiEndpoint?: string;

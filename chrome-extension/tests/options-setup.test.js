@@ -18,13 +18,14 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
     runtime: { sendMessage: async message => { messages.push(message); return {}; }, getManifest: () => ({ version: '1.0' }) },
     tabs: { create: () => {} },
   };
-  win.fetch = async url => { requests.push(url); throw new Error('Offline'); };
+  win.fetch = async url => { requests.push(url); if (String(url).endsWith('/health')) return { ok: true, json: async () => ({ subscriptionEnabled: initial.subscriptionFeatureEnabled !== false }) }; throw new Error('Offline'); };
+  win.eval(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8'));
+  const core = win.NutEggAI;
   win.NutEggAI = {
+    migrateAISettings: core.migrateAISettings,
+    supportsSubscription: core.supportsSubscription,
     isSubscriptionProvider: provider => ['gemini-cli', 'codex-cli', 'claude-cli'].includes(provider),
     PROVIDER_CATALOG: {
-      'gemini-cli': { label: 'Gemini subscription (local bridge)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Antigravity CLI', login: 'agy' } },
-      'codex-cli': { label: 'ChatGPT subscription (Codex CLI)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Codex CLI', login: 'codex login' } },
-      'claude-cli': { label: 'Claude subscription (Claude Code)', models: ['auto'], defaultModel: 'auto', subscription: { cli: 'Claude Code', login: 'claude auth login' } },
       gemini: { label: 'Google Gemini', models: ['gemini-default', 'gemini-pro'], defaultModel: 'gemini-default', keyPlaceholder: 'AIza...' },
       openai: { label: 'OpenAI', models: ['openai-default'], defaultModel: 'openai-default' },
       local: { label: 'Local', models: ['local-model'], defaultModel: 'local-model' },
@@ -99,34 +100,21 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.deepEqual(values, {});
 });
 
-test('subscription setup uses a pairing token and clears credentials across provider boundaries', async t => {
-  const { win, values, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key' });
-  el('ai-provider-select').value = 'gemini-cli';
-  change('ai-provider-select');
-  assert.equal(el('ai-key-input').value, '');
+test('subscription shares its provider and preserves API credentials and separate model choices', async t => {
+  const { values, el, change, creditCalls, messages } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key', chromeAiModel: 'gemini-pro' });
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
   assert.equal(el('ai-model-select').value, 'auto');
-  assert.equal(el('gemini-bridge-help').hidden, false);
-  assert.equal(win.document.querySelector('label[for="ai-key-input"]').textContent, 'Local pairing token');
-  el('ai-save-btn').click();
-  await flush();
-  assert.match(el('ai-test-result').textContent, /pairing token/);
-  el('ai-key-input').value = 'local-pairing-token';
-  el('ai-save-btn').click();
-  await flush();
-  assert.equal(values.chromeAiProvider, 'gemini-cli');
-  assert.equal(values.chromeAiApiKey, 'local-pairing-token');
-  for (const provider of ['codex-cli', 'claude-cli']) {
-    el('ai-provider-select').value = provider;
-    change('ai-provider-select');
-    assert.equal(el('ai-key-input').value, 'local-pairing-token');
-    assert.equal(el('ai-model-select').value, 'auto');
-    assert.match(el('ai-key-hint').textContent, provider === 'codex-cli' ? /codex login/ : /claude auth login/);
-    assert.doesNotMatch(el('ai-key-hint').textContent, /\{cli\}|\{login\}/);
-  }
-  el('ai-provider-select').value = 'openai';
-  change('ai-provider-select');
-  assert.equal(el('ai-key-input').value, '');
-  assert.equal(el('gemini-bridge-help').hidden, true);
+  assert.equal(el('ai-key-input').value, ''); assert.equal(el('ai-key-row').hidden, true);
+  el('ai-model-select').value = '__custom__'; change('ai-model-select'); el('ai-model-custom').value = 'cli-model';
+  el('ai-save-btn').click(); await flush();
+  assert.equal(values.chromeAiProvider, 'gemini'); assert.equal(values.chromeAiAuthMethod, 'subscription');
+  assert.equal(values.chromeAiApiKey, ''); assert.equal(values.chromeAiModel, 'cli-model');
+  assert.equal(values.aiProfiles['gemini:apiKey'].apiKey, 'cloud-key'); assert.equal(creditCalls.length, 0);
+  assert(!messages.some(m => m.operation === 'test'), 'saving must not use inference');
+  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method');
+  assert.equal(el('ai-key-input').value, 'cloud-key'); assert.equal(el('ai-model-select').value, 'gemini-pro');
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  assert.equal(el('ai-model-custom').value, 'cli-model');
 });
 
 test('saving setup rejects an empty key, then persists an immediately usable Chrome configuration', async t => {
@@ -191,6 +179,7 @@ test('a provider change chooses its default model and custom models require a va
   el('ai-provider-select').value = 'openai';
   change('ai-provider-select');
   assert.equal(el('ai-model-select').value, 'openai-default');
+  el('ai-key-input').value = 'test-key';
   el('ai-model-select').value = '__custom__';
   change('ai-model-select');
   el('ai-save-btn').click();
@@ -256,28 +245,14 @@ test('chrome cache options load defaults, display cached count, save custom limi
   assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
 });
 
-test('subscription providers appear only in Obsidian mode and pairing tokens never become API keys', async t => {
-  const { values, el, change } = await setup(t, { chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token', chromeAiModel: 'auto' });
-  assert.equal(el('ai-provider-select').value, 'gemini');
-  assert.equal(el('ai-key-input').value, '');
-  assert.equal([...el('ai-provider-select').options].some(option => option.value.endsWith('-cli')), false);
-  el('obsidian-mode-enabled').checked = true;
-  change('obsidian-mode-enabled');
-  await flush();
-  assert.equal([...el('ai-provider-select').options].filter(option => option.value.endsWith('-cli')).length, 3);
-  assert.equal(el('ai-provider-select').value, 'codex-cli');
-  assert.equal(el('ai-key-input').value, 'pairing-token');
-  el('ai-provider-select').value = 'codex-cli';
-  change('ai-provider-select');
-  el('ai-key-input').value = 'new-pairing-token';
-  el('ai-save-btn').click();
-  await flush();
-  assert.equal(values.connectionMode, 'obsidian');
-  assert.equal(values.chromeAiProvider, 'codex-cli');
-  el('use-chrome-btn').click();
-  await flush();
-  assert.equal(el('ai-provider-select').value, 'gemini');
-  assert.equal(el('ai-key-input').value, '');
+test('legacy subscriptions migrate without exposing bridge tokens and the method is hidden in Chrome mode', async t => {
+  const { values, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token', chromeAiModel: 'custom-model' });
+  assert.equal(el('ai-provider-select').value, 'openai'); assert.equal(values.chromeAiProvider, 'openai');
+  assert.equal(el('ai-auth-method').value, 'subscription'); assert.equal(el('ai-key-input').value, '');
+  assert.equal([...el('ai-provider-select').options].some(o => o.value.endsWith('-cli')), false);
+  el('use-chrome-btn').click(); await flush();
+  assert.equal(el('ai-auth-row').hidden, true); assert.equal(el('ai-auth-method').value, 'apiKey');
+  assert.equal(values.chromeAiApiKey, '');
 });
 
 test('processing limits load and save in Chrome for both modes and reject invalid values', async t => {
@@ -327,4 +302,76 @@ test('Obsidian AI card displays the actual configuration and colors matching and
   win.chrome.runtime.sendMessage = async () => ({ error: 'Offline' });
   await win.refreshObsidianAiConfig();
   assert.equal(el('obsidian-ai-config').classList.contains('hidden'), true, 'Offline reads cannot retain a misleading green match');
+});
+
+
+test('Chrome hides every subscription control when Obsidian has not enabled the feature', async t => {
+  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiApiKey: 'api-key' });
+  assert.equal(el('ai-auth-method').querySelector('option[value="subscription"]').disabled, true);
+  assert.equal(el('ai-auth-row').hidden, true);
+  assert.equal(el('subscription-card').hidden, true);
+  assert.equal(el('subscription-guide'), null);
+  assert.equal(el('subscription-login'), null);
+});
+
+
+test('Obsidian opt-in exposes the Chrome connection selector with no account setup instructions', async t => {
+  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'key' });
+  assert.equal(el('ai-auth-row').hidden, false);
+  assert.equal(el('ai-auth-method').querySelector('option[value="subscription"]').disabled, false);
+  assert.equal(el('subscription-guide'), null);
+  assert.equal(el('subscription-install'), null);
+  assert.equal(el('subscription-login'), null);
+  assert.equal(el('subscription-test'), null);
+});
+
+
+test('disabled saved account config shows an API draft without changing saved execution or losing preferences', async t => {
+  const { el, values } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiAuthMethod: 'subscription', chromeAiModel: 'cli-custom', aiProfiles: { 'gemini:apiKey': { apiKey: 'retained-key', model: 'gemini-pro' } } });
+  assert.equal(el('ai-auth-row').hidden, true);
+  assert.equal(el('ai-key-row').hidden, false);
+  assert.equal(el('ai-key-input').value, 'retained-key');
+  assert.equal(values.chromeAiAuthMethod, 'subscription');
+  assert.equal(el('subscription-card').hidden, true);
+});
+
+test('Chrome refreshes AI readiness after Obsidian setup completes without overlapping slow checks', async t => {
+  const { win, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'key' });
+  Object.defineProperty(win.document, 'hidden', { value: false });
+  const timers = new Map(); let timerId = 0;
+  win.setTimeout = (callback, delay) => { timers.set(++timerId, { callback, delay }); return timerId; };
+  win.clearTimeout = id => timers.delete(id);
+  let finishStatus, checks = 0;
+  win.chrome.runtime.sendMessage = async message => {
+    if (message.operation === 'status') {
+      checks++;
+      return new Promise(resolve => { finishStatus = resolve; });
+    }
+    return { models: ['auto', 'account-model'] };
+  };
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  assert.equal(checks, 1);
+  assert.equal([...timers.values()].filter(timer => timer.delay === 5000).length, 0);
+  finishStatus({ state: 'error' }); await flush();
+  assert.match(el('subscription-status').textContent, /unavailable/i);
+  const poll = [...timers.values()].find(timer => timer.delay === 5000);
+  assert(poll); poll.callback();
+  assert.equal(checks, 2);
+  finishStatus({ state: 'ready' }); await flush();
+  assert.equal(el('subscription-status').textContent, 'Connected');
+  assert.equal(el('subscription-card').dataset.state, 'ready');
+  assert.equal(el('ai-model-select').value, 'auto');
+});
+
+test('concurrent health checks share parsed data without losing the enabled connection selector', async t => {
+  const { win, el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true });
+  let finish, calls = 0;
+  win.fetch = async () => { calls++; return new Promise(resolve => { finish = resolve; }); };
+  const first = win.refreshSubscriptionAccess();
+  const second = win.refreshSubscriptionAccess();
+  finish(new Response(JSON.stringify({ subscriptionEnabled: true }), { status: 200 }));
+  await Promise.all([first, second]);
+  assert.equal(calls, 1);
+  assert.equal(el('ai-auth-row').hidden, false);
+  assert.equal(el('ai-auth-method').querySelector('option[value="subscription"]').disabled, false);
 });

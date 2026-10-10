@@ -316,6 +316,26 @@ describe("Modular UI Components", () => {
     assert.equal(header.tooltipSub.textContent, 'Invalid API key');
   });
 
+  it("Subscription setup is amber, failures are red, and offline never falls back", () => {
+    const header = new HeaderComponent(createMockRoot());
+    const settings = { connectionMode: 'obsidian', environmentChecked: true, serverOnline: true, obsidianAiConfigured: true, chromeAiAuthMethod: 'subscription' };
+    for (const state of ['disabled', 'missing', 'login_required', 'signing_in', 'unverified']) {
+      settings.subscriptionState = state;
+      header.render({}, settings);
+      assert.equal(header.serverStatus.className, 'status-dot warning');
+    }
+    settings.subscriptionState = 'ready';
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot online');
+    settings.subscriptionState = 'error';
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot offline');
+    settings.subscriptionState = 'ready'; settings.serverOnline = false; settings.chromeAiConfigured = true;
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot offline');
+    assert.equal(header.tooltipSub.textContent, t('aiConnectionRecovery'));
+  });
+
   it("Header shows confirmed analysis or question provider failures in red without leaking across tabs", () => {
     const header = new HeaderComponent(createMockRoot());
     const settings = new SettingsState();
@@ -1419,6 +1439,19 @@ describe("Modular UI Components", () => {
     qa.setScope("within");
     assert.strictEqual(qa.getScope(), "within");
     assert.strictEqual(selectElem.value, "within");
+  });
+
+  it("Subscription credit pill names the connection and shows only reported usage", () => {
+    const header = new HeaderComponent(createMockRoot());
+    header.renderCredit({ provider: 'openai', subscriptionState: 'ready', statusText: 'Connected', usageRemaining: '75% left (5h)' }, true);
+    assert.equal(header.aiCreditText.textContent, `OpenAI · ${t('subscriptionLabel')} · 75% left (5h)`);
+    header.renderCredit({ provider: 'gemini', subscriptionState: 'unverified', statusText: 'Needs verification' }, true);
+    assert.equal(header.aiCreditText.textContent, `Gemini · ${t('subscriptionLabel')}`);
+    assert(header.aiCreditPill.title.includes(t('subscriptionUsageUnavailable')));
+    header.renderCredit({ provider: 'openai', subscriptionState: 'disabled', statusText: 'AI connection unavailable' }, true);
+    assert.equal(header.aiCreditPill.classList.contains('hidden'), true);
+    header.renderCredit({ provider: 'openai', subscriptionState: 'error', error: 'Quota exceeded', statusText: 'Quota exceeded' }, true);
+    assert.equal(header.aiCreditPill.classList.contains('hidden'), false);
   });
 
   it("HeaderComponent.renderCredit renders Obsidian AI credit and Chrome AI credit properly", () => {

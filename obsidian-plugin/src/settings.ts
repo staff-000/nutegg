@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, type ButtonComponent } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, type ButtonComponent } from "obsidian";
 import type NutEggPlugin from "./main";
 import {
   type AIProviderId,
@@ -7,12 +7,17 @@ import {
   isAIConfigured,
 } from "./ai-client";
 import { t } from "./i18n";
+import type { SubscriptionProvider } from "../../shared/src/types";
 
 export type LocalApiType = "openai" | "ollama";
 
 export interface NutEggSettings {
   /** Show advanced server configuration */
   developerMode: boolean;
+  subscriptionEnabled: boolean;
+  aiAuthMethod?: 'apiKey' | 'subscription';
+  chromeConnections?: Record<string, string>;
+  subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'gemini', string>>;
   /** Which model family to use */
   aiProvider: AIProviderId;
   /** Legacy API source (kept optional for backwards compatibility with saved data) */
@@ -45,6 +50,8 @@ export interface NutEggSettings {
 
 export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
+  subscriptionEnabled: false,
+  aiAuthMethod: "apiKey",
   aiProvider: "anthropic",
   aiApiKey: "",
   aiModel: PROVIDER_CATALOG.anthropic.defaultModel!,
@@ -66,6 +73,8 @@ export class NutEggSettingTab extends PluginSettingTab {
   private aiMaxTokens: Setting | null = null;
   private aiCreditButton: ButtonComponent | null = null;
   private aiCreditRequest = 0;
+  private setupTimer?: ReturnType<typeof setTimeout>;
+  private setupRequest = 0;
 
   constructor(app: App, plugin: NutEggPlugin) {
     super(app, plugin);
@@ -76,6 +85,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const settings = this.plugin.settings;
 
+    clearTimeout(this.setupTimer); ++this.setupRequest;
     containerEl.empty();
     this.aiConfigSummary = null;
     this.aiChunkWindow = null;
@@ -83,6 +93,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiCreditButton = null;
     ++this.aiCreditRequest;
     containerEl.createEl("h2", { text: t("settingsTitle") });
+    if (settings.subscriptionEnabled) this.displaySubscriptionSetup(containerEl);
 
     if (!isAIConfigured(settings)) {
       const banner = containerEl.createDiv({
@@ -210,7 +221,7 @@ export class NutEggSettingTab extends PluginSettingTab {
   refreshAISettings(): void {
     const settings = this.plugin.settings;
     const provider = PROVIDER_CATALOG[settings.aiProvider];
-    this.aiConfigSummary?.setName(`${provider?.label || settings.aiProvider} · ${settings.aiModel}`);
+    this.aiConfigSummary?.setName(`${provider?.label || settings.aiProvider} · ${t(settings.aiAuthMethod === "subscription" ? settings.subscriptionEnabled ? "subscriptionLabel" : "aiConnectionUnavailable" : "subscriptionApiKey")} · ${settings.aiModel}`);
     this.aiChunkWindow?.setName(`${t("chunkWindowChars")}: ${settings.chunkWindowChars}`);
     this.aiMaxTokens?.setName(`${t("maxTokens")}: ${settings.contentAnalysisMaxTokens}`);
     if (this.aiCreditButton) void this.refreshAICredit();
@@ -228,14 +239,97 @@ export class NutEggSettingTab extends PluginSettingTab {
     try {
       const credit = await this.plugin.aiClient.checkCredit(this.plugin.settings);
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
-      const label = credit.balanceFormatted || credit.statusText.split(" · ")[0];
-      button.setButtonText(`🪙 ${label}`).setTooltip(`${credit.providerLabel}: ${credit.statusText} · ${t("refresh")}`);
+      const label = credit.subscriptionState === 'disabled' ? t('aiConnectionUnavailable') : credit.subscriptionState ? `${t("subscriptionLabel")}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ""}` : credit.balanceFormatted || credit.statusText.split(" · ")[0];
+      button.setButtonText(credit.subscriptionState ? label : `🪙 ${label}`).setTooltip(`${credit.providerLabel}: ${credit.statusText} · ${t("refresh")}`);
     } catch (error) {
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
       button.setButtonText(`🪙 ${t("refresh")}`).setTooltip(t("creditCheckFailed", { error: String(error) }));
     } finally {
       if (request === this.aiCreditRequest && button === this.aiCreditButton) button.setDisabled(false);
     }
+  }
+
+  hide(): void { clearTimeout(this.setupTimer); ++this.setupRequest; }
+
+  private displaySubscriptionSetup(containerEl: HTMLElement): void {
+    containerEl.createEl('h3', { text: t('subscriptionEnabledTitle') });
+    containerEl.createEl('p', { text: t('subscriptionAccountSetup') });
+    let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
+      ? this.plugin.settings.aiProvider as SubscriptionProvider : 'openai';
+    let feedback: { text: string; error?: boolean } | undefined;
+    const controls = containerEl.createDiv();
+    const refresh = async () => {
+      clearTimeout(this.setupTimer);
+      const request = ++this.setupRequest;
+      const current = provider;
+      controls.empty(); controls.createEl('p', { text: t('checking') });
+      let status;
+      try { status = await this.plugin.subscriptions.status(current); }
+      catch (error) { status = { state: 'error' as const, message: String(error) }; }
+      if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || !controls.isConnected) return;
+      controls.empty();
+      new Setting(controls).setName(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
+      if (status.installUrl) controls.createEl('a', { text: t('subscriptionInstall'), href: status.installUrl, attr: { target: '_blank', rel: 'noopener noreferrer' } });
+      const command = status.installCommand || status.command;
+      if (command) {
+        controls.createEl('pre').createEl('code', { text: command });
+        new Setting(controls).addButton(button => button.setButtonText(t('subscriptionCopy')).onClick(() => { void navigator.clipboard.writeText(command).catch(() => new Notice(command)); }));
+      }
+      const actions = new Setting(controls);
+      const result = controls.createEl('p', { attr: { role: 'status', 'aria-live': 'polite' } });
+      const showFeedback = () => {
+        result.setText(feedback?.text || '');
+        result.style.color = feedback?.error ? 'var(--text-error)' : 'var(--text-success)';
+      };
+      showFeedback();
+      const buttons: ButtonComponent[] = [];
+      const action = (label: Parameters<typeof t>[0], task: () => Promise<unknown>) => actions.addButton(button => {
+        buttons.push(button);
+        button.setButtonText(t(label)).onClick(async () => {
+          clearTimeout(this.setupTimer);
+          for (const item of buttons) item.setDisabled(true);
+          result.setText(t(label === 'subscriptionTest' ? 'subscriptionTesting' : 'checking'));
+          result.style.color = 'var(--text-muted)';
+          try {
+            const outcome = await task() as { state?: string; message?: string } | undefined;
+            if (request !== this.setupRequest) return;
+            if (label === 'subscriptionTest') {
+              feedback = outcome?.state === 'ready'
+                ? { text: t('subscriptionTestPassed') }
+                : { text: outcome?.message || t('aiConnectionUnavailable'), error: true };
+              new Notice(feedback.text);
+            } else feedback = undefined;
+          } catch (error) {
+            if (request !== this.setupRequest) return;
+            feedback = { text: String(error), error: true };
+            new Notice(feedback.text);
+          } finally {
+            if (request === this.setupRequest) { showFeedback(); await refresh(); }
+          }
+        });
+      });
+      action('refresh', () => Promise.resolve());
+      if (!['missing', 'signing_in', 'ready'].includes(status.state)) {
+        action('subscriptionSignIn', () => this.plugin.subscriptions.startLogin(current));
+        if (current === 'openai') action('subscriptionDevice', () => this.plugin.subscriptions.startLogin(current, true));
+      }
+      if (status.loginId) action('cancel', () => this.plugin.subscriptions.cancelLogin(current));
+      if (!['missing', 'signing_in'].includes(status.state)) {
+        action('subscriptionTest', () => this.plugin.subscriptions.test(current,
+          this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription' ? this.plugin.settings.aiModel || 'auto' : 'auto'));
+        controls.createEl('p', { text: t('subscriptionTestHint') });
+      }
+      controls.createEl('a', { text: t('subscriptionManage'), href: {
+        openai: 'https://learn.chatgpt.com/docs/auth', anthropic: 'https://code.claude.com/docs/en/authentication', gemini: 'https://antigravity.google/docs/cli/install',
+      }[current], attr: { target: '_blank', rel: 'noopener noreferrer' } });
+      if (status.loginId || status.state === 'signing_in') this.setupTimer = setTimeout(() => { void refresh(); }, 3000);
+    };
+    new Setting(containerEl).setName(t('subscriptionAccountProvider')).addDropdown(dropdown => {
+      for (const id of ['openai', 'anthropic', 'gemini'] as const) dropdown.addOption(id, PROVIDER_CATALOG[id].label);
+      dropdown.setValue(provider).onChange(value => { provider = value as SubscriptionProvider; feedback = undefined; void refresh(); });
+    });
+    containerEl.appendChild(controls);
+    void refresh();
   }
 
   private displayAdvancedSettings(
@@ -254,6 +348,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiChunkWindow = new Setting(containerEl);
     this.aiMaxTokens = new Setting(containerEl);
     this.refreshAISettings();
+
+    if (settings.subscriptionEnabled) for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
+      new Setting(containerEl).setName(`${PROVIDER_CATALOG[provider].label} · ${t('subscriptionPath')}`)
+        .setDesc(t('subscriptionPathHint')).addText(text => text.setValue(settings.subscriptionPaths?.[provider] || '')
+          .onChange(async value => { (settings.subscriptionPaths ||= {})[provider] = value.trim(); await this.plugin.saveSettings(); }));
+    }
 
     // ==========================================
     // Server

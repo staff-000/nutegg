@@ -1,3 +1,6 @@
+import { ConnectionAccess } from './connection-access';
+import { supportsSubscription } from '../../shared/src/catalog';
+import type { SubscriptionProvider } from '../../shared/src/types';
 import { normalizeDiscussion } from "../../shared/src/discussion";
 import { getVideoIdentity, normalizeContentUrl } from "../../shared/src/content-url";
 import { getAIDebugInfo, normalizeAIDebugScope } from "../../shared/src/ai-diagnostics";
@@ -241,6 +244,14 @@ export class NutEggServer {
     }
 
     this.server = http.createServer(async (req, res) => {
+      // Validate Host and Origin before dispatch, including preflight.
+      const requestOrigin = req.headers.origin;
+      const extensionOrigin = req.headers['x-nutegg-extension-origin'];
+      if (!/^127\.0\.0\.1:\d+$/.test(req.headers.host || '') ||
+        (extensionOrigin !== undefined && (typeof extensionOrigin !== 'string' || !ConnectionAccess.validOrigin(extensionOrigin) || (requestOrigin && extensionOrigin !== requestOrigin))) ||
+        (requestOrigin && !ConnectionAccess.validOrigin(requestOrigin) && requestOrigin !== 'app://obsidian.md')) {
+        res.writeHead(403); res.end('Forbidden host or origin'); return;
+      }
       // CORS headers for Chrome extension and local tooling only
       const origin = req.headers.origin as string | undefined;
       const isAllowedOrigin =
@@ -257,7 +268,7 @@ export class NutEggServer {
       }
 
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-NutEgg-Extension-Version");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-NutEgg-Extension-Version, X-NutEgg-Extension-Origin");
 
       if (req.method === "OPTIONS") {
         if (origin && !isAllowedOrigin) {
@@ -271,10 +282,45 @@ export class NutEggServer {
       }
 
       try {
+        const clientOrigin = requestOrigin || extensionOrigin as string | undefined;
+        if (req.method === 'POST' && ['/connection/start', '/connection/finish'].includes(req.url || '')) {
+          if (!ConnectionAccess.validOrigin(clientOrigin) || !req.headers['content-type']?.startsWith('application/json')) {
+            res.writeHead(403); res.end('Chrome connection required'); return;
+          }
+          const data = JSON.parse(await this.readBody(req, 4096));
+          const access = this.plugin.connectionAccess;
+          const result = req.url === '/connection/start' ? access.start(clientOrigin, data.nonce) : access.finish(clientOrigin, data.nonce);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result)); return;
+        }
+        if (req.url !== '/health' && !this.plugin.connectionAccess?.authorized(clientOrigin, req.headers.authorization)) {
+          res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Connect NutEgg Chrome in Obsidian first.', errorCode: 'connection_required' })); return;
+        }
+        if (req.method === 'POST' && req.url?.startsWith('/subscription/')) {
+          const data = JSON.parse(await this.readBody(req, 4096));
+          if (!supportsSubscription(data.provider)) { res.writeHead(400); res.end('Invalid provider'); return; }
+          const provider = data.provider as SubscriptionProvider;
+          if (!this.plugin.settings.subscriptionEnabled) {
+            res.writeHead(403); res.end(JSON.stringify({ state: 'disabled', errorCode: 'subscription_disabled', error: 'AI connection unavailable.' })); return;
+          }
+          const service = this.plugin.subscriptions;
+          let result: any;
+          switch (req.url) {
+            case '/subscription/status': result = await service.status(provider); break;
+            case '/subscription/models': result = { models: await service.models(provider) }; break;
+            case '/subscription/login/start': result = await service.startLogin(provider, data.device === true); break;
+            case '/subscription/login/status': result = await service.status(provider); break;
+            case '/subscription/login/cancel': await service.cancelLogin(provider); result = await service.status(provider); break;
+            case '/subscription/test': result = await service.test(provider, data.model || 'auto'); break;
+            default: res.writeHead(404); res.end('Not found'); return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result)); return;
+        }
         if (req.method === "GET" && req.url === "/health") {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
             status: "ok",
+            capabilities: ["subscription-v1", "connection-approval-v1"],
+            subscriptionEnabled: this.plugin.settings.subscriptionEnabled === true,
             port: this.port,
             version: this.plugin.manifest?.version || "",
             timestamp: Date.now(),
@@ -352,8 +398,8 @@ export class NutEggServer {
       } catch (err: any) {
         console.error("[NutEgg] Unhandled server error:", err);
         if (!res.headersSent) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err?.message || "Internal server error" }));
+          res.writeHead(err?.statusCode || err?.status || 500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err?.message || "Internal server error", errorCode: err?.code || "server_error" }));
         }
       }
     });
@@ -379,6 +425,7 @@ export class NutEggServer {
     let chromeConfig: any;
     try {
       chromeConfig = JSON.parse(await this.readBody(req, 64 * 1024));
+      if (chromeConfig && typeof chromeConfig === "object") chromeConfig.aiAuthMethod ||= "apiKey";
       if (!chromeConfig || typeof chromeConfig !== "object" || Array.isArray(chromeConfig)) throw new Error("Invalid configuration");
     } catch {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -390,6 +437,7 @@ export class NutEggServer {
     const settings = this.plugin.settings;
     const aiConfig = {
       aiProvider: settings.aiProvider,
+      aiAuthMethod: settings.aiAuthMethod || "apiKey",
       aiModel: settings.aiModel,
       chunkWindowChars: settings.chunkWindowChars,
       contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
@@ -411,7 +459,10 @@ export class NutEggServer {
     let config: any;
     try {
       config = JSON.parse(await this.readBody(req, 64 * 1024));
-      if (!config || !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider)
+      if (config && typeof config === "object") config.aiAuthMethod ||= "apiKey";
+      if (!config || !["apiKey", "subscription"].includes(config.aiAuthMethod)
+        || (config.aiAuthMethod === "subscription" && !supportsSubscription(config.aiProvider))
+        || !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider)
         || typeof config.aiApiKey !== "string" || typeof config.aiModel !== "string"
         || typeof config.localEndpoint !== "string" || config.localApiType !== "openai"
         || !Number.isSafeInteger(config.chunkWindowChars) || config.chunkWindowChars < 1000
@@ -423,10 +474,14 @@ export class NutEggServer {
       res.end(JSON.stringify({ error: "Invalid AI configuration" }));
       return;
     }
+    if (config.aiAuthMethod === 'subscription' && !this.plugin.settings.subscriptionEnabled) {
+      res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return;
+    }
     const settings = this.plugin.settings;
     const next = {
       aiProvider: config.aiProvider,
-      aiApiKey: config.aiApiKey.trim(),
+      aiAuthMethod: config.aiAuthMethod,
+      aiApiKey: config.aiAuthMethod === "subscription" ? "" : config.aiApiKey.trim(),
       aiModel: config.aiModel.trim(),
       localEndpoint: config.localEndpoint.trim(),
       localApiType: config.localApiType,
@@ -438,6 +493,7 @@ export class NutEggServer {
         const previous = Object.fromEntries(Object.keys(next).map(key => [key, (settings as any)[key]]));
         // Keep the settings object used by AIClient and AIProcessor alive.
         Object.assign(settings, next);
+        if (previous.aiModel !== next.aiModel && supportsSubscription(next.aiProvider)) this.plugin.subscriptions?.clearModelFailure(next.aiProvider as SubscriptionProvider);
         try { await this.plugin.saveSettings(); }
         catch (error) { Object.assign(settings, previous); throw error; }
       }

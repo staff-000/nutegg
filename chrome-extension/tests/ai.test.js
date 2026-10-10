@@ -39,68 +39,35 @@ const {
   AIProcessor,
 } = NutEggAI;
 
-test('Gemini subscription uses only the local bridge in Chrome and Obsidian', async () => {
-  for (const settings of [
-    { chromeAiProvider: 'gemini-cli', chromeAiApiKey: 'pairing-token', chromeAiEndpoint: 'https://ignored.example' },
-    { aiProvider: 'gemini-cli', aiApiKey: 'pairing-token' },
-  ]) {
-    const config = resolveConfig(settings);
-    assert.equal(config.endpoint, 'http://127.0.0.1:27124/v1/chat/completions');
-    assert.equal(config.model, 'auto');
-    assert.equal(config.apiKey, 'pairing-token');
-    assert.equal(NutEggAI.isAIConfigured(settings), true);
+test('subscription migration strips bridge credentials and is idempotent', async () => {
+  for (const [old, provider] of [['gemini-cli', 'gemini'], ['codex-cli', 'openai'], ['claude-cli', 'anthropic']]) {
+    for (const prefix of ['ai', 'chromeAi']) {
+      const settings = NutEggAI.migrateAISettings({ [prefix + 'Provider']: old, [prefix + 'ApiKey']: 'bridge-secret', [prefix + 'Model']: 'custom-model' });
+      assert.equal(settings[prefix + 'Provider'], provider);
+      assert.equal(settings[prefix + 'AuthMethod'], 'subscription');
+      assert.equal(settings[prefix + 'ApiKey'], '');
+      assert.equal(settings[prefix + 'Model'], 'custom-model');
+      assert.deepEqual(NutEggAI.migrateAISettings(settings), settings);
+      const config = resolveConfig(settings);
+      assert.equal(config.endpoint, ''); assert.equal(config.apiKey, '');
+      assert.equal(NutEggAI.isAIConfigured(settings), true);
+      await assert.rejects(NutEggAI.chatAI('test', 100, config), error => error.code === 'subscription_requires_obsidian');
+    }
   }
-  assert.equal(NutEggAI.isAIConfigured({ chromeAiProvider: 'gemini-cli' }), false);
-  const originalFetch = globalThis.fetch;
-  try {
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, 'http://127.0.0.1:27124/v1/chat/completions');
-      assert.equal(init.headers.Authorization, 'Bearer pairing-token');
-      return new Response(JSON.stringify({ error: { message: 'Sign in with Google in Gemini CLI.' } }), { status: 401 });
-    };
-    await assert.rejects(NutEggAI.chatAI('test', 100, resolveConfig({ aiProvider: 'gemini-cli', aiApiKey: 'pairing-token' })),
-      error => error.code === 'bridge_auth_failed' && error.message === 'Sign in with Google in Gemini CLI.');
-    globalThis.fetch = async () => new Response('{}', { status: 401 });
-    const credit = await NutEggAI.checkCreditAI({ aiProvider: 'gemini-cli', aiApiKey: 'wrong' });
-    assert.match(credit.error, /Pairing token/);
-    globalThis.fetch = async () => { throw new Error('offline'); };
-    const offline = await NutEggAI.checkCreditAI({ aiProvider: 'gemini-cli', aiApiKey: 'pairing-token' });
-    assert.match(offline.error, /bridge:ai/);
-  } finally { globalThis.fetch = originalFetch; }
+  const api = NutEggAI.migrateAISettings({ aiProvider: 'openai', aiApiKey: 'api-secret' });
+  assert.equal(api.aiAuthMethod, 'apiKey'); assert.equal(api.aiApiKey, 'api-secret');
 });
 
-test('ChatGPT and Claude subscriptions resolve to separate authenticated localhost routes', async () => {
-  const originalFetch = globalThis.fetch;
-  try {
-    for (const [provider, route] of [['codex-cli', 'codex'], ['claude-cli', 'claude']]) {
-      const settings = { aiProvider: provider, aiApiKey: 'pairing-token' };
-      const endpoint = `http://127.0.0.1:27124/${route}/v1/chat/completions`;
-      for (const input of [settings, { chromeAiProvider: provider, chromeAiApiKey: 'pairing-token' }]) {
-        assert.equal(resolveConfig(input).endpoint, endpoint);
-        assert.equal(resolveConfig(input).model, 'auto');
-        assert.equal(NutEggAI.isAIConfigured(input), true);
-      }
-      globalThis.fetch = async (url, init) => {
-        assert.equal(url, endpoint);
-        assert.equal(init.headers.Authorization, 'Bearer pairing-token');
-        return new Response(JSON.stringify({ choices: [{ message: { content: 'Summary' } }] }));
-      };
-      assert.equal(await NutEggAI.chatAI('test', 100, resolveConfig(settings)), 'Summary');
-      globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'Sign in with your subscription account.' } }), { status: 401 });
-      await assert.rejects(NutEggAI.chatAI('test', 100, resolveConfig(settings)),
-        error => error.code === 'bridge_auth_failed' && error.message === 'Sign in with your subscription account.');
-      globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'Invalid bridge pairing token.' } }), { status: 401 });
-      await assert.rejects(NutEggAI.chatAI('test', 100, resolveConfig(settings)),
-        error => error.code === 'bridge_auth_failed' && error.message === 'Invalid bridge pairing token.');
-      globalThis.fetch = async () => new Response('{}', { status: 401 });
-      await assert.rejects(NutEggAI.chatAI('test', 100, resolveConfig(settings)),
-        error => error.code === 'bridge_auth_failed' && !error.message.includes('API key'));
-      await assert.rejects(NutEggAI.chatAI('test', 100, resolveConfig({ aiProvider: provider })),
-        error => error.code === 'pairing_token_missing');
-      globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: 'Sign in with your subscription account.' } }), { status: 401 });
-      assert.equal((await NutEggAI.checkCreditAI(settings)).error, 'Sign in with your subscription account.');
-    }
-  } finally { globalThis.fetch = originalFetch; }
+test('subscription requests use only the injected executor and status consumes no inference', async () => {
+  let calls = 0;
+  const settings = { aiProvider: 'openai', aiAuthMethod: 'subscription', aiModel: 'custom-model' };
+  const client = new NutEggAI.AIClient(settings, {
+    chat: async (provider, model, prompt) => { calls++; assert.equal(provider, 'openai'); assert.equal(model, 'custom-model'); return 'Summary'; },
+    status: async () => ({ state: 'ready', message: 'Connected through Codex' }),
+  });
+  const status = await client.checkCredit(settings);
+  assert.equal(status.hasBalance, false); assert.equal(status.subscriptionState, 'ready'); assert.equal(calls, 0);
+  assert.equal(await client.chat('test', 100), 'Summary'); assert.equal(calls, 1);
 });
 
 test("AI Processor - renderPrompt", () => {

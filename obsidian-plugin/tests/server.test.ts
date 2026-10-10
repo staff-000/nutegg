@@ -998,7 +998,7 @@ it('discussion capture snapshot excludes unselected comments and preserves selec
 
 describe("Chrome AI configuration sync", () => {
   const config = {
-    aiProvider: "codex-cli", aiApiKey: " pairing-token ", aiModel: " auto ",
+    aiProvider: "openai", aiAuthMethod: "subscription", aiApiKey: "", aiModel: " auto ",
     localEndpoint: "http://localhost:11434/v1/chat/completions", localApiType: "openai",
     chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000,
     serverPort: 1234, rawFolder: "other-folder", developerMode: true,
@@ -1009,14 +1009,15 @@ describe("Chrome AI configuration sync", () => {
   it("mirrors only AI fields, preserves settings references, and skips repeated saves", async () => {
     let saves = 0;
     const s = makeServer({ saveSettings: async () => { saves++; } });
+    s.plugin.settings.subscriptionEnabled = true;
     const original = s.plugin.settings;
     s.readBody = async () => JSON.stringify(config);
     const res = response();
     await s.handleAiConfig(request, res);
     assert.equal(res.statusCode, 200);
     assert.equal(s.plugin.settings, original);
-    assert.equal(original.aiProvider, "codex-cli");
-    assert.equal(original.aiApiKey, "pairing-token");
+    assert.equal(original.aiProvider, "openai");
+    assert.equal(original.aiApiKey, "");
     assert.equal(original.aiModel, "auto");
     assert.equal(original.chunkWindowChars, 12000);
     assert.equal(original.contentAnalysisMaxTokens, 6000);
@@ -1026,11 +1027,21 @@ describe("Chrome AI configuration sync", () => {
     assert.doesNotMatch(res.body, /pairing-token/);
     await s.handleAiConfig(request, response());
     assert.equal(saves, 1);
-    s.readBody = async () => JSON.stringify({ ...config, aiProvider: "local", aiApiKey: "", aiModel: "local-model" });
+    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: "apiKey", aiProvider: "local", aiApiKey: "", aiModel: "local-model" });
     await s.handleAiConfig(request, response());
     assert.equal(original.aiApiKey, "");
     assert.equal(original.aiProvider, "local");
     assert.equal(saves, 2);
+  });
+
+  it("Chrome cannot enable subscriptions through configuration sync", async () => {
+    const s = makeServer({ settings: { subscriptionEnabled: false }, saveSettings: async () => {} });
+    s.readBody = async () => JSON.stringify({ ...config, subscriptionEnabled: true });
+    let res = response(); await s.handleAiConfig(request, res);
+    assert.equal(res.statusCode, 403); assert.equal(s.plugin.settings.subscriptionEnabled, false);
+    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: 'apiKey', aiApiKey: 'test-api-key', subscriptionEnabled: true });
+    res = response(); await s.handleAiConfig(request, res);
+    assert.equal(res.statusCode, 200); assert.equal(s.plugin.settings.subscriptionEnabled, false);
   });
 
   it("rejects invalid providers and limits without changing configuration", async () => {
@@ -1058,6 +1069,7 @@ describe("Chrome AI configuration sync", () => {
   it("restores old settings when saving fails and allows a later retry", async () => {
     let fail = true;
     const s = makeServer({ saveSettings: async () => { if (fail) throw new Error("Disk failure"); } });
+    s.plugin.settings.subscriptionEnabled = true;
     const before = { ...s.plugin.settings };
     s.readBody = async () => JSON.stringify(config);
     await assert.rejects(s.handleAiConfig(request, response()), /Disk failure/);
@@ -1067,13 +1079,13 @@ describe("Chrome AI configuration sync", () => {
     const res = response();
     await s.handleAiConfig(request, res);
     assert.equal(res.statusCode, 200);
-    assert.equal(s.plugin.settings.aiProvider, "codex-cli");
+    assert.equal(s.plugin.settings.aiProvider, "openai");
   });
 });
 
 describe('Obsidian AI configuration comparison', () => {
   it('compares provider, model, credentials and limits without exposing keys or changing settings', async () => {
-    const config = { aiProvider: 'gemini', aiApiKey: 'secret-key', aiModel: 'gemini-model', chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000 };
+    const config = { aiAuthMethod: 'apiKey', aiProvider: 'gemini', aiApiKey: 'secret-key', aiModel: 'gemini-model', chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000 };
     const s = makeServer({ settings: { ...config, rawFolder: 'nutegg/_raw' } });
     const request = { headers: { origin: 'chrome-extension://nutegg', 'content-type': 'application/json' } };
     for (const change of [{}, { aiProvider: 'deepseek' }, { aiModel: 'other-model' }, { aiApiKey: 'other-key' }, { chunkWindowChars: 30000 }, { contentAnalysisMaxTokens: 8000 }]) {

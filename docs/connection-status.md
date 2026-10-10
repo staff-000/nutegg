@@ -2,7 +2,7 @@
 
 Chrome is the source of AI settings. Obsidian uses the synced provider, model,
 credentials, chunk window size and completion token limit. Subscription providers
-require Obsidian mode and its local bridge.
+require Obsidian mode and run through the plugin’s installed CLI adapters.
 
 ## Signal colors
 
@@ -13,28 +13,32 @@ opens Chrome options.
 | --- | --- | --- |
 | Initial connection check | Gray | Checking readiness. |
 | Chrome mode, API key configured or local model selected | Green | Chrome reading is configured. |
-| Chrome mode, missing API key or subscription provider selected | Amber | Configure an API or local provider in Chrome options. |
+| Chrome mode, missing API key | Amber | Configure an API or local provider in Chrome options. |
 | Obsidian online, config synced and AI configured | Green | Obsidian features are available. |
 | Obsidian online, extension/plugin versions differ | Amber | Update the extension or plugin. |
 | Obsidian online, AI key missing | Amber | Configure AI in **Chrome options**, then sync. |
 | Obsidian online, other config warnings (such as a missing index) | Amber | Follow the warning in the tooltip or banner. |
-| Obsidian offline, Chrome AI configured | Amber | Temporarily reading in Chrome; vault features need Obsidian. |
+| Obsidian offline, Chrome API/local AI configured | Amber | Temporarily reading in Chrome; vault features need Obsidian. |
 | Obsidian offline, no usable Chrome provider/key | Red | Configure Chrome AI or reconnect Obsidian. Subscription providers cannot fall back. |
+| Hidden account connection disabled, or enabled connection needs CLI installation/sign-in/verification | Amber | Complete provider setup in Obsidian settings. |
+| Subscription selected, authentication verified and Obsidian online | Green | Ready to analyze; quota is managed by the subscription. |
+| Subscription selected, expired login, inaccessible model/provider, or exhausted quota | Red | Sign in, choose another model, or retry after quota reset. |
+| Subscription selected, Obsidian offline | Red | Analysis pauses. Open Obsidian or use **Set up Chrome API key**, then explicitly save the mode change. |
 | AI config sync or config-status request fails | Red | Configuration could not be verified; the tooltip shows the error. |
-| A provider/bridge error is returned by the credit check | Red | The tooltip shows the reported error, such as invalid credentials or an offline local runner. |
+| A provider error is returned by the status/credit check | Red | The tooltip shows the reported error, such as invalid credentials or an offline local runner. |
 | Provider reports a remaining balance of zero or less | Red | Add credit or choose another provider in Chrome settings. |
 | Analysis or follow-up reports authentication, quota, rate limit, model, network or service failure | Red | The originating tab's tooltip shows the failure; retry after resolving it. |
 
 Sync/config errors take precedence over version mismatch or setup warnings.
-Otherwise, a version mismatch takes precedence over other Obsidian warnings.
+Subscription setup warnings are amber; confirmed errors take precedence. Otherwise, a version mismatch takes precedence over vault warnings.
 Green indicates configuration readiness, not a guarantee that the next AI call
 will succeed. Providers without a live credit/connection check may only reveal
 authentication, model, quota or network errors during analysis. Confirmed provider
 failures turn that tab's light red until retry clears the failure. Errors stay with
 the originating tab and do not change another tab's light. Credit exhaustion uses
 the provider's unrounded numeric balance, never its formatted display string.
-An unknown balance is not treated as zero; subscription quota is checked only when
-the provider actually reports it. Balances are also displayed in the credit pill.
+An unknown balance is not treated as zero; subscription quota errors appear only when
+the provider reports them; saving subscription settings performs no inference. Balances are also displayed in the credit pill.
 
 Obsidian connectivity is checked on startup, tab activation, settings changes and
 every 15 seconds while the side panel is visible in Obsidian mode. When Obsidian

@@ -13,9 +13,12 @@ import type {
   AISource,
   NutEggAISettings,
   ResolvedConfig,
+  SubscriptionExecutor,
+  SubscriptionProvider,
 } from "./types";
 
 export type AIErrorCode =
+  | "subscription_requires_obsidian"
   | "no_api_key"
   | "auth_failed"
   | "bridge_auth_failed"
@@ -103,6 +106,8 @@ export function classifyError(statusCode: number, body: string): AIError {
 }
 
 export interface AICreditInfo {
+  subscriptionState?: string;
+  usageRemaining?: string;
   provider: AIProviderId;
   providerLabel: string;
   source?: AISource;
@@ -297,6 +302,7 @@ export async function chatAI(
   config: ResolvedConfig & { extraHeaders?: Record<string, string> },
   debugScope?: string
 ): Promise<string> {
+  if (config.authMethod === 'subscription') throw new AIError('subscription_requires_obsidian', 'Open Obsidian to use your subscription, or set up a Chrome API key.');
   if (config.provider !== "local" && !config.apiKey) {
     throw new AIError(
       isSubscriptionProvider(config.provider) ? "pairing_token_missing" : "no_api_key",
@@ -332,27 +338,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
     statusText: "Checking...",
   };
 
-  if (isSubscriptionProvider(providerId)) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      const response = await fetch(provider.officialEndpoint.replace("/chat/completions", "/models"), {
-        headers: { Authorization: `Bearer ${apiKey.trim()}` },
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        return { ...baseInfo, statusText: "Bridge connection failed", error: detail?.error?.message || (response.status === 401
-          ? "Pairing token does not match. Copy the token shown by the NutEgg AI bridge."
-          : "The selected CLI is not ready. Check the bridge terminal and sign in.") };
-      }
-      return { ...baseInfo, statusText: "Bridge connected · subscription access is verified when you analyze · quota is managed by the selected CLI" };
-    } catch {
-      return { ...baseInfo, statusText: "Bridge offline", error: "Start the local bridge with npm run bridge:ai and keep it running." };
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
+  if (isSubscriptionProvider(settings)) return { ...baseInfo, statusText: 'Obsidian required', error: 'Open Obsidian to use your subscription, or set up a Chrome API key.' };
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === "local") {
@@ -525,16 +511,26 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
 export class AIClient {
   private settings: NutEggAISettings;
 
-  constructor(settings: NutEggAISettings) {
+  constructor(settings: NutEggAISettings, private subscription?: SubscriptionExecutor) {
     this.settings = settings;
   }
 
   async checkCredit(settings: NutEggAISettings): Promise<AICreditInfo> {
+    if (isSubscriptionProvider(settings) && this.subscription) {
+      const config = resolveConfig(settings);
+      const status = await this.subscription.status(config.provider as SubscriptionProvider);
+      return { provider: config.provider, providerLabel: PROVIDER_CATALOG[config.provider]?.label || config.provider,
+        source: 'official', model: config.model, hasBalance: false, statusText: status.message,
+        ...(status.state === 'error' ? { error: status.message } : {}), subscriptionState: status.state, usageRemaining: status.usageRemaining };
+    }
     return checkCreditAI(settings);
   }
 
   async chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> {
     // Settings can change after startup, including a new user's first API key.
-    return chatAI(prompt, maxTokens, resolveConfig(this.settings), debugScope);
+    const config = resolveConfig(this.settings);
+    if (config.authMethod === 'subscription' && this.subscription) return trackAIRequest(prompt,
+      () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt), debugScope);
+    return chatAI(prompt, maxTokens, config, debugScope);
   }
 }

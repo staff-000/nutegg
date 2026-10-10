@@ -20,11 +20,22 @@ export async function resolveSubscriptionCommand(provider, command) {
   const candidates = isAbsolute(name) || name.includes('/') || name.includes('\\')
     ? [resolve(name)]
     : (process.env.PATH || '').split(delimiter).filter(Boolean).map(dir => join(dir, name));
-  if (!command && !process.env[info.override]) candidates.push(join(homedir(), '.local', 'bin', name));
+  if (!command && !process.env[info.override] && process.platform === 'win32') {
+    const appData = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
+    const local = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
+    candidates.push(join(local, 'Programs', provider, name), join(homedir(), '.local', 'bin', name));
+    if (provider === 'codex') {
+      for (const arch of ['x86_64', 'aarch64']) {
+        candidates.push(join(appData, 'npm', 'node_modules', '@openai', 'codex', 'vendor', `${arch}-pc-windows-msvc`, 'codex', 'codex.exe'));
+        candidates.push(join(appData, 'npm', 'node_modules', '@openai', `codex-win32-${arch === 'x86_64' ? 'x64' : 'arm64'}`, 'vendor', `${arch}-pc-windows-msvc`, 'codex', 'codex.exe'));
+      }
+    }
+  }
+  if (!command && !process.env[info.override]) candidates.push(join(homedir(), '.local', 'bin', name), join('/opt/homebrew/bin', name), join('/usr/local/bin', name));
   for (const path of candidates) {
     try { await access(path, constants.X_OK); return path; } catch {}
   }
-  throw new BridgeError(503, `${info.label} was not found. Install it, run ${info.login}, and restart the bridge. Set ${info.override} if it is installed outside PATH.`);
+  throw new BridgeError(503, `${info.label} was not found. Install it, run ${info.login}, and check again. Set ${info.override} if it is installed outside PATH.`);
 }
 
 export function subscriptionEnvironment(provider, source = process.env) {
@@ -46,7 +57,7 @@ export function subscriptionFailure(provider, detail) {
     return new BridgeError(401, `Run ${info.login} and sign in with your subscription account, then retry.`);
   }
   if (/unknown (option|argument)|unexpected argument|unrecognized (option|argument)/i.test(detail)) {
-    return new BridgeError(503, `Update ${info.label}: the installed version does not support the bridge's required options.`);
+    return new BridgeError(503, `Update ${info.label}: the installed version does not support the NutEgg's required options.`);
   }
   if (/model.*(not found|not supported|invalid|unavailable)|invalid.*model/i.test(detail)) {
     return new BridgeError(400, `The selected model is not available in ${info.label}. Select auto or a model supported by your account.`);
@@ -126,16 +137,16 @@ export function parseSubscriptionOutput(provider, output) {
   throw new BridgeError(502, `${PROVIDERS[provider].label} returned an empty response.`);
 }
 
-export async function checkSubscriptionCli(provider, command) {
+export async function checkSubscriptionCli(provider, command, options = {}) {
   const executable = await resolveSubscriptionCommand(provider, command);
   const args = provider === 'codex' ? ['login', 'status'] : ['auth', 'status', '--json'];
   if (provider === 'codex') {
-    const output = await executeSubscriptionCli(provider, executable, args, '', { timeoutMs: 10000, includeStderr: true });
+    const output = await executeSubscriptionCli(provider, executable, args, '', { timeoutMs: 10000, includeStderr: true, signal: options.signal });
     if (!/logged in using chatgpt/i.test(output)) {
       throw new BridgeError(401, 'Run codex login and sign in with ChatGPT. API-key logins cannot use this subscription provider.');
     }
   } else {
-    const output = await executeSubscriptionCli(provider, executable, args, '', { timeoutMs: 10000 });
+    const output = await executeSubscriptionCli(provider, executable, args, '', { timeoutMs: 10000, signal: options.signal });
     let status;
     try { status = JSON.parse(output); } catch { throw new BridgeError(503, 'Update Claude Code to enable subscription status checks.'); }
     if (!status.loggedIn || !['claude.ai', 'oauth_token'].includes(status.authMethod)) {
@@ -146,7 +157,7 @@ export async function checkSubscriptionCli(provider, command) {
 }
 
 export async function runSubscription(provider, prompt, model, options = {}) {
-  const executable = await checkSubscriptionCli(provider, options.command);
+  const executable = await checkSubscriptionCli(provider, options.command, options);
   const cwd = await mkdtemp(join(tmpdir(), `nutegg-${provider}-`));
   try {
     const output = await executeSubscriptionCli(provider, executable, subscriptionArgs(provider, model),
