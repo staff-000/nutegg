@@ -484,12 +484,15 @@ export class NutEggServer {
     let targetProvider = config.aiProvider;
     let targetModel = config.aiModel.trim();
     if (config.aiAuthMethod === 'subscription') {
-      if (!supportsSubscription(targetProvider)) {
-        targetProvider = supportsSubscription(settings.aiProvider) ? settings.aiProvider : 'gemini';
-        targetModel = targetProvider === settings.aiProvider && settings.aiModel ? settings.aiModel : 'auto';
-      } else if (supportsSubscription(settings.aiProvider) && targetProvider === 'gemini' && settings.aiProvider !== 'gemini' && (!config.aiModel || config.aiModel === 'auto')) {
+      if (supportsSubscription(settings.aiProvider)) {
         targetProvider = settings.aiProvider;
         targetModel = settings.aiModel || 'auto';
+      } else if (supportsSubscription(targetProvider)) {
+        targetProvider = targetProvider;
+        targetModel = targetModel || 'auto';
+      } else {
+        targetProvider = 'gemini';
+        targetModel = 'auto';
       }
       if (!targetModel) targetModel = 'auto';
     }

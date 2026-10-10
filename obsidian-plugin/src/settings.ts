@@ -18,7 +18,7 @@ export interface NutEggSettings {
   developerMode: boolean;
   subscriptionEnabled: boolean;
   aiAuthMethod?: 'apiKey' | 'subscription';
-  chromeConnections?: Record<string, string>;
+  chromeConnections?: Record<string, string | string[]>;
   subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'gemini', string>>;
   subscriptionModels?: Partial<Record<SubscriptionProvider, string[]>>;
   /** Which model family to use */

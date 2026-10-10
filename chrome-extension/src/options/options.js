@@ -135,7 +135,8 @@ function renderSubscriptionAccess() {
   document.getElementById('ai-model-row').hidden = isSub;
   document.getElementById('ai-key-row').hidden = isSub;
   if (isSub) aiLocalEndpointRow.style.display = 'none';
-  aiSaveBtn.hidden = isSub;
+  aiSaveBtn.hidden = subscriptionSelected();
+  aiSaveBtn.classList.toggle('hidden', subscriptionSelected());
   aiTestBtn.hidden = subscriptionSelected();
   aiProviderSelect.disabled = isSub;
   const badge = document.getElementById('subscription-model-badge');

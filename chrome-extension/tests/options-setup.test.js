@@ -397,3 +397,16 @@ test('concurrent health checks share parsed data without losing the enabled conn
   assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('ai-auth-method').querySelector('option[value="subscription"]').disabled, false);
 });
+
+test('save and continue button is removed on chrome AI setting when using subscription', async t => {
+  const { el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription' });
+  assert.equal(el('ai-save-btn').hidden, true);
+  assert.equal(el('ai-save-btn').classList.contains('hidden'), true);
+  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method');
+  assert.equal(el('ai-save-btn').hidden, false);
+  assert.equal(el('ai-save-btn').classList.contains('hidden'), false);
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  assert.equal(el('ai-save-btn').hidden, true);
+  assert.equal(el('ai-save-btn').classList.contains('hidden'), true);
+});
+

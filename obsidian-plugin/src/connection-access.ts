@@ -6,15 +6,30 @@ type Challenge = { origin: string; expires: number; token?: string; state: 'pend
 export const NUTEGG_CHROME_ORIGIN = 'chrome-extension://bmdmdiicembobejibggoeiahaonphcol';
 export class ConnectionAccess {
   private challenges = new Map<string, Challenge>();
-  constructor(private clients: Record<string, string>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>) {}
+  constructor(private clients: Record<string, string | string[]>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>) {}
   static validOrigin(origin?: string): origin is string { return !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin); }
+
+  private getTokens(origin: string): string[] {
+    const val = this.clients[origin];
+    if (Array.isArray(val)) return val.filter(t => typeof t === 'string' && t.length > 0);
+    if (typeof val === 'string' && val.length > 0) return [val];
+    return [];
+  }
+
   authorized(origin: string | undefined, authorization: string | undefined): boolean {
     if (!ConnectionAccess.validOrigin(origin)) return false;
-    const token = this.clients[origin];
-    if (!token || !authorization) return false;
-    const actual = Buffer.from(authorization), expected = Buffer.from(`Bearer ${token}`);
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    const tokens = this.getTokens(origin);
+    if (!tokens.length || !authorization) return false;
+    const actual = Buffer.from(authorization);
+    for (const token of tokens) {
+      const expected = Buffer.from(`Bearer ${token}`);
+      if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
+        return true;
+      }
+    }
+    return false;
   }
+
   start(origin: string, nonce: string, browserOrigin?: string) {
     if (!ConnectionAccess.validOrigin(origin) || !/^[a-f0-9]{64}$/.test(nonce)) throw new Error('Invalid connection challenge');
     for (const [id, challenge] of this.challenges) if (challenge.expires < Date.now()) this.challenges.delete(id);
@@ -29,15 +44,20 @@ export class ConnectionAccess {
     this.challenges.set(nonce, challenge);
     // The caller-supplied identity header is never enough to skip approval.
     // Retain browser Origin checks plus a credential on every sensitive request.
-    const trusted = browserOrigin === origin && (origin === NUTEGG_CHROME_ORIGIN || !!this.clients[origin]);
+    const trusted = browserOrigin === origin && (origin === NUTEGG_CHROME_ORIGIN || this.getTokens(origin).length > 0);
     void (trusted ? Promise.resolve(true) : this.approve(origin)).then(async approved => {
       if (challenge.expires < Date.now()) return;
       if (!approved) { challenge.state = 'denied'; return; }
       const token = randomBytes(32).toString('hex');
       const previous = this.clients[origin];
-      this.clients[origin] = token;
+      const tokens = this.getTokens(origin);
+      this.clients[origin] = [token, ...tokens.filter(t => t !== token)].slice(0, 10);
       try { await this.save(); challenge.token = token; challenge.state = 'approved'; }
-      catch { if (previous) this.clients[origin] = previous; else delete this.clients[origin]; challenge.state = 'denied'; }
+      catch {
+        if (previous !== undefined) this.clients[origin] = previous;
+        else delete this.clients[origin];
+        challenge.state = 'denied';
+      }
     }).catch(() => { challenge.state = 'denied'; });
     return { state: 'pending' };
   }

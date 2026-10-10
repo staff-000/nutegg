@@ -19,6 +19,7 @@ function worker(initial = {}, availability = {}) {
         ai.push({ action: 'ask', payload, question, priorQa, settings, scope }); return 'Answer';
       },
       isSubscriptionProvider: value => typeof value === 'object' ? value.chromeAiAuthMethod === 'subscription' || ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value.chromeAiProvider) : ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value),
+      supportsSubscription: () => true,
       migrateAISettings: value => value,
     },
     chrome: {
@@ -464,3 +465,52 @@ test('canonical subscriptions never fall back to API billing while Obsidian is o
   }
   assert.equal(app.ai.length, 0); assert.equal(app.stored.connectionMode, 'obsidian');
 });
+
+test('serverFetch automatically establishes connection when no credential is stored', async () => {
+  const key = 'obsidianConnection:http://127.0.0.1:27123';
+  const app = worker({ connectionMode: 'obsidian', [key]: undefined }, { respond: async url => ({
+    ok: true,
+    json: async () => {
+      if (url.endsWith('/health')) return { subscriptionEnabled: true, capabilities: ['connection-approval-v1', 'subscription-v1'] };
+      if (url.endsWith('/connection/finish')) return { state: 'approved', credential: 'auto-connected-credential' };
+      if (url.endsWith('/ai-config')) return { success: true };
+      if (url.endsWith('/subscription/status')) return { state: 'ready' };
+      return { success: true };
+    }
+  }) });
+  const result = await app.send('subscription-control', { operation: 'status', provider: 'openai' });
+  assert.equal(result.error, undefined);
+  assert.equal(result.state, 'ready');
+  assert.equal(app.stored[key], 'auto-connected-credential');
+  const statusCall = app.http.find(call => call.url.endsWith('/subscription/status'));
+  assert(statusCall);
+  assert.equal(statusCall.options.headers.Authorization, 'Bearer auto-connected-credential');
+});
+
+test('when using subscription, Chrome does not overwrite AI provider in Obsidian and only fetches it', async () => {
+  const app = worker(
+    { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'auto' },
+    { respond: async url => {
+      const pathname = new URL(url).pathname;
+      if (pathname === '/health') return { ok: true, json: async () => ({ status: 'ok', capabilities: ['subscription-v1', 'connection-approval-v1'], subscriptionEnabled: true }) };
+      if (pathname === '/ai-config-status') return { ok: true, json: async () => ({
+        aiConfig: { aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet', aiAuthMethod: 'subscription', chunkWindowChars: 25000, contentAnalysisMaxTokens: 12000 },
+        matches: true,
+      }) };
+      if (pathname === '/ai-config') throw new Error('Must not overwrite /ai-config when using subscription');
+      return { ok: true, json: async () => ({ success: true }) };
+    } }
+  );
+
+  const syncResult = await app.send('sync-ai-config');
+  assert.equal(syncResult.success, true);
+  // Ensured no calls to /ai-config were made
+  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config'), false);
+  // Ensured /ai-config-status was called to fetch Obsidian config
+  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config-status'), true);
+  // Ensured Chrome adopted the provider and model from Obsidian
+  assert.equal(app.stored.chromeAiProvider, 'anthropic');
+  assert.equal(app.stored.chromeAiModel, 'claude-3-5-sonnet');
+});
+
+

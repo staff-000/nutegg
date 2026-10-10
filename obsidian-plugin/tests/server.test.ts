@@ -1034,6 +1034,16 @@ describe("Chrome AI configuration sync", () => {
     assert.equal(saves, 2);
   });
 
+  it("subscription sync from Chrome never overwrites existing Obsidian subscription provider", async () => {
+    const s = makeServer({ settings: { subscriptionEnabled: true, aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet' }, saveSettings: async () => {} });
+    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'gemini-2.5-flash' });
+    const res = response();
+    await s.handleAiConfig(request, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(s.plugin.settings.aiProvider, 'anthropic');
+    assert.equal(s.plugin.settings.aiModel, 'claude-3-5-sonnet');
+  });
+
   it("Chrome cannot enable subscriptions through configuration sync", async () => {
     const s = makeServer({ settings: { subscriptionEnabled: false }, saveSettings: async () => {} });
     s.readBody = async () => JSON.stringify({ ...config, subscriptionEnabled: true });

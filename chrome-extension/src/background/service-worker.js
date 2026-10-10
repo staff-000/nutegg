@@ -112,9 +112,46 @@ function getObsidianAiConfig(settings) {
   };
 }
 
+async function fetchObsidianAiConfig(serverUrl = null, settings = null) {
+  settings = settings || await loadChromeAiSettings();
+  const url = serverUrl || await getServerUrl();
+  const response = await serverFetch(`${url}/ai-config-status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(getObsidianAiConfig(settings)),
+    signal: AbortSignal.timeout(3000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Could not read Obsidian AI settings. Update the NutEgg Obsidian plugin and try again.");
+  const data = await response.json();
+  if (data?.aiConfig && settings.chromeAiAuthMethod === "subscription") {
+    const updates = {};
+    if (data.aiConfig.aiProvider && data.aiConfig.aiProvider !== settings.chromeAiProvider) {
+      updates.chromeAiProvider = data.aiConfig.aiProvider;
+    }
+    if (data.aiConfig.aiModel && data.aiConfig.aiModel !== settings.chromeAiModel) {
+      updates.chromeAiModel = data.aiConfig.aiModel;
+    }
+    if (data.aiConfig.chunkWindowChars && data.aiConfig.chunkWindowChars !== settings.chunkWindowChars) {
+      updates.chunkWindowChars = data.aiConfig.chunkWindowChars;
+    }
+    if (data.aiConfig.contentAnalysisMaxTokens && data.aiConfig.contentAnalysisMaxTokens !== settings.contentAnalysisMaxTokens) {
+      updates.contentAnalysisMaxTokens = data.aiConfig.contentAnalysisMaxTokens;
+    }
+    if (Object.keys(updates).length > 0) {
+      await chrome.storage.local.set(updates);
+    }
+  }
+  return { success: true, ...data };
+}
+
 // Send only AI configuration; Obsidian keeps its own vault and server settings.
+// When using subscription, never overwrite AI provider in Obsidian; only fetch from Obsidian.
 async function syncAiConfig(serverUrl = null, settings = null) {
   settings = settings || await loadChromeAiSettings();
+  if (settings.chromeAiAuthMethod === "subscription") {
+    return await fetchObsidianAiConfig(serverUrl, settings);
+  }
   const response = await serverFetch(`${serverUrl || await getServerUrl()}/ai-config`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -143,12 +180,18 @@ async function serverFetch(url, options = {}) {
   const parsed = new URL(url);
   if (parsed.hostname !== '127.0.0.1') throw new Error('Invalid Obsidian endpoint');
   const key = `obsidianConnection:${parsed.origin}`;
-  const stored = await chrome.storage.local.get([key]);
+  let stored = await chrome.storage.local.get([key]);
   const headers = { ...options.headers };
   // Extension GET requests can omit Origin. The server still checks any native
   // Origin and verifies the credential against this approved extension identity.
   headers['X-NutEgg-Extension-Origin'] = chrome.runtime.getURL('/').replace(/\/$/, '');
   if (parsed.pathname !== '/health') {
+    if (!stored[key]) {
+      try {
+        await connectObsidian();
+        stored = await chrome.storage.local.get([key]);
+      } catch {}
+    }
     if (!stored[key]) throw new Error('Connect NutEgg Chrome in Obsidian first.');
     headers.Authorization = `Bearer ${stored[key]}`;
   }
@@ -225,18 +268,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     })().then(sendResponse).catch(error => sendResponse({ state: 'error', error: error.message, message: error.message })); return true;
   }
   if (message.action === "get-obsidian-ai-config") {
-    (async () => {
-      const settings = message.settings || await loadChromeAiSettings();
-      const response = await serverFetch(`${await getServerUrl()}/ai-config-status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(getObsidianAiConfig(settings)),
-        signal: AbortSignal.timeout(2000),
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error("Could not read Obsidian AI settings. Update the NutEgg Obsidian plugin and try again.");
-      return await response.json();
-    })().then(sendResponse).catch(error => sendResponse({ error: error.message }));
+    fetchObsidianAiConfig(null, message.settings)
+      .then(sendResponse)
+      .catch(error => sendResponse({ error: error.message }));
     return true;
   }
   if (message.action === "sync-ai-config") {

@@ -191,6 +191,9 @@ textarea { resize: vertical; min-height: 140px; margin-top: 10px; font-family: u
 .use-subscription-wrap[hidden] {
   display: none !important;
 }
+#ai-save-btn[hidden], .setup-save[hidden] {
+  display: none !important;
+}
 .switch-toggle {
   display: inline-flex;
   align-items: center;

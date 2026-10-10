@@ -53,6 +53,31 @@ test('published NutEgg and previously approved development origins connect witho
   }
 });
 
+test('ConnectionAccess supports multiple concurrent connections for the same origin', async () => {
+  const clients: Record<string, string | string[]> = {};
+  const access = new ConnectionAccess(clients, async () => false, async () => {});
+  const nonce1 = '1'.repeat(64);
+  const nonce2 = '2'.repeat(64);
+  access.start(NUTEGG_CHROME_ORIGIN, nonce1, NUTEGG_CHROME_ORIGIN); await flush();
+  const res1 = access.finish(NUTEGG_CHROME_ORIGIN, nonce1);
+  assert.equal(res1.state, 'approved');
+
+  access.start(NUTEGG_CHROME_ORIGIN, nonce2, NUTEGG_CHROME_ORIGIN); await flush();
+  const res2 = access.finish(NUTEGG_CHROME_ORIGIN, nonce2);
+  assert.equal(res2.state, 'approved');
+
+  // Both credentials are concurrently authorized
+  assert.equal(access.authorized(NUTEGG_CHROME_ORIGIN, `Bearer ${res1.credential}`), true);
+  assert.equal(access.authorized(NUTEGG_CHROME_ORIGIN, `Bearer ${res2.credential}`), true);
+
+  // Backward compatibility with legacy string client mapping
+  const legacyOrigin = `chrome-extension://${'b'.repeat(32)}`;
+  const legacyClients: Record<string, string | string[]> = { [legacyOrigin]: 'legacy-token' };
+  const legacyAccess = new ConnectionAccess(legacyClients, async () => false, async () => {});
+  assert.equal(legacyAccess.authorized(legacyOrigin, 'Bearer legacy-token'), true);
+});
+
+
 test('identity headers alone and unknown browser extension origins cannot silently gain access', async () => {
   for (const [claimed, native] of [[NUTEGG_CHROME_ORIGIN, undefined], [origin, undefined], [origin, origin], [NUTEGG_CHROME_ORIGIN, origin]]) {
     let prompts = 0;
