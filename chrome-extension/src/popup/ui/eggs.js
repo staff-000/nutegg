@@ -680,7 +680,7 @@ class EggsComponent {
 
     // Render Chrome Mode Knowledge
     const chromeEntries = isChrome && (result?.extractedEntries?.length ? result.extractedEntries : (result?.eggResults?.[0]?.extractedEntries || []));
-    const isKnowledgeEnabled = view.enabledSections?.knowledge !== false || view.generateKnowledgeEntries === true;
+    const isKnowledgeEnabled = Boolean(view.generateKnowledgeEntries === true || view.enabledSections?.knowledge === true || view.enabledSections?.generateKnowledgeEntries === true);
     if (this.chromeKnowledgeSection && this.chromeKnowledgeContent) {
       if (chromeEntries && chromeEntries.length > 0) {
         this.renderChromeKnowledge(chromeEntries);

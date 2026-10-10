@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 require("../src/i18n.js");
 require("../src/popup/helpers.js");
 const { TabStateManager } = require("../src/popup/state/tab-state.js");
+const { SectionChipsComponent } = require("../src/popup/ui/section-chips.js");
 
 test("progressive rendering: switches view to results as soon as summary arrives", () => {
   const store = new TabStateManager();
@@ -309,6 +310,48 @@ test("view switch to analysis results resets scroll to 0 and calls scrollTo(0, 0
   assert.equal(scrolledTo, null, "should not force-scroll if already on results view");
 
   delete globalThis.window;
+});
+
+test("Default analysis sections - on fresh install only coreSummary and mindMap are enabled", () => {
+  const { EggsComponent } = require("../src/popup/ui/eggs.js");
+  const { SettingsState } = require("../src/popup/state/settings-state.js");
+  const settings = new SettingsState();
+  assert.equal(settings.enabledSections.coreSummary, true);
+  assert.equal(settings.enabledSections.mindMap, true);
+  assert.equal(settings.enabledSections.discussion, false);
+  assert.equal(settings.generateKnowledgeEntries, false);
+
+  const root = createMockRoot();
+  const chips = new SectionChipsComponent(root);
+  chips.updateUI(settings.enabledSections, settings.generateKnowledgeEntries, true);
+
+  const verdictSummaryChip = root.getElementById("chip-verdict-summary");
+  const mindmapChip = root.getElementById("chip-mindmap");
+  const knowledgeChip = root.getElementById("chip-knowledge");
+  const discussionChip = root.getElementById("chip-discussion");
+  const badge = root.getElementById("sections-badge");
+
+  assert.equal(verdictSummaryChip.classList.contains("active"), true);
+  assert.equal(mindmapChip.classList.contains("active"), true);
+  assert.equal(knowledgeChip.classList.contains("active"), false);
+  assert.equal(knowledgeChip.classList.contains("inactive"), true);
+  assert.equal(discussionChip.classList.contains("active"), false);
+  assert.equal(discussionChip.classList.contains("inactive"), true);
+  assert.equal(badge.textContent, "2/4");
+
+  // Verify that during analysis with defaults, Knowledge does not show placeholder
+  const eggsComp = new EggsComponent(root);
+  const view = {
+    isAnalyzing: true,
+    enabledSections: { ...settings.enabledSections },
+    generateKnowledgeEntries: settings.generateKnowledgeEntries,
+    allEggs: [],
+    selectedEggs: new Set(),
+    analysisResult: { mode: "chrome" },
+  };
+  eggsComp.render(view, settings);
+  const chromeKnowledgeSection = root.getElementById("chrome-knowledge-section");
+  assert.equal(chromeKnowledgeSection.classList.contains("hidden"), true, "Chrome knowledge section should be hidden when not enabled");
 });
 
 

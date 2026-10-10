@@ -110,7 +110,8 @@ class SectionChipsComponent {
           await options.onToggle(key);
         } else if (options.onSectionToggle) {
           const current = this.enabledSections || {};
-          const currentVal = key === "discussion" ? current[key] === true : current[key] !== false;
+          const isOptIn = key === "discussion" || key === "generateKnowledgeEntries" || key === "knowledge";
+          const currentVal = isOptIn ? current[key] === true : current[key] !== false;
           const nextVal = !currentVal;
           const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
           const newSections = { ...current, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
@@ -156,7 +157,8 @@ class SectionChipsComponent {
 
     map.forEach(({ el, key }) => {
       if (!el) return;
-      const active = key === "discussion" ? enabledSections[key] === true : enabledSections[key] !== false;
+      const isOptIn = key === "discussion" || key === "generateKnowledgeEntries" || key === "knowledge";
+      const active = isOptIn ? enabledSections[key] === true : enabledSections[key] !== false;
       el.setAttribute?.("aria-pressed", String(active));
       if (active) {
         el.classList.add("active");
