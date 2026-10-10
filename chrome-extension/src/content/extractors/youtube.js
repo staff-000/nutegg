@@ -826,6 +826,10 @@ async function readTranscriptPanel(context) {
         const text = (b.textContent || "").trim().toLowerCase();
         const aria = (b.getAttribute("aria-label") || "").toLowerCase();
         const title = (b.getAttribute("title") || "").toLowerCase();
+        const combined = `${text} ${aria} ${title}`;
+        if (["download", "下载", "下載", "share", "like"].some((kw) => combined.includes(kw))) {
+          return false;
+        }
         return keywords.some(
           (kw) =>
             (text.includes(kw) || aria.includes(kw) || title.includes(kw)) &&
@@ -833,28 +837,6 @@ async function readTranscriptPanel(context) {
             !text.includes("toggle")
         );
       });
-    }
-
-    // 2b. If still not found, check the "..." overflow menu in the action bar
-    if (!button) {
-      const overflowBtn = document.querySelector(
-        "ytd-watch-metadata #actions ytd-menu-renderer yt-button-shape button, ytd-watch-metadata #actions button[aria-label='More actions'], ytd-watch-metadata #actions #button-shape button"
-      );
-      if (overflowBtn) {
-        overflowBtn.click();
-        await new Promise((r) => setTimeout(r, 350));
-        context?.check();
-        const menuItems = [
-          ...document.querySelectorAll(
-            "ytd-menu-service-item-renderer, ytd-menu-navigation-item-renderer, tp-yt-paper-item"
-          ),
-        ];
-        const keywords = ["transcript", "文字记录", "文字記錄", "文字起こし", "transcrip", "transkript", "скрипт", "расшифровк"];
-        button = menuItems.find((item) => {
-          const t = (item.textContent || "").toLowerCase();
-          return keywords.some((kw) => t.includes(kw));
-        });
-      }
     }
 
     if (button) {

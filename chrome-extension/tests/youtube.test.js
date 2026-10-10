@@ -110,3 +110,52 @@ test('confirmed unavailable videos finish without repeated network or DOM captio
   assert.equal(await context.fetchYouTubeCaptions(metadata), '');
   assert.equal(metadata.caption_unavailable, true);
 });
+
+test('readTranscriptPanel never clicks Download or Share action buttons', async () => {
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM(`
+    <ytd-watch-metadata>
+      <div id="actions">
+        <ytd-menu-renderer>
+          <div id="top-level-buttons-computed">
+            <ytd-download-button-renderer>
+              <yt-button-shape>
+                <button id="download-btn" aria-label="Download">Download</button>
+              </yt-button-shape>
+            </ytd-download-button-renderer>
+            <ytd-button-renderer>
+              <yt-button-shape>
+                <button id="share-btn" aria-label="Share">Share</button>
+              </yt-button-shape>
+            </ytd-button-renderer>
+          </div>
+        </ytd-menu-renderer>
+      </div>
+    </ytd-watch-metadata>
+  `);
+  let clickedDownload = false;
+  let clickedShare = false;
+  dom.window.document.getElementById('download-btn').addEventListener('click', () => { clickedDownload = true; });
+  dom.window.document.getElementById('share-btn').addEventListener('click', () => { clickedShare = true; });
+
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const context = vm.createContext({
+    URL,
+    window: dom.window,
+    document: dom.window.document,
+    console: { log() {}, warn() {} },
+    setTimeout,
+    clearTimeout,
+    Promise,
+    decodeHtmlEntities: s => s,
+    dedupTranscriptLines: lines => lines,
+    waitFor: async () => null,
+  });
+  vm.runInContext(fs.readFileSync(require.resolve('../src/content/extractors/youtube.js'), 'utf8'), context);
+
+  await context.readTranscriptPanel();
+  assert.equal(clickedDownload, false);
+  assert.equal(clickedShare, false);
+});
+
