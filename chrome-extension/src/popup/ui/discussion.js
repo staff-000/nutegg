@@ -62,7 +62,7 @@ class DiscussionComponent {
       if (m.scoresKnown) reactionParts.push(`${m.approximate ? '≈ ' : ''}⬆️ ${m.score}`);
       const reactions = reactionParts.join(' · ');
       const icon = stanceIcons[stance] ? `<span class="stance-icon">${stanceIcons[stance]}</span> ` : '';
-      const accessibleTitle = [t('discussionComments', { count: m.comments }), m.likesKnown ? t('discussionLikes', { count: m.likes }) : '', m.scoresKnown ? t('discussionScore', { count: m.score }) : ''].filter(Boolean).join(' · ');
+      const accessibleTitle = [t('discussionComments', { count: m.comments }), m.likesKnown ? t('discussionLikes', { count: m.likes }) : ''].filter(Boolean).join(' · ');
       const label = `${icon}<strong>${escape(t('discussionStance_' + stance))}</strong> 💬 ${m.comments}${reactions ? ' · ' + reactions : ''}`;
       const open = expanded[topic.id] === stance;
       return `<button type="button" id="discussion-metric-${index}-${stance}" class="discussion-metric discussion-metric-${stance}" data-discussion-topic="${escape(topic.id)}" data-discussion-stance="${stance}" aria-expanded="${open}" aria-controls="discussion-comments-${index}" title="${escape(accessibleTitle)}">${label}<span class="discussion-metric-chevron" aria-hidden="true">${open ? '▾' : '▸'}</span></button>`;

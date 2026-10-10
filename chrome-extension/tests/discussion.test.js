@@ -168,12 +168,14 @@ test('disabling discussion on a long Reddit body does not show the short-body wa
 
 test('compact discussion badges omit unavailable reactions, people and verbose topic details', () => {
   const root = createMockRoot(), ui = new DiscussionComponent(root);
-  const result = core.buildDiscussionResult(capture([item('a', 'u', 12), item('b', 'v', null), item('c', 'w', 0)]), [part([['a', 'agree'], ['b', 'disagree'], ['c', 'neutral']])]);
+  const result = core.buildDiscussionResult(capture([item('a', 'u', 12), item('b', 'v', 5, 'score'), item('c', 'w', 0)]), [part([['a', 'agree'], ['b', 'disagree'], ['c', 'neutral']])]);
   ui.render({ enabledSections: { discussion: true }, analysisResult: { discussion: result }, extractedContent: {} });
   const html = root.getElementById('discussion-result').innerHTML;
   assert.match(html, /Agree<\/strong> 💬 1 · ❤️ 12/);
-  assert.match(html, /Disagree<\/strong> 💬 1<span class="discussion-metric-chevron"/);
+  assert.match(html, /Disagree<\/strong> 💬 1 · ⬆️ 5/);
   assert.match(html, /Neutral<\/strong> 💬 1 · ❤️ 0/);
+  const disagreeBtn = root.getElementById('discussion-metric-0-disagree');
+  assert.doesNotMatch(disagreeBtn.getAttribute('title') || '', /Net score|净评分/i);
   assert.doesNotMatch(html, /commenters|Reactions unavailable|Supporting arguments|Opposing arguments|Proposition|Experience and objections|entire audience/);
   assert.match(html, /Practical example/);
 });
