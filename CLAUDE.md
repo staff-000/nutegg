@@ -73,6 +73,12 @@ npm run dev:plugin                  # Watch mode for obsidian plugin
 ./deploy.sh                         # Build + copy to active vault
 ./deploy.sh --remote [version]      # Verify remote release deploy
 
+# Releases & Branching
+./release.sh --check                # Validate working tree and run fail-fast test suites
+./release.sh 0.4.0 --dry-run        # Dry run for minor release (targets branch release/0.4)
+./release.sh 0.4.0                  # Minor release: creates/switches to branch release/0.4, bumps versions, tags, and releases
+./release.sh 0.4.1                  # Patch release: updates and releases on existing branch release/0.4
+
 # Chrome extension development
 # Load unpacked from `chrome-extension/` at chrome://extensions (no dev server needed).
 # Re-run `node build.js` inside `chrome-extension/` whenever editing `shared/`.

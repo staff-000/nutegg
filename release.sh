@@ -8,14 +8,19 @@ set -euo pipefail
 #   ./release.sh <version> [--deploy] [--vault <path>] [--dry-run] [--allow-dirty]
 #   ./release.sh --check
 #
+# Release Branch Strategy:
+#   - Minor releases (e.g. 0.4.0): Cut onto a new minor branch 'release/X.Y' (e.g. release/0.4) from main.
+#   - Patch releases (e.g. 0.4.1): Updated and released directly on that 'release/X.Y' branch.
+#
 # Examples:
 #   ./release.sh --check
-#   ./release.sh 0.2.4 --dry-run
-#   ./release.sh 0.2.4
-#   ./release.sh 0.2.4 --deploy
-#   ./release.sh 0.2.4 --deploy --vault "/path/to/vault"
-#  npm run update:version -- --chrome-store 0.3.0
-#  npm run update:version -- --obsidian-community 0.3.1
+#   ./release.sh 0.4.0 --dry-run
+#   ./release.sh 0.4.0
+#   ./release.sh 0.4.1
+#   ./release.sh 0.4.0 --deploy
+#   ./release.sh 0.4.0 --deploy --vault "/path/to/vault"
+#   npm run update:version -- --chrome-store 0.3.0
+#   npm run update:version -- --obsidian-community 0.3.1
 # ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -86,10 +91,23 @@ fi
 
 CLEAN_VERSION="${INPUT_VERSION#v}"
 TAG="${CLEAN_VERSION}"
+RELEASE_BRANCH=""
+
+if [[ -n "$INPUT_VERSION" ]]; then
+  if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+    echo "❌ ERROR: Invalid version format '$INPUT_VERSION'."
+    echo "   Expected semantic version (e.g. 0.4.0 or v0.4.0)."
+    exit 1
+  fi
+  MAJOR=$(echo "$CLEAN_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CLEAN_VERSION" | cut -d. -f2)
+  RELEASE_BRANCH="release/${MAJOR}.${MINOR}"
+fi
 
 echo "🥚 NutEgg Release Pipeline"
 if [[ -n "$INPUT_VERSION" ]]; then
   echo "   Target Version: $TAG ($CLEAN_VERSION)"
+  echo "   Release Branch: $RELEASE_BRANCH"
 fi
 echo "   GitHub User:    $REPO_OWNER"
 if [[ "$IS_DRY_RUN" == true ]]; then
@@ -116,36 +134,64 @@ fi
 echo "   ✅ Working tree is clean"
 echo ""
 
-# --- 2. Git Branch Verification ---
-echo "🌿 [2/6] Checking git branch..."
+# --- 2. Git Branch Verification & Setup ---
+echo "🌿 [2/6] Verifying git branch..."
 CURRENT_BRANCH=$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD)
-if [[ "$CURRENT_BRANCH" != "main" ]]; then
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "❌ ERROR: Releases must be cut from 'main' branch (currently on '$CURRENT_BRANCH')."
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "   Please switch to 'main' before running release.sh:"
-  echo "     git checkout main"
-  exit 1
-fi
-echo "   ✅ Current branch is main"
-echo ""
 
-# --- 3. Version Format & Tag Collision Validation ---
-if [[ -n "$INPUT_VERSION" ]]; then
-  echo "🏷️  [3/6] Validating target version format..."
-  if [[ ! "$CLEAN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
-    echo "❌ ERROR: Invalid version format '$INPUT_VERSION'."
-    echo "   Expected semantic version (e.g. 0.2.4 or v0.2.4)."
+if [[ -n "$RELEASE_BRANCH" ]]; then
+  if [[ "$CURRENT_BRANCH" == "$RELEASE_BRANCH" ]]; then
+    echo "   ✅ Currently on target release branch: $RELEASE_BRANCH"
+  elif [[ "$CURRENT_BRANCH" == "main" ]]; then
+    BRANCH_EXISTS_LOCAL=$(git -C "$SCRIPT_DIR" show-ref --verify --quiet "refs/heads/$RELEASE_BRANCH" && echo "yes" || echo "no")
+    BRANCH_EXISTS_REMOTE=$(git -C "$SCRIPT_DIR" show-ref --verify --quiet "refs/remotes/origin/$RELEASE_BRANCH" && echo "yes" || echo "no")
+
+    if [[ "$IS_DRY_RUN" == true ]]; then
+      if [[ "$BRANCH_EXISTS_LOCAL" == "yes" || "$BRANCH_EXISTS_REMOTE" == "yes" ]]; then
+        echo "   ℹ️  [Dry-run] Would switch from 'main' to existing branch '$RELEASE_BRANCH'"
+      else
+        echo "   ℹ️  [Dry-run] Would create new minor release branch '$RELEASE_BRANCH' from 'main'"
+      fi
+    else
+      if [[ "$BRANCH_EXISTS_LOCAL" == "yes" ]]; then
+        echo "   🔄 Switching to existing release branch '$RELEASE_BRANCH'..."
+        git -C "$SCRIPT_DIR" checkout "$RELEASE_BRANCH"
+      elif [[ "$BRANCH_EXISTS_REMOTE" == "yes" ]]; then
+        echo "   🔄 Checking out remote release branch '$RELEASE_BRANCH'..."
+        git -C "$SCRIPT_DIR" checkout -b "$RELEASE_BRANCH" "origin/$RELEASE_BRANCH"
+      else
+        echo "   🌱 Creating new minor release branch '$RELEASE_BRANCH' from 'main'..."
+        git -C "$SCRIPT_DIR" checkout -b "$RELEASE_BRANCH"
+      fi
+      CURRENT_BRANCH="$RELEASE_BRANCH"
+      echo "   ✅ Active branch is now: $CURRENT_BRANCH"
+    fi
+  else
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "❌ ERROR: Releases must be cut from 'main' or '$RELEASE_BRANCH' (currently on '$CURRENT_BRANCH')."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "   To release $CLEAN_VERSION, please switch to 'main' or '$RELEASE_BRANCH':"
+    echo "     git checkout main"
+    echo "   or:"
+    echo "     git checkout $RELEASE_BRANCH"
     exit 1
   fi
+else
+  echo "   ℹ️  Running in check mode without target version (on branch '$CURRENT_BRANCH')"
+fi
+echo ""
+
+# --- 3. Tag Collision Validation ---
+if [[ -n "$INPUT_VERSION" ]]; then
+  echo "🏷️  [3/6] Validating target version tag..."
   if git -C "$SCRIPT_DIR" rev-parse "$TAG" >/dev/null 2>&1; then
     echo "   ⚠️  Note: Local git tag '$TAG' already exists. Re-tagging will overwrite."
+  else
+    echo "   ✅ Tag '$TAG' is available"
   fi
-  echo "   ✅ Version $TAG is valid"
   echo ""
 else
-  echo "🏷️  [3/6] Skipping version format check (--check mode without version)..."
+  echo "🏷️  [3/6] Skipping tag validation (--check mode without version)..."
   echo ""
 fi
 
@@ -265,15 +311,17 @@ fi
 echo "   ✅ Version numbers updated"
 echo ""
 
-# --- 8. Commit and push changes if any ---
+# --- 8. Commit and push changes to GitHub ---
 if git -C "$SCRIPT_DIR" status --porcelain | grep -E "(package|manifest|versions)\.json" >/dev/null; then
   echo "💾 Committing version bump..."
   git -C "$SCRIPT_DIR" add obsidian-plugin/package.json obsidian-plugin/manifest.json chrome-extension/package.json chrome-extension/manifest.json website/src/versions.json
   git -C "$SCRIPT_DIR" commit -m "chore: release $TAG" --author="$REPO_OWNER <staffhacker.000@gmail.com>"
-  git -C "$SCRIPT_DIR" push origin main
-  echo "   ✅ Pushed version commit to main"
-  echo ""
 fi
+
+echo "🚀 Syncing release branch '$RELEASE_BRANCH' to GitHub..."
+git -C "$SCRIPT_DIR" push -u origin "$RELEASE_BRANCH"
+echo "   ✅ Pushed branch '$RELEASE_BRANCH' to origin"
+echo ""
 
 # --- 9. Create and push tags ---
 echo "🏷️  Tagging and pushing release triggers..."
@@ -289,7 +337,7 @@ echo "🚀 Creating release on $REPO_OWNER/$REPO_MAIN..."
 if gh release view "$TAG" --repo "$REPO_OWNER/$REPO_MAIN" >/dev/null 2>&1; then
   echo "   Release $TAG already exists on main repo, updating..."
 else
-  gh release create "$TAG" --repo "$REPO_OWNER/$REPO_MAIN" --title "$TAG" --notes "NutEgg Release $TAG"
+  gh release create "$TAG" --repo "$REPO_OWNER/$REPO_MAIN" --title "$TAG" --notes "NutEgg Release $TAG" --target "$RELEASE_BRANCH"
 fi
 echo "   ✅ Main repo release ready: https://github.com/$REPO_OWNER/$REPO_MAIN/releases/tag/$TAG"
 echo ""
