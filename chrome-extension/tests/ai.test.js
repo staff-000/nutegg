@@ -664,7 +664,7 @@ test('Chrome mode knowledge extraction is invoked when generateKnowledgeEntries 
     generateKnowledgeEntries: true,
   });
 
-  assert.equal(promptCalls.length, 2);
+  assert.equal(promptCalls.length, 3);
   assert.ok(result.extractedEntries);
   assert.equal(result.extractedEntries.length, 4);
   assert.equal(result.extractedEntries[0].kind, 'concept');
@@ -682,7 +682,7 @@ test('Chrome mode knowledge extraction is invoked when generateKnowledgeEntries 
     generateKnowledgeEntries: false,
   });
 
-  assert.equal(promptCalls.length, 1);
+  assert.equal(promptCalls.length, 2);
   assert.equal(resultNoKnowledge.extractedEntries, undefined);
 });
 

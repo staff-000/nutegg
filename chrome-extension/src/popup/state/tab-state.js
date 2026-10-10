@@ -142,6 +142,7 @@ class TabStateManager {
       next.presentation.discussionComments = {};
       next.resultRevision++;
       next.selectionRevision++;
+      if (next.currentView !== 'results') next.presentation.scroll = 0;
       next.currentView = 'results'; next.followUpQa = []; next.eggHatched = false; next.nutCollected = false;
       next.currentNutId = value.nutId ?? next.currentNutId;
       if (stage1) { next.stage1Version++; next.stage1ContentAnalysis = popupCopy(value); }
@@ -157,6 +158,48 @@ class TabStateManager {
         break;
       case 'phase': next.operations[kind].phase = event.phase; break;
       case 'captureProgress': next.operations[kind].progress = popupCopy(event.progress); break;
+      case 'analysisPartial': {
+        const partial = event.partial || {};
+        const existing = next.analysisResult || {};
+        let updated = { ...existing };
+        if (partial.section === 'summary') {
+          updated = {
+            ...updated,
+            titleVerdict: partial.data.titleVerdict,
+            coreSummary: partial.data.coreSummary,
+            customQuestionAnswers: partial.data.customQuestionAnswers || existing.customQuestionAnswers || [],
+          };
+          if (next.currentView !== 'results') next.presentation.scroll = 0;
+          next.currentView = 'results';
+          next.presentation.discussionComments = {};
+          next.selectionRevision++;
+        } else if (partial.section === 'mindmap') {
+          updated = {
+            ...updated,
+            mindMap: popupCopy(partial.data.mindMap || []),
+          };
+        } else if (partial.section === 'discussion') {
+          updated = {
+            ...updated,
+            discussion: popupCopy(partial.data.discussion),
+          };
+        } else if (partial.section === 'matchedEggs') {
+          updated = {
+            ...updated,
+            matchedEggs: popupCopy(partial.data.matchedEggs || []),
+          };
+          next.selectedEggs = popupCopy(partial.data.matchedEggs || []);
+          next.selectionRevision++;
+        } else if (partial.section === 'knowledge') {
+          updated = {
+            ...updated,
+            extractedEntries: popupCopy(partial.data.extractedEntries || []),
+          };
+        }
+        next.analysisResult = updated;
+        next.resultRevision++;
+        break;
+      }
       case 'analysisInterim':
         result(event.result, true); next.stage1Payload = popupCopy(event.payload);
         next.selectedEggs = popupCopy(event.eggs || event.result.matchedEggs || []);
@@ -240,8 +283,14 @@ class TabStateManager {
       case 'view':
         if (event.view === 'results' && !next.analysisResult) return;
         if (!['capture', 'results'].includes(event.view)) throw new Error('Invalid view');
+        if (event.view === 'results' && next.currentView !== 'results') next.presentation.scroll = 0;
         next.currentView = event.view; break;
-      case 'activitySelected': next.currentView = next.analysisResult ? 'results' : 'capture'; break;
+      case 'activitySelected': {
+        const targetView = next.analysisResult ? 'results' : 'capture';
+        if (targetView === 'results' && next.currentView !== 'results') next.presentation.scroll = 0;
+        next.currentView = targetView;
+        break;
+      }
       case 'pageInfo': next.url = event.url || next.url; next.title = event.title || ''; next.currentTabLoading = event.loading; break;
       case 'loading': next.currentTabLoading = event.loading; break;
       case 'sourceJumpNotice':
@@ -266,6 +315,7 @@ class TabStateManager {
     if (!entry?.result) return;
     tab.analysisResult = popupCopy(entry.result); tab.resultRevision++; tab.selectionRevision++;
     tab.presentation.discussionComments = {};
+    tab.presentation.scroll = 0;
     tab.currentView = 'results'; tab.completion = null; tab.followUpQa = [];
     tab.currentNutId = entry.nutId; tab.nutCollected = ['saved', 'skip'].includes(entry.saved); tab.eggHatched = entry.saved === 'saved';
     tab.stage1Version++;

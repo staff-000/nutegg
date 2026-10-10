@@ -391,7 +391,7 @@ describe("NutEggServer tab-scoped AI diagnostics", () => {
     const analyzed = makeRes();
     await s.handleAnalyze(makeReq(JSON.stringify({ ...capture, debugScope: scopeA, stage: 1, force: true })), analyzed);
     assert.equal(analyzed.statusCode, 200);
-    assert.equal(getAIDebugInfo(scopeA).totalCalls, 3, "follow-up, content summary and egg routing");
+    assert.equal(getAIDebugInfo(scopeA).totalCalls, 4, "follow-up, verdict & summary, mind map, and egg routing");
     assert.equal(getAIDebugInfo(scopeB).totalCalls, 1);
     assert.equal(getAIDebugInfo(scopeA).activeCalls, 0);
     assert.equal(s.captureSnapshot({ ...capture, debugScope: scopeA }).debugScope, undefined);

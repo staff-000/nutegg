@@ -111,6 +111,8 @@ class VerdictComponent {
 
     if (result.readAction) {
       this.renderDecision(result);
+    } else if (session?.isAnalyzing && !isChrome && !(isStage1 && confirmMode)) {
+      this.setAnalyzing();
     } else {
       this.verdictSection?.classList.add("hidden");
     }

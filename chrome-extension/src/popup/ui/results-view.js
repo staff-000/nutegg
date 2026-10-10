@@ -29,14 +29,17 @@ class ResultsViewComponent {
     this.resultPageWordCount = root.getElementById("result-page-word-count");
     this.coreSummarySection = root.getElementById("core-summary-section");
     this.coreSummaryEl = root.getElementById("core-summary");
+    this.currentView = null;
   }
 
   showResults() {
+    this.currentView = "results";
     this.captureState?.classList.add("hidden");
     this.resultsState?.classList.remove("hidden");
   }
 
   showCapture() {
+    this.currentView = "capture";
     this.resultsState?.classList.add("hidden");
     this.resultPageInfo?.classList.add("hidden");
     this.captureState?.classList.remove("hidden");
@@ -93,7 +96,13 @@ class ResultsViewComponent {
     if (!session) return;
     const result = session.analysisResult;
     if (session.currentView === "results") {
+      const switchedToResults = this.currentView !== "results";
       this.showResults();
+      if (switchedToResults) {
+        if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo(0, 0);
+        if (this.root?.documentElement) this.root.documentElement.scrollTop = 0;
+        if (this.root?.body) this.root.body.scrollTop = 0;
+      }
       const prov = session.provenance || {
         title: session.extractedContent?.title || result.title,
         author: session.extractedContent?.metadata?.author || result.author,

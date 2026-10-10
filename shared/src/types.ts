@@ -240,6 +240,7 @@ export interface CapturePayload {
   questionsScope?: QuestionScope;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   outputLanguage?: string;
+  stream?: boolean;
 }
 
 export interface AskRequest {
@@ -330,6 +331,8 @@ export type WorkflowPromptKey =
   | "discussionAnalysis"
   | "aggregateDiscussion"
   | "contentAnalysis"
+  | "verdictSummary"
+  | "mindMapAnalysis"
   | "eggAnalysis"
   | "followUp"
   | "eggRouting"
@@ -340,6 +343,17 @@ export type WorkflowPromptKey =
   | "localizeEgg"
   | "sharedOutputRules"
   | "chromeKnowledge";
+
+export type AnalysisProgressEvent =
+  | { type: "partial"; section: "summary"; data: { titleVerdict?: string; coreSummary?: string[]; customQuestionAnswers?: KeyAnswer[] } }
+  | { type: "partial"; section: "mindmap"; data: { mindMap: MindMapNode[] } }
+  | { type: "partial"; section: "discussion"; data: { discussion: DiscussionAnalysis } }
+  | { type: "partial"; section: "matchedEggs"; data: { matchedEggs: string[] } }
+  | { type: "partial"; section: "knowledge"; data: { extractedEntries: ExtractedKnowledgeEntry[] } }
+  | { type: "complete"; result: AnalysisResult | ContentAnalysis };
+
+export type AnalysisProgressCallback = (event: AnalysisProgressEvent) => void;
+
 
 /**
  * Host interface providing environment-specific services (Obsidian vault, custom prompt overrides, etc.)

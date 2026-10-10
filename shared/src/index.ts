@@ -22,6 +22,7 @@ import { chatAI } from "./client";
 import { AIProcessor } from "./ai-processor";
 import type {
   AIProcessorHost,
+  AnalysisProgressCallback,
   CapturePayload,
   ContentAnalysis,
   KeyAnswer,
@@ -34,7 +35,8 @@ import type {
  */
 export async function analyzeContentStandalone(
   payload: CapturePayload,
-  settings: NutEggAISettings
+  settings: NutEggAISettings,
+  onProgress?: AnalysisProgressCallback
 ): Promise<ContentAnalysis> {
   const config = resolveConfig(settings);
   const language =
@@ -51,7 +53,7 @@ export async function analyzeContentStandalone(
     },
   };
   const processor = new AIProcessor(host, payload.debugScope);
-  return processor.analyzeContent(payload);
+  return processor.analyzeContent(payload, onProgress);
 }
 
 /**

@@ -431,7 +431,14 @@ chrome.runtime.onConnect.addListener((port) => {
     }
     if (message.action === "analyze") {
       try {
-        const result = await handleAnalyze(message.payload);
+        const onProgress = (event) => {
+          if (isConnected) {
+            try {
+              port.postMessage(event);
+            } catch {}
+          }
+        };
+        const result = await handleAnalyze(message.payload, onProgress);
         if (isConnected) {
           port.postMessage(result);
         }
@@ -447,23 +454,25 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 // --- Server communication ---
 
-async function handleAnalyze(payload) {
+async function handleAnalyze(payload, onProgress) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
-    if (!server.online) return payload.stage === 2 ? obsidianOfflineError() : handleAnalyzeChrome(payload);
+    if (!server.online) return payload.stage === 2 ? obsidianOfflineError() : handleAnalyzeChrome(payload, onProgress);
     if (server.error) return { ...server, mode: "obsidian" };
     try {
       const serverUrl = await getServerUrl();
       const response = await serverFetch(`${serverUrl}/analyze`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/x-ndjson, application/json",
+        },
+        body: JSON.stringify({ ...payload, stream: true }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        if (payload.stage !== 2 && [502, 503, 504].includes(response.status)) return handleAnalyzeChrome(payload);
+        const data = await response.json().catch(() => ({}));
+        if (payload.stage !== 2 && [502, 503, 504].includes(response.status)) return handleAnalyzeChrome(payload, onProgress);
         return {
           error: data.error || `Server error (${response.status})`,
           errorCode: data.errorCode || "unknown",
@@ -472,9 +481,43 @@ async function handleAnalyze(payload) {
         };
       }
 
+      if (response.headers?.get?.("content-type")?.includes("application/x-ndjson") && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+        let finalResult = null;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const event = JSON.parse(trimmed);
+              if (event.type === "partial") {
+                onProgress?.(event);
+              } else if (event.type === "complete") {
+                finalResult = event.result;
+              }
+            } catch {}
+          }
+        }
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim());
+            if (event.type === "complete") finalResult = event.result;
+          } catch {}
+        }
+        return { ...(finalResult || {}), mode: "obsidian" };
+      }
+
+      const data = await response.json();
       return { ...data, mode: "obsidian" };
     } catch (err) {
-      if (payload.stage !== 2) return handleAnalyzeChrome(payload);
+      if (payload.stage !== 2) return handleAnalyzeChrome(payload, onProgress);
       return {
         error: `Failed to connect to Obsidian: ${err.message}`,
         errorCode: "network_error",
@@ -483,10 +526,10 @@ async function handleAnalyze(payload) {
     }
   }
 
-  return handleAnalyzeChrome(payload);
+  return handleAnalyzeChrome(payload, onProgress);
 }
 
-async function handleAnalyzeChrome(payload) {
+async function handleAnalyzeChrome(payload, onProgress) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
@@ -503,7 +546,7 @@ async function handleAnalyzeChrome(payload) {
   }
 
   try {
-    const result = await analyzeContentStandalone(payload, aiSettings);
+    const result = await analyzeContentStandalone(payload, aiSettings, onProgress);
     const finalResult = {
       ...result,
       nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

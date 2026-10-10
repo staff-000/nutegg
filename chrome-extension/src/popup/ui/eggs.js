@@ -104,6 +104,18 @@ function _renderEggsSection(firstArg = [], options = {}) {
   const createToggleEl = opts.eggsCreateToggle || (typeof eggsCreateToggle !== "undefined" ? eggsCreateToggle : (typeof document !== "undefined" ? document.getElementById("eggs-create-toggle") : null));
 
   if (eggs.length === 0) {
+    if (opts.isAnalyzing && (!matchedEggs || matchedEggs.length === 0)) {
+      if (listEl) {
+        const text = t("matchingEggsInProgress") || "Matching Vault Eggs in progress...";
+        listEl.innerHTML = `<div class="eggs-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🥚 ${text}</span></div>`;
+      }
+      if (sectionEl) sectionEl.classList.remove("hidden");
+      if (toggleLabelEl) {
+        const text = t("matchingEggsInProgress") || "Matching Vault Eggs in progress...";
+        toggleLabelEl.innerHTML = `<span class="spinner-small" style="display:inline-block; width:11px; height:11px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:nutegg-spin 0.8s linear infinite; margin-right:4px; vertical-align:middle;"></span>${text}`;
+      }
+      return;
+    }
     if (listEl) {
       listEl.innerHTML = `<div class="eggs-empty-notice" style="padding: 8px 10px; font-size: 12px; color: #6b7280; font-style: italic;">🐣 No eggs found in your vault yet. Create your first egg below to hatch:</div>`;
     }
@@ -141,7 +153,10 @@ function _renderEggsSection(firstArg = [], options = {}) {
   }
   if (errorEl) errorEl.classList.add("hidden");
   if (toggleLabelEl) {
-    if (matchedEggs.length > 0 && currentSelected.size === matchedEggs.length) {
+    if (opts.isAnalyzing && (!matchedEggs || matchedEggs.length === 0)) {
+      const text = t("matchingEggsInProgress") || "Matching Vault Eggs in progress...";
+      toggleLabelEl.innerHTML = `<span class="spinner-small" style="display:inline-block; width:11px; height:11px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:nutegg-spin 0.8s linear infinite; margin-right:4px; vertical-align:middle;"></span>${text}`;
+    } else if (matchedEggs.length > 0 && currentSelected.size === matchedEggs.length) {
       toggleLabelEl.textContent = t("countMatched", { count: matchedEggs.length });
     } else if (currentSelected.size > 0) {
       toggleLabelEl.textContent = t("countSelected", { count: currentSelected.size });
@@ -647,14 +662,32 @@ class EggsComponent {
     const visible = !!result && !isChrome;
     this.eggsSection?.classList.toggle('hidden', !visible);
     this.setNoEggVisible(false);
-    this.renderKnowledge(view.isStage1?.() ? [] : result?.eggResults || [], { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
-    this.setKnowledgeVisible(visible && !view.isAnalyzing && !view.isStage1?.() && !!result.eggResults?.length);
+    const showEggKnowledge = visible && !view.isAnalyzing && !view.isStage1?.() && !!result?.eggResults?.length;
+    const showEggKnowledgePlaceholder = visible && view.isAnalyzing && (view.analyzingEggs || view.isStage2?.() || (settings.analysisMode === 'full' || settings.analysisMode === 'fast')) && (!result?.eggResults || !result.eggResults.length);
+    if (showEggKnowledge) {
+      this.renderKnowledge(result.eggResults, { activeEggTab: view.activeEggTab, onTabChange: callbacks.onTabChange });
+      this.setKnowledgeVisible(true);
+    } else if (showEggKnowledgePlaceholder) {
+      this.setKnowledgeVisible(true);
+      if (this.eggKnowledgeContent) {
+        const text = t('eggKnowledgeInProgress') || 'Egg Knowledge analysis in progress...';
+        this.eggKnowledgeContent.innerHTML = `<div class="egg-knowledge-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🥚 ${text}</span></div>`;
+      }
+      if (this.eggTabsBar) this.eggTabsBar.innerHTML = '';
+    } else {
+      this.setKnowledgeVisible(false);
+    }
 
     // Render Chrome Mode Knowledge
     const chromeEntries = isChrome && (result?.extractedEntries?.length ? result.extractedEntries : (result?.eggResults?.[0]?.extractedEntries || []));
+    const isKnowledgeEnabled = view.enabledSections?.knowledge !== false || view.generateKnowledgeEntries === true;
     if (this.chromeKnowledgeSection && this.chromeKnowledgeContent) {
-      if (chromeEntries && chromeEntries.length > 0 && !view.isAnalyzing) {
+      if (chromeEntries && chromeEntries.length > 0) {
         this.renderChromeKnowledge(chromeEntries);
+        this.chromeKnowledgeSection.classList.remove('hidden');
+      } else if (isChrome && view.isAnalyzing && isKnowledgeEnabled && (!chromeEntries || chromeEntries.length === 0)) {
+        const text = t('knowledgeInProgress') || 'Knowledge extraction in progress...';
+        this.chromeKnowledgeContent.innerHTML = `<div class="knowledge-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🍃 ${text}</span></div>`;
         this.chromeKnowledgeSection.classList.remove('hidden');
       } else {
         this.chromeKnowledgeSection.classList.add('hidden');
@@ -665,7 +698,13 @@ class EggsComponent {
     const isExpanded = typeof view.presentation?.eggsExpanded === 'boolean'
       ? view.presentation.eggsExpanded
       : Boolean(view.isStage1?.() && (settings.analysisMode === 'preview' || settings.analysisMode === 'confirm' || !(result?.matchedEggs || []).length));
-    this.renderSection(result?.matchedEggs || [], { allEggs: view.allEggs, selectedEggs: view.selectedEggs, onSelectChange: callbacks.onSelectChange, expand: isExpanded });
+    this.renderSection(result?.matchedEggs || [], {
+      allEggs: view.allEggs,
+      selectedEggs: view.selectedEggs,
+      onSelectChange: callbacks.onSelectChange,
+      expand: isExpanded,
+      isAnalyzing: view.isAnalyzing
+    });
     this.eggsSection?.classList.toggle('hidden', !visible);
     this.expandEggsList(isExpanded);
     this.eggsSection?.classList.toggle('hidden', !visible);

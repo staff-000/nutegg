@@ -56,6 +56,7 @@ interface AnalyzeRequest {
   /** Content analysis sections to include (sent from Chrome as single source of truth). */
   /** Output language for content analysis and summaries (sent from Chrome as single source of truth). */
   outputLanguage?: string;
+  stream?: boolean;
 }
 
 interface AskRequest {
@@ -838,6 +839,97 @@ export class NutEggServer {
       }
 
       // Stage 1 (default): content summary + egg routing via concise summary
+      const isStreaming = Boolean(req.headers?.accept?.includes("application/x-ndjson") || capture.stream);
+      if (isStreaming) {
+        res.writeHead(200, {
+          "Content-Type": "application/x-ndjson",
+          "Transfer-Encoding": "chunked",
+          "Cache-Control": "no-cache",
+        });
+        const sendEvent = (obj: any) => {
+          try {
+            res.write(JSON.stringify(obj) + "\n");
+          } catch {}
+        };
+
+        const indexContentPromise = this.plugin.indexReader.getIndexContent();
+        let eggMatchingPromise: Promise<string[]> | null = null;
+        let matchedEggs: string[] = [];
+
+        const startEggMatching = (summaryText: string) => {
+          if (eggMatchingPromise) return eggMatchingPromise;
+          eggMatchingPromise = (async () => {
+            if (hasEggOverride) {
+              matchedEggs = capture.eggs!;
+            } else {
+              const indexContent = await indexContentPromise;
+              const index = this.plugin.indexReader.parseIndexContent(indexContent);
+              const matchedIndex = await this.plugin.indexReader.matchEggs(
+                { title: capture.title, url: capture.url, content: summaryText },
+                index,
+                capture.debugScope
+              );
+              matchedEggs = matchedIndex.map((e) => e.fileName);
+            }
+            sendEvent({ type: "partial", section: "matchedEggs", data: { matchedEggs } });
+            return matchedEggs;
+          })();
+          return eggMatchingPromise;
+        };
+
+        const contentAnalysis = await processor.analyzeContent(capture, (event) => {
+          sendEvent(event);
+          if (event.type === "partial" && event.section === "summary") {
+            const summaryText = [event.data.titleVerdict, ...(event.data.coreSummary || [])]
+              .filter(Boolean)
+              .join("\n");
+            startEggMatching(summaryText);
+          }
+        });
+
+        if (!eggMatchingPromise) {
+          const summaryText = [
+            contentAnalysis.titleVerdict,
+            ...(contentAnalysis.coreSummary || []),
+            ...(contentAnalysis.discussion?.topics.map((t) => `${t.title}: ${t.summary}`) || []),
+          ]
+            .filter(Boolean)
+            .join("\n");
+          await startEggMatching(summaryText);
+        } else {
+          await eggMatchingPromise;
+        }
+
+        const indexContent = await indexContentPromise;
+        const index = this.plugin.indexReader.parseIndexContent(indexContent);
+
+        const stage1Result = {
+          ...contentAnalysis,
+          matchedEggs,
+          allEggs: index.map((e) => e.fileName),
+          stage: "stage1" as const,
+          schemaVersion: 3,
+          shouldRead: null,
+          shouldReadReason: "",
+          eggResults: [],
+          newKnowledge: [],
+        };
+
+        const nutId = this.recordNut(capture, stage1Result as any);
+        console.log(
+          `[NutEgg] Analyzed (Stage 1 streamed): ${capture.title} — matchedEggs=${matchedEggs.length}, nutId=${nutId}`
+        );
+        sendEvent({
+          type: "complete",
+          result: {
+            ...stage1Result,
+            nutId,
+          },
+        });
+        res.end();
+        return;
+      }
+
       const contentAnalysis = await processor.analyzeContent(capture);
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);

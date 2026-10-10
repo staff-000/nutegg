@@ -13,7 +13,7 @@ class AnalysisService {
    * The open port prevents Chrome from terminating the service worker
    * during extended LLM calls (>30s).
    */
-  sendAnalyzeViaPort(payload) {
+  sendAnalyzeViaPort(payload, onProgress) {
     const api = this.chromeApi;
     if (!api || !api.runtime || !api.runtime.connect) {
       return Promise.reject(new Error("Chrome runtime.connect unavailable"));
@@ -35,12 +35,20 @@ class AnalysisService {
           }
         }, 10000);
 
-        port.onMessage.addListener((response) => {
+        port.onMessage.addListener((message) => {
+          if (message?.type === "partial") {
+            onProgress?.(message);
+            return;
+          }
           if (settled) return;
           settled = true;
           clearInterval(heartbeat);
           try { port.disconnect(); } catch {}
-          resolve(response);
+          if (message?.type === "complete") {
+            resolve(message.result);
+          } else {
+            resolve(message);
+          }
         });
 
         port.onDisconnect.addListener(() => {

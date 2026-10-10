@@ -15,12 +15,18 @@ import aggregateEggTpl from "../workflow/aggregate-egg.md";
 import localizeEggTpl from "../workflow/localize-egg.md";
 import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
 import chromeKnowledgeTpl from "../workflow/chrome-knowledge.md";
+import verdictSummaryTpl from "../workflow/verdict-summary.md";
+import mindMapAnalysisTpl from "../workflow/mindmap-analysis.md";
 
 export const PROMPTS = {
   discussionAnalysis: discussionAnalysisTpl,
   aggregateDiscussion: aggregateDiscussionTpl,
   /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
+  /** Standalone Verdict & Summary (+ user questions). */
+  verdictSummary: verdictSummaryTpl,
+  /** Standalone Mind Map analysis. */
+  mindMapAnalysis: mindMapAnalysisTpl,
   /** Step 1 extraction — content against one egg using instructions only. */
   eggAnalysis: eggAnalysisTpl,
   /** Follow-up questions after the initial analysis. */

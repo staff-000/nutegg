@@ -1,6 +1,6 @@
 // The only coordinator that presents tab state. Background events never render tab content.
 class PopupRenderer {
-  constructor({ store, settings, ui, root = document }) { Object.assign(this, { store, settings, ui, root }); this.keys = {}; this.tabId = null; }
+  constructor({ store, settings, ui, root = document }) { Object.assign(this, { store, settings, ui, root }); this.keys = {}; this.tabId = null; this.lastViews = new Map(); }
   handle(event) {
     if (['viewed', 'receipt'].includes(event.type)) return;
     if (event.tabId != null && event.tabId !== this.store.activeTabId) return;
@@ -13,6 +13,9 @@ class PopupRenderer {
     root.body?.classList.toggle('chrome-reader', !obsidianMode);
     root.body?.classList.toggle('obsidian-reader', obsidianMode);
     const changedTab = view.activeTabId !== this.tabId;
+    const previousView = this.lastViews.get(view.activeTabId);
+    const switchedToResults = previousView !== 'results' && view.currentView === 'results';
+    this.lastViews.set(view.activeTabId, view.currentView);
     if (changedTab) { this.keys = {}; this.tabId = view.activeTabId; ui.actionsUI.toggleEggAnalysisMenu(false); }
     const draft = values => this.store.dispatch({ type: 'draft', tabId: view.activeTabId, values });
     const keyed = (name, value, fn) => { const key = JSON.stringify(value); if (this.keys[name] !== key) { this.keys[name] = key; fn(); } };
@@ -47,7 +50,7 @@ class PopupRenderer {
       const element = root.getElementById?.(id);
       if (element) element.textContent = t(obsidianMode ? obsidianKey : chromeKey);
     }
-    keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.stage1Payload?.discussion, view.extractedContent?.discussion, view.presentation.discussionComments, view.discussionPending, view.extractionPending, !!view.analysisResult], () => ui.discussionUI?.render(view));
+    keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.stage1Payload?.discussion, view.extractedContent?.discussion, view.presentation.discussionComments, view.discussionPending, view.extractionPending, !!view.analysisResult, view.isAnalyzing], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);
     value(ui.captureUI.customQuestionsEl, view.customQuestions);
@@ -79,10 +82,11 @@ class PopupRenderer {
       else if (view.errors.extraction) ui.captureUI.setError(view.errors.extraction.message);
       else ui.captureUI.setLoading(t('retrievingPageContent'));
     });
-    keyed('mindmap', [view.analysisResult?.mindMap, view.enabledSections.mindMap], () => ui.mindmapUI.render(view.analysisResult?.mindMap, view.enabledSections.mindMap !== false));
+    const isMindMapLoading = Boolean(view.isAnalyzing && (!view.analysisResult?.mindMap || view.analysisResult.mindMap.length === 0));
+    keyed('mindmap', [view.analysisResult?.mindMap, view.enabledSections.mindMap, isMindMapLoading], () => ui.mindmapUI.render(view.analysisResult?.mindMap, view.enabledSections.mindMap !== false, null, isMindMapLoading));
     keyed('qa', [view.resultRevision, view.followUpQa], () => ui.qaUI.render(view.analysisResult || {}, view.followUpQa));
     ui.qaUI.setFollowupLoading(view.busy);
-    keyed('eggs', [view.resultRevision, view.operations.analysis, view.selectedEggs.size, [...view.selectedEggs], view.activeEggTab, view.allEggs, view.presentation.eggsExpanded, settings.serverOnline, settings.analysisMode, settings.connectionMode], () => {
+    keyed('eggs', [view.resultRevision, view.operations.analysis, view.selectedEggs.size, [...view.selectedEggs], view.activeEggTab, view.allEggs, view.presentation.eggsExpanded, settings.serverOnline, settings.analysisMode, settings.connectionMode, view.isAnalyzing], () => {
       ui.eggsUI.render(view, settings, { onSelectChange: eggs => draft({ selectedEggs: [...eggs] }), onTabChange: activeEggTab => draft({ activeEggTab }) });
     });
     keyed('captureEggs', [view.allEggs, [...view.preSelectedEggs]], () => ui.eggsUI.renderCaptureList({ allEggs: view.allEggs, preSelectedEggs: new Set(view.preSelectedEggs), onSelectChange: eggs => draft({ preSelectedEggs: [...eggs] }) }));
@@ -121,7 +125,13 @@ class PopupRenderer {
         header?.setAttribute('role', 'button'); header?.setAttribute('tabindex', '0');
       });
     });
-    if (changedTab && typeof window !== 'undefined') window.scrollTo(0, view.presentation.scroll);
+    if (switchedToResults) {
+      if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+      if (root?.documentElement) root.documentElement.scrollTop = 0;
+      if (root?.body) root.body.scrollTop = 0;
+    } else if (changedTab && typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      window.scrollTo(0, view.presentation.scroll);
+    }
     this.store.dispatch({ type: 'viewed', tabId: view.activeTabId, revision: view.resultRevision });
   }
 }

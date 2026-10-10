@@ -127,7 +127,10 @@ class PopupOperations {
         generateKnowledgeEntries: tab.generateKnowledgeEntries, enabledSections: tab.enabledSections,
         discussion: tab.enabledSections.discussion === true ? content.discussion : undefined,
         outputLanguage: inputs.outputLanguage, ...(inputs.eggs ? { eggs: inputs.eggs } : {}) };
-      const response = await this.service.sendAnalyzeViaPort(payload);
+      const response = await this.service.sendAnalyzeViaPort(payload, (event) => {
+        if (!this.store.isOperationCurrent(token)) return;
+        this.store.commitOperation(token, { type: 'analysisPartial', partial: event });
+      });
       if (!this.store.isOperationCurrent(token)) return { stale: true };
       if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
       const stage1 = { ...response, generateKnowledgeEntries: tab.generateKnowledgeEntries };

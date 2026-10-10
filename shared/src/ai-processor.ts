@@ -31,6 +31,7 @@ import { PROMPTS, renderPrompt } from "./prompt-templates";
 import {
   DEFAULT_ANALYSIS_SECTIONS,
   type AIProcessorHost,
+  type AnalysisProgressCallback,
   type AnalysisResult,
   type AnalysisSectionsConfig,
   type CapturePayload,
@@ -422,32 +423,192 @@ export class AIProcessor {
       questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
     },
-    eggs: EggContent[]
+    eggs: EggContent[],
+    onProgress?: AnalysisProgressCallback
   ): Promise<AnalysisResult> {
     if (!isAIConfigured(this.host?.settings)) {
       return this.fallbackAnalysis(capture, eggs);
     }
-    const contentAnalysis = await this.analyzeContent(capture);
-    return this.analyzeEggs(capture, eggs, contentAnalysis);
+    const contentAnalysis = await this.analyzeContent(capture, onProgress);
+    return this.analyzeEggs(capture, eggs, contentAnalysis, onProgress);
   }
 
   /**
    * Stage 1 — content summary + mind map + custom question answers.
-   * Handles long-form chunked content with aggregation or single-chunk content.
+   * Progressively renders and streams partial results as soon as available.
    */
-  async analyzeContent(capture: CapturePayload): Promise<ContentAnalysis> {
-    const enabled = capture.enabledSections?.discussion === true;
-    const discussion = enabled ? await this.analyzeDiscussion(capture) : undefined;
-    const needsDiscussionContext = capture.discussion?.kind === 'forum' || capture.transcriptAvailable === false || capture.questions?.length;
-    const context = needsDiscussionContext ? discussionSummaryText(capture, discussion) + discussionEvidenceText(capture, discussion) : '';
-    const bodyCapture = { ...capture, content: (capture.transcriptAvailable === false ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n' : '') + capture.content + context };
+  async analyzeContent(
+    capture: CapturePayload,
+    onProgress?: AnalysisProgressCallback
+  ): Promise<ContentAnalysis> {
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
-    const needsBody = sections.titleVerdict || sections.coreSummary || sections.mindMap || capture.questions?.length;
-    const contentAnalysis = needsBody ? await this.analyzeBody(bodyCapture) : { titleVerdict: '', coreSummary: [], mindMap: [], customQuestionAnswers: [] };
-    const result: ContentAnalysis = discussion ? { ...contentAnalysis, discussion } : contentAnalysis;
-    if (capture.generateKnowledgeEntries) {
-      result.extractedEntries = await this.extractChromeKnowledge(bodyCapture);
+    const discussionEnabled = sections.discussion === true;
+    const needsDiscussionContext =
+      capture.discussion?.kind === "forum" ||
+      capture.transcriptAvailable === false ||
+      Boolean(capture.questions?.length);
+
+    let discussion: DiscussionAnalysis | undefined;
+    let discussionPromise: Promise<DiscussionAnalysis | undefined> | null = null;
+
+    if (discussionEnabled) {
+      if (needsDiscussionContext) {
+        discussion = await this.analyzeDiscussion(capture);
+        onProgress?.({
+          type: "partial",
+          section: "discussion",
+          data: { discussion },
+        });
+      } else {
+        discussionPromise = this.analyzeDiscussion(capture).then((disc) => {
+          onProgress?.({
+            type: "partial",
+            section: "discussion",
+            data: { discussion: disc },
+          });
+          return disc;
+        });
+      }
     }
+
+    const context =
+      discussion && needsDiscussionContext
+        ? discussionSummaryText(capture, discussion) +
+          discussionEvidenceText(capture, discussion)
+        : "";
+    const bodyCapture = {
+      ...capture,
+      content:
+        (capture.transcriptAvailable === false
+          ? "No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n"
+          : "") +
+        capture.content +
+        context,
+    };
+
+    const needsVerdictSummary = Boolean(
+      sections.titleVerdict || sections.coreSummary || capture.questions?.length
+    );
+    const needsMindMap = Boolean(sections.mindMap);
+
+    let verdictSummaryRes: ContentAnalysis = {
+      titleVerdict: "",
+      coreSummary: [],
+      mindMap: [],
+      customQuestionAnswers: [],
+    };
+    let mindMapRes: MindMapNode[] = [];
+    const chunks = this.chunkContent(bodyCapture.content, bodyCapture.chapters || []);
+    if (chunks.length > 1) {
+      const res = await this.analyzeBodySection(bodyCapture, sections);
+      verdictSummaryRes = res;
+      mindMapRes = res.mindMap || [];
+      if (res.titleVerdict || res.coreSummary?.length) {
+        onProgress?.({
+          type: "partial",
+          section: "summary",
+          data: {
+            titleVerdict: res.titleVerdict,
+            coreSummary: res.coreSummary,
+            customQuestionAnswers: res.customQuestionAnswers,
+          },
+        });
+      }
+      if (mindMapRes.length) {
+        onProgress?.({
+          type: "partial",
+          section: "mindmap",
+          data: { mindMap: mindMapRes },
+        });
+      }
+    } else if (needsVerdictSummary && needsMindMap) {
+      // Split into concurrent calls: Verdict & Summary, and Mind Map
+      const pVerdict = this.analyzeBodySection(bodyCapture, {
+        ...sections,
+        mindMap: false,
+      }).then((res) => {
+        onProgress?.({
+          type: "partial",
+          section: "summary",
+          data: {
+            titleVerdict: res.titleVerdict,
+            coreSummary: res.coreSummary,
+            customQuestionAnswers: res.customQuestionAnswers,
+          },
+        });
+        return res;
+      });
+
+      const pMindMap = this.analyzeBodySection(bodyCapture, {
+        ...sections,
+        titleVerdict: false,
+        coreSummary: false,
+        mindMap: true,
+      }).then((res) => {
+        onProgress?.({
+          type: "partial",
+          section: "mindmap",
+          data: { mindMap: res.mindMap || [] },
+        });
+        return res.mindMap || [];
+      });
+
+      const [vRes, mRes] = await Promise.all([pVerdict, pMindMap]);
+      verdictSummaryRes = vRes;
+      mindMapRes = mRes;
+    } else if (needsVerdictSummary) {
+      verdictSummaryRes = await this.analyzeBodySection(bodyCapture, {
+        ...sections,
+        mindMap: false,
+      });
+      onProgress?.({
+        type: "partial",
+        section: "summary",
+        data: {
+          titleVerdict: verdictSummaryRes.titleVerdict,
+          coreSummary: verdictSummaryRes.coreSummary,
+          customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
+        },
+      });
+    } else if (needsMindMap) {
+      const res = await this.analyzeBodySection(bodyCapture, {
+        ...sections,
+        titleVerdict: false,
+        coreSummary: false,
+        mindMap: true,
+      });
+      mindMapRes = res.mindMap || [];
+      onProgress?.({
+        type: "partial",
+        section: "mindmap",
+        data: { mindMap: mindMapRes },
+      });
+    }
+
+    if (discussionPromise) {
+      discussion = await discussionPromise;
+    }
+
+    let extractedEntries: ExtractedKnowledgeEntry[] = [];
+    if (capture.generateKnowledgeEntries) {
+      extractedEntries = await this.extractChromeKnowledge(bodyCapture);
+      onProgress?.({
+        type: "partial",
+        section: "knowledge",
+        data: { extractedEntries },
+      });
+    }
+
+    const result: ContentAnalysis = {
+      titleVerdict: verdictSummaryRes.titleVerdict || "",
+      coreSummary: verdictSummaryRes.coreSummary || [],
+      customQuestionAnswers: verdictSummaryRes.customQuestionAnswers || [],
+      mindMap: mindMapRes || [],
+      ...(discussion ? { discussion } : {}),
+      ...(extractedEntries.length ? { extractedEntries } : {}),
+    };
+
+    onProgress?.({ type: "complete", result });
     return result;
   }
 
@@ -527,7 +688,13 @@ export class AIProcessor {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
     };
+    return this.analyzeBodySection(capture, effectiveSections);
+  }
 
+  private async analyzeBodySection(
+    capture: CapturePayload,
+    effectiveSections: AnalysisSectionsConfig
+  ): Promise<ContentAnalysis> {
     if (!isAIConfigured(this.host?.settings)) {
       return {
         titleVerdict: effectiveSections.titleVerdict ? capture.title : "",
@@ -590,7 +757,7 @@ export class AIProcessor {
    * Stage 2 — follow egg instructions and synthesize reading recommendations.
    * Existing notes are only read during merge.
    */
-  async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis): Promise<AnalysisResult> {
+  async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis, onProgress?: AnalysisProgressCallback): Promise<AnalysisResult> {
     if (!isAIConfigured(this.host?.settings) || !eggs.length) {
       return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
         shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
@@ -661,7 +828,12 @@ export class AIProcessor {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
     };
-    const rawTpl = this.getPrompt("contentAnalysis");
+    let rawTpl = this.getPrompt("contentAnalysis");
+    if (!sections.mindMap && (sections.titleVerdict || sections.coreSummary)) {
+      rawTpl = this.getPrompt("verdictSummary") || rawTpl;
+    } else if (sections.mindMap && !sections.titleVerdict && !sections.coreSummary) {
+      rawTpl = this.getPrompt("mindMapAnalysis") || rawTpl;
+    }
     const prunedTpl = applyPrunedSections(rawTpl, sections, false);
     const rawTask = this.getPrompt("contentTaskDefault");
     const prunedTask = pruneTaskContent(rawTask, sections);
@@ -683,9 +855,11 @@ export class AIProcessor {
       shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
 
-    const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
-    const response = await this.callAI(prompt, configuredMax);
-    const parsed = this.parseJson(response, "content-analysis");
+    const defaultMax = !sections.mindMap ? 4096 : 16384;
+    const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || defaultMax;
+    const budget = Math.min(configuredMax, !sections.mindMap ? 4096 : configuredMax);
+    const response = await this.callAI(prompt, budget);
+    const parsed = this.parseJson(response, !sections.mindMap ? "verdict-summary" : "content-analysis");
     return {
       titleVerdict: sections.titleVerdict
         ? String(parsed.titleVerdict || "Could not generate a verdict.")

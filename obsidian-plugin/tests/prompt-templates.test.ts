@@ -57,6 +57,8 @@ describe("PROMPTS", () => {
       "description", "template",
       // discussion analysis and topic aggregation
       "kind", "body", "parents", "items", "drafts",
+      // progressive rendering verdict & summary
+      "verdict_context",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

@@ -348,7 +348,7 @@ class MindmapComponent {
     }
   }
 
-  render(nodes, enabled = true, progress = null) {
+  render(nodes, enabled = true, progress = null, isLoading = false) {
     this.nodes = nodes;
     if (progress != null) this.lastProgress = progress;
     if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {
@@ -358,6 +358,14 @@ class MindmapComponent {
         this.updateProgress(this.lastProgress);
       }
       return res;
+    } else if (isLoading && enabled !== false) {
+      this.show();
+      if (this.mindmapTree) {
+        const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
+        const tFn = (key, params) => (typeof globalThis.t === "function" ? globalThis.t(key, params) : (helpers?.t ? helpers.t(key, params) : key));
+        const text = tFn("mindmapInProgress") || "Mind Map generation in progress...";
+        this.mindmapTree.innerHTML = `<div class="mindmap-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🧠 ${text}</span></div>`;
+      }
     } else {
       this.hide();
     }

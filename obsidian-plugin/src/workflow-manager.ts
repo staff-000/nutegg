@@ -7,6 +7,8 @@ export type WorkflowPromptKey =
   | "discussionAnalysis"
   | "aggregateDiscussion"
   | "contentAnalysis"
+  | "verdictSummary"
+  | "mindMapAnalysis"
   | "eggAnalysis"
   | "followUp"
   | "eggRouting"
@@ -15,12 +17,15 @@ export type WorkflowPromptKey =
   | "aggregateContent"
   | "aggregateEgg"
   | "localizeEgg"
-  | "sharedOutputRules";
+  | "sharedOutputRules"
+  | "chromeKnowledge";
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   discussionAnalysis: "discussion-analysis.md",
   aggregateDiscussion: "aggregate-discussion.md",
   contentAnalysis: "content-analysis.md",
+  verdictSummary: "verdict-summary.md",
+  mindMapAnalysis: "mindmap-analysis.md",
   eggAnalysis: "egg-analysis.md",
   followUp: "follow-up.md",
   eggRouting: "egg-routing.md",
@@ -30,6 +35,7 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   aggregateEgg: "aggregate-egg.md",
   localizeEgg: "localize-egg.md",
   sharedOutputRules: "shared-output-rules.md",
+  chromeKnowledge: "chrome-knowledge.md",
 };
 
 /** All built-in workflow files including README.md */
@@ -38,6 +44,8 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "discussion-analysis.md": PROMPTS.discussionAnalysis,
   "aggregate-discussion.md": PROMPTS.aggregateDiscussion,
   "content-analysis.md": PROMPTS.contentAnalysis,
+  "verdict-summary.md": PROMPTS.verdictSummary,
+  "mindmap-analysis.md": PROMPTS.mindMapAnalysis,
   "egg-analysis.md": PROMPTS.eggAnalysis,
   "follow-up.md": PROMPTS.followUp,
   "egg-routing.md": PROMPTS.eggRouting,
@@ -47,6 +55,7 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "aggregate-egg.md": PROMPTS.aggregateEgg,
   "localize-egg.md": PROMPTS.localizeEgg,
   "shared-output-rules.md": PROMPTS.sharedOutputRules,
+  "chrome-knowledge.md": PROMPTS.chromeKnowledge,
 };
 
 /** Fast deterministic DJB2 hash for string comparison */

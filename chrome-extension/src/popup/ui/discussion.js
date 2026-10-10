@@ -36,6 +36,12 @@ class DiscussionComponent {
     if (!enabled || !view.analysisResult) { result.innerHTML = ''; return; }
     const analysis = view.analysisResult.discussion;
     if (!analysis || analysis.status !== 'ready') {
+      if (view.isAnalyzing && (!analysis || analysis.status === 'loading' || analysis.status === 'pending')) {
+        section.classList.remove('hidden');
+        const text = t('discussionInProgress') || 'Discussion analysis in progress...';
+        result.innerHTML = `<div class="discussion-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>👥 ${text}</span></div>`;
+        return;
+      }
       result.textContent = t(!analysis ? 'discussionAnalyzeAgain' : analysis.status === 'no_meaningful' ? 'discussionNoMeaningful'
         : analysis.status === 'unavailable' ? 'discussionUnavailable' : 'discussionNotLoaded');
       return;
