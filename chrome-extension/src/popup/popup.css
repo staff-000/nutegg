@@ -3088,6 +3088,32 @@ body {
 #reanalyze-sections-accordion { margin-top: 8px; border-color: #e9e1d7; background: #fffdf9; }
 #reanalyze-sections-toggle { background: transparent; }
 .section-label { color: #76614c; letter-spacing: .2px; }
+/* Distinct result cards; verdict and summary share one uninterrupted surface. */
+#results-state { --result-card-gap: 16px; --result-card-padding: 14px; }
+#results-state > .result-section {
+  margin-bottom: var(--result-card-gap);
+  padding: var(--result-card-padding);
+  border: 1px solid #d8cbbb;
+  border-radius: 12px;
+  background: #fffefa;
+}
+#results-state > .result-section > .section-header { padding: 0; margin-bottom: 10px; }
+#results-state > .result-section > .section-header .section-chevron { margin-right: 0; }
+#results-state > .result-section:has(> .section-content.collapsed) > .section-header { margin-bottom: 0; }
+#results-state #title-verdict-section:has(+ #core-summary-section:not(.hidden)) {
+  margin-bottom: 0;
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+}
+#results-state #title-verdict-section:not(.hidden) + #core-summary-section {
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  padding-top: 6px;
+}
+#results-state #verdict-answer,
+#results-state #core-summary { padding: 0; border: 0; border-radius: 0; background: transparent; }
+body.density-compact #results-state { --result-card-gap: 12px; --result-card-padding: 12px; }
+body.density-ultra-compact #results-state { --result-card-gap: 10px; --result-card-padding: 10px; }
 .core-summary { color: #374151; line-height: 1.5; }
 .core-summary li { border: 0; border-radius: 0; background: transparent; padding: 8px 0; color: inherit; line-height: 1.5; }
 .core-summary li:first-child { padding-top: 0; }
