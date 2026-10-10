@@ -403,8 +403,15 @@ class PageExtractor {
   async getPagePosition(tabId, targets = null) {
     if (tabId == null) return null;
     const message = { action: "nutegg-page-position", ...(targets ? { targets } : {}) };
+    let response = null;
     try {
-      const response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
+      response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
+    } catch {}
+    if (response?.success) return response;
+    const injected = await this.injectContentScript(tabId);
+    if (!injected) return null;
+    try {
+      response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
       return response?.success ? response : null;
     } catch {
       return null;

@@ -175,13 +175,16 @@ async function initPopup() {
       void operations.refreshDebugInfo();
       if (event.type === 'activated') void interactionAction.updateMindmapPosition();
     }
+    if (['analysisComplete', 'historySelected', 'view', 'activitySelected', 'viewed'].includes(event.type)) {
+      void interactionAction.updateMindmapPosition();
+    }
   });
   void operations.refreshDebugInfo();
   void interactionAction.updateMindmapPosition();
   setInterval(() => {
     void operations.refreshDebugInfo();
     if (document.visibilityState === 'visible') void interactionAction.updateMindmapPosition();
-  }, 1000);
+  }, 750);
   setInterval(() => {
     if (document.visibilityState === 'visible' && settings.connectionMode === 'obsidian') void envService.checkServerStatus();
   }, 15000);

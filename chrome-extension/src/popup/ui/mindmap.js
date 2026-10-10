@@ -48,27 +48,42 @@ function findCurrentNode(nodes, progress) {
   if (flat.length === 0) return null;
 
   const toSec = t => {
-    if (typeof t === "number") return t;
-    if (!t) return 0;
-    if (helpers?.timeToSeconds) return helpers.timeToSeconds(t);
-    const m = String(t).match(/\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/);
-    const raw = m ? m[0] : String(t);
-    const parts = raw.split(":").map(Number);
-    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-    if (parts.length === 2) return parts[0] * 60 + parts[1];
-    return Number(raw) || 0;
+    if (typeof t === "number") return !isNaN(t) ? t : 0;
+    if (!t) return null;
+    const str = String(t).trim();
+    if (!str) return null;
+    const m = str.match(/\b(?:(\d{1,3}):)?(\d{1,2}):(\d{2})\b/);
+    if (m) {
+      const parts = m[0].split(":").map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+    }
+    const clean = str.replace(/^\[|\]$/g, "").trim();
+    const cleanMatch = clean.match(/\b(?:(\d{1,3}):)?(\d{1,2}):(\d{2})\b/);
+    if (cleanMatch) {
+      const parts = cleanMatch[0].split(":").map(Number);
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      if (parts.length === 2) return parts[0] * 60 + parts[1];
+    }
+    const num = Number(clean);
+    return !isNaN(num) && clean !== "" ? num : null;
   };
 
   const getNodeTs = n => {
-    if (typeof n.time === "string" && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(n.time)) return toSec(n.time);
-    if (typeof n.timestamp === "number") return n.timestamp;
-    const inName = helpers?.extractTimestamp?.(n.name) || (typeof n.name === "string" && (n.name.match(/\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/)?.[0] || null));
-    if (inName) return toSec(inName);
+    if (n == null) return null;
+    if (typeof n.timestamp === "number" && !isNaN(n.timestamp)) return n.timestamp;
+    if (typeof n.time === "number" && !isNaN(n.time)) return n.time;
+    if (n.time) {
+      const s = toSec(n.time);
+      if (s !== null) return s;
+    }
+    const fromName = helpers?.extractTimestamp?.(n.name) || (typeof n.name === "string" && toSec(n.name));
+    if (fromName !== null && fromName !== undefined) return fromName;
     if (Array.isArray(n.sources)) {
       for (const s of n.sources) {
-        if (s && typeof s.ref === "string") {
-          const inRef = helpers?.extractTimestamp?.(s.ref) || s.ref.match(/\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/)?.[0];
-          if (inRef) return toSec(inRef);
+        if (s && s.ref) {
+          const inRef = helpers?.extractTimestamp?.(s.ref) || toSec(s.ref);
+          if (inRef !== null && inRef !== undefined) return inRef;
         }
       }
     }
@@ -96,7 +111,7 @@ function findCurrentNode(nodes, progress) {
   if (isVideo) {
     if (typeof progress === "number") targetValue = progress;
     else if (typeof progress?.currentTime === "number") targetValue = progress.currentTime;
-    else if (typeof progress?.time === "string") targetValue = toSec(progress.time);
+    else if (typeof progress?.time === "string") targetValue = toSec(progress.time) ?? 0;
   } else {
     if (typeof progress === "number") targetValue = progress;
     else if (typeof progress?.position === "number") targetValue = progress.position;
@@ -106,11 +121,7 @@ function findCurrentNode(nodes, progress) {
   // Populate metrics
   for (const item of flat) {
     if (isVideo) {
-      let ts = getNodeTs(item.node);
-      if (ts === null && item.parent && item.parent.val != null) {
-        ts = item.parent.val;
-      }
-      item.val = ts;
+      item.val = getNodeTs(item.node);
     } else {
       item.val = getNodePos(item.node, item.index);
     }
@@ -130,13 +141,18 @@ function findCurrentNode(nodes, progress) {
   }
 
   const reached = withMetric.filter(item => item.val <= targetValue);
+  if (reached.length === 0) return flat[0].node;
+
+  // Most recent started metric
+  const maxVal = Math.max(...reached.map(item => item.val));
+  const candidates = reached.filter(item => item.val === maxVal);
 
   if (!isLinear) {
     // If mind map is not exactly linear in progress, show the first one
-    return reached.length > 0 ? reached[0].node : flat[0].node;
+    return candidates[0].node;
   } else {
-    // Linear progression: show the active node reached so far
-    return reached.length > 0 ? reached[reached.length - 1].node : flat[0].node;
+    // Linear progression: show the most specific / latest matching node
+    return candidates[candidates.length - 1].node;
   }
 }
 
@@ -162,6 +178,7 @@ function renderMindMap(nodes, container, progress = null) {
     const nodeEl = document.createElement("div");
     nodeEl.className = "mindmap-node" + (isCurrent ? " is-current" : "");
     nodeEl.dataset.nodeIndex = String(currentIndex);
+    nodeEl.__nuteggNode = node;
 
     const headerEl = document.createElement("div");
     headerEl.className = "mindmap-node-header";
@@ -303,9 +320,12 @@ class MindmapComponent {
     }
     findIdx(displayNodes);
 
-    if (matchedIndex === -1) return;
-
-    const nodeEl = this.mindmapTree.querySelector(`.mindmap-node[data-node-index="${matchedIndex}"]`);
+    let nodeEl = matchedIndex !== -1 ? this.mindmapTree.querySelector(`.mindmap-node[data-node-index="${matchedIndex}"]`) : null;
+    if (!nodeEl) {
+      for (const el of this.mindmapTree.querySelectorAll(".mindmap-node")) {
+        if (el.__nuteggNode === targetNode) { nodeEl = el; break; }
+      }
+    }
     if (!nodeEl) return;
 
     nodeEl.classList.add("is-current");
@@ -326,6 +346,10 @@ class MindmapComponent {
       }
       parentBranch = parentBranch.parentElement?.closest(".mindmap-children");
     }
+
+    try {
+      nodeEl.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    } catch {}
   }
 
   render(nodes, enabled = true, progress = null) {

@@ -179,15 +179,19 @@ if (!window.__nutegg_listener_attached) {
 
     if (message.action === "nutegg-page-position") {
       const video =
+        document.querySelector("#movie_player video") ||
+        document.querySelector("ytd-watch-flexy video") ||
         document.querySelector(".html5-main-video") ||
         document.querySelector("video.video-stream") ||
+        document.querySelector(".bpx-player-video-wrap video") ||
+        document.querySelector("#bilibili-player video") ||
         document.querySelector("video");
-      if (video && !isNaN(video.currentTime) && (video.duration > 0 || video.currentTime > 0)) {
+      if (video && typeof video.currentTime === "number" && !isNaN(video.currentTime)) {
         sendResponse({
           success: true,
           type: "video",
           currentTime: video.currentTime,
-          duration: video.duration || 0,
+          duration: isNaN(video.duration) ? 0 : video.duration,
           paused: Boolean(video.paused),
         });
         return false;
