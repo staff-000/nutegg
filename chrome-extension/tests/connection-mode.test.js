@@ -90,6 +90,27 @@ test('approval exchanges a credential and includes extension identity on subsequ
   assert.equal(app.http.at(-1).options.headers.Authorization, 'Bearer new-approved-credential');
 });
 
+test('reconnecting an approved Chrome installation reuses its credential without opening approval', async () => {
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async () => ({ ok: true, json: async () => ({ capabilities: ['connection-approval-v1'] }) }) });
+  for (let count = 0; count < 2; count++) assert.equal((await app.send('connect-obsidian')).success, true);
+  assert.deepEqual(app.http.map(call => new URL(call.url).pathname), ['/health', '/ai-config', '/health', '/ai-config']);
+  assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], 'approved-test-credential');
+});
+
+test('a rejected credential requests approval again, while an AI configuration error does not', async () => {
+  for (const code of [401, 403]) {
+    const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+      if (url.endsWith('/ai-config') && options.headers.Authorization === 'Bearer approved-test-credential') return { ok: false, status: code };
+      return { ok: true, json: async () => url.endsWith('/health') ? { capabilities: ['connection-approval-v1'] } :
+        url.endsWith('/connection/finish') ? { state: 'approved', credential: 'replacement-credential' } : { success: true } };
+    } });
+    const result = await app.send('connect-obsidian');
+    assert.equal(app.http.some(call => call.url.endsWith('/connection/start')), code === 401);
+    assert.equal(!!result.success, code === 401);
+    assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], code === 401 ? 'replacement-credential' : 'approved-test-credential');
+  }
+});
+
 test('subscription readiness and credit allow slow CLI checks without lengthening API checks', async () => {
   for (const method of ['apiKey', 'subscription']) {
     const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiAuthMethod: method });

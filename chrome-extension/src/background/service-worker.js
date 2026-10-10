@@ -161,6 +161,19 @@ async function connectObsidian() {
     const serverUrl = await getServerUrl();
     const health = await fetch(`${serverUrl}/health`, { signal: AbortSignal.timeout(3000) }).then(r => r.json());
     if (!health.capabilities?.includes('connection-approval-v1')) throw new Error('Update the NutEgg Obsidian plugin.');
+    const credentialKey = `obsidianConnection:${serverUrl}`;
+    const stored = await chrome.storage.local.get([credentialKey]);
+    if (stored[credentialKey]) {
+      try {
+        await syncAiConfig(serverUrl);
+        return { success: true };
+      } catch (error) {
+        // Only an invalid credential requires approval again. Configuration
+        // failures and offline requests must not rotate an approved connection.
+        const current = await chrome.storage.local.get([credentialKey]);
+        if (current[credentialKey]) throw error;
+      }
+    }
     const nonce = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('');
     const request = path => fetch(`${serverUrl}/connection/${path}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-NutEgg-Extension-Origin': chrome.runtime.getURL('/').replace(/\/$/, '') }, body: JSON.stringify({ nonce }), signal: AbortSignal.timeout(3000),
@@ -170,8 +183,8 @@ async function connectObsidian() {
     while (Date.now() < deadline) {
       const result = await request('finish');
       if (result.state === 'approved') {
-        await chrome.storage.local.set({ [`obsidianConnection:${serverUrl}`]: result.credential });
-        await syncAiConfig(); return { success: true };
+        await chrome.storage.local.set({ [credentialKey]: result.credential });
+        await syncAiConfig(serverUrl); return { success: true };
       }
       if (result.state === 'denied') throw new Error('Connection was not approved in Obsidian.');
       await new Promise(resolve => setTimeout(resolve, 1000));

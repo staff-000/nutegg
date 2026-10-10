@@ -1,6 +1,9 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 type Challenge = { origin: string; expires: number; token?: string; state: 'pending' | 'approved' | 'denied' };
+// Published NutEgg identity; matches website/src/versions.json. Development
+// identities become trusted only after an explicit first approval in this vault.
+export const NUTEGG_CHROME_ORIGIN = 'chrome-extension://bmdmdiicembobejibggoeiahaonphcol';
 export class ConnectionAccess {
   private challenges = new Map<string, Challenge>();
   constructor(private clients: Record<string, string>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>) {}
@@ -12,7 +15,7 @@ export class ConnectionAccess {
     const actual = Buffer.from(authorization), expected = Buffer.from(`Bearer ${token}`);
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   }
-  start(origin: string, nonce: string) {
+  start(origin: string, nonce: string, browserOrigin?: string) {
     if (!ConnectionAccess.validOrigin(origin) || !/^[a-f0-9]{64}$/.test(nonce)) throw new Error('Invalid connection challenge');
     for (const [id, challenge] of this.challenges) if (challenge.expires < Date.now()) this.challenges.delete(id);
     const current = this.challenges.get(nonce);
@@ -24,7 +27,10 @@ export class ConnectionAccess {
     if (this.challenges.size >= 16) throw new Error('Too many connection requests');
     const challenge: Challenge = { origin, expires: Date.now() + 120000, state: 'pending' };
     this.challenges.set(nonce, challenge);
-    void this.approve(origin).then(async approved => {
+    // The caller-supplied identity header is never enough to skip approval.
+    // Retain browser Origin checks plus a credential on every sensitive request.
+    const trusted = browserOrigin === origin && (origin === NUTEGG_CHROME_ORIGIN || !!this.clients[origin]);
+    void (trusted ? Promise.resolve(true) : this.approve(origin)).then(async approved => {
       if (challenge.expires < Date.now()) return;
       if (!approved) { challenge.state = 'denied'; return; }
       const token = randomBytes(32).toString('hex');

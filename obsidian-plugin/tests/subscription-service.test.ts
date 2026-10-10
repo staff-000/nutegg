@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
 import { SubscriptionService } from '../src/subscription-service';
-import { ConnectionAccess } from '../src/connection-access';
+import { ConnectionAccess, NUTEGG_CHROME_ORIGIN } from '../src/connection-access';
 import { NutEggServer } from '../src/server';
 import { makeFakePlugin } from './helpers';
 
@@ -37,6 +37,53 @@ test('denied and expired challenges cannot authorize an extension', async t => {
   t.mock.timers.enable({ apis: ['Date'], now: 0 });
   stalled.start(origin, nonce); t.mock.timers.tick(120001);
   assert.throws(() => stalled.finish(origin, nonce));
+});
+
+test('published NutEgg and previously approved development origins connect without another prompt', async () => {
+  for (const trustedOrigin of [NUTEGG_CHROME_ORIGIN, origin]) {
+    let prompts = 0, saves = 0;
+    const clients = trustedOrigin === origin ? { [origin]: 'previous-credential' } : {};
+    const access = new ConnectionAccess(clients, async () => { prompts++; return false; }, async () => { saves++; });
+    access.start(trustedOrigin, nonce, trustedOrigin); await flush();
+    const result = access.finish(trustedOrigin, nonce);
+    assert.equal(result.state, 'approved');
+    assert.equal(prompts, 0); assert.equal(saves, 1);
+    assert.equal(access.authorized(trustedOrigin, `Bearer ${result.credential}`), true);
+    assert.equal(access.authorized(trustedOrigin, undefined), false);
+  }
+});
+
+test('identity headers alone and unknown browser extension origins cannot silently gain access', async () => {
+  for (const [claimed, native] of [[NUTEGG_CHROME_ORIGIN, undefined], [origin, undefined], [origin, origin], [NUTEGG_CHROME_ORIGIN, origin]]) {
+    let prompts = 0;
+    const access = new ConnectionAccess({}, async () => { prompts++; return false; }, async () => {});
+    access.start(claimed!, nonce, native); await flush();
+    assert.equal(access.finish(claimed!, nonce).state, 'denied');
+    assert.equal(prompts, 1);
+  }
+});
+
+test('HTTP automatic connection requires the native NutEgg Origin and still authenticates protected requests', async t => {
+  const plugin = makeFakePlugin(); let prompts = 0;
+  plugin.connectionAccess = new ConnectionAccess({}, async () => { prompts++; return false; }, async () => {});
+  const server = new NutEggServer(plugin, 0); await server.start();
+  const native = server['server'];
+  t.after(async () => { native.closeAllConnections(); await server.stop(); });
+  const url = `http://127.0.0.1:${native.address().port}`;
+  const headers = { 'Content-Type': 'application/json', 'X-NutEgg-Extension-Origin': NUTEGG_CHROME_ORIGIN };
+  const exchange = async (path: string, challenge: string, withOrigin: boolean) => {
+    const response = await fetch(url + '/connection/' + path, { method: 'POST',
+      headers: { ...headers, ...(withOrigin ? { Origin: NUTEGG_CHROME_ORIGIN } : {}) }, body: JSON.stringify({ nonce: challenge }) });
+    assert.equal(response.status, 200); return response.json();
+  };
+  assert.equal((await fetch(url + '/metrics', { headers })).status, 401);
+  await exchange('start', nonce, true); await flush();
+  const approved = await exchange('finish', nonce, true);
+  assert.equal(approved.state, 'approved'); assert.equal(prompts, 0);
+  assert.equal((await fetch(url + '/metrics', { headers: { ...headers, Authorization: `Bearer ${approved.credential}` } })).status, 200);
+  await exchange('start', 'c'.repeat(64), false); await flush();
+  assert.equal((await exchange('finish', 'c'.repeat(64), false)).state, 'denied');
+  assert.equal(prompts, 1);
 });
 
 test('local server rejects unauthorized process launch and config writes before dispatch', async t => {

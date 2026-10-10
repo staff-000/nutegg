@@ -289,7 +289,7 @@ export class NutEggServer {
           }
           const data = JSON.parse(await this.readBody(req, 4096));
           const access = this.plugin.connectionAccess;
-          const result = req.url === '/connection/start' ? access.start(clientOrigin, data.nonce) : access.finish(clientOrigin, data.nonce);
+          const result = req.url === '/connection/start' ? access.start(clientOrigin, data.nonce, requestOrigin) : access.finish(clientOrigin, data.nonce);
           res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result)); return;
         }
         if (req.url !== '/health' && !this.plugin.connectionAccess?.authorized(clientOrigin, req.headers.authorization)) {
