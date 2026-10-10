@@ -61,6 +61,30 @@ test('available captions are ready even while the page is still loading', async 
   assert.equal(response.content.extractionStatus, 'ready');
 });
 
+for (const scenario of ['replies loading', 'article loading', 'empty article']) {
+  test(`X article readiness uses its own body: ${scenario}`, async t => {
+    const { dom, win, send } = page(t);
+    dom.reconfigure({ url: 'https://x.com/zhaoh2357/status/2104855420317929968' });
+    win.document.title = 'Article title / X';
+    win.document.body.innerHTML = `<main>
+      <div data-testid="twitterArticleReadView">
+        <h1>Article title</h1>
+        <div data-testid="twitterArticleRichTextView">
+          ${scenario === 'empty article' ? '' : '<p>The complete article body is available here.</p>'}
+          ${scenario === 'article loading' ? '<div role="progressbar"></div>' : ''}
+        </div>
+      </div>
+      <section aria-label="Replies"><div role="progressbar"></div></section>
+    </main>`;
+    win.eval(fs.readFileSync(require.resolve('../src/content/extractors/twitter.js'), 'utf8'));
+    win.EXTRACTORS.push({ name: 'twitter', detect: win.detectTwitter, extract: win.extractTwitter });
+    const response = await send({ action: 'extract-content', requestId: scenario });
+    assert.equal(response.success, true);
+    assert.equal(response.content.extractionStatus, scenario === 'replies loading' ? 'ready' : 'not_ready');
+    if (scenario !== 'empty article') assert.match(response.content.content, /complete article body/);
+  });
+}
+
 test('navigation invalidates a capture even before popup cancellation arrives', async t => {
   const { dom, win, send } = page(t);
   let finish;

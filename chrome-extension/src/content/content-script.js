@@ -53,8 +53,9 @@ async function extractContent(discussionSessionId, context) {
         context?.check();
         if (capture.transcriptAvailable === false) capture.extractionStatus ||= 'transient';
         else if (capture.transcriptAvailable === true) capture.extractionStatus = 'ready';
-        else if (document.readyState !== 'complete' || (!capture.content?.trim())
-          || document.querySelector('main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]')) {
+        else if (!capture.content?.trim() || (capture.extractionStatus !== 'ready' &&
+          (document.readyState !== 'complete'
+          || document.querySelector('main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]')))) {
           capture.extractionStatus = 'not_ready';
         }
         return window.NutEggDiscussion ? window.NutEggDiscussion.decorate(capture) : capture;

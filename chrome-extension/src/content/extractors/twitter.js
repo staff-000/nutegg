@@ -213,6 +213,10 @@ function extractXArticle(root, url) {
     title,
     content: fullContent,
     sourceType: "twitter",
+    // Replies and recommendations can keep loading after the article is ready.
+    // Only loading indicators in the captured article should delay extraction.
+    extractionStatus: articleBody && !root.matches?.('[aria-busy="true"]')
+      && !root.querySelector('[aria-busy="true"], [role="progressbar"]') ? 'ready' : 'not_ready',
     metadata: {
       platform: "Twitter/X",
       isArticle: true,
