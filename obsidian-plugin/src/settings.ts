@@ -10,6 +10,7 @@ import {
 import { AIProcessor } from "./ai-processor";
 import { t } from "./i18n";
 import type { SubscriptionProvider } from "../../shared/src/types";
+import type { SubscriptionStatus } from "../../shared/src/types";
 
 export type LocalApiType = "openai" | "ollama";
 
@@ -87,6 +88,10 @@ export class NutEggSettingTab extends PluginSettingTab {
   private aiCreditRequest = 0;
   private setupTimer?: ReturnType<typeof setTimeout>;
   private setupRequest = 0;
+  private connectionTimer?: ReturnType<typeof setTimeout>;
+  private connectionPanel?: HTMLElement;
+  private connectionRows?: { local: HTMLElement; chrome: HTMLElement; bridge: HTMLElement; warning: HTMLElement };
+  private accountState?: SubscriptionStatus['state'];
 
   constructor(app: App, plugin: NutEggPlugin) {
     super(app, plugin);
@@ -98,6 +103,8 @@ export class NutEggSettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
 
     clearTimeout(this.setupTimer); ++this.setupRequest;
+    clearTimeout(this.connectionTimer);
+    this.accountState = undefined;
     containerEl.empty();
     this.aiConfigSummary = null;
     this.aiChunkWindow = null;
@@ -105,6 +112,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiCreditButton = null;
     ++this.aiCreditRequest;
     containerEl.createEl("h2", { text: t("settingsTitle") });
+    this.displayConnectionStatus(containerEl);
     if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
       this.displaySubscriptionSetup(containerEl);
     } else {
@@ -205,6 +213,62 @@ export class NutEggSettingTab extends PluginSettingTab {
       );
   }
 
+  private displayConnectionStatus(container: HTMLElement): void {
+    const panel = container.createDiv({ cls: 'nutegg-connection-panel', attr: { role: 'status', 'aria-live': 'polite' } });
+    this.connectionPanel = panel;
+    const row = (label: string) => {
+      const element = panel.createDiv({ cls: 'nutegg-connection-row' });
+      element.createEl('span', { text: label, cls: 'nutegg-connection-label' });
+      return element.createEl('span', { cls: 'nutegg-connection-value' });
+    };
+    this.connectionRows = { local: row(t('connectionLocalLabel')), chrome: row(t('connectionChromeLabel')),
+      bridge: row(t('connectionBridgeLabel')), warning: panel.createEl('p', { cls: 'nutegg-connection-warning' }) };
+    this.connectionRows.chrome.title = t('connectionActivityHint');
+    const refresh = () => {
+      if (panel !== this.connectionPanel || !panel.isConnected) return;
+      this.refreshConnectionStatus();
+      this.connectionTimer = setTimeout(refresh, 2000);
+    };
+    refresh();
+  }
+
+  private refreshConnectionStatus(): void {
+    const rows = this.connectionRows;
+    if (!rows) return;
+    const connection = this.plugin.server?.getConnectionStatus();
+    const paint = (element: HTMLElement, text: string, state: string) => {
+      if (element.textContent !== text) element.setText(text);
+      element.dataset.state = state;
+    };
+    paint(rows.local, t(connection?.listening ? 'connectionListening' : 'connectionStopped'), connection?.listening ? 'ready' : 'error');
+    const clients = connection?.recentClients || 0;
+    const approvals = connection?.pendingApprovals || 0;
+    paint(rows.chrome, clients ? t('connectionRecentClients', { count: String(clients) }) : t(approvals ? 'connectionApprovalPending' : 'connectionWaiting'), clients ? 'ready' : 'waiting');
+    const selected = this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+    const runtime = selected ? this.plugin.subscriptions?.getRuntimeStatus() : undefined;
+    if (!selected) {
+      paint(rows.bridge, `${t('connectionStopped')} · ${t('subscriptionApiKey')}`, 'idle');
+    } else if (!runtime?.active) {
+      paint(rows.bridge, t('connectionStopped'), 'error');
+    } else if (runtime.requests) {
+      paint(rows.bridge, t('connectionRequests', { count: String(runtime.requests) }), 'ready');
+    } else if (runtime.logins) {
+      paint(rows.bridge, t('connectionAuthorizing'), 'waiting');
+    } else if (runtime.models) {
+      paint(rows.bridge, t('connectionModelCheck'), 'waiting');
+    } else if (!this.accountState) {
+      paint(rows.bridge, t('checking'), 'waiting');
+    } else if (this.accountState === 'error') {
+      paint(rows.bridge, t('aiConnectionUnavailable'), 'error');
+    } else if (this.accountState !== 'ready') {
+      paint(rows.bridge, t('aiConnectionSetupNeeded'), 'waiting');
+    } else {
+      paint(rows.bridge, t('connectionIdle'), 'ready');
+    }
+    rows.warning.hidden = !connection?.conflictingMethods;
+    if (connection?.conflictingMethods && rows.warning.textContent !== t('connectionConflict')) rows.warning.setText(t('connectionConflict'));
+  }
+
   private displaySyncedAiSettings(containerEl: HTMLElement, settings: NutEggSettings): void {
     if (!isAIConfigured(settings)) {
       const banner = containerEl.createDiv({
@@ -269,7 +333,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     }
   }
 
-  hide(): void { clearTimeout(this.setupTimer); ++this.setupRequest; }
+  hide(): void { clearTimeout(this.setupTimer); clearTimeout(this.connectionTimer); this.connectionPanel = undefined; ++this.setupRequest; }
 
   private displaySubscriptionSetup(containerEl: HTMLElement): void {
     const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
@@ -300,6 +364,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       try { status = await this.plugin.subscriptions.status(current); }
       catch (error) { status = { state: 'error' as const, message: String(error) }; }
       if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription' || !controls.isConnected) return;
+      this.accountState = status.state;
+      this.refreshConnectionStatus();
       controls.empty();
 
       const buttons: ButtonComponent[] = [];

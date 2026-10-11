@@ -1,6 +1,20 @@
 import type { TranslationKey } from "./en";
 
 export const zh: Record<TranslationKey, string> = {
+  connectionLocalLabel: "本地连接",
+  connectionChromeLabel: "Chrome",
+  connectionBridgeLabel: "AI 桥接",
+  connectionListening: "正在监听",
+  connectionStopped: "已关闭",
+  connectionRecentClients: "最近活跃：{count}",
+  connectionApprovalPending: "等待批准",
+  connectionWaiting: "等待 Chrome 连接",
+  connectionActivityHint: "显示最近 90 秒内经过身份验证的 Chrome 活动。已批准不代表 Chrome 当前在线。",
+  connectionRequests: "正在执行或排队：{count}",
+  connectionAuthorizing: "正在授权",
+  connectionModelCheck: "正在刷新模型",
+  connectionIdle: "空闲",
+  connectionConflict: "Chrome 实例使用不同的 AI 设置。Obsidian 使用最后同步的设置。",
   connectChromeTitle: "Connect NutEgg Chrome",
   connectChromeDescription: "Allow this NutEgg Chrome extension to sync AI settings and access NutEgg in this vault?",
   subscriptionConnection: "Connection",

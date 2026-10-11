@@ -27,6 +27,11 @@ export class SubscriptionService implements SubscriptionExecutor {
   private usageTask?: Promise<{ value?: string; exhausted: boolean }>;
   private loginGeneration = new Map<SubscriptionProvider, number>();
   constructor(private paths: Partial<Record<SubscriptionProvider, string>> = {}, private enabled: () => boolean = () => false) {}
+
+  getRuntimeStatus() {
+    return { active: this.enabled() && !this.closed, requests: this.pending,
+      logins: new Set([...this.logins.keys(), ...this.loginStarts.keys()]).size, models: this.discovery.size };
+  }
   private requireEnabled() {
     if (!this.enabled()) throw new AIError('forbidden', 'AI connection unavailable.');
   }
@@ -287,6 +292,7 @@ export class SubscriptionService implements SubscriptionExecutor {
   async cancelWork() {
     for (const controller of this.controllers) controller.abort();
     for (const child of this.discovery) child.kill();
+    this.discovery.clear();
     await Promise.all([...new Set([...this.logins.keys(), ...this.loginStarts.keys()])].map(provider => this.cancelLogin(provider)));
     await Promise.allSettled([...this.loginStarts.values()]);
     await this.tail;

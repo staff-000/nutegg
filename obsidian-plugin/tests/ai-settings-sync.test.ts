@@ -230,7 +230,10 @@ test('settings never offer a subscription toggle and hide subscription details w
   const plugin = new NutEggPlugin();
   plugin.settings = { ...DEFAULT_SETTINGS, aiAuthMethod: 'apiKey', aiProvider: 'openai', aiApiKey: 'api-secret', aiModel: 'api-model', developerMode: true };
   plugin.aiClient = { checkCredit: async () => ({ statusText: 'Ready' }) } as any;
-  plugin.subscriptions = { status: async () => ({ state: 'unverified' }), resolve: async () => '/cli' } as any;
+  let connection = { listening: true, recentClients: 2, pendingApprovals: 0, conflictingMethods: true };
+  let runtime = { active: true, requests: 0, logins: 0, models: 0 };
+  plugin.server = { getConnectionStatus: () => connection } as any;
+  plugin.subscriptions = { status: async () => ({ state: 'unverified' }), resolve: async () => '/cli', getRuntimeStatus: () => runtime } as any;
   const tab = new NutEggSettingTab({} as any, plugin);
   (tab as any).containerEl = dom.window.document.querySelector('main');
   t.after(() => { tab.hide(); dom.window.close(); });
@@ -240,12 +243,33 @@ test('settings never offer a subscription toggle and hide subscription details w
     await new Promise(resolve => setImmediate(resolve));
     assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
     assert.deepEqual(toggles, ['Developer mode']);
+    const rows = (tab as any).connectionRows;
+    assert.equal(rows.local.textContent, 'Listening');
+    assert.equal(rows.chrome.textContent, '2 recently active');
+    assert.equal(rows.bridge.textContent, 'Off · API key');
+    assert.equal(rows.warning.hidden, false);
   }
   plugin.settings.aiAuthMethod = 'subscription';
   names.length = toggles.length = 0; tab.display();
   await new Promise(resolve => setImmediate(resolve));
   assert.match((tab as any).containerEl.textContent, /Subscription mode enabled/);
   assert.deepEqual(toggles, ['Developer mode']);
+  const rows = (tab as any).connectionRows;
+  assert.equal(rows.bridge.textContent, 'Authorize subscription in Obsidian');
+  runtime.requests = 2;
+  (tab as any).refreshConnectionStatus();
+  assert.equal(rows.bridge.textContent, '2 active/queued requests');
+  runtime.requests = 0; runtime.logins = 1;
+  (tab as any).refreshConnectionStatus();
+  assert.equal(rows.bridge.textContent, 'Authorizing');
+  runtime.logins = 0; (tab as any).accountState = 'ready';
+  (tab as any).refreshConnectionStatus();
+  assert.equal(rows.bridge.textContent, 'Idle');
+  connection = { listening: false, recentClients: 0, pendingApprovals: 1, conflictingMethods: false };
+  (tab as any).refreshConnectionStatus();
+  assert.equal(rows.local.textContent, 'Off');
+  assert.equal(rows.chrome.textContent, 'Approval pending');
+  assert.equal(rows.warning.hidden, true);
 });
 
 test('ready subscription renders default models immediately and updates in background', async t => {

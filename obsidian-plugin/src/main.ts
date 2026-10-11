@@ -389,6 +389,7 @@ export default class NutEggPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    this.settingsTab?.hide();
     await this.subscriptions?.dispose();
     await this.server.stop();
     this.db.close();

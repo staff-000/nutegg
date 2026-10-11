@@ -98,6 +98,43 @@
   padding: 4px 12px;
 }
 
+.nutegg-connection-panel {
+  margin: 10px 0 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  font-size: var(--font-ui-small);
+}
+.nutegg-connection-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 3px 0;
+}
+.nutegg-connection-label {
+  min-width: 115px;
+  color: var(--text-muted);
+}
+.nutegg-connection-value::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-inline-end: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.nutegg-connection-value[data-state="ready"]::before { background: var(--text-success); }
+.nutegg-connection-value[data-state="waiting"]::before { background: var(--text-warning); }
+.nutegg-connection-value[data-state="error"]::before { background: var(--text-error); }
+.nutegg-connection-warning {
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+  margin: 8px 0 0;
+}
+
 /* Subscription settings section */
 .nutegg-subscription-card {
   margin: 12px 0 20px 0;

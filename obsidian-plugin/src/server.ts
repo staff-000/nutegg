@@ -139,6 +139,10 @@ export class NutEggServer {
     this.port = port;
   }
 
+  getConnectionStatus() {
+    return { listening: this.server?.listening === true, ...this.plugin.connectionAccess?.getStatus() };
+  }
+
   // --- Dedup + metrics helpers (backed by SQLite) ---
 
   /** All captures of a URL, newest first. Empty = never processed / DB unavailable. */
@@ -444,6 +448,7 @@ export class NutEggServer {
       chunkWindowChars: settings.chunkWindowChars,
       contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
     };
+    this.plugin.connectionAccess?.recordConfiguration(req.headers.origin, req.headers.authorization, chromeConfig.aiAuthMethod);
     const isSub = settings.aiAuthMethod === "subscription" && chromeConfig.aiAuthMethod === "subscription";
     const matches = isSub || (
       Object.entries(aiConfig).every(([key, value]) => chromeConfig[key] === value)
@@ -527,6 +532,7 @@ export class NutEggServer {
     });
     this.aiConfigQueue = update.then(() => {}, () => {});
     if (await update === false) return;
+    this.plugin.connectionAccess?.recordConfiguration(req.headers.origin, req.headers.authorization, config.aiAuthMethod);
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: true }));
   }

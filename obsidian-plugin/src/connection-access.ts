@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 type Challenge = { origin: string; expires: number; token?: string; state: 'pending' | 'approved' | 'denied' };
 // Published NutEgg identity; matches website/src/versions.json. Development
@@ -6,6 +6,7 @@ type Challenge = { origin: string; expires: number; token?: string; state: 'pend
 export const NUTEGG_CHROME_ORIGIN = 'chrome-extension://bmdmdiicembobejibggoeiahaonphcol';
 export class ConnectionAccess {
   private challenges = new Map<string, Challenge>();
+  private activity = new Map<string, { seen: number; method?: 'apiKey' | 'subscription' }>();
   constructor(private clients: Record<string, string | string[]>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>) {}
   static validOrigin(origin?: string): origin is string { return !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin); }
 
@@ -24,10 +25,30 @@ export class ConnectionAccess {
     for (const token of tokens) {
       const expected = Buffer.from(`Bearer ${token}`);
       if (actual.length === expected.length && timingSafeEqual(actual, expected)) {
+        const id = createHash('sha256').update(origin + token).digest('hex');
+        this.activity.set(id, { ...this.activity.get(id), seen: Date.now() });
         return true;
       }
     }
     return false;
+  }
+
+  recordConfiguration(origin: string | undefined, authorization: string | undefined, method: string): void {
+    if (!['apiKey', 'subscription'].includes(method) || !this.authorized(origin, authorization)) return;
+    const id = createHash('sha256').update(origin! + authorization!.slice(7)).digest('hex');
+    this.activity.set(id, { seen: Date.now(), method: method as 'apiKey' | 'subscription' });
+  }
+
+  getStatus() {
+    const now = Date.now();
+    // Approval is persistent; activity is only a recent authenticated request.
+    for (const [id, client] of this.activity) if (now - client.seen >= 90000) this.activity.delete(id);
+    const methods = new Set([...this.activity.values()].map(client => client.method).filter(Boolean));
+    return {
+      recentClients: this.activity.size,
+      pendingApprovals: [...this.challenges.values()].filter(challenge => challenge.state === 'pending' && challenge.expires > now).length,
+      conflictingMethods: methods.size > 1,
+    };
   }
 
   start(origin: string, nonce: string, browserOrigin?: string) {

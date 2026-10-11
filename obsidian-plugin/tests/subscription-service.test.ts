@@ -13,6 +13,32 @@ const origin = `chrome-extension://${'a'.repeat(32)}`;
 const nonce = 'b'.repeat(64);
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
+test('connection status counts recent authenticated clients, expires activity, and never exposes credentials', t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+  const access = new ConnectionAccess({ [origin]: ['private-key-one', 'private-key-two'] }, async () => false, async () => {});
+  assert.deepEqual(access.getStatus(), { recentClients: 0, pendingApprovals: 0, conflictingMethods: false });
+  access.recordConfiguration(origin, 'Bearer wrong', 'subscription');
+  assert.equal(access.getStatus().recentClients, 0);
+  access.recordConfiguration(origin, 'Bearer private-key-one', 'subscription');
+  t.mock.timers.tick(1000);
+  access.recordConfiguration(origin, 'Bearer private-key-two', 'apiKey');
+  assert.deepEqual(access.getStatus(), { recentClients: 2, pendingApprovals: 0, conflictingMethods: true });
+  assert.doesNotMatch(JSON.stringify(access.getStatus()), /private-key|chrome-extension/);
+  t.mock.timers.tick(89000);
+  assert.deepEqual(access.getStatus(), { recentClients: 1, pendingApprovals: 0, conflictingMethods: false });
+  t.mock.timers.tick(1000);
+  assert.equal(access.getStatus().recentClients, 0);
+});
+
+test('connection status reports pending approval separately from connected clients', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000 });
+  const access = new ConnectionAccess({}, () => new Promise(() => {}), async () => {});
+  access.start(origin, nonce);
+  assert.deepEqual(access.getStatus(), { recentClients: 0, pendingApprovals: 1, conflictingMethods: false });
+  t.mock.timers.tick(120001);
+  assert.equal(access.getStatus().pendingApprovals, 0);
+});
+
 test('approval is origin-bound, single-use, and saves no provider credentials', async () => {
   let approve; let saved = 0;
   const clients = {};
@@ -230,17 +256,20 @@ else { console.log(JSON.stringify({type:'item.completed',item:{type:'agent_messa
   let active = true;
   service['enabled'] = () => active;
   const results = Promise.allSettled([service.chat('openai', 'auto', 'first'), service.chat('openai', 'auto', 'second')]);
+  assert.equal(service.getRuntimeStatus().requests, 2);
   for (let i=0; i<100; i++) { try { await readFile(marker); break; } catch { await new Promise(resolve => setTimeout(resolve, 10)); } }
   let loginCanceled = false, discoveryKilled = false;
   service['logins'].set('openai', { id: 'owned-test', state: 'signing_in', command: '', child: { kill() { loginCanceled = true; } } } as any);
   service['discovery'].add({ kill() { discoveryKilled = true; } } as any);
   active = false;
   await service.cancelWork();
+  assert.deepEqual(service.getRuntimeStatus(), { active: false, requests: 0, logins: 0, models: 0 });
   assert((await results).every(result => result.status === 'rejected'));
   assert.equal(loginCanceled, true); assert.equal(discoveryKilled, true);
   assert.equal((await service.status('openai')).state, 'disabled');
   await assert.rejects(service.startLogin('openai'), /unavailable/);
   active = true;
+  assert.equal(service.getRuntimeStatus().active, true);
   assert.equal(await service.chat('openai', 'auto', 'resumed'), 'OK');
 });
 
