@@ -146,7 +146,7 @@ class CaptureViewComponent {
     const comments = items.length ? '\n\n' + t('discussionPreview', { count: items.length }) + '\n'
       + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}👤 ${this.commentAuthor(item)}\n${item.text}`
         + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
-      + (content.discussion.truncated ? '\n\n' + t('discussionTruncated') : '') : '';
+      + (content.discussion.truncated ? '\n\n' + t('discussionTruncated', { count: items.length }) : '') : '';
     const transcriptMissing = Boolean(globalThis.NutEggHelpers?.isTranscriptBlocked?.(content));
     const warning = transcriptMissing ? t('transcriptRefreshPreview')
       : !content?.content?.trim() && !(content?.discussion?.kind === 'forum' && items.some(item => item.text?.trim())) ? t('contentRefreshPreview')

@@ -257,3 +257,24 @@ test('discussion highlights and supplements omit source tag when there is a time
   assert.match(html, /source-pill source-timestamp.*data-time="02:15"/);
   assert.match(html, /source-pill source-timestamp.*data-time="10:30"/);
 });
+
+test('discussion status tells user how many comments are captured when limit is reached', () => {
+  const root = createMockRoot(), ui = new DiscussionComponent(root);
+  const items = Array.from({ length: 300 }, (_, i) => item('c' + i));
+  const view = {
+    enabledSections: { discussion: true },
+    extractedContent: {
+      discussion: {
+        truncated: true,
+        items,
+      },
+    },
+    discussionPending: false,
+  };
+  ui.render(view);
+  const statusText = root.getElementById('discussion-capture-status').textContent;
+  assert.match(statusText, /300 comments captured/);
+  assert.match(statusText, /Capture limit reached/);
+  const indicator = root.getElementById('discussion-capture-indicator');
+  assert.equal(indicator.classList.contains('status-active'), true);
+});
