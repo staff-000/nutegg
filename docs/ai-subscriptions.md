@@ -1,16 +1,20 @@
 # AI subscriptions in NutEgg
 
-Chrome owns AI configuration. In **Obsidian mode**, choose **Provider → Subscription → Model → Save**. Obsidian executes requests through your installed provider CLI. Chrome mode offers API keys and local models.
+Chrome controls the active connection method. API settings belong to Chrome; subscription authorization, provider, and model settings belong to Obsidian.
 
 ## Guided setup
 
-1. Open Obsidian with the updated NutEgg plugin enabled. Subscriptions are **off by default**, including existing installations. Open the command palette (**Cmd/Ctrl+P**) and run **NutEgg: Enable experimental AI connections**. Optionally assign a shortcut in **Settings → Hotkeys**. This opt-in lives in Obsidian; Chrome cannot enable it. Run **NutEgg: Disable subscription mode** to turn it off and cancel pending work.
-2. In Chrome NutEgg settings, enable **Obsidian mode**. Choose **OpenAI**, **Anthropic**, or **Google Gemini** to reveal the **Connection** selector. **Subscription** becomes selectable after Obsidian reports that the feature is enabled. Chrome shows no account setup instructions. All installation, authorization, cancellation, and testing controls live in **Obsidian Settings → NutEgg → Subscription mode enabled**. While the feature is off, neither app displays subscription settings or hints; activation uses only the generic advanced command.
-3. Click **Connect NutEgg Chrome**. The published NutEgg extension connects automatically when its browser Origin matches its fixed Web Store ID. Development extensions need one approval in Obsidian; previously approved development identities also reconnect automatically. NutEgg exchanges and stores a local credential without copying a token or starting a bridge. Restarting either app reuses that credential. If Chrome clears its data, a trusted browser Origin can obtain a replacement without another prompt. A caller-supplied identity header alone never enables automatic approval.
-4. Choose OpenAI, Anthropic, or Google Gemini, then **Subscription**. Obsidian’s settings guide you through installation and sign-in.
-5. In Obsidian, select the provider account. If the CLI is missing, open its official installation guide or copy the displayed command into your terminal. NutEgg does not install software automatically. Click **Refresh** in Obsidian to check again.
-6. In Obsidian, click **Sign in** to open your native terminal and the provider's authentication flow. If terminal launch fails, copy the displayed command. Complete sign-in in your browser/terminal, then refresh.
-7. Choose **Auto — provider default**, a listed model, or **Custom model ID**, and save. Saving checks status without generating a response. **Test connection** is explicit and uses a small amount of subscription quota.
+1. Initially both apps show only API configuration. No subscription switch appears in Obsidian settings, in either mode.
+2. In Obsidian's command palette (**Cmd/Ctrl+P**), run **NutEgg: Enable experimental AI connections**. This makes the feature available without switching away from the current API key. Only a command can enable or disable the feature.
+3. In Chrome settings, turn on **Obsidian connection**. NutEgg connects automatically using its trusted extension identity; an unknown development extension needs a first approval.
+4. Chrome now shows **Use subscription**. Turn it on to select subscription execution. The existing API provider, key, and model are retained separately.
+5. Obsidian now displays subscription details. Choose the provider and click **Authorize subscription**. Complete provider sign-in if requested; the connection test uses a small amount of subscription quota.
+6. Choose the model in Obsidian: **Auto — provider default**, a discovered model, or **Custom model tag**. Chrome displays the active provider and model as read-only.
+7. Turn off **Use subscription** in Chrome to restore the saved API configuration. Obsidian stops pending subscription inference, login, and model discovery, displays the synced API settings, and hides subscription details. Its local Chrome connection stays available for API configuration sync. It still has no subscription switch.
+8. Turn **Use subscription** back on in Chrome to return to the subscription provider and model previously selected in Obsidian.
+9. Run **NutEgg: Disable subscription mode** in Obsidian to cancel subscription work, hide Chrome's switch, and restore Chrome's saved API configuration on the next successful connection check. With no saved API key, API setup is shown. An offline Obsidian connection alone never triggers this switch.
+
+Provider installation and sign-in stay in Obsidian. If a CLI is missing, open its official installation guide or copy the displayed command into your terminal. NutEgg does not install software automatically. Connections use an automatically exchanged local credential; there is no token to copy or separate bridge to start.
 
 | Provider | CLI / installation | Authentication | Models |
 | --- | --- | --- | --- |
@@ -24,9 +28,9 @@ Completed installation/sign-in controls hide automatically. One pending login pe
 
 ## Configuration and migration
 
-API key and subscription preferences are stored separately for each provider, preserving the key and both model choices when switching methods. Only the active configuration syncs to Obsidian. Subscription sync contains no API key. Obsidian displays the synced provider, method, model, and live connection status read-only under Developer Mode.
+API key and subscription preferences are retained separately across switching and restarts. Chrome sends only the active API configuration or its choice to use Subscription. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. The feature availability command is separate from Chrome's active connection switch.
 
-Legacy `codex-cli`, `claude-cli`, and `gemini-cli` settings migrate to OpenAI, Anthropic, and Gemini with Subscription selected. Custom models survive migration; bridge endpoints and pairing tokens are cleared from active settings. Existing API configurations default to API key. Migration is repeatable. Legacy files and CLI credentials in your home directory are untouched; the separate bridge scripts and port 27124 are retired.
+Legacy `codex-cli`, `claude-cli`, and `gemini-cli` settings migrate to OpenAI, Anthropic, and Gemini. When the feature is disabled, their subscription selections stay inactive until the Obsidian command enables availability and Chrome selects Subscription. Custom models survive migration; bridge endpoints and pairing tokens are cleared from active settings. Existing API configurations default to API key. Migration is repeatable. Legacy files and CLI credentials in your home directory are untouched; the separate bridge scripts and port 27124 are retired.
 
 Model discovery refreshes after login and on demand. Chrome retains cached choices and the selected model if discovery fails; Auto and Custom remain available. A rejected model reports **Choose another model**, with no automatic substitution.
 

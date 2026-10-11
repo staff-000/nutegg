@@ -124,7 +124,8 @@ async function fetchObsidianAiConfig(serverUrl = null, settings = null) {
   });
   if (!response.ok) throw new Error("Could not read Obsidian AI settings. Update the NutEgg Obsidian plugin and try again.");
   const data = await response.json();
-  if (data?.aiConfig && settings.chromeAiAuthMethod === "subscription") {
+  const current = await chrome.storage.local.get(['chromeAiAuthMethod']);
+  if (data?.aiConfig && settings.chromeAiAuthMethod === "subscription" && current.chromeAiAuthMethod === 'subscription' && data.aiConfig.aiAuthMethod === "subscription") {
     const updates = {};
     if (data.aiConfig.aiProvider && data.aiConfig.aiProvider !== settings.chromeAiProvider) {
       updates.chromeAiProvider = data.aiConfig.aiProvider;
@@ -145,20 +146,49 @@ async function fetchObsidianAiConfig(serverUrl = null, settings = null) {
   return { success: true, ...data };
 }
 
-// Send only AI configuration; Obsidian keeps its own vault and server settings.
-// When using subscription, never overwrite AI provider in Obsidian; only fetch from Obsidian.
+// Restore only after an authoritative feature-disable response, never offline.
+async function restoreChromeApiSettings() {
+  const saved = await chrome.storage.local.get(['chromeAiAuthMethod', 'chromeApiConfig', 'aiProfiles', 'lastApiKeyProvider', 'chromeAiProvider']);
+  if (saved.chromeAiAuthMethod !== 'subscription') return loadChromeAiSettings();
+  const provider = saved.chromeApiConfig?.chromeAiProvider || saved.lastApiKeyProvider || saved.chromeAiProvider || 'gemini';
+  const profile = saved.aiProfiles?.[`${provider}:apiKey`] || {};
+  await chrome.storage.local.set({
+    ...(saved.chromeApiConfig || {}), chromeAiAuthMethod: 'apiKey', chromeAiProvider: provider,
+    chromeAiApiKey: saved.chromeApiConfig?.chromeAiApiKey ?? profile.apiKey ?? '',
+    chromeAiModel: saved.chromeApiConfig?.chromeAiModel || profile.model || PROVIDER_CATALOG[provider]?.defaultModel || '',
+    chromeAiEndpoint: saved.chromeApiConfig?.chromeAiEndpoint ?? profile.endpoint ?? '',
+    chromeAiLocalEndpoint: saved.chromeApiConfig?.chromeAiLocalEndpoint ?? profile.endpoint ?? '',
+  });
+  return loadChromeAiSettings();
+}
+
+// Chrome owns the active method; Obsidian owns subscription provider/model.
 async function syncAiConfig(serverUrl = null, settings = null) {
   settings = settings || await loadChromeAiSettings();
-  if (settings.chromeAiAuthMethod === "subscription") {
-    return await fetchObsidianAiConfig(serverUrl, settings);
+  if (settings.chromeAiAuthMethod === 'subscription') {
+    const status = await fetchObsidianAiConfig(serverUrl, settings);
+    if (status.subscriptionEnabled === false) {
+      return syncAiConfig(serverUrl, await restoreChromeApiSettings());
+    }
+    const current = await chrome.storage.local.get(['chromeAiAuthMethod']);
+    if (current.chromeAiAuthMethod !== 'subscription') return { success: true };
+    if (status?.aiConfig?.aiAuthMethod === 'subscription') return { success: true };
+  }
+  if (settings.chromeAiAuthMethod !== 'subscription') {
+    await chrome.storage.local.set({ chromeApiConfig: {
+      chromeAiProvider: settings.chromeAiProvider || 'gemini', chromeAiAuthMethod: 'apiKey',
+      chromeAiApiKey: settings.chromeAiApiKey || '',
+      chromeAiModel: settings.chromeAiModel || PROVIDER_CATALOG[settings.chromeAiProvider || 'gemini']?.defaultModel || '',
+      chromeAiEndpoint: settings.chromeAiEndpoint || '', chromeAiLocalEndpoint: settings.chromeAiEndpoint || '',
+      chunkWindowChars: settings.chunkWindowChars, contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
+    }, lastApiKeyProvider: settings.chromeAiProvider || 'gemini' });
   }
   const response = await serverFetch(`${serverUrl || await getServerUrl()}/ai-config`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(getObsidianAiConfig(settings)),
-    signal: AbortSignal.timeout(3000),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(getObsidianAiConfig(settings)), signal: AbortSignal.timeout(3000),
   });
-  if (!response.ok) throw new Error("Could not sync AI settings. Update the NutEgg Obsidian plugin and try again.");
+  if (!response.ok) throw new Error('Could not sync AI settings. Update the NutEgg Obsidian plugin and try again.');
+  if (settings.chromeAiAuthMethod === 'subscription') return fetchObsidianAiConfig(serverUrl, settings);
   return { success: true };
 }
 

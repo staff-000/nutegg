@@ -50,7 +50,7 @@ export default class NutEggPlugin extends Plugin {
 
     // Initialize workflow manager and subsystems
     this.workflowManager = new WorkflowManager(this);
-    this.subscriptions = new SubscriptionService(this.settings.subscriptionPaths, () => this.settings.subscriptionEnabled === true);
+    this.subscriptions = new SubscriptionService(this.settings.subscriptionPaths, () => this.settings.subscriptionEnabled === true && this.settings.aiAuthMethod === 'subscription');
     this.connectionAccess = new ConnectionAccess(this.settings.chromeConnections ||= {},
       origin => approveChromeConnection(this.app, origin), () => this.saveSettings());
     this.aiClient = new AIClient(this.settings, this.subscriptions);
@@ -259,11 +259,18 @@ export default class NutEggPlugin extends Plugin {
       id: enabled ? 'nutegg-enable-subscriptions' : 'nutegg-disable-subscriptions',
       name: t(enabled ? 'subscriptionEnableCommand' : 'subscriptionDisableCommand'),
       checkCallback: checking => {
-        if (this.settings.subscriptionEnabled === enabled && (this.settings.aiAuthMethod === 'subscription') === enabled) return false;
+        if (this.settings.subscriptionEnabled === enabled) return false;
         if (!checking) void (async () => {
           this.settings.subscriptionEnabled = enabled;
-          this.settings.aiAuthMethod = enabled ? 'subscription' : 'apiKey';
-          if (!enabled) await this.subscriptions.cancelWork();
+          if (!enabled) {
+            if (this.settings.aiAuthMethod === 'subscription') {
+              this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
+              this.settings.aiApiKey = '';
+              this.settings.aiModel = '';
+            }
+            this.settings.aiAuthMethod = 'apiKey';
+            await this.subscriptions.cancelWork();
+          }
           await this.saveSettings();
           this.aiClient = new AIClient(this.settings, this.subscriptions);
           this.aiProcessor = new AIProcessor(this);
@@ -391,9 +398,20 @@ export default class NutEggPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const data = await this.loadData() || {};
     this.settings = migrateAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
+    if (!this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription') {
+      if (['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
+        this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
+      }
+      this.settings.aiAuthMethod = 'apiKey';
+      this.settings.aiApiKey = '';
+      this.settings.aiModel = '';
+    }
   }
 
   async saveSettings(): Promise<void> {
+    if (this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription' && ['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
+      this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
+    }
     if (typeof this.saveData === 'function') await this.saveData(this.settings);
     this.settingsTab?.refreshAISettings();
     this.updateCreditStatusBar();

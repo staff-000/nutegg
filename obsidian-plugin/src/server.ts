@@ -301,7 +301,7 @@ export class NutEggServer {
           const data = JSON.parse(await this.readBody(req, 4096));
           if (!supportsSubscription(data.provider)) { res.writeHead(400); res.end('Invalid provider'); return; }
           const provider = data.provider as SubscriptionProvider;
-          if (!this.plugin.settings.subscriptionEnabled) {
+          if (!this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') {
             res.writeHead(403); res.end(JSON.stringify({ state: 'disabled', errorCode: 'subscription_disabled', error: 'AI connection unavailable.' })); return;
           }
           const service = this.plugin.subscriptions;
@@ -451,7 +451,7 @@ export class NutEggServer {
       && (settings.aiProvider !== "local" || (chromeConfig.localEndpoint === settings.localEndpoint && chromeConfig.localApiType === settings.localApiType))
     );
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-    res.end(JSON.stringify({ aiConfig, matches }));
+    res.end(JSON.stringify({ aiConfig, matches, subscriptionEnabled: settings.subscriptionEnabled === true }));
   }
 
   private async handleAiConfig(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -481,39 +481,41 @@ export class NutEggServer {
     if (config.aiAuthMethod === 'subscription' && !this.plugin.settings.subscriptionEnabled) {
       res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return;
     }
-    const settings = this.plugin.settings;
-    let targetProvider = config.aiProvider;
-    let targetModel = config.aiModel.trim();
-    if (config.aiAuthMethod === 'subscription') {
-      if (supportsSubscription(settings.aiProvider)) {
-        targetProvider = settings.aiProvider;
-        targetModel = settings.aiModel || 'auto';
-      } else if (supportsSubscription(targetProvider)) {
-        targetProvider = targetProvider;
-        targetModel = targetModel || 'auto';
-      } else {
-        targetProvider = 'gemini';
-        targetModel = 'auto';
-      }
-      if (!targetModel) targetModel = 'auto';
-    }
-    const next = {
-      aiProvider: targetProvider,
-      aiAuthMethod: config.aiAuthMethod,
-      aiApiKey: config.aiAuthMethod === "subscription" ? "" : config.aiApiKey.trim(),
-      aiModel: targetModel,
-      localEndpoint: config.localEndpoint.trim(),
-      localApiType: config.localApiType,
-      chunkWindowChars: config.chunkWindowChars,
-      contentAnalysisMaxTokens: config.contentAnalysisMaxTokens,
-    };
     const update = this.aiConfigQueue.then(async () => {
-      if (Object.entries(next).some(([key, value]) => (settings as any)[key] !== value)) {
+      const settings = this.plugin.settings;
+      // Recheck inside the queue: a disable command can run while sync is waiting.
+      if (config.aiAuthMethod === 'subscription' && !settings.subscriptionEnabled) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return false;
+      }
+      const wasSubscription = settings.aiAuthMethod === 'subscription';
+      let selection = settings.subscriptionSelection;
+      if (wasSubscription && supportsSubscription(settings.aiProvider)) {
+        selection = { provider: settings.aiProvider as SubscriptionProvider, model: settings.aiModel || 'auto' };
+      }
+      const useSubscription = config.aiAuthMethod === 'subscription';
+      const targetProvider = useSubscription
+        ? selection?.provider || (supportsSubscription(config.aiProvider) ? config.aiProvider : 'gemini')
+        : config.aiProvider;
+      const next = {
+        aiProvider: targetProvider,
+        aiAuthMethod: config.aiAuthMethod,
+        aiApiKey: useSubscription ? '' : config.aiApiKey.trim(),
+        // API model IDs must never become subscription model IDs.
+        aiModel: useSubscription ? selection?.model || 'auto' : config.aiModel.trim(),
+        localEndpoint: config.localEndpoint.trim(),
+        localApiType: config.localApiType,
+        chunkWindowChars: config.chunkWindowChars,
+        contentAnalysisMaxTokens: config.contentAnalysisMaxTokens,
+        subscriptionSelection: useSubscription ? { provider: targetProvider as SubscriptionProvider, model: selection?.model || 'auto' } : selection,
+      };
+      if (Object.entries(next).some(([key, value]) => JSON.stringify((settings as any)[key]) !== JSON.stringify(value))) {
         const previous = Object.fromEntries(Object.keys(next).map(key => [key, (settings as any)[key]]));
-        // Keep the settings object used by AIClient and AIProcessor alive.
         Object.assign(settings, next);
-        if (previous.aiModel !== next.aiModel && supportsSubscription(next.aiProvider)) this.plugin.subscriptions?.clearModelFailure(next.aiProvider as SubscriptionProvider);
         try {
+          // Leave the Chrome server running, but stop the subscription runtime:
+          // queued/running inference, model discovery and pending login processes.
+          if (wasSubscription && !useSubscription) await this.plugin.subscriptions?.cancelWork();
+          if (previous.aiModel !== next.aiModel && useSubscription) this.plugin.subscriptions?.clearModelFailure(next.aiProvider as SubscriptionProvider);
           await this.plugin.saveSettings();
           this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
           this.plugin.aiProcessor = new AIProcessor(this.plugin);
@@ -523,8 +525,8 @@ export class NutEggServer {
         catch (error) { Object.assign(settings, previous); throw error; }
       }
     });
-    this.aiConfigQueue = update.catch(() => {});
-    await update;
+    this.aiConfigQueue = update.then(() => {}, () => {});
+    if (await update === false) return;
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ success: true }));
   }

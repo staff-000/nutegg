@@ -39,6 +39,7 @@ class EnvironmentService {
     const error = status.error || (!config || config.status === 'error' ? issues.join('\n') || 'Cannot read Obsidian configuration' : null);
     this.settings.setServerStatus({ online: !!status.online, version: status.version, error, warning: issues.join('\n'), aiConfigured: !error && !issues.some(i => /no api key|not configured/i.test(i)) });
     this.settings.setChromeAiStatus();
+    this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
     this.store.dispatch({ type: 'environment', value: { issues, credit: config?.credit || null } });
     if (status.online) {
@@ -50,11 +51,12 @@ class EnvironmentService {
     try {
       const credit = await this.chromeApi.runtime.sendMessage({ action: online ? 'get-credit' : 'check-chrome-credit' });
       if (version !== this.version || online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)) return;
-      this.settings.subscriptionState = credit?.subscriptionState;
+      this.settings.subscriptionState = this.settings.chromeAiAuthMethod === 'subscription' ? credit?.subscriptionState || null : null;
       this.settings.aiStatusError = credit?.error || (credit?.hasBalance && Number.isFinite(credit.remainingCredits) && credit.remainingCredits <= 0 ? globalThis.t('aiNoRemainingCredit') : null);
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: { ...credit, isChromeAi: !online } } });
     } catch (error) {
       if (version !== this.version || online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)) return;
+      this.settings.subscriptionState = null;
       this.settings.aiStatusError = error.message || String(error);
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: null } });
     }

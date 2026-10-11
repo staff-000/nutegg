@@ -110,6 +110,39 @@ test('off-state command palette has only a generic opt-in; feature commands appe
   assert.deepEqual(visible(), ['Disable subscription mode']);
 });
 
+test('commands control availability without selecting subscription; disabling saves selection and stops work', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiProvider: 'openai', aiAuthMethod: 'apiKey', aiApiKey: 'api-secret', aiModel: 'api-model' };
+  const commands: any[] = []; let cancellations = 0;
+  plugin.addCommand = (command: any) => { commands.push(command); return command; };
+  plugin.subscriptions = { cancelWork: async () => { cancellations++; } } as any;
+  plugin.openSettings = () => {};
+  (plugin as any).registerSubscriptionCommands();
+  commands[0].checkCallback(false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(plugin.settings.subscriptionEnabled, true);
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  assert.equal(plugin.settings.aiApiKey, 'api-secret');
+  assert.equal(commands[1].checkCallback(true), true);
+  Object.assign(plugin.settings, { aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'cli-custom', aiApiKey: '' });
+  commands[1].checkCallback(false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(plugin.settings.subscriptionEnabled, false);
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'gemini', model: 'cli-custom' });
+  assert.equal(cancellations, 1);
+});
+
+test('legacy subscription settings remain inactive until Chrome selects them after command enable', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.loadData = async () => ({ aiProvider: 'claude-cli', aiModel: 'legacy-custom', aiApiKey: 'old-bridge-token' });
+  await plugin.loadSettings();
+  assert.equal(plugin.settings.subscriptionEnabled, false);
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  assert.equal(plugin.settings.aiApiKey, '');
+  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'anthropic', model: 'legacy-custom' });
+});
+
 test('subscription tests show progress and preserve success or failure after status refresh', async t => {
   const dom = new JSDOM('<body><main></main></body>');
   const proto = dom.window.HTMLElement.prototype as any;
@@ -162,6 +195,57 @@ test('subscription tests show progress and preserve success or failure after sta
   const failed = testButton.click(); rejectTest!(new Error('Selected model is unavailable. Choose another model.')); await failed;
   assert.match(container.textContent!, /Selected model is unavailable.*Choose another model/);
   assert.doesNotMatch(container.textContent!, /test passed/);
+  testButton = buttons.filter(button => button.text === 'Authorize subscription').at(-1);
+  const stale = testButton.click();
+  Object.assign(plugin.settings, { aiAuthMethod: 'apiKey', aiProvider: 'openai', aiModel: 'api-model', aiApiKey: 'api-secret' });
+  resolveTest!({ state: 'ready' }); await stale;
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  assert.equal(plugin.settings.aiProvider, 'openai');
+  assert.equal(plugin.settings.aiModel, 'api-model');
+});
+
+test('settings never offer a subscription toggle and hide subscription details while using API', async t => {
+  const dom = new JSDOM('<body><main></main></body>');
+  const proto = dom.window.HTMLElement.prototype as any;
+  proto.empty = function () { this.replaceChildren(); };
+  proto.setText = function (value: string) { this.textContent = value; };
+  proto.createEl = function (tag: string, options: any = {}) {
+    const element = dom.window.document.createElement(tag);
+    element.textContent = options.text || '';
+    this.appendChild(element); return element;
+  };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
+  const names: string[] = [], toggles: string[] = [];
+  const setting = Setting.prototype as any;
+  t.mock.method(setting, 'setName', function (name: string) { this.name = name; names.push(name); return this; });
+  t.mock.method(setting, 'setDesc', function () { return this; });
+  for (const method of ['addButton', 'addText', 'addDropdown', 'addToggle']) {
+    t.mock.method(setting, method, function (configure: any) {
+      if (method === 'addToggle') toggles.push(this.name);
+      const component: any = new Proxy({ inputEl: dom.window.document.createElement('input'), selectEl: dom.window.document.createElement('select') },
+        { get(target, key) { return key in target ? target[key] : () => component; } });
+      configure(component); return this;
+    });
+  }
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiAuthMethod: 'apiKey', aiProvider: 'openai', aiApiKey: 'api-secret', aiModel: 'api-model', developerMode: true };
+  plugin.aiClient = { checkCredit: async () => ({ statusText: 'Ready' }) } as any;
+  plugin.subscriptions = { status: async () => ({ state: 'unverified' }), resolve: async () => '/cli' } as any;
+  const tab = new NutEggSettingTab({} as any, plugin);
+  (tab as any).containerEl = dom.window.document.querySelector('main');
+  t.after(() => { tab.hide(); dom.window.close(); });
+  for (const enabled of [false, true]) {
+    plugin.settings.subscriptionEnabled = enabled;
+    names.length = toggles.length = 0; tab.display();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
+    assert.deepEqual(toggles, ['Developer mode']);
+  }
+  plugin.settings.aiAuthMethod = 'subscription';
+  names.length = toggles.length = 0; tab.display();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match((tab as any).containerEl.textContent, /Subscription mode enabled/);
+  assert.deepEqual(toggles, ['Developer mode']);
 });
 
 test('ready subscription renders default models immediately and updates in background', async t => {

@@ -1035,13 +1035,34 @@ describe("Chrome AI configuration sync", () => {
   });
 
   it("subscription sync from Chrome never overwrites existing Obsidian subscription provider", async () => {
-    const s = makeServer({ settings: { subscriptionEnabled: true, aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet' }, saveSettings: async () => {} });
+    const s = makeServer({ settings: { subscriptionEnabled: true, aiAuthMethod: 'subscription', aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet' }, saveSettings: async () => {} });
     s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'gemini-2.5-flash' });
     const res = response();
     await s.handleAiConfig(request, res);
     assert.equal(res.statusCode, 200);
     assert.equal(s.plugin.settings.aiProvider, 'anthropic');
     assert.equal(s.plugin.settings.aiModel, 'claude-3-5-sonnet');
+  });
+
+  it('retains subscription selection across API switches and restarts, and stops subscription work', async () => {
+    let cancellations = 0;
+    const s = makeServer({ settings: { subscriptionEnabled: true, aiAuthMethod: 'apiKey', aiProvider: 'gemini', aiModel: 'api-only-model' }, saveSettings: async () => {} });
+    s.plugin.subscriptions = { clearModelFailure() {}, cancelWork: async () => { cancellations++; assert.equal(s.plugin.settings.aiAuthMethod, 'apiKey'); } };
+    const sync = async (patch: any) => {
+      s.readBody = async () => JSON.stringify({ ...config, ...patch });
+      const res = response(); await s.handleAiConfig(request, res); assert.equal(res.statusCode, 200);
+    };
+    await sync({ aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'api-only-model' });
+    assert.equal(s.plugin.settings.aiModel, 'auto');
+    Object.assign(s.plugin.settings, { aiProvider: 'anthropic', aiModel: 'custom-subscription-model' });
+    await sync({ aiAuthMethod: 'apiKey', aiProvider: 'openai', aiModel: 'api-model', aiApiKey: 'api-secret' });
+    assert.equal(cancellations, 1);
+    assert.deepEqual(s.plugin.settings.subscriptionSelection, { provider: 'anthropic', model: 'custom-subscription-model' });
+    s.plugin.settings = JSON.parse(JSON.stringify(s.plugin.settings));
+    await sync({ aiAuthMethod: 'subscription', aiProvider: 'openai', aiModel: 'api-model', aiApiKey: 'api-secret' });
+    assert.equal(s.plugin.settings.aiProvider, 'anthropic');
+    assert.equal(s.plugin.settings.aiModel, 'custom-subscription-model');
+    assert.equal(s.plugin.settings.aiApiKey, '');
   });
 
   it("Chrome cannot enable subscriptions through configuration sync", async () => {

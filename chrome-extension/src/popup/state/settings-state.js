@@ -37,8 +37,10 @@ class SettingsState {
     // Chrome AI status
     this.chromeAiEnabled = true;
     this.chromeAiConfigured = false;
+    this.chromeAiAuthMethod = "apiKey";
     this.chromeAiProvider = "";
     this.chromeAiModel = "";
+    this.subscriptionState = null;
   }
 
   /**
@@ -48,10 +50,13 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit"],
+          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel"],
           resolve
         );
       });
+      this.chromeAiAuthMethod = stored?.chromeAiAuthMethod || "apiKey";
+      this.chromeAiProvider = stored?.chromeAiProvider || "";
+      this.chromeAiModel = stored?.chromeAiModel || "";
       this.setConnectionMode(stored?.connectionMode, false);
       if (stored?.analysisMode === "preview" || stored?.analysisMode === "full") {
         this.analysisMode = stored.analysisMode;

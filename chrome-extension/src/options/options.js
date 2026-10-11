@@ -69,6 +69,8 @@ const DEFAULT_SECTIONS = {
 let savedPromptOverrides = {};
 const aiAuthMethod = document.getElementById('ai-auth-method');
 let aiProfiles = {};
+let savedApiConfig = null;
+let methodChange = null;
 let profileKey = '';
 let subscriptionModels = {};
 const subscriptionModelRefresh = {};
@@ -112,10 +114,7 @@ function syncSubscriptionToggle() {
   toggle.disabled = !subscriptionEnabled;
 }
 function renderSubscriptionAccess() {
-  if (subscriptionAccessKnown && !subscriptionEnabled && subscriptionSelected() && profileKey) {
-    rememberProfile(); aiAuthMethod.value = 'apiKey'; restoreProfile();
-  }
-  const isSub = subscriptionSelected() && subscriptionEnabled;
+  const isSub = subscriptionSelected();
   if (isSub) {
     if (aiTestResult) {
       aiTestResult.textContent = "";
@@ -139,11 +138,59 @@ function renderSubscriptionAccess() {
   aiSaveBtn.classList.toggle('hidden', subscriptionSelected());
   aiTestBtn.hidden = subscriptionSelected();
   aiProviderSelect.disabled = isSub;
+  aiProviderSelect.closest('.option-row').hidden = isSub;
+  document.getElementById('ai-setup-help').hidden = isSub;
+  for (const control of chromeAdvancedSettings.querySelectorAll('input, select, textarea, button')) control.disabled = isSub;
+  chromeAdvancedSettings.classList.toggle('hidden', isSub);
   const badge = document.getElementById('subscription-model-badge');
   if (badge && activeSubscriptionModel) badge.textContent = activeSubscriptionModel;
 }
 function subscriptionStatusText(info) {
   return t(info?.state === 'ready' ? 'aiConnectionReady' : info?.state === 'error' || info?.error ? 'aiConnectionUnavailable' : 'aiConnectionSetupNeeded');
+}
+async function changeAiMethod(method) {
+  if (methodChange) { await methodChange; return changeAiMethod(method); }
+  if (method === 'subscription' && !subscriptionEnabled) { syncSubscriptionToggle(); return; }
+  const change = async () => {
+    const priorMethod = profileKey.split(':')[1];
+    if (priorMethod === 'apiKey') {
+      // Capture before changing provider/method, including first-use settings
+      // that predate the dedicated API snapshot.
+      savedApiConfig = { ...getAiFormSettings(), chromeAiAuthMethod: 'apiKey', chromeAiApiKey: aiKeyInput.value.trim(),
+        chromeAiEndpoint: aiLocalEndpoint.value.trim(), chromeAiLocalEndpoint: aiLocalEndpoint.value.trim() };
+      lastApiKeyProvider = savedApiConfig.chromeAiProvider;
+      aiProfiles[profileKey] = { model: savedApiConfig.chromeAiModel, apiKey: savedApiConfig.chromeAiApiKey, endpoint: savedApiConfig.chromeAiEndpoint };
+    } else if (profileKey) {
+      aiProfiles[profileKey] = { model: activeSubscriptionModel || 'auto', apiKey: '', endpoint: '' };
+    }
+    aiAuthMethod.value = method;
+    if (method === 'subscription') {
+      aiProviderSelect.value = lastKnownSubscriptionProvider || 'gemini';
+      activeSubscriptionModel = aiProfiles[`${aiProviderSelect.value}:subscription`]?.model || 'auto';
+    } else {
+      aiProviderSelect.value = savedApiConfig?.chromeAiProvider || lastApiKeyProvider || aiProviderSelect.value;
+      lastSubscriptionState = null;
+    }
+    restoreProfile();
+    if (method === 'apiKey' && savedApiConfig) {
+      aiKeyInput.value = savedApiConfig.chromeAiApiKey || '';
+      aiLocalEndpoint.value = savedApiConfig.chromeAiEndpoint || savedApiConfig.chromeAiLocalEndpoint || '';
+      updateModelOptions(aiProviderSelect.value, savedApiConfig.chromeAiModel);
+      chunkWindowInput.value = savedApiConfig.chunkWindowChars || chunkWindowInput.value;
+      maxTokensInput.value = savedApiConfig.contentAnalysisMaxTokens || maxTokensInput.value;
+    }
+    syncSubscriptionToggle();
+    renderSubscriptionAccess();
+    await chrome.storage.local.set({ ...getAiFormSettings(), aiProfiles,
+      ...(savedApiConfig ? { chromeApiConfig: savedApiConfig, lastApiKeyProvider } : {}) });
+    if (obsidianModeEnabled.checked) {
+      await chrome.runtime.sendMessage({ action: 'sync-ai-config' });
+      await refreshObsidianAiConfig();
+      await checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+    }
+  };
+  methodChange = change();
+  try { await methodChange; } finally { methodChange = null; renderSubscriptionAccess(); }
 }
 async function refreshSubscriptionAccess() {
   const request = ++subscriptionFeatureRequest;
@@ -151,13 +198,15 @@ async function refreshSubscriptionAccess() {
   try {
     const response = await probeHealth(Number(portInput.value) || DEFAULT_PORT);
     const health = response.health;
+    if (!response.ok || typeof health.subscriptionEnabled !== 'boolean') return;
     if (request !== subscriptionFeatureRequest) return;
     const previous = subscriptionEnabled;
     subscriptionEnabled = health.subscriptionEnabled === true;
     subscriptionAccessKnown = true;
+    if (!subscriptionEnabled && subscriptionSelected()) await changeAiMethod('apiKey');
     renderSubscriptionAccess();
     if (previous !== subscriptionEnabled) void refreshSubscription();
-  } catch { if (request === subscriptionFeatureRequest) { subscriptionEnabled = false; subscriptionAccessKnown = true; renderSubscriptionAccess(); } }
+  } catch { /* Offline is not a command to switch to API billing. Keep the saved selection. */ }
 }
 async function subscriptionControl(operation, extra = {}) {
   let provider = aiProviderSelect.value;
@@ -251,6 +300,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     "chromeAiProvider",
     "chromeAiAuthMethod",
     "aiProfiles",
+    "chromeApiConfig",
+    "lastApiKeyProvider",
     "subscriptionModels",
     "chromeAiApiKey",
     "chromeAiModel",
@@ -454,7 +505,7 @@ async function refreshObsidianAiConfig() {
     if (request !== obsidianConfigRequest || typeof document === 'undefined' || !document || !obsidianModeEnabled?.checked) return;
     if (result?.error || !result?.aiConfig) throw new Error(result?.error || "Unavailable");
     const config = result.aiConfig;
-    if (config.aiAuthMethod === 'subscription') {
+    if (config.aiAuthMethod === 'subscription' && subscriptionSelected()) {
       activeSubscriptionModel = config.aiModel || 'auto';
       const badge = document?.getElementById?.('subscription-model-badge');
       if (badge) badge.textContent = activeSubscriptionModel;
@@ -465,6 +516,9 @@ async function refreshObsidianAiConfig() {
         if (config.aiProvider && aiProviderSelect.value !== config.aiProvider) {
           aiProviderSelect.value = config.aiProvider;
         }
+        profileKey = `${aiProviderSelect.value}:subscription`;
+        updateModelOptions(aiProviderSelect.value, activeSubscriptionModel);
+        document.getElementById('subscription-provider-badge').textContent = PROVIDER_CATALOG[aiProviderSelect.value]?.label || aiProviderSelect.value;
         await chrome.storage.local.set({
           chromeAiAuthMethod: 'subscription',
           chromeAiProvider: config.aiProvider || aiProviderSelect.value,
@@ -543,6 +597,9 @@ function initAiSettings(stored) {
   chunkWindowInput.value = stored.chunkWindowChars || 30000;
   maxTokensInput.value = stored.contentAnalysisMaxTokens || stored.chromeAiMaxTokens || 16384;
   aiProfiles = stored.aiProfiles || {};
+  subscriptionEnabled = stored.chromeAiAuthMethod === 'subscription' && stored.connectionMode === 'obsidian';
+  savedApiConfig = stored.chromeApiConfig || null;
+  lastApiKeyProvider = stored.lastApiKeyProvider || savedApiConfig?.chromeAiProvider || null;
   subscriptionModels = stored.subscriptionModels || {};
   activeSubscriptionModel = stored.chromeAiModel || 'auto';
   const subModelBadge = document.getElementById('subscription-model-badge');
@@ -587,53 +644,11 @@ function initAiSettings(stored) {
     renderSubscriptionAccess();
     restoreProfile();
   });
-  aiAuthMethod.addEventListener('change', async () => {
-    const supportsSub = (window.NutEggAI?.supportsSubscription || (() => false));
-    if (aiAuthMethod.value === 'subscription') {
-      if (!supportsSub(aiProviderSelect.value)) {
-        if (!lastApiKeyProvider) lastApiKeyProvider = aiProviderSelect.value;
-        aiProviderSelect.value = lastKnownSubscriptionProvider || 'gemini';
-      }
-    } else if (aiAuthMethod.value === 'apiKey') {
-      if (lastApiKeyProvider) {
-        aiProviderSelect.value = lastApiKeyProvider;
-      }
-    }
-    // The old profile's credential belongs to its previous connection method.
-    const priorMethod = profileKey.split(':')[1];
-    aiProfiles[profileKey] = { model: getAiFormSettings().chromeAiModel, apiKey: priorMethod === 'apiKey' ? aiKeyInput.value : '', endpoint: aiLocalEndpoint.value };
-    restoreProfile();
-    await chrome.storage.local.set({
-      chromeAiAuthMethod: aiAuthMethod.value,
-      chromeAiProvider: aiProviderSelect.value,
-      chromeAiModel: getAiFormSettings().chromeAiModel,
-    });
-    if (obsidianModeEnabled.checked) {
-      await chrome.runtime.sendMessage({ action: "sync-ai-config" });
-      await refreshObsidianAiConfig();
-    }
-  });
+  aiAuthMethod.addEventListener('change', () => { void changeAiMethod(aiAuthMethod.value); });
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
-  if (useSubscriptionToggle) {
-    useSubscriptionToggle.checked = aiAuthMethod.value === 'subscription';
-    useSubscriptionToggle.addEventListener('change', () => {
-      const willBeSub = useSubscriptionToggle.checked;
-      const supportsSub = (window.NutEggAI?.supportsSubscription || (() => false));
-      if (willBeSub) {
-        if (!supportsSub(aiProviderSelect.value)) {
-          lastApiKeyProvider = aiProviderSelect.value;
-          aiProviderSelect.value = lastKnownSubscriptionProvider || 'gemini';
-        }
-        aiAuthMethod.value = 'subscription';
-      } else {
-        if (lastApiKeyProvider) {
-          aiProviderSelect.value = lastApiKeyProvider;
-        }
-        aiAuthMethod.value = 'apiKey';
-      }
-      aiAuthMethod.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-  }
+  useSubscriptionToggle?.addEventListener('change', () => {
+    void changeAiMethod(useSubscriptionToggle.checked ? 'subscription' : 'apiKey');
+  });
   document.getElementById('obsidian-connect-btn')?.addEventListener('click', connectChrome);
   document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(subscriptionTimer); else void refreshSubscription(); });
   aiModelSelect.addEventListener("change", () => {
@@ -786,6 +801,7 @@ function getAiFormSettings() {
 }
 
 async function handleAiSave(advanced = false) {
+  if (subscriptionSelected()) return;
   if (!chunkWindowInput.reportValidity() || !maxTokensInput.reportValidity()) return;
   const settings = getAiFormSettings();
   if (subscriptionSelected() && !subscriptionEnabled) { showAiResult(t('aiConnectionUnavailable'), 'error', advanced); return; }
@@ -809,6 +825,8 @@ async function handleAiSave(advanced = false) {
   try {
     await chrome.storage.local.set({
       ...settings,
+      chromeApiConfig: settings,
+      lastApiKeyProvider: settings.chromeAiProvider,
       aiProfiles,
       connectionMode: new URLSearchParams(window.location.search).has("setupApi") && !subscriptionSelected() ? "chrome" : obsidianModeEnabled.checked ? "obsidian" : "chrome",
       chromeAiEnabled: true,

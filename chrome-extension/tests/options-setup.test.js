@@ -102,14 +102,14 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
 
 test('subscription shares its provider and preserves API credentials while hiding Chrome model edits', async t => {
   const { values, el, change, creditCalls, messages } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key', chromeAiModel: 'gemini-pro' });
-  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method'); await flush();
   assert.equal(el('ai-key-input').value, '');
   assert.equal(el('ai-key-row').hidden, true);
   assert.equal(el('ai-model-row').hidden, true);
   assert.equal(el('ai-save-btn').hidden, true);
   assert.equal(el('ai-provider-select').disabled, true);
-  assert.equal(el('subscription-model-badge').textContent, 'gemini-pro');
-  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method');
+  assert.equal(el('subscription-model-badge').textContent, 'auto');
+  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method'); await flush();
   assert.equal(el('ai-key-row').hidden, false);
   assert.equal(el('ai-model-row').hidden, false);
   assert.equal(el('ai-save-btn').hidden, false);
@@ -126,13 +126,13 @@ test('switching to non-subscription provider in apiKey mode keeps use-subscripti
   assert.equal(el('use-subscription-toggle').checked, false);
   el('ai-test-result').textContent = 'Saved. ✅ Connected: DeepSeek · Balance: ¥8.23';
   el('ai-test-result').className = 'test-result ok';
-  el('use-subscription-toggle').checked = true; change('use-subscription-toggle');
+  el('use-subscription-toggle').checked = true; change('use-subscription-toggle'); await flush();
   assert.equal(el('ai-test-result').textContent, '');
   assert.equal(el('ai-test-result').classList.contains('hidden'), true);
   assert.equal(el('ai-auth-method').value, 'subscription');
   assert.equal(el('ai-provider-select').disabled, true);
   assert.equal(el('ai-key-row').hidden, true);
-  el('use-subscription-toggle').checked = false; change('use-subscription-toggle');
+  el('use-subscription-toggle').checked = false; change('use-subscription-toggle'); await flush();
   assert.equal(el('ai-auth-method').value, 'apiKey');
   assert.equal(el('ai-provider-select').value, 'local');
   assert.equal(el('ai-provider-select').disabled, false);
@@ -348,13 +348,44 @@ test('Obsidian opt-in exposes the Chrome connection selector with no account set
 });
 
 
-test('disabled saved account config shows an API draft without changing saved execution or losing preferences', async t => {
+test('disabling the feature restores the saved API configuration and hides the switch', async t => {
   const { el, values } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiAuthMethod: 'subscription', chromeAiModel: 'cli-custom', aiProfiles: { 'gemini:apiKey': { apiKey: 'retained-key', model: 'gemini-pro' } } });
   assert.equal(el('ai-auth-row').hidden, true);
   assert.equal(el('ai-key-row').hidden, false);
   assert.equal(el('ai-key-input').value, 'retained-key');
-  assert.equal(values.chromeAiAuthMethod, 'subscription');
+  assert.equal(values.chromeAiAuthMethod, 'apiKey');
+  assert.equal(values.chromeAiApiKey, 'retained-key');
+  assert.equal(values.chromeAiModel, 'gemini-pro');
   assert.equal(el('subscription-card').hidden, true);
+});
+
+test('API settings survive a different subscription provider and reopening settings', async t => {
+  const first = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiApiKey: 'original-key', chromeAiModel: 'custom-api-model', chromeAiEndpoint: 'https://api.example/v1' });
+  first.win.chrome.runtime.sendMessage = async message => message.action === 'get-obsidian-ai-config'
+    ? { aiConfig: { aiProvider: 'gemini', aiAuthMethod: 'subscription', aiModel: 'custom-cli-model' }, matches: true } : {};
+  first.el('use-subscription-toggle').checked = true; first.change('use-subscription-toggle');
+  await flush(); await flush();
+  assert.equal(first.values.chromeAiProvider, 'gemini');
+  assert.equal(first.values.chromeAiApiKey, '');
+  assert.equal(first.el('subscription-provider-badge').textContent, 'Google Gemini');
+  assert.equal(first.el('subscription-model-badge').textContent, 'custom-cli-model');
+  const reopened = await setup(t, first.values);
+  reopened.el('use-subscription-toggle').checked = false; reopened.change('use-subscription-toggle');
+  await flush(); await flush();
+  assert.equal(reopened.values.chromeAiProvider, 'openai');
+  assert.equal(reopened.values.chromeAiApiKey, 'original-key');
+  assert.equal(reopened.values.chromeAiModel, 'custom-api-model');
+  assert.equal(reopened.values.chromeAiEndpoint, 'https://api.example/v1');
+});
+
+test('an offline or failed health check never restores API billing', async t => {
+  const app = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'cli-custom' });
+  for (const response of [() => { throw new Error('offline'); }, () => ({ ok: false, health: {} })]) {
+    app.win.fetch = async () => response();
+    await app.win.eval('refreshSubscriptionAccess()');
+    assert.equal(app.values.chromeAiAuthMethod, 'subscription');
+    assert.equal(app.el('ai-key-row').hidden, true);
+  }
 });
 
 test('Chrome refreshes AI readiness after Obsidian setup completes without overlapping slow checks', async t => {
@@ -371,7 +402,7 @@ test('Chrome refreshes AI readiness after Obsidian setup completes without overl
     }
     return { models: ['auto', 'account-model'] };
   };
-  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method'); await flush();
   assert.equal(checks, 1);
   assert.equal([...timers.values()].filter(timer => timer.delay === 5000).length, 0);
   finishStatus({ state: 'error' }); await flush();
@@ -402,10 +433,10 @@ test('save and continue button is removed on chrome AI setting when using subscr
   const { el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription' });
   assert.equal(el('ai-save-btn').hidden, true);
   assert.equal(el('ai-save-btn').classList.contains('hidden'), true);
-  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method');
+  el('ai-auth-method').value = 'apiKey'; change('ai-auth-method'); await flush();
   assert.equal(el('ai-save-btn').hidden, false);
   assert.equal(el('ai-save-btn').classList.contains('hidden'), false);
-  el('ai-auth-method').value = 'subscription'; change('ai-auth-method');
+  el('ai-auth-method').value = 'subscription'; change('ai-auth-method'); await flush();
   assert.equal(el('ai-save-btn').hidden, true);
   assert.equal(el('ai-save-btn').classList.contains('hidden'), true);
 });

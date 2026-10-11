@@ -154,6 +154,7 @@ async function initPopup() {
   chrome.storage?.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.connectionMode) settings.setConnectionMode(changes.connectionMode.newValue, false);
+    if (changes.chromeAiAuthMethod) settings.chromeAiAuthMethod = changes.chromeAiAuthMethod.newValue || 'apiKey';
     if (changes.analysisMode) settings.setAnalysisMode(changes.analysisMode.newValue, false);
     if (changes.outputLanguage) settings.setOutputLanguage(changes.outputLanguage.newValue, false);
     if (changes.uiDensity) settings.setUiDensity(changes.uiDensity.newValue, false);

@@ -237,7 +237,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     // A real terminal supports provider prompts and device codes without exposing auth output to Chrome.
     const directory = await mkdtemp(join(tmpdir(), 'nutegg-login-')); login.directory = directory;
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) { await rm(directory, { recursive: true, force: true }); throw new Error('Login cancelled.'); }
-    const script = join(directory, process.platform === 'win32' ? 'login.ps1' : 'login.command');
+    const script = join(directory, process.platform === 'win32' ? 'login.ps1' : `nutegg-login-${login.id}.command`);
     const unset = Object.keys(process.env).filter(key => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) && !(key in this.environment(provider)));
     const pidFile = join(directory, 'pid');
     const activeFile = join(directory, 'active');
@@ -246,7 +246,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       ? unset.map(key => `Remove-Item Env:${key} -ErrorAction SilentlyContinue`).join('\n')
         + `\nif (!(Test-Path ${quote(activeFile)})) { exit }\n$cliProcess = Start-Process -FilePath ${quote(executable)} ${args.length ? '-ArgumentList @(' + args.map(quote).join(',') + ')' : ''} -NoNewWindow -PassThru\n$cliProcess.Id | Set-Content ${quote(pidFile)}\nif (!(Test-Path ${quote(activeFile)})) { $cliProcess.Kill(); exit }\n$cliProcess.WaitForExit()\nRemove-Item ${quote(pidFile)} -ErrorAction SilentlyContinue\nif ($cliProcess.ExitCode -eq 0) { exit 0 }\n`
       : '#!/bin/sh\n' + unset.map(key => `unset ${key}`).join('\n')
-        + `\ncleanup() { rm -f ${quote(pidFile)}; }\ntrap cleanup EXIT\ntrap 'kill "$cli_pid" 2>/dev/null; exit' HUP INT TERM\n[ -f ${quote(activeFile)} ] || exit\n${[executable, ...args].map(quote).join(' ')} < /dev/tty &\ncli_pid=$!\necho "$cli_pid" > ${quote(pidFile)}\n[ -f ${quote(activeFile)} ] || { kill "$cli_pid" 2>/dev/null; exit; }\nwait "$cli_pid"\ncli_status=$?\nif [ $cli_status -eq 0 ]; then\n  osascript -e 'tell application "Terminal" to close (every window whose name contains "login.command")' 2>/dev/null &\n  exit 0\nfi\n`;
+        + `\ncleanup() { rm -f ${quote(pidFile)}; }\ntrap cleanup EXIT\ntrap 'kill "$cli_pid" 2>/dev/null; exit' HUP INT TERM\n[ -f ${quote(activeFile)} ] || exit\n${[executable, ...args].map(quote).join(' ')} < /dev/tty &\ncli_pid=$!\necho "$cli_pid" > ${quote(pidFile)}\n[ -f ${quote(activeFile)} ] || { kill "$cli_pid" 2>/dev/null; exit; }\nwait "$cli_pid"\ncli_status=$?\nif [ $cli_status -eq 0 ]; then\n  osascript -e 'tell application "Terminal" to close (every window whose name contains "nutegg-login-${login.id}.command")' 2>/dev/null &\n  exit 0\nfi\n`;
     await writeFile(script, body, { mode: 0o700 }); await chmod(script, 0o700);
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) { await this.cancelLogin(provider); throw new Error('Login cancelled.'); }
     let child: ChildProcess;
@@ -278,8 +278,8 @@ export class SubscriptionService implements SubscriptionExecutor {
         if (Number.isSafeInteger(pid) && pid > 1) process.kill(pid, 'SIGTERM');
       } catch { /* The login process already exited, or terminal launch failed. */ }
     }
-    if (process.platform === 'darwin') {
-      try { spawn('/usr/bin/osascript', ['-e', 'tell application "Terminal" to close (every window whose name contains "login.command")'], { stdio: 'ignore' }); } catch {}
+    if (process.platform === 'darwin' && login.directory) {
+      try { spawn('/usr/bin/osascript', ['-e', `tell application "Terminal" to close (every window whose name contains "nutegg-login-${login.id}.command")`], { stdio: 'ignore' }); } catch {}
     }
     login.child?.kill(); this.logins.delete(provider);
     if (login.directory) await rm(login.directory, { recursive: true, force: true });

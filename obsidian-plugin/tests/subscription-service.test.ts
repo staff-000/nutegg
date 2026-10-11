@@ -114,6 +114,7 @@ test('HTTP automatic connection requires the native NutEgg Origin and still auth
 test('local server rejects unauthorized process launch and config writes before dispatch', async t => {
   const plugin = makeFakePlugin(); let calls = 0;
   plugin.settings.subscriptionEnabled = true;
+  plugin.settings.aiAuthMethod = 'subscription';
   plugin.connectionAccess = new ConnectionAccess({ [origin]: 'secret' }, async () => false, async () => {});
   plugin.subscriptions = { status: async () => { calls++; return { state: 'ready' }; } };
   const server = new NutEggServer(plugin, 0);
@@ -140,6 +141,10 @@ test('local server rejects unauthorized process launch and config writes before 
   assert.equal((await fetch(url + '/metrics', { headers: { ...headers, Origin: 'https://evil.example' } })).status, 403);
   assert.equal((await fetch(url + '/metrics', { headers: { ...headers, Origin: `chrome-extension://${'c'.repeat(32)}` } })).status, 403);
   assert.equal((await fetch(url + '/metrics', { headers: { ...headers, 'X-NutEgg-Extension-Origin': `chrome-extension://${'c'.repeat(32)}` } })).status, 401);
+  plugin.settings.aiAuthMethod = 'apiKey';
+  for (const path of ['/subscription/status', '/subscription/models', '/subscription/login/start', '/subscription/test']) assert.equal((await request(path, { Authorization: 'Bearer secret' })).status, 403);
+  assert.equal(calls, 1);
+  plugin.settings.aiAuthMethod = 'subscription';
   plugin.settings.subscriptionEnabled = false;
   for (const path of ['/subscription/status', '/subscription/login/start', '/subscription/test']) assert.equal((await request(path, { Authorization: 'Bearer secret' })).status, 403);
   assert.equal(calls, 1);
@@ -212,6 +217,32 @@ require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started'); setInter
   await assert.rejects(service.chat('openai', 'auto', 'third'), /stopped/);
 });
 
+
+test('switching to API cancels running and queued work and permits subscription reuse later', async t => {
+  const marker = join(tmpdir(), `nutegg-api-switch-${process.pid}-${Date.now()}`);
+  t.after(() => rm(marker, { force: true }));
+  const { service } = await fixture(t, `
+if (process.argv.includes('status')) { console.error('Logged in using ChatGPT'); process.exit(0); }
+const fs = require('node:fs');
+if (!fs.existsSync(${JSON.stringify(marker)})) { fs.writeFileSync(${JSON.stringify(marker)}, 'started'); setInterval(()=>{},1000); }
+else { console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'OK'}})); console.log(JSON.stringify({type:'turn.completed'})); }
+`);
+  let active = true;
+  service['enabled'] = () => active;
+  const results = Promise.allSettled([service.chat('openai', 'auto', 'first'), service.chat('openai', 'auto', 'second')]);
+  for (let i=0; i<100; i++) { try { await readFile(marker); break; } catch { await new Promise(resolve => setTimeout(resolve, 10)); } }
+  let loginCanceled = false, discoveryKilled = false;
+  service['logins'].set('openai', { id: 'owned-test', state: 'signing_in', command: '', child: { kill() { loginCanceled = true; } } } as any);
+  service['discovery'].add({ kill() { discoveryKilled = true; } } as any);
+  active = false;
+  await service.cancelWork();
+  assert((await results).every(result => result.status === 'rejected'));
+  assert.equal(loginCanceled, true); assert.equal(discoveryKilled, true);
+  assert.equal((await service.status('openai')).state, 'disabled');
+  await assert.rejects(service.startLogin('openai'), /unavailable/);
+  active = true;
+  assert.equal(await service.chat('openai', 'auto', 'resumed'), 'OK');
+});
 
 test('concurrent login clicks reuse one operation; cancellation prevents terminal launch', async t => {
   const { service, command } = await fixture(t, 'process.exit(0)');

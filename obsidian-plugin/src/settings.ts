@@ -21,6 +21,8 @@ export interface NutEggSettings {
   chromeConnections?: Record<string, string | string[]>;
   subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'gemini', string>>;
   subscriptionModels?: Partial<Record<SubscriptionProvider, string[]>>;
+  /** Retained while Chrome uses an API key. */
+  subscriptionSelection?: { provider: SubscriptionProvider; model: string };
   /** Which model family to use */
   aiProvider: AIProviderId;
   /** Legacy API source (kept optional for backwards compatibility with saved data) */
@@ -233,28 +235,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       this.refreshAISettings();
     }
 
-    new Setting(containerEl)
-      .setName(t("subscriptionModeSettingName"))
-      .setDesc(t("subscriptionModeSettingDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription');
-        toggle.onChange(async (val) => {
-          if (val) {
-            settings.subscriptionEnabled = true;
-            settings.aiAuthMethod = 'subscription';
-            if (!['openai', 'anthropic', 'gemini'].includes(settings.aiProvider)) {
-              settings.aiProvider = 'gemini';
-            }
-            settings.aiModel = 'auto';
-            await this.plugin.saveSettings();
-            this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
-            this.plugin.aiProcessor = new AIProcessor(this.plugin);
-            this.plugin.updateCreditStatusBar?.();
-            this.display();
-            new Notice(t("subscriptionSetupInstructions"), 8000);
-          }
-        });
-      });
+
   }
 
   refreshAISettings(): void {
@@ -295,25 +276,6 @@ export class NutEggSettingTab extends PluginSettingTab {
     card.createEl('h3', { text: t('subscriptionEnabledTitle') });
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
 
-    new Setting(card)
-      .setName(t("subscriptionModeSettingName"))
-      .setDesc(t("subscriptionModeSettingDesc"))
-      .addToggle((toggle) => {
-        toggle.setValue(true);
-        toggle.onChange(async (val) => {
-          if (!val) {
-            this.plugin.settings.aiAuthMethod = 'apiKey';
-            await this.plugin.subscriptions.cancelWork();
-            await this.plugin.saveSettings();
-            this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
-            this.plugin.aiProcessor = new AIProcessor(this.plugin);
-            this.plugin.updateCreditStatusBar?.();
-            this.display();
-            new Notice(t("subscriptionDisabledTitle"));
-          }
-        });
-      });
-
     let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
       ? this.plugin.settings.aiProvider as SubscriptionProvider : 'gemini';
     if (!['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)) {
@@ -337,7 +299,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       let status;
       try { status = await this.plugin.subscriptions.status(current); }
       catch (error) { status = { state: 'error' as const, message: String(error) }; }
-      if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || !controls.isConnected) return;
+      if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription' || !controls.isConnected) return;
       controls.empty();
 
       const buttons: ButtonComponent[] = [];
@@ -390,7 +352,7 @@ export class NutEggSettingTab extends PluginSettingTab {
               try {
                 let outcome: { state?: string; message?: string } | undefined;
                 if (isTest) {
-                  this.plugin.subscriptions.clearModelFailure(current);
+                  this.plugin.subscriptions?.clearModelFailure?.(current);
                   let testModel = this.plugin.settings.aiProvider === current && this.plugin.settings.aiAuthMethod === 'subscription'
                     ? (this.plugin.settings.aiModel || 'auto')
                     : 'auto';
@@ -398,14 +360,16 @@ export class NutEggSettingTab extends PluginSettingTab {
                     outcome = await this.plugin.subscriptions.test(current, testModel);
                   } catch (err: any) {
                     if (testModel !== 'auto' && (err?.code === 'model_not_found' || err?.status === 400 || /model.*unavailable|invalid.*model/i.test(err?.message || ''))) {
-                      this.plugin.subscriptions.clearModelFailure(current);
+                      this.plugin.subscriptions?.clearModelFailure?.(current);
                       testModel = 'auto';
+                      if (request !== this.setupRequest || this.plugin.settings.aiAuthMethod !== 'subscription' || !this.plugin.settings.subscriptionEnabled) return;
                       this.plugin.settings.aiModel = 'auto';
                       outcome = await this.plugin.subscriptions.test(current, 'auto');
                     } else {
                       throw err;
                     }
                   }
+                  if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') return;
                   const passed = outcome?.state === 'ready';
                   if (passed) {
                     this.plugin.settings.aiProvider = current;
@@ -430,7 +394,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                 feedback = { text: String(error), error: true };
                 new Notice(feedback.text);
               } finally {
-                if (request === this.setupRequest) {
+                if (request === this.setupRequest && this.plugin.settings.aiAuthMethod === 'subscription' && this.plugin.settings.subscriptionEnabled) {
                   showFeedback();
                   await refresh();
                 }
@@ -446,7 +410,7 @@ export class NutEggSettingTab extends PluginSettingTab {
         button.setButtonText(t('refresh')).onClick(async () => {
           clearTimeout(this.setupTimer);
           for (const item of buttons) item.setDisabled(true);
-          this.plugin.subscriptions.clearModelFailure(current);
+          this.plugin.subscriptions?.clearModelFailure?.(current);
           feedback = undefined;
           await refresh();
         });
@@ -611,7 +575,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiMaxTokens = new Setting(containerEl);
     this.refreshAISettings();
 
-    if (settings.subscriptionEnabled) for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
+    if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
       new Setting(containerEl).setName(`${PROVIDER_CATALOG[provider].label} · ${t('subscriptionPath')}`)
         .setDesc(t('subscriptionPathHint')).addText(text => {
           let currentVal = settings.subscriptionPaths?.[provider] || '';

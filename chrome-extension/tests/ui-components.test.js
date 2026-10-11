@@ -335,6 +335,12 @@ describe("Modular UI Components", () => {
     header.render({}, settings);
     assert.equal(header.serverStatus.className, 'status-dot offline');
     assert.equal(header.tooltipSub.textContent, t('aiConnectionRecovery'));
+
+    settings.chromeAiAuthMethod = 'apiKey';
+    settings.serverOnline = true;
+    settings.subscriptionState = 'disabled';
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot online');
   });
 
   it("Header shows confirmed analysis or question provider failures in red without leaking across tabs", () => {

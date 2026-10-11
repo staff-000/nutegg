@@ -579,4 +579,45 @@ test('when using subscription, Chrome does not overwrite AI provider in Obsidian
   assert.equal(app.stored.chromeAiModel, 'claude-3-5-sonnet');
 });
 
+test('when switching to subscription in Chrome while Obsidian is in apiKey mode, Chrome switches Obsidian to subscription', async () => {
+  let aiConfigPayload = null;
+  const app = worker(
+    { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'auto' },
+    { respond: async (url, options) => {
+      const pathname = new URL(url).pathname;
+      if (pathname === '/health') return { ok: true, json: async () => ({ status: 'ok', capabilities: ['subscription-v1', 'connection-approval-v1'], subscriptionEnabled: true }) };
+      if (pathname === '/ai-config-status') return { ok: true, json: async () => ({
+        aiConfig: { aiProvider: 'deepseek', aiModel: 'deepseek-chat', aiAuthMethod: 'apiKey', chunkWindowChars: 25000, contentAnalysisMaxTokens: 12000 },
+        matches: false,
+      }) };
+      if (pathname === '/ai-config') {
+        aiConfigPayload = JSON.parse(options.body);
+        return { ok: true, json: async () => ({ success: true }) };
+      }
+      return { ok: true, json: async () => ({ success: true }) };
+    } }
+  );
 
+  const syncResult = await app.send('sync-ai-config');
+  assert.equal(syncResult.success, true);
+  // Ensured /ai-config WAS called to switch Obsidian to subscription
+  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config'), true);
+  assert.equal(aiConfigPayload.aiAuthMethod, 'subscription');
+  assert.equal(aiConfigPayload.aiProvider, 'gemini');
+  assert.equal(app.stored.chromeAiProvider, 'gemini');
+});
+
+test('disabling subscriptions restores the API configuration in the worker without options open', async () => {
+  const app = worker({ connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'cli-model',
+    chromeApiConfig: { chromeAiProvider: 'local', chromeAiAuthMethod: 'apiKey', chromeAiApiKey: 'local-key', chromeAiModel: 'local-custom', chromeAiEndpoint: 'http://localhost:8080/v1' } },
+    { respond: async url => ({ ok: true, json: async () => url.endsWith('/ai-config-status')
+      ? { subscriptionEnabled: false, aiConfig: { aiProvider: 'gemini', aiAuthMethod: 'apiKey', aiModel: '' } } : { success: true } }) });
+  assert.equal((await app.send('sync-ai-config')).success, true);
+  assert.equal(app.stored.chromeAiAuthMethod, 'apiKey');
+  assert.equal(app.stored.chromeAiProvider, 'local');
+  assert.equal(app.stored.chromeAiApiKey, 'local-key');
+  assert.equal(app.stored.chromeAiModel, 'local-custom');
+  const synced = JSON.parse(app.http.find(call => call.url.endsWith('/ai-config')).options.body);
+  assert.equal(synced.aiAuthMethod, 'apiKey');
+  assert.equal(synced.localEndpoint, 'http://localhost:8080/v1');
+});
