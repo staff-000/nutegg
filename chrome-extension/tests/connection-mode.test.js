@@ -14,7 +14,12 @@ function worker(initial = {}, availability = {}) {
       normalizeAIDebugScope: value => value,
       getAIDebugInfo: () => ({ totalCalls: 1 }),
       checkCreditAI: async settings => { ai.push({ action: 'credit', settings }); return { hasBalance: true }; },
-      analyzeContentStandalone: async (payload, settings) => { ai.push({ action: 'analyze', payload, settings }); return { coreSummary: ['Summary'] }; },
+      analyzeContentStandalone: async (payload, settings) => {
+        ai.push({ action: 'analyze', payload, settings });
+        return payload.generateKnowledgeEntries
+          ? { coreSummary: ['Summary'], extractedEntries: [{ content: 'Knowledge 1' }] }
+          : { coreSummary: ['Summary'] };
+      },
       askFollowUpStandalone: async (payload, question, priorQa, settings, scope) => {
         ai.push({ action: 'ask', payload, question, priorQa, settings, scope }); return 'Answer';
       },
@@ -330,11 +335,11 @@ test('Chrome mode persists and increments metrics in Chrome storage on each anal
 
   const afterFirst = await app.send('metrics');
   assert.equal(afterFirst.nuts, 1);
-  assert.equal(afterFirst.eggs, 1);
+  assert.equal(afterFirst.eggs, 0);
   assert.equal(afterFirst.timeSavedMinutes, 5);
   assert.equal(afterFirst.timeSaved, '5m');
   assert.equal(app.stored.chromeMetrics.nuts, 1);
-  assert.equal(app.stored.chromeMetrics.eggs, 1);
+  assert.equal(app.stored.chromeMetrics.eggs, 0);
 
   await app.send('analyze', {
     payload: {
@@ -342,16 +347,17 @@ test('Chrome mode persists and increments metrics in Chrome storage on each anal
       title: 'Article 2',
       content: 'Second article text.',
       metadata: { time_estimate_minutes: 10 },
+      generateKnowledgeEntries: true,
     },
   });
 
   const afterSecond = await app.send('metrics');
   assert.equal(afterSecond.nuts, 2);
-  assert.equal(afterSecond.eggs, 2);
+  assert.equal(afterSecond.eggs, 1);
   assert.equal(afterSecond.timeSavedMinutes, 15);
   assert.equal(afterSecond.timeSaved, '15m');
   assert.equal(app.stored.chromeMetrics.nuts, 2);
-  assert.equal(app.stored.chromeMetrics.eggs, 2);
+  assert.equal(app.stored.chromeMetrics.eggs, 1);
 });
 
 
@@ -360,13 +366,15 @@ test('combined metrics replace the vault snapshot, stay consistent across modes,
   const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'key', chromeMetrics: { nuts: 5, eggs: 5, timeSavedMinutes: 10 } }, availability);
   const first = await app.send('metrics');
   assert.equal(first.nuts, 105);
-  assert.equal(first.eggs, 85);
+  assert.equal(first.eggs, 5);
   assert.equal(first.timeSavedMinutes, 210);
   assert.equal((await app.send('metrics')).nuts, 105, 'Refreshing must not import the same vault twice');
   app.stored.connectionMode = 'obsidian';
   assert.equal((await app.send('metrics')).nuts, 105);
+  assert.equal((await app.send('metrics')).eggs, 5);
   availability.metrics = { nuts: 101, eggs: 81, timeSavedMinutes: 205 };
   assert.equal((await app.send('metrics')).nuts, 106);
+  assert.equal((await app.send('metrics')).eggs, 5);
   availability.online = false;
   await app.send('analyze', { payload: { content: 'Article', metadata: { time_estimate_minutes: 5 } } });
   const offline = await app.send('metrics');
@@ -387,6 +395,64 @@ test('first Chrome analysis is counted once and concurrent completions cannot lo
   assert.equal((await app.send('metrics')).nuts, 1);
   await Promise.all([1, 2, 3].map(i => app.send('analyze', { payload: { url: `https://example.test/${i}`, content: 'Article' } })));
   assert.equal((await app.send('metrics')).nuts, 4);
+});
+
+test('egg metric is only incremented when knowledge is selected and generated from chrome, ignoring obsidian vault eggs', async () => {
+  const availability = { metrics: { nuts: 50, eggs: 45, timeSavedMinutes: 100 } };
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'key' }, availability);
+
+  // 1. Initial metrics: 0 eggs
+  const initial = await app.send('metrics');
+  assert.equal(initial.nuts, 50);
+  assert.equal(initial.eggs, 0, 'Obsidian vault eggs (45) must not be counted in total eggs');
+
+  // 2. Analyze without knowledge selected: nuts increments, eggs remains 0
+  await app.send('analyze', {
+    payload: { url: 'https://example.test/no-knowledge', content: 'Article content' },
+  });
+  const m1 = await app.send('metrics');
+  assert.equal(m1.nuts, 51);
+  assert.equal(m1.eggs, 0);
+
+  // 3. Analyze with knowledge selected and generated: eggs increments by 1
+  await app.send('analyze', {
+    payload: {
+      url: 'https://example.test/with-knowledge',
+      content: 'Article content',
+      generateKnowledgeEntries: true,
+    },
+  });
+  const m2 = await app.send('metrics');
+  assert.equal(m2.nuts, 52);
+  assert.equal(m2.eggs, 1);
+
+  // 4. In Obsidian mode, knowledge generated from chrome increments chrome egg counter, but vault eggs are still ignored
+  app.stored.connectionMode = 'obsidian';
+  availability.respond = (url) => {
+    if (url.endsWith('/health')) return { ok: true, json: async () => ({ version: '1' }) };
+    if (url.endsWith('/ai-config')) return { ok: true, json: async () => ({}) };
+    if (url.endsWith('/metrics')) return { ok: true, json: async () => ({ nuts: 52, eggs: 52, timeSavedMinutes: 120 }) };
+    if (url.endsWith('/analyze')) {
+      return {
+        ok: true,
+        json: async () => ({
+          coreSummary: ['Obsidian summary'],
+          eggResults: [{ egg: 'Topic', extractedEntries: [{ content: 'Key takeaway' }] }],
+        }),
+      };
+    }
+  };
+
+  await app.send('analyze', {
+    payload: {
+      url: 'https://example.test/obsidian-knowledge',
+      content: 'Article content',
+      generateKnowledgeEntries: true,
+    },
+  });
+  const m3 = await app.send('metrics');
+  assert.equal(m3.eggs, 2, 'Obsidian analysis from chrome with knowledge generated increments chrome egg counter');
+  assert.equal(m3.nuts, 52 + 2, 'Total nuts combines local and vault nuts');
 });
 
 test('Obsidian receives Chrome AI configuration before requests and receives subsequent changes', async () => {

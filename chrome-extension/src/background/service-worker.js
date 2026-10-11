@@ -454,6 +454,26 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 // --- Server communication ---
 
+function hasKnowledgeSelected(payload) {
+  return Boolean(
+    payload?.generateKnowledgeEntries === true ||
+    payload?.enabledSections?.generateKnowledgeEntries === true ||
+    payload?.enabledSections?.knowledge === true
+  );
+}
+
+function hasKnowledgeGenerated(result) {
+  if (!result || typeof result !== "object") return false;
+  if (Array.isArray(result.extractedEntries) && result.extractedEntries.length > 0) return true;
+  if (Array.isArray(result.newKnowledge) && result.newKnowledge.length > 0) return true;
+  if (Array.isArray(result.eggResults) && result.eggResults.some((e) => Array.isArray(e?.extractedEntries) && e.extractedEntries.length > 0)) return true;
+  return false;
+}
+
+function isKnowledgeSelectedAndGenerated(payload, result) {
+  return hasKnowledgeSelected(payload) && hasKnowledgeGenerated(result);
+}
+
 async function handleAnalyze(payload, onProgress) {
   if (await getConnectionMode() === "obsidian") {
     const server = await checkServer();
@@ -511,11 +531,19 @@ async function handleAnalyze(payload, onProgress) {
             if (event.type === "complete") finalResult = event.result;
           } catch {}
         }
-        return { ...(finalResult || {}), mode: "obsidian" };
+        const result = { ...(finalResult || {}), mode: "obsidian" };
+        if (isKnowledgeSelectedAndGenerated(payload, result)) {
+          await recordChromeEggMetric();
+        }
+        return result;
       }
 
       const data = await response.json();
-      return { ...data, mode: "obsidian" };
+      const result = { ...data, mode: "obsidian" };
+      if (isKnowledgeSelectedAndGenerated(payload, result)) {
+        await recordChromeEggMetric();
+      }
+      return result;
     } catch (err) {
       if (payload.stage !== 2) return handleAnalyzeChrome(payload, onProgress);
       return {
@@ -794,6 +822,7 @@ async function saveChromeCacheEntry(payload, result) {
         title: payload.title,
         sourceType: payload.sourceType,
         enabledSections: payload.enabledSections,
+        generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
         metadata: payload.metadata,
       },
       timestamp: Date.now(),
@@ -1035,6 +1064,17 @@ async function readChromeMetrics() {
   if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === "number") {
     const m = stored.chromeMetrics;
     const totalMinutes = Math.round(m.timeSavedMinutes || 0);
+    if (!m.eggCounterVersion && Array.isArray(stored.chromeTabCache) && stored.chromeTabCache.length > 0) {
+      let eggs = 0;
+      for (const entry of stored.chromeTabCache) {
+        if (isKnowledgeSelectedAndGenerated(entry.capturePayload, entry.result)) {
+          eggs++;
+        }
+      }
+      m.eggs = eggs;
+      m.eggCounterVersion = 1;
+      await chrome.storage.local.set({ chromeMetrics: m });
+    }
     return {
       nuts: m.nuts || 0,
       eggs: m.eggs || 0,
@@ -1044,13 +1084,18 @@ async function readChromeMetrics() {
   }
   const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
   let timeSavedMinutes = 0;
+  let eggs = 0;
   for (const entry of cache) {
     timeSavedMinutes += getReadingTimeMinutes(entry.capturePayload?.metadata, entry.content || entry.capturePayload?.content);
+    if (isKnowledgeSelectedAndGenerated(entry.capturePayload, entry.result)) {
+      eggs++;
+    }
   }
   const initial = {
     nuts: cache.length,
-    eggs: cache.length,
+    eggs,
     timeSavedMinutes: Math.round(timeSavedMinutes),
+    eggCounterVersion: 1,
   };
   await chrome.storage.local.set({ chromeMetrics: initial });
   return {
@@ -1059,15 +1104,17 @@ async function readChromeMetrics() {
   };
 }
 
-async function recordChromeAnalysisMetrics(payload, _result) {
+async function recordChromeAnalysisMetrics(payload, result) {
   try {
     await queueChromeMetrics(async () => {
       const current = await readChromeMetrics();
       const minutes = getReadingTimeMinutes(payload?.metadata, payload?.content);
+      const generatedKnowledge = isKnowledgeSelectedAndGenerated(payload, result);
       const updated = {
         nuts: (current.nuts || 0) + 1,
-        eggs: (current.eggs || 0) + 1,
+        eggs: (current.eggs || 0) + (generatedKnowledge ? 1 : 0),
         timeSavedMinutes: (current.timeSavedMinutes || 0) + minutes,
+        eggCounterVersion: 1,
       };
       await chrome.storage.local.set({
         chromeMetrics: updated,
@@ -1075,6 +1122,24 @@ async function recordChromeAnalysisMetrics(payload, _result) {
     });
   } catch (err) {
     console.warn("[NutEgg] Failed to record Chrome metrics:", err);
+  }
+}
+
+async function recordChromeEggMetric() {
+  try {
+    await queueChromeMetrics(async () => {
+      const current = await readChromeMetrics();
+      const updated = {
+        ...current,
+        eggs: (current.eggs || 0) + 1,
+        eggCounterVersion: 1,
+      };
+      await chrome.storage.local.set({
+        chromeMetrics: updated,
+      });
+    });
+  } catch (err) {
+    console.warn("[NutEgg] Failed to record Chrome egg metric:", err);
   }
 }
 
@@ -1107,7 +1172,8 @@ async function refreshCombinedMetrics() {
   const { obsidianMetricsSnapshot: vault = {} } = await chrome.storage.local.get(['obsidianMetricsSnapshot']);
   const number = value => Number.isFinite(value) && value >= 0 ? value : 0;
   const total = {
-    nuts: local.nuts + number(vault.nuts), eggs: local.eggs + number(vault.eggs),
+    nuts: local.nuts + number(vault.nuts),
+    eggs: number(local.eggs),
     timeSavedMinutes: local.timeSavedMinutes + number(vault.timeSavedMinutes),
   };
   const metrics = { ...total, timeSaved: formatTimeSaved(total.timeSavedMinutes) };
