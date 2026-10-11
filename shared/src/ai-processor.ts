@@ -486,6 +486,23 @@ export class AIProcessor {
         context,
     };
 
+    let knowledgePromise: Promise<ExtractedKnowledgeEntry[]> | null = null;
+    if (capture.generateKnowledgeEntries) {
+      knowledgePromise = this.extractChromeKnowledge(bodyCapture)
+        .then((entries) => {
+          onProgress?.({
+            type: "partial",
+            section: "knowledge",
+            data: { extractedEntries: entries },
+          });
+          return entries;
+        })
+        .catch((err) => {
+          console.warn("[NutEgg] Chrome knowledge extraction error:", err);
+          return [];
+        });
+    }
+
     const needsVerdictSummary = Boolean(
       sections.titleVerdict || sections.coreSummary || capture.questions?.length
     );
@@ -553,9 +570,20 @@ export class AIProcessor {
         return res.mindMap || [];
       });
 
-      const [vRes, mRes] = await Promise.all([pVerdict, pMindMap]);
-      verdictSummaryRes = vRes;
-      mindMapRes = mRes;
+      const [vSettled, mSettled] = await Promise.allSettled([pVerdict, pMindMap]);
+      if (vSettled.status === "rejected" && mSettled.status === "rejected") {
+        throw vSettled.reason;
+      }
+      if (vSettled.status === "fulfilled") {
+        verdictSummaryRes = vSettled.value;
+      } else {
+        console.warn("[NutEgg] Verdict & Summary call failed:", vSettled.reason);
+      }
+      if (mSettled.status === "fulfilled") {
+        mindMapRes = mSettled.value;
+      } else {
+        console.warn("[NutEgg] Mind Map call failed:", mSettled.reason);
+      }
     } else if (needsVerdictSummary) {
       verdictSummaryRes = await this.analyzeBodySection(bodyCapture, {
         ...sections,
@@ -590,13 +618,8 @@ export class AIProcessor {
     }
 
     let extractedEntries: ExtractedKnowledgeEntry[] = [];
-    if (capture.generateKnowledgeEntries) {
-      extractedEntries = await this.extractChromeKnowledge(bodyCapture);
-      onProgress?.({
-        type: "partial",
-        section: "knowledge",
-        data: { extractedEntries },
-      });
+    if (knowledgePromise) {
+      extractedEntries = await knowledgePromise;
     }
 
     const result: ContentAnalysis = {
@@ -681,14 +704,6 @@ export class AIProcessor {
     discussionCache.set(key, { updatedAt: Date.now(), signature, chunks, aggregate });
     while (discussionCache.size > 8) discussionCache.delete(discussionCache.keys().next().value!);
     return result;
-  }
-
-  private async analyzeBody(capture: CapturePayload): Promise<ContentAnalysis> {
-    const effectiveSections: AnalysisSectionsConfig = {
-      ...DEFAULT_ANALYSIS_SECTIONS,
-      ...(capture.enabledSections || {}),
-    };
-    return this.analyzeBodySection(capture, effectiveSections);
   }
 
   private async analyzeBodySection(
