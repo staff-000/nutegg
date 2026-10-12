@@ -308,6 +308,8 @@ export class AIProcessor {
     this.host = host;
   }
 
+  ensureActive(): void {this.host.assertActive?.();if(this.host.signal?.aborted)throw new AIError("cancelled","AI job cancelled.");}
+
   /** Keep each concurrent request's diagnostics separate without mutating the host. */
   withDebugScope(scope?: string): AIProcessor {
     return new AIProcessor(this.host, scope);
@@ -426,7 +428,7 @@ export class AIProcessor {
     eggs: EggContent[],
     onProgress?: AnalysisProgressCallback
   ): Promise<AnalysisResult> {
-    if (!isAIConfigured(this.host?.settings)) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       return this.fallbackAnalysis(capture, eggs);
     }
     const contentAnalysis = await this.analyzeContent(capture, onProgress);
@@ -660,7 +662,7 @@ export class AIProcessor {
   private async analyzeDiscussion(capture: CapturePayload): Promise<DiscussionAnalysis> {
     const discussion = normalizeDiscussion(capture.discussion), base = discussionBase(discussion);
     if (!discussion?.items.length) return base;
-    if (!isAIConfigured(this.host?.settings)) return { ...base, status: 'unavailable' };
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return { ...base, status: 'unavailable' };
     const key = this.discussionCacheKey(capture, discussion), cached = this.readDiscussionCache(key);
     const fingerprints = discussionFingerprints(discussion.items), signature = JSON.stringify([...fingerprints]);
     const used = new Set<string>();
@@ -710,7 +712,7 @@ export class AIProcessor {
     capture: CapturePayload,
     effectiveSections: AnalysisSectionsConfig
   ): Promise<ContentAnalysis> {
-    if (!isAIConfigured(this.host?.settings)) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       return {
         titleVerdict: effectiveSections.titleVerdict ? capture.title : "",
         coreSummary: effectiveSections.coreSummary ? [capture.title] : [],
@@ -773,7 +775,7 @@ export class AIProcessor {
    * Existing notes are only read during merge.
    */
   async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis, onProgress?: AnalysisProgressCallback): Promise<AnalysisResult> {
-    if (!isAIConfigured(this.host?.settings) || !eggs.length) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings)) || !eggs.length) {
       return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
         shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
         eggResults: [], newKnowledge: [], ...(eggs.length ? { readAction: "uncertain" as const } : {}) };
@@ -803,6 +805,7 @@ export class AIProcessor {
           readVerdictReason: "Some parts failed to process; coverage is incomplete." });
         return { egg: egg.fileName, generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, language: parts.find(p => p?.language)?.language, extractedEntries: entries, ...aggregate };
       } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
         console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
         return { ...this.failedEgg(egg), generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, extractedEntries: entries,
           readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
@@ -908,6 +911,7 @@ export class AIProcessor {
         keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), extractedEntries: effectiveGeneration ? this.parseExtractedEntries(parsed.extractedEntries) : [],
         ...this.parseRecommendation(parsed) };
     } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
       console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);
       return null;
     }
@@ -957,7 +961,7 @@ export class AIProcessor {
    * Extract high-signal knowledge entries in Chrome-only mode using the default Chrome knowledge prompt.
    */
   async extractChromeKnowledge(capture: CapturePayload): Promise<ExtractedKnowledgeEntry[]> {
-    if (!isAIConfigured(this.host?.settings)) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       return [];
     }
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
@@ -998,6 +1002,7 @@ export class AIProcessor {
       const parsed = this.parseJson(response, "chrome-knowledge");
       return this.parseExtractedEntries(parsed.extractedEntries);
     } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
       console.warn("[NutEgg] Chrome knowledge extraction failed:", err);
       return [];
     }
@@ -1102,7 +1107,7 @@ export class AIProcessor {
     templateContent: string,
     description: string
   ): Promise<{ content: string; language: string } | null> {
-    if (!isAIConfigured(this.host?.settings)) return null;
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return null;
     try {
       const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
         description: description,
@@ -1124,6 +1129,7 @@ export class AIProcessor {
       }
       return null;
     } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
       console.warn("[NutEgg] AI egg template localization failed:", err);
       return null;
     }
@@ -1187,7 +1193,7 @@ export class AIProcessor {
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
-    if (!isAIConfigured(this.host?.settings)) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       const aiProvider = this.host?.settings?.chromeAiProvider || this.host?.settings?.aiProvider;
       const msg =
         aiProvider === "local"
@@ -1241,6 +1247,7 @@ export class AIProcessor {
         return item;
       });
     } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
       if (err instanceof AIError) throw err;
       console.error("[NutEgg] Follow-up question failed:", err);
       return questions.map((q) => ({
@@ -1260,7 +1267,8 @@ export class AIProcessor {
   async mergeEgg(fileName: string): Promise<MergeResult | null> {
     const existing = this.mergeJobs.get(fileName);
     if (existing) return existing;
-    const job = this.performMergeEgg(fileName).finally(() => this.mergeJobs.delete(fileName));
+    const task = () => this.performMergeEgg(fileName);
+    const job = (this.host.withEggLock ? this.host.withEggLock(fileName, task) : task()).finally(() => this.mergeJobs.delete(fileName));
     this.mergeJobs.set(fileName, job);
     return job;
   }
@@ -1279,7 +1287,7 @@ export class AIProcessor {
       return null;
     }
 
-    if (!isAIConfigured(this.host?.settings)) {
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       console.log(
         `[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (AI not configured)`
       );
@@ -1337,11 +1345,13 @@ export class AIProcessor {
       const changed = current && (egg.sourceText ? current.sourceText !== egg.sourceText :
         current.knowledge !== egg.knowledge || current.unprocessed !== egg.unprocessed);
       if (changed) return retried ? null : this.performMergeEgg(fileName, true);
+      this.host.assertActive?.();
       const applied = await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed, egg);
       if (applied === false) return retried ? null : this.performMergeEgg(fileName, true);
       console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
       return { egg: fileName, entries };
     } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
       console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
       return null;
     }
@@ -1384,7 +1394,11 @@ export class AIProcessor {
     if (!this.host?.aiClient) {
       throw new AIError("unknown", "AIClient not provided to AIProcessor host");
     }
-    return await this.host.aiClient.chat(prompt, maxTokens, this.debugScope);
+    this.host.assertActive?.();
+    if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
+    const result = await this.host.aiClient.chat(prompt, maxTokens, this.debugScope);
+    this.host.assertActive?.();
+    return result;
   }
 
   /** Normalize a `[{question, answer, sources}]` array from the AI response. */

@@ -406,8 +406,11 @@ export class IndexSync {
    */
   async createEgg(
     rawName: string,
-    rawDescription: string
+    rawDescription: string,
+    processor?: import("./ai-processor").AIProcessor,
+    locked = false
   ): Promise<{ path: string; alreadyExists: boolean; language?: string }> {
+    if(!processor && this.plugin.server)return this.plugin.server.runNative(p=>this.createEgg(rawName,rawDescription,p),undefined,true);
     const name = sanitizeEggName(rawName);
     const description = (rawDescription || "").trim();
     if (!name) {
@@ -415,6 +418,7 @@ export class IndexSync {
     }
     const folder = this.plugin.vaultFolder || "nutegg";
     const fileName = `${folder}/${name}.md`;
+    if (!locked && this.plugin.server) return this.plugin.server.execution.withEggLock(fileName,()=>{processor?.ensureActive?.();return this.createEgg(rawName,rawDescription,processor,true);});
     if (await this.plugin.app.vault.adapter.exists(fileName)) {
       const existingContent = await this.plugin.app.vault.adapter
         .read(fileName)
@@ -428,7 +432,7 @@ export class IndexSync {
     const { language } = await this.createEggFromTemplate(fileName, {
       fileName,
       description,
-    });
+    }, processor,true);
     const indexFile = this.plugin.app.vault.getAbstractFileByPath(
       this.plugin.settings.indexFile
     );
@@ -511,14 +515,20 @@ export class IndexSync {
    */
   private async createEggFromTemplate(
     targetPath: string,
-    entry: IndexEntry
+    entry: IndexEntry,
+    processor?: import("./ai-processor").AIProcessor,
+    locked=false
   ): Promise<{ path: string; language: string }> {
+    if(!processor && this.plugin.server)return this.plugin.server.runNative(p=>this.createEggFromTemplate(targetPath,entry,p),undefined,true);
+    if(!locked && this.plugin.server)return this.plugin.server.execution.withEggLock(targetPath,()=>{processor?.ensureActive?.();return this.createEggFromTemplate(targetPath,entry,processor,true);});
+    processor ||= this.plugin.aiProcessor;
     const assertTarget = () => {
       if (resolveEggPath(targetPath, this.plugin.vaultFolder || "nutegg") !== targetPath) {
         throw new Error(`Cannot create egg outside the egg folder: ${targetPath}`);
       }
     };
     assertTarget();
+    if(await this.plugin.app.vault.adapter.exists(targetPath))return {path:targetPath,language:extractEggLanguage(await this.plugin.app.vault.adapter.read(targetPath))};
     await this.ensureParentFolders(targetPath);
     const folder = this.plugin.vaultFolder || "nutegg";
     const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
@@ -545,9 +555,9 @@ export class IndexSync {
     let detectedLanguage = "";
 
     // If AI is available, adapt the template instructions to match the description's language
-    if (entry.description && this.plugin.aiProcessor?.localizeEggTemplate) {
+    if (entry.description && processor?.localizeEggTemplate) {
       try {
-        const localized = await this.plugin.aiProcessor.localizeEggTemplate(
+        const localized = await processor.localizeEggTemplate(
           content,
           entry.description
         );
@@ -561,7 +571,8 @@ export class IndexSync {
               localized.language || extractEggLanguage(localized.content) || detectedLanguage;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if(err?.code === "cancelled")throw err;
         console.warn("[NutEgg] Failed to localize egg template with AI:", err);
       }
     }
@@ -575,6 +586,7 @@ export class IndexSync {
     }
 
     assertTarget();
+    processor?.ensureActive?.();
     await this.plugin.app.vault.create(targetPath, content);
     console.log(`[NutEgg] Created egg from index entry: ${targetPath}`);
     return { path: targetPath, language: detectedLanguage };

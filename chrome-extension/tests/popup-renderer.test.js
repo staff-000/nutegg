@@ -498,7 +498,7 @@ test('Obsidian mode reveals its controls only after an explicit switch', context
   f.settings.serverOnline = false;
   f.renderer.render();
   assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), false);
-  assert.equal(f.root.getElementById('setup-title').textContent, t('readerSetupTitle'));
+  assert.equal(f.root.getElementById('setup-title').textContent, t('readerObsSetupTitle'));
 });
 
 test('switching an existing Obsidian result to Chrome keeps the summary and hides vault actions', context => {

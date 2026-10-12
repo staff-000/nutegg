@@ -24,6 +24,9 @@ NutEgg captures web content and curates structured knowledge in Obsidian. It is 
 
 ## How It Works
 
+See [AI execution architecture and multi-profile setup](docs/ai-execution.md) for
+API-key ownership, shared subscription mode, migration, and recovery steps.
+
 See [Connection signal colors and combined metrics](docs/connection-status.md) for
 readiness states, offline fallback, and how activity totals stay consistent across modes.
 

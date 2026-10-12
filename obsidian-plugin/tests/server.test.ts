@@ -513,7 +513,7 @@ describe("NutEggServer.handleConfirm", () => {
     assert.equal(files.get("outside/egg.md"), externalNote);
   });
 
-  it("archives Stage 2 originals on an already-collected nut and schedules merge after acknowledgement", async () => {
+  it("archives Stage 2 originals and defers merging when no originating execution context exists", async () => {
     const events: string[] = [];
     const analysis = { schemaVersion: 3, readAction: "skip", eggResults: [{ egg: "egg.md", language: "English" }] };
     const s = makeServer({
@@ -530,7 +530,7 @@ describe("NutEggServer.handleConfirm", () => {
     assert.equal(res.statusCode, 200);
     assert.deepEqual(events, ["append", "archive", "db"]);
     await new Promise(resolve => setTimeout(resolve, 5));
-    assert.deepEqual(events, ["append", "archive", "db", "merge"]);
+    assert.deepEqual(events, ["append", "archive", "db"]);
   });
 
   it("does not append a second Hatch for a saved result", async () => {
@@ -996,141 +996,9 @@ it('discussion capture snapshot excludes unselected comments and preserves selec
   assert.equal(s.captureSnapshot(payload).discussion.items[0].id, 'a');
 });
 
-describe("Chrome AI configuration sync", () => {
-  const config = {
-    aiProvider: "openai", aiAuthMethod: "subscription", aiApiKey: "", aiModel: " auto ",
-    localEndpoint: "http://localhost:11434/v1/chat/completions", localApiType: "openai",
-    chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000,
-    serverPort: 1234, rawFolder: "other-folder", developerMode: true,
-  };
-  const request = { headers: { origin: "chrome-extension://nutegg", "content-type": "application/json" } };
-  const response = () => ({ statusCode: 0, body: "", writeHead(code: number) { this.statusCode = code; }, end(data: string) { this.body = data; } });
-
-  it("mirrors only AI fields, preserves settings references, and skips repeated saves", async () => {
-    let saves = 0;
-    const s = makeServer({ saveSettings: async () => { saves++; } });
-    s.plugin.settings.subscriptionEnabled = true;
-    const original = s.plugin.settings;
-    s.readBody = async () => JSON.stringify(config);
-    const res = response();
-    await s.handleAiConfig(request, res);
-    assert.equal(res.statusCode, 200);
-    assert.equal(s.plugin.settings, original);
-    assert.equal(original.aiProvider, "openai");
-    assert.equal(original.aiApiKey, "");
-    assert.equal(original.aiModel, "auto");
-    assert.equal(original.chunkWindowChars, 12000);
-    assert.equal(original.contentAnalysisMaxTokens, 6000);
-    assert.equal(original.localApiType, "openai");
-    assert.equal(original.rawFolder, "nutegg/_raw");
-    assert.equal(original.serverPort, 27123);
-    assert.doesNotMatch(res.body, /pairing-token/);
-    await s.handleAiConfig(request, response());
-    assert.equal(saves, 1);
-    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: "apiKey", aiProvider: "local", aiApiKey: "", aiModel: "local-model" });
-    await s.handleAiConfig(request, response());
-    assert.equal(original.aiApiKey, "");
-    assert.equal(original.aiProvider, "local");
-    assert.equal(saves, 2);
-  });
-
-  it("subscription sync from Chrome never overwrites existing Obsidian subscription provider", async () => {
-    const s = makeServer({ settings: { subscriptionEnabled: true, aiAuthMethod: 'subscription', aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet' }, saveSettings: async () => {} });
-    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'gemini-2.5-flash' });
-    const res = response();
-    await s.handleAiConfig(request, res);
-    assert.equal(res.statusCode, 200);
-    assert.equal(s.plugin.settings.aiProvider, 'anthropic');
-    assert.equal(s.plugin.settings.aiModel, 'claude-3-5-sonnet');
-  });
-
-  it('retains subscription selection across API switches and restarts, and stops subscription work', async () => {
-    let cancellations = 0;
-    const s = makeServer({ settings: { subscriptionEnabled: true, aiAuthMethod: 'apiKey', aiProvider: 'gemini', aiModel: 'api-only-model' }, saveSettings: async () => {} });
-    s.plugin.subscriptions = { clearModelFailure() {}, cancelWork: async () => { cancellations++; assert.equal(s.plugin.settings.aiAuthMethod, 'apiKey'); } };
-    const sync = async (patch: any) => {
-      s.readBody = async () => JSON.stringify({ ...config, ...patch });
-      const res = response(); await s.handleAiConfig(request, res); assert.equal(res.statusCode, 200);
-    };
-    await sync({ aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'api-only-model' });
-    assert.equal(s.plugin.settings.aiModel, 'auto');
-    Object.assign(s.plugin.settings, { aiProvider: 'anthropic', aiModel: 'custom-subscription-model' });
-    await sync({ aiAuthMethod: 'apiKey', aiProvider: 'openai', aiModel: 'api-model', aiApiKey: 'api-secret' });
-    assert.equal(cancellations, 1);
-    assert.deepEqual(s.plugin.settings.subscriptionSelection, { provider: 'anthropic', model: 'custom-subscription-model' });
-    s.plugin.settings = JSON.parse(JSON.stringify(s.plugin.settings));
-    await sync({ aiAuthMethod: 'subscription', aiProvider: 'openai', aiModel: 'api-model', aiApiKey: 'api-secret' });
-    assert.equal(s.plugin.settings.aiProvider, 'anthropic');
-    assert.equal(s.plugin.settings.aiModel, 'custom-subscription-model');
-    assert.equal(s.plugin.settings.aiApiKey, '');
-  });
-
-  it("Chrome cannot enable subscriptions through configuration sync", async () => {
-    const s = makeServer({ settings: { subscriptionEnabled: false }, saveSettings: async () => {} });
-    s.readBody = async () => JSON.stringify({ ...config, subscriptionEnabled: true });
-    let res = response(); await s.handleAiConfig(request, res);
-    assert.equal(res.statusCode, 403); assert.equal(s.plugin.settings.subscriptionEnabled, false);
-    s.readBody = async () => JSON.stringify({ ...config, aiAuthMethod: 'apiKey', aiApiKey: 'test-api-key', subscriptionEnabled: true });
-    res = response(); await s.handleAiConfig(request, res);
-    assert.equal(res.statusCode, 200); assert.equal(s.plugin.settings.subscriptionEnabled, false);
-  });
-
-  it("rejects invalid providers and limits without changing configuration", async () => {
-    const s = makeServer({ saveSettings: async () => { throw new Error("Must not save"); } });
-    const before = JSON.stringify(s.plugin.settings);
-    for (const change of [{ aiProvider: "__proto__" }, { aiApiKey: 3 }, { chunkWindowChars: 999 }, { chunkWindowChars: 1200.5 }, { contentAnalysisMaxTokens: 499 }, { localApiType: "invalid" }]) {
-      s.readBody = async () => JSON.stringify({ ...config, ...change });
-      const res = response();
-      await s.handleAiConfig(request, res);
-      assert.equal(res.statusCode, 400);
-      assert.equal(JSON.stringify(s.plugin.settings), before);
-    }
-  });
-
-  it("rejects non-extension origins and non-JSON requests before reading credentials", async () => {
-    const s = makeServer();
-    s.readBody = async () => { throw new Error("Must not read"); };
-    for (const headers of [{}, { origin: "https://example.com", "content-type": "application/json" }, { origin: "http://localhost:1234", "content-type": "application/json" }, { origin: "chrome-extension://nutegg", "content-type": "text/plain" }]) {
-      const res = response();
-      await s.handleAiConfig({ headers }, res);
-      assert.equal(res.statusCode, 403);
-    }
-  });
-
-  it("restores old settings when saving fails and allows a later retry", async () => {
-    let fail = true;
-    const s = makeServer({ saveSettings: async () => { if (fail) throw new Error("Disk failure"); } });
-    s.plugin.settings.subscriptionEnabled = true;
-    const before = { ...s.plugin.settings };
-    s.readBody = async () => JSON.stringify(config);
-    await assert.rejects(s.handleAiConfig(request, response()), /Disk failure/);
-    assert.equal(s.plugin.settings.aiApiKey, before.aiApiKey);
-    assert.equal(s.plugin.settings.chunkWindowChars, before.chunkWindowChars);
-    fail = false;
-    const res = response();
-    await s.handleAiConfig(request, res);
-    assert.equal(res.statusCode, 200);
-    assert.equal(s.plugin.settings.aiProvider, "openai");
-  });
-});
-
-describe('Obsidian AI configuration comparison', () => {
-  it('compares provider, model, credentials and limits without exposing keys or changing settings', async () => {
-    const config = { aiAuthMethod: 'apiKey', aiProvider: 'gemini', aiApiKey: 'secret-key', aiModel: 'gemini-model', chunkWindowChars: 12000, contentAnalysisMaxTokens: 6000 };
-    const s = makeServer({ settings: { ...config, rawFolder: 'nutegg/_raw' } });
-    const request = { headers: { origin: 'chrome-extension://nutegg', 'content-type': 'application/json' } };
-    for (const change of [{}, { aiProvider: 'deepseek' }, { aiModel: 'other-model' }, { aiApiKey: 'other-key' }, { chunkWindowChars: 30000 }, { contentAnalysisMaxTokens: 8000 }]) {
-      s.readBody = async () => JSON.stringify({ ...config, ...change });
-      const res = { statusCode: 0, body: '', writeHead(code: number) { this.statusCode = code; }, end(data: string) { this.body = data; } };
-      await s.handleAiConfigComparison(request, res);
-      assert.equal(res.statusCode, 200);
-      const result = JSON.parse(res.body);
-      assert.equal(result.matches, Object.keys(change).length === 0);
-      assert.equal(result.aiConfig.aiModel, config.aiModel);
-      assert.equal('aiApiKey' in result.aiConfig, false);
-      assert.doesNotMatch(res.body, /secret-key|other-key/);
-      assert.equal(s.plugin.settings.aiApiKey, 'secret-key');
-      assert.equal(s.plugin.settings.aiProvider, 'gemini');
-    }
-  });
+it('shared state contains no API credentials and defaults subscription capability off',()=>{
+  const s=makeServer({settings:{aiApiKey:'private-api-key'}});
+  assert.equal(s.execution.snapshot().mode,'apiKey');
+  assert.equal(s.execution.snapshot().subscriptionAvailable,false);
+  assert.ok(!JSON.stringify(s.execution.snapshot()).includes('private-api-key'));
 });

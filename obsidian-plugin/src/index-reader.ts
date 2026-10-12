@@ -46,12 +46,13 @@ export class IndexReader {
   async matchEggs(
     content: { title: string; content: string; url: string },
     index: IndexEntry[],
-    debugScope?: string
+    debugScope?: string,
+    executor?: {getPrompt?():string;chat(prompt:string,maxTokens:number,debugScope?:string):Promise<string>}
   ): Promise<IndexEntry[]> {
     if (index.length === 0) return [];
     if (index.length === 1) return index;
 
-    if (!isAIConfigured(this.plugin.settings)) {
+    if (!executor && !isAIConfigured(this.plugin.settings)) {
       // Without AI configured, return first entry as fallback
       return [index[0]];
     }
@@ -61,7 +62,7 @@ export class IndexReader {
       .join("\n");
 
     const promptTemplate =
-      this.plugin.workflowManager?.getPrompt("eggRouting") || PROMPTS.eggRouting;
+      executor?.getPrompt?.() || this.plugin.workflowManager?.getPrompt("eggRouting") || PROMPTS.eggRouting;
     const prompt = renderPrompt(promptTemplate, {
       title: content.title,
       url: content.url,
@@ -71,9 +72,10 @@ export class IndexReader {
 
     try {
       // Allow 800 tokens for routing output so reasoning/thinking tokens don't truncate filenames
-      const response = await this.plugin.aiClient.chat(prompt, 800, debugScope);
+      const response = await (executor || this.plugin.aiClient).chat(prompt, 800, debugScope);
       return this.parseMatchedEggs(response, index);
-    } catch (err) {
+    } catch (err: any) {
+      if(err?.code === "cancelled")throw err;
       console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);
       // On failure, return all index entries
       return index;

@@ -154,7 +154,11 @@ async function initPopup() {
   chrome.storage?.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.connectionMode) settings.setConnectionMode(changes.connectionMode.newValue, false);
-    if (changes.chromeAiAuthMethod) settings.chromeAiAuthMethod = changes.chromeAiAuthMethod.newValue || 'apiKey';
+    if(changes.obsidianExecutionState){settings.executionState=changes.obsidianExecutionState.newValue;settings.chromeAiAuthMethod=settings.connectionMode==='obsidian'?settings.executionState?.mode||'apiKey':'apiKey';}
+    if(changes.obsidianExecutionState||changes.connectionMode||changes.chromeApiRevision){
+      settings.aiStatusError=null;settings.subscriptionState=null;
+      tabStateManager.dispatch({type:'executionChanged'});
+    }
     if (changes.analysisMode) settings.setAnalysisMode(changes.analysisMode.newValue, false);
     if (changes.outputLanguage) settings.setOutputLanguage(changes.outputLanguage.newValue, false);
     if (changes.uiDensity) settings.setUiDensity(changes.uiDensity.newValue, false);
@@ -167,7 +171,7 @@ async function initPopup() {
     });
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     if (changes.popupDiagnostics) tabStateManager.diagnosticsEnabled = changes.popupDiagnostics.newValue === true;
-    if (Object.keys(changes).some(key => key === 'connectionMode' || key === 'serverPort' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
+    if (Object.keys(changes).some(key => key === 'connectionMode' || key === 'serverPort' || key === 'obsidianExecutionState' || key === 'chromeApiRevision' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
     tabStateManager.emit({ type: 'settings' });
   });
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });

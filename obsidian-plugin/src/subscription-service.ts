@@ -40,7 +40,18 @@ export class SubscriptionService implements SubscriptionExecutor {
     return provider === 'gemini' ? resolveAgyCommand(this.paths[provider]) : resolveSubscriptionCommand(cli[provider], this.paths[provider]);
   }
 
-  async status(provider: SubscriptionProvider): Promise<SubscriptionStatus> {
+  private statusEpoch=0;
+  private statusCache = new Map<SubscriptionProvider, {at:number; value:SubscriptionStatus}>();
+  private statusPending = new Map<SubscriptionProvider, Promise<SubscriptionStatus>>();
+  async status(provider: SubscriptionProvider, force = false): Promise<SubscriptionStatus> {
+    const cached = this.statusCache.get(provider);
+    if (!force && cached && Date.now()-cached.at < 5000) return cached.value;
+    const pending = this.statusPending.get(provider); if (pending) return pending;
+    const epoch=this.statusEpoch;
+    const request = this.queryStatus(provider).then(value => {if(epoch===this.statusEpoch)this.statusCache.set(provider,{at:Date.now(),value});return value;}).finally(()=>this.statusPending.delete(provider));
+    this.statusPending.set(provider,request); return request;
+  }
+  private async queryStatus(provider: SubscriptionProvider): Promise<SubscriptionStatus> {
     if (!this.enabled()) return { state: 'disabled', message: 'AI connection unavailable.' };
     if (this.closed) return { state: 'error', message: 'Obsidian subscription service stopped.' };
     try { await this.resolve(provider); }
@@ -48,7 +59,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       installCommand: provider === 'openai' ? 'npm install -g @openai/codex' : provider === 'anthropic'
         ? (process.platform === 'win32' ? 'irm https://claude.ai/install.ps1 | iex' : 'curl -fsSL https://claude.ai/install.sh | bash')
         : (process.platform === 'win32' ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash') }; }
-    if (!this.enabled()) return this.status(provider);
+    if (!this.enabled()) return {state:'disabled',message:'AI connection unavailable.'};
     const login = this.logins.get(provider);
     if (provider !== 'gemini') {
       try {
@@ -71,23 +82,32 @@ export class SubscriptionService implements SubscriptionExecutor {
       loginId: login?.id, command: login?.command,
     };
     const usage = provider === 'openai' ? await this.codexUsage() : undefined;
-    if (!this.enabled()) return this.status(provider);
+    if (!this.enabled()) return {state:'disabled',message:'AI connection unavailable.'};
     if (usage?.exhausted) return { state: 'error', errorCode: 'quota_exceeded', message: 'Subscription usage limit reached. Retry after the provider resets your limit.', usageRemaining: usage.value };
     return { state: 'ready', usageRemaining: usage?.value, message: `Connected through ${cli[provider]} · quota managed by your subscription` };
   }
 
-  async chat(provider: SubscriptionProvider, model: string, prompt: string): Promise<string> {
+  async chat(provider: SubscriptionProvider, model: string, prompt: string, signal?: AbortSignal): Promise<string> {
     this.requireEnabled();
     if (this.closed) throw new AIError('server_error', 'Obsidian subscription service stopped.');
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(model)) throw new AIError('model_not_found', 'Invalid model ID. Choose another model.');
     if (this.pending >= 32) throw new AIError('rate_limited', 'Subscription queue is full. Retry shortly.');
     const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    signal?.addEventListener('abort', abort, {once:true});
     this.controllers.add(controller); this.pending++;
     const previous = this.tail;
     let release!: () => void;
-    this.tail = new Promise<void>(resolve => { release = resolve; });
+    const gate=new Promise<void>(resolve => { release = resolve; });
+    this.tail = previous.then(()=>gate);
     try {
-      await previous;
+      await new Promise<void>((resolve,reject)=>{
+        const cancelled=()=>{signal?.removeEventListener('abort',cancelled);reject(new AIError('cancelled','Subscription job cancelled.'));};
+        signal?.addEventListener('abort',cancelled,{once:true});
+        previous.then(()=>{signal?.removeEventListener('abort',cancelled);resolve();});
+        if(signal?.aborted)cancelled();
+      });
       this.requireEnabled();
       if (controller.signal.aborted) throw new Error('Subscription request cancelled.');
       const options = { command: this.paths[provider], signal: controller.signal };
@@ -95,29 +115,30 @@ export class SubscriptionService implements SubscriptionExecutor {
       this.verified.add(provider); this.failures.delete(provider); this.usageCache = undefined;
       return result;
     } catch (error: any) {
+      if (controller.signal.aborted) throw new AIError('cancelled', 'Subscription job cancelled.');
       const code = error.status === 401 ? 'auth_failed' : error.status === 429 ? 'quota_exceeded' : error.status === 400 ? 'model_not_found' : 'server_error';
       const message = error.status === 400 ? `${error.message} Choose another model.` : error.message;
       this.failures.set(provider, { message, errorCode: code });
       throw new AIError(code, message, error.status);
-    } finally { release(); this.pending--; this.controllers.delete(controller); }
+    } finally { release(); this.pending--; this.controllers.delete(controller); signal?.removeEventListener('abort', abort); }
   }
 
   async test(provider: SubscriptionProvider, model: string) {
-    try {
-      await this.chat(provider, model, 'Reply with exactly OK.');
-    } catch (err: any) {
-      if (model !== 'auto' && (err?.code === 'model_not_found' || err?.status === 400 || /model.*unavailable|invalid.*model/i.test(err?.message || ''))) {
-        this.clearModelFailure(provider);
-        await this.chat(provider, 'auto', 'Reply with exactly OK.');
-      } else {
-        throw err;
-      }
-    }
+    await this.chat(provider, model, 'Reply with exactly OK.');
     await this.cancelLogin(provider);
-    return this.status(provider);
+    await this.models(provider,true);
+    return this.status(provider, true);
   }
 
-  async models(provider: SubscriptionProvider): Promise<string[]> {
+  private modelPending=new Map<SubscriptionProvider,Promise<string[]>>();
+  private modelTimes=new Map<SubscriptionProvider,number>();
+  async models(provider: SubscriptionProvider, force=false): Promise<string[]> {
+    if(!force && Date.now()-(this.modelTimes.get(provider)||0)<60000)return this.modelCache.get(provider)||['auto'];
+    const pending=this.modelPending.get(provider);if(pending)return pending;
+    const request=this.discoverModels(provider).then(models=>{this.modelTimes.set(provider,Date.now());return models;}).finally(()=>this.modelPending.delete(provider));
+    this.modelPending.set(provider,request);return request;
+  }
+  private async discoverModels(provider: SubscriptionProvider): Promise<string[]> {
     this.requireEnabled();
     if (this.closed) return this.modelCache.get(provider) || ['auto'];
     try {
@@ -290,12 +311,20 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (login.directory) await rm(login.directory, { recursive: true, force: true });
   }
   async cancelWork() {
+    this.statusEpoch++;this.statusCache.clear();
     for (const controller of this.controllers) controller.abort();
-    for (const child of this.discovery) child.kill();
+    const stopped=[...this.discovery].map(child=>new Promise<void>(resolve=>{
+      if(child.exitCode!==null){resolve();return;}
+      child.once('close',()=>{clearTimeout(force);resolve();});
+      const force=setTimeout(()=>child.kill('SIGKILL'),1000);child.kill();
+    }));
+    await Promise.all(stopped);
     this.discovery.clear();
     await Promise.all([...new Set([...this.logins.keys(), ...this.loginStarts.keys()])].map(provider => this.cancelLogin(provider)));
     await Promise.allSettled([...this.loginStarts.values()]);
     await this.tail;
+    await Promise.allSettled([...this.statusPending.values(),...this.modelPending.values()]);
+    this.statusCache.clear();
     this.usageCache = undefined;
     this.failures.clear();
   }

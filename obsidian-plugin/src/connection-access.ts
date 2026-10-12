@@ -7,7 +7,7 @@ export const NUTEGG_CHROME_ORIGIN = 'chrome-extension://bmdmdiicembobejibggoeiah
 export class ConnectionAccess {
   private challenges = new Map<string, Challenge>();
   private activity = new Map<string, { seen: number; method?: 'apiKey' | 'subscription' }>();
-  constructor(private clients: Record<string, string | string[]>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>) {}
+  constructor(private clients: Record<string, string | string[]>, private approve: (origin: string) => Promise<boolean>, private save: () => Promise<void>, private bindings: Record<string, {clientId: string; origin: string}> = {}) {}
   static validOrigin(origin?: string): origin is string { return !!origin && /^chrome-extension:\/\/[a-p]{32}$/.test(origin); }
 
   private getTokens(origin: string): string[] {
@@ -33,6 +33,18 @@ export class ConnectionAccess {
     return false;
   }
 
+  credentialId(origin: string, authorization: string): string {
+    if (!this.authorized(origin, authorization)) throw new Error('Unauthorized connection.');
+    return createHash('sha256').update(origin + authorization.slice(7)).digest('hex');
+  }
+  async bindClient(origin: string, authorization: string, clientId: string): Promise<string> {
+    if (!/^[a-zA-Z0-9_-]{8,100}$/.test(clientId)) throw new Error('Invalid Chrome profile ID.');
+    const id = this.credentialId(origin, authorization);
+    const previous = this.bindings[id];
+    if (previous && (previous.origin !== origin || previous.clientId !== clientId)) throw new Error('Credential belongs to another Chrome profile.');
+    if (!previous) { this.bindings[id] = {origin,clientId}; try {await this.save();} catch(error) {delete this.bindings[id];throw error;} }
+    return id;
+  }
   recordConfiguration(origin: string | undefined, authorization: string | undefined, method: string): void {
     if (!['apiKey', 'subscription'].includes(method) || !this.authorized(origin, authorization)) return;
     const id = createHash('sha256').update(origin! + authorization!.slice(7)).digest('hex');
@@ -59,7 +71,6 @@ export class ConnectionAccess {
       if (current.origin !== origin) throw new Error('Origin mismatch');
       return { state: current.state };
     }
-    if ([...this.challenges.values()].some(c => c.origin === origin && c.state === 'pending')) throw new Error('Connection approval already pending');
     if (this.challenges.size >= 16) throw new Error('Too many connection requests');
     const challenge: Challenge = { origin, expires: Date.now() + 120000, state: 'pending' };
     this.challenges.set(nonce, challenge);
@@ -72,7 +83,7 @@ export class ConnectionAccess {
       const token = randomBytes(32).toString('hex');
       const previous = this.clients[origin];
       const tokens = this.getTokens(origin);
-      this.clients[origin] = [token, ...tokens.filter(t => t !== token)].slice(0, 10);
+      this.clients[origin] = [token, ...tokens.filter(t => t !== token)];
       try { await this.save(); challenge.token = token; challenge.state = 'approved'; }
       catch {
         if (previous !== undefined) this.clients[origin] = previous;

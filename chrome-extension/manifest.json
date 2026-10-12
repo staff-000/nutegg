@@ -83,5 +83,6 @@
       },
       "description": "Quick capture current page."
     }
-  }
+  },
+  "minimum_chrome_version": "116"
 }

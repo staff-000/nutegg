@@ -33,7 +33,7 @@ export interface SubscriptionStatus {
 }
 
 export interface SubscriptionExecutor {
-  chat(provider: SubscriptionProvider, model: string, prompt: string): Promise<string>;
+  chat(provider: SubscriptionProvider, model: string, prompt: string, signal?: AbortSignal): Promise<string>;
   status(provider: SubscriptionProvider): Promise<SubscriptionStatus>;
 }
 
@@ -314,6 +314,7 @@ export interface MergeResult {
 }
 
 export interface AnalysisResult extends ContentAnalysis {
+  execution?: import("./execution").ExecutionMetadata;
   generateKnowledgeEntries?: boolean;
   shouldRead: boolean | null;
   readAction?: ReadAction;
@@ -360,6 +361,10 @@ export type AnalysisProgressCallback = (event: AnalysisProgressEvent) => void;
  * to the AIProcessor. When not running in Obsidian, a minimal host with settings and aiClient suffices.
  */
 export interface AIProcessorHost {
+  isConfigured?(): boolean;
+  signal?: AbortSignal;
+  assertActive?(): void;
+  withEggLock?<T>(fileName: string, task: () => Promise<T>): Promise<T>;
   settings?: NutEggAISettings;
   workflowManager?: {
     getPrompt(key: WorkflowPromptKey | string): string;

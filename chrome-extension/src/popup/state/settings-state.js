@@ -50,11 +50,12 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel"],
+          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel", "obsidianExecutionState"],
           resolve
         );
       });
-      this.chromeAiAuthMethod = stored?.chromeAiAuthMethod || "apiKey";
+      this.executionState=stored?.obsidianExecutionState;
+      this.chromeAiAuthMethod = globalThis.NutEggAI?.selectEffectiveExecution?.(stored?.connectionMode,stored?.obsidianExecutionState)||'apiKey';
       this.chromeAiProvider = stored?.chromeAiProvider || "";
       this.chromeAiModel = stored?.chromeAiModel || "";
       this.setConnectionMode(stored?.connectionMode, false);
@@ -199,7 +200,7 @@ class SettingsState {
     if (mode === "chrome") return true;
     if (mode === "obsidian") return false;
     if (res && typeof res === "object") return this.connectionMode !== "obsidian";
-    return this.connectionMode !== "obsidian" || !this.serverOnline;
+    return this.connectionMode !== "obsidian";
   }
 }
 

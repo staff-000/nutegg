@@ -250,7 +250,7 @@ class PopupOperations {
         debugScope: tab.debugScope,
         questions: [question], scope: tab.followupScope, priorQa, outputLanguage: ctx.inputs.outputLanguage } });
       if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
-      this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: response.answers?.[0] || { answer: t('noContentExtracted') } });
+      this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: {...(response.answers?.[0] || { answer: t('noContentExtracted') }),execution:response.execution} });
     } catch (error) { return this.fail(ctx, error); }
   }
   async create(tabId, inputs) {

@@ -10,6 +10,7 @@ class EnvironmentService {
     this.task = task; return task;
   }
   async loadStatus(version) {
+    this.settings.aiStatusError=null;
     const connectionMode = this.settings.connectionMode === 'obsidian' ? 'obsidian' : 'chrome';
     let status;
     if (connectionMode === 'obsidian') {
@@ -27,7 +28,7 @@ class EnvironmentService {
       this.settings.environmentChecked = true;
       this.store.dispatch({ type: 'environment', value: { issues: [], credit: null } });
       void this.fetchMetrics();
-      if (ai.configured) void this.fetchCredit(version, false);
+      if (connectionMode==='chrome' && ai.configured) void this.fetchCredit(version, false);
       return;
     }
     let config = {};
@@ -39,6 +40,7 @@ class EnvironmentService {
     const error = status.error || (!config || config.status === 'error' ? issues.join('\n') || 'Cannot read Obsidian configuration' : null);
     this.settings.setServerStatus({ online: !!status.online, version: status.version, error, warning: issues.join('\n'), aiConfigured: !error && !issues.some(i => /no api key|not configured/i.test(i)) });
     this.settings.setChromeAiStatus();
+    if(status.state){this.settings.executionState=status.state;this.settings.chromeAiAuthMethod=status.state.mode;if(status.state.mode==='subscription'){this.settings.chromeAiProvider=status.state.subscription.provider;this.settings.chromeAiModel=status.state.subscription.model;}else{const ai=await this.chromeApi.runtime.sendMessage({action:'check-chrome-ai'});if(version!==this.version)return;this.settings.setChromeAiStatus({enabled:true,configured:ai.configured,provider:ai.provider,model:ai.model});}}
     this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
     this.store.dispatch({ type: 'environment', value: { issues, credit: config?.credit || null } });

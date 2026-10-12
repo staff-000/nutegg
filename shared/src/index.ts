@@ -3,6 +3,7 @@
 // ============================================================
 
 export * from "./types";
+export * from "./execution";
 export * from "./analysis-results";
 export * from "./catalog";
 export * from "./client";
@@ -36,7 +37,8 @@ import type {
 export async function analyzeContentStandalone(
   payload: CapturePayload,
   settings: NutEggAISettings,
-  onProgress?: AnalysisProgressCallback
+  onProgress?: AnalysisProgressCallback,
+  signal?: AbortSignal
 ): Promise<ContentAnalysis> {
   const config = resolveConfig(settings);
   const language =
@@ -49,7 +51,7 @@ export async function analyzeContentStandalone(
       outputLanguage: language,
     },
     aiClient: {
-      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 16384, config, debugScope),
+      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 16384, config, debugScope, signal),
     },
   };
   const processor = new AIProcessor(host, payload.debugScope);
@@ -64,7 +66,8 @@ export async function askFollowUpStandalone(
   question: string,
   priorQa: KeyAnswer[] = [],
   settings: NutEggAISettings,
-  scope: QuestionScope = "within"
+  scope: QuestionScope = "within",
+  signal?: AbortSignal
 ): Promise<string> {
   const config = resolveConfig(settings);
   const language =
@@ -77,7 +80,7 @@ export async function askFollowUpStandalone(
       outputLanguage: language,
     },
     aiClient: {
-      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 2000, config, debugScope),
+      chat: (prompt, maxTokens, debugScope) => chatAI(prompt, maxTokens || 2000, config, debugScope, signal),
     },
   };
   const processor = new AIProcessor(host, payload.debugScope);

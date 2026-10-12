@@ -53,6 +53,21 @@ class PopupRenderer {
     keyed('discussion', [view.analysisResult?.discussion, view.enabledSections.discussion, view.stage1Payload?.discussion, view.extractedContent?.discussion, view.presentation.discussionComments, view.discussionPending, view.extractionPending, !!view.analysisResult, view.isAnalyzing], () => ui.discussionUI?.render(view));
     ui.actionsUI.render(view, settings);
     ui.verdictUI.render(view, settings);
+    const metadata = view.analysisResult?.execution;
+    let metadataEl = root.getElementById?.('execution-metadata');
+    if (!metadataEl && root.createElement) {
+      const anchor = root.getElementById?.('title-verdict-section');
+      if (anchor?.parentNode) {
+        metadataEl = root.createElement('div'); metadataEl.id = 'execution-metadata';
+        metadataEl.style.cssText = 'font-size:11px;color:var(--text-muted);margin:6px 0';
+        anchor.parentNode.insertBefore(metadataEl, anchor);
+      }
+    }
+    if (metadataEl) {
+      metadataEl.hidden = !metadata;
+      metadataEl.textContent = metadata ? t('executionMetadata',{provider:metadata.provider,model:metadata.model||'auto',method:metadata.authMethod==='subscription'?t('subscriptionLabel'):t('subscriptionApiKey')}) : '';
+      metadataEl.title = metadata ? `${metadata.origin} · ${metadata.configurationRevision}` : '';
+    }
     value(ui.captureUI.customQuestionsEl, view.customQuestions);
     value(ui.qaUI.followupInput, view.followupDraft);
     for (const input of [ui.eggsUI.eggsNewName, ui.eggsUI.newEggName]) value(input, view.newEggName);

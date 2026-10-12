@@ -4,6 +4,8 @@ import NutEggPlugin from '../src/main';
 import { DEFAULT_SETTINGS } from '../src/settings';
 import { Setting } from 'obsidian';
 import { JSDOM } from 'jsdom';
+import { NutEggServer } from '../src/server';
+import { randomUUID } from 'node:crypto';
 
 test('a delayed balance response from the previous provider cannot overwrite the synced provider', async () => {
   const plugin = new NutEggPlugin();
@@ -95,7 +97,7 @@ test('off-state read-only settings do not name the hidden connection method', as
   Object.assign(tab, { aiConfigSummary: summary, aiCreditButton: button });
   tab.refreshAISettings(); await tab.refreshAICredit();
   assert.doesNotMatch(summary.name + button.text + button.tooltip, /subscription/i);
-  assert.match(summary.name, /unavailable/i);
+  assert.match(summary.name, /API key/);
 });
 
 
@@ -117,20 +119,23 @@ test('commands control availability without selecting subscription; disabling sa
   plugin.addCommand = (command: any) => { commands.push(command); return command; };
   plugin.subscriptions = { cancelWork: async () => { cancellations++; } } as any;
   plugin.openSettings = () => {};
+  plugin.settings.nativeApiConfig={aiProvider:'openai',aiModel:'api-model',aiApiKey:''};
+  plugin.server=new NutEggServer(plugin,0);
   (plugin as any).registerSubscriptionCommands();
   commands[0].checkCallback(false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(plugin.settings.subscriptionEnabled, true);
   assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
-  assert.equal(plugin.settings.aiApiKey, 'api-secret');
+  assert.equal(plugin.settings.aiApiKey, '');
   assert.equal(commands[1].checkCallback(true), true);
-  Object.assign(plugin.settings, { aiAuthMethod: 'subscription', aiProvider: 'gemini', aiModel: 'cli-custom', aiApiKey: '' });
+  await plugin.server.execution.change(plugin.server.execution.state.revision,randomUUID(),{mode:'subscription',subscription:{provider:'gemini',model:'cli-custom'}});
+  const beforeDisable=cancellations;
   commands[1].checkCallback(false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(plugin.settings.subscriptionEnabled, false);
   assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
   assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'gemini', model: 'cli-custom' });
-  assert.equal(cancellations, 1);
+  assert.equal(cancellations, beforeDisable + 1);
 });
 
 test('legacy subscription settings remain inactive until Chrome selects them after command enable', async () => {
@@ -151,10 +156,11 @@ test('subscription tests show progress and preserve success or failure after sta
   proto.createEl = function (tag: string, options: any = {}) {
     const element = dom.window.document.createElement(tag);
     element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
     for (const [name, value] of Object.entries(options.attr || {})) element.setAttribute(name, String(value));
     this.appendChild(element); return element;
   };
-  proto.createDiv = function () { return this.createEl('div'); };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
   const buttons: any[] = [];
   const setting = Setting.prototype as any;
   t.mock.method(setting, 'setName', function () { return this; });
@@ -212,6 +218,7 @@ test('settings never offer a subscription toggle and hide subscription details w
   proto.createEl = function (tag: string, options: any = {}) {
     const element = dom.window.document.createElement(tag);
     element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
     this.appendChild(element); return element;
   };
   proto.createDiv = function (options: any) { return this.createEl('div', options); };
@@ -232,9 +239,12 @@ test('settings never offer a subscription toggle and hide subscription details w
   plugin.aiClient = { checkCredit: async () => ({ statusText: 'Ready' }) } as any;
   let connection = { listening: true, recentClients: 2, pendingApprovals: 0, conflictingMethods: true };
   let runtime = { active: true, requests: 0, logins: 0, models: 0 };
-  plugin.server = { getConnectionStatus: () => connection } as any;
+  plugin.app = {} as any;
+  plugin.saveSettings=async()=>{};
+  plugin.server = { getConnectionStatus: () => connection, execution: {sessions:new Map(),clients:()=>[]} } as any;
   plugin.subscriptions = { status: async () => ({ state: 'unverified' }), resolve: async () => '/cli', getRuntimeStatus: () => runtime } as any;
-  const tab = new NutEggSettingTab({} as any, plugin);
+  const tab = new NutEggSettingTab({secretStorage:undefined} as any, plugin);
+  (tab as any).app={};
   (tab as any).containerEl = dom.window.document.querySelector('main');
   t.after(() => { tab.hide(); dom.window.close(); });
   for (const enabled of [false, true]) {
@@ -243,11 +253,18 @@ test('settings never offer a subscription toggle and hide subscription details w
     await new Promise(resolve => setImmediate(resolve));
     assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
     assert.deepEqual(toggles, ['Developer mode']);
+    const container = (tab as any).containerEl as HTMLElement;
+    assert.equal(container.querySelector('.nutegg-native-ai-section > h3')?.textContent, 'AI for Obsidian actions');
+    assert.equal(container.querySelector('.nutegg-model-config-section > h3')?.textContent, 'AI Model Configuration');
+    assert.ok(container.querySelector('.nutegg-native-ai-account'), 'account summary belongs in its own footer');
+    const headings = [...container.querySelectorAll('.nutegg-settings-section > h3')].map(heading => heading.textContent);
+    assert.ok(headings.includes('Vault Paths'), 'vault paths have a padded section wrapper');
+    assert.equal(container.querySelectorAll(':scope > h3').length, 0, 'section headings cannot remain outside padding');
     const rows = (tab as any).connectionRows;
     assert.equal(rows.local.textContent, 'Listening');
     assert.equal(rows.chrome.textContent, '2 recently active');
-    assert.equal(rows.bridge.textContent, 'Off · API key');
-    assert.equal(rows.warning.hidden, false);
+    assert.equal(rows.bridge.textContent, 'API key');
+    assert.equal(rows.warning.hidden, true);
   }
   plugin.settings.aiAuthMethod = 'subscription';
   names.length = toggles.length = 0; tab.display();
@@ -272,7 +289,7 @@ test('settings never offer a subscription toggle and hide subscription details w
   assert.equal(rows.warning.hidden, true);
 });
 
-test('ready subscription renders default models immediately and updates in background', async t => {
+test('subscription models render Auto/custom before status resolves, including a detached settings panel', async t => {
   const dom = new JSDOM('<body><main></main></body>');
   const proto = dom.window.HTMLElement.prototype as any;
   proto.empty = function () { this.replaceChildren(); };
@@ -280,11 +297,13 @@ test('ready subscription renders default models immediately and updates in backg
   proto.createEl = function (tag: string, options: any = {}) {
     const element = dom.window.document.createElement(tag);
     element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
     for (const [name, value] of Object.entries(options.attr || {})) element.setAttribute(name, String(value));
     this.appendChild(element); return element;
   };
-  proto.createDiv = function () { return this.createEl('div'); };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
   const capturedOptions: string[] = [];
+  const selectedValues: string[] = [];
   const setting = Setting.prototype as any;
   t.mock.method(setting, 'setName', function () { return this; });
   t.mock.method(setting, 'setDesc', function () { return this; });
@@ -292,7 +311,7 @@ test('ready subscription renders default models immediately and updates in backg
     const dropdown = {
       selectEl: dom.window.document.createElement('select'),
       addOption(val: string) { capturedOptions.push(val); return this; },
-      setValue() { return this; },
+      setValue(value: string) { selectedValues.push(value); return this; },
       getValue() { return 'auto'; },
       onChange() { return this; },
     };
@@ -312,23 +331,29 @@ test('ready subscription renders default models immediately and updates in backg
 
   const plugin = new NutEggPlugin();
   plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription' };
+  let resolveStatus!: (value: any) => void;
+  const statusPromise = new Promise<any>(resolve => { resolveStatus = resolve; });
   let resolveModels: (val: string[]) => void;
   const modelsPromise = new Promise<string[]>(resolve => { resolveModels = resolve; });
   plugin.subscriptions = {
-    status: async () => ({ state: 'ready', message: 'Ready' }),
+    status: async () => statusPromise,
     models: async () => modelsPromise,
   } as any;
 
   const tab = new NutEggSettingTab({} as any, plugin);
   t.after(() => { tab.hide(); dom.window.close(); });
   const container = dom.window.document.querySelector('main')!;
+  container.remove(); // Obsidian can build the settings pane before attaching it.
   (tab as any).displaySubscriptionSetup(container);
 
   // Default models should be rendered immediately without waiting for modelsPromise
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(capturedOptions.includes('auto'));
-  assert.ok(capturedOptions.includes('gemini-2.5-flash'));
-  assert.ok(capturedOptions.includes('gemini-2.5-pro'));
+  assert.ok(capturedOptions.includes('__custom__'));
+  assert.ok(selectedValues.includes('auto'), 'first setup selects Auto before status or model discovery completes');
+  assert.equal(container.querySelector('.nutegg-model-refresh-hint')?.getAttribute('data-state'), 'waiting');
+  assert.ok(!capturedOptions.includes('gemini-2.5-flash'));
+  assert.ok(!capturedOptions.includes('gemini-2.5-pro'));
 
   // Background models resolve
   resolveModels!(['auto', 'gemini-custom-model']);
@@ -336,4 +361,119 @@ test('ready subscription renders default models immediately and updates in backg
   await new Promise(resolve => setImmediate(resolve));
 
   assert.deepEqual(plugin.settings.subscriptionModels?.gemini, ['auto', 'gemini-custom-model']);
+  assert.equal(container.querySelector('.nutegg-model-refresh-hint')?.getAttribute('data-state'), 'ready');
+  resolveStatus({state: 'unverified', message: 'Sign-in needs verification'});
+  await statusPromise;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.doesNotMatch(container.textContent!, /Checking/);
+  assert.equal((tab as any).accountState, 'unverified');
+});
+
+test('legacy mirrored API key becomes an inactive SecretStorage candidate and migration repeats safely',async()=>{
+  const plugin=new NutEggPlugin();const secrets=new Map<string,string>();let stored:any={...DEFAULT_SETTINGS,aiProvider:'openai',aiApiKey:'legacy-private',aiModel:'legacy-model'};
+  plugin.manifest={id:'nutegg'} as any;plugin.app={secretStorage:{setSecret:(id:string,key:string)=>secrets.set(id,key),getSecret:(id:string)=>secrets.get(id)}} as any;
+  plugin.loadData=async()=>structuredClone(stored);plugin.saveData=async data=>{stored=structuredClone(data);};
+  await plugin.loadSettings();assert.equal(plugin.getNativeSettings().aiApiKey,'');assert.equal(stored.aiApiKey,'');assert.equal(secrets.get(plugin.settings.legacyNativeApiCandidate!.keyRef),'legacy-private');assert.ok(!JSON.stringify(stored).includes('legacy-private'));
+  const candidate=structuredClone(plugin.settings.legacyNativeApiCandidate);await plugin.loadSettings();assert.deepEqual(plugin.settings.legacyNativeApiCandidate,candidate);
+  await plugin.saveNativeConfig(candidate!.settings,secrets.get(candidate!.keyRef));assert.equal(plugin.getNativeSettings().aiApiKey,'legacy-private');assert.ok(!JSON.stringify(stored).includes('legacy-private'));
+});
+
+test('old Obsidian preserves the original inactive legacy file while connected execution remains available',async()=>{
+ const plugin=new NutEggPlugin();let stored:any={...DEFAULT_SETTINGS,aiApiKey:'legacy-private'};const renamed:any[]=[];
+ plugin.manifest={id:'nutegg',dir:'.obsidian/plugins/nutegg'} as any;plugin.app={vault:{configDir:'.obsidian',adapter:{exists:async()=>false,rename:async(a:string,b:string)=>renamed.push([a,b])}}} as any;
+ plugin.loadData=async()=>stored;plugin.saveData=async data=>{stored=structuredClone(data);};
+ await plugin.loadSettings();assert.equal(renamed.length,1);assert.equal(plugin.getNativeSettings().aiApiKey,'');assert.match(plugin.settings.legacyNativeApiCandidate!.keyRef,/legacy-file:/);assert.ok(!JSON.stringify(stored).includes('legacy-private'));
+ await assert.rejects(plugin.saveNativeConfig({aiProvider:'openai'},'new-key'),/1.11.4/);
+});
+
+test('connected profile settings show Chrome values independently of native settings and refresh live', t => {
+  const dom = new JSDOM('<body><main></main></body>');
+  const proto = dom.window.HTMLElement.prototype as any;
+  proto.empty = function () { this.replaceChildren(); };
+  proto.createEl = function (tag: string, options: any = {}) {
+    const element = dom.window.document.createElement(tag);
+    element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
+    this.appendChild(element); return element;
+  };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
+  let repaint: () => void = () => {};
+  t.mock.method(globalThis, 'setInterval', ((callback: () => void) => { repaint = callback; return { unref() {} }; }) as any);
+  t.mock.method(globalThis, 'clearInterval', (() => {}) as any);
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, nativeApiConfig: { aiProvider: 'anthropic', aiModel: 'native-model' } };
+  const profiles = [
+    { displayName: 'Chrome A', provider: 'deepseek', model: 'deepseek-chat', chunkWindowChars: 24000, contentAnalysisMaxTokens: 8192 },
+    { displayName: 'Chrome B', provider: 'gemini', model: 'gemini-profile-b', chunkWindowChars: 12000, contentAnalysisMaxTokens: 4096 },
+  ];
+  plugin.server = { execution: { clients: () => profiles } } as any;
+  const tab = new NutEggSettingTab({} as any, plugin);
+  t.after(() => { tab.hide(); dom.window.close(); });
+  const container = dom.window.document.querySelector('main')!;
+  (tab as any).displayConnectedProfiles(container);
+  assert.match(container.textContent!, /Chrome AAPI keyDeepSeekdeepseek-chat/);
+  assert.match(container.textContent!, /24000.*8192/);
+  assert.match(container.textContent!, /Chrome BAPI keyGoogle Geminigemini-profile-b/);
+  assert.doesNotMatch(container.textContent!, /native-model|subscription/i);
+  profiles[0].model = 'updated-chrome-model'; profiles[0].chunkWindowChars = 32000;
+  repaint();
+  assert.match(container.textContent!, /updated-chrome-model/);
+  assert.match(container.textContent!, /32000/);
+  assert.doesNotMatch(container.textContent!, /deepseek-chat/);
+  profiles.length = 0; repaint();
+  assert.match(container.textContent!, /Waiting for Chrome/);
+  assert.equal(plugin.settings.nativeApiConfig!.aiModel, 'native-model');
+});
+
+test('explicit Chrome saves replace the native SecretStorage account in order', async () => {
+  const plugin = new NutEggPlugin();
+  const secrets = new Map<string, string>(); const saved: any[] = [];
+  plugin.app = {secretStorage: {getSecret: (ref: string) => secrets.get(ref), setSecret: (ref: string, key: string) => secrets.set(ref, key)}} as any;
+  plugin.settings = {...DEFAULT_SETTINGS, aiApiKey: '', nativeApiConfig: {aiProvider: 'anthropic', aiModel: 'old-model'}};
+  plugin.saveData = async data => { saved.push(structuredClone(data)); };
+  const results = await Promise.all([
+    plugin.syncNativeApi({aiProvider: 'deepseek', aiModel: 'deepseek-chat', chunkWindowChars: 24000}, 'chrome-A-secret'),
+    plugin.syncNativeApi({aiProvider: 'gemini', aiModel: 'profile-B'}, 'chrome-B-secret'),
+  ]);
+  assert.deepEqual(results, [true, true]);
+  assert.equal(plugin.getNativeSettings().aiApiKey, 'chrome-B-secret');
+  assert.equal(plugin.settings.nativeApiConfig!.aiProvider, 'gemini');
+  assert.equal(plugin.settings.nativeApiConfig!.chunkWindowChars, 24000);
+  assert.doesNotMatch(JSON.stringify(saved), /chrome-A-secret|chrome-B-secret/);
+  assert.equal(await plugin.syncNativeApi({aiProvider: 'openai', aiModel: 'other'}, 'replacement-secret'), true);
+  assert.equal(secrets.get(plugin.settings.nativeApiKeyRef!), 'replacement-secret');
+});
+
+test('initializing a native account without SecretStorage does not persist a plaintext key', async () => {
+  const plugin = new NutEggPlugin(); plugin.app = {} as any;
+  plugin.settings = {...DEFAULT_SETTINGS, aiApiKey: ''};
+  let saved = false; plugin.saveData = async () => { saved = true; };
+  await assert.rejects(plugin.syncNativeApi({aiProvider: 'deepseek', aiModel: 'deepseek-chat'}, 'private-key'), /1.11.4/);
+  assert.equal(saved, false);
+  assert.equal(plugin.settings.aiApiKey, '');
+});
+
+
+test('a stalled credit check times out, enables refresh, and ignores its late result', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  const plugin = new NutEggPlugin();
+  plugin.settings = {...DEFAULT_SETTINGS, aiProvider: 'deepseek', aiApiKey: 'key'};
+  let finish!: (value: any) => void;
+  plugin.aiClient = {checkCredit: () => new Promise(resolve => {finish = resolve;})} as any;
+  const tab = new NutEggSettingTab({} as any, plugin);
+  const button = {text: '', tooltip: '', disabled: false,
+    setButtonText(value: string) {this.text = value; return this;},
+    setTooltip(value: string) {this.tooltip = value; return this;},
+    setDisabled(value: boolean) {this.disabled = value; return this;}};
+  (tab as any).aiCreditButton = button;
+  const check = tab.refreshAICredit();
+  assert.equal(button.disabled, true);
+  t.mock.timers.tick(15000);
+  await check;
+  assert.equal(button.disabled, false);
+  assert.doesNotMatch(button.text, /checking/i);
+  assert.match(button.tooltip, /timed out/);
+  finish({statusText: 'Available', balanceFormatted: '$999', providerLabel: 'Old account'});
+  await new Promise(resolve => queueMicrotask(resolve));
+  assert.doesNotMatch(button.text, /999/);
 });

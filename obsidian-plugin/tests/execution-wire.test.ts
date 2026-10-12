@@ -1,0 +1,184 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { webcrypto } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import http from 'node:http';
+import { NutEggServer } from '../src/server';
+import { ConnectionAccess, NUTEGG_CHROME_ORIGIN } from '../src/connection-access';
+import { makeFakePlugin } from './helpers';
+import { EggParser } from '../src/egg-parser';
+import { KnowledgeBase } from '../src/knowledge-base';
+import { DEFAULT_SETTINGS } from '../src/settings';
+const WebSocket = require('ws');
+const root = path.resolve(process.cwd(), '..');
+function profile(port: number, apiUrl: string, key: string, model: string) {
+    const data: any = { connectionMode: 'obsidian', serverPort: port, chromeAiProvider: 'local', chromeAiApiKey: key, chromeAiModel: model, chromeAiEndpoint: apiUrl, executionSchemaVersion: 2 };
+    let listener: any;
+    const storageListeners: any[] = [], intervals = new Set<any>(), timeouts = new Set<any>(), sockets=new Set<any>();
+    const chrome: any = { runtime: { id: NUTEGG_CHROME_ORIGIN.split('://')[1], getURL: (p: string) => NUTEGG_CHROME_ORIGIN + p, getManifest: () => ({ version: 'test' }), onMessage: { addListener: (h: any) => listener = h }, onConnect: { addListener: () => { } } }, action: { setPopup: () => { } }, sidePanel: { setPanelBehavior: () => Promise.resolve() }, storage: { local: { get: async (keys: any) => keys == null ? structuredClone(data) : Object.fromEntries((typeof keys === 'string' ? [keys] : keys).filter((k: string) => k in data).map((k: string) => [k, structuredClone(data[k])])), set: async (values: any) => { const changes: any = {}; for (const [k, v] of Object.entries(values))
+                    if (JSON.stringify(v) !== JSON.stringify(data[k])) {
+                        changes[k] = { oldValue: data[k], newValue: v };
+                        data[k] = structuredClone(v);
+                    } if (Object.keys(changes).length)
+                    queueMicrotask(() => storageListeners.forEach(h => h(changes, 'local'))); }, remove: async (k: string) => { delete data[k]; }, setAccessLevel: async () => { } }, onChanged: { addListener: (h: any) => storageListeners.push(h) } } };
+    let context: vm.Context;
+    const background = path.join(root, 'chrome-extension/src/background');
+    context = vm.createContext({ chrome, console: { log: () => { }, warn: () => { }, error: () => { } }, fetch: (url: any, options: any = {}) => fetch(url, { ...options, headers: { ...options.headers, Origin: NUTEGG_CHROME_ORIGIN } }), URL, TextEncoder, TextDecoder, AbortController, AbortSignal, structuredClone, crypto: webcrypto, WebSocket: class extends WebSocket {
+            constructor(url: string) { super(url, { headers: { Origin: NUTEGG_CHROME_ORIGIN } });sockets.add(this);this.on('close',()=>sockets.delete(this)); }
+        }, setTimeout: (f: any, ms: number) => { const id = setTimeout(f, ms); timeouts.add(id); return id; }, clearTimeout: (id: any) => { clearTimeout(id); timeouts.delete(id); }, setInterval: (f: any, ms: number) => { const id = setInterval(f, ms); intervals.add(id); return id; }, clearInterval: (id: any) => { clearInterval(id); intervals.delete(id); }, importScripts: (...files: string[]) => files.forEach(f => vm.runInContext(fs.readFileSync(path.resolve(background, f), 'utf8'), context)) });
+    vm.runInContext(fs.readFileSync(path.join(background, 'service-worker.js'), 'utf8'), context);
+    return { data, context, message: (action: string, payload: any = {}) => new Promise<any>((resolve, reject) => { try {
+            listener({ action, ...payload }, { id: chrome.runtime.id, url: chrome.runtime.getURL('/src/popup/popup.html') }, resolve);
+        }
+        catch (e) {
+            reject(e);
+        } }), close: () => { vm.runInContext('NutEggExecution.close()', context);sockets.forEach(socket=>socket.terminate()); intervals.forEach(clearInterval); timeouts.forEach(clearTimeout); } };
+}
+async function eventually(check: () => boolean) { const until = Date.now() + 3000; while (!check()) {
+    if (Date.now() > until)
+        throw new Error('Condition timed out');
+    await new Promise(r => setTimeout(r, 10));
+} }
+test('two extension workers execute private API calls concurrently and follow shared subscription/API changes', async (t) => {
+    const apiCalls: any[] = [];
+    let providerGate:Promise<void>|undefined;let releaseProvider:(()=>void)|undefined;
+    const provider = http.createServer(async (req, res) => { let text = ''; for await (const part of req)
+        text += part; const body = JSON.parse(text); apiCalls.push({ key: req.headers.authorization, model: body.model }); if(providerGate)await providerGate;else await new Promise(r => setTimeout(r, 20)); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(body.messages[0].content.includes('MERGE_TEST')?{knowledge:`- model-A-new\n- ${body.model}`,unprocessed:''}:{answers:[{question:'Q',answer:body.model}]}) } }] })); });
+    await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve));
+    const apiUrl = `http://127.0.0.1:${(provider.address() as any).port}/v1/chat/completions`;
+    const plugin: any = makeFakePlugin({ settings: { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiApiKey: '', nativeApiConfig: { aiProvider: 'local', aiModel: 'native', localEndpoint: apiUrl } } });
+    plugin.getNativeSettings = () => ({ ...plugin.settings, ...plugin.settings.nativeApiConfig, aiApiKey: 'native-private' });
+    plugin.persistExecutionState = async (state: any) => { plugin.settings.executionState = structuredClone(state); plugin.settings.subscriptionEnabled = state.subscriptionAvailable; plugin.settings.aiAuthMethod = state.mode; plugin.settings.subscriptionSelection = state.subscription; };
+    const subscriptionCalls: any[] = [];
+    let cleanups = 0;
+    plugin.subscriptions = { cancelWork: async () => { cleanups++; }, chat: async (provider: string, model: string) => { subscriptionCalls.push({ provider, model }); return JSON.stringify({ answers: [{ question: 'Q', answer: model }] }); }, status: async () => ({ state: 'ready', message: 'Connected' }) };
+    plugin.connectionAccess = new ConnectionAccess(plugin.settings.chromeConnections = {}, async () => false, async () => { }, plugin.settings.chromeClientBindings = {});
+    const server = new NutEggServer(plugin, 0);
+    plugin.server = server;
+    await server.start();
+    const native = (server as any).server, port = native.address().port;
+    const a = profile(port, apiUrl, 'key-A', 'model-A'), b = profile(port, apiUrl, 'key-B', 'model-B');
+    t.after(async () => { a.close(); b.close(); native.closeAllConnections(); await server.stop(); provider.closeAllConnections(); await new Promise<void>(resolve => provider.close(() => resolve())); });
+    const connectedA = await a.message('connect-obsidian'), connectedB = await b.message('connect-obsidian');
+    assert.equal(connectedA.success, true, JSON.stringify(connectedA));
+    assert.equal(connectedB.success, true, JSON.stringify(connectedB));
+    assert.equal(server.execution.sessions.size, 2);
+    const payload = { url: 'https://example.com', title: 'Title', content: 'Body', sourceType: 'article', questions: ['Q'] };
+    const [ra, rb] = await Promise.all([a.message('ask', { payload }), b.message('ask', { payload })]);
+    assert.equal(ra.answers?.[0]?.answer, 'model-A', JSON.stringify(ra));
+    assert.equal(rb.answers?.[0]?.answer, 'model-B', JSON.stringify(rb));
+    assert.deepEqual(apiCalls.map(c => [c.key, c.model]).sort(), [['Bearer key-A', 'model-A'], ['Bearer key-B', 'model-B']]);
+    assert.notEqual(ra.execution.origin, rb.execution.origin);
+    assert.ok(!JSON.stringify(plugin.settings).includes('key-A'));
+    assert.ok(!JSON.stringify(plugin.settings).includes('key-B'));
+    const switched = await a.message('set-execution-mode', { mode: 'subscription' });
+    assert.equal(switched.state.mode, 'subscription', JSON.stringify(switched));
+    await eventually(() => b.data.obsidianExecutionState?.mode === 'subscription');
+    const sub = await b.message('ask', { payload });
+    assert.equal(sub.execution.authMethod, 'subscription');
+    assert.equal(subscriptionCalls.length, 1);
+    assert.equal(apiCalls.length, 2);
+    await b.message('set-execution-mode', { mode: 'apiKey' });
+    await eventually(() => a.data.obsidianExecutionState?.mode === 'apiKey');
+    const again = await a.message('ask', { payload });
+    assert.equal(again.answers[0].answer, 'model-A');
+    assert.equal(a.data.chromeAiApiKey, 'key-A');
+    assert.equal(b.data.chromeAiApiKey, 'key-B');
+    assert.equal(a.data.chromeAiModel, 'model-A');
+    assert.equal(b.data.chromeAiModel, 'model-B');
+    assert.ok(cleanups >= 2);
+    const nativeAnswer = await server.nativeChat('Native Q', 100);
+    assert.ok(nativeAnswer.includes('native'));
+    assert.equal(apiCalls.at(-1).key, 'Bearer native-private');
+    providerGate=new Promise<void>(resolve=>releaseProvider=resolve);
+    const beforePending = apiCalls.length;
+    const pending = a.message('ask', { payload });
+    await eventually(() => apiCalls.length > beforePending);
+    await b.message('set-execution-mode', { mode: 'subscription' });
+    const cancelled = await pending;
+    assert.ok(cancelled.error, JSON.stringify(cancelled));
+    assert.equal(cancelled.errorCode, 'cancelled');
+    releaseProvider!();providerGate=undefined;
+    await b.message('set-execution-mode', { mode: 'apiKey' });
+    await eventually(() => a.data.obsidianExecutionState?.mode === 'apiKey');
+    const credential = Object.entries(a.data).find(([key]) => key.startsWith('obsidianConnection:'))![1] as string;
+    const legacy = await fetch(`http://127.0.0.1:${port}/ai-config`, { method: 'POST', headers: { Origin: NUTEGG_CHROME_ORIGIN, 'X-NutEgg-Extension-Origin': NUTEGG_CHROME_ORIGIN, Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(legacy.status, 426);
+    const unauthorized = await fetch(`http://127.0.0.1:${port}/execution/mode`, { method: 'POST', headers: { Origin: NUTEGG_CHROME_ORIGIN, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(unauthorized.status, 401);
+    providerGate=new Promise<void>(resolve=>releaseProvider=resolve);
+    const beforeEdit=apiCalls.length;const oldA=a.message('ask',{payload}),pendingB=b.message('ask',{payload});
+    await eventually(()=>apiCalls.length>=beforeEdit+2);
+    await vm.runInContext("chrome.storage.local.set({chromeAiApiKey:'key-A-new',chromeAiModel:'model-A-new',chromeApiRevision:crypto.randomUUID()})",a.context);
+    assert.ok((await oldA).error);releaseProvider!();providerGate=undefined;
+    assert.equal((await pendingB).answers[0].answer,'model-B');
+    const newA=await a.message('ask',{payload});assert.equal(newA.answers[0].answer,'model-A-new');assert.equal(apiCalls.at(-1).key,'Bearer key-A-new');
+    plugin.eggParser=new EggParser(plugin);plugin.knowledgeBase=new KnowledgeBase(plugin);
+    plugin.workflowManager.getPrompt=(key:string)=>key==='mergeUnprocessed'?'MERGE_TEST {{knowledge_tree}} {{unprocessed}}':'';
+    await plugin.app.vault.create('nutegg/egg.md','---\ntopic: Test\nlanguage: English\n---\n# Knowledge\n\n# Unprocessed\n');
+    const entries=(label:string)=>Array.from({length:20},(_,i)=>({egg:'nutegg/egg.md',content:`${label} ${i}`}));
+    const beforeMerges=apiCalls.length;providerGate=new Promise<void>(resolve=>releaseProvider=resolve);
+    const savedA=await a.message('confirm',{payload:{title:'Save A',url:'https://example.com/a',content:'Body',sourceType:'article',skipRaw:true,newKnowledge:entries('A')}});assert.equal(savedA.success,true,JSON.stringify(savedA));
+    await eventually(()=>apiCalls.length>beforeMerges);
+    const savedB=b.message('confirm',{payload:{title:'Save B',url:'https://example.com/b',content:'Body',sourceType:'article',skipRaw:true,newKnowledge:entries('B')}});
+    releaseProvider!();providerGate=undefined;assert.equal((await savedB).success,true);
+    await eventually(()=>apiCalls.length>=beforeMerges+2 && [...server.execution.jobs.values()].every(job=>job.completed));
+    const merged=await plugin.eggParser.readEgg('egg.md');assert.match(merged.knowledge,/model-A-new/);assert.match(merged.knowledge,/model-B/);assert.equal(merged.unprocessed.trim(),'');
+    assert.deepEqual(apiCalls.slice(beforeMerges).map(call=>call.key),['Bearer key-A-new','Bearer key-B']);
+    providerGate=new Promise<void>(resolve=>releaseProvider=resolve);const beforeDisconnect=apiCalls.length;
+    assert.equal((await a.message('confirm',{payload:{title:'Deferred',url:'https://example.com/deferred',content:'Body',sourceType:'article',skipRaw:true,newKnowledge:entries('Deferred')}})).success,true);
+    await eventually(()=>apiCalls.length>beforeDisconnect);a.close();
+    await eventually(()=>server.execution.sessions.size===1 && [...server.execution.jobs.values()].every(job=>job.completed));
+    releaseProvider!();providerGate=undefined;
+    assert.equal(plugin.eggParser.countUnprocessed(await plugin.eggParser.readEgg('egg.md')),20);
+    assert.equal((await b.message('ask',{payload})).answers[0].answer,'model-B');
+    await server.runNative(processor=>processor.mergeEgg('egg.md'));assert.equal(apiCalls.at(-1).key,'Bearer native-private');
+    assert.equal(plugin.eggParser.countUnprocessed(await plugin.eggParser.readEgg('egg.md')),0);
+    const revision = server.execution.state.revision;
+    await Promise.all([b.message('get-obsidian-ai-config'), b.message('sync-ai-config'), b.message('check-chrome-ai')]);
+    assert.equal(server.execution.state.revision, revision);
+});
+
+test('explicit native synchronization replaces existing keys only through its authenticated session', async t => {
+    const NutEggPlugin = (await import('../src/main')).default;
+    const plugin: any = makeFakePlugin({settings: {...DEFAULT_SETTINGS, aiApiKey: '', nativeApiConfig: undefined}});
+    const secrets = new Map<string, string>(), persisted: any[] = [];
+    plugin.app.secretStorage = {getSecret: (ref: string) => secrets.get(ref), setSecret: (ref: string, key: string) => secrets.set(ref, key)};
+    plugin.nativeApiSyncQueue = Promise.resolve();
+    plugin.syncNativeApi = NutEggPlugin.prototype.syncNativeApi.bind(plugin);
+    plugin.saveNativeConfig = NutEggPlugin.prototype.saveNativeConfig.bind(plugin);
+    plugin.saveSettings = async () => { persisted.push(structuredClone(plugin.settings)); };
+    plugin.getNativeSettings = NutEggPlugin.prototype.getNativeSettings.bind(plugin);
+    plugin.persistExecutionState = async (state: any) => {plugin.settings.executionState = structuredClone(state); plugin.settings.aiAuthMethod = state.mode; plugin.settings.subscriptionEnabled = state.subscriptionAvailable;};
+    plugin.subscriptions = {cancelWork: async () => {}};
+    plugin.connectionAccess = new ConnectionAccess(plugin.settings.chromeConnections = {}, async () => false, async () => {}, plugin.settings.chromeClientBindings = {});
+    const server = new NutEggServer(plugin, 0); plugin.server = server; await server.start();
+    const native = (server as any).server, port = native.address().port;
+    const a = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-A', 'model-A');
+    const b = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-B', 'model-B');
+    t.after(async () => {a.close(); b.close(); native.closeAllConnections(); await server.stop();});
+    const url = `http://127.0.0.1:${port}/execution/native-api/sync`;
+    const unauthorized = await fetch(url, {method: 'POST', headers: {Origin: NUTEGG_CHROME_ORIGIN, 'Content-Type': 'application/json'}, body: '{}'});
+    assert.equal(unauthorized.status, 401);
+    await Promise.all([a.message('connect-obsidian'), b.message('connect-obsidian')]);
+    const results = await Promise.all([a.message('sync-obsidian-api'), b.message('sync-obsidian-api')]);
+    assert.deepEqual(results.map(result => result.synced), [true, true]);
+    const winner = plugin.settings.nativeApiConfig.aiModel === 'model-A' ? 'A' : 'B';
+    assert.equal(secrets.get(plugin.settings.nativeApiKeyRef), `private-${winner}`);
+    assert.equal(plugin.settings.nativeApiConfig.aiModel, `model-${winner}`);
+    assert.equal((await a.message('sync-obsidian-api')).synced, true);
+    assert.equal(secrets.get(plugin.settings.nativeApiKeyRef), 'private-A');
+    assert.equal(plugin.settings.nativeApiConfig.aiModel, 'model-A');
+    assert.doesNotMatch(JSON.stringify(results) + JSON.stringify(persisted) + JSON.stringify(server.execution.clients()) + JSON.stringify(server.execution.snapshot()), /private-A|private-B/);
+    const credential = Object.entries(a.data).find(([key]) => key.startsWith('obsidianConnection:'))![1];
+    const sessionA = server.execution.clients().find(client => client.clientId === a.data.executionClientId)!;
+    const headers = {Origin: NUTEGG_CHROME_ORIGIN, Authorization: `Bearer ${credential}`, 'Content-Type': 'application/json'};
+    const body = {instanceId: server.execution.state.instanceId, expectedRevision: server.execution.state.revision, sessionId: sessionA.sessionId, clientId: sessionA.clientId, key: 'replacement', config: {aiProvider: 'openai', aiModel: 'model'}};
+    const crossClient = await fetch(url, {method: 'POST', headers, body: JSON.stringify({...body, clientId: b.data.executionClientId})});
+    assert.equal(crossClient.status, 401);
+    const stale = await fetch(url, {method: 'POST', headers, body: JSON.stringify({...body, expectedRevision: 0})});
+    assert.equal(stale.status, 409);
+    assert.equal(secrets.get(plugin.settings.nativeApiKeyRef), 'private-A');
+});

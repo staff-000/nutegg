@@ -4,10 +4,10 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 function worker(initial = {}, availability = {}) {
-  const stored = { [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
+  const stored = { executionSchemaVersion:2, [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}:test`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
   let listener, storageListener;
   const context = vm.createContext({
-    importScripts() {}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
+    importScripts() {}, structuredClone, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
     setTimeout: (callback, delay) => { timeouts.push(delay); return setTimeout(callback, delay); }, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
@@ -25,23 +25,30 @@ function worker(initial = {}, availability = {}) {
       },
       isSubscriptionProvider: value => typeof value === 'object' ? value.chromeAiAuthMethod === 'subscription' || ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value.chromeAiProvider) : ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value),
       supportsSubscription: () => true,
+      selectEffectiveExecution:(mode,state)=>mode==='obsidian'&&state?.subscriptionAvailable&&state.mode==='subscription'?'subscription':'apiKey',
       migrateAISettings: value => value,
+      migrateChromeApiPreferences: value => ({...value,chromeAiAuthMethod:'apiKey'}),
+      isAIConfigured: settings=>settings.chromeAiProvider==='local'||!!settings.chromeAiApiKey,
     },
     chrome: {
       storage: { onChanged: { addListener(fn) { storageListener = fn; } }, local: {
-        get: async keys => Object.fromEntries(keys.map(key => [key, stored[key]])),
+        get: async keys => keys==null?structuredClone(stored):Object.fromEntries(keys.map(key => [key, stored[key]])),
         set: async values => Object.assign(stored, values),
         remove: async key => { delete stored[key]; },
       } },
       action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
-      runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } },
+      runtime: {id:'a'.repeat(32), getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } },
     },
     fetch: async (url, options) => {
       http.push({ url, options });
-      if (availability.respond) return availability.respond(url, options);
+      if (availability.respond) {
+        const result=await availability.respond(url,options);
+        if(url.endsWith('/health'))return {...result,json:async()=>({...await result.json(),instanceId:'test',capabilities:['execution-v2']})};
+        return result;
+      }
       if (availability.online === false || availability.offlinePaths?.some(path => url.endsWith(path))) throw new Error('Connection refused');
       if (url.endsWith('/metrics')) return { ok: availability.metricsOk !== false, json: async () => availability.metrics || { nuts: 0, eggs: 0, timeSavedMinutes: 0 } };
-      return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1' } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
+      return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1',instanceId:'test',capabilities:['execution-v2'] } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
     },
   });
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
@@ -50,10 +57,10 @@ function worker(initial = {}, availability = {}) {
     Object.assign(stored, values);
     storageListener(changes, 'local');
     await new Promise(resolve => setImmediate(resolve));
-  }, send: (action, values = {}) => new Promise(resolve => listener({ action, ...values }, {}, resolve)) };
+  }, send: (action, values = {}) => new Promise(resolve => listener({ action, ...values }, {id:'a'.repeat(32),url:`chrome-extension://${'a'.repeat(32)}/src/popup/popup.html`}, resolve)) };
 }
 
-test('a saved Chrome key works immediately while configuration mirroring never routes analysis to Obsidian', async () => {
+test('a saved Chrome key works immediately and Chrome-only mode never writes shared configuration', async () => {
   const app = worker({ chromeAiEnabled: false });
   assert.equal((await app.send('check-chrome-ai')).configured, false);
   const missing = await app.send('analyze', { payload: { content: 'Article' } });
@@ -68,61 +75,7 @@ test('a saved Chrome key works immediately while configuration mirroring never r
   assert.equal(answer.answers[0].answer, 'Answer');
   assert.equal(app.ai[1].scope, 'beyond');
   assert.equal(app.ai[0].settings.chromeAiApiKey, 'new-key');
-  assert(app.http.every(call => call.url.endsWith('/ai-config')), 'Only configuration mirroring may contact Obsidian');
-});
-
-test('a stale unauthorized response cannot erase a newly approved connection credential', async () => {
-  let finish;
-  const app = worker({ connectionMode: 'obsidian' }, { respond: () => new Promise(resolve => { finish = resolve; }) });
-  const request = app.send('sync-ai-config');
-  await new Promise(resolve => setImmediate(resolve));
-  app.stored['obsidianConnection:http://127.0.0.1:27123'] = 'new-approved-credential';
-  finish({ status: 401, ok: false });
-  assert((await request).error);
-  assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], 'new-approved-credential');
-});
-
-test('approval exchanges a credential and includes extension identity on subsequent sync', async () => {
-  const key = 'obsidianConnection:http://127.0.0.1:27123';
-  const app = worker({ connectionMode: 'obsidian', [key]: undefined }, { respond: async url => ({ ok: true, json: async () =>
-    url.endsWith('/health') ? { capabilities: ['connection-approval-v1'] } :
-    url.endsWith('/connection/finish') ? { state: 'approved', credential: 'new-approved-credential' } : { success: true }
-  }) });
-  assert.equal((await app.send('connect-obsidian')).success, true);
-  assert.equal(app.stored[key], 'new-approved-credential');
-  for (const call of app.http.filter(call => !call.url.endsWith('/health'))) {
-    assert.equal(call.options.headers['X-NutEgg-Extension-Origin'], `chrome-extension://${'a'.repeat(32)}`);
-  }
-  assert.equal(app.http.at(-1).options.headers.Authorization, 'Bearer new-approved-credential');
-});
-
-test('reconnecting an approved Chrome installation reuses its credential without opening approval', async () => {
-  const app = worker({ connectionMode: 'obsidian' }, { respond: async () => ({ ok: true, json: async () => ({ capabilities: ['connection-approval-v1'] }) }) });
-  for (let count = 0; count < 2; count++) assert.equal((await app.send('connect-obsidian')).success, true);
-  assert.deepEqual(app.http.map(call => new URL(call.url).pathname), ['/health', '/ai-config', '/health', '/ai-config']);
-  assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], 'approved-test-credential');
-});
-
-test('a rejected credential requests approval again, while an AI configuration error does not', async () => {
-  for (const code of [401, 403]) {
-    const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
-      if (url.endsWith('/ai-config') && options.headers.Authorization === 'Bearer approved-test-credential') return { ok: false, status: code };
-      return { ok: true, json: async () => url.endsWith('/health') ? { capabilities: ['connection-approval-v1'] } :
-        url.endsWith('/connection/finish') ? { state: 'approved', credential: 'replacement-credential' } : { success: true } };
-    } });
-    const result = await app.send('connect-obsidian');
-    assert.equal(app.http.some(call => call.url.endsWith('/connection/start')), code === 401);
-    assert.equal(!!result.success, code === 401);
-    assert.equal(app.stored['obsidianConnection:http://127.0.0.1:27123'], code === 401 ? 'replacement-credential' : 'approved-test-credential');
-  }
-});
-
-test('subscription readiness and credit allow slow CLI checks without lengthening API checks', async () => {
-  for (const method of ['apiKey', 'subscription']) {
-    const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiAuthMethod: method });
-    await app.send('config-status'); await app.send('get-credit');
-    assert.deepEqual(app.timeouts, [method === 'subscription' ? 20000 : 3000, method === 'subscription' ? 20000 : 3000]);
-  }
+  assert.equal(app.http.length,0,'Chrome-only AI execution does not contact Obsidian');
 });
 
 test('Chrome mode guards every Obsidian-only request and uses Chrome credit', async () => {
@@ -137,7 +90,7 @@ test('Chrome mode guards every Obsidian-only request and uses Chrome credit', as
   for (const action of ['confirm', 'create-egg']) {
     assert.equal((await app.send(action, { payload: {}, name: 'Egg' })).errorCode, 'obsidian_mode_required');
   }
-  assert(app.http.every(call => call.url.endsWith('/metrics')), 'Metrics may read the vault snapshot independently of mode');
+  assert(app.http.every(call => ['/health', '/metrics'].includes(new URL(call.url).pathname)), 'Metrics may read the vault snapshot independently of mode');
   assert.deepEqual(app.ai.map(call => call.action), ['credit']);
 });
 
@@ -145,46 +98,13 @@ test('Obsidian mode routes both analysis and questions to the chosen server', as
   const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'unused', serverPort: 27124 });
   assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'obsidian');
   assert.equal((await app.send('ask', { payload: { questions: ['Why?'] } })).answers[0], 'Obsidian answer');
-  assert.deepEqual(app.http.map(call => new URL(call.url).pathname), ['/health', '/ai-config', '/analyze', '/health', '/ai-config', '/ask']);
+  assert.deepEqual(app.http.filter(call => !call.url.endsWith('/health')).map(call => new URL(call.url).pathname), ['/analyze','/ask']);
   assert(app.http.every(call => new URL(call.url).port === '27124'));
   for (const call of app.http.filter(call => !call.url.endsWith('/health'))) {
     assert.equal(call.options.headers['X-NutEgg-Extension-Origin'], `chrome-extension://${'a'.repeat(32)}`);
     assert.equal(call.options.headers.Authorization, 'Bearer approved-test-credential');
   }
   assert.equal(app.ai.length, 0);
-});
-
-test('offline Obsidian uses Chrome analysis, questions and cache, then reconnects without changing the selected mode', async () => {
-  const availability = { online: false };
-  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key' }, availability);
-  for (const action of ['analyze', 'ask']) {
-    const result = await app.send(action, { payload: { url: 'https://example.test', content: 'Article', questions: ['Why?'] } });
-    assert.equal(result.mode, 'chrome');
-    assert.equal(result.error, undefined);
-  }
-  assert.equal((await app.send('history', { url: 'https://example.test' })).history[0].result.mode, 'chrome');
-  assert.equal(app.ai.length, 2);
-  assert.equal(app.stored.connectionMode, 'obsidian');
-  availability.online = true;
-  assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'obsidian');
-  assert.equal(app.ai.length, 2);
-});
-
-test('Obsidian disconnecting after the health check falls back for reading and questions', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key' }, { offlinePaths: ['/analyze', '/ask'] });
-  assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'chrome');
-  assert.equal((await app.send('ask', { payload: { questions: ['Why?'] } })).answers[0].answer, 'Answer');
-  assert.equal(app.ai.length, 2);
-});
-
-test('offline fallback still requires a Chrome-compatible provider and never substitutes vault egg analysis', async () => {
-  for (const settings of [{}, { chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing' }]) {
-    const app = worker({ connectionMode: 'obsidian', ...settings }, { online: false });
-    assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).errorCode,
-      settings.chromeAiProvider ? 'subscription_requires_obsidian' : 'no_api_key');
-    assert.equal((await app.send('analyze', { payload: { content: 'Article', stage: 2 } })).errorCode, 'obsidian_offline');
-    assert.equal(app.ai.length, 0);
-  }
 });
 
 test('local AI uses the saved endpoint and needs no API key', async () => {
@@ -376,6 +296,7 @@ test('combined metrics replace the vault snapshot, stay consistent across modes,
   assert.equal((await app.send('metrics')).nuts, 106);
   assert.equal((await app.send('metrics')).eggs, 5);
   availability.online = false;
+  await app.change({ connectionMode: 'chrome' });
   await app.send('analyze', { payload: { content: 'Article', metadata: { time_estimate_minutes: 5 } } });
   const offline = await app.send('metrics');
   assert.equal(offline.nuts, 107);
@@ -455,169 +376,9 @@ test('egg metric is only incremented when knowledge is selected and generated fr
   assert.equal(m3.nuts, 52 + 2, 'Total nuts combines local and vault nuts');
 });
 
-test('Obsidian receives Chrome AI configuration before requests and receives subsequent changes', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing', chromeAiModel: 'auto', chunkWindowChars: 10000, contentAnalysisMaxTokens: 5000 });
-  await app.send('analyze', { payload: { content: 'Article' } });
-  const config = () => JSON.parse(app.http.filter(call => call.url.endsWith('/ai-config')).at(-1).options.body);
-  assert.equal(config().aiProvider, 'codex-cli');
-  assert.equal(config().aiApiKey, '');
-  assert.equal(config().chunkWindowChars, 10000);
-  assert.equal(config().contentAnalysisMaxTokens, 5000);
-  assert.equal(config().localApiType, 'openai');
-  app.stored.chromeAiProvider = 'local';
-  app.stored.chromeAiApiKey = '';
-  app.stored.chromeAiModel = 'local-model';
-  app.stored.chromeAiLocalEndpoint = 'http://localhost:1234/v1/chat/completions';
-  await app.send('ask', { payload: { questions: ['Why?'] } });
-  assert.equal(config().aiProvider, 'local');
-  assert.equal(config().aiApiKey, '');
-  assert.equal(config().localEndpoint, app.stored.chromeAiLocalEndpoint);
-});
-
-test('failed sync blocks analysis instead of using stale Obsidian settings', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'key' }, { syncOk: false });
-  for (const action of ['analyze', 'ask']) {
-    const result = await app.send(action, { payload: { content: 'Article', questions: ['Why?'] } });
-    assert.equal(result.errorCode, 'ai_config_sync_failed');
-  }
-  assert.equal(app.http.some(call => /\/(analyze|ask)$/.test(call.url)), false);
-});
-
-test('Chrome rejects legacy subscription settings for analysis, questions and credit', async () => {
-  const app = worker({ chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token' });
-  assert.equal((await app.send('check-chrome-ai')).configured, false);
-  for (const action of ['analyze', 'ask', 'get-credit', 'check-chrome-credit']) {
-    const result = await app.send(action, { payload: { content: 'Article', questions: ['Why?'] } });
-    assert.equal(result.errorCode, 'subscription_requires_obsidian');
-  }
-  assert(app.http.every(call => call.url.endsWith('/ai-config')));
-  assert.equal(app.ai.length, 0);
-});
-
 test('standalone AI receives processing limits, including legacy token settings', async () => {
   const app = worker({ chromeAiApiKey: 'key', chunkWindowChars: 7000, chromeAiMaxTokens: 2000 });
   await app.send('analyze', { payload: { content: 'Article' } });
   assert.equal(app.ai[0].settings.chunkWindowChars, 7000);
   assert.equal(app.ai[0].settings.contentAnalysisMaxTokens, 2000);
-});
-
-test('Chrome mirrors configuration in standalone mode when settings change or sync is requested', async () => {
-  const app = worker({ connectionMode: 'chrome', chromeAiProvider: 'gemini', chromeAiApiKey: 'key' });
-  assert.equal((await app.send('sync-ai-config')).success, true);
-  assert.equal(JSON.parse(app.http.at(-1).options.body).aiProvider, 'gemini');
-  await app.change({ chromeAiProvider: 'deepseek', chromeAiModel: 'deepseek-chat' });
-  assert.equal(JSON.parse(app.http.at(-1).options.body).aiProvider, 'deepseek');
-  assert.equal(app.stored.connectionMode, 'chrome');
-  assert(app.http.every(call => call.url.endsWith('/ai-config')));
-});
-
-test('reading Obsidian settings for comparison never changes them or triggers a sync', async () => {
-  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'stored-key' });
-  await app.send('get-obsidian-ai-config', { settings: { chromeAiProvider: 'deepseek', chromeAiModel: 'draft-model', chromeAiApiKey: 'draft-key', chunkWindowChars: 9000, contentAnalysisMaxTokens: 4000 } });
-  assert.equal(app.http.length, 1);
-  assert.equal(new URL(app.http[0].url).pathname, '/ai-config-status');
-  const sent = JSON.parse(app.http[0].options.body);
-  assert.equal(sent.aiModel, 'draft-model');
-  assert.equal(sent.aiApiKey, 'draft-key');
-  assert.equal(app.stored.chromeAiApiKey, 'stored-key');
-  assert.equal(app.ai.length, 0);
-});
-
-test('canonical subscriptions never fall back to API billing while Obsidian is offline', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiAuthMethod: 'subscription', chromeAiApiKey: 'must-not-use' }, { online: false });
-  for (const action of ['analyze', 'ask']) {
-    const result = await app.send(action, { payload: { content: 'Article', questions: ['Why?'] } });
-    assert.equal(result.errorCode, 'subscription_requires_obsidian');
-  }
-  assert.equal(app.ai.length, 0); assert.equal(app.stored.connectionMode, 'obsidian');
-});
-
-test('serverFetch automatically establishes connection when no credential is stored', async () => {
-  const key = 'obsidianConnection:http://127.0.0.1:27123';
-  const app = worker({ connectionMode: 'obsidian', [key]: undefined }, { respond: async url => ({
-    ok: true,
-    json: async () => {
-      if (url.endsWith('/health')) return { subscriptionEnabled: true, capabilities: ['connection-approval-v1', 'subscription-v1'] };
-      if (url.endsWith('/connection/finish')) return { state: 'approved', credential: 'auto-connected-credential' };
-      if (url.endsWith('/ai-config')) return { success: true };
-      if (url.endsWith('/subscription/status')) return { state: 'ready' };
-      return { success: true };
-    }
-  }) });
-  const result = await app.send('subscription-control', { operation: 'status', provider: 'openai' });
-  assert.equal(result.error, undefined);
-  assert.equal(result.state, 'ready');
-  assert.equal(app.stored[key], 'auto-connected-credential');
-  const statusCall = app.http.find(call => call.url.endsWith('/subscription/status'));
-  assert(statusCall);
-  assert.equal(statusCall.options.headers.Authorization, 'Bearer auto-connected-credential');
-});
-
-test('when using subscription, Chrome does not overwrite AI provider in Obsidian and only fetches it', async () => {
-  const app = worker(
-    { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'auto' },
-    { respond: async url => {
-      const pathname = new URL(url).pathname;
-      if (pathname === '/health') return { ok: true, json: async () => ({ status: 'ok', capabilities: ['subscription-v1', 'connection-approval-v1'], subscriptionEnabled: true }) };
-      if (pathname === '/ai-config-status') return { ok: true, json: async () => ({
-        aiConfig: { aiProvider: 'anthropic', aiModel: 'claude-3-5-sonnet', aiAuthMethod: 'subscription', chunkWindowChars: 25000, contentAnalysisMaxTokens: 12000 },
-        matches: true,
-      }) };
-      if (pathname === '/ai-config') throw new Error('Must not overwrite /ai-config when using subscription');
-      return { ok: true, json: async () => ({ success: true }) };
-    } }
-  );
-
-  const syncResult = await app.send('sync-ai-config');
-  assert.equal(syncResult.success, true);
-  // Ensured no calls to /ai-config were made
-  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config'), false);
-  // Ensured /ai-config-status was called to fetch Obsidian config
-  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config-status'), true);
-  // Ensured Chrome adopted the provider and model from Obsidian
-  assert.equal(app.stored.chromeAiProvider, 'anthropic');
-  assert.equal(app.stored.chromeAiModel, 'claude-3-5-sonnet');
-});
-
-test('when switching to subscription in Chrome while Obsidian is in apiKey mode, Chrome switches Obsidian to subscription', async () => {
-  let aiConfigPayload = null;
-  const app = worker(
-    { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'auto' },
-    { respond: async (url, options) => {
-      const pathname = new URL(url).pathname;
-      if (pathname === '/health') return { ok: true, json: async () => ({ status: 'ok', capabilities: ['subscription-v1', 'connection-approval-v1'], subscriptionEnabled: true }) };
-      if (pathname === '/ai-config-status') return { ok: true, json: async () => ({
-        aiConfig: { aiProvider: 'deepseek', aiModel: 'deepseek-chat', aiAuthMethod: 'apiKey', chunkWindowChars: 25000, contentAnalysisMaxTokens: 12000 },
-        matches: false,
-      }) };
-      if (pathname === '/ai-config') {
-        aiConfigPayload = JSON.parse(options.body);
-        return { ok: true, json: async () => ({ success: true }) };
-      }
-      return { ok: true, json: async () => ({ success: true }) };
-    } }
-  );
-
-  const syncResult = await app.send('sync-ai-config');
-  assert.equal(syncResult.success, true);
-  // Ensured /ai-config WAS called to switch Obsidian to subscription
-  assert.equal(app.http.some(call => new URL(call.url).pathname === '/ai-config'), true);
-  assert.equal(aiConfigPayload.aiAuthMethod, 'subscription');
-  assert.equal(aiConfigPayload.aiProvider, 'gemini');
-  assert.equal(app.stored.chromeAiProvider, 'gemini');
-});
-
-test('disabling subscriptions restores the API configuration in the worker without options open', async () => {
-  const app = worker({ connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'cli-model',
-    chromeApiConfig: { chromeAiProvider: 'local', chromeAiAuthMethod: 'apiKey', chromeAiApiKey: 'local-key', chromeAiModel: 'local-custom', chromeAiEndpoint: 'http://localhost:8080/v1' } },
-    { respond: async url => ({ ok: true, json: async () => url.endsWith('/ai-config-status')
-      ? { subscriptionEnabled: false, aiConfig: { aiProvider: 'gemini', aiAuthMethod: 'apiKey', aiModel: '' } } : { success: true } }) });
-  assert.equal((await app.send('sync-ai-config')).success, true);
-  assert.equal(app.stored.chromeAiAuthMethod, 'apiKey');
-  assert.equal(app.stored.chromeAiProvider, 'local');
-  assert.equal(app.stored.chromeAiApiKey, 'local-key');
-  assert.equal(app.stored.chromeAiModel, 'local-custom');
-  const synced = JSON.parse(app.http.find(call => call.url.endsWith('/ai-config')).options.body);
-  assert.equal(synced.aiAuthMethod, 'apiKey');
-  assert.equal(synced.localEndpoint, 'http://localhost:8080/v1');
 });

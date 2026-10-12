@@ -1,6 +1,6 @@
 # AI subscriptions in NutEgg
 
-Chrome controls the active connection method. API settings belong to Chrome; subscription authorization, provider, and model settings belong to Obsidian.
+Obsidian owns the shared API/Subscription mode. Connected Chrome profiles can explicitly change it and all connected profiles follow. Each Chrome keeps its API settings and key; Obsidian has separate native API settings. See [execution ownership](ai-execution.md).
 
 ## Guided setup
 
@@ -10,7 +10,7 @@ Chrome controls the active connection method. API settings belong to Chrome; sub
 4. Chrome now shows **Use subscription**. Turn it on to select subscription execution. The existing API provider, key, and model are retained separately.
 5. Obsidian now displays subscription details. Choose the provider and click **Authorize subscription**. Complete provider sign-in if requested; the connection test uses a small amount of subscription quota.
 6. Choose the model in Obsidian: **Auto — provider default**, a discovered model, or **Custom model tag**. Chrome displays the active provider and model as read-only.
-7. Turn off **Use subscription** in Chrome to restore the saved API configuration. Obsidian stops pending subscription inference, login, and model discovery, displays the synced API settings, and hides subscription details. Its local Chrome connection stays available for API configuration sync. It still has no subscription switch.
+7. Turn off **Use subscription** in Chrome to restore the saved API configuration. Obsidian stops pending subscription inference, login, and model discovery, displays its separate native API settings, and hides subscription details. Its local Chrome connection stays available for authenticated workflows and delegated API calls. It still has no subscription switch.
 8. Turn **Use subscription** back on in Chrome to return to the subscription provider and model previously selected in Obsidian.
 9. Run **NutEgg: Disable subscription mode** in Obsidian to cancel subscription work, hide Chrome's switch, and restore Chrome's saved API configuration on the next successful connection check. With no saved API key, API setup is shown. An offline Obsidian connection alone never triggers this switch.
 
@@ -28,13 +28,13 @@ Completed installation/sign-in controls hide automatically. One pending login pe
 
 ## Configuration and migration
 
-Obsidian settings show a compact connection panel: the local server, recently active Chrome connections, and AI bridge activity. Chrome activity means authenticated requests within the last 90 seconds; saved approval alone does not indicate an online browser. Activity resets when the plugin restarts. In API mode the bridge shows **Off · API key**, with no subscription controls. When Subscription is selected, it shows setup needs, authorization, running/queued requests, model discovery, or idle status. The panel refreshes while settings are open without launching extra provider requests. A warning appears when recent Chrome connections request different connection methods; Obsidian still uses the last synced configuration.
+Obsidian settings show live authenticated Chrome sessions, non-secret provider/model details, local server status and subscription runtime activity. Different API configurations are expected; there is no last-sync-wins conflict. API mode hides subscription guidance and stops owned subscription inference, login and discovery processes.
 
-API key and subscription preferences are retained separately across switching and restarts. Chrome sends only the active API configuration or its choice to use Subscription. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. The feature availability command is separate from Chrome's active connection switch.
+API key and subscription preferences are retained separately across switching and restarts. Chrome sends non-secret execution metadata and its explicit shared mode choice. For inference, API keys and endpoints stay inside the initiating Chrome executor. An explicit connected API **Save & continue** also updates the native Obsidian account in SecretStorage with the saved Chrome account; each explicit save replaces the native key, while other profiles retain their own keys. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. The feature availability command is separate from Chrome's active connection switch.
 
 Legacy `codex-cli`, `claude-cli`, and `gemini-cli` settings migrate to OpenAI, Anthropic, and Gemini. When the feature is disabled, their subscription selections stay inactive until the Obsidian command enables availability and Chrome selects Subscription. Custom models survive migration; bridge endpoints and pairing tokens are cleared from active settings. Existing API configurations default to API key. Migration is repeatable. Legacy files and CLI credentials in your home directory are untouched; the separate bridge scripts and port 27124 are retired.
 
-Model discovery refreshes after login and on demand. Chrome retains cached choices and the selected model if discovery fails; Auto and Custom remain available. A rejected model reports **Choose another model**, with no automatic substitution.
+Model discovery refreshes after login and on demand. Obsidian retains cached choices and the selected model if discovery fails; Auto and Custom remain available. A rejected model reports **Choose another model**, with no automatic substitution.
 
 ## Offline and error recovery
 

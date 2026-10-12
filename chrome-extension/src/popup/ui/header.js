@@ -39,15 +39,17 @@ class HeaderComponent {
   render(session, settings) {
     if (!settings) return;
     if (settings.environmentChecked === false) { this.updateServerStatus('checking'); return; }
+    if(settings.connectionMode==='obsidian'&&settings.executionState?.transition==='error'){this.updateServerStatus('connection-error',null,t('aiConnectionUnavailable'));return;}
+    if(settings.connectionMode==='obsidian'&&settings.executionState?.transition!=='ready'&&settings.executionState){this.updateServerStatus('checking');return;}
     const providerError = [session?.errors?.analysis, session?.errors?.followup].find(error =>
-      ['auth_failed', 'bridge_auth_failed', 'forbidden', 'model_not_found', 'rate_limited', 'quota_exceeded', 'network_error', 'server_error'].includes(error?.code));
+      ['auth_failed', 'bridge_auth_failed', 'forbidden', 'model_not_found', 'rate_limited', 'quota_exceeded', 'network_error', 'server_error', 'timeout'].includes(error?.code));
     if (providerError) { this.updateServerStatus('connection-error', null, providerError.message); return; }
     const obsidianMode = settings.connectionMode === 'obsidian';
     if (!settings.serverOnline && settings.chromeAiAuthMethod === 'subscription') { this.updateServerStatus('connection-error', null, t('aiConnectionRecovery')); return; }
     if (settings.serverError || settings.aiStatusError) { this.updateServerStatus('connection-error', null, settings.serverError || settings.aiStatusError); return; }
     if (settings.chromeAiAuthMethod === 'subscription') {
       if (settings.subscriptionState === 'error') { this.updateServerStatus('connection-error', null, t('connectionFailed')); return; }
-      if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) { this.updateServerStatus('connection-error', null, t('aiConnectionSetupNeeded')); return; }
+      if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) { this.updateServerStatus('obsidian-warning', null, t('aiConnectionSetupNeeded')); return; }
     }
     this.updateVersion(null, obsidianMode ? settings.obsidianPluginVersion : null);
     if (!obsidianMode) {
@@ -72,7 +74,7 @@ class HeaderComponent {
         this.updateServerStatus("obsidian-online", settings.obsidianPluginVersion);
       }
     } else {
-      this.updateServerStatus(settings.chromeAiConfigured && settings.aiStatusError ? 'connection-error' : settings.chromeAiConfigured ? "chrome-fallback" : "chrome-fallback-unavailable", null, settings.aiStatusError || settings.chromeAiProvider);
+      this.updateServerStatus("connection-error", null, t("obsidianOfflineStart"));
     }
   }
 

@@ -1,3 +1,4 @@
+import type { SharedExecutionState } from '../../shared/src/execution';
 import { SubscriptionService } from './subscription-service';
 import { ConnectionAccess } from './connection-access';
 import { approveChromeConnection } from './connection-modal';
@@ -24,11 +25,71 @@ import { t } from "./i18n";
 
 export default class NutEggPlugin extends Plugin {
   declare settings: NutEggSettings;
-  aiClient!: AIClient;
+  private nativeClient!: AIClient;
+  get aiClient(): AIClient { return this.nativeClient; }
+  set aiClient(client: AIClient) {
+    const chat=client.chat?.bind(client);
+    if(chat)client.chat=(prompt,maxTokens,scope)=>this.server?this.server.nativeChat(prompt,maxTokens,scope):chat(prompt,maxTokens,scope);
+    const check=client.checkCredit.bind(client);
+    client.checkCredit=()=>check(this.getNativeSettings());
+    this.nativeClient=client;
+  }
   subscriptions!: SubscriptionService;
   connectionAccess!: ConnectionAccess;
   server!: NutEggServer;
-  aiProcessor!: AIProcessor;
+  private nativeProcessor!: AIProcessor;
+  get aiProcessor(): AIProcessor {return this.nativeProcessor;}
+  set aiProcessor(processor: AIProcessor) {this.nativeProcessor=this.wrapNativeProcessor(processor);}
+  private wrapNativeProcessor(processor: AIProcessor): AIProcessor {
+    return new Proxy(processor,{get:(target,key)=>{
+      const value=(target as any)[key];
+      if(key==='withDebugScope')return (scope:string)=>this.wrapNativeProcessor(target.withDebugScope(scope));
+      if(typeof value!=='function')return value;
+      return (...args:any[])=>this.server?this.server.runNative(p=>(p as any)[key](...args),(target as any).debugScope):value.apply(target,args);
+    }});
+  }
+  private persistingExecution=false;
+  getNativeSettings(): any {
+    const config={...this.settings,...this.settings.nativeApiConfig,aiAuthMethod:'apiKey',aiApiKey:''};
+    config.aiApiKey=this.settings.nativeApiKeyRef?(this.app as any)?.secretStorage?.getSecret(this.settings.nativeApiKeyRef)||'':this.settings.aiApiKey||'';
+    const state=this.server?.execution?.state || this.settings.executionState || (this.settings.subscriptionEnabled&&this.settings.aiAuthMethod==='subscription'?{mode:'subscription',subscription:this.settings.subscriptionSelection||{provider:this.settings.aiProvider,model:this.settings.aiModel}}:undefined);
+    if(state?.mode==='subscription')Object.assign(config,{aiAuthMethod:'subscription',aiProvider:state.subscription.provider,aiModel:state.subscription.model,aiApiKey:''});
+    return config;
+  }
+  async persistExecutionState(state: SharedExecutionState): Promise<void> {
+    const previous=this.settings;
+    this.settings={...previous,executionState:structuredClone(state),subscriptionEnabled:state.subscriptionAvailable,
+      subscriptionSelection:state.subscription,aiAuthMethod:state.mode};
+    if(state.mode==='subscription')Object.assign(this.settings,{aiProvider:state.subscription.provider,aiModel:state.subscription.model,aiApiKey:''});
+    else Object.assign(this.settings,this.settings.nativeApiConfig,{aiAuthMethod:'apiKey',aiApiKey:''});
+    this.persistingExecution=true;
+    try {await this.saveSettings();}catch(error){this.settings=previous;throw error;}finally{this.persistingExecution=false;}
+    this.settingsTab?.display();
+  }
+  private nativeApiSyncQueue: Promise<unknown> = Promise.resolve();
+  async syncNativeApi(config: Partial<NutEggSettings>, key: string): Promise<boolean> {
+    const task = this.nativeApiSyncQueue.then(async () => {
+      if (!(this.app as any).secretStorage) throw new Error(t('nativeApiUpgradeRequired'));
+      await this.saveNativeConfig(config, key);
+      this.settingsTab?.display();
+      return true;
+    });
+    // Serialize explicit profile saves so the last accepted save owns the native
+    // configuration. A failed save must not prevent a later explicit retry.
+    this.nativeApiSyncQueue = task.catch(() => {});
+    return task;
+  }
+  async saveNativeConfig(config: Partial<NutEggSettings>, key?: string): Promise<void> {
+    if(!(this.app as any).secretStorage)throw new Error(t('nativeApiUpgradeRequired'));
+    this.server?.cancelNative();
+    const ref=this.settings.nativeApiKeyRef || `nutegg-native-${this.settings.executionState?.instanceId || 'api'}`;
+    if(key!==undefined)(this.app as any).secretStorage.setSecret(ref,key);
+    this.settings.nativeApiKeyRef=ref;
+    this.settings.nativeApiConfig={...this.settings.nativeApiConfig,...config,aiApiKey:''};
+    this.settings.nativeConfigurationRevision=(this.settings.nativeConfigurationRevision||1)+1;
+    if(this.settings.aiAuthMethod!=='subscription')Object.assign(this.settings,this.settings.nativeApiConfig,{aiApiKey:''});
+    await this.saveSettings();
+  }
   knowledgeBase!: KnowledgeBase;
   indexReader!: IndexReader;
   eggParser!: EggParser;
@@ -50,9 +111,9 @@ export default class NutEggPlugin extends Plugin {
 
     // Initialize workflow manager and subsystems
     this.workflowManager = new WorkflowManager(this);
-    this.subscriptions = new SubscriptionService(this.settings.subscriptionPaths, () => this.settings.subscriptionEnabled === true && this.settings.aiAuthMethod === 'subscription');
+    this.subscriptions = new SubscriptionService(this.settings.subscriptionPaths, () => this.settings.subscriptionEnabled === true && this.settings.aiAuthMethod === 'subscription' && (!this.settings.executionState || this.settings.executionState.transition === 'ready'));
     this.connectionAccess = new ConnectionAccess(this.settings.chromeConnections ||= {},
-      origin => approveChromeConnection(this.app, origin), () => this.saveSettings());
+      origin => approveChromeConnection(this.app, origin), () => this.saveSettings(), this.settings.chromeClientBindings ||= {});
     this.aiClient = new AIClient(this.settings, this.subscriptions);
     this.aiProcessor = new AIProcessor(this);
     this.knowledgeBase = new KnowledgeBase(this);
@@ -212,7 +273,7 @@ export default class NutEggPlugin extends Plugin {
     this.creditStatusBarItem.addClass("nutegg-statusbar-credit");
     this.creditStatusBarItem.setText("🪙 NutEgg AI");
     this.creditStatusBarItem.addEventListener("click", () => {
-      if (!isAIConfigured(this.settings)) {
+      if (!isAIConfigured(this.getNativeSettings())) {
         this.openSettings();
       } else {
         this.updateCreditStatusBar(true);
@@ -261,17 +322,7 @@ export default class NutEggPlugin extends Plugin {
       checkCallback: checking => {
         if (this.settings.subscriptionEnabled === enabled) return false;
         if (!checking) void (async () => {
-          this.settings.subscriptionEnabled = enabled;
-          if (!enabled) {
-            if (this.settings.aiAuthMethod === 'subscription') {
-              this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
-              this.settings.aiApiKey = '';
-              this.settings.aiModel = '';
-            }
-            this.settings.aiAuthMethod = 'apiKey';
-            await this.subscriptions.cancelWork();
-          }
-          await this.saveSettings();
+          await this.server.changeAvailability(enabled);
           this.aiClient = new AIClient(this.settings, this.subscriptions);
           this.aiProcessor = new AIProcessor(this);
           this.settingsTab?.display();
@@ -293,7 +344,7 @@ export default class NutEggPlugin extends Plugin {
     if (!this.creditStatusBarItem) return;
     const version = ++this.creditStatusVersion;
 
-    if (!isAIConfigured(this.settings)) {
+    if (!isAIConfigured(this.getNativeSettings())) {
       this.creditStatusBarItem.setText(t("setupAiKeyStatusBar"));
       this.creditStatusBarItem.setAttribute(
         "aria-label",
@@ -390,8 +441,8 @@ export default class NutEggPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     this.settingsTab?.hide();
+    await this.server?.stop();
     await this.subscriptions?.dispose();
-    await this.server.stop();
     this.db.close();
     console.log("[NutEgg] Plugin unloaded");
   }
@@ -399,6 +450,26 @@ export default class NutEggPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const data = await this.loadData() || {};
     this.settings = migrateAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
+    const legacyKey=this.settings.aiApiKey;
+    let movedLegacyFile: {original:string;legacy:string}|undefined;
+    if(legacyKey) {
+      const storage=(this.app as any).secretStorage;
+      let ref=`nutegg-legacy-${this.manifest.id}`;
+      if(storage) storage.setSecret(ref,legacyKey);
+      else {
+        // Keep the original legacy file inactive until SecretStorage is available.
+        // Renaming preserves existing data without writing a new plaintext key.
+        const directory=this.manifest.dir || `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+        const original=`${directory}/data.json`, legacy=`${directory}/legacy-ai-settings.json`;
+        if(await this.app.vault.adapter.exists(legacy))throw new Error(t('nativeApiUpgradeRequired'));
+        await this.app.vault.adapter.rename(original,legacy);
+        movedLegacyFile={original,legacy};
+        ref=`legacy-file:${legacy}`;
+      }
+      this.settings.legacyNativeApiCandidate={settings:{aiProvider:this.settings.aiProvider,aiModel:this.settings.aiModel,aiSource:this.settings.aiSource,localEndpoint:this.settings.localEndpoint,localApiType:this.settings.localApiType},keyRef:ref};
+      this.settings.aiApiKey='';
+    }
+    this.settings.nativeApiConfig ||= {aiProvider:DEFAULT_SETTINGS.aiProvider,aiModel:DEFAULT_SETTINGS.aiModel,localEndpoint:DEFAULT_SETTINGS.localEndpoint,localApiType:DEFAULT_SETTINGS.localApiType,aiApiKey:''};
     if (!this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription') {
       if (['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
         this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
@@ -407,13 +478,21 @@ export default class NutEggPlugin extends Plugin {
       this.settings.aiApiKey = '';
       this.settings.aiModel = '';
     }
+    if(legacyKey) {
+      try {await this.saveData({...this.settings,aiApiKey:'',nativeApiConfig:{...this.settings.nativeApiConfig,aiApiKey:''}});}
+      catch(error) {if(movedLegacyFile)await this.app.vault.adapter.rename(movedLegacyFile.legacy,movedLegacyFile.original);throw error;}
+    }
   }
 
   async saveSettings(): Promise<void> {
+    if(!this.persistingExecution && this.server && this.settings.aiAuthMethod==='subscription') {
+      const selection={provider:this.settings.aiProvider as 'openai'|'anthropic'|'gemini',model:this.settings.aiModel||'auto'};
+      if(JSON.stringify(selection)!==JSON.stringify(this.server.execution.state.subscription)) {await this.server.changeSubscription(selection);return;}
+    }
     if (this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription' && ['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
       this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
     }
-    if (typeof this.saveData === 'function') await this.saveData(this.settings);
+    if (typeof this.saveData === 'function') await this.saveData({...this.settings,aiApiKey:"",nativeApiConfig:{...this.settings.nativeApiConfig,aiApiKey:""}});
     this.settingsTab?.refreshAISettings();
     this.updateCreditStatusBar();
   }

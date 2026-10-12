@@ -90,6 +90,9 @@ export function makeFakePlugin(overrides: any = {}) {
       ...(overrides.settings || {}),
     },
     app: { vault: overrides.vault ?? vault },
+    getNativeSettings() {return {...(this as any).settings};},
+    async persistExecutionState(state:any) {Object.assign((this as any).settings,{executionState:state,subscriptionEnabled:state.subscriptionAvailable,aiAuthMethod:state.mode,subscriptionSelection:state.subscription});},
+    subscriptions: {cancelWork:async()=>{},status:async()=>({state:'ready'}),chat:async()=> '{}'},
     aiClient: overrides.aiClient ?? {
       chat: async () => "{}",
       checkCredit: async () => ({

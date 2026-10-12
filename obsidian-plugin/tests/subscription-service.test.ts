@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, chmod, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
+import { EventEmitter } from 'node:events';
 import { SubscriptionService } from '../src/subscription-service';
 import { ConnectionAccess, NUTEGG_CHROME_ORIGIN } from '../src/connection-access';
 import { NutEggServer } from '../src/server';
@@ -260,7 +261,8 @@ else { console.log(JSON.stringify({type:'item.completed',item:{type:'agent_messa
   for (let i=0; i<100; i++) { try { await readFile(marker); break; } catch { await new Promise(resolve => setTimeout(resolve, 10)); } }
   let loginCanceled = false, discoveryKilled = false;
   service['logins'].set('openai', { id: 'owned-test', state: 'signing_in', command: '', child: { kill() { loginCanceled = true; } } } as any);
-  service['discovery'].add({ kill() { discoveryKilled = true; } } as any);
+  const discovery=new EventEmitter() as any;discovery.exitCode=null;discovery.kill=()=>{discoveryKilled=true;discovery.emit('close');};
+  service['discovery'].add(discovery);
   active = false;
   await service.cancelWork();
   assert.deepEqual(service.getRuntimeStatus(), { active: false, requests: 0, logins: 0, models: 0 });
@@ -290,7 +292,7 @@ test('expired previously verified authentication is an error, not initial setup'
   const { service, command } = await fixture(t, "console.error('Logged in using ChatGPT');");
   assert.equal((await service.status('openai')).state, 'ready');
   await writeFile(command, `#!${process.execPath}\nconsole.error('Not logged in'); process.exit(1);`);
-  assert.equal((await service.status('openai')).state, 'error');
+  assert.equal((await service.status('openai',true)).state, 'error');
 });
 
 
@@ -316,4 +318,10 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
   const status = await service.status('openai');
   assert.equal(status.state, 'ready');
   assert.equal(status.usageRemaining, '75% left (5h) · 60% left (7d)');
+});
+
+test('an explicit test rejects an unavailable selected model without trying Auto',async()=>{
+ const service=new SubscriptionService({},()=>true);const requested:string[]=[];
+ service.chat=async(_provider,model)=>{requested.push(model);throw Object.assign(new Error('Choose another model.'),{code:'model_not_found'});};
+ await assert.rejects(service.test('openai','rejected-custom'),{code:'model_not_found'});assert.deepEqual(requested,['rejected-custom']);await service.dispose();
 });

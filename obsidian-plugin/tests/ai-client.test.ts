@@ -41,7 +41,7 @@ describe("isAIConfigured", () => {
 });
 
 describe("AIClient settings changes", () => {
-  it("uses a newly entered key for both credit checks and chat without recreating the client", async () => {
+  it("keeps an existing job immutable and uses a newly entered key only in a new executor", async () => {
     const settings: NutEggSettings = { ...DEFAULT_SETTINGS, aiProvider: "openrouter", aiApiKey: "" };
     const client = new AIClient(settings);
     const originalFetch = globalThis.fetch;
@@ -60,7 +60,9 @@ describe("AIClient settings changes", () => {
       settings.aiApiKey = "new-user-key";
       const credit = await client.checkCredit(settings);
       assert.equal(credit.hasBalance, true);
-      assert.equal(await client.chat("Summarize this article", 500), "Summary");
+      await assert.rejects(client.chat("Summarize this article", 500), {code:"no_api_key"});
+      const updated = new AIClient(settings);
+      assert.equal(await updated.chat("Summarize this article", 500), "Summary");
       assert.equal(requests.length, 2);
 
       settings.aiApiKey = "";
@@ -71,16 +73,16 @@ describe("AIClient settings changes", () => {
     }
   });
 
-  it("uses the current provider, model and key after settings are changed", async () => {
-    const settings: NutEggSettings = { ...DEFAULT_SETTINGS, aiApiKey: "old-key" };
+  it("captures provider, model and key independently from subsequent settings edits", async () => {
+    const settings: NutEggSettings = { ...DEFAULT_SETTINGS, aiProvider:"openai",aiModel:"captured-model", aiApiKey: "old-key" };
     const client = new AIClient(settings);
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (url: string, init?: any) => {
         assert.equal(url, PROVIDER_CATALOG.openai.officialEndpoint);
-        assert.equal(init.headers.Authorization, "Bearer updated-key");
+        assert.equal(init.headers.Authorization, "Bearer old-key");
         const body = JSON.parse(init.body);
-        assert.equal(body.model, "selected-model");
+        assert.equal(body.model, "captured-model");
         assert.equal(body.max_completion_tokens, 500);
         return new Response(JSON.stringify({ choices: [{ message: { content: "Updated response" } }] }), { status: 200 });
       }) as any;
@@ -324,4 +326,24 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     const fallbackFam = findOpenRouterFamily("unknown-model");
     assert.equal(fallbackFam?.id, "openai");
   });
+});
+
+describe('job cancellation and credential redaction',()=>{
+ it('aborts the provider fetch and returns a structured cancellation',async()=>{
+  const original=globalThis.fetch;const controller=new AbortController();let requestSignal:AbortSignal;
+  try {
+   globalThis.fetch=async(_url:any,options:any)=>{requestSignal=options.signal;return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('aborted')),{once:true}));};
+   const client=new AIClient({...DEFAULT_SETTINGS,aiProvider:'openai',aiApiKey:'private'},undefined,controller.signal);
+   const pending=client.chat('Q',100);controller.abort();await assert.rejects(pending,{code:'cancelled'});assert.equal(requestSignal!.aborted,true);
+  }finally{globalThis.fetch=original;}
+ });
+ it('redacts provider-echoed keys from chat errors and credit failures',async()=>{
+  const original=globalThis.fetch;const client=new AIClient({...DEFAULT_SETTINGS,aiProvider:'openrouter',aiApiKey:'sensitive-key'});
+  try {
+   globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'invalid sensitive-key request'}}),{status:400});
+   await assert.rejects(client.chat('Q',100),(error:any)=>!error.message.includes('sensitive-key')&&error.message.includes('[redacted]'));
+   globalThis.fetch=async()=>{throw new Error('network sensitive-key');};
+   const credit=await client.checkCredit({...DEFAULT_SETTINGS,aiProvider:'openrouter',aiApiKey:'sensitive-key'});assert.ok(!JSON.stringify(credit).includes('sensitive-key'));
+  }finally{globalThis.fetch=original;}
+ });
 });

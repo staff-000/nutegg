@@ -1,8 +1,6 @@
 # Connection signal and metrics
 
-Chrome is the source of AI settings. Obsidian uses the synced provider, model,
-credentials, chunk window size and completion token limit. Subscription providers
-require Obsidian mode and run through the plugin’s installed CLI adapters.
+Each Chrome profile owns its API setup; Obsidian owns the shared execution mode and subscription setup. Native Obsidian actions use a separate secure API configuration. See [execution ownership](ai-execution.md).
 
 ## Signal colors
 
@@ -11,16 +9,16 @@ opens Chrome options.
 
 | Scenario | Color | Meaning / action |
 | --- | --- | --- |
-| Initial connection check | Gray | Checking readiness. |
+| Initial connection check or shared mode transition | Gray | Checking readiness. |
 | Chrome mode, API key configured or local model selected | Green | Chrome reading is configured. |
 | Chrome mode, missing API key | Amber | Configure an API or local provider in Chrome options. |
-| Obsidian online, config synced and AI configured | Green | Obsidian features are available. |
+| Obsidian online, effective profile configuration ready | Green | Obsidian features are available. |
 | Obsidian online, extension/plugin versions differ | Amber | Update the extension or plugin. |
-| Obsidian online, AI key missing | Amber | Configure AI in **Chrome options**, then sync. |
+| Obsidian online, AI key missing | Amber | Configure this profile’s API in **Chrome options**. |
 | Obsidian online, other config warnings (such as a missing index) | Amber | Follow the warning in the tooltip or banner. |
-| Obsidian offline, Chrome API/local AI configured | Amber | Temporarily reading in Chrome; vault features need Obsidian. |
+| Connected mode, Obsidian offline | Red | Open Obsidian or explicitly choose **Use Chrome mode instead**. |
 | Obsidian offline, no usable Chrome provider/key | Red | Configure Chrome AI or reconnect Obsidian. Subscription providers cannot fall back. |
-| Hidden account connection disabled, or enabled connection needs CLI installation/sign-in/verification | Amber | Complete provider setup in Obsidian settings. |
+| Subscription selected, CLI installation/sign-in/verification needed | Amber | Complete provider setup in Obsidian settings. |
 | Subscription selected, authentication verified and Obsidian online | Green | Ready to analyze; quota is managed by the subscription. |
 | Subscription selected, expired login, inaccessible model/provider, or exhausted quota | Red | Sign in, choose another model, or retry after quota reset. |
 | Subscription selected, Obsidian offline | Red | Analysis pauses. Open Obsidian or use **Set up Chrome API key**, then explicitly save the mode change. |
@@ -44,7 +42,7 @@ Obsidian connectivity is checked on startup, tab activation, settings changes an
 every 15 seconds while the side panel is visible in Obsidian mode. When Obsidian
 returns, the selected Obsidian mode resumes automatically. Existing results retain
 the backend that produced them. Saving to the vault and egg comparison require
-Obsidian; fallback only performs Chrome reading and questions.
+Obsidian; an explicit switch to Chrome-only permits local reading and questions.
 
 ## Consistent metrics across modes
 
@@ -58,7 +56,7 @@ The Chrome side panel uses the same combined totals in both modes:
   It is never added to the previous snapshot, so refreshes cannot repeatedly
   import the same activity.
 - Offline, failed or malformed responses retain the last valid snapshot.
-- New Chrome analyses increment `chromeMetrics`, including offline fallback.
+- New Chrome analyses increment `chromeMetrics`, including explicitly selected Chrome-only execution.
   Counter updates are serialized so simultaneous analyses cannot lose increments.
 - Historical Chrome counters are retained. On installations without counters,
   existing cached analyses seed them once. The first new analysis is counted once.

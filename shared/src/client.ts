@@ -18,6 +18,8 @@ import type {
 } from "./types";
 
 export type AIErrorCode =
+  | "cancelled"
+  | "timeout"
   | "subscription_requires_obsidian"
   | "no_api_key"
   | "auth_failed"
@@ -129,11 +131,12 @@ export interface AICreditInfo {
 async function chatAnthropic(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string> }
+  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
 ): Promise<string> {
   let response: Response;
   try {
     response = await fetch(config.endpoint, {
+      signal: config.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -168,7 +171,7 @@ async function chatAnthropic(
 async function chatOllama(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string> }
+  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
 ): Promise<string> {
   let response: Response;
   const headers: Record<string, string> = {
@@ -191,6 +194,7 @@ async function chatOllama(
 
   try {
     response = await fetch(config.endpoint, {
+      signal: config.signal,
       method: "POST",
       headers,
       body: JSON.stringify(bodyPayload),
@@ -217,7 +221,7 @@ async function chatOllama(
 async function chatOpenAICompatible(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string> }
+  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
 ): Promise<string> {
   let response: Response;
   const headers: Record<string, string> = {
@@ -240,6 +244,7 @@ async function chatOpenAICompatible(
 
   try {
     response = await fetch(config.endpoint, {
+      signal: config.signal,
       method: "POST",
       headers,
       body: JSON.stringify(bodyPayload),
@@ -299,8 +304,9 @@ async function chatOpenAICompatible(
 export async function chatAI(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string> },
-  debugScope?: string
+  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal },
+  debugScope?: string,
+  signal?: AbortSignal
 ): Promise<string> {
   if (config.authMethod === 'subscription') throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
   if (config.provider !== "local" && !config.apiKey) {
@@ -312,17 +318,48 @@ export async function chatAI(
     );
   }
 
-  return trackAIRequest(prompt, () => {
-    if (config.apiFormat === "anthropic") return chatAnthropic(prompt, maxTokens, config);
-    if ((config as any).apiFormat === "ollama") return chatOllama(prompt, maxTokens, config);
-    return chatOpenAICompatible(prompt, maxTokens, config);
-  }, debugScope);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(() => controller.abort('timeout'), 180000);
+  const requestConfig = { ...config, signal: controller.signal };
+  try {
+    if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
+    const result = await trackAIRequest(prompt, async () => {
+      try {
+        if (config.apiFormat === 'anthropic') return await chatAnthropic(prompt, maxTokens, requestConfig);
+        if (config.apiFormat === 'ollama') return await chatOllama(prompt, maxTokens, requestConfig);
+        return await chatOpenAICompatible(prompt, maxTokens, requestConfig);
+      } catch(error: any) {
+        if(config.apiKey && typeof error?.message==='string')error.message=error.message.split(config.apiKey).join('[redacted]');
+        throw error;
+      }
+    }, debugScope);
+    if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
+    return result;
+  } catch (error: any) {
+    if (controller.signal.aborted) throw new AIError(controller.signal.reason === 'timeout' ? 'timeout' : 'cancelled',
+      controller.signal.reason === 'timeout' ? 'AI request timed out. Retry explicitly.' : 'AI request cancelled.');
+    if (config.apiKey && typeof error?.message === 'string') error.message = error.message.split(config.apiKey).join('[redacted]');
+    throw error;
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+
 }
 
 /**
  * Check remaining credit/balance for the configured provider.
  */
 export async function checkCreditAI(settings: NutEggAISettings): Promise<AICreditInfo> {
+  const result = await checkCreditRequest(settings);
+  const key = settings.chromeAiApiKey ?? settings.aiApiKey;
+  if (key) for (const field of ['error', 'statusText'] as const) {
+    if (result[field]) result[field] = result[field]!.split(key).join('[redacted]');
+  }
+  return result;
+}
+
+async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditInfo> {
   const providerId = (settings.chromeAiProvider || settings.aiProvider || "gemini") as AIProviderId;
   const provider = PROVIDER_CATALOG[providerId];
   const source: AISource = providerId === "openrouter" ? "openrouter" : "official";
@@ -511,8 +548,8 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
 export class AIClient {
   private settings: NutEggAISettings;
 
-  constructor(settings: NutEggAISettings, private subscription?: SubscriptionExecutor) {
-    this.settings = settings;
+  constructor(settings: NutEggAISettings, private subscription?: SubscriptionExecutor, private signal?: AbortSignal) {
+    this.settings = structuredClone(settings);
   }
 
   async checkCredit(settings: NutEggAISettings): Promise<AICreditInfo> {
@@ -527,10 +564,10 @@ export class AIClient {
   }
 
   async chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> {
-    // Settings can change after startup, including a new user's first API key.
+    // Each executor uses the configuration captured for its owning job.
     const config = resolveConfig(this.settings);
     if (config.authMethod === 'subscription' && this.subscription) return trackAIRequest(prompt,
-      () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt), debugScope);
-    return chatAI(prompt, maxTokens, config, debugScope);
+      () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt, this.signal), debugScope);
+    return chatAI(prompt, maxTokens, config, debugScope, this.signal);
   }
 }

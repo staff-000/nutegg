@@ -111,6 +111,16 @@ class TabStateManager {
   }
   dispatch(event) {
     const tabId = event.tabId ?? event.token?.tabId;
+    if(event.type==='executionChanged') {
+      for(const [id,tab] of this.#tabs) {
+        const next=popupCopy(tab);
+        for(const kind of ['analysis','followup','creation']) {delete next.errors[kind];if(next.operations[kind]){next.operations[kind].running=false;next.operations[kind].requestId=null;}}
+        next.followUpQa=next.followUpQa.filter(q=>!q.pending);
+        delete next.errors.intent;
+        this.#tabs.set(id,popupFreeze(next));
+      }
+      this.emit(event);return;
+    }
     if (event.type === 'visibility') { this.panelVisible = event.visible; this.emit(event); return; }
     if (event.type === 'defaults') { this.defaults = popupFreeze(popupCopy(event.defaults)); return; }
     if (event.type === 'catalogRequested') { return ++this.catalogVersion; }

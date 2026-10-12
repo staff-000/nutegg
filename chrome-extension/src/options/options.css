@@ -246,3 +246,35 @@ textarea { resize: vertical; min-height: 140px; margin-top: 10px; font-family: u
   line-height: 1;
 }
 
+
+/* Give setup, connection details, and advanced preferences distinct visual weight. */
+.options-container { max-width: 736px; padding-top: 32px; }
+.setup-card { padding: 24px; border-radius: 16px; box-shadow: 0 4px 20px #332a2506; margin-bottom: 16px; }
+.settings-intro { padding: 26px 0 22px; }
+.card-heading.ai-card-heading { margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+#ai-auth-row { margin: 0; }
+#shared-mode-notice { margin: -6px 0 16px; padding: 8px 11px; background: var(--wash); border-radius: 7px; font-size: 11.5px; line-height: 1.45; }
+#ai-provider-select:disabled { opacity: .8; cursor: default; }
+.setup-help { margin-top: 12px; }
+.setup-help > summary { font-size: 12px; padding: 3px 0; }
+.setup-help .hint { font-size: 12px; margin-top: 6px; }
+#obsidian-active-card { margin-top: 24px; padding: 18px; }
+#obsidian-active-card .card-heading { margin-bottom: 12px; }
+#obsidian-ai-config { margin: 12px 0 16px; }
+#obsidian-ai-match-status { margin-bottom: 8px; font-size: 12px; }
+.config-chip { border-color: var(--line); background: var(--paper); color: var(--ink); padding: 5px 9px; font-size: 11px; }
+.sync-actions { gap: 14px; }
+.chrome-mode-btn { min-height: 64px; }
+.subscription-card { padding: 12px 14px; margin-bottom: 16px; }
+.subscription-model-display { gap: 6px 8px; margin-top: 8px; line-height: 1.5; }
+.subscription-model-badge { overflow-wrap: anywhere; max-width: 100%; }
+.use-subscription-wrap { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--wash); }
+.switch-toggle input:focus-visible + .switch-slider { outline: 3px solid #bc8e56; outline-offset: 3px; }
+.summary-copy > span { font-size: 12px; }
+.settings-disclosure > summary { padding-top: 16px; padding-bottom: 16px; }
+.disclosure-content { padding: 20px 24px; }
+@media (max-width: 480px) {
+  .setup-card { padding: 20px 16px; }
+  .disclosure-content { padding: 18px 16px; }
+  .subscription-obsidian-hint { margin-left: 0; width: 100%; }
+}

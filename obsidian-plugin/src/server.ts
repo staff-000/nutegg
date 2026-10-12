@@ -1,3 +1,7 @@
+import { ExecutionCoordinator, ExecutionProtocolError, type Job } from './execution-coordinator';
+import { EXECUTION_PROTOCOL, publicExecutionSettings } from '../../shared/src/execution';
+import { randomUUID } from 'node:crypto';
+import { PROMPTS } from './prompt-templates';
 import { ConnectionAccess } from './connection-access';
 import { supportsSubscription } from '../../shared/src/catalog';
 import type { SubscriptionProvider } from '../../shared/src/types';
@@ -128,7 +132,13 @@ interface CaptureEntry {
 }
 
 export class NutEggServer {
-  private aiConfigQueue: Promise<void> = Promise.resolve();
+  readonly execution: ExecutionCoordinator;
+  private requestJobs = new WeakMap<http.IncomingMessage, Job>();
+  private requestBodies = new WeakMap<http.IncomingMessage, string>();
+  private sockets = new Set<any>();
+  private heartbeat?: ReturnType<typeof setInterval>;
+  private wss: any;
+
   private confirmationQueues = new Map<string, Promise<void>>();
   private server: http.Server | null = null;
   private plugin: NutEggPlugin;
@@ -137,10 +147,110 @@ export class NutEggServer {
   constructor(plugin: NutEggPlugin, port: number) {
     this.plugin = plugin;
     this.port = port;
+    this.execution = new ExecutionCoordinator(ExecutionCoordinator.initial(plugin.settings.executionState,
+      plugin.settings.subscriptionEnabled === true, plugin.settings.subscriptionSelection,
+      plugin.settings.aiAuthMethod), state => plugin.persistExecutionState(state), () => plugin.subscriptions.cancelWork());
+  }
+
+  private executor(settings: any, signal: AbortSignal) {
+    const client = new AIClient(settings, this.plugin.subscriptions, signal);
+    return {chat: (request: any) => client.chat(request.prompt, request.maxTokens, request.debugScope)};
+  }
+  private processor(job: Job, scope?: string): AIProcessor {
+    const prompts = (job as any).prompts || {...PROMPTS};
+    if(!(job as any).prompts)for (const key of Object.keys(prompts)) (prompts as any)[key] = this.plugin.workflowManager?.getPrompt(key as any) || (prompts as any)[key];
+    (job as any).prompts=prompts;
+    const assertActive = () => this.execution.assertActive(job);
+    const host = {settings:job.settings, signal:job.controller.signal, assertActive,
+      isConfigured: () => job.metadata.authMethod === 'apiKey' && !!job.session || isAIConfigured(job.settings),
+      workflowManager:{getPrompt:(key:string)=>(prompts as any)[key]},
+      aiClient:{chat:async(prompt:string,maxTokens=16384,debugScope?:string)=>{assertActive();const result=await job.executor.chat({prompt,maxTokens,debugScope},job.controller.signal);assertActive();return result;}},
+      eggParser:this.plugin.eggParser,indexReader:this.plugin.indexReader,app:this.plugin.app,
+      withEggLock:<T>(path:string,task:()=>Promise<T>)=>this.execution.withEggLock(resolveEggPath(path,this.plugin.vaultFolder)||path,async()=>{assertActive();return task();})};
+    return new AIProcessor(host,normalizeAIDebugScope(scope));
+  }
+  async runNative<T>(task: (processor: AIProcessor) => Promise<T>, scope?: string, allowNoAI=false): Promise<T> {
+    if(!allowNoAI&&this.execution.state.mode==='apiKey'&&!isAIConfigured(this.plugin.getNativeSettings()))throw new AIError('no_api_key','Configure AI for Obsidian actions in NutEgg settings.');
+    const job = this.execution.native(this.plugin.getNativeSettings(), (settings, signal)=>this.executor(settings,signal));
+    try {return await task(this.processor(job,scope));} finally {this.execution.complete(job);}
+  }
+  async nativeChat(prompt:string,maxTokens:number,debugScope?:string) {
+    const job = this.execution.native(this.plugin.getNativeSettings(),(settings,signal)=>this.executor(settings,signal));
+    try {const text=await job.executor.chat({prompt,maxTokens,debugScope},job.controller.signal);this.execution.assertActive(job);return text;} finally {this.execution.complete(job);}
+  }
+  async changeAvailability(enabled:boolean) {
+    return this.execution.change(this.execution.state.revision,randomUUID(),{subscriptionAvailable:enabled,mode:enabled?this.execution.state.mode:'apiKey'});
+  }
+  async changeSubscription(selection:any) { return this.execution.change(this.execution.state.revision,randomUUID(),{subscription:selection}); }
+  cancelNative() {this.execution.cancelJobs(job=>!job.session);}
+  private async prepareJob(req:http.IncomingMessage,res:http.ServerResponse,origin:string) {
+    const body=await this.readBody(req); const payload=JSON.parse(body);
+    if (Object.keys(payload.execution?.settings || {}).some(key=>/apiKey|pair.*token|credential|endpoint/i.test(key))) throw new ExecutionProtocolError('credential_payload','Credentials must stay in Chrome.',400);
+    const settings=publicExecutionSettings(this.plugin.getNativeSettings());
+    const job=this.execution.admit(payload.execution,origin,this.plugin.connectionAccess.credentialId(origin,req.headers.authorization!),settings,(captured,signal)=>this.executor(captured,signal));
+    this.requestJobs.set(req,job);this.requestBodies.set(req,body);this.processor(job,payload.debugScope);
+    const end=res.end.bind(res);
+    const writeHead=res.writeHead.bind(res);let contentType='';
+    (res as any).writeHead=(status:any,...args:any[])=>{
+      const headers=args.find(value=>value&&typeof value==='object');contentType=headers?.['Content-Type']||headers?.['content-type']||String(res.getHeader('Content-Type')||'');
+      return (writeHead as any)(status,...args);
+    };
+    (res as any).end=(chunk:any,...args:any[])=>{
+      if(chunk && contentType==='application/json') {
+        try {const data=JSON.parse(String(chunk)); data.execution=job.metadata; chunk=JSON.stringify(data);}catch{}
+      }
+      return (end as any)(chunk,...args);
+    };
+    res.on('finish',()=>this.execution.complete(job));
+    res.on('close',()=>{if(!res.writableFinished)this.execution.cancelJobs(candidate=>candidate===job);});
+  }
+  private attachWebSocket() {
+    const {WebSocketServer}=require('ws');
+    this.wss=new WebSocketServer({noServer:true,maxPayload:25*1024*1024,perMessageDeflate:false});
+    this.server!.on('upgrade',(req:any,socket:any,head:any)=>{
+      const origin=req.headers.origin;
+      if(req.url!=='/execution/socket' || !/^127\.0\.0\.1:\d+$/.test(req.headers.host||'') || !ConnectionAccess.validOrigin(origin)) {socket.destroy();return;}
+      this.wss.handleUpgrade(req,socket,head,(ws:any)=>{
+        this.sockets.add(ws); let sessionId:string|undefined;
+        const authTimer=setTimeout(()=>ws.close(1008,'Authentication required'),5000);
+        ws.on('message',async(raw:any)=>{
+          try {
+            const message=JSON.parse(String(raw));
+            if(!sessionId) {
+              if(message.type!=='authenticate' || message.instanceId!==this.execution.state.instanceId) throw new Error('Invalid session.');
+              const credentialId=await this.plugin.connectionAccess.bindClient(origin,`Bearer ${message.credential}`,message.clientId);
+              if (ws.readyState!==1) return;
+              sessionId=randomUUID(); clearTimeout(authTimer);
+              const configuration=publicExecutionSettings(message.configuration||{});
+              this.execution.attach({chunkWindowChars:configuration.chunkWindowChars,contentAnalysisMaxTokens:configuration.contentAnalysisMaxTokens,provider:configuration.chromeAiProvider||configuration.aiProvider,model:configuration.chromeAiModel||configuration.aiModel,configurationRevision:String(message.configurationRevision||'initial'),clientId:message.clientId,sessionId,origin,credentialId,displayName:String(message.displayName||'Chrome').slice(0,80),connected:true,seen:Date.now(),send:data=>{if(ws.readyState===1)ws.send(JSON.stringify(data));}});
+            } else {
+              const session=this.execution.sessions.get(sessionId); if(!session)throw new Error('Session expired.'); session.seen=Date.now();
+              if(message.type==='heartbeat')ws.send(JSON.stringify({type:'heartbeat'}));
+              else if(message.type==='ai-result')this.execution.result(sessionId,message);
+              else if(message.type==='configuration-changed') {
+                const configuration=publicExecutionSettings(message.configuration||{});
+                if(typeof message.configurationRevision!=='string'||message.configurationRevision.length>100)throw new Error('Invalid configuration revision.');
+                session.provider=configuration.chromeAiProvider||configuration.aiProvider;session.model=configuration.chromeAiModel||configuration.aiModel;session.configurationRevision=message.configurationRevision;
+                session.chunkWindowChars=configuration.chunkWindowChars;session.contentAnalysisMaxTokens=configuration.contentAnalysisMaxTokens;
+                this.execution.cancelJobs(job=>job.session===session&&job.metadata.configurationRevision!==message.configurationRevision);
+              }
+              else if(message.type==='cancel-job')this.execution.cancelJobs(job=>job.session===session&&job.metadata.jobId===message.jobId);
+              else throw new Error('Unknown message.');
+            }
+          }catch {ws.close(1008,'Invalid execution message');}
+        });
+        ws.on('close',()=>{clearTimeout(authTimer);this.sockets.delete(ws);if(sessionId)this.execution.detach(sessionId);});
+        ws.on('error',()=>{});
+      });
+    });
+    this.heartbeat=setInterval(()=>{
+      const now=Date.now();for(const session of this.execution.sessions.values())if(now-session.seen>60000)this.execution.detach(session.sessionId);
+      for(const ws of this.sockets)if(ws.readyState===1)ws.send(JSON.stringify({type:'heartbeat'}));
+    },20000);this.heartbeat.unref?.();
   }
 
   getConnectionStatus() {
-    return { listening: this.server?.listening === true, ...this.plugin.connectionAccess?.getStatus() };
+    return { listening: this.server?.listening === true, ...this.plugin.connectionAccess?.getStatus(), recentClients:this.execution.sessions.size, clients:this.execution.clients(), execution:this.execution.snapshot() };
   }
 
   // --- Dedup + metrics helpers (backed by SQLite) ---
@@ -212,6 +322,7 @@ export class NutEggServer {
 
   /** Insert a capture entry into the SQLite DB if available. */
   private recordNut(capture: AnalyzeRequest, result: AnalysisResult): number | undefined {
+    const job=this.execution.jobs.get((capture as any).execution?.jobId);if(job){this.execution.assertActive(job);(result as any).execution=structuredClone(job.metadata);}
     return (
       this.plugin.db?.insertNut({
         url: this.normalizeUrl(capture.url),
@@ -244,6 +355,7 @@ export class NutEggServer {
   }
 
   async start(): Promise<void> {
+    await this.execution.recover();
     if (this.server) {
       console.log("[NutEgg] Server is already running");
       return;
@@ -301,6 +413,56 @@ export class NutEggServer {
         if (req.url !== '/health' && !this.plugin.connectionAccess?.authorized(clientOrigin, req.headers.authorization)) {
           res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Connect NutEgg Chrome in Obsidian first.', errorCode: 'connection_required' })); return;
         }
+        if (req.method === 'GET' && req.url === '/execution/state') {
+          res.writeHead(200, {'Content-Type':'application/json','Cache-Control':'no-store'});
+          res.end(JSON.stringify({state:this.execution.snapshot(),clients:this.execution.clients()})); return;
+        }
+        if (req.method === 'POST' && req.url === '/execution/native-api/sync') {
+          const data = JSON.parse(await this.readBody(req, 16384));
+          const session = this.execution.sessions.get(data.sessionId);
+          if (!session || session.clientId !== data.clientId || session.origin !== clientOrigin ||
+              session.credentialId !== this.plugin.connectionAccess.credentialId(clientOrigin!, req.headers.authorization!))
+            throw new ExecutionProtocolError('session_required', 'Reconnect this Chrome profile.', 401);
+          if (data.instanceId !== this.execution.state.instanceId)
+            throw new ExecutionProtocolError('instance_changed', 'Reconnect to this Obsidian instance.');
+          if (data.expectedRevision !== this.execution.state.revision || this.execution.state.mode !== 'apiKey' || this.execution.state.transition !== 'ready')
+            throw new ExecutionProtocolError('stale_revision', 'AI mode changed. Refresh before saving again.');
+          const config = data.config || {};
+          if (!Object.hasOwn(PROVIDER_CATALOG, config.aiProvider) || config.aiProvider.endsWith('-cli') ||
+              typeof config.aiModel !== 'string' || !config.aiModel.trim() || config.aiModel.length > 512 ||
+              typeof data.key !== 'string' || !data.key.trim() || data.key.length > 8192)
+            throw new ExecutionProtocolError('invalid_configuration', 'Invalid API configuration.', 400);
+          if (config.localEndpoint !== undefined && (typeof config.localEndpoint !== 'string' || config.localEndpoint.length > 2048 || !/^https?:\/\//.test(config.localEndpoint)))
+            throw new ExecutionProtocolError('invalid_configuration', 'Invalid API endpoint.', 400);
+          const safe = { aiProvider: config.aiProvider, aiModel: config.aiModel,
+            aiSource: config.aiSource === 'openrouter' ? 'openrouter' as const : 'official' as const,
+            aiModelFamily: typeof config.aiModelFamily === 'string' ? config.aiModelFamily.slice(0, 512) : undefined,
+            ...(config.localEndpoint ? {localEndpoint: config.localEndpoint} : {}),
+            localApiType: config.localApiType === 'ollama' ? 'ollama' as const : 'openai' as const,
+            ...publicExecutionSettings({chunkWindowChars: config.chunkWindowChars, contentAnalysisMaxTokens: config.contentAnalysisMaxTokens}) };
+          try {
+            const synced = await this.plugin.syncNativeApi(safe, data.key.trim());
+            res.writeHead(200, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+            res.end(JSON.stringify({synced}));
+          } catch {
+            // Never expose a SecretStorage error or a request containing a key.
+            res.writeHead(503, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+            res.end(JSON.stringify({error: 'Could not securely sync Obsidian AI. Check SecretStorage availability (Obsidian 1.11.4+).'}));
+          }
+          return;
+        }
+        if (req.method === 'POST' && req.url === '/execution/mode') {
+          const data=JSON.parse(await this.readBody(req,4096));
+          const session=this.execution.sessions.get(data.sessionId);
+          if(!session || session.clientId!==data.clientId || session.credentialId!==this.plugin.connectionAccess.credentialId(clientOrigin!,req.headers.authorization!))throw new ExecutionProtocolError('session_required','Reconnect this Chrome profile.',401);
+          if(data.instanceId!==this.execution.state.instanceId)throw new ExecutionProtocolError('instance_changed','Reconnect to this Obsidian instance.');
+          const state=await this.execution.change(data.expectedRevision,data.operationId,{mode:data.mode});
+          res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({state}));return;
+        }
+        if (req.method === 'POST' && ['/ai-config','/ai-config-status'].includes(req.url||'')) {
+          throw new ExecutionProtocolError('update_required','Update NutEgg Chrome to use the execution protocol.',426);
+        }
+        if(req.method==='POST' && ['/analyze','/ask','/confirm','/create-egg'].includes(req.url||''))await this.prepareJob(req,res,clientOrigin!);
         if (req.method === 'POST' && req.url?.startsWith('/subscription/')) {
           const data = JSON.parse(await this.readBody(req, 4096));
           if (!supportsSubscription(data.provider)) { res.writeHead(400); res.end('Invalid provider'); return; }
@@ -311,12 +473,12 @@ export class NutEggServer {
           const service = this.plugin.subscriptions;
           let result: any;
           switch (req.url) {
-            case '/subscription/status': result = await service.status(provider); break;
-            case '/subscription/models': result = { models: await service.models(provider) }; break;
-            case '/subscription/login/start': result = await service.startLogin(provider, data.device === true); break;
-            case '/subscription/login/status': result = await service.status(provider); break;
-            case '/subscription/login/cancel': await service.cancelLogin(provider); result = await service.status(provider); break;
-            case '/subscription/test': result = await service.test(provider, data.model || 'auto'); break;
+            case '/subscription/status': result = {...await service.status(this.execution.state.subscription.provider),model:this.execution.state.subscription.model}; break;
+            case '/subscription/models': throw new ExecutionProtocolError('obsidian_only','Manage models in Obsidian.',403);
+            case '/subscription/login/start': throw new ExecutionProtocolError('obsidian_only','Authorize in Obsidian.',403);
+            case '/subscription/login/status': throw new ExecutionProtocolError('obsidian_only','Authorize in Obsidian.',403);
+            case '/subscription/login/cancel': throw new ExecutionProtocolError('obsidian_only','Authorize in Obsidian.',403);
+            case '/subscription/test': throw new ExecutionProtocolError('obsidian_only','Test the connection in Obsidian.',403);
             default: res.writeHead(404); res.end('Not found'); return;
           }
           res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(result)); return;
@@ -325,7 +487,8 @@ export class NutEggServer {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
             status: "ok",
-            capabilities: ["subscription-v1", "connection-approval-v1"],
+            capabilities: ["subscription-v1", "connection-approval-v1", "execution-v2", "native-api-sync-v1"],
+            instanceId:this.execution.state.instanceId, protocolVersion:EXECUTION_PROTOCOL,
             subscriptionEnabled: this.plugin.settings.subscriptionEnabled === true,
             port: this.port,
             version: this.plugin.manifest?.version || "",
@@ -335,12 +498,12 @@ export class NutEggServer {
         }
 
         if (req.method === "POST" && req.url === "/ai-config-status") {
-          await this.handleAiConfigComparison(req, res);
+          throw new ExecutionProtocolError("update_required", "Update NutEgg Chrome.", 426);
           return;
         }
 
         if (req.method === "POST" && req.url === "/ai-config") {
-          await this.handleAiConfig(req, res);
+          throw new ExecutionProtocolError("update_required", "Update NutEgg Chrome.", 426);
           return;
         }
 
@@ -405,11 +568,12 @@ export class NutEggServer {
         console.error("[NutEgg] Unhandled server error:", err);
         if (!res.headersSent) {
           res.writeHead(err?.statusCode || err?.status || 500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err?.message || "Internal server error", errorCode: err?.code || "server_error" }));
+          res.end(JSON.stringify({ error: err?.message || "Internal server error", errorCode: err?.code || "server_error", state: this.execution.snapshot() }));
         }
       }
     });
 
+    this.attachWebSocket();
     return new Promise((resolve, reject) => {
       this.server!.listen(this.port, "127.0.0.1", () => {
         console.log(`[NutEgg] Server running on http://127.0.0.1:${this.port}`);
@@ -422,127 +586,12 @@ export class NutEggServer {
     });
   }
 
-  private async handleAiConfigComparison(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    if (!req.headers.origin?.startsWith("chrome-extension://") || !req.headers["content-type"]?.startsWith("application/json")) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "AI settings must be read from Chrome" }));
-      return;
-    }
-    let chromeConfig: any;
-    try {
-      chromeConfig = JSON.parse(await this.readBody(req, 64 * 1024));
-      if (chromeConfig && typeof chromeConfig === "object") chromeConfig.aiAuthMethod ||= "apiKey";
-      if (!chromeConfig || typeof chromeConfig !== "object" || Array.isArray(chromeConfig)) throw new Error("Invalid configuration");
-    } catch {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Invalid AI configuration" }));
-      return;
-    }
-    // Wait for any active sync before comparing; never return credentials.
-    await this.aiConfigQueue;
-    const settings = this.plugin.settings;
-    const aiConfig = {
-      aiProvider: settings.aiProvider,
-      aiAuthMethod: settings.aiAuthMethod || "apiKey",
-      aiModel: settings.aiModel,
-      chunkWindowChars: settings.chunkWindowChars,
-      contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
-    };
-    this.plugin.connectionAccess?.recordConfiguration(req.headers.origin, req.headers.authorization, chromeConfig.aiAuthMethod);
-    const isSub = settings.aiAuthMethod === "subscription" && chromeConfig.aiAuthMethod === "subscription";
-    const matches = isSub || (
-      Object.entries(aiConfig).every(([key, value]) => chromeConfig[key] === value)
-      && typeof chromeConfig.aiApiKey === "string" && chromeConfig.aiApiKey.trim() === settings.aiApiKey.trim()
-      && (settings.aiProvider !== "local" || (chromeConfig.localEndpoint === settings.localEndpoint && chromeConfig.localApiType === settings.localApiType))
-    );
-    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-    res.end(JSON.stringify({ aiConfig, matches, subscriptionEnabled: settings.subscriptionEnabled === true }));
-  }
-
-  private async handleAiConfig(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-    // Only the extension can replace the mirrored AI config.
-    if (!req.headers.origin?.startsWith("chrome-extension://") || !req.headers["content-type"]?.startsWith("application/json")) {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "AI settings must be synced from Chrome" }));
-      return;
-    }
-    let config: any;
-    try {
-      config = JSON.parse(await this.readBody(req, 64 * 1024));
-      if (config && typeof config === "object") config.aiAuthMethod ||= "apiKey";
-      if (!config || !["apiKey", "subscription"].includes(config.aiAuthMethod)
-        || !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider)
-        || typeof config.aiApiKey !== "string" || typeof config.aiModel !== "string"
-        || typeof config.localEndpoint !== "string" || config.localApiType !== "openai"
-        || !Number.isSafeInteger(config.chunkWindowChars) || config.chunkWindowChars < 1000
-        || !Number.isSafeInteger(config.contentAnalysisMaxTokens) || config.contentAnalysisMaxTokens < 500) {
-        throw new Error("Invalid AI configuration");
-      }
-    } catch {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Invalid AI configuration" }));
-      return;
-    }
-    if (config.aiAuthMethod === 'subscription' && !this.plugin.settings.subscriptionEnabled) {
-      res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return;
-    }
-    const update = this.aiConfigQueue.then(async () => {
-      const settings = this.plugin.settings;
-      // Recheck inside the queue: a disable command can run while sync is waiting.
-      if (config.aiAuthMethod === 'subscription' && !settings.subscriptionEnabled) {
-        res.writeHead(403); res.end(JSON.stringify({ error: 'AI connection unavailable.', errorCode: 'subscription_disabled' })); return false;
-      }
-      const wasSubscription = settings.aiAuthMethod === 'subscription';
-      let selection = settings.subscriptionSelection;
-      if (wasSubscription && supportsSubscription(settings.aiProvider)) {
-        selection = { provider: settings.aiProvider as SubscriptionProvider, model: settings.aiModel || 'auto' };
-      }
-      const useSubscription = config.aiAuthMethod === 'subscription';
-      const targetProvider = useSubscription
-        ? selection?.provider || (supportsSubscription(config.aiProvider) ? config.aiProvider : 'gemini')
-        : config.aiProvider;
-      const next = {
-        aiProvider: targetProvider,
-        aiAuthMethod: config.aiAuthMethod,
-        aiApiKey: useSubscription ? '' : config.aiApiKey.trim(),
-        // API model IDs must never become subscription model IDs.
-        aiModel: useSubscription ? selection?.model || 'auto' : config.aiModel.trim(),
-        localEndpoint: config.localEndpoint.trim(),
-        localApiType: config.localApiType,
-        chunkWindowChars: config.chunkWindowChars,
-        contentAnalysisMaxTokens: config.contentAnalysisMaxTokens,
-        subscriptionSelection: useSubscription ? { provider: targetProvider as SubscriptionProvider, model: selection?.model || 'auto' } : selection,
-      };
-      if (Object.entries(next).some(([key, value]) => JSON.stringify((settings as any)[key]) !== JSON.stringify(value))) {
-        const previous = Object.fromEntries(Object.keys(next).map(key => [key, (settings as any)[key]]));
-        Object.assign(settings, next);
-        try {
-          // Leave the Chrome server running, but stop the subscription runtime:
-          // queued/running inference, model discovery and pending login processes.
-          if (wasSubscription && !useSubscription) await this.plugin.subscriptions?.cancelWork();
-          if (previous.aiModel !== next.aiModel && useSubscription) this.plugin.subscriptions?.clearModelFailure(next.aiProvider as SubscriptionProvider);
-          await this.plugin.saveSettings();
-          this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
-          this.plugin.aiProcessor = new AIProcessor(this.plugin);
-          this.plugin.refreshSettingsTab?.();
-          this.plugin.updateCreditStatusBar?.();
-        }
-        catch (error) { Object.assign(settings, previous); throw error; }
-      }
-    });
-    this.aiConfigQueue = update.then(() => {}, () => {});
-    if (await update === false) return;
-    this.plugin.connectionAccess?.recordConfiguration(req.headers.origin, req.headers.authorization, config.aiAuthMethod);
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ success: true }));
-  }
-
   /**
    * GET /config-status — Returns AI configuration status for the popup to show warnings and credit info.
    */
   private async handleConfigStatus(res: http.ServerResponse): Promise<void> {
     try {
-      const settings = this.plugin.settings;
+      const settings = this.plugin.getNativeSettings();
       const issues: string[] = [];
       let status: "ok" | "warning" | "error" = "ok";
 
@@ -601,8 +650,13 @@ export class NutEggServer {
     res.end(JSON.stringify(getAIDebugInfo(scope || "")));
   }
 
-  private processorForDebugScope(scope?: string) {
-    return this.plugin.aiProcessor?.withDebugScope?.(normalizeAIDebugScope(scope)) || this.plugin.aiProcessor;
+  private routingClient(req:http.IncomingMessage) {
+    const job=this.requestJobs.get(req);if(!job)return this.plugin.aiClient;
+    return {getPrompt:()=>job.settings.promptOverrides?.eggRouting||(job as any).prompts?.eggRouting,chat:async(prompt:string,maxTokens:number,debugScope?:string)=>{this.execution.assertActive(job);const text=await job.executor.chat({prompt,maxTokens,debugScope},job.controller.signal);this.execution.assertActive(job);return text;}};
+  }
+  private processorForDebugScope(scope?: string, req?: http.IncomingMessage) {
+    const job=req&&this.requestJobs.get(req);
+    return job?this.processor(job,scope):this.plugin.aiProcessor?.withDebugScope?.(scope)||this.plugin.aiProcessor;
   }
 
   /**
@@ -625,7 +679,7 @@ export class NutEggServer {
         normalizedPriorQa = [];
       }
 
-      const processor = this.processorForDebugScope(ask.debugScope);
+      const processor = this.processorForDebugScope(ask.debugScope,req);
       const answers = await processor.askFollowUp(
         ask,
         ask.questions,
@@ -764,7 +818,7 @@ export class NutEggServer {
       const body = await this.readBody(req);
       const capture: AnalyzeRequest = JSON.parse(body);
       capture.debugScope = normalizeAIDebugScope(capture.debugScope);
-      const processor = this.processorForDebugScope(capture.debugScope);
+      const processor = this.processorForDebugScope(capture.debugScope,req);
       capture.discussion = capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : undefined;
 
       if (!capture.url || !capture.title) {
@@ -824,6 +878,7 @@ export class NutEggServer {
           result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
         }
         delete (result as any).stage;
+        const job=this.requestJobs.get(req);if(job){this.execution.assertActive(job);(result as any).execution=structuredClone(job.metadata);}
 
         let nutId = capture.nutId;
         if (nutId && this.plugin.db?.getNutById(nutId)) {
@@ -855,6 +910,7 @@ export class NutEggServer {
           "Cache-Control": "no-cache",
         });
         const sendEvent = (obj: any) => {
+          const job=this.requestJobs.get(req); if(job){this.execution.assertActive(job);if(obj.type==='complete')obj.result={...obj.result,execution:job.metadata};}
           try {
             res.write(JSON.stringify(obj) + "\n");
           } catch {}
@@ -875,7 +931,7 @@ export class NutEggServer {
               const matchedIndex = await this.plugin.indexReader.matchEggs(
                 { title: capture.title, url: capture.url, content: summaryText },
                 index,
-                capture.debugScope
+                capture.debugScope, this.routingClient(req)
               );
               matchedEggs = matchedIndex.map((e) => e.fileName);
             }
@@ -956,7 +1012,7 @@ export class NutEggServer {
         const matchedIndex = await this.plugin.indexReader.matchEggs(
           { title: capture.title, url: capture.url, content: summaryText },
           index,
-          capture.debugScope
+          capture.debugScope, this.routingClient(req)
         );
         matchedEggs = matchedIndex.map((e) => e.fileName);
       }
@@ -1072,6 +1128,7 @@ export class NutEggServer {
 
       const normalizedUrl = this.normalizeUrl(confirm.url);
       releaseConfirmation = await this.lockConfirmation(confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`);
+      const job=this.requestJobs.get(req);if(job)this.execution.assertActive(job);
       const prior = confirm.nutId ? this.plugin.db?.getNutById?.(confirm.nutId) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
       let confirmed = prior?.confirmedKnowledge;
       if (confirmed == null && prior?.processingResult === 'saved') {
@@ -1215,6 +1272,10 @@ export class NutEggServer {
             : "")
       );
 
+      if (hasKnowledge) {
+        const job=this.requestJobs.get(req);
+        if(job && !job.controller.signal.aborted) for(const egg of eggNames) this.execution.child(job,()=>this.processor(job,confirm.debugScope).maybeMergeEgg(egg));
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -1224,10 +1285,7 @@ export class NutEggServer {
           merged: mergedEggs,
         })
       );
-      if (hasKnowledge) setTimeout(() => {
-        for (const egg of eggNames) void this.processorForDebugScope(confirm.debugScope)?.maybeMergeEgg?.(egg)
-          ?.catch(err => console.warn(`[NutEgg] Background merge failed for ${egg}`, err));
-      }, 0);
+
     } catch (err) {
       console.error("[NutEgg] Confirm error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -1257,7 +1315,7 @@ export class NutEggServer {
 
       const result = await this.plugin.indexSync.createEgg(
         safeName,
-        String(description || "")
+        String(description || ""), this.processorForDebugScope(undefined,req)
       );
       console.log(
         `[NutEgg] Created egg via popup: ${result.path}` +
@@ -1281,6 +1339,7 @@ export class NutEggServer {
   }
 
   private readBody(req: http.IncomingMessage, maxBytes = 25 * 1024 * 1024): Promise<string> {
+    const cached=this.requestBodies.get(req);if(cached!==undefined)return Promise.resolve(cached);
     return new Promise((resolve, reject) => {
       let data = "";
       let bytes = 0;
@@ -1311,6 +1370,7 @@ export class NutEggServer {
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.heartbeat);await this.execution.dispose();for(const ws of this.sockets)ws.terminate();this.wss?.close();
     if (!this.server) return;
     return new Promise((resolve) => {
       this.server!.close(() => {

@@ -1,6 +1,6 @@
 import type { DiscussionCapture, AnalysisSectionsConfig } from "../../shared/src/types";
 import type NutEggPlugin from "./main";
-import { EggParser } from "./egg-parser";
+import { EggParser, resolveEggPath } from "./egg-parser";
 import { randomUUID } from "crypto";
 import type { AnalysisResult } from "./ai-processor";
 
@@ -181,13 +181,15 @@ export class KnowledgeBase {
     const eggParser = this.plugin.eggParser || new EggParser(this.plugin);
 
     for (const item of newKnowledge) {
-      await eggParser.appendUnprocessed(
+      const append = () => eggParser.appendUnprocessed(
         item.egg,
         this.withoutPlaybackCitations(item.content),
         author,
         sourceTitle,
         sourceUrl
       );
+      if (this.plugin.server) await this.plugin.server.execution.withEggLock(resolveEggPath(item.egg,this.plugin.vaultFolder)||item.egg,append);
+      else await append();
     }
   }
 

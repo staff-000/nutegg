@@ -159,3 +159,97 @@
   margin-top: 10px;
   font-size: 0.88em;
 }
+
+/* Settings stay within the active Obsidian theme, with a compact status overview. */
+.nutegg-settings [hidden] { display: none !important; }
+.nutegg-settings > h2 { margin: 0 0 20px; }
+.nutegg-settings > h3 { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid var(--background-modifier-border); font-size: var(--font-ui-medium); }
+.nutegg-settings > h3 + p { margin: 0 0 14px; line-height: 1.5; }
+.nutegg-settings .setting-item { padding: 12px 0; gap: 16px; }
+.nutegg-settings .setting-item-description { line-height: 1.5; }
+.nutegg-settings .setting-item-control { flex-wrap: wrap; }
+.nutegg-settings .nutegg-connection-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 18px; margin: 0 0 20px; border-radius: 12px; }
+.nutegg-settings .nutegg-connection-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 0; }
+.nutegg-settings .nutegg-connection-label { min-width: 0; font-size: var(--font-ui-smaller); }
+.nutegg-settings .nutegg-connection-value { font-weight: 500; overflow-wrap: anywhere; }
+.nutegg-settings .nutegg-connection-warning { grid-column: 1 / -1; margin: 0; }
+.nutegg-profile-list { display: grid; gap: 10px; }
+.nutegg-profile-card { padding: 16px 18px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }
+.nutegg-profile-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nutegg-profile-heading h4 { margin: 0; font-size: var(--font-ui-small); }
+.nutegg-profile-method { border: 1px solid var(--background-modifier-border); border-radius: 20px; padding: 2px 9px; color: var(--text-muted); font-size: var(--font-ui-smaller); white-space: nowrap; }
+.nutegg-profile-model { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: var(--font-ui-small); }
+.nutegg-profile-model code { padding: 3px 7px; border-radius: 5px; background: var(--background-primary); color: var(--text-normal); font-size: var(--font-ui-smaller); overflow-wrap: anywhere; }
+.nutegg-profile-params { margin: 10px 0 0; color: var(--text-muted); font-size: var(--font-ui-smaller); line-height: 1.5; }
+.nutegg-settings .nutegg-subscription-card { padding: 18px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }
+.nutegg-subscription-card .setting-item:last-child { border-bottom: 0; }
+.nutegg-subscription-card button { white-space: normal; }
+@container (max-width: 480px) {
+  .nutegg-settings .nutegg-connection-panel { grid-template-columns: 1fr; gap: 12px; }
+  .nutegg-settings .nutegg-connection-row { flex-direction: row; justify-content: space-between; }
+}
+.nutegg-settings { container-type: inline-size; }
+
+/* Section wrappers make the horizontal inset visible in every theme. */
+.nutegg-settings .nutegg-settings-section {
+  box-sizing: border-box;
+  margin: 18px 0;
+  padding: 20px 24px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: var(--background-primary);
+}
+.nutegg-settings .nutegg-settings-section > h3 {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+}
+.nutegg-settings .nutegg-settings-section > p { margin: 0 0 16px; }
+.nutegg-settings .nutegg-settings-section .setting-item {
+  margin: 0;
+  padding: 12px 0;
+  border-radius: 0;
+  background: transparent;
+}
+/* Compact native AI form: provider/model share a row, with a full-width key. */
+.nutegg-settings .nutegg-native-ai-section { padding-block: 16px; }
+.nutegg-settings .nutegg-native-ai-section > h3 { margin-bottom: 6px; }
+.nutegg-settings .nutegg-native-ai-section > p { margin-bottom: 12px; font-size: var(--font-ui-smaller); }
+.nutegg-native-ai-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.nutegg-settings .nutegg-native-ai-fields > .setting-item {
+  display: flex; flex-direction: column; align-items: stretch; gap: 5px;
+  padding: 0; border: 0; min-width: 0;
+}
+.nutegg-native-ai-fields .setting-item-info { flex: none; margin: 0; }
+.nutegg-native-ai-fields .setting-item-name { font-size: var(--font-ui-smaller); font-weight: 500; }
+.nutegg-native-ai-fields .setting-item-control { width: 100%; min-width: 0; justify-content: stretch; padding: 0; }
+.nutegg-native-ai-fields .setting-item-control input,
+.nutegg-native-ai-fields .setting-item-control select { width: 100%; max-width: 100%; }
+.nutegg-native-ai-wide { grid-column: 1 / -1; }
+.nutegg-native-ai-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-top: 14px; }
+.nutegg-settings .nutegg-native-ai-footer .setting-item { padding: 0; margin: 0; border: 0; }
+.nutegg-native-ai-footer .setting-item-info { display: none; }
+.nutegg-native-ai-footer .setting-item-control { padding: 0; }
+.nutegg-native-ai-account button { border-radius: 20px; font-size: var(--font-ui-smaller); }
+.nutegg-settings .nutegg-model-config-section > .setting-item {
+  padding: 12px 14px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+.nutegg-model-config-section .setting-item-name { font-size: var(--font-ui-small); font-variant-numeric: tabular-nums; }
+.nutegg-model-config-section .setting-item:last-child { border-bottom: 0; }
+@container (max-width: 480px) {
+  .nutegg-settings .nutegg-settings-section { padding: 16px; }
+  .nutegg-native-ai-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Provider names should read from the left in both native and subscription forms. */
+.nutegg-settings select { text-align: left; text-align-last: left; }
+.nutegg-settings .nutegg-model-refresh-hint { margin: 8px 0 0; font-size: var(--font-ui-smaller); line-height: 1.5; }
+.nutegg-model-refresh-hint[data-state="waiting"] { color: var(--text-warning); }
+.nutegg-model-refresh-hint[data-state="ready"] { color: var(--text-success); }
+.nutegg-settings .nutegg-connection-value[data-state="waiting"] { color: var(--text-warning); }
