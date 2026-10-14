@@ -56,10 +56,26 @@ function chineseFind(value, predicate, depth = 0) {
 }
 async function chineseFetch(url, json = true, context) {
   context?.check();
-  // Privileged worker fetch avoids API/CDN CORS restrictions. Same-origin
-  // requests stay in the tab to use the site's normal authenticated session.
+  // Try the tab's normal credentialed API request before extension-origin
+  // fetching. Keep the worker bridge as the CORS/CDN fallback.
   const target = new URL(url, window.location.href);
-  if (target.origin === new URL(window.location.href).origin) {
+  const pageOrigin = new URL(window.location.href).origin;
+  const biliApi = chineseHost('bilibili.com') && target.origin === 'https://api.bilibili.com' &&
+    ['/x/web-interface/view', '/x/player/wbi/v2', '/x/player/v2'].includes(target.pathname);
+  const biliCaption = chineseHost('bilibili.com') && target.protocol === 'https:' &&
+    (target.hostname === 'hdslb.com' || target.hostname.endsWith('.hdslb.com')) &&
+    /\/bfs\/(?:ai_subtitle|subtitle)\//.test(target.pathname);
+  if ((biliApi || biliCaption) && typeof fetch === 'function') {
+    try {
+      const response = await captureFetchText(target.href, { credentials: biliApi ? 'include' : 'omit' }, 2500, context);
+      if (response.ok) {
+        const value = json ? JSON.parse(response.text) : response.text;
+        if (!json || value.code === 0) return value;
+      }
+    } catch { /* CORS/network failures can still use the allowlisted bridge. */ }
+    context?.check();
+  }
+  if (target.origin === pageOrigin) {
     const response = await captureFetchText(target.href, { credentials: 'include' }, 4000, context);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return json ? JSON.parse(response.text) : response.text;
@@ -112,7 +128,10 @@ async function chineseSubtitles(tracks, { preferChineseAI = false, context } = {
     try {
       const text = chineseSubtitleText(await chineseFetch(url.startsWith('//') ? `https:${url}` : url, false, context));
       if (text) return { text, source: chineseIsAI(track) ? 'ai' : 'manual' };
-    } catch { /* Try the next track in language/source preference order. */ }
+    } catch (error) {
+      context?.check();
+      console.warn('[NutEgg] Subtitle download failed:', error.message);
+    }
   }
   return { text: '', source: '' };
 }
@@ -144,8 +163,10 @@ async function extractBilibili(context) {
   const requests = performance.getEntriesByType('resource').map(entry => entry.name).reverse();
   const currentPlayer = requests.map(name => { try { return new URL(name); } catch { return null; } }).find(u =>
     u?.hostname === 'api.bilibili.com' && /^\/x\/player\/(?:wbi\/)?v2$/.test(u.pathname) &&
-    (u.searchParams.get('bvid') === (info?.bvid || id) || (info?.aid && u.searchParams.get('aid') === String(info.aid))) &&
-    info?.pages?.some(p => String(p.cid) === u.searchParams.get('cid')));
+    (u.searchParams.get('bvid') === (info?.bvid || id) ||
+      `av${u.searchParams.get('aid')}` === id || (info?.aid && u.searchParams.get('aid') === String(info.aid))) &&
+    /^\d+$/.test(u.searchParams.get('cid') || '') &&
+    (!info?.pages?.length || info.pages.some(p => String(p.cid) === u.searchParams.get('cid'))));
   const cid = url.searchParams.get('cid') ||
     (!url.searchParams.has('p') && currentPlayer ? currentPlayer.searchParams.get('cid') : null) ||
     page?.cid || (part === 1 ? info?.cid : null);
@@ -159,13 +180,22 @@ async function extractBilibili(context) {
         const u = new URL(name);
         return u.hostname === 'api.bilibili.com' && /^\/x\/player\/(?:wbi\/)?v2$/.test(u.pathname) &&
           u.searchParams.get('cid') === String(cid) &&
-          (u.searchParams.get('bvid') === (info?.bvid || id) || u.searchParams.get('aid') === String(info?.aid));
+          (u.searchParams.get('bvid') === (info?.bvid || id) || `av${u.searchParams.get('aid')}` === id ||
+            (info?.aid && u.searchParams.get('aid') === String(info.aid)));
       } catch { return false; }
     });
-    for (const endpoint of [...new Set([signed, `https://api.bilibili.com/x/player/wbi/v2?${params}&cid=${cid}`].filter(Boolean))]) {
+    const endpoints = [signed, `https://api.bilibili.com/x/player/wbi/v2?${params}&cid=${cid}`,
+      `https://api.bilibili.com/x/player/v2?${params}&cid=${cid}`];
+    for (const endpoint of [...new Set(endpoints.filter(Boolean))]) {
+      context?.check();
       try {
         const result = await chineseFetch(endpoint, true, context);
-        if (result.code === 0) { player = result.data; break; }
+        if (result.code === 0 && result.data) {
+          // A successful WBI response can omit subtitle metadata entirely.
+          // Try the remaining routes before treating an empty list as final.
+          player = { ...player, ...result.data };
+          if (player.subtitle?.subtitles?.some(track => track.subtitle_url)) break;
+        }
       } catch {}
     }
   }

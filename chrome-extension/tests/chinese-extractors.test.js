@@ -75,6 +75,124 @@ test('failed manual track falls back to AI', async () => {
   assert.match(capture.content, /AI字幕/);
 });
 
+test('Bilibili retries legacy player metadata when WBI succeeds without subtitle tracks', async () => {
+  for (const wbi of [{ code: 0, data: {} }, { code: 0, data: { subtitle: { subtitles: [] } } }, { code: -352 }]) {
+    const calls = [];
+    const ctx = context('https://www.bilibili.com/video/BV1wqpi6PE19/', { api: async raw => {
+      const url = new URL(raw); calls.push(url.pathname);
+      if (url.pathname === '/x/web-interface/view') return { code: 0, data: {
+        bvid: 'BV1wqpi6PE19', aid: 117414893257199, cid: 42616031534, title: 'Video',
+      } };
+      if (url.pathname === '/x/player/wbi/v2') return wbi;
+      if (url.pathname === '/x/player/v2') return { code: 0, data: { subtitle: { subtitles: [
+        { lan: 'ai-zh', ai_type: 1, subtitle_url: '//aisubtitle.hdslb.com/bfs/ai_subtitle/test.json' },
+      ] } } };
+      return { body: [{ from: 0, content: 'Recovered Chinese captions' }] };
+    } });
+    const capture = await ctx.extractBilibili();
+    assert.equal(capture.transcriptAvailable, true);
+    assert.match(capture.content, /Recovered Chinese captions/);
+    assert.equal(capture.metadata.cid, 42616031534);
+    assert(calls.includes('/x/player/v2'));
+  }
+});
+
+test('Bilibili retains the current player cid when metadata and serialized state are missing', async () => {
+  const calls = [], api = biliApi(calls);
+  const signed = 'https://api.bilibili.com/x/player/wbi/v2?bvid=BV1eVgA64EbW&cid=222&w_rid=signature';
+  const ctx = context(later, { resources: [{ name: signed }], api: raw => {
+    if (new URL(raw).pathname === '/x/web-interface/view') throw new Error('Metadata unavailable');
+    return api(raw);
+  } });
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.metadata.cid, '222');
+  assert.equal(capture.transcriptAvailable, true);
+  assert.equal(calls[0], signed);
+});
+
+test('Bilibili ignores signed requests for other videos and parts when recovering captions', async () => {
+  const calls = [], api = biliApi(calls);
+  const ctx = context(`${later}&p=2`, { resources: [
+    { name: 'https://api.bilibili.com/x/player/wbi/v2?bvid=BVother&cid=222&w_rid=wrong-video' },
+    { name: 'https://api.bilibili.com/x/player/wbi/v2?bvid=BV1eVgA64EbW&cid=111&w_rid=wrong-part' },
+  ], api });
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.metadata.cid, 222);
+  assert.equal(capture.transcriptAvailable, true);
+  assert(!calls.some(url => /wrong-video|wrong-part/.test(url)));
+});
+
+test('Bilibili API fetch uses the page session before the worker bridge', async () => {
+  let options, workerCalls = 0;
+  const ctx = context(regular, { api: () => { workerCalls++; return {}; }, globals: { fetch() {} } });
+  ctx.captureFetchText = async (_url, value) => {
+    options = value; return { ok: true, text: JSON.stringify({ code: 0, data: { subtitle: { subtitles: ['page-session'] } } }) };
+  };
+  const result = await ctx.chineseFetch('https://api.bilibili.com/x/player/v2?cid=111');
+  assert.equal(options.credentials, 'include');
+  assert.equal(result.data.subtitle.subtitles[0], 'page-session');
+  assert.equal(workerCalls, 0);
+});
+
+test('Bilibili API fetch falls back to the worker after CORS or API rejection', async () => {
+  for (const mode of ['cors', 'http', 'api', 'json']) {
+    let calls = 0;
+    const ctx = context(regular, { api: () => { calls++; return { code: 0, data: 'worker' }; }, globals: { fetch() {} } });
+    ctx.captureFetchText = async () => {
+      if (mode === 'cors') throw new Error('Failed to fetch');
+      return { ok: mode !== 'http', text: mode === 'json' ? '<html>Error</html>' : JSON.stringify({ code: -352 }) };
+    };
+    assert.equal((await ctx.chineseFetch('https://api.bilibili.com/x/player/v2?cid=111')).data, 'worker');
+    assert.equal(calls, 1);
+  }
+});
+
+test('cancellation during page-session fetch prevents a late worker fallback', async () => {
+  let cancelled = false, calls = 0;
+  const ctx = context(regular, { api: () => { calls++; return {}; }, globals: { fetch() {} } });
+  ctx.captureFetchText = async () => { cancelled = true; throw new Error('Aborted'); };
+  const capture = { check() { if (cancelled) throw new Error('cancelled'); } };
+  await assert.rejects(ctx.chineseFetch('https://api.bilibili.com/x/player/v2?cid=111', true, capture), /cancelled/);
+  assert.equal(calls, 0);
+});
+
+test('Bilibili downloads extensionless signed captions through the page before a failing worker', async () => {
+  const requests = [], calls = [];
+  const captionUrl = '//aisubtitle.hdslb.com/bfs/ai_subtitle/prod/current-caption?auth_key=test-signature';
+  const api = biliApi(calls);
+  const ctx = context(regular, { globals: { fetch() {} }, api: raw => {
+    if (new URL(raw).hostname.endsWith('hdslb.com')) throw new Error('Background CDN fetch failed');
+    return api(raw);
+  } });
+  ctx.captureFetchText = async (raw, options) => {
+    const url = new URL(raw); requests.push({ url, options });
+    if (url.pathname === '/x/web-interface/view') return { ok: true, text: JSON.stringify(await api(raw)) };
+    if (url.hostname === 'api.bilibili.com') return { ok: true, text: JSON.stringify({ code: 0, data: { subtitle: { subtitles: [
+      { subtitle_url: captionUrl, lan: 'ai-zh', ai_type: 0 },
+    ] } } }) };
+    return { ok: true, text: JSON.stringify({ body: [{ from: 11, content: '实际的中文字幕内容' }] }) };
+  };
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.transcriptAvailable, true);
+  assert.match(capture.content, /\[00:11\] 实际的中文字幕内容/);
+  assert.equal(capture.metadata.transcript_source, 'ai');
+  const request = requests.find(({ url }) => url.hostname.endsWith('hdslb.com'));
+  assert.equal(request.url.searchParams.get('auth_key'), 'test-signature');
+  assert.equal(request.options.credentials, 'omit');
+  assert.equal(calls.length, 1, 'Only the mocked metadata lookup is used; no worker fetch is needed');
+});
+
+test('Bilibili caption download retains the worker fallback when page CORS blocks it', async () => {
+  let calls = 0;
+  const ctx = context(regular, { globals: { fetch() {} }, api: () => {
+    calls++; return { body: [{ from: 0, content: 'Worker caption' }] };
+  } });
+  ctx.captureFetchText = async () => { throw new Error('CORS blocked'); };
+  const transcript = await ctx.chineseSubtitles([{ subtitle_url: '//subtitle.hdslb.com/bfs/subtitle/manual.json' }]);
+  assert.match(transcript.text, /Worker caption/);
+  assert.equal(calls, 1);
+});
+
 function biliCaptionFixture(tracks, { failed = [], empty = [] } = {}) {
   const fetched = [];
   const ctx = context(regular, { api: async raw => {
