@@ -16,8 +16,11 @@ function extractGeneric() {
 
   // Try common content containers
   const contentSelectors = [
-    "main", "article", '[role="main"]', "#content", "#main-content",
-    ".post-content", ".article-content", ".entry-content", ".content",
+    "main", "article", '[role="main"]',
+    '[itemprop="articleBody"]', ".RichTextStoryBody", ".ArticleBody-articleBody",
+    ".article-body", ".article__body", ".article-content",
+    "#content", "#main-content",
+    ".post-content", ".entry-content", ".content",
     "#article", ".main",
   ];
 
@@ -63,10 +66,14 @@ function extractGeneric() {
 
   metadata.time_estimate_minutes = estimateTime(mainContent, "webpage");
 
+  const wordCount = mainContent.split(/\s+/).filter(Boolean).length;
+  const extractionStatus = wordCount >= 200 ? "ready" : undefined;
+
   return {
     url, title,
     content: `# ${title}\n\n${truncate(mainContent, 60000)}`,
     sourceType: "webpage",
+    ...(extractionStatus && { extractionStatus }),
     metadata,
   };
 }

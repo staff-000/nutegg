@@ -34,7 +34,19 @@ var EXTRACTORS = window.EXTRACTORS || [
   // Generic must be last — it always matches
   { name: "generic", detect: () => true, extract: extractGeneric },
 ];
-window.EXTRACTORS = EXTRACTORS;
+if (typeof window !== "undefined") {
+  if (Array.isArray(window.EXTRACTORS)) {
+    for (const ex of window.EXTRACTORS) {
+      if (ex.name === "article" && typeof detectArticle === "function") {
+        ex.detect = detectArticle;
+        ex.extract = extractArticle;
+      } else if (ex.name === "generic" && typeof extractGeneric === "function") {
+        ex.extract = extractGeneric;
+      }
+    }
+  }
+  window.EXTRACTORS = EXTRACTORS;
+}
 
 // ============================================================
 // Main entry point
@@ -51,6 +63,7 @@ async function extractContent(discussionSessionId, context) {
         console.log(`[NutEgg] Using extractor: ${ex.name}`);
         const capture = await ex.extract(context);
         context?.check();
+        if (!capture) continue;
         if (capture.transcriptAvailable === false) capture.extractionStatus ||= 'transient';
         else if (capture.transcriptAvailable === true) capture.extractionStatus = 'ready';
         else if (!capture.content?.trim() || (capture.extractionStatus !== 'ready' &&
