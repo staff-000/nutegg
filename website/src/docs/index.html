@@ -62,66 +62,62 @@
     </aside>
 
     <main class="docs-content">
-      <h1>Overview & Core Concepts</h1>
+      <h1>Overview &amp; Core Concepts</h1>
       <p class="lead">
-        NutEgg is a local-first system designed to bridge the gap between passive web browsing and active knowledge curation in Obsidian.
+        NutEgg is a free, open-source Chrome extension that helps you decide what's worth reading—and understand it faster. It lives in Chrome's side panel and works on articles, threads, and YouTube videos. An optional Obsidian plugin turns what you read into a growing knowledge vault.
       </p>
 
-      <h2>The Metaphor</h2>
+      <h2>What You Get in Chrome</h2>
       <p>
-        NutEgg structures your information flow using a simple three-part metaphor:
+        Install the extension, enter your AI API key (or point it at a local model) in Options, and NutEgg works right away—no account, no extra apps:
       </p>
-
       <ul>
-        <li><strong>🌰 The Nut (Raw Capture)</strong>: The raw web page, tweet thread, or YouTube transcript extracted from the browser. Nuts are archived untouched with full metadata into <code>nutegg/_raw/</code> in your vault.</li>
-        <li><strong>🥚 The Egg (Knowledge Tree)</strong>: A living, structured markdown note in your vault representing a domain of knowledge (e.g., <code>ai_architecture.md</code>, <code>invest_strategy.md</code>).</li>
-        <li><strong>🐣 The Hatch (Synthesis & Delta)</strong>: When content is analyzed, the AI matches it against your eggs, identifies what is novel compared to what is already documented, and weaves new insights into your egg.</li>
+        <li>🎯 Instant Anti-Clickbait Title Verdict</li>
+        <li>📝 Executive 3-sentence summary &amp; core takeaways</li>
+        <li>🧠 Collapsible hierarchical Mind Maps, with clickable timestamps for YouTube</li>
+        <li>💬 Natural-language Q&amp;A with cited timestamp pills and in-page source links</li>
+        <li>🔍 Dual-scope questions: strictly within the page, or beyond it for fact-checking</li>
+        <li>🗣️ Comment-section digests for YouTube, Reddit, and forums</li>
+        <li>🌐 Multi-source extraction and translation in 50+ languages</li>
       </ul>
 
       <div class="callout">
         <div class="callout-title">💡 Why NutEgg Exists</div>
         <p>
-          Most web clippers dump raw articles into your vault, creating an unorganized graveyard of unread bookmarks. NutEgg checks novelty against your existing knowledge tree upfront, so you immediately know if an article is worth your time or if it's just repeating concepts you already know.
+          Too much of the web is padded videos, clickbait headlines, and AI-inflated articles. NutEgg answers the headline upfront and tells you honestly whether the content is worth your time—so you only spend attention where it pays off.
         </p>
       </div>
 
-      <h2>Flexible Operating Modes</h2>
+      <h2>Optional: Add Obsidian</h2>
       <p>
-        NutEgg can be used in two flexible modes depending on your setup:
+        If you keep notes in Obsidian, install the companion plugin to connect the extension to your vault (<code>127.0.0.1:27123</code>). This adds 2-stage novelty evaluation against your vault's <code>_index.md</code> knowledge trees, delta synthesis, and automatic note archiving into <code>nutegg/_raw/</code> and egg files. Everything in Chrome keeps working with or without it.
       </p>
+
+      <h3>The Metaphor</h3>
+      <p>
+        With Obsidian connected, NutEgg structures your information flow using a simple three-part metaphor:
+      </p>
+
       <ul>
-        <li>
-          <strong>📱 Standalone Mode (Chrome-Only)</strong>: 
-          No Obsidian installation required. By entering your AI API key in Chrome Extension Options, NutEgg functions as a fast, standalone reading and navigation assistant directly inside your browser side panel:
-          <ul>
-            <li>🎯 Instant Anti-Clickbait Title Verdict</li>
-            <li>📝 Executive 3-sentence summary &amp; core takeaways</li>
-            <li>⏱️ YouTube Mind Maps with Clickable Timestamps with jump-to-time buttons</li>
-            <li>💬 Natural-language Video Q&amp;A with cited timestamp pills</li>
-            <li>🧠 Collapsible hierarchical Mind Maps</li>
-            <li>🌐 Multi-source extraction and translation in 50+ languages</li>
-          </ul>
-        </li>
-        <li>
-          <strong>💎 Connected Mode (Chrome + Obsidian)</strong>: 
-          Pairs your browser with the local Obsidian companion plugin (<code>127.0.0.1:27123</code>). Unlocks full 2-stage novelty evaluation against your vault's <code>_index.md</code> knowledge trees, delta synthesis, and automatic note archiving into <code>nutegg/_raw/</code> and egg files.
-        </li>
+        <li><strong>🌰 The Nut (Raw Capture)</strong>: The raw web page, tweet thread, or YouTube transcript extracted from the browser. Nuts are archived untouched with full metadata into <code>nutegg/_raw/</code> in your vault.</li>
+        <li><strong>🥚 The Egg (Knowledge Tree)</strong>: A living, structured markdown note in your vault representing a domain of knowledge (e.g., <code>ai_architecture.md</code>, <code>invest_strategy.md</code>).</li>
+        <li><strong>🐣 The Hatch (Synthesis &amp; Delta)</strong>: When content is analyzed, the AI matches it against your eggs, identifies what is novel compared to what is already documented, and weaves new insights into your egg.</li>
       </ul>
 
       <h2>System Architecture</h2>
       <p>
-        NutEgg consists of two decoupled components that communicate locally:
+        NutEgg has one core component and one optional companion:
       </p>
       <ol>
-        <li><strong>Chrome Extension</strong>: Lives in Chrome's side panel. Interacts with the active tab, extracts text and video transcripts, runs standalone AI or forwards to Obsidian, and displays interactive summaries, mind maps, and Q&amp;A.</li>
-        <li><strong>Obsidian Plugin</strong>: Runs a lightweight HTTP server on <code>127.0.0.1:27123</code>. Connects to your chosen AI provider using your own API key, reads your vault's <code>_index.md</code>, and saves files directly to disk.</li>
+        <li><strong>Chrome Extension</strong>: Lives in Chrome's side panel. Interacts with the active tab, extracts text and video transcripts, calls your chosen AI provider directly, and displays interactive summaries, mind maps, and Q&amp;A.</li>
+        <li><strong>Obsidian Plugin (optional)</strong>: Runs a lightweight HTTP server on <code>127.0.0.1:27123</code>. Connects to your chosen AI provider using your own API key, reads your vault's <code>_index.md</code>, and saves files directly to disk.</li>
       </ol>
 
       <pre><code>Chrome Extension (Side Panel)
          │
-         ├── [Standalone Mode] Local Chrome AI Processing (Fast Summaries, Q&A, Mind Maps)
+         ├── Built-in AI Processing (Verdicts, Summaries, Q&amp;A, Mind Maps)
          │
-         └── [Connected Mode] HTTP /analyze + /confirm (127.0.0.1:27123)
+         └── [Optional] Obsidian connection via HTTP /analyze + /confirm (127.0.0.1:27123)
                  ▼
          Obsidian Plugin (Local Server)
                  ├── Evaluates against vault/nutegg/_index.md
@@ -131,9 +127,9 @@
       <h2>Quick Start Roadmap</h2>
       <ol>
         <li>Watch the <a href="https://www.youtube.com/watch?v=_u6mDoHZSAo" target="_blank" rel="noopener">🎬 NutEgg Promo Video</a> for a 1-minute visual walkthrough.</li>
-        <li>Install the <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin</a> via Community Plugins and configure your AI API key (see <a href="obsidian-plugin.html">guide</a>).</li>
-        <li>Install the <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Extension</a> from Chrome Web Store (see <a href="chrome-extension.html">guide</a>).</li>
-        <li>Define your first knowledge topics in <a href="knowledge-structuring.html">_index.md</a> and start hatching!</li>
+        <li>Install the <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Extension</a> from Chrome Web Store and add your AI key in Options (see <a href="chrome-extension.html">guide</a>).</li>
+        <li>Open the side panel on any article or YouTube video and click <strong>Analyze</strong>. That's it!</li>
+        <li><em>Optional:</em> Install the <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin</a> (see <a href="obsidian-plugin.html">guide</a>) and define your first knowledge topics in <a href="knowledge-structuring.html">_index.md</a> to start hatching.</li>
       </ol>
     </main>
   </div>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NutEgg — Read Less, Hatch More, Save Time</title>
-  <meta name="description" content="NutEgg captures web content and curates structured knowledge in Obsidian. Stop mindless browsing and build your personal knowledge trees.">
+  <title>NutEgg — AI Reading Companion for Chrome | Read Less, Save Time</title>
+  <meta name="description" content="NutEgg is a free, open-source Chrome extension that gives you instant verdicts, summaries, mind maps, and timestamped video Q&A for any article, thread, or YouTube video. Optional Obsidian add-on grows your knowledge vault.">
   <link rel="icon" type="image/png" href="icons/icon32.png">
   <link rel="stylesheet" href="styles.css">
   <meta name="google-site-verification" content="IocupYZYL9hMtDECWcpVqUmgHmDG-qMieZB6DYs7rwU" />
@@ -21,6 +21,7 @@
       <nav class="nav-links">
         <a href="#showcase" data-i18n="navTour">Product Tour</a>
         <a href="#features" data-i18n="navFeatures">Features</a>
+        <a href="#obsidian" data-i18n="navObsidian">Obsidian Add-on</a>
         <a href="#expectations" data-i18n="navExpectations">Expectations</a>
         <a href="docs/index.html" data-i18n="navDocs">Documentation</a>
         <select id="lang-select" class="nav-lang-select" aria-label="Language">
@@ -45,21 +46,19 @@
     <section class="hero">
       <div class="container">
         <div class="badge">
-          <span data-i18n="heroBadgeNut">🌰 Nuts: Raw Web Content</span>
-          <span>→</span>
-          <span data-i18n="heroBadgeEgg">🥚 Eggs: Curated Knowledge</span>
+          <span data-i18n="heroBadge">🧩 Free &amp; Open-Source Chrome Extension</span>
         </div>
         <h1 data-i18n-html="heroTitle">Read Less. Hatch More.<br><span class="gradient-text">Save Time.</span></h1>
         <p class="hero-subtitle" data-i18n="heroSubtitle">
-          NutEgg is the open-source, privacy-first bridge between web browsing and your Obsidian vault. Use standalone in Chrome for instant video Q&A, mind maps, and verdicts—or pair with Obsidian for automatic, novelty-driven knowledge curation.
+          NutEgg is an AI reading companion that lives in Chrome's side panel. Get instant verdicts, summaries, mind maps, and timestamped video Q&A for any article, thread, or YouTube video—using your own AI model, with no account required.
         </p>
 
         <div class="cta-group">
           <div class="download-action-card">
-            <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary" id="hero-chrome-btn">
+            <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary btn-hero" id="hero-chrome-btn">
               <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
               <span class="btn-text-content">
-                <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
+                <span data-i18n="addToChromeBtn">Add to Chrome — It's Free</span>
                 <span class="version-badge" id="chrome-version-hero">v{{CHROME_STORE_VERSION}}</span>
               </span>
             </a>
@@ -70,28 +69,18 @@
             </div>
           </div>
 
-          <div class="download-action-card">
-            <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary" id="hero-obsidian-btn">
-              <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
-              <span class="btn-text-content">
-                <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
-                <span class="version-badge version-badge-secondary" id="obsidian-version-hero">v{{OBSIDIAN_COMMUNITY_VERSION}}</span>
-              </span>
-            </a>
-            <div class="download-release-sub">
-              <a href="{{OBSIDIAN_RELEASE_URL}}" target="_blank" rel="noopener" id="obsidian-release-hero" title="Get release assets from GitHub">
-                <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span> <span class="release-ver-tag" id="obsidian-release-ver-hero">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
-              </a>
-            </div>
-          </div>
-
           <a href="#showcase" class="btn-secondary">
             <span data-i18n="navTour">✨ Product Tour</span>
           </a>
-          <a href="docs/index.html" class="btn-secondary">
+          <a href="docs/chrome-extension.html" class="btn-secondary">
             <span data-i18n="readDocsBtn">📖 Read Docs</span>
           </a>
         </div>
+
+        <p class="hero-addon-note">
+          <img src="images/obsidian-icon.png" alt="" class="hero-addon-icon">
+          <a href="#obsidian" data-i18n="heroAddonNote">Use Obsidian? Add the optional plugin to grow a personal knowledge vault →</a>
+        </p>
 
         <!-- Hero Visual Banner: Promo Video -->
         <div class="hero-banner-frame" id="hero-video">
@@ -127,30 +116,36 @@
         </div>
 
         <div class="showcase-tabs">
-          <button type="button" class="showcase-tab active" data-index="0">
-            <span class="tab-emoji">🎯</span>
-            <span class="tab-label" data-i18n="tab0">Anti-Clickbait</span>
-          </button>
-          <button type="button" class="showcase-tab" data-index="1">
-            <span class="tab-emoji">⏱️</span>
-            <span class="tab-label" data-i18n="tab1">Q&A & Timestamps</span>
-          </button>
-          <button type="button" class="showcase-tab" data-index="2">
-            <span class="tab-emoji">🧠</span>
-            <span class="tab-label" data-i18n="tab2">Mind Map</span>
-          </button>
-          <button type="button" class="showcase-tab" data-index="3">
-            <span class="tab-emoji">⚡</span>
-            <span class="tab-label" data-i18n="tab3">Skip Redundant</span>
-          </button>
-          <button type="button" class="showcase-tab" data-index="4">
-            <span class="tab-emoji">🌳</span>
-            <span class="tab-label" data-i18n="tab4">Grow Knowledge</span>
-          </button>
-          <button type="button" class="showcase-tab" data-index="5">
-            <span class="tab-emoji">🌐</span>
-            <span class="tab-label" data-i18n="tab5">Multi-Source</span>
-          </button>
+          <div class="showcase-tabs-row">
+            <button type="button" class="showcase-tab active" data-index="0">
+              <span class="tab-emoji">🎯</span>
+              <span class="tab-label" data-i18n="tab0">Anti-Clickbait</span>
+            </button>
+            <button type="button" class="showcase-tab" data-index="1">
+              <span class="tab-emoji">⏱️</span>
+              <span class="tab-label" data-i18n="tab1">Q&A & Timestamps</span>
+            </button>
+            <button type="button" class="showcase-tab" data-index="2">
+              <span class="tab-emoji">🧠</span>
+              <span class="tab-label" data-i18n="tab2">Mind Map</span>
+            </button>
+            <button type="button" class="showcase-tab" data-index="3">
+              <span class="tab-emoji">🌐</span>
+              <span class="tab-label" data-i18n="tab5">Multi-Source</span>
+            </button>
+          </div>
+          <div class="showcase-tabs-row">
+            <button type="button" class="showcase-tab" data-index="4">
+              <span class="tab-emoji">⚡</span>
+              <span class="tab-label" data-i18n="tab3">Skip Redundant</span>
+              <span class="tab-addon-pill">Obsidian</span>
+            </button>
+            <button type="button" class="showcase-tab" data-index="5">
+              <span class="tab-emoji">🌳</span>
+              <span class="tab-label" data-i18n="tab4">Grow Knowledge</span>
+              <span class="tab-addon-pill">Obsidian</span>
+            </button>
+          </div>
         </div>
 
         <div class="showcase-carousel" id="showcase-carousel">
@@ -202,35 +197,7 @@
                 </div>
               </div>
 
-              <!-- Slide 4: Skip Redundant -->
-              <div class="showcase-slide">
-                <div class="showcase-card">
-                  <div class="showcase-image-wrapper">
-                    <img src="images/banner-skip.jpg" alt="Skip What You Already Know" class="showcase-img" loading="lazy">
-                  </div>
-                  <div class="showcase-caption">
-                    <span class="showcase-tag" data-i18n="slide3Tag">⚡ Novelty-First Evaluation</span>
-                    <h3 data-i18n="slide3Title">Skip What You Already Know</h3>
-                    <p data-i18n="slide3Desc">NutEgg checks incoming content against your Obsidian vault knowledge base and alerts you when ideas are already covered—saving you 15 to 30 minutes per video.</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Slide 5: Grow Knowledge -->
-              <div class="showcase-slide">
-                <div class="showcase-card">
-                  <div class="showcase-image-wrapper">
-                    <img src="images/banner-grow.jpg" alt="Grow Your Knowledge Base" class="showcase-img" loading="lazy">
-                  </div>
-                  <div class="showcase-caption">
-                    <span class="showcase-tag" data-i18n="slide4Tag">🌳 Evergreen Knowledge Trees</span>
-                    <h3 data-i18n="slide4Title">Automatically Grow Your Obsidian Vault</h3>
-                    <p data-i18n="slide4Desc">Isolates the novel deltas from your browsing and weaves them directly under the right branches of your existing Obsidian egg files without manual note formatting.</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Slide 6: Multi-Source -->
+              <!-- Slide 4: Multi-Source -->
               <div class="showcase-slide">
                 <div class="showcase-card">
                   <div class="showcase-image-wrapper">
@@ -240,6 +207,34 @@
                     <span class="showcase-tag" data-i18n="slide5Tag">🌐 Universal Compatibility</span>
                     <h3 data-i18n="slide5Title">Any Platform, In Your Native Language</h3>
                     <p data-i18n="slide5Desc">Extract with full fidelity from YouTube transcripts, Substack newsletters, Medium blogs, and X (Twitter) threads. Summarize and translate into 50+ languages on the fly.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 5: Skip Redundant (Obsidian add-on) -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-skip.jpg" alt="Skip What You Already Know" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag" data-i18n="slide3Tag">🧩 Obsidian Add-on · Novelty Check</span>
+                    <h3 data-i18n="slide3Title">Skip What You Already Know</h3>
+                    <p data-i18n="slide3Desc">NutEgg checks incoming content against your Obsidian vault knowledge base and alerts you when ideas are already covered—saving you 15 to 30 minutes per video.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slide 6: Grow Knowledge (Obsidian add-on) -->
+              <div class="showcase-slide">
+                <div class="showcase-card">
+                  <div class="showcase-image-wrapper">
+                    <img src="images/banner-grow.jpg" alt="Grow Your Knowledge Base" class="showcase-img" loading="lazy">
+                  </div>
+                  <div class="showcase-caption">
+                    <span class="showcase-tag" data-i18n="slide4Tag">🧩 Obsidian Add-on · Knowledge Trees</span>
+                    <h3 data-i18n="slide4Title">Automatically Grow Your Obsidian Vault</h3>
+                    <p data-i18n="slide4Desc">Isolates the novel deltas from your browsing and weaves them directly under the right branches of your existing Obsidian egg files without manual note formatting.</p>
                   </div>
                 </div>
               </div>
@@ -262,13 +257,111 @@
       </div>
     </section>
 
-    <!-- Metaphor Section -->
-    <section id="metaphor" class="section">
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="section">
       <div class="container">
         <div class="section-header">
-          <h2 data-i18n="metaphorTitle">The Metaphor: Nuts & Eggs</h2>
-          <p data-i18n="metaphorSubtitle">A sensible, intuitive mental model for personal knowledge management.</p>
+          <h2 data-i18n="howTitle">How It Works</h2>
+          <p data-i18n="howSubtitle">From any webpage to clear answers in seconds—right inside Chrome.</p>
         </div>
+        <div class="pipeline">
+          <div class="pipeline-step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h4 data-i18n="step1Title">Add NutEgg to Chrome</h4>
+              <p data-i18n="step1Desc">Install it from the Chrome Web Store, then pick your AI in Options—Gemini, Claude, OpenAI, DeepSeek, or a local model. No sign-up needed.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h4 data-i18n="step2Title">Open the Side Panel on Any Page</h4>
+              <p data-i18n="step2Desc">Click the extension icon. NutEgg automatically grabs the article text, X thread, or YouTube transcript from the active tab.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h4 data-i18n="step3Title">Get the Verdict in Seconds</h4>
+              <p data-i18n="step3Desc">See a direct 1-sentence answer to the title's hook, a short executive summary, a collapsible mind map, and an honest "Is it worth your time?" verdict.</p>
+            </div>
+          </div>
+          <div class="pipeline-step">
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <h4 data-i18n="step4Title">Ask, Explore, Jump</h4>
+              <p data-i18n="step4Desc">Ask follow-up questions grounded in the page—or beyond it for fact-checking—and click any citation to jump to the exact video moment or paragraph.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2 data-i18n="featTitle">Built for Information Clarity</h2>
+          <p data-i18n="featSubtitle">Everything you need to beat digital overload and stop bookmark hoarding.</p>
+        </div>
+        <div class="features-grid features-grid-4">
+          <div class="feature-box">
+            <div class="feature-emoji">🎯</div>
+            <h3 data-i18n="feat0Title">Anti-Clickbait Verdicts</h3>
+            <p data-i18n="feat0Desc">Cuts through clickbait titles immediately by answering the headline's core question upfront so you don't waste 15 minutes finding it.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🎬</div>
+            <h3 data-i18n="feat1Title">Mind Maps with Clickable Timestamps</h3>
+            <p data-i18n="feat1Desc">Extracts full YouTube transcripts and creates mind maps with clickable timestamps that jump to the exact moment in video playback.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">💬</div>
+            <h3 data-i18n="feat6Title">Video Q&amp;A &amp; Timestamp Jumping</h3>
+            <p data-i18n="feat6Desc">Ask free-form questions about video content and receive cited answers with interactive timestamp pills that jump directly to the exact moment in video playback.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🔍</div>
+            <h3 data-i18n="featScopeTitle">Within or Beyond the Page</h3>
+            <p data-i18n="featScopeDesc">Keep answers strictly grounded in the content, or let the AI reach beyond it to fact-check claims and add missing context.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🗣️</div>
+            <h3 data-i18n="featDiscussTitle">Comment Section Digest</h3>
+            <p data-i18n="featDiscussDesc">Summarizes YouTube, Reddit, and forum comments into key topics with agree/disagree stance badges, so you get the crowd's take at a glance.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">📍</div>
+            <h3 data-i18n="featSourceTitle">Click-to-Source Navigation</h3>
+            <p data-i18n="featSourceDesc">Mind-map nodes and answers link back to their source—click to scroll the live page to the exact paragraph or comment.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🤖</div>
+            <h3 data-i18n="feat4Title">Bring Your Own Model</h3>
+            <p data-i18n="feat4Desc">Run completely offline with Local LLMs (Ollama, LM Studio, llama.cpp), or connect to Gemini, Claude, OpenAI, DeepSeek, Kimi, Qwen, or OpenRouter.</p>
+          </div>
+          <div class="feature-box">
+            <div class="feature-emoji">🔒</div>
+            <h3 data-i18n="feat3Title">Private by Design</h3>
+            <p data-i18n="feat3Desc">No NutEgg account and no NutEgg servers. Your API key stays in your browser, and page content goes only to the AI provider you choose.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Obsidian Add-on Section -->
+    <section id="obsidian" class="section addon-section">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge addon-badge" style="margin-bottom: 12px;">
+            <img src="images/obsidian-icon.png" alt="" class="addon-badge-icon">
+            <span data-i18n="addonBadge">Optional Add-on</span>
+          </div>
+          <h2 data-i18n="addonTitle">Use Obsidian? Let NutEgg Grow Your Vault</h2>
+          <p data-i18n="addonSubtitle">Everything above works on its own in Chrome. Pair NutEgg with its free Obsidian plugin to turn what you read into an evolving, structured knowledge base.</p>
+        </div>
+
+        <h3 class="addon-subheading" data-i18n="metaphorTitle">The Metaphor: Nuts &amp; Eggs</h3>
         <div class="metaphor-grid">
           <div class="metaphor-card">
             <span class="metaphor-icon">🌰</span>
@@ -292,97 +385,43 @@
             </p>
           </div>
         </div>
-      </div>
-    </section>
 
-    <!-- How It Works Section -->
-    <section id="how-it-works" class="section">
-      <div class="container">
-        <div class="section-header">
-          <h2 data-i18n="howTitle">How It Works</h2>
-          <p data-i18n="howSubtitle">From browsing the open web to curated Obsidian knowledge in seconds.</p>
-        </div>
-        <div class="pipeline">
-          <div class="pipeline-step">
-            <div class="step-num">1</div>
-            <div class="step-content">
-              <h4 data-i18n="step1Title">Open NutEgg on Any Webpage</h4>
-              <p data-i18n="step1Desc">Click the extension icon to summon the side panel. NutEgg automatically grabs the article text, X thread, or YouTube transcript for the active tab.</p>
-            </div>
-          </div>
-          <div class="pipeline-step">
-            <div class="step-num">2</div>
-            <div class="step-content">
-              <h4 data-i18n="step2Title">Instant Anti-Clickbait & Summary</h4>
-              <p data-i18n="step2Desc">Get a direct 1-sentence answer to the title's hook, a 3-sentence executive summary, and an explicit "Should You Read It?" verdict.</p>
-            </div>
-          </div>
-          <div class="pipeline-step">
-            <div class="step-num">3</div>
-            <div class="step-content">
-              <h4 data-i18n="step3Title">AI Evaluates Against Your Existing Vault</h4>
-              <p data-i18n="step3Desc">Your local Obsidian plugin matches the content against your <code>_index.md</code> eggs. It highlights truly new ideas while filtering out what you already know.</p>
-            </div>
-          </div>
-          <div class="pipeline-step">
-            <div class="step-num">4</div>
-            <div class="step-content">
-              <h4 data-i18n="step4Title">Hatch or Collect</h4>
-              <p data-i18n-html="step4Desc">Click <strong>🥚 Hatch Egg</strong> to weave insights directly into your matching knowledge tree, or <strong>🌰 Collect Nut</strong> to archive the raw content for future reference.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Section -->
-    <section id="features" class="section">
-      <div class="container">
-        <div class="section-header">
-          <h2 data-i18n="featTitle">Built for Information Clarity</h2>
-          <p data-i18n="featSubtitle">Everything you need to beat digital overload and stop bookmark hoarding.</p>
-        </div>
-        <div class="features-grid">
+        <div class="features-grid addon-features">
           <div class="feature-box">
-            <div class="feature-emoji">🎯</div>
-            <h3 data-i18n="feat0Title">Anti-Clickbait Verdicts</h3>
-            <p data-i18n="feat0Desc">Cuts through clickbait titles immediately by answering the headline's core question upfront so you don't waste 15 minutes finding it.</p>
-          </div>
-          <div class="feature-box">
-            <div class="feature-emoji">🎬</div>
-            <h3 data-i18n="feat1Title">Mind Maps with Clickable Timestamps</h3>
-            <p data-i18n="feat1Desc">Extracts full YouTube transcripts and creates mind maps with clickable timestamps that jump to the exact moment in video playback.</p>
-          </div>
-          <div class="feature-box">
-            <div class="feature-emoji">🔍</div>
+            <div class="feature-emoji">⚡</div>
             <h3 data-i18n="feat2Title">Novelty-First AI Analysis</h3>
             <p data-i18n="feat2Desc">Prevents redundant notes. Compares content against your existing knowledge and highlights only what's new and genuinely insightful.</p>
           </div>
           <div class="feature-box">
-            <div class="feature-emoji">🔒</div>
-            <h3 data-i18n="feat3Title">100% Local & Private</h3>
-            <p data-i18n="feat3Desc">No centralized servers. Your notes and browsing stay entirely on your machine. The Chrome extension talks directly to your local Obsidian app.</p>
-          </div>
-          <div class="feature-box">
-            <div class="feature-emoji">🤖</div>
-            <h3 data-i18n="feat4Title">Bring Your Own Model</h3>
-            <p data-i18n="feat4Desc">Run completely offline with Local LLMs (Ollama, LM Studio, llama.cpp), or connect to Gemini, Claude, OpenAI, DeepSeek, Kimi, Qwen, or OpenRouter.</p>
-          </div>
-          <div class="feature-box">
-            <div class="feature-emoji">⚡</div>
-            <h3 data-i18n="feat5Title">Chrome-Only Standalone Mode</h3>
-            <p data-i18n="feat5Desc">No Obsidian installed? No problem. Run NutEgg standalone directly in Google Chrome for fast reading verdicts, timestamped video Q&A, and interactive mind maps powered by your own API key.</p>
-          </div>
-          <div class="feature-box">
-            <div class="feature-emoji">💬</div>
-            <h3 data-i18n="feat6Title">Video Q&A &amp; Timestamp Jumping</h3>
-            <p data-i18n="feat6Desc">Ask free-form questions about video content and receive cited answers with interactive timestamp pills that jump directly to the exact moment in video playback.</p>
+            <div class="feature-emoji">🥚</div>
+            <h3 data-i18n="addonHatchTitle">One-Click Hatch or Collect</h3>
+            <p data-i18n="addonHatchDesc">Weave fresh insights into the matching knowledge tree, or archive the raw content as Markdown in your vault for later.</p>
           </div>
           <div class="feature-box">
             <div class="feature-emoji">🔄</div>
             <h3 data-i18n="feat7Title">Auto-Merge Knowledge Trees</h3>
             <p data-i18n="feat7Desc">Accumulated raw insights are automatically structured and synthesized into clean branch hierarchies once threshold counts are reached.</p>
           </div>
+        </div>
+
+        <div class="cta-group addon-cta">
+          <div class="download-action-card">
+            <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary" id="addon-obsidian-btn">
+              <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
+              <span class="btn-text-content">
+                <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
+                <span class="version-badge version-badge-secondary" id="obsidian-version-addon">v{{OBSIDIAN_COMMUNITY_VERSION}}</span>
+              </span>
+            </a>
+            <div class="download-release-sub">
+              <a href="{{OBSIDIAN_RELEASE_URL}}" target="_blank" rel="noopener" id="obsidian-release-addon" title="Get release assets from GitHub">
+                <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span> <span class="release-ver-tag" id="obsidian-release-ver-addon">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
+              </a>
+            </div>
+          </div>
+          <a href="docs/obsidian-plugin.html" class="btn-secondary">
+            <span data-i18n="addonGuideBtn">📖 Obsidian Setup Guide</span>
+          </a>
         </div>
       </div>
     </section>
@@ -416,35 +455,20 @@
     <!-- CTA Banner -->
     <section class="container">
       <div class="cta-banner">
-        <h2 data-i18n="ctaTitle">Start Hatching Knowledge Today</h2>
-        <p data-i18n="ctaSubtitle">Take back your reading time and build an Obsidian knowledge base that actually grows with you.</p>
+        <h2 data-i18n="ctaTitle">Start Reading Smarter Today</h2>
+        <p data-i18n="ctaSubtitle">Take back your reading time in seconds. Add NutEgg to Chrome—and connect Obsidian whenever you're ready.</p>
         <div class="cta-group" style="margin-bottom: 0;">
           <div class="download-action-card">
             <a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener" class="btn-primary" id="banner-chrome-btn">
               <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon">
               <span class="btn-text-content">
-                <span data-i18n="chromeStoreBtn">Chrome Web Store</span>
+                <span data-i18n="addToChromeBtn">Add to Chrome — It's Free</span>
                 <span class="version-badge" id="chrome-version-banner">v{{CHROME_STORE_VERSION}}</span>
               </span>
             </a>
             <div class="download-release-sub">
               <a href="{{CHROME_ZIP_URL}}" target="_blank" rel="noopener" id="chrome-zip-banner" title="Download standalone .zip for Chrome">
                 <span data-i18n="downloadGithubZip">📦 Download .zip</span> <span class="release-ver-tag" id="chrome-zip-ver-banner">(v{{CHROME_GITHUB_VERSION}})</span>
-              </a>
-            </div>
-          </div>
-
-          <div class="download-action-card">
-            <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener" class="btn-secondary" id="banner-obsidian-btn">
-              <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon">
-              <span class="btn-text-content">
-                <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
-                <span class="version-badge version-badge-secondary" id="obsidian-version-banner">v{{OBSIDIAN_COMMUNITY_VERSION}}</span>
-              </span>
-            </a>
-            <div class="download-release-sub">
-              <a href="{{OBSIDIAN_RELEASE_URL}}" target="_blank" rel="noopener" id="obsidian-release-banner" title="Get release assets from GitHub">
-                <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span> <span class="release-ver-tag" id="obsidian-release-ver-banner">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
               </a>
             </div>
           </div>
