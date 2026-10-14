@@ -142,3 +142,43 @@ test('worker cancellation aborts only matching requests in the originating tab a
   listener({ action: 'chinese-content-cancel', requestId: 'capture' }, { ...sender, tab: { id: 2 } }, () => {});
   assert.equal((await first).success, false); assert.equal((await second).success, false);
 });
+
+test('YouTube navigation generation invalidates an old capture even when the URL returns to the same video', async t => {
+  const { win, send } = page(t);
+  let finish;
+  const pendingWork = new Promise(resolve => { finish = resolve; });
+  let writes = 0;
+  win.EXTRACTORS.push({ name: 'test', detect: () => true, extract: async context => {
+    await pendingWork; context.check(); writes++; return { content: 'Obsolete transcript' };
+  } });
+  const pending = send({ action: 'extract-content', requestId: 'generation' });
+  await flush();
+  win.dispatchEvent(new win.Event('yt-navigate-start'));
+  finish();
+  assert.equal((await pending).errorCode, 'stale');
+  assert.equal(writes, 0);
+});
+
+test('YouTube readiness notices live caption tracks without starting another extraction', async t => {
+  const { win, send } = page(t);
+  let calls = 0;
+  win.queryYouTubePlayerSnapshot = async () => { calls++; return { videoId: 'one', tracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=one' }], playerResponse: {} }; };
+  const identity = await send({ action: 'page-identity' });
+  assert.equal(identity.captionTracksReady, true);
+  assert.equal(identity.youtubeReady, true);
+  assert.equal(calls, 1);
+  assert.equal(win.__nuteggCaptureState, undefined);
+});
+
+test('a late readiness lookup cannot report old caption tracks after navigation', async t => {
+  const { dom, win, send } = page(t);
+  let finish;
+  win.queryYouTubePlayerSnapshot = () => new Promise(resolve => { finish = resolve; });
+  const pending = send({ action: 'page-identity' });
+  dom.reconfigure({ url: 'https://www.youtube.com/watch?v=two' });
+  finish({ tracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=one' }], playerResponse: {} });
+  const identity = await pending;
+  assert.equal(identity.videoId, 'two');
+  assert.equal(identity.captionTracksReady, false);
+  assert.equal(identity.youtubeReady, false);
+});

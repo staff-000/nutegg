@@ -103,11 +103,13 @@ class PageExtractor {
         extractionTimeout = 20000;
       }
     } catch {}
+    if (Date.now() >= (options.deadline || Infinity)) return { success: false, errorCode: 'timeout' };
     extractionTimeout = Math.max(1, Math.min(extractionTimeout, (options.deadline || Infinity) - Date.now()));
     // Reserve a small transport margin so the content script can return its
     // partial capture on deadline expiry before the outer message times out.
     const message = { action: 'extract-content', discussionSessionId, requestId: options.requestId,
       deadline: options.deadline ? Math.max(Date.now() + 1, Math.min(options.deadline, Date.now() + extractionTimeout) - 100) : undefined,
+      attempt: options.attempt,
       expectedUrl: options.expectedUrl };
     const timeout = { success: false, errorCode: 'timeout' };
     try {
@@ -126,6 +128,7 @@ class PageExtractor {
     if (Date.now() >= (options.deadline || Infinity)) return timeout;
     const injected = await this.injectContentScript(tabId, Math.max(1, Math.min(4000, (options.deadline || Infinity) - Date.now())));
     if (!injected) return null;
+    if (Date.now() >= (options.deadline || Infinity)) return timeout;
 
     try {
       return await this.withTimeout(
@@ -203,7 +206,7 @@ class PageExtractor {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (isCancelled()) return null;
-      const identity = await this.requestPageIdentity(tabId);
+      const identity = await this.withTimeout(this.requestPageIdentity(tabId), Math.max(1, deadline - Date.now()));
       if (
         identity &&
         identity.readyState === "complete" &&
@@ -213,7 +216,8 @@ class PageExtractor {
       ) {
         return identity;
       }
-      await new Promise((r) => setTimeout(r, 300));
+      if (Date.now() >= deadline) return null;
+      await new Promise((r) => setTimeout(r, Math.min(300, Math.max(0, deadline - Date.now()))));
     }
     return null;
   }
@@ -223,15 +227,21 @@ class PageExtractor {
    * and post-extraction navigation verification.
    */
   async extractPage(tabId, { waitForSettle = false, isCancelled = () => false, onSettle = null, discussionSessionId,
-    retryCount = 3, retryDelayMs = 1000, onProgress, expectedUrl, timeoutMs = 20000 } = {}) {
+    retryCount = 3, retryDelayMs = 3000, onProgress, expectedUrl, timeoutMs = 20000 } = {}) {
     retryCount = Number.isFinite(retryCount) ? Math.max(0, Math.min(10, Math.floor(retryCount))) : 3;
-    retryDelayMs = Number.isFinite(retryDelayMs) ? Math.max(100, Math.min(10000, retryDelayMs)) : 1000;
+    retryDelayMs = Number.isFinite(retryDelayMs) ? Math.max(100, Math.min(10000, retryDelayMs)) : 3000;
     const deadline = Date.now() + timeoutMs;
     const requestPrefix = discussionSessionId || `capture:${Date.now()}:${Math.random()}`;
     const samePage = url => !expectedUrl || !url || url.split('#')[0] === expectedUrl.split('#')[0];
+    let youtube = false;
+    try {
+      const url = new URL(expectedUrl || (await this.withTimeout(chrome.tabs.get(tabId), Math.min(500, Math.max(1, deadline - Date.now()))))?.url);
+      youtube = /(^|\.)youtube\.com$/.test(url.hostname) && url.pathname === '/watch';
+    } catch {}
     if (waitForSettle) {
-      const identity = await this.waitForPageSettle(tabId, isCancelled);
+      const identity = await this.waitForPageSettle(tabId, isCancelled, Math.min(4000, Math.max(1, deadline - Date.now())));
       if (isCancelled()) return null;
+      if (!samePage(identity?.url)) return null;
       if (typeof onSettle === "function") {
         onSettle(identity);
       }
@@ -241,13 +251,22 @@ class PageExtractor {
     for (let attempt = 0; attempt <= retryCount && Date.now() < deadline; attempt++) {
       if (isCancelled()) return null;
       const requestId = `${requestPrefix}:${attempt}`;
-      const response = await this.withCancellation(this.tryExtract(tabId, discussionSessionId, { deadline, requestId, expectedUrl }), isCancelled,
+      const remaining = deadline - Date.now();
+      const attemptsLeft = retryCount - attempt + 1;
+      const delayReserve = Math.min((attemptsLeft - 1) * retryDelayMs, remaining / 2);
+      // YouTube's download/discovery/panel fallbacks cannot work in a ~2s slice.
+      // Retries remain a maximum; the overall deadline still caps all work.
+      const attemptBudget = Math.floor((remaining - delayReserve) / attemptsLeft);
+      const attemptDeadline = Date.now() + Math.min(remaining, Math.max(youtube ? 6000 : 1, attemptBudget));
+      const extraction = this.withTimeout(this.tryExtract(tabId, discussionSessionId, { deadline: attemptDeadline, requestId, expectedUrl, attempt }),
+        Math.max(1, attemptDeadline - Date.now()), { success: false, errorCode: 'timeout' });
+      const response = await this.withCancellation(extraction, isCancelled,
         () => this.cancelExtraction(tabId, requestId));
       if (isCancelled()) return null;
       if (response?.errorCode === 'stale') return null;
       if (response?.errorCode === 'timeout') {
-        await this.cancelExtraction(tabId, requestId);
-        break;
+        await this.cancelExtraction(tabId, requestId, Math.max(1, Math.min(500, deadline - Date.now() + 100)));
+        if (Date.now() >= deadline) break;
       }
       const after = await this.withTimeout(this.requestPageIdentity(tabId), Math.max(1, deadline - Date.now()));
       if (isCancelled()) return null;
@@ -259,7 +278,7 @@ class PageExtractor {
       expectedUrl ||= after?.url || response?.content?.url;
       if (response?.success && response.content) {
         const content = response.content;
-        best = content;
+        if (!best || content.transcriptAvailable || (content.content?.length || 0) >= (best.content?.length || 0)) best = content;
         const retryable = content.extractionStatus === 'not_ready' || content.extractionStatus === 'transient'
           || (content.transcriptAvailable === false && content.extractionStatus !== 'unavailable');
         if (!retryable) return content;
@@ -271,8 +290,8 @@ class PageExtractor {
     return best;
   }
 
-  async cancelExtraction(tabId, requestId) {
-    try { await this.withTimeout(chrome.tabs.sendMessage(tabId, { action: 'cancel-extraction', requestId }), 500); } catch {}
+  async cancelExtraction(tabId, requestId, timeoutMs = 500) {
+    try { await this.withTimeout(chrome.tabs.sendMessage(tabId, { action: 'cancel-extraction', requestId }), timeoutMs); } catch {}
   }
 
   withCancellation(promise, isCancelled, cancel) {

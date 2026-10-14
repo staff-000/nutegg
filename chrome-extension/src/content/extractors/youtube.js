@@ -9,29 +9,31 @@
 //   waitFor, extractBalanced, formatTime, parseTimestamp, fetchWithTimeout)
 
 function detectYouTube() {
-  return window.location.href.includes("youtube.com/watch");
+  const url = new URL(window.location.href);
+  return /(^|\.)youtube\.com$/.test(url.hostname) && url.pathname === '/watch';
 }
 
 async function extractYouTube(context) {
   context?.check();
   const url = window.location.href;
-  const meta = extractYouTubeMetadata(url);
+  let meta = extractYouTubeMetadata(url);
   if (context) context.partial = { url, title: meta.title, sourceType: "youtube", transcriptAvailable: false, content: `# ${meta.title}\n\n${meta.description || ""}`, metadata: { video_id: meta.videoId } };
 
-  // Chapters (with timestamps, for the clickable Mind Map)
-  const chapters = await extractChapters(context);
-  context?.check();
-
-  // Captions / transcript via YouTube timedtext API
-  let transcript = "";
+  // Start captions before optional chapter work. Snapshot completion never delays
+  // the successful script-track path; it can improve metadata/chapters if ready.
   const captionMetadata = {};
-  try {
-    transcript = await fetchYouTubeCaptions(captionMetadata, context);
-  } catch {
-    // Captions not available — that's fine
-  }
-
+  const pendingCaptions = fetchYouTubeCaptions(captionMetadata, context);
+  pendingCaptions.catch(() => {}); // Also observe rejection if optional DOM work aborts extraction.
+  let chapters = [];
+  try { chapters = extractChapters(context); } catch { context?.check(); }
+  const transcript = await pendingCaptions;
   context?.check();
+  if (context?.youtubeSnapshot?.playerResponse) {
+    meta = extractYouTubeMetadata(url, context.youtubeSnapshot.playerResponse);
+  }
+  const liveChapters = chaptersFromMarkersMap(context?.youtubeSnapshot?.markersMap);
+  if (liveChapters.length) chapters = liveChapters;
+
   const parts = [`# ${meta.title}`];
   if (meta.channelName) parts.push(`**Channel:** ${meta.channelName}`);
   if (meta.viewCount) parts.push(`**Views:** ${meta.viewCount}`);
@@ -84,9 +86,16 @@ async function extractYouTube(context) {
  *   Layer 3: Standard meta tags (itemprop, property, name)
  *   Layer 4: Current DOM elements (Polymer custom elements)
  */
-function extractYouTubeMetadata(url) {
-  const pr = readYtInitialPlayerResponse();
-  const jsonLd = readJsonLd("VideoObject") || readJsonLd();
+function extractYouTubeMetadata(url, playerResponse) {
+  const pr = playerResponse || readYtInitialPlayerResponse();
+  const expectedVideoId = new URL(url).searchParams.get('v');
+  const rawJsonLd = readJsonLd("VideoObject") || readJsonLd();
+  const identifiesVideo = value => {
+    try { const candidate = new URL(value); return candidate.searchParams.get('v') === expectedVideoId || candidate.pathname === `/embed/${expectedVideoId}`; }
+    catch { return false; }
+  };
+  const jsonLd = [rawJsonLd?.url, rawJsonLd?.embedUrl, rawJsonLd?.contentUrl].some(identifiesVideo) ? rawJsonLd : null;
+  const pageMeta = name => identifiesVideo(getMeta('og:url')) ? getMeta(name) : '';
   const videoDetails = pr?.videoDetails || {};
   const microformat = pr?.microformat?.playerMicroformatRenderer || {};
   const videoId = new URL(url).searchParams.get("v") || videoDetails.videoId || "";
@@ -98,9 +107,9 @@ function extractYouTubeMetadata(url) {
     jsonLd?.name ||
     document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
     document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
-    getMeta("title") ||
-    getMeta("og:title") ||
-    getMeta("name") ||
+    pageMeta("title") ||
+    pageMeta("og:title") ||
+    pageMeta("name") ||
     document.title.replace(" - YouTube", "").trim();
 
   // 2. Channel / Author
@@ -112,7 +121,7 @@ function extractYouTubeMetadata(url) {
     document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
     document.querySelector("#owner-name a")?.textContent?.trim() ||
     document.querySelector("#upload-info ytd-channel-name a")?.textContent?.trim() ||
-    getMeta("author") || "";
+    pageMeta("author") || "";
 
   // 3. Published Date
   let date =
@@ -120,9 +129,9 @@ function extractYouTubeMetadata(url) {
     microformat.uploadDate ||
     jsonLd?.datePublished ||
     jsonLd?.uploadDate ||
-    getMeta("datePublished") ||
-    getMeta("uploadDate") ||
-    getMeta("date") ||
+    pageMeta("datePublished") ||
+    pageMeta("uploadDate") ||
+    pageMeta("date") ||
     document.querySelector("#info-strings yt-formatted-string")?.textContent?.trim() ||
     document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
     "";
@@ -146,7 +155,7 @@ function extractYouTubeMetadata(url) {
       if (snippet) description = snippet.textContent?.trim() || "";
     }
   }
-  if (!description) description = getMeta("og:description") || getMeta("description");
+  if (!description) description = pageMeta("og:description") || pageMeta("description");
 
   // 5. View Count
   let viewCount = "";
@@ -185,188 +194,305 @@ function extractYouTubeMetadata(url) {
   };
 }
 
-/**
- * Query active caption tracks directly from `#movie_player` or
- * `window.ytInitialPlayerResponse` via a nonce-authenticated page script.
- * In YouTube, the player element holds live tracks (including auto-generated ASR).
- */
-async function queryPlayerCaptionTracks(context) {
-  context?.check();
-  return new Promise((resolve) => {
-    const eventId = "nutegg_yt_tracks_" + Math.random().toString(36).slice(2);
-    const handler = (e) => {
-      window.removeEventListener(eventId, handler);
-      resolve(Array.isArray(e.detail) ? e.detail : []);
-    };
-    window.addEventListener(eventId, handler);
-
-    try {
-      const script = document.createElement("script");
-      const nonce =
-        document.querySelector("script[nonce]")?.nonce ||
-        document.querySelector("script[nonce]")?.getAttribute("nonce");
-      if (nonce) script.nonce = nonce;
-
-      script.textContent = `(() => {
-        try {
-          const player = document.querySelector('#movie_player');
-          let tracks = null;
-          const expected = ${JSON.stringify(new URL(window.location.href).searchParams.get('v'))};
-          const playerResponse = player?.getPlayerResponse?.();
-          if (playerResponse?.videoDetails?.videoId && playerResponse.videoDetails.videoId !== expected) {
-            window.dispatchEvent(new CustomEvent('${eventId}', { detail: [] })); return;
-          }
-          if (player && typeof player.getOption === 'function') {
-            tracks = player.getOption('captions', 'tracklist');
-          }
-          if ((!tracks || !tracks.length) && player && typeof player.getPlayerResponse === 'function') {
-            tracks = player.getPlayerResponse()?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          }
-          if ((!tracks || !tracks.length) && window.ytInitialPlayerResponse?.videoDetails?.videoId === expected) {
-            tracks = window.ytInitialPlayerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-          }
-          window.dispatchEvent(new CustomEvent('${eventId}', { detail: tracks || [] }));
-        } catch (_) {
-          window.dispatchEvent(new CustomEvent('${eventId}', { detail: [] }));
-        }
-      })();`;
-
-      (document.head || document.documentElement).appendChild(script);
-      script.remove();
-    } catch (_) {
-      resolve([]);
+// Self-contained: also executed in the page's MAIN world by the worker/nonce bridge.
+function readYouTubePlayerSnapshot(expectedVideoId) {
+  try {
+    const url = new URL(location.href);
+    if (!/(^|\.)youtube\.com$/.test(url.hostname) || url.pathname !== '/watch'
+      || url.searchParams.get('v') !== expectedVideoId) return null;
+    const player = document.querySelector('#movie_player');
+    const live = player?.getPlayerResponse?.();
+    const response = live?.videoDetails?.videoId === expectedVideoId ? live
+      : window.ytInitialPlayerResponse?.videoDetails?.videoId === expectedVideoId ? window.ytInitialPlayerResponse : null;
+    const details = response?.videoDetails;
+    let tracks = response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+    // tracklist belongs to the live player, never the stale initial response.
+    if (!tracks.length && live?.videoDetails?.videoId === expectedVideoId) {
+      tracks = player?.getOption?.('captions', 'tracklist') || [];
     }
+    const text = value => typeof value === 'string' ? value.slice(0, 100000) : '';
+    const config = name => window.ytcfg?.get?.(name);
+    const client = config('INNERTUBE_CONTEXT')?.client || {};
+    const markers = response?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer;
+    const markersMap = markers?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap
+      || markers?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap || [];
+    const micro = response?.microformat?.playerMicroformatRenderer;
+    return {
+      videoId: expectedVideoId,
+      playerResponse: details ? {
+        videoDetails: Object.fromEntries(['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [key, text(details[key])])),
+        microformat: { playerMicroformatRenderer: { publishDate: text(micro?.publishDate), uploadDate: text(micro?.uploadDate) } },
+        playabilityStatus: { status: text(response?.playabilityStatus?.status) },
+      } : null,
+      tracks: Array.isArray(tracks) ? tracks.slice(0, 100).map(track => ({
+        baseUrl: text(track.baseUrl || track.url).slice(0, 16384), languageCode: text(track.languageCode).slice(0, 50), kind: text(track.kind).slice(0, 50),
+      })) : [],
+      markersMap: (Array.isArray(markersMap) ? markersMap.slice(0, 10) : []).map(marker => ({ value: { chapters:
+        (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 100) : []).flatMap(item => {
+          const chapter = item?.chapterRenderer;
+          const rawMillis = chapter?.timeRangeStartMillis;
+          const millis = typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis)) ? Number(rawMillis) : NaN;
+          const title = text(chapter?.title?.simpleText) || (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => text(run?.text)).join('') : '');
+          return Number.isFinite(millis) && millis >= 0 && title ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title.slice(0, 500) } } }] : [];
+        }) } })),
+      client: { clientName: text(client.clientName || config('INNERTUBE_CLIENT_NAME')), clientVersion: text(client.clientVersion || config('INNERTUBE_CLIENT_VERSION')),
+        hl: text(client.hl || config('HL')), gl: text(client.gl || config('GL')) },
+    };
+  } catch { return null; }
+}
 
-    setTimeout(() => {
-      window.removeEventListener(eventId, handler);
-      resolve([]);
-    }, 1000);
+// Called only by the worker; the same file supplies the serialized MAIN-world reader.
+function handleYouTubePlayerSnapshotMessage(message, sender, sendResponse) {
+  if (message.action !== 'youtube-player-snapshot') return false;
+  try {
+    const url = new URL(sender.url);
+    if (sender.id !== chrome.runtime.id || !sender.tab || !sender.documentId || sender.frameId !== 0
+      || !/(^|\.)youtube\.com$/.test(url.hostname) || url.protocol !== 'https:' || url.pathname !== '/watch'
+      || url.searchParams.get('v') !== message.videoId) throw new Error('Invalid snapshot request');
+    // documentIds prevents a delayed request from executing in a replacement document.
+    const work = chrome.scripting.executeScript({ target: { tabId: sender.tab.id, documentIds: [sender.documentId] },
+      world: 'MAIN', func: readYouTubePlayerSnapshot, args: [message.videoId] });
+    let timer;
+    Promise.race([work, new Promise(resolve => { timer = setTimeout(() => resolve(null), 500); })])
+      .then(results => sendResponse({ success: true, snapshot: results?.[0]?.result || null }))
+      .catch(() => sendResponse({ success: false }))
+      .finally(() => clearTimeout(timer));
+  } catch { sendResponse({ success: false }); return false; }
+  return true;
+}
+
+/** Only accept current-video, HTTPS YouTube caption tracks from page data. */
+function validYouTubeTracks(tracks, videoId) {
+  if (!Array.isArray(tracks)) return [];
+  return tracks.slice(0, 100).filter(track => {
+    try {
+      const url = new URL(track?.baseUrl || track?.url);
+      return (!track.languageCode || typeof track.languageCode === 'string') && (!track.kind || typeof track.kind === 'string') && url.protocol === 'https:' && /(^|\.)youtube\.com$/.test(url.hostname)
+        && url.pathname === '/api/timedtext' && !url.username && !url.password
+        && (!url.searchParams.get('v') || url.searchParams.get('v') === videoId);
+    } catch { return false; }
   });
 }
 
-/**
- * Fetch YouTube captions via the timedtext API (no auth required).
- *
- * Five layers, in order:
- *   1. `captionTracks` scanned from the page's `<script>` tags & player response
- *   2. The watch-page HTML (same-origin fetch) — `captionTracks` extracted
- *   3. YouTube Innertube player API (`/youtubei/v1/player`)
- *   4. Live player tracks from `#movie_player` (including auto-generated ASR)
- *   5. The on-page transcript panel ("Show transcript" → segments)
- *
- * Records the successful route in metadata.caption_source.
- * Every network layer has a timeout — a stalled request must never hang
- * extraction. Each layer logs its outcome for debugging.
- */
+function validYouTubeSnapshot(snapshot, videoId) {
+  if (!snapshot || snapshot.videoId !== videoId) return null;
+  const response = snapshot.playerResponse;
+  if (response && response.videoDetails?.videoId !== videoId) return null;
+  const details = response?.videoDetails;
+  if (details && ['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].some(key => details[key] != null && typeof details[key] !== 'string')) return null;
+  const micro = response?.microformat?.playerMicroformatRenderer;
+  const safeText = value => typeof value === 'string' ? value.slice(0, 100000) : '';
+  const safeResponse = details ? { videoDetails: Object.fromEntries(['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [key, safeText(details[key])])),
+    microformat: { playerMicroformatRenderer: { publishDate: safeText(micro?.publishDate), uploadDate: safeText(micro?.uploadDate) } },
+    playabilityStatus: { status: safeText(response?.playabilityStatus?.status) } } : null;
+  const markersMap = (Array.isArray(snapshot.markersMap) ? snapshot.markersMap.slice(0, 10) : []).map(marker => ({ value: { chapters:
+    (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 500) : []).flatMap(item => {
+      const chapter = item?.chapterRenderer;
+      const rawMillis = chapter?.timeRangeStartMillis;
+      const millis = typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis)) ? Number(rawMillis) : NaN;
+      const title = safeText(chapter?.title?.simpleText) || (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => safeText(run?.text)).join('') : '');
+      return Number.isFinite(millis) && millis >= 0 && title ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title } } }] : [];
+    }) } }));
+  return { videoId, playerResponse: safeResponse,
+    tracks: validYouTubeTracks(snapshot.tracks, videoId),
+    markersMap,
+    client: snapshot.client && typeof snapshot.client === 'object' ? snapshot.client : {} };
+}
+
+// Abort-aware timeout for messaging and short DOM waits. Cleans every listener.
+function youtubeBounded(promise, ms, context, fallback = null) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    let settled = false;
+    const finish = (value, error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      context?.signal?.removeEventListener('abort', abort);
+      error ? reject(error) : resolve(value);
+    };
+    const abort = () => finish(null, context.signal.reason);
+    try { context?.check(); } catch (error) { Promise.resolve(promise).catch(() => {}); reject(error); return; }
+    context?.signal?.addEventListener('abort', abort, { once: true });
+    timer = setTimeout(() => finish(fallback), Math.max(1, Math.min(ms, (context?.deadline || Infinity) - Date.now())));
+    Promise.resolve(promise).then(value => finish(value), error => finish(null, error));
+  });
+}
+
+async function queryYouTubePlayerSnapshot(context) {
+  context?.check();
+  const videoId = new URL(window.location.href).searchParams.get('v');
+  const until = Math.min(Date.now() + 500, context?.deadline || Infinity);
+  try {
+    const response = await youtubeBounded(chrome.runtime.sendMessage({ action: 'youtube-player-snapshot', videoId }), 250, context);
+    context?.check();
+    const snapshot = validYouTubeSnapshot(response?.snapshot, videoId);
+    if (snapshot) return snapshot;
+  } catch { context?.check(); }
+  if (typeof readYouTubePlayerSnapshot !== 'function' || Date.now() >= until) return null;
+  return new Promise((resolve, reject) => {
+    const eventId = 'nutegg_yt_snapshot_' + Math.random().toString(36).slice(2);
+    let timer;
+    let script;
+    let settled = false;
+    const finish = (value, error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      window.removeEventListener(eventId, handler);
+      context?.signal?.removeEventListener('abort', abort);
+      script?.remove();
+      error ? reject(error) : resolve(value);
+    };
+    const handler = event => {
+      try { context?.check(); finish(validYouTubeSnapshot(event.detail, videoId)); }
+      catch (error) { finish(null, error); }
+    };
+    const abort = () => finish(null, context.signal.reason);
+    try {
+      context?.check();
+      window.addEventListener(eventId, handler);
+      context?.signal?.addEventListener('abort', abort, { once: true });
+      timer = setTimeout(() => finish(null), Math.max(1, until - Date.now()));
+      script = document.createElement('script');
+      const nonce = document.querySelector('script[nonce]')?.nonce;
+      if (nonce) script.nonce = nonce;
+      script.textContent = `window.dispatchEvent(new CustomEvent(${JSON.stringify(eventId)}, {detail: (${readYouTubePlayerSnapshot.toString()})(${JSON.stringify(videoId)})}));`;
+      (document.head || document.documentElement).appendChild(script);
+      script.remove();
+    } catch { finish(null); }
+  });
+}
+
+function youtubeRouteLog(route, started, outcome, context) {
+  console.log('[NutEgg] Captions:', { route, elapsedMs: Date.now() - started, outcome, attempt: context?.attempt || 0 });
+}
+
+/** Current player/page tracks, bounded parallel fresh discovery, then DOM fallback. */
 async function fetchYouTubeCaptions(metadata = {}, context) {
   context?.check();
   delete metadata.caption_source;
-  const videoId = new URL(window.location.href).searchParams.get("v");
-  if (!videoId) return "";
-
+  delete metadata.caption_unavailable;
+  const videoId = new URL(window.location.href).searchParams.get('v');
+  if (!videoId) return '';
   const started = Date.now();
+  const attemptedUrls = new Map();
   const pr = readYtInitialPlayerResponse();
-
-  if (["LOGIN_REQUIRED", "UNPLAYABLE"].includes(pr?.playabilityStatus?.status)) {
+  if (['LOGIN_REQUIRED', 'UNPLAYABLE'].includes(pr?.playabilityStatus?.status)) {
     metadata.caption_unavailable = true;
-    return "";
+    return '';
   }
-
-  // Layer 1: captionTracks from DOM scripts / ytInitialPlayerResponse
-  let tracks =
-    findCaptionTracksInDom(videoId) ||
-    pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (tracks?.length) {
-    const transcript = await fetchTimedtext(tracks, context);
-    if (transcript) {
-      console.log(`[NutEgg] Captions: page tracks in ${Date.now() - started}ms`);
-      metadata.caption_source = "page_tracks";
-      return transcript;
-    }
-  }
-
-  // Layer 2: watch-page HTML fetch — pure network, works in background
-  // tabs. No longer gated by `if (!pr)`: even when the player response was
-  // parsed from <script> tags, it may lack caption tracks (ASR-only, stale SPA
-  // data, etc.), so the fresh HTML fetch is always worth trying.
-  try {
-    const resp = await captureFetchText(
-      `https://www.youtube.com/watch?v=${videoId}&gl=US&hl=en`, {}, 4000, context
-    );
-    const html = resp.text;
-    const idx = html.indexOf('"captionTracks"');
-    if (idx !== -1) {
-      const raw = extractBalanced(html, idx);
-      if (raw) {
-        tracks = JSON.parse(raw);
-        if (Array.isArray(tracks) && tracks.length > 0) {
-          const transcript = await fetchTimedtext(tracks, context);
-          if (transcript) {
-            console.log(`[NutEgg] Captions: watch-page HTML in ${Date.now() - started}ms`);
-            metadata.caption_source = "watch_page";
-            return transcript;
-          }
-        }
-      }
-    }
-  } catch {
-    // Fall through
-  }
-
-  // Layer 3: Innertube player API — pure network, works in background
-  // tabs. Always worth one timeout-bounded call.
-  try {
-    const playerResp = await fetchInnertubePlayer(videoId, context);
-    const innertubeTracks =
-      playerResp?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (Array.isArray(innertubeTracks) && innertubeTracks.length > 0) {
-      const transcript = await fetchTimedtext(innertubeTracks, context);
-      if (transcript) {
-        console.log(`[NutEgg] Captions: innertube in ${Date.now() - started}ms`);
-        metadata.caption_source = "innertube";
-        return transcript;
-      }
-    }
-  } catch {
-    // Fall through
-  }
-
-  // Layer 4: live player tracks from page context — DOM-dependent,
-  // fails in background tabs (player suspended, CC click ignored, timer
-  // throttling), so attempted after the network-only layers above.
-  try {
+  const pageTracks = findCaptionTracksInDom(videoId) || pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+  const snapshotPromise = queryYouTubePlayerSnapshot(context).then(snapshot => {
     context?.check();
-    let playerTracks = await queryPlayerCaptionTracks(context);
-    if (!playerTracks?.length) {
-      // If player hasn't loaded captions yet, wake up subtitles via CC button if available
-      context?.check();
-      const ccBtn = document.querySelector(".ytp-subtitles-button");
-      if (ccBtn && ccBtn.getAttribute("aria-pressed") !== "true") {
-        ccBtn.click();
-        await new Promise((r) => setTimeout(r, 600));
-        playerTracks = await queryPlayerCaptionTracks(context);
-      }
+    if (context) context.youtubeSnapshot = snapshot;
+    return snapshot;
+  }).catch(() => null);
+  // Each request retains its normal timeout. Fractional phase deadlines could
+  // cut valid caption downloads off in under a second on the default settings.
+  let network = youtubeNetworkContext(context);
+  const tryTracks = async (tracks, route) => {
+    let result;
+    try {
+      network.context.check();
+      result = await fetchTimedtext(validYouTubeTracks(tracks, videoId), network.context, attemptedUrls);
+      network.context.check();
+    } catch (error) {
+      youtubeRouteLog(route, started, error.code === 'phase_timeout' || error.code === 'timeout' ? 'timeout' : 'cancelled', context);
+      throw error;
     }
-    if (playerTracks?.length) {
-      const transcript = await fetchTimedtext(playerTracks, context);
-      if (transcript) {
-        console.log(`[NutEgg] Captions: player tracks in ${Date.now() - started}ms`);
-        metadata.caption_source = "player_tracks";
-        return transcript;
-      }
+    youtubeRouteLog(route, started, result ? 'success' : 'empty', context);
+    if (!result) throw new Error('No captions');
+    return { text: result, route };
+  };
+  try {
+    // Race local and live tracks. A stalled local URL must not hide a usable live
+    // track, and a pending snapshot must not slow a successful local download.
+    let winner;
+    try {
+      winner = await Promise.any([
+        tryTracks(pageTracks, 'page_tracks'),
+        snapshotPromise.then(snapshot => tryTracks(snapshot?.tracks, 'player_tracks')),
+        // An already-open, verified transcript costs no clicks or downloads.
+        // Keep manual tracks ahead of this ASR fast path.
+        snapshotPromise.then(async snapshot => {
+          if ([...(pageTracks || []), ...(snapshot?.tracks || [])].some(track => track.kind !== 'asr')) throw new Error('Prefer manual tracks');
+          const text = await readTranscriptPanel(context, { existingOnly: true, waitMs: 500 });
+          if (!text) throw new Error('No verified visible transcript');
+          context?.check();
+          return { text, route: 'transcript_panel' };
+        }),
+      ]);
+    } catch { context?.check(); }
+    if (winner) { metadata.caption_source = winner.route; return winner.text; }
+    network.dispose();
+    const snapshot = await snapshotPromise;
+    context?.check();
+    if (['LOGIN_REQUIRED', 'UNPLAYABLE'].includes(snapshot?.playerResponse?.playabilityStatus?.status)) {
+      metadata.caption_unavailable = true;
+      return '';
     }
-  } catch {}
+    network = youtubeNetworkContext(context);
+    // The limiter includes discovery AND downloads. The faster route can start
+    // its caption request while the other discovery request is still pending.
+    try {
+      const discover = (route, promise) => promise.catch(error => {
+        youtubeRouteLog(route, started, 'failed', context);
+        throw error;
+      }).then(tracks => tryTracks(tracks, route));
+      winner = await Promise.any([
+        discover('innertube', fetchInnertubePlayer(videoId, network.context,
+          snapshot?.client?.clientVersion && snapshot?.client?.clientName ? snapshot.client : readYouTubeClientConfig())
+          .then(response => response?.captions?.playerCaptionsTracklistRenderer?.captionTracks)),
+        discover('watch_page', fetchYouTubeWatchTracks(videoId, network.context)),
+      ]);
+    } catch { context?.check(); }
+    if (winner) { metadata.caption_source = winner.route; return winner.text; }
+    const transcript = await readTranscriptPanel(context);
+    context?.check();
+    youtubeRouteLog('transcript_panel', started, transcript ? 'success' : 'transient', context);
+    if (transcript) metadata.caption_source = 'transcript_panel';
+    return transcript;
+  } finally { network.dispose(); }
+}
 
-  // Layer 5: the on-page transcript panel ("Show transcript") — DOM-heavy
-  // last resort, fails in background tabs.
-  const panel = await readTranscriptPanel(context);
-  console.log(
-    panel
-      ? `[NutEgg] Captions: transcript panel in ${Date.now() - started}ms`
-      : `[NutEgg] Captions: all layers failed in ${Date.now() - started}ms (player response parsed: ${pr !== null})`
-  );
-  if (panel) metadata.caption_source = "transcript_panel";
-  return panel;
+async function fetchYouTubeWatchTracks(videoId, context) {
+  const origin = new URL(window.location.href).origin;
+  const response = await youtubeFetchText(`${origin}/watch?v=${encodeURIComponent(videoId)}`, {}, 4000, context);
+  if (!response.ok) return [];
+  const marker = response.text.indexOf('ytInitialPlayerResponse');
+  if (marker < 0) return [];
+  const player = JSON.parse(extractBalanced(response.text, marker + 'ytInitialPlayerResponse'.length) || 'null');
+  if (player?.videoDetails?.videoId !== videoId) return [];
+  return validYouTubeTracks(player?.captions?.playerCaptionsTracklistRenderer?.captionTracks, videoId);
+}
+
+function youtubeFetchText(url, options, timeout, context) {
+  return context?.fetchText ? context.fetchText(url, options, timeout) : captureFetchText(url, options, timeout, context);
+}
+
+function youtubeNetworkContext(parent, deadline = parent?.deadline) {
+  const controller = new AbortController();
+  const stop = () => controller.abort(parent?.signal?.reason);
+  parent?.signal?.addEventListener('abort', stop, { once: true });
+  let active = 0;
+  const queue = [];
+  const context = { deadline: Math.min(deadline || Infinity, parent?.deadline || Infinity), attempt: parent?.attempt, signal: controller.signal,
+    check() {
+      parent?.check();
+      if (controller.signal.aborted) throw controller.signal.reason;
+      if (Date.now() >= context.deadline) throw Object.assign(new Error('Caption route deadline'), { code: 'phase_timeout' });
+    },
+    async fetchText(url, options, timeout) {
+      context.check();
+      if (active >= 2) await youtubeBounded(new Promise(resolve => queue.push(resolve)), Math.max(1, (context.deadline || Date.now() + 20000) - Date.now()), context);
+      context.check();
+      active++;
+      try { return await captureFetchText(url, options, timeout, context); }
+      finally { active--; queue.shift()?.(); }
+    },
+  };
+  return { context, dispose() { parent?.signal?.removeEventListener('abort', stop); controller.abort(); } };
 }
 
 /**
@@ -376,9 +502,11 @@ function findCaptionTracksInDom(videoId = new URL(window.location.href).searchPa
   for (const script of document.querySelectorAll("script")) {
     const text = script.textContent || "";
     const marker = text.indexOf('ytInitialPlayerResponse');
+    let scriptVideoId;
     if (marker >= 0) {
       try {
         const response = JSON.parse(extractBalanced(text, marker + 'ytInitialPlayerResponse'.length));
+        scriptVideoId = response?.videoDetails?.videoId;
         if (response?.videoDetails?.videoId && response.videoDetails.videoId !== videoId) continue;
       } catch {}
     }
@@ -390,7 +518,7 @@ function findCaptionTracksInDom(videoId = new URL(window.location.href).searchPa
         const tracks = JSON.parse(raw);
         if (Array.isArray(tracks)) {
           const matching = tracks.filter(track => {
-            try { const id = new URL(track.baseUrl || track.url).searchParams.get('v'); return !id || id === videoId; }
+            try { const id = new URL(track.baseUrl || track.url).searchParams.get('v'); return id === videoId || (!id && scriptVideoId === videoId); }
             catch { return false; }
           });
           if (matching.length) return matching;
@@ -404,29 +532,41 @@ function findCaptionTracksInDom(videoId = new URL(window.location.href).searchPa
 /**
  * Fetch video metadata via YouTube's public web client API.
  */
-async function fetchInnertubePlayer(videoId, context) {
+function readYouTubeClientConfig() {
+  // Useful when MAIN-world scripting and the nonce bridge are blocked. Client
+  // configuration is page-wide; return only public request fields, never tokens.
+  for (const script of document.querySelectorAll('script')) {
+    const text = script.textContent || '';
+    const marker = text.indexOf('ytcfg.set(');
+    if (marker < 0) continue;
+    try {
+      const config = JSON.parse(extractBalanced(text, marker + 'ytcfg.set('.length));
+      const client = config.INNERTUBE_CONTEXT?.client || {};
+      const fields = { clientName: client.clientName || config.INNERTUBE_CLIENT_NAME,
+        clientVersion: client.clientVersion || config.INNERTUBE_CLIENT_VERSION,
+        hl: client.hl || config.HL, gl: client.gl || config.GL };
+      if (typeof fields.clientName === 'string' && typeof fields.clientVersion === 'string') return fields;
+    } catch {}
+  }
+  return {};
+}
+
+async function fetchInnertubePlayer(videoId, context, client = readYouTubeClientConfig()) {
   context?.check();
-  const resp = await captureFetchText(
-    "https://www.youtube.com/youtubei/v1/player?prettyPrint=false",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        videoId,
-        context: {
-          client: {
-            clientName: "WEB",
-            clientVersion: "2.20240101.00.00",
-            hl: "en",
-            gl: "US",
-          },
-        },
-      }),
-    },
-    4000, context
-  );
-  if (!resp.ok) return null;
-  return JSON.parse(resp.text);
+  if (!client || typeof client.clientName !== 'string' || typeof client.clientVersion !== 'string'
+    || !client.clientName || !client.clientVersion || client.clientVersion.length > 100 || client.clientName.length > 30) return null;
+  const origin = new URL(window.location.href).origin;
+  const response = await youtubeFetchText(`${origin}/youtubei/v1/player?prettyPrint=false`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ videoId, context: { client: {
+      clientName: client.clientName, clientVersion: client.clientVersion,
+      ...(typeof client.hl === 'string' && client.hl.length <= 20 && { hl: client.hl }),
+      ...(typeof client.gl === 'string' && client.gl.length <= 10 && { gl: client.gl }),
+    } } }),
+  }, 4000, context);
+  if (!response.ok) return null;
+  const player = JSON.parse(response.text);
+  return player?.videoDetails?.videoId === videoId ? player : null;
 }
 
 /** "json3" / "srv3" / "default" label for a timedtext URL, for logs. */
@@ -441,7 +581,7 @@ function timedtextFormat(url) {
  * On signed URLs (containing sparams/signature), baseUrl is fetched first to avoid
  * breaking signature verification with query modifications.
  */
-async function fetchTimedtext(tracks, context) {
+async function fetchTimedtext(tracks, context, attemptedUrls = new Map()) {
   context?.check();
   if (!Array.isArray(tracks) || tracks.length === 0) return "";
 
@@ -488,27 +628,18 @@ async function fetchTimedtext(tracks, context) {
     for (const url of urls) {
       try {
         context?.check();
-        const resp = await captureFetchText(url, {}, 2500, context);
-        if (!resp.ok) {
-          continue;
+        if (!attemptedUrls.has(url)) {
+          attemptedUrls.set(url, youtubeFetchText(url, {}, 2500, context).then(resp =>
+            resp.ok ? parseYouTubeCaptionResponse(resp.text) : '').catch(() => {
+              context?.check();
+              return '';
+            }));
         }
-        const text = resp.text;
-        const parsed = parseYouTubeCaptionResponse(text);
-        if (parsed) {
-          console.log(
-            `[NutEgg] Captions: extracted from ${track.languageCode || "track"} via ${timedtextFormat(url)}`
-          );
-          return parsed;
-        }
-        if (text && text.length > 50 && !text.includes("<transcript/>")) {
-          console.warn(
-            `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → unparseable response (${text.slice(0, 80)})`
-          );
-        }
-      } catch (err) {
-        console.warn(
-          `[NutEgg] Captions (${track.languageCode || "unknown"}): ${timedtextFormat(url)} → ${err.name === "AbortError" ? "timed out" : err.message}`
-        );
+        const parsed = await attemptedUrls.get(url);
+        context?.check();
+        if (parsed) return parsed;
+      } catch {
+        context?.check();
       }
     }
   }
@@ -516,14 +647,7 @@ async function fetchTimedtext(tracks, context) {
   return "";
 }
 
-/**
- * Video chapters — four layers, in order:
- *   1. ytInitialPlayerResponse → multiMarkersPlayerBarRenderer (chapter ring)
- *   2. ytInitialData → macroMarkersListItemRenderer (description chapters)
- *   3. the chapter list already visible in the DOM
- *   4. open the on-page chapter panel, read its items, close it again
- * Each layer logs which one produced the list, for easy debugging.
- */
+/** Passive chapters only, using data that belongs to the current video. */
 function extractChapters(context) {
   context?.check();
   // Layer 1: player response — the source the chapter ring renders from
@@ -543,30 +667,15 @@ function extractChapters(context) {
     }
   }
 
-  // Layer 2: ytInitialData — macro markers (description chapter list)
+  const expected = new URL(window.location.href).searchParams.get('v');
   const initialData = readYtInitialData();
-  const macroChapters = chaptersFromMacroMarkers(initialData);
-  if (macroChapters.length > 0) {
-    console.log(`[NutEgg] Chapters: ${macroChapters.length} from ytInitialData`);
-    return macroChapters;
+  if (initialData?.currentVideoEndpoint?.watchEndpoint?.videoId === expected) {
+    const chapters = chaptersFromMacroMarkers(initialData);
+    if (chapters.length) return chapters;
   }
-
-  // Layer 3: chapter list already rendered in the DOM
-  const domChapters = readChapterListDom();
-  if (domChapters.length > 0) {
-    console.log(`[NutEgg] Chapters: ${domChapters.length} from DOM list`);
-    return domChapters;
-  }
-
-  // Layer 4: open the chapter panel, read, close (async — handled below)
-  return readChapterPanel(context).then((chapters) => {
-    if (chapters.length > 0) {
-      console.log(`[NutEgg] Chapters: ${chapters.length} from chapter panel`);
-    } else {
-      console.log("[NutEgg] Chapters: none found (player response parsed:", pr !== null, ")");
-    }
-    return chapters;
-  });
+  const ownedPanel = [...document.querySelectorAll('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-macro-markers-description-chapters"]')]
+    .find(panel => panel.getAttribute('video-id') === expected);
+  return ownedPanel ? readChapterListDom(ownedPanel) : [];
 }
 
 /** Chapters from a multiMarkersPlayerBarRenderer markersMap array. */
@@ -620,9 +729,9 @@ function chaptersFromMacroMarkers(data) {
 }
 
 /** `ytd-macro-markers-list-item-renderer` items currently in the DOM. */
-function readChapterListDom() {
+function readChapterListDom(root = document) {
   const chapters = [];
-  document.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
+  root.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
     const time = el.querySelector("#time")?.textContent?.trim();
     // YouTube's h4 contains both #title and child yt-formatted-string or spans, which causes textContent to repeat if we query `h4` directly
     const titleEl = el.querySelector("h4 yt-formatted-string, h4 [id='title'], h4 #endpoint") || el.querySelector("h4");
@@ -697,38 +806,6 @@ function dedupChapters(chapters) {
   return out;
 }
 
-/** Open the chapter-list panel (player chapter button), read it, close it. */
-async function readChapterPanel(context) {
-  try {
-    context?.check();
-    const button = [...document.querySelectorAll("button")].find((b) => {
-      const label = (b.getAttribute("aria-label") || "").toLowerCase();
-      return label === "chapters" || label.includes("chapters");
-    });
-    if (!button) return [];
-
-    button.click();
-
-    const items = await waitFor(() => {
-      const els = document.querySelectorAll("ytd-macro-markers-list-item-renderer");
-      return els.length > 0 ? els : null;
-    }, 800);
-    context?.check();
-    if (!items) return [];
-
-    const chapters = readChapterListDom();
-
-    const closeBtn = document.querySelector(
-      "ytd-engagement-panel-title-header-renderer #close-button"
-    );
-    closeBtn?.click();
-
-    return chapters;
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Parse a top-level `var ytXxx = {...}` JSON object from the page's <script>
  * tags. Content scripts cannot see page globals (isolated world), but the
@@ -756,7 +833,7 @@ function readYtVar(name) {
 function readYtInitialPlayerResponse() {
   const response = readYtVar("ytInitialPlayerResponse");
   const expected = new URL(window.location.href).searchParams.get("v");
-  return response?.videoDetails?.videoId && response.videoDetails.videoId !== expected ? null : response;
+  return response?.videoDetails?.videoId === expected ? response : null;
 }
 
 /** The page's `ytInitialData` (description chapter markers, ...). */
@@ -769,125 +846,130 @@ function readYtInitialData() {
  * The last resort — works even when the player response and page HTML are
  * unavailable (consent walls, A/B layouts, ...).
  */
-async function readTranscriptPanel(context) {
+function youtubeTranscriptPanelOwner(panel, context, response) {
+  const explicit = panel?.getAttribute('video-id') || panel?.getAttribute('data-video-id');
+  if (explicit) return explicit;
+  const expected = new URL(window.location.href).searchParams.get('v');
+  const navigation = window.__nuteggNavigationState;
+  try {
+    const initial = new URL(navigation?.initialUrl);
+    // On the original watch document, before any SPA navigation, a panel under
+    // the matching watch renderer cannot be left over from a different video.
+    // After navigation, unknown panels still require newly requested segments.
+    if (navigation.generation === 0 && initial.pathname === '/watch' && initial.searchParams.get('v') === expected
+      && panel?.closest('ytd-watch-flexy')?.getAttribute('video-id') === expected
+      && (context?.youtubeSnapshot?.playerResponse || response)?.videoDetails?.videoId === expected) return expected;
+  } catch {}
+  return '';
+}
+
+async function readTranscriptPanel(context, { existingOnly = false, waitMs = 2000 } = {}) {
+  const expected = new URL(window.location.href).searchParams.get('v');
+  const panelSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]';
+  const segmentSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, ytd-transcript-segment-list-renderer [role="button"]';
+  const current = () => (!context || context.isCurrent?.() !== false)
+    && new URL(window.location.href).searchParams.get('v') === expected
+    && (!context?.requestId || !window.__nuteggCaptureState?.latest || window.__nuteggCaptureState.latest === context.requestId
+      || window.__nuteggCaptureState.active?.id === context.requestId);
+  const getPanel = () => document.querySelector(panelSelector);
+  const expanded = panel => panel?.getAttribute('visibility') === 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED';
+  const until = Math.min(Date.now() + waitMs, context?.deadline || Infinity);
+  const initialPanel = getPanel();
+  const response = context?.youtubeSnapshot?.playerResponse || readYtInitialPlayerResponse();
+  const owner = node => youtubeTranscriptPanelOwner(node, context, response);
+  const wasExpanded = expanded(initialPanel);
+  if (existingOnly && (!wasExpanded || owner(initialPanel) !== expected)) return '';
+  const baselineNodes = new Set(initialPanel?.querySelectorAll(segmentSelector) || []);
+  const fingerprint = panel => [...(panel?.querySelectorAll(segmentSelector) || [])].map(el => el.textContent?.trim()).join('\n');
+  const baselineText = fingerprint(initialPanel);
+  const description = document.querySelector('#description-inline-expander, ytd-expander#description, #description.ytd-watch-metadata');
+  const expandControl = description?.querySelector('#expand');
+  const initiallyCollapsed = description?.hasAttribute('collapse') || description?.getAttribute('aria-expanded') === 'false'
+    || (expandControl && (expandControl.offsetParent !== null || expandControl.offsetWidth > 0));
+  let changedDescription = false, openedPanel = false, requested = false, userChanged = false;
+  let ownedPanel = null;
+  const userInteraction = event => {
+    if (event.isTrusted && (description?.contains(event.target) || getPanel()?.contains(event.target))) userChanged = true;
+  };
+  document.addEventListener('click', userInteraction, true);
+  const pause = ms => youtubeBounded(new Promise(() => {}), ms, context);
+  const findButton = () => description?.querySelector('ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button')
+    || document.querySelector('ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button');
   try {
     context?.check();
-    // 1. Expand the description if collapsed (YouTube lazy-renders the transcript button inside it)
-    const expandSelectors = [
-      "ytd-text-inline-expander #expand",
-      "#description-inline-expander #expand",
-      "ytd-expander#description #expand",
-      "#bottom-row #expand",
-      "#expand-sizer",
-      "#description #expand",
-      "tp-yt-paper-button#expand",
-    ];
-    for (const sel of expandSelectors) {
-      const el = document.querySelector(sel);
-      if (el && (el.offsetParent !== null || el.offsetWidth > 0)) {
-        el.click();
-        break;
+    let button = findButton();
+    // Only expand the video description, never search unrelated page actions.
+    if (!button && initiallyCollapsed && description) {
+      context?.check();
+      const control = expandControl || description;
+      control.click();
+      changedDescription = true;
+      const buttonUntil = Math.min(until, Date.now() + 400);
+      while (!button && Date.now() < buttonUntil) {
+        await pause(Math.min(50, buttonUntil - Date.now()));
+        context?.check();
+        button = findButton();
       }
     }
-    // Clicking #description directly also expands it on modern YouTube
-    const descEl = document.querySelector("#description.ytd-watch-metadata");
-    if (descEl && (descEl.hasAttribute("collapse") || descEl.getAttribute("aria-expanded") === "false")) {
-      descEl.click();
-    }
-    await new Promise((r) => setTimeout(r, 400));
-
-    context?.check();
-    // 2. Find and click the transcript button
-    let button =
-      document.querySelector("ytd-video-description-transcript-section-renderer button") ||
-      document.querySelector("ytd-video-description-transcript-section-renderer yt-button-shape button") ||
-      document.querySelector("ytd-video-description-transcript-section-renderer yt-button-shape") ||
-      document.querySelector("ytd-video-description-transcript-section-renderer") ||
-      document.querySelector("ytd-transcript-section-renderer button");
-
-    if (!button) {
-      const candidates = [
-        ...document.querySelectorAll(
-          "button, yt-button-shape, ytd-button-renderer, tp-yt-paper-button, tp-yt-paper-item, ytd-menu-service-item-renderer"
-        ),
-      ];
-      // Multilingual keywords for the "Show transcript" button
-      const keywords = [
-        "transcript",
-        "文字记录",
-        "文字記錄",
-        "文字起こし",
-        "transcrip",
-        "transkript",
-        "скрипт",
-        "расшифровк",
-      ];
-      button = candidates.find((b) => {
-        const text = (b.textContent || "").trim().toLowerCase();
-        const aria = (b.getAttribute("aria-label") || "").toLowerCase();
-        const title = (b.getAttribute("title") || "").toLowerCase();
-        const combined = `${text} ${aria} ${title}`;
-        if (["download", "下载", "下載", "share", "like"].some((kw) => combined.includes(kw))) {
-          return false;
-        }
-        return keywords.some(
-          (kw) =>
-            (text.includes(kw) || aria.includes(kw) || title.includes(kw)) &&
-            !text.includes("close") &&
-            !text.includes("toggle")
-        );
-      });
-    }
-
-    if (button) {
+    let panel = getPanel();
+    // A panel from another video is never a usable source.
+    if (owner(panel) && owner(panel) !== expected) return '';
+    if (owner(panel) !== expected || !expanded(panel)) {
+      if (!button) return '';
+      context?.check();
       button.click();
+      requested = true;
     }
-
-    // Also trigger engagement panel visibility directly if element is present in DOM
-    const panelEl = document.querySelector(
-      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]'
-    );
-    if (panelEl && panelEl.getAttribute("visibility") !== "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED") {
-      panelEl.setAttribute("visibility", "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED");
-      if ("visibility" in panelEl) {
-        panelEl.visibility = "ENGAGEMENT_PANEL_VISIBILITY_EXPANDED";
+    let stableText = '', stableSince = 0;
+    while (Date.now() < until) {
+      context?.check();
+      if (!current() || userChanged) return '';
+      panel = getPanel();
+      if (panel && !wasExpanded && expanded(panel)) { openedPanel = true; ownedPanel = panel; }
+      if (owner(panel) && owner(panel) !== expected) return '';
+      const segments = [...(panel?.querySelectorAll(segmentSelector) || [])];
+      const text = fingerprint(panel);
+      const fresh = requested && segments.length > 0
+        && (text !== baselineText || segments.every(segment => !baselineNodes.has(segment)));
+      const owned = owner(panel) === expected || fresh;
+      const loading = [...(panel?.querySelectorAll('[aria-busy="true"], [role="progressbar"], tp-yt-paper-spinner[active]') || [])].some(node => {
+        for (let el = node; el && el !== panel; el = el.parentElement) {
+          if (el.hidden || el.getAttribute('aria-hidden') === 'true') return false;
+          const style = window.getComputedStyle?.(el);
+          if (style?.display === 'none' || style?.visibility === 'hidden') return false;
+        }
+        return true;
+      });
+      if (owned && text && !loading) {
+        if (text !== stableText) { stableText = text; stableSince = Date.now(); }
+        else if (Date.now() - stableSince >= 300) {
+          context?.check();
+          return dedupTranscriptLines(segments.map(segment => {
+            const time = segment.querySelector('.segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')?.textContent?.trim() || '';
+            const textElement = segment.querySelector('.segment-text, .ytwTranscriptSegmentViewModelText, yt-formatted-string, [class*="segment-text"]') || segment;
+            const line = decodeHtmlEntities(textElement.textContent?.trim() || '');
+            return line ? (time ? `[${time}] ${line}` : line) : '';
+          }).filter(Boolean)).join('\n');
+        }
+      } else { stableText = ''; stableSince = 0; }
+      await pause(Math.min(100, Math.max(1, until - Date.now())));
+    }
+    return '';
+  } catch {
+    context?.check();
+    return '';
+  } finally {
+    document.removeEventListener('click', userInteraction, true);
+    // Cleanup may run after a timeout/cancel, but never in a newer navigation or
+    // capture, or over a user interaction. Only controls owned by this task.
+    if (current() && !userChanged) {
+      if (openedPanel && ownedPanel?.isConnected && expanded(ownedPanel)) {
+        ownedPanel.querySelector('#close-button')?.click();
+      }
+      if (changedDescription && description?.isConnected) {
+        description.querySelector('#collapse')?.click();
       }
     }
-
-    if (!button && !panelEl) {
-      return "";
-    }
-
-    // 3. Wait for transcript segment renderers to appear in the DOM
-    const segments = await waitFor(() => {
-      const els = document.querySelectorAll(
-        "ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer, ytd-transcript-search-panel-renderer ytd-transcript-segment-renderer, ytd-transcript-segment-list-renderer [role='button'], [target-id='engagement-panel-searchable-transcript'] ytd-transcript-segment-renderer"
-      );
-      return els.length > 0 ? els : null;
-    }, 2000);
-    context?.check();
-    if (!segments || segments.length === 0) return "";
-
-    const lines = [...segments]
-      .map((s) => {
-        const t =
-          s.querySelector(".segment-timestamp, [class*='timestamp']")?.textContent?.trim() || "";
-        const textEl =
-          s.querySelector(".segment-text, yt-formatted-string, [class*='text']") || s;
-        const text = decodeHtmlEntities(textEl.textContent?.trim() || "");
-        return text ? (t ? `[${t}] ${text}` : text) : "";
-      })
-      .filter(Boolean);
-
-    // Restore the panel state when we opened it
-    const closeBtn = document.querySelector(
-      "ytd-engagement-panel-section-list-renderer[target-id='engagement-panel-searchable-transcript'] #close-button, ytd-engagement-panel-title-header-renderer #close-button, ytd-engagement-panel-section-list-renderer #close-button"
-    );
-    closeBtn?.click();
-
-    return dedupTranscriptLines(lines).join("\n");
-  } catch {
-    return "";
   }
 }
 

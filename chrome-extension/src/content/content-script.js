@@ -53,6 +53,7 @@ if (typeof window !== "undefined") {
 // ============================================================
 
 async function extractContent(discussionSessionId, context) {
+  context?.check();
   // Observe comments before potentially slow transcript/body fetching, without moving the page.
   try { window.NutEggDiscussion?.start(discussionSessionId || `capture:${Date.now()}`, false); }
   catch (error) { console.warn('[NutEgg] Passive discussion capture unavailable:', error); }
@@ -100,7 +101,7 @@ async function runCaptureRequest(message) {
   state.active = job;
   job.promise = context.wait(Promise.resolve().then(() => extractContent(message.discussionSessionId, context)))
     .catch(error => {
-      if (error.code === 'timeout' && context.partial && window.location.href.split('#')[0] === context.url.split('#')[0]) {
+      if (error.code === 'timeout' && context.partial && context.isCurrent()) {
         return { ...context.partial, extractionStatus: 'transient' };
       }
       throw error;
@@ -156,7 +157,7 @@ if (!window.__nutegg_listener_attached) {
       const twitterReady = !isTwitter || !!document.querySelector(
         'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
       );
-      sendResponse({
+      const identity = {
         success: true,
         url: window.location.href,
         title: document.title,
@@ -166,7 +167,20 @@ if (!window.__nutegg_listener_attached) {
         twitterReady,
         // YouTube: the watch page shell has rendered (not the loading skeleton)
         youtubeReady: !isYouTube || playerReady,
-      });
+      };
+      if (isYouTube && !captionTracksReady && typeof queryYouTubePlayerSnapshot === 'function') {
+        // SPA player data can become ready without replacing initial script tags.
+        // Read-only lookup: it must never start a second capture or move the UI.
+        const context = createCaptureContext({ deadline: Date.now() + 500 });
+        const publish = snapshot => sendResponse({ ...identity, url: window.location.href,
+          videoId: new URL(window.location.href).searchParams.get('v'),
+          captionTracksReady: context.isCurrent() && !!snapshot?.tracks?.length,
+          youtubeReady: context.isCurrent() && (playerReady || !!snapshot?.playerResponse),
+        });
+        queryYouTubePlayerSnapshot(context).then(publish, () => publish(null)).finally(() => context.dispose()).catch(() => {});
+        return true;
+      }
+      sendResponse(identity);
       return false;
     }
 

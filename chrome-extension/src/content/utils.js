@@ -20,18 +20,36 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 
 // Capture contexts are passed explicitly, so an obsolete task never acquires
 // the signal or page identity of a newer task in the same document.
-function createCaptureContext({ requestId, expectedUrl, deadline = Date.now() + 20000 } = {}) {
+if (typeof window !== 'undefined' && !window.__nuteggNavigationState) {
+  const initialUrl = typeof performance !== 'undefined' ? performance.getEntriesByType?.('navigation')?.[0]?.name : null;
+  window.__nuteggNavigationState = { generation: 0, initialUrl: initialUrl || window.location.href };
+  for (const event of ['yt-navigate-start', 'popstate']) {
+    window.addEventListener?.(event, () => {
+      window.__nuteggNavigationState.generation++;
+      const active = window.__nuteggCaptureState?.active?.context;
+      if (active && /(^|\.)youtube\.com$/.test(new URL(active.url).hostname)) active.abort('stale');
+    });
+  }
+}
+function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = Date.now() + 20000 } = {}) {
   const controller = new AbortController();
   const url = expectedUrl || window.location.href;
+  const generation = window.__nuteggNavigationState?.generation;
+  const captureDocument = document;
+  const youtube = /(^|\.)youtube\.com$/.test(new URL(url).hostname);
   const abort = (code = 'cancelled') => {
     const error = Object.assign(new Error(code), { name: 'AbortError', code });
     controller.abort(error);
   };
   const timer = setTimeout(() => abort('timeout'), Math.max(1, deadline - Date.now()));
   const context = {
-    requestId, url, deadline, signal: controller.signal, abort,
+    requestId, url, deadline, attempt, signal: controller.signal, abort,
+    isCurrent() {
+      return document === captureDocument && window.location.href.split('#')[0] === url.split('#')[0]
+        && (!youtube || window.__nuteggNavigationState?.generation === generation);
+    },
     check() {
-      if (window.location.href.split('#')[0] !== url.split('#')[0]) abort('stale');
+      if (!context.isCurrent()) abort('stale');
       if (Date.now() >= deadline && !controller.signal.aborted) abort('timeout');
       if (controller.signal.aborted) throw controller.signal.reason;
     },

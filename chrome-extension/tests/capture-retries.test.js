@@ -31,7 +31,7 @@ test('defaults to three retries after the initial attempt and stops on the fourt
   const pending = f.extractor.extractPage(42, { expectedUrl: f.url, onProgress: value => progress.push(value) });
   await flush(); assert.equal(f.calls.length, 1);
   await advance(t, 900); assert.equal(f.calls.length, 1);
-  await advance(t, 2100);
+  await advance(t, 8100);
   assert.equal((await pending).content, 'Captions');
   assert.equal(f.calls.length, 4);
   assert.deepEqual(progress.map(value => value.attempt), [1, 2, 3]);
@@ -101,7 +101,7 @@ test('the overall deadline bounds retry waits and keeps the last partial capture
 
 test('dynamic pages retry explicit not-ready content and preserve the configured limit', async t => {
   const f = fixture(t, (_, url) => ({ success: true, content: { url, content: 'Loading…', extractionStatus: 'not_ready' } }));
-  const pending = f.extractor.extractPage(1, { retryCount: 2 });
+  const pending = f.extractor.extractPage(1, { retryCount: 2, retryDelayMs: 1000 });
   await flush(); await advance(t, 2000);
   assert.equal((await pending).content, 'Loading…');
   assert.equal(f.calls.length, 3);
@@ -112,4 +112,57 @@ test('Bilibili av URLs can validate captures returned under their canonical BV i
     metadata: { requested_video_id: 'av123', video_id: 'BVcanonical', cid: 111 } } }));
   f.identity.url = 'https://www.bilibili.com/video/av123'; f.identity.videoId = 'av123'; f.identity.cid = '111';
   assert.equal((await f.extractor.extractPage(1)).transcriptAvailable, true);
+});
+
+test('slow attempt receives a slice of the overall deadline and later retries remain possible', async t => {
+  const f = fixture(t, (attempt, url) => attempt === 1
+    ? new Promise(resolve => setTimeout(() => resolve(partial(url)), f.calls[0].deadline - Date.now() - 100))
+    : { success: true, content: { url, content: 'Recovered captions', transcriptAvailable: true } });
+  const started = Date.now();
+  const pending = f.extractor.extractPage(42, { expectedUrl: f.url });
+  await flush();
+  assert.equal(f.calls[0].deadline - started, 5900);
+  await advance(t, 9200);
+  assert.equal((await pending).content, 'Recovered captions');
+  assert.equal(f.calls.length, 2);
+  assert(Date.now() - started < 20000);
+});
+
+test('a transport timeout cancels only its attempt and proceeds to a retry', async t => {
+  const f = fixture(t, (attempt, url) => attempt === 1 ? { success: false, errorCode: 'timeout' }
+    : { success: true, content: { url, content: 'Captions', transcriptAvailable: true } });
+  const pending = f.extractor.extractPage(42, { retryCount: 1, retryDelayMs: 100 });
+  await flush(); await advance(t, 200);
+  assert.equal((await pending).content, 'Captions');
+  assert.deepEqual(f.cancelled, [f.calls[0].requestId]);
+});
+
+test('page settling shares the overall deadline even when identity never responds', async t => {
+  const f = fixture(t, () => assert.fail('Must not start extraction after deadline'));
+  f.extractor.requestPageIdentity = () => new Promise(() => {});
+  const pending = f.extractor.extractPage(42, { waitForSettle: true, timeoutMs: 1500 });
+  await flush(); await advance(t, 1500);
+  assert.equal(await pending, null);
+  assert.equal(f.calls.length, 0);
+  assert.equal(Date.now(), 2500);
+});
+
+test('a delayed tab lookup cannot send an obsolete extraction after its attempt expired', async t => {
+  const f = fixture(t, () => assert.fail('Must not send obsolete content request'));
+  let finishGet;
+  global.chrome.tabs.get = () => new Promise(resolve => { finishGet = resolve; });
+  const started = Date.now();
+  const pending = f.extractor.tryExtract(42, undefined, { deadline: started + 100, requestId: 'old' });
+  await advance(t, 200);
+  finishGet({ url: f.url });
+  assert.equal((await pending).errorCode, 'timeout');
+  assert.equal(f.calls.length, 0);
+});
+
+test('failed retries retain the richest valid partial capture', async t => {
+  const f = fixture(t, (attempt, url) => ({ success: true, content: { url, transcriptAvailable: false,
+    content: attempt === 1 ? 'Complete description with chapters' : 'Title only' } }));
+  const pending = f.extractor.extractPage(42, { retryCount: 1, retryDelayMs: 100 });
+  await flush(); await advance(t, 200);
+  assert.equal((await pending).content, 'Complete description with chapters');
 });

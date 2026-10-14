@@ -1,6 +1,6 @@
 // NutEgg Background Service Worker
 
-importScripts("../../dist/ai-core.js", "chinese-fetch.js", "execution-session.js");
+importScripts("../../dist/ai-core.js", "chinese-fetch.js", "../content/extractors/youtube.js", "execution-session.js");
 
 const {
   PROVIDER_CATALOG,
@@ -212,6 +212,7 @@ async function connectObsidian() {
 // --- Messages ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === 'youtube-player-snapshot') return handleYouTubePlayerSnapshotMessage(message, _sender, sendResponse);
   if (_sender?.id !== chrome.runtime.id || (_sender?.url && !_sender.url.startsWith(chrome.runtime.getURL('/')))) {sendResponse({error:'Privileged extension page required.',errorCode:'forbidden'});return false;}
   if(message.action==='set-execution-mode'){NutEggExecution.changeMode(message.mode).then(sendResponse).catch(error=>sendResponse({error:error.message}));return true;}
   if (message.action === 'connect-obsidian') {
