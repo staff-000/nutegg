@@ -20,6 +20,25 @@ function setup(t) {
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 
+test('startup shows captured content without a premature Obsidian setup prompt', context => {
+  const f = setup(context);
+  f.settings.setServerStatus();
+  f.settings.environmentChecked = false;
+  f.settings.chromeAiAuthMethod = 'subscription';
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), true);
+  assert.equal(f.root.getElementById('capture-state').classList.contains('not-functional'), false);
+  assert.equal(f.root.getElementById('subscription-recovery').classList.contains('hidden'), true);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Content 1/);
+  assert.equal(f.ui.actionsUI.analyzeBtn.disabled, true);
+  f.settings.environmentChecked = true;
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), false);
+  f.settings.setServerStatus({ online: true, aiConfigured: true });
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), true);
+});
+
 test('discussion originals expand locally, stay isolated across tabs and reset with history', context => {
   const f = setup(context), core = globalThis.NutEggAI;
   const discussion = { kind: 'comments', status: 'partial', items: [{ id: 'original', text: 'Saved comment experience' }] };

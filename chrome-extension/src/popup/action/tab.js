@@ -43,12 +43,13 @@ class TabAction {
       this.store.dispatch({ type: 'pageInfo', tabId: lease.tabId, url: tab.url, title: tab.title, loading: tab.status === 'loading' });
       const statusPromise = this.envService.checkServerStatus();
       const current = this.store.getTab(lease.tabId);
-      if (current.operations.extraction?.running) {
-        // Extraction is shared per page generation, including across A → B → A.
-        await this.operations.extract(lease.tabId, options);
-        if (!this.store.isActivationCurrent(lease)) return;
-      }
-      await statusPromise;
+      // Page content does not depend on Obsidian. Start it while connection
+      // readiness is checked; reuse any extraction already running for this page.
+      const captureTask = current.operations.extraction?.running ||
+        (!current.analysisResult && !current.extractedContent)
+        ? this.operations.extract(lease.tabId, options) : null;
+      // History depends on sourceVersion, so load it after capture settles.
+      await Promise.all([statusPromise, captureTask]);
       if (!this.store.isActivationCurrent(lease)) return;
       const isChrome = this.settings.isChromeMode();
       if (this.settings.serverOnline || isChrome) {
@@ -59,7 +60,7 @@ class TabAction {
         }
       }
       const afterHistory = this.store.getTab(lease.tabId);
-      if (!afterHistory.analysisResult && (!afterHistory.extractedContent || afterHistory.operations.extraction?.running)) {
+      if (!captureTask && !afterHistory.analysisResult && (!afterHistory.extractedContent || afterHistory.operations.extraction?.running)) {
         await this.operations.extract(lease.tabId, options);
         if (!this.store.isActivationCurrent(lease)) return;
       }
