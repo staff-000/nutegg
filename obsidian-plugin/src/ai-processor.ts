@@ -10,7 +10,7 @@ export {
   sanitizeJsonString,
   parseJson,
   chunkContent,
-} from "../../shared/src/ai-processor";
+} from '../../shared/src/ai-processor';
 
 export type {
   AnalysisSectionsConfig,
@@ -26,4 +26,4 @@ export type {
   EggContent,
   WorkflowPromptKey,
   QuestionScope,
-} from "../../shared/src/types";
+} from '../../shared/src/types';

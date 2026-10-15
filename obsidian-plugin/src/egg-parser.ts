@@ -1,6 +1,6 @@
-import type NutEggPlugin from "./main";
-import type { IndexEntry } from "./index-reader";
-import type { TFile } from "obsidian";
+import type NutEggPlugin from './main';
+import type { IndexEntry } from './index-reader';
+import type { TFile } from 'obsidian';
 import {
   KNOWLEDGE_HEADING,
   UNPROCESSED_HEADING,
@@ -16,18 +16,18 @@ import {
   formatEggForPrompt,
   countUnprocessed,
   type EggContent,
-} from "@shared/egg-parser";
+} from '@shared/egg-parser';
 
 // Re-export everything from shared egg-parser for backward compatibility
-export * from "@shared/egg-parser";
+export * from '@shared/egg-parser';
 
 /** Basenames refer only to the configured egg folder; explicit paths must stay inside it. */
-export function resolveEggPath(fileName: string, vaultFolder = "nutegg"): string | null {
-  if (typeof fileName !== "string" || !fileName || fileName.includes("\\")) return null;
-  const folder = (vaultFolder || "nutegg").replace(/\/+$/, "");
-  const path = fileName.includes("/") ? fileName : `${folder}/${fileName}`;
+export function resolveEggPath(fileName: string, vaultFolder = 'nutegg'): string | null {
+  if (typeof fileName !== 'string' || !fileName || fileName.includes('\\')) return null;
+  const folder = (vaultFolder || 'nutegg').replace(/\/+$/, '');
+  const path = fileName.includes('/') ? fileName : `${folder}/${fileName}`;
   // Reject absolute paths and traversal instead of normalizing them into another note.
-  if (path.split("/").some(part => !part || part === "." || part === "..")) return null;
+  if (path.split('/').some(part => !part || part === '.' || part === '..')) return null;
   return isEggPath(path, folder) ? path : null;
 }
 
@@ -39,7 +39,7 @@ export class EggParser {
   }
 
   private async findFile(fileName: string): Promise<{ file: TFile; path: string } | null> {
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
     const path = resolveEggPath(fileName, folder);
     if (!path) return null;
     const vault = this.plugin.app.vault;
@@ -58,12 +58,15 @@ export class EggParser {
   }
 
   private assertEggFile(file: TFile, path: string): void {
-    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || "nutegg") !== path) {
+    if (file.path !== path || resolveEggPath(file.path, this.plugin.vaultFolder || 'nutegg') !== path) {
       throw new Error(`Egg file moved or is outside the egg folder: ${path}`);
     }
   }
 
-  private async processFile(target: { file: TFile; path: string }, transform: (content: string) => string): Promise<void> {
+  private async processFile(
+    target: { file: TFile; path: string },
+    transform: (content: string) => string
+  ): Promise<void> {
     const { file, path } = target;
     this.assertEggFile(file, path);
     const guardedTransform = (content: string) => {
@@ -83,10 +86,7 @@ export class EggParser {
     await this.processFile(file, transform);
   }
 
-  async readEgg(
-    fileName: string,
-    fallbackDescription?: string
-  ): Promise<EggContent | null> {
+  async readEgg(fileName: string, fallbackDescription?: string): Promise<EggContent | null> {
     const target = await this.findFile(fileName);
     if (!target) {
       console.warn(`[NutEgg] Egg file not found: ${fileName}`);
@@ -153,8 +153,8 @@ export class EggParser {
     sourceUrl: string
   ): Promise<void> {
     const transform = (existing: string) => {
-      const lines = existing.replace(/\n+$/, "").split("\n");
-      const section = findSection(lines, "unprocessed");
+      const lines = existing.replace(/\n+$/, '').split('\n');
+      const section = findSection(lines, 'unprocessed');
 
       // One entry = the insight bullet(s) + provenance lines. Insist on a
       // top-level bullet so entry counting stays reliable.
@@ -162,21 +162,21 @@ export class EggParser {
       const withBullet = /^[-*]\s/.test(trimmed) ? trimmed : `- ${trimmed}`;
       const meta: string[] = [];
       if (author) meta.push(`_author: ${author}_`);
-      const safeTitle = sourceTitle.replace(/[[\]]/g, "");
-      meta.push(`_source: [${safeTitle || "source"}](${sourceUrl})_`);
-      const block = [withBullet, ...meta].join("\n");
+      const safeTitle = sourceTitle.replace(/[[\]]/g, '');
+      meta.push(`_source: [${safeTitle || 'source'}](${sourceUrl})_`);
+      const block = [withBullet, ...meta].join('\n');
 
       if (section) {
         // Blank line between the heading / previous entry and the new entry
-        lines.splice(section.end, 0, "", block);
+        lines.splice(section.end, 0, '', block);
       } else {
         // No Unprocessed section yet — create it
-        lines.push("", UNPROCESSED_HEADING, "", block);
+        lines.push('', UNPROCESSED_HEADING, '', block);
       }
 
       // Exact replay should not append an already pending item.
       if (existing.includes(block)) return existing;
-      return lines.join("\n") + "\n";
+      return lines.join('\n') + '\n';
     };
     await this.processEgg(fileName, transform);
     console.log(`[NutEgg] Added unprocessed entry to ${fileName}`);
@@ -186,12 +186,7 @@ export class EggParser {
    * Replace the Knowledge and Unprocessed sections with the merged output
    * from the merge AI call. Missing sections are created as needed.
    */
-  async applyMerge(
-    fileName: string,
-    knowledge: string,
-    unprocessed: string,
-    expected?: EggContent
-  ): Promise<boolean> {
+  async applyMerge(fileName: string, knowledge: string, unprocessed: string, expected?: EggContent): Promise<boolean> {
     const file = await this.findFile(fileName);
     if (!file) {
       console.warn(`[NutEgg] Cannot merge — egg file not found: ${fileName}`);
@@ -201,70 +196,72 @@ export class EggParser {
     // The AI sometimes includes the section headings themselves ("# Knowledge",
     // "# Unprocessed") in its output. Strip them — the file keeps exactly one
     // heading per section, written by us below.
-    knowledge = stripSectionHeading(knowledge, "knowledge");
-    unprocessed = stripSectionHeading(unprocessed, "unprocessed");
+    knowledge = stripSectionHeading(knowledge, 'knowledge');
+    unprocessed = stripSectionHeading(unprocessed, 'unprocessed');
     // If the model dumped the whole file into `knowledge`, cut at the embedded
     // Unprocessed heading and treat the rest as the leftovers.
-    const kLines = knowledge.split("\n");
-    const uIdx = kLines.findIndex((l) => headingName(l) === "unprocessed");
+    const kLines = knowledge.split('\n');
+    const uIdx = kLines.findIndex(l => headingName(l) === 'unprocessed');
     if (uIdx !== -1) {
-      const rest = stripSectionHeading(
-        kLines.slice(uIdx).join("\n"),
-        "unprocessed"
-      );
-      knowledge = kLines.slice(0, uIdx).join("\n").replace(/\s+$/g, "");
+      const rest = stripSectionHeading(kLines.slice(uIdx).join('\n'), 'unprocessed');
+      knowledge = kLines.slice(0, uIdx).join('\n').replace(/\s+$/g, '');
       if (!unprocessed) unprocessed = rest;
     }
 
     let applied = true;
     const transform = (existing: string) => {
-      if (expected && (expected.sourceText ? existing !== expected.sourceText :
-        parseEggFile(fileName, existing).knowledge !== expected.knowledge || parseEggFile(fileName, existing).unprocessed !== expected.unprocessed)) {
+      if (
+        expected &&
+        (expected.sourceText
+          ? existing !== expected.sourceText
+          : parseEggFile(fileName, existing).knowledge !== expected.knowledge ||
+            parseEggFile(fileName, existing).unprocessed !== expected.unprocessed)
+      ) {
         applied = false;
         return existing;
       }
-      let lines = existing.replace(/\n+$/, "").split("\n");
+      let lines = existing.replace(/\n+$/, '').split('\n');
 
-      const knowledgeSection = findSection(lines, "knowledge");
+      const knowledgeSection = findSection(lines, 'knowledge');
       if (knowledgeSection) {
         lines = [
           ...lines.slice(0, knowledgeSection.start + 1),
-          "",
-          ...knowledge.trim().split("\n"),
+          '',
+          ...knowledge.trim().split('\n'),
           ...lines.slice(knowledgeSection.end),
         ];
       } else {
         // No Knowledge section yet — insert it before Unprocessed (or append
         // at the end) so the canonical Knowledge → Unprocessed order holds.
-        const unprocessedSection = findSection(lines, "unprocessed");
+        const unprocessedSection = findSection(lines, 'unprocessed');
         if (unprocessedSection) {
           lines = [
             ...lines.slice(0, unprocessedSection.start),
-            "",
+            '',
             KNOWLEDGE_HEADING,
-            "",
-            ...knowledge.trim().split("\n"),
-            "",
+            '',
+            ...knowledge.trim().split('\n'),
+            '',
             ...lines.slice(unprocessedSection.start),
           ];
         } else {
-          lines = [...lines, "", KNOWLEDGE_HEADING, "", ...knowledge.trim().split("\n")];
+          lines = [...lines, '', KNOWLEDGE_HEADING, '', ...knowledge.trim().split('\n')];
         }
       }
 
-      const unprocessedSection = findSection(lines, "unprocessed");
+      const unprocessedSection = findSection(lines, 'unprocessed');
       const remainder = unprocessed.trim();
       if (unprocessedSection) {
         lines = [
           ...lines.slice(0, unprocessedSection.start + 1),
-          ...(remainder ? ["", ...remainder.split("\n")] : []),
+          ...(remainder ? ['', ...remainder.split('\n')] : []),
           ...lines.slice(unprocessedSection.end),
         ];
       } else if (remainder) {
-        lines = [...lines, "", UNPROCESSED_HEADING, "", ...remainder.split("\n")];
+        lines = [...lines, '', UNPROCESSED_HEADING, '', ...remainder.split('\n')];
       }
 
-      return lines.join("\n") + "\n";
+      return lines.join('\n') + '\n';
     };
     await this.processFile(file, transform);
     return applied;

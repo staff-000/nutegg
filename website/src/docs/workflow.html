@@ -1,75 +1,91 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Workflow & Prompt Engine — NutEgg</title>
-  <link rel="icon" type="image/png" href="../icons/icon32.png">
-  <link rel="stylesheet" href="docs.css">
-</head>
-<body>
-
-  <header class="docs-header">
-    <div class="docs-header-content">
-      <a href="../index.html" class="brand-link">
-        <img src="../icons/icon48.png" alt="NutEgg icon">
-        <span data-i18n="docsHeaderTitle">NutEgg Docs</span>
-      </a>
-      <div class="header-nav">
-        <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
-        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
-        <select id="lang-select" class="nav-lang-select" aria-label="Language">
-          <option value="en">English</option>
-          <option value="zh">简体中文</option>
-          <option value="es">Español</option>
-          <option value="ja">日本語</option>
-          <option value="ko">한국어</option>
-          <option value="ar">العربية</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="pt">Português</option>
-          <option value="ru">Русский</option>
-        </select>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Workflow & Prompt Engine — NutEgg</title>
+    <link rel="icon" type="image/png" href="../icons/icon32.png" />
+    <link rel="stylesheet" href="docs.css" />
+  </head>
+  <body>
+    <header class="docs-header">
+      <div class="docs-header-content">
+        <a href="../index.html" class="brand-link">
+          <img src="../icons/icon48.png" alt="NutEgg icon" />
+          <span data-i18n="docsHeaderTitle">NutEgg Docs</span>
+        </a>
+        <div class="header-nav">
+          <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
+          <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+            <option value="en">English</option>
+            <option value="zh">简体中文</option>
+            <option value="es">Español</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="ar">العربية</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="pt">Português</option>
+            <option value="ru">Русский</option>
+          </select>
+        </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <div class="docs-container">
-    <aside class="docs-sidebar">
-      <div class="sidebar-group">
-        <div class="sidebar-title" data-i18n="sidebarGettingStarted">Getting Started</div>
-        <ul class="sidebar-links">
-          <li><a href="index.html" data-i18n="sidebarOverview">Overview & Core Concepts</a></li>
-          <li><a href="chrome-extension.html" data-i18n="sidebarChrome">Chrome Extension</a></li>
-          <li><a href="obsidian-plugin.html" data-i18n="sidebarObsidian">Obsidian Plugin</a></li>
-          <li><a href="knowledge-structuring.html" data-i18n="sidebarKnowledge">Knowledge Structuring</a></li>
-          <li><a href="workflow.html" class="active" data-i18n="sidebarWorkflow">AI Workflow Engine</a></li>
-        </ul>
-      </div>
+    <div class="docs-container">
+      <aside class="docs-sidebar">
+        <div class="sidebar-group">
+          <div class="sidebar-title" data-i18n="sidebarGettingStarted">Getting Started</div>
+          <ul class="sidebar-links">
+            <li><a href="index.html" data-i18n="sidebarOverview">Overview & Core Concepts</a></li>
+            <li><a href="chrome-extension.html" data-i18n="sidebarChrome">Chrome Extension</a></li>
+            <li><a href="obsidian-plugin.html" data-i18n="sidebarObsidian">Obsidian Plugin</a></li>
+            <li><a href="knowledge-structuring.html" data-i18n="sidebarKnowledge">Knowledge Structuring</a></li>
+            <li><a href="workflow.html" class="active" data-i18n="sidebarWorkflow">AI Workflow Engine</a></li>
+          </ul>
+        </div>
 
-      <div class="sidebar-group">
-        <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
-        <ul class="sidebar-links">
-          <li><a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Web Store ↗</a></li>
-          <li><a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin ↗</a></li>
-          <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
-          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
-        </ul>
-      </div>
-    </aside>
+        <div class="sidebar-group">
+          <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
+          <ul class="sidebar-links">
+            <li>
+              <a
+                href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
+                target="_blank"
+                rel="noopener"
+                >Chrome Web Store ↗</a
+              >
+            </li>
+            <li>
+              <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
+                >Obsidian Plugin ↗</a
+              >
+            </li>
+            <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
+            <li>
+              <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener"
+                >Privacy Policy</a
+              >
+            </li>
+          </ul>
+        </div>
+      </aside>
 
-    <main class="docs-content">
-      <h1>AI Workflow &amp; Prompt Engine</h1>
-      <p class="lead">
-        Learn how NutEgg's modular workflow engine orchestrates content extraction, summary-based egg routing, instruction-driven analysis, and user-customizable prompts.
-      </p>
+      <main class="docs-content">
+        <h1>AI Workflow &amp; Prompt Engine</h1>
+        <p class="lead">
+          Learn how NutEgg's modular workflow engine orchestrates content extraction, summary-based egg routing,
+          instruction-driven analysis, and user-customizable prompts.
+        </p>
 
-      <h2>The Two-Stage Architecture</h2>
-      <p>
-        Rather than running a single monolithic prompt, NutEgg uses a <strong>Two-Stage Architecture</strong> designed for token efficiency, high extraction precision, and complete user control:
-      </p>
+        <h2>The Two-Stage Architecture</h2>
+        <p>
+          Rather than running a single monolithic prompt, NutEgg uses a <strong>Two-Stage Architecture</strong> designed
+          for token efficiency, high extraction precision, and complete user control:
+        </p>
 
-      <pre><code>                    ┌───────────────────────────────┐
+        <pre><code>                    ┌───────────────────────────────┐
                     │      Captured Web Content     │
                     │   (Article / YouTube / Tweet) │
                     └───────────────┬───────────────┘
@@ -130,108 +146,202 @@
                                      Results returned to Popup
                                      (Ready to Save Nut & Eggs)</code></pre>
 
-      <div class="callout">
-        <div class="callout-title">💡 Why Summary-Based Routing?</div>
+        <div class="callout">
+          <div class="callout-title">💡 Why Summary-Based Routing?</div>
+          <p>
+            Routing eggs using the Stage 1 summary instead of full raw articles or multi-hour video transcripts saves
+            tens of thousands of tokens per run and improves routing accuracy by focusing on distilled, high-signal
+            semantic themes.
+          </p>
+        </div>
+
         <p>
-          Routing eggs using the Stage 1 summary instead of full raw articles or multi-hour video transcripts saves tens of thousands of tokens per run and improves routing accuracy by focusing on distilled, high-signal semantic themes.
+          The side panel’s cross-tab indicator shows running analyses and unread completed results in the current Chrome
+          window. Click it to list tabs and switch directly to their results or progress. Results become read when their
+          analysis is visible in the active tab. Tracking lasts while the panel stays open and resets when it closes.
         </p>
-      </div>
-
-      <p>The side panel’s cross-tab indicator shows running analyses and unread completed results in the current Chrome window. Click it to list tabs and switch directly to their results or progress. Results become read when their analysis is visible in the active tab. Tracking lasts while the panel stays open and resets when it closes.</p>
-      <p>Hatch archives the original analysis and appends approved entries to <code># Unprocessed</code>. Merge runs at 20 pending entries or on demand to assemble fragments and deduplicate claims while preserving sources, caveats, examples, and disagreements. Stage 2 never receives the Knowledge tree, so the recommendation assesses relevance and substance rather than novelty.</p>
-      <p>The <strong>🍃 Knowledge</strong> section option and the Egg Analysis dropdown share one setting for the current browser tab: <strong>🥚 Analysis only</strong> switches Knowledge off, and <strong>🍃 Include knowledge</strong> switches it on. Switching dropdown choices updates the setting and button label without auto-triggering an AI call—click the button to analyze. When switching to Include Knowledge for an egg analyzed previously without knowledge entries, NutEgg reruns Stage 2 rather than simply showing the cached answer-only result. Include knowledge is the initial default; your last choice becomes the default for tabs without analysis. Turning the option off does not hide previously generated entries or prevent saving them. Turning Knowledge off disables entries for every selected egg. Turning it on allows entries only for eggs that permit them: <code>Generate Knowledge Entries: no</code> or an opt-out in the egg’s Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.</p>
-      <h2>Execution Modes</h2>
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <thead>
-          <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left;">
-            <th style="padding: 10px;">Mode</th>
-            <th style="padding: 10px;">Behavior</th>
-            <th style="padding: 10px;">Best Used For</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid var(--border-subtle);">
-            <td style="padding: 10px;"><strong>📱 Standalone Mode</strong></td>
-            <td style="padding: 10px;">Runs Stage 1 content analysis directly in Chrome (when Obsidian is offline or closed). Produces verdicts, 3-sentence summaries, mind maps with clickable timestamps, and interactive video Q&amp;A with timestamp jumping. Skips Stage 2 egg analysis.</td>
-            <td style="padding: 10px;">Fast web and video reading, quick comprehension, or when you don't need note archiving.</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--border-subtle);">
-            <td style="padding: 10px;"><strong>🌞 Full Mode</strong></td>
-            <td style="padding: 10px;">Runs Stage 1 content analysis, routes eggs automatically via <code>_index.md</code>, and immediately executes Stage 2 egg analysis in one uninterrupted pass.</td>
-            <td style="padding: 10px;">Everyday reading and quick captures when you trust automatic egg matching.</td>
-          </tr>
-          <tr style="border-bottom: 1px solid var(--border-subtle);">
-            <td style="padding: 10px;"><strong>🌛 Preview Summary</strong></td>
-            <td style="padding: 10px;">Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full egg list. You can add/remove eggs, proceed with knowledge comparison, or click <strong>Collect Nut Only</strong>.</td>
-            <td style="padding: 10px;">Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge trees.</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h2>Workflow Files in Your Vault</h2>
-      <p>
-        NutEgg seeds its prompt templates into <code>nutegg/_workflow/</code> inside your vault:
-      </p>
-
-      <h3>1. Shared Fragments (Injected into other prompts)</h3>
-      <ul>
-        <li><code>shared-output-rules.md</code>: Grounding directive (source content as sole truth) and multi-lingual output language reference rules. Injected as <code>{{shared_output_rules}}</code>.</li>
-        <li><code>content-task-default.md</code>: Core task instructions for title verdicts, 3-bullet summaries, and mind maps with clickable timestamps. Injected as <code>{{content_task_default}}</code>.</li>
-      </ul>
-
-      <h3>2. Content Capture &amp; Comparison Pipeline</h3>
-      <ul>
-        <li><code>content-analysis.md</code>: Stage 1 content summary, anti-clickbait verdict, interactive mind map with clickable timestamps, and custom question answers with timestamp citations.</li>
-        <li><code>egg-routing.md</code>: Matches Stage 1 summaries against egg descriptions in <code>_index.md</code> to select candidate eggs.</li>
-        <li><code>egg-analysis.md</code>: Stage 2 per-egg extraction of candidate knowledge entries and key question answers scoped to one egg's instructions.</li>
-        <li>Worth Reading If and Skip If guide full reading, highlights, summary sufficient, skip, or uncertain. Useful answers remain saveable regardless of the recommendation.</li>
-        <li><code>aggregate-content.md</code> &amp; <code>aggregate-egg.md</code>: Long-content (>30k characters) aggregation. Stage 2 combines only answer drafts, recommendation notes, and coverage; extracted entries remain in source order until merge.</li>
-      </ul>
-
-      <h3>3. Discussion Analysis (Stage 1)</h3>
-      <p>
-        Discussion analysis executes as part of <strong>Stage 1</strong> content analysis when the <strong>💬 Discussion</strong> section is enabled in Extension Options or popup Analysis Sections, and the page extractor captures reader comments or social replies (e.g. YouTube comments, Twitter replies, Reddit/forum threads, Bilibili comments, or Zhihu answers).
-      </p>
-      <ul>
-        <li><code>discussion-analysis.md</code>: Analyzes comments in batches to extract 3–5 core debating topics, classify commenter stances (<code>agree</code>, <code>disagree</code>, <code>mixed</code>, <code>neutral</code>, <code>unclear</code>), and highlight valuable firsthand experience supplements or corrections (<code>supplement: true</code>).</li>
-        <li><code>aggregate-discussion.md</code>: Merges and synthesizes topics and stance distributions across multi-batch comment threads for large forums or video comment sections.</li>
-      </ul>
-      <p>
-        <strong>Context Flow:</strong> Analyzed discussion summaries and evidence items are returned in the Stage 1 result and feed directly into custom Q&amp;A or forum body analysis (crucial for discussion-centric pages or videos without transcripts). They are also forwarded as context signals into Stage 2 <code>egg-analysis.md</code> so eggs can evaluate community feedback alongside the source content.
-      </p>
-
-      <h3>4. Interactive &amp; Maintenance Workflows</h3>
-      <ul>
-        <li><code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel with prior conversation history and clickable video timestamp jumping.</li>
-        <li><code>merge-unprocessed.md</code>: Triggered manually or automatically at 20+ pending entries to organize and nest raw items into <code># Knowledge</code>.</li>
-        <li><code>localize-egg.md</code>: Translates new egg templates into foreign languages while preserving English structural headings.</li>
-      </ul>
-
-      <h2>Safe Customization Guidelines</h2>
-      <div class="callout">
-        <div class="callout-title">⚠️ What to Preserve</div>
         <p>
-          You are free to customize prompt tone, perspective, and depth. However, you <strong>must preserve</strong>:
+          Hatch archives the original analysis and appends approved entries to <code># Unprocessed</code>. Merge runs at
+          20 pending entries or on demand to assemble fragments and deduplicate claims while preserving sources,
+          caveats, examples, and disagreements. Stage 2 never receives the Knowledge tree, so the recommendation
+          assesses relevance and substance rather than novelty.
         </p>
-        <ul style="margin-top: 8px; margin-bottom: 0;">
-          <li>All <code>{{placeholder}}</code> tags (e.g. <code>{{content}}</code>, <code>{{knowledge_tree}}</code>, <code>{{title}}</code>).</li>
-          <li>Exact JSON output keys (e.g. <code>titleVerdict</code>, <code>extractedEntries</code>, <code>mindMap</code>) so the parser can deserialize the response.</li>
-          <li>Structural headings (<code># Knowledge</code>, <code># Unprocessed</code>) in markdown outputs.</li>
+        <p>
+          The <strong>🍃 Knowledge</strong> section option and the Egg Analysis dropdown share one setting for the
+          current browser tab: <strong>🥚 Analysis only</strong> switches Knowledge off, and
+          <strong>🍃 Include knowledge</strong> switches it on. Switching dropdown choices updates the setting and
+          button label without auto-triggering an AI call—click the button to analyze. When switching to Include
+          Knowledge for an egg analyzed previously without knowledge entries, NutEgg reruns Stage 2 rather than simply
+          showing the cached answer-only result. Include knowledge is the initial default; your last choice becomes the
+          default for tabs without analysis. Turning the option off does not hide previously generated entries or
+          prevent saving them. Turning Knowledge off disables entries for every selected egg. Turning it on allows
+          entries only for eggs that permit them: <code>Generate Knowledge Entries: no</code> or an opt-out in the egg’s
+          Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis
+          does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.
+        </p>
+        <h2>Execution Modes</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
+              <th style="padding: 10px">Mode</th>
+              <th style="padding: 10px">Behavior</th>
+              <th style="padding: 10px">Best Used For</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>📱 Standalone Mode</strong></td>
+              <td style="padding: 10px">
+                Runs Stage 1 content analysis directly in Chrome (when Obsidian is offline or closed). Produces
+                verdicts, 3-sentence summaries, mind maps with clickable timestamps, and interactive video Q&amp;A with
+                timestamp jumping. Skips Stage 2 egg analysis.
+              </td>
+              <td style="padding: 10px">
+                Fast web and video reading, quick comprehension, or when you don't need note archiving.
+              </td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>🌞 Full Mode</strong></td>
+              <td style="padding: 10px">
+                Runs Stage 1 content analysis, routes eggs automatically via <code>_index.md</code>, and immediately
+                executes Stage 2 egg analysis in one uninterrupted pass.
+              </td>
+              <td style="padding: 10px">Everyday reading and quick captures when you trust automatic egg matching.</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>🌛 Preview Summary</strong></td>
+              <td style="padding: 10px">
+                Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full
+                egg list. You can add/remove eggs, proceed with knowledge comparison, or click
+                <strong>Collect Nut Only</strong>.
+              </td>
+              <td style="padding: 10px">
+                Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge
+                trees.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Workflow Files in Your Vault</h2>
+        <p>NutEgg seeds its prompt templates into <code>nutegg/_workflow/</code> inside your vault:</p>
+
+        <h3>1. Shared Fragments (Injected into other prompts)</h3>
+        <ul>
+          <li>
+            <code>shared-output-rules.md</code>: Grounding directive (source content as sole truth) and multi-lingual
+            output language reference rules. Injected as <code>{{shared_output_rules}}</code>.
+          </li>
+          <li>
+            <code>content-task-default.md</code>: Core task instructions for title verdicts, 3-bullet summaries, and
+            mind maps with clickable timestamps. Injected as <code>{{content_task_default}}</code>.
+          </li>
         </ul>
-      </div>
 
-      <h2>Conflict-Free Updates &amp; Reset</h2>
-      <p>
-        When NutEgg updates to a newer version:
-      </p>
-      <ul>
-        <li><strong>Unedited Prompts</strong>: Automatically updated to the latest built-in version.</li>
-        <li><strong>Customized Prompts</strong>: Your edits are never overwritten. NutEgg writes <code>[filename].new.md</code> alongside your file so you can review new additions at your own pace.</li>
-        <li><strong>Factory Reset ("Use Defaults")</strong>: Need a fresh start? In <strong>Obsidian Settings → NutEgg</strong>, click <strong>Use Defaults</strong>. All existing prompts are safely backed up to <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> and pristine factory defaults are restored.</li>
-      </ul>
-    </main>
-  </div>
+        <h3>2. Content Capture &amp; Comparison Pipeline</h3>
+        <ul>
+          <li>
+            <code>content-analysis.md</code>: Stage 1 content summary, anti-clickbait verdict, interactive mind map with
+            clickable timestamps, and custom question answers with timestamp citations.
+          </li>
+          <li>
+            <code>egg-routing.md</code>: Matches Stage 1 summaries against egg descriptions in <code>_index.md</code> to
+            select candidate eggs.
+          </li>
+          <li>
+            <code>egg-analysis.md</code>: Stage 2 per-egg extraction of candidate knowledge entries and key question
+            answers scoped to one egg's instructions.
+          </li>
+          <li>
+            Worth Reading If and Skip If guide full reading, highlights, summary sufficient, skip, or uncertain. Useful
+            answers remain saveable regardless of the recommendation.
+          </li>
+          <li>
+            <code>aggregate-content.md</code> &amp; <code>aggregate-egg.md</code>: Long-content (>30k characters)
+            aggregation. Stage 2 combines only answer drafts, recommendation notes, and coverage; extracted entries
+            remain in source order until merge.
+          </li>
+        </ul>
 
-  <script src="../i18n.js"></script>
-</body>
+        <h3>3. Discussion Analysis (Stage 1)</h3>
+        <p>
+          Discussion analysis executes as part of <strong>Stage 1</strong> content analysis when the
+          <strong>💬 Discussion</strong> section is enabled in Extension Options or popup Analysis Sections, and the
+          page extractor captures reader comments or social replies (e.g. YouTube comments, Twitter replies,
+          Reddit/forum threads, Bilibili comments, or Zhihu answers).
+        </p>
+        <ul>
+          <li>
+            <code>discussion-analysis.md</code>: Analyzes comments in batches to extract 3–5 core debating topics,
+            classify commenter stances (<code>agree</code>, <code>disagree</code>, <code>mixed</code>,
+            <code>neutral</code>, <code>unclear</code>), and highlight valuable firsthand experience supplements or
+            corrections (<code>supplement: true</code>).
+          </li>
+          <li>
+            <code>aggregate-discussion.md</code>: Merges and synthesizes topics and stance distributions across
+            multi-batch comment threads for large forums or video comment sections.
+          </li>
+        </ul>
+        <p>
+          <strong>Context Flow:</strong> Analyzed discussion summaries and evidence items are returned in the Stage 1
+          result and feed directly into custom Q&amp;A or forum body analysis (crucial for discussion-centric pages or
+          videos without transcripts). They are also forwarded as context signals into Stage 2
+          <code>egg-analysis.md</code> so eggs can evaluate community feedback alongside the source content.
+        </p>
+
+        <h3>4. Interactive &amp; Maintenance Workflows</h3>
+        <ul>
+          <li>
+            <code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel with prior conversation
+            history and clickable video timestamp jumping.
+          </li>
+          <li>
+            <code>merge-unprocessed.md</code>: Triggered manually or automatically at 20+ pending entries to organize
+            and nest raw items into <code># Knowledge</code>.
+          </li>
+          <li>
+            <code>localize-egg.md</code>: Translates new egg templates into foreign languages while preserving English
+            structural headings.
+          </li>
+        </ul>
+
+        <h2>Safe Customization Guidelines</h2>
+        <div class="callout">
+          <div class="callout-title">⚠️ What to Preserve</div>
+          <p>
+            You are free to customize prompt tone, perspective, and depth. However, you <strong>must preserve</strong>:
+          </p>
+          <ul style="margin-top: 8px; margin-bottom: 0">
+            <li>
+              All <code>{{placeholder}}</code> tags (e.g. <code>{{content}}</code>, <code>{{knowledge_tree}}</code>,
+              <code>{{title}}</code>).
+            </li>
+            <li>
+              Exact JSON output keys (e.g. <code>titleVerdict</code>, <code>extractedEntries</code>,
+              <code>mindMap</code>) so the parser can deserialize the response.
+            </li>
+            <li>Structural headings (<code># Knowledge</code>, <code># Unprocessed</code>) in markdown outputs.</li>
+          </ul>
+        </div>
+
+        <h2>Conflict-Free Updates &amp; Reset</h2>
+        <p>When NutEgg updates to a newer version:</p>
+        <ul>
+          <li><strong>Unedited Prompts</strong>: Automatically updated to the latest built-in version.</li>
+          <li>
+            <strong>Customized Prompts</strong>: Your edits are never overwritten. NutEgg writes
+            <code>[filename].new.md</code> alongside your file so you can review new additions at your own pace.
+          </li>
+          <li>
+            <strong>Factory Reset ("Use Defaults")</strong>: Need a fresh start? In
+            <strong>Obsidian Settings → NutEgg</strong>, click <strong>Use Defaults</strong>. All existing prompts are
+            safely backed up to <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> and pristine factory defaults
+            are restored.
+          </li>
+        </ul>
+      </main>
+    </div>
+
+    <script src="../i18n.js"></script>
+  </body>
 </html>

@@ -2,46 +2,42 @@
 // NutEgg Egg Formatting & Prompt Building Utilities
 // ============================================================
 
-import type { EggContent } from "./types";
+import type { EggContent } from './types';
 
 /**
  * Sanitize an egg name into a valid, safe markdown file stem.
  * Supports Unicode letters and numbers while replacing invalid characters with '_'.
  */
 export function sanitizeEggName(name: string): string {
-  return String(name || "")
+  return String(name || '')
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
-    .replace(/^_+|_+$/g, "")
+    .replace(/[^\p{L}\p{N}_-]+/gu, '_')
+    .replace(/^_+|_+$/g, '')
     .slice(0, 60);
 }
 
 /** Extract language frontmatter from egg markdown content. */
 export function extractEggLanguage(content: string): string {
-  if (!content) return "";
+  if (!content) return '';
   const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (fmMatch) {
     for (const line of fmMatch[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/);
-      if (kv && kv[1].toLowerCase() === "language") {
-        return kv[2].trim().replace(/^["'](.*)["']$/, "$1");
+      if (kv && kv[1].toLowerCase() === 'language') {
+        return kv[2].trim().replace(/^["'](.*)["']$/, '$1');
       }
     }
   }
   const directMatch = content.match(/^language:\s*["']?([^"'\r\n]+)["']?/im);
-  return directMatch ? directMatch[1].trim() : "";
+  return directMatch ? directMatch[1].trim() : '';
 }
 
 /**
  * Inserts or updates the frontmatter language property in an egg file's content.
  * If the egg already has a non-empty language property, content is returned unchanged.
  */
-export function insertEggLanguage(
-  content: string,
-  language: string,
-  options?: { overwrite?: boolean }
-): string {
+export function insertEggLanguage(content: string, language: string, options?: { overwrite?: boolean }): string {
   if (!content || !language) return content;
   const existing = extractEggLanguage(content);
   if (existing && !options?.overwrite) return content;
@@ -62,7 +58,7 @@ export function insertEggLanguage(
     const opening = match[1];
     const body = match[2];
     const closing = match[3];
-    const separator = body.endsWith("\n") || body.length === 0 ? "" : "\n";
+    const separator = body.endsWith('\n') || body.length === 0 ? '' : '\n';
     const newBody = `${body}${separator}language: "${language}"`;
     return content.replace(fmRegex, `${opening}${newBody}${closing}`);
   }
@@ -73,18 +69,22 @@ export function insertEggLanguage(
 
 /** Format instructions only: existing notes never enter Stage 2. */
 export function formatEggInstructionsForPrompt(egg: EggContent): string {
-  const parts = [`**Scope:** ${egg.scope || "(not specified)"}`];
-  parts.push(`**Generate Knowledge Entries:** ${egg.generateKnowledgeEntries === false ? "no" : "yes"}`);
+  const parts = [`**Scope:** ${egg.scope || '(not specified)'}`];
+  parts.push(`**Generate Knowledge Entries:** ${egg.generateKnowledgeEntries === false ? 'no' : 'yes'}`);
   if (egg.actionGuide) parts.push(`**Action Guide:**\n${egg.actionGuide}`);
-  for (const [label, items] of [["Key Questions", egg.keyQuestions], ["Worth Reading If", egg.worthReadingIf], ["Skip If", egg.skipIf]] as const) {
-    if (items?.length) parts.push(`**${label}:**\n${items.map(item => `- ${item}`).join("\n")}`);
+  for (const [label, items] of [
+    ['Key Questions', egg.keyQuestions],
+    ['Worth Reading If', egg.worthReadingIf],
+    ['Skip If', egg.skipIf],
+  ] as const) {
+    if (items?.length) parts.push(`**${label}:**\n${items.map(item => `- ${item}`).join('\n')}`);
   }
   if (egg.formattingRules) parts.push(`**Formatting Rules:**\n${egg.formattingRules}`);
-  return parts.join("\n\n");
+  return parts.join('\n\n');
 }
 
 export function formatEggKnowledgeForPrompt(egg: EggContent): string {
-  return `**Current Knowledge:**\n${egg.knowledge || "(empty)"}\n\n**Unprocessed:**\n${egg.unprocessed || "(empty)"}`;
+  return `**Current Knowledge:**\n${egg.knowledge || '(empty)'}\n\n**Unprocessed:**\n${egg.unprocessed || '(empty)'}`;
 }
 
 export function formatEggForPrompt(egg: EggContent): string {
@@ -93,13 +93,12 @@ export function formatEggForPrompt(egg: EggContent): string {
 
 /** Count top-level entries in the Unprocessed section (sub-bullets don't count). */
 export function countUnprocessed(egg: EggContent): number {
-  const indentOf = (l: string) => (l.match(/^\s*/) || [""])[0].length;
-  const bullets = (egg.unprocessed || "")
-    .split("\n")
-    .map((l) => l.replace(/\s+$/, ""))
-    .filter((l) => /^\s*[-*]\s/.test(l));
+  const indentOf = (l: string) => (l.match(/^\s*/) || [''])[0].length;
+  const bullets = (egg.unprocessed || '')
+    .split('\n')
+    .map(l => l.replace(/\s+$/, ''))
+    .filter(l => /^\s*[-*]\s/.test(l));
   if (bullets.length === 0) return 0;
   const base = Math.min(...bullets.map(indentOf));
-  return bullets.filter((l) => indentOf(l) === base).length;
+  return bullets.filter(l => indentOf(l) === base).length;
 }
-

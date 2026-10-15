@@ -29,7 +29,7 @@ function unwrapMindMapRoots(nodes) {
  */
 function findCurrentNode(nodes, progress) {
   if (!Array.isArray(nodes) || nodes.length === 0 || progress == null) return null;
-  const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
+  const helpers = typeof require === 'function' ? require('../helpers.js') : globalThis.NutEggHelpers;
   const displayNodes = unwrapMindMapRoots(nodes);
   if (!Array.isArray(displayNodes) || displayNodes.length === 0) return null;
 
@@ -48,36 +48,36 @@ function findCurrentNode(nodes, progress) {
   if (flat.length === 0) return null;
 
   const toSec = t => {
-    if (typeof t === "number") return !isNaN(t) ? t : 0;
+    if (typeof t === 'number') return !isNaN(t) ? t : 0;
     if (!t) return null;
     const str = String(t).trim();
     if (!str) return null;
     const m = str.match(/\b(?:(\d{1,3}):)?(\d{1,2}):(\d{2})\b/);
     if (m) {
-      const parts = m[0].split(":").map(Number);
+      const parts = m[0].split(':').map(Number);
       if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
       if (parts.length === 2) return parts[0] * 60 + parts[1];
     }
-    const clean = str.replace(/^\[|\]$/g, "").trim();
+    const clean = str.replace(/^\[|\]$/g, '').trim();
     const cleanMatch = clean.match(/\b(?:(\d{1,3}):)?(\d{1,2}):(\d{2})\b/);
     if (cleanMatch) {
-      const parts = cleanMatch[0].split(":").map(Number);
+      const parts = cleanMatch[0].split(':').map(Number);
       if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
       if (parts.length === 2) return parts[0] * 60 + parts[1];
     }
     const num = Number(clean);
-    return !isNaN(num) && clean !== "" ? num : null;
+    return !isNaN(num) && clean !== '' ? num : null;
   };
 
   const getNodeTs = n => {
     if (n == null) return null;
-    if (typeof n.timestamp === "number" && !isNaN(n.timestamp)) return n.timestamp;
-    if (typeof n.time === "number" && !isNaN(n.time)) return n.time;
+    if (typeof n.timestamp === 'number' && !isNaN(n.timestamp)) return n.timestamp;
+    if (typeof n.time === 'number' && !isNaN(n.time)) return n.time;
     if (n.time) {
       const s = toSec(n.time);
       if (s !== null) return s;
     }
-    const fromName = helpers?.extractTimestamp?.(n.name) || (typeof n.name === "string" && toSec(n.name));
+    const fromName = helpers?.extractTimestamp?.(n.name) || (typeof n.name === 'string' && toSec(n.name));
     if (fromName !== null && fromName !== undefined) return fromName;
     if (Array.isArray(n.sources)) {
       for (const s of n.sources) {
@@ -91,11 +91,11 @@ function findCurrentNode(nodes, progress) {
   };
 
   const getNodePos = (n, idx) => {
-    if (typeof n.position === "number") return n.position;
+    if (typeof n.position === 'number') return n.position;
     if (Array.isArray(n.sources)) {
       for (const s of n.sources) {
-        if (s && typeof s.position === "number") return s.position;
-        if (s && typeof s.ratio === "number") return s.ratio;
+        if (s && typeof s.position === 'number') return s.position;
+        if (s && typeof s.ratio === 'number') return s.ratio;
       }
     }
     return flat.length > 1 ? idx / (flat.length - 1) : 0;
@@ -103,19 +103,19 @@ function findCurrentNode(nodes, progress) {
 
   const hasAnyTimestamp = flat.some(item => getNodeTs(item.node) !== null);
   const isVideo =
-    progress?.type === "video" ||
-    typeof progress?.currentTime === "number" ||
-    (typeof progress === "number" && hasAnyTimestamp);
+    progress?.type === 'video' ||
+    typeof progress?.currentTime === 'number' ||
+    (typeof progress === 'number' && hasAnyTimestamp);
 
   let targetValue = 0;
   if (isVideo) {
-    if (typeof progress === "number") targetValue = progress;
-    else if (typeof progress?.currentTime === "number") targetValue = progress.currentTime;
-    else if (typeof progress?.time === "string") targetValue = toSec(progress.time) ?? 0;
+    if (typeof progress === 'number') targetValue = progress;
+    else if (typeof progress?.currentTime === 'number') targetValue = progress.currentTime;
+    else if (typeof progress?.time === 'string') targetValue = toSec(progress.time) ?? 0;
   } else {
-    if (typeof progress === "number") targetValue = progress;
-    else if (typeof progress?.position === "number") targetValue = progress.position;
-    else if (typeof progress?.scrollRatio === "number") targetValue = progress.scrollRatio;
+    if (typeof progress === 'number') targetValue = progress;
+    else if (typeof progress?.position === 'number') targetValue = progress.position;
+    else if (typeof progress?.scrollRatio === 'number') targetValue = progress.scrollRatio;
   }
 
   // Populate metrics
@@ -158,19 +158,26 @@ function findCurrentNode(nodes, progress) {
 
 /** Render the Mind Map hierarchical concept tree. */
 function renderMindMap(nodes, container, progress = null, conversation = null, options = {}) {
-  const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
-  const t = (key, params) => (typeof globalThis.t === "function" ? globalThis.t(key, params) : (helpers?.t ? helpers.t(key, params) : key));
-  const renderText = text => helpers.linkifyTimestamps(helpers.escapeHtml(String(text || "")));
-  const target = container || (typeof mindmapTree !== "undefined" ? mindmapTree : (typeof document !== "undefined" ? document.getElementById("mindmap-tree") : null));
+  const helpers = typeof require === 'function' ? require('../helpers.js') : globalThis.NutEggHelpers;
+  const t = (key, params) =>
+    typeof globalThis.t === 'function' ? globalThis.t(key, params) : helpers?.t ? helpers.t(key, params) : key;
+  const renderText = text => helpers.linkifyTimestamps(helpers.escapeHtml(String(text || '')));
+  const target =
+    container ||
+    (typeof mindmapTree !== 'undefined'
+      ? mindmapTree
+      : typeof document !== 'undefined'
+        ? document.getElementById('mindmap-tree')
+        : null);
   if (!target) return;
-  target.innerHTML = "";
+  target.innerHTML = '';
   if (!Array.isArray(nodes) || nodes.length === 0) return;
 
   const isConversation = Boolean(
     options?.optimizeForConversation !== false &&
     conversation &&
     conversation.format &&
-    conversation.format !== "monologue"
+    conversation.format !== 'monologue'
   );
 
   let displayNodes;
@@ -181,7 +188,7 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
         if (!Array.isArray(items)) return;
         for (const item of items) {
           if (!item) continue;
-          if (item.kind === "question") {
+          if (item.kind === 'question') {
             qs.push(item);
           } else if (Array.isArray(item.children)) {
             walk(item.children);
@@ -203,34 +210,34 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
   let nodeIndex = 0;
 
   const KIND_ICONS = {
-    topic: "🧭",
-    question: "❓",
-    answer: "💬",
-    disagreement: "⚔️",
-    example: "📌",
-    takeaway: "💡",
+    topic: '🧭',
+    question: '❓',
+    answer: '💬',
+    disagreement: '⚔️',
+    example: '📌',
+    takeaway: '💡',
   };
 
   if (isConversation) {
-    const convHeader = document.createElement("div");
-    convHeader.className = "mindmap-conversation-header";
+    const convHeader = document.createElement('div');
+    convHeader.className = 'mindmap-conversation-header';
 
     // Meta row (Format badge & Questions only filter toggle)
-    const metaRow = document.createElement("div");
-    metaRow.className = "mindmap-meta-row";
+    const metaRow = document.createElement('div');
+    metaRow.className = 'mindmap-meta-row';
 
-    const formatLabel = t("conversationFormat_" + conversation.format) || conversation.format;
-    const formatBadge = document.createElement("span");
-    formatBadge.className = "mindmap-format-badge format-" + helpers.escapeHtml(conversation.format);
-    formatBadge.textContent = "🎙️ " + formatLabel;
+    const formatLabel = t('conversationFormat_' + conversation.format) || conversation.format;
+    const formatBadge = document.createElement('span');
+    formatBadge.className = 'mindmap-format-badge format-' + helpers.escapeHtml(conversation.format);
+    formatBadge.textContent = '🎙️ ' + formatLabel;
     metaRow.appendChild(formatBadge);
 
-    const filterBtn = document.createElement("button");
-    filterBtn.type = "button";
-    filterBtn.className = "mindmap-filter-toggle" + (options?.questionsOnly ? " active" : "");
-    filterBtn.setAttribute("aria-pressed", String(Boolean(options?.questionsOnly)));
-    filterBtn.innerHTML = `❓ <span>${helpers.escapeHtml(t("mindmapQuestionsOnly"))}</span>`;
-    filterBtn.addEventListener("click", (e) => {
+    const filterBtn = document.createElement('button');
+    filterBtn.type = 'button';
+    filterBtn.className = 'mindmap-filter-toggle' + (options?.questionsOnly ? ' active' : '');
+    filterBtn.setAttribute('aria-pressed', String(Boolean(options?.questionsOnly)));
+    filterBtn.innerHTML = `❓ <span>${helpers.escapeHtml(t('mindmapQuestionsOnly'))}</span>`;
+    filterBtn.addEventListener('click', e => {
       e.stopPropagation();
       options?.onToggleQuestionsOnly?.(!options?.questionsOnly);
     });
@@ -241,20 +248,20 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
     const rootTopics = unwrapMindMapRoots(nodes);
     const timelineTopics = rootTopics.filter(n => Boolean(n && (n.time || helpers?.extractTimestamp?.(n.name))));
     if (timelineTopics.length > 1) {
-      const timelineEl = document.createElement("div");
-      timelineEl.className = "mindmap-timeline";
+      const timelineEl = document.createElement('div');
+      timelineEl.className = 'mindmap-timeline';
       for (const topic of timelineTopics) {
-        const timeStr = (typeof topic.time === "string" && topic.time) || helpers?.extractTimestamp?.(topic.name);
-        const cleanName = (topic.name || "").replace(/\[?\d{1,3}:[0-5]\d(?::[0-5]\d)?\]?/g, "").trim();
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "mindmap-timeline-chip source-pill source-timestamp inline-timestamp";
+        const timeStr = (typeof topic.time === 'string' && topic.time) || helpers?.extractTimestamp?.(topic.name);
+        const cleanName = (topic.name || '').replace(/\[?\d{1,3}:[0-5]\d(?::[0-5]\d)?\]?/g, '').trim();
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'mindmap-timeline-chip source-pill source-timestamp inline-timestamp';
         chip.dataset.time = timeStr;
         chip.title = `${timeStr} — ${cleanName}`;
         chip.innerHTML = `<span class="mindmap-timeline-time">${helpers.escapeHtml(timeStr)}</span> <span class="mindmap-timeline-title">${helpers.escapeHtml(cleanName)}</span>`;
-        chip.addEventListener("click", () => {
+        chip.addEventListener('click', () => {
           const matched = target.querySelector(`.mindmap-node[data-topic-time="${timeStr}"]`);
-          matched?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          matched?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
         timelineEl.appendChild(chip);
       }
@@ -267,81 +274,104 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
   function buildNode(node) {
     const currentIndex = nodeIndex++;
     const isCurrent = currentNode === node;
-    const nodeEl = document.createElement("div");
-    nodeEl.className = "mindmap-node" + (isCurrent ? " is-current" : "");
+    const nodeEl = document.createElement('div');
+    nodeEl.className = 'mindmap-node' + (isCurrent ? ' is-current' : '');
     nodeEl.dataset.nodeIndex = String(currentIndex);
     if (node.time) nodeEl.dataset.topicTime = node.time;
     if (node.kind) nodeEl.dataset.kind = node.kind;
     nodeEl.__nuteggNode = node;
 
-    const headerEl = document.createElement("div");
-    headerEl.className = "mindmap-node-header";
+    const headerEl = document.createElement('div');
+    headerEl.className = 'mindmap-node-header';
 
     const hasChildren = Array.isArray(node.children) && node.children.length > 0;
 
     let toggleBtn = null;
     if (hasChildren) {
-      toggleBtn = document.createElement("button");
-      toggleBtn.type = "button";
-      toggleBtn.className = "mindmap-toggle-btn";
-      toggleBtn.setAttribute("aria-label", t("toggleBranch"));
-      toggleBtn.title = t("toggleBranch");
+      toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'mindmap-toggle-btn';
+      toggleBtn.setAttribute('aria-label', t('toggleBranch'));
+      toggleBtn.title = t('toggleBranch');
       toggleBtn.innerHTML = `<span class="mindmap-toggle-icon">▾</span>`;
       headerEl.appendChild(toggleBtn);
     } else {
-      const bullet = document.createElement("span");
-      bullet.className = "mindmap-bullet";
+      const bullet = document.createElement('span');
+      bullet.className = 'mindmap-bullet';
       headerEl.appendChild(bullet);
     }
 
-    const contentWrap = document.createElement("div");
-    contentWrap.className = "mindmap-node-content";
+    const contentWrap = document.createElement('div');
+    contentWrap.className = 'mindmap-node-content';
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "mindmap-node-name";
+    const nameEl = document.createElement('div');
+    nameEl.className = 'mindmap-node-name';
     const hasTime = Boolean(
-      (typeof node.time === "string" && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) ||
+      (typeof node.time === 'string' && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) ||
       helpers?.extractTimestamp?.(node.name) ||
       /(?:^|[^\d:])\d{1,3}(?::\d{2}){1,2}(?:[^\d:]|$)/.test(node.name || '') ||
       node.sources?.some(s => s && typeof s.ref === 'string' && /^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref.trim()))
     );
-    const source = node.sources?.find(s => s && typeof s.ref === 'string' && (s.sourceId || !/^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref)) && (s.quote || s.sourceId || s.ref));
+    const source = node.sources?.find(
+      s =>
+        s &&
+        typeof s.ref === 'string' &&
+        (s.sourceId || !/^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref)) &&
+        (s.quote || s.sourceId || s.ref)
+    );
 
-    let prefixHtml = "";
+    let prefixHtml = '';
     if (isConversation && node.kind && KIND_ICONS[node.kind]) {
       const icon = KIND_ICONS[node.kind];
-      const kindLabel = t("nodeKind_" + node.kind) || node.kind;
+      const kindLabel = t('nodeKind_' + node.kind) || node.kind;
       prefixHtml = `<span class="mindmap-kind-badge kind-${helpers.escapeHtml(node.kind)}" title="${helpers.escapeHtml(kindLabel)}">${icon} ${helpers.escapeHtml(kindLabel)}</span>`;
     }
 
-    nameEl.innerHTML = (prefixHtml ? prefixHtml + " " : "") + renderText(node.name);
+    nameEl.innerHTML = (prefixHtml ? prefixHtml + ' ' : '') + renderText(node.name);
 
     if (isConversation && node.stance) {
-      if (node.stance === "agree") {
-        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-agree">✓ ${helpers.escapeHtml(t("stanceAgree") || "Agree")}</span>`);
-      } else if (node.stance === "disagree") {
-        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-disagree">✗ ${helpers.escapeHtml(t("stanceDisagree") || "Disagree")}</span>`);
-      } else if (node.stance === "mixed") {
-        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-mixed">~ ${helpers.escapeHtml(t("stanceMixed") || "Mixed")}</span>`);
+      if (node.stance === 'agree') {
+        nameEl.insertAdjacentHTML(
+          'beforeend',
+          ` <span class="mindmap-stance-badge stance-agree">✓ ${helpers.escapeHtml(t('stanceAgree') || 'Agree')}</span>`
+        );
+      } else if (node.stance === 'disagree') {
+        nameEl.insertAdjacentHTML(
+          'beforeend',
+          ` <span class="mindmap-stance-badge stance-disagree">✗ ${helpers.escapeHtml(t('stanceDisagree') || 'Disagree')}</span>`
+        );
+      } else if (node.stance === 'mixed') {
+        nameEl.insertAdjacentHTML(
+          'beforeend',
+          ` <span class="mindmap-stance-badge stance-mixed">~ ${helpers.escapeHtml(t('stanceMixed') || 'Mixed')}</span>`
+        );
       }
     }
 
     if (source && !hasTime) {
-      nameEl.insertAdjacentHTML("beforeend", ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('sourceTooltip'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`);
+      nameEl.insertAdjacentHTML(
+        'beforeend',
+        ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('sourceTooltip'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`
+      );
     }
-    if (typeof node.time === "string" && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) {
-      nameEl.insertAdjacentHTML("beforeend", " " + renderText(node.time));
+    if (typeof node.time === 'string' && /^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(node.time)) {
+      nameEl.insertAdjacentHTML('beforeend', ' ' + renderText(node.time));
     }
     if (isCurrent) {
-      const badgeTitle = helpers?.escapeHtml ? helpers.escapeHtml(t("currentPosition") || "Current location") : "Current location";
-      const badgeText = helpers?.escapeHtml ? helpers.escapeHtml(t("whereAreWe") || "Current") : "Current";
-      nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-current-badge" title="${badgeTitle}"><span class="mindmap-current-dot"></span><span>${badgeText}</span></span>`);
+      const badgeTitle = helpers?.escapeHtml
+        ? helpers.escapeHtml(t('currentPosition') || 'Current location')
+        : 'Current location';
+      const badgeText = helpers?.escapeHtml ? helpers.escapeHtml(t('whereAreWe') || 'Current') : 'Current';
+      nameEl.insertAdjacentHTML(
+        'beforeend',
+        ` <span class="mindmap-current-badge" title="${badgeTitle}"><span class="mindmap-current-dot"></span><span>${badgeText}</span></span>`
+      );
     }
     contentWrap.appendChild(nameEl);
 
     if (node.detail) {
-      const detailEl = document.createElement("div");
-      detailEl.className = "mindmap-node-detail";
+      const detailEl = document.createElement('div');
+      detailEl.className = 'mindmap-node-detail';
       detailEl.innerHTML = renderText(node.detail);
       contentWrap.appendChild(detailEl);
     }
@@ -350,23 +380,23 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
     nodeEl.appendChild(headerEl);
 
     if (hasChildren) {
-      const childrenContainer = document.createElement("div");
-      childrenContainer.className = "mindmap-children";
+      const childrenContainer = document.createElement('div');
+      childrenContainer.className = 'mindmap-children';
       for (const child of node.children) {
         childrenContainer.appendChild(buildNode(child));
       }
       nodeEl.appendChild(childrenContainer);
 
-      const toggleBranch = (e) => {
-        if (e.target.closest?.(".source-pill")) return;
+      const toggleBranch = e => {
+        if (e.target.closest?.('.source-pill')) return;
         e.stopPropagation();
-        const isCollapsed = childrenContainer.classList.toggle("collapsed");
-        const icon = toggleBtn.querySelector(".mindmap-toggle-icon");
-        if (icon) icon.textContent = isCollapsed ? "▸" : "▾";
+        const isCollapsed = childrenContainer.classList.toggle('collapsed');
+        const icon = toggleBtn.querySelector('.mindmap-toggle-icon');
+        if (icon) icon.textContent = isCollapsed ? '▸' : '▾';
       };
 
-      toggleBtn.addEventListener("click", toggleBranch);
-      nameEl.addEventListener("click", toggleBranch);
+      toggleBtn.addEventListener('click', toggleBranch);
+      nameEl.addEventListener('click', toggleBranch);
     }
 
     return nodeEl;
@@ -380,8 +410,8 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
 class MindmapComponent {
   constructor(root = document) {
     this.root = root;
-    this.mindmapSection = root.getElementById("mindmap-section");
-    this.mindmapTree = root.getElementById("mindmap-tree");
+    this.mindmapSection = root.getElementById('mindmap-section');
+    this.mindmapTree = root.getElementById('mindmap-tree');
     this.nodes = null;
     this.conversation = null;
     this.options = {};
@@ -390,11 +420,11 @@ class MindmapComponent {
   }
 
   show() {
-    this.mindmapSection?.classList.remove("hidden");
+    this.mindmapSection?.classList.remove('hidden');
   }
 
   hide() {
-    this.mindmapSection?.classList.add("hidden");
+    this.mindmapSection?.classList.add('hidden');
   }
 
   findCurrentNode(nodes, progress) {
@@ -412,11 +442,12 @@ class MindmapComponent {
 
   highlightCurrentNode(targetNode) {
     if (!this.mindmapTree) return;
-    const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
-    const t = (key, params) => (typeof globalThis.t === "function" ? globalThis.t(key, params) : (helpers?.t ? helpers.t(key, params) : key));
+    const helpers = typeof require === 'function' ? require('../helpers.js') : globalThis.NutEggHelpers;
+    const t = (key, params) =>
+      typeof globalThis.t === 'function' ? globalThis.t(key, params) : helpers?.t ? helpers.t(key, params) : key;
 
-    this.mindmapTree.querySelectorAll(".mindmap-node.is-current").forEach(el => el.classList.remove("is-current"));
-    this.mindmapTree.querySelectorAll(".mindmap-current-badge").forEach(el => el.remove());
+    this.mindmapTree.querySelectorAll('.mindmap-node.is-current').forEach(el => el.classList.remove('is-current'));
+    this.mindmapTree.querySelectorAll('.mindmap-current-badge').forEach(el => el.remove());
 
     if (!targetNode) return;
 
@@ -425,7 +456,10 @@ class MindmapComponent {
     let idx = 0;
     function findIdx(list) {
       for (const item of list) {
-        if (item === targetNode) { matchedIndex = idx; return true; }
+        if (item === targetNode) {
+          matchedIndex = idx;
+          return true;
+        }
         idx++;
         if (Array.isArray(item.children) && item.children.length > 0) {
           if (findIdx(item.children)) return true;
@@ -435,31 +469,40 @@ class MindmapComponent {
     }
     findIdx(displayNodes);
 
-    let nodeEl = matchedIndex !== -1 ? this.mindmapTree.querySelector(`.mindmap-node[data-node-index="${matchedIndex}"]`) : null;
+    let nodeEl =
+      matchedIndex !== -1 ? this.mindmapTree.querySelector(`.mindmap-node[data-node-index="${matchedIndex}"]`) : null;
     if (!nodeEl) {
-      for (const el of this.mindmapTree.querySelectorAll(".mindmap-node")) {
-        if (el.__nuteggNode === targetNode) { nodeEl = el; break; }
+      for (const el of this.mindmapTree.querySelectorAll('.mindmap-node')) {
+        if (el.__nuteggNode === targetNode) {
+          nodeEl = el;
+          break;
+        }
       }
     }
     if (!nodeEl) return;
 
-    nodeEl.classList.add("is-current");
-    const nameEl = nodeEl.querySelector(".mindmap-node-name");
-    if (nameEl && !nameEl.querySelector(".mindmap-current-badge")) {
-      const badgeTitle = helpers?.escapeHtml ? helpers.escapeHtml(t("currentPosition") || "Current location") : "Current location";
-      const badgeText = helpers?.escapeHtml ? helpers.escapeHtml(t("whereAreWe") || "Current") : "Current";
-      nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-current-badge" title="${badgeTitle}"><span class="mindmap-current-dot"></span><span>${badgeText}</span></span>`);
+    nodeEl.classList.add('is-current');
+    const nameEl = nodeEl.querySelector('.mindmap-node-name');
+    if (nameEl && !nameEl.querySelector('.mindmap-current-badge')) {
+      const badgeTitle = helpers?.escapeHtml
+        ? helpers.escapeHtml(t('currentPosition') || 'Current location')
+        : 'Current location';
+      const badgeText = helpers?.escapeHtml ? helpers.escapeHtml(t('whereAreWe') || 'Current') : 'Current';
+      nameEl.insertAdjacentHTML(
+        'beforeend',
+        ` <span class="mindmap-current-badge" title="${badgeTitle}"><span class="mindmap-current-dot"></span><span>${badgeText}</span></span>`
+      );
     }
 
     // Auto-uncollapse ancestors so where are we is visible
-    let parentBranch = nodeEl.parentElement?.closest(".mindmap-children");
+    let parentBranch = nodeEl.parentElement?.closest('.mindmap-children');
     while (parentBranch) {
-      if (parentBranch.classList.contains("collapsed")) {
-        parentBranch.classList.remove("collapsed");
-        const toggleBtn = parentBranch.parentElement?.querySelector(".mindmap-toggle-btn .mindmap-toggle-icon");
-        if (toggleBtn) toggleBtn.textContent = "▾";
+      if (parentBranch.classList.contains('collapsed')) {
+        parentBranch.classList.remove('collapsed');
+        const toggleBtn = parentBranch.parentElement?.querySelector('.mindmap-toggle-btn .mindmap-toggle-icon');
+        if (toggleBtn) toggleBtn.textContent = '▾';
       }
-      parentBranch = parentBranch.parentElement?.closest(".mindmap-children");
+      parentBranch = parentBranch.parentElement?.closest('.mindmap-children');
     }
   }
 
@@ -478,9 +521,10 @@ class MindmapComponent {
     } else if (isLoading && enabled !== false) {
       this.show();
       if (this.mindmapTree) {
-        const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
-        const tFn = (key, params) => (typeof globalThis.t === "function" ? globalThis.t(key, params) : (helpers?.t ? helpers.t(key, params) : key));
-        const text = tFn("mindmapInProgress") || "Mind Map generation in progress...";
+        const helpers = typeof require === 'function' ? require('../helpers.js') : globalThis.NutEggHelpers;
+        const tFn = (key, params) =>
+          typeof globalThis.t === 'function' ? globalThis.t(key, params) : helpers?.t ? helpers.t(key, params) : key;
+        const text = tFn('mindmapInProgress') || 'Mind Map generation in progress...';
         this.mindmapTree.innerHTML = `<div class="mindmap-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🧠 ${text}</span></div>`;
       }
     } else {
@@ -489,14 +533,14 @@ class MindmapComponent {
   }
 }
 
-const _mindmapScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _mindmapScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _mindmapScope.NutEggUI = _mindmapScope.NutEggUI || {};
 _mindmapScope.NutEggUI.MindmapComponent = MindmapComponent;
 _mindmapScope.NutEggUI.renderMindMap = renderMindMap;
 _mindmapScope.NutEggUI.findCurrentNode = findCurrentNode;
 _mindmapScope.NutEggUI.unwrapMindMapRoots = unwrapMindMapRoots;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     MindmapComponent,
     renderMindMap,

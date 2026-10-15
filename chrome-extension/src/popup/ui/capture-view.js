@@ -5,43 +5,43 @@
 class CaptureViewComponent {
   constructor(root = document) {
     this.root = root;
-    this.pageTitle = root.getElementById("page-title");
-    this.pageUrl = root.getElementById("page-url");
-    this.pageType = root.getElementById("page-type");
-    this.pageAuthorEl = root.getElementById("page-author");
-    this.pagePublishedEl = root.getElementById("page-published");
-    this.pageWordCountEl = root.getElementById("page-word-count");
-    this.pageCaptionSourceEl = root.getElementById("page-caption-source");
-    this.contentPreview = root.getElementById("content-preview");
-    this.refreshBtn = root.getElementById("refresh-btn");
-    this.previewRefreshBtn = root.getElementById("preview-refresh-btn");
+    this.pageTitle = root.getElementById('page-title');
+    this.pageUrl = root.getElementById('page-url');
+    this.pageType = root.getElementById('page-type');
+    this.pageAuthorEl = root.getElementById('page-author');
+    this.pagePublishedEl = root.getElementById('page-published');
+    this.pageWordCountEl = root.getElementById('page-word-count');
+    this.pageCaptionSourceEl = root.getElementById('page-caption-source');
+    this.contentPreview = root.getElementById('content-preview');
+    this.refreshBtn = root.getElementById('refresh-btn');
+    this.previewRefreshBtn = root.getElementById('preview-refresh-btn');
     this.previewRefreshBtn?.addEventListener('click', () => {
       if (this.refreshBtn && !this.refreshBtn.disabled) this.refreshBtn.click();
     });
-    this.transcriptRefreshHint = root.getElementById("transcript-refresh-hint");
-    this.questionsToggle = root.getElementById("questions-toggle");
-    this.questionsArea = root.getElementById("questions-area");
-    this.customQuestionsEl = root.getElementById("custom-questions");
-    this.captureScopeContainer = root.getElementById("capture-questions-scope");
-    this.questionsScope = "within";
+    this.transcriptRefreshHint = root.getElementById('transcript-refresh-hint');
+    this.questionsToggle = root.getElementById('questions-toggle');
+    this.questionsArea = root.getElementById('questions-area');
+    this.customQuestionsEl = root.getElementById('custom-questions');
+    this.captureScopeContainer = root.getElementById('capture-questions-scope');
+    this.questionsScope = 'within';
     this._bindScopeChips();
   }
 
   _bindScopeChips() {
     if (!this.captureScopeContainer) return;
-    if (this.captureScopeContainer.tagName === "SELECT") {
-      this.captureScopeContainer.addEventListener("change", (e) => {
+    if (this.captureScopeContainer.tagName === 'SELECT') {
+      this.captureScopeContainer.addEventListener('change', e => {
         this.setQuestionsScope(e.target.value);
-        if (typeof this.onScopeChange === "function") {
+        if (typeof this.onScopeChange === 'function') {
           this.onScopeChange(e.target.value);
         }
       });
     } else {
-      this.captureScopeContainer.addEventListener("click", (e) => {
-        const chip = e.target.closest(".scope-chip");
+      this.captureScopeContainer.addEventListener('click', e => {
+        const chip = e.target.closest('.scope-chip');
         if (!chip || !chip.dataset.scope) return;
         this.setQuestionsScope(chip.dataset.scope);
-        if (typeof this.onScopeChange === "function") {
+        if (typeof this.onScopeChange === 'function') {
           this.onScopeChange(chip.dataset.scope);
         }
       });
@@ -49,21 +49,21 @@ class CaptureViewComponent {
   }
 
   getQuestionsScope() {
-    if (this.captureScopeContainer && this.captureScopeContainer.tagName === "SELECT") {
-      return this.captureScopeContainer.value || this.questionsScope || "within";
+    if (this.captureScopeContainer && this.captureScopeContainer.tagName === 'SELECT') {
+      return this.captureScopeContainer.value || this.questionsScope || 'within';
     }
-    return this.questionsScope || "within";
+    return this.questionsScope || 'within';
   }
 
   setQuestionsScope(scope) {
-    this.questionsScope = scope === "beyond" ? "beyond" : "within";
+    this.questionsScope = scope === 'beyond' ? 'beyond' : 'within';
     if (this.captureScopeContainer) {
-      if (this.captureScopeContainer.tagName === "SELECT") {
+      if (this.captureScopeContainer.tagName === 'SELECT') {
         this.captureScopeContainer.value = this.questionsScope;
       }
-      const chips = this.captureScopeContainer.querySelectorAll(".scope-chip");
-      chips.forEach((c) => {
-        c.classList.toggle("active", c.dataset.scope === this.questionsScope);
+      const chips = this.captureScopeContainer.querySelectorAll('.scope-chip');
+      chips.forEach(c => {
+        c.classList.toggle('active', c.dataset.scope === this.questionsScope);
       });
     }
   }
@@ -71,18 +71,20 @@ class CaptureViewComponent {
   render(firstArg, options = {}) {
     const isSession = Boolean(
       firstArg &&
-      (firstArg.extractedContent !== undefined || firstArg.currentTabLoading !== undefined || firstArg.isAnalyzing !== undefined)
+      (firstArg.extractedContent !== undefined ||
+        firstArg.currentTabLoading !== undefined ||
+        firstArg.isAnalyzing !== undefined)
     );
     const content = isSession ? firstArg.extractedContent : firstArg;
     const isSessionLoading = isSession && Boolean(firstArg.currentTabLoading);
     const isSessionAnalyzing = isSession && Boolean(firstArg.isAnalyzing);
 
-    if (this.pageTitle) this.pageTitle.textContent = content?.title || options.defaultTitle || t("untitled");
-    if (this.pageUrl) this.pageUrl.textContent = content?.url || options.defaultUrl || "";
-    if (this.pageType) this.pageType.textContent = content?.sourceType || options.defaultType || "";
+    if (this.pageTitle) this.pageTitle.textContent = content?.title || options.defaultTitle || t('untitled');
+    if (this.pageUrl) this.pageUrl.textContent = content?.url || options.defaultUrl || '';
+    if (this.pageType) this.pageType.textContent = content?.sourceType || options.defaultType || '';
 
     if (isSessionLoading) {
-      this.setPreviewText(t("retrievingPageContent"));
+      this.setPreviewText(t('retrievingPageContent'));
       this.clearAuthorAndPublished();
     } else {
       this.setPreviewContent(content, options.previewPlaceholder);
@@ -94,45 +96,46 @@ class CaptureViewComponent {
     }
   }
 
-  showProvenance(metadata = {}, rawContent = "", discussion = null) {
+  showProvenance(metadata = {}, rawContent = '', discussion = null) {
     if (this.pageCaptionSourceEl) {
       const sourceKeys = {
-        page_tracks: "captionSourcePageTracks",
-        watch_page: "captionSourceWatchPage",
-        innertube: "captionSourcePlayerApi",
-        player_tracks: "captionSourceLivePlayer",
-        transcript_panel: "captionSourceTranscriptPanel",
+        page_tracks: 'captionSourcePageTracks',
+        watch_page: 'captionSourceWatchPage',
+        innertube: 'captionSourcePlayerApi',
+        player_tracks: 'captionSourceLivePlayer',
+        transcript_panel: 'captionSourceTranscriptPanel',
       };
       const key = Object.hasOwn(sourceKeys, metadata.caption_source) ? sourceKeys[metadata.caption_source] : null;
-      this.pageCaptionSourceEl.textContent = key ? t("captionSourceTag", { source: t(key) }) : "";
-      if (key) this.pageCaptionSourceEl.classList.remove("hidden");
-      else this.pageCaptionSourceEl.classList.add("hidden");
+      this.pageCaptionSourceEl.textContent = key ? t('captionSourceTag', { source: t(key) }) : '';
+      if (key) this.pageCaptionSourceEl.classList.remove('hidden');
+      else this.pageCaptionSourceEl.classList.add('hidden');
     }
-    const author = metadata.author || metadata.channel || metadata.handle || "";
+    const author = metadata.author || metadata.channel || metadata.handle || '';
     if (this.pageAuthorEl) {
-      this.pageAuthorEl.textContent = author ? `✍️ ${author}` : "";
+      this.pageAuthorEl.textContent = author ? `✍️ ${author}` : '';
     }
     if (this.pagePublishedEl) {
       if (metadata.published) {
         const d = new Date(metadata.published);
         const formatted = isNaN(d.getTime())
           ? metadata.published
-          : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+          : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
         this.pagePublishedEl.textContent = `📅 ${formatted}`;
       } else {
-        this.pagePublishedEl.textContent = "";
+        this.pagePublishedEl.textContent = '';
       }
     }
     if (this.pageWordCountEl) {
-      const text = rawContent || metadata?.content || "";
-      const count = globalThis.NutEggHelpers?.countCapturedWords?.({ content: text, discussion })
-        ?? (text.trim().split(/\s+/).filter(Boolean).length);
+      const text = rawContent || metadata?.content || '';
+      const count =
+        globalThis.NutEggHelpers?.countCapturedWords?.({ content: text, discussion }) ??
+        text.trim().split(/\s+/).filter(Boolean).length;
       if (count) {
-        this.pageWordCountEl.textContent = `📝 ${t("wordCount", { count: count.toLocaleString() })}`;
-        this.pageWordCountEl.classList.remove("hidden");
+        this.pageWordCountEl.textContent = `📝 ${t('wordCount', { count: count.toLocaleString() })}`;
+        this.pageWordCountEl.classList.remove('hidden');
       } else {
-        this.pageWordCountEl.textContent = "";
-        this.pageWordCountEl.classList.add("hidden");
+        this.pageWordCountEl.textContent = '';
+        this.pageWordCountEl.classList.add('hidden');
       }
     }
   }
@@ -143,15 +146,35 @@ class CaptureViewComponent {
       if (this.contentPreview) this.contentPreview.scrollTop = 0;
     }
     const items = content?.discussion?.items || [];
-    const comments = items.length ? '\n\n' + t('discussionPreview', { count: items.length }) + '\n'
-      + items.map((item, index) => `${index + 1}. ${item.parentId ? '↳ ' : ''}👤 ${this.commentAuthor(item)}\n${item.text}`
-        + (item.reaction?.count != null ? '\n' + t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', { count: item.reaction.count }) : '')).join('\n\n')
-      + (content.discussion.truncated ? '\n\n' + t('discussionTruncated', { count: items.length }) : '') : '';
+    const comments = items.length
+      ? '\n\n' +
+        t('discussionPreview', { count: items.length }) +
+        '\n' +
+        items
+          .map(
+            (item, index) =>
+              `${index + 1}. ${item.parentId ? '↳ ' : ''}👤 ${this.commentAuthor(item)}\n${item.text}` +
+              (item.reaction?.count != null
+                ? '\n' +
+                  t(item.reaction.kind === 'score' ? 'discussionScore' : 'discussionLikes', {
+                    count: item.reaction.count,
+                  })
+                : '')
+          )
+          .join('\n\n') +
+        (content.discussion.truncated ? '\n\n' + t('discussionTruncated', { count: items.length }) : '')
+      : '';
     const transcriptMissing = Boolean(globalThis.NutEggHelpers?.isTranscriptBlocked?.(content));
-    const warning = transcriptMissing ? t('transcriptRefreshPreview')
-      : !content?.content?.trim() && !(content?.discussion?.kind === 'forum' && items.some(item => item.text?.trim())) ? t('contentRefreshPreview')
-      : globalThis.NutEggHelpers?.getExtractionWarning?.(content);
-    this.setPreviewText((content?.content || placeholder || t('noContentExtracted')) + comments, warning, Boolean(warning));
+    const warning = transcriptMissing
+      ? t('transcriptRefreshPreview')
+      : !content?.content?.trim() && !(content?.discussion?.kind === 'forum' && items.some(item => item.text?.trim()))
+        ? t('contentRefreshPreview')
+        : globalThis.NutEggHelpers?.getExtractionWarning?.(content);
+    this.setPreviewText(
+      (content?.content || placeholder || t('noContentExtracted')) + comments,
+      warning,
+      Boolean(warning)
+    );
   }
 
   commentAuthor(item) {
@@ -163,7 +186,9 @@ class CaptureViewComponent {
         const match = profile.pathname.match(/^\/(@[^/]+)(?:\/|$)|^\/(?:user|u|people)\/([^/]+)(?:\/|$)/);
         if (match) return decodeURIComponent(match[1] || match[2]);
       }
-    } catch { /* No usable profile name. */ }
+    } catch {
+      /* No usable profile name. */
+    }
     return t('discussionUnknownAuthor');
   }
 
@@ -181,7 +206,7 @@ class CaptureViewComponent {
     this.previewWarning = warning;
     const helpers = globalThis.NutEggHelpers;
     if (helpers?.escapeHtml && helpers?.linkifyTimestamps) {
-      const escaped = helpers.escapeHtml(String(text ?? ""));
+      const escaped = helpers.escapeHtml(String(text ?? ''));
       const html = helpers.linkifyTimestamps(escaped);
       if (html !== escaped) {
         this.contentPreview.innerHTML = html;
@@ -195,14 +220,14 @@ class CaptureViewComponent {
 
   clearProvenance() {
     if (this.pageCaptionSourceEl) {
-      this.pageCaptionSourceEl.textContent = "";
-      this.pageCaptionSourceEl.classList.add("hidden");
+      this.pageCaptionSourceEl.textContent = '';
+      this.pageCaptionSourceEl.classList.add('hidden');
     }
-    if (this.pageAuthorEl) this.pageAuthorEl.textContent = "";
-    if (this.pagePublishedEl) this.pagePublishedEl.textContent = "";
+    if (this.pageAuthorEl) this.pageAuthorEl.textContent = '';
+    if (this.pagePublishedEl) this.pagePublishedEl.textContent = '';
     if (this.pageWordCountEl) {
-      this.pageWordCountEl.textContent = "";
-      this.pageWordCountEl.classList.add("hidden");
+      this.pageWordCountEl.textContent = '';
+      this.pageWordCountEl.classList.add('hidden');
     }
   }
 
@@ -211,7 +236,7 @@ class CaptureViewComponent {
   }
 
   setLoading(text) {
-    this.setPreviewText(text || t("retrievingPageContent"));
+    this.setPreviewText(text || t('retrievingPageContent'));
     this.clearAuthorAndPublished();
   }
 
@@ -221,10 +246,10 @@ class CaptureViewComponent {
   }
 
   clear() {
-    if (this.pageTitle) this.pageTitle.textContent = t("untitled");
-    if (this.pageUrl) this.pageUrl.textContent = "";
-    if (this.pageType) this.pageType.textContent = "";
-    this.setPreviewText(t("noContentExtracted"));
+    if (this.pageTitle) this.pageTitle.textContent = t('untitled');
+    if (this.pageUrl) this.pageUrl.textContent = '';
+    if (this.pageType) this.pageType.textContent = '';
+    this.setPreviewText(t('noContentExtracted'));
     this.clearAuthorAndPublished();
   }
 
@@ -233,18 +258,23 @@ class CaptureViewComponent {
   }
 
   getCustomQuestions() {
-    return this.customQuestionsEl?.value || "";
+    return this.customQuestionsEl?.value || '';
   }
 
   setCustomQuestions(value) {
     if (this.customQuestionsEl) {
-      this.customQuestionsEl.value = value || "";
+      this.customQuestionsEl.value = value || '';
     }
   }
 
   getParsedQuestions() {
     const raw = this.getCustomQuestions();
-    return raw ? raw.split("\n").map((q) => q.trim()).filter(Boolean) : [];
+    return raw
+      ? raw
+          .split('\n')
+          .map(q => q.trim())
+          .filter(Boolean)
+      : [];
   }
 
   setPageInfo({ title, url, sourceType } = {}) {
@@ -254,15 +284,15 @@ class CaptureViewComponent {
   }
 
   getPageUrl() {
-    return this.pageUrl?.textContent || "";
+    return this.pageUrl?.textContent || '';
   }
 
   getPageTitle() {
-    return this.pageTitle?.textContent || "";
+    return this.pageTitle?.textContent || '';
   }
 
   getPageType() {
-    return this.pageType?.textContent || "";
+    return this.pageType?.textContent || '';
   }
 
   setRefreshDisabled(disabled) {
@@ -271,14 +301,14 @@ class CaptureViewComponent {
   }
 
   toggleQuestionsArea() {
-    this.questionsArea?.classList.toggle("hidden");
+    this.questionsArea?.classList.toggle('hidden');
   }
 }
 
-const _captureScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _captureScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _captureScope.NutEggUI = _captureScope.NutEggUI || {};
 _captureScope.NutEggUI.CaptureViewComponent = CaptureViewComponent;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = { CaptureViewComponent };
 }

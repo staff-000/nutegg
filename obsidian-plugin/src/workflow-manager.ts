@@ -1,64 +1,64 @@
-import { Notice, TAbstractFile, TFile } from "obsidian";
-import type NutEggPlugin from "./main";
-import { PROMPTS } from "./prompt-templates";
-import workflowReadmeTpl from "../../shared/workflow/README.md";
+import { Notice, TAbstractFile, TFile } from 'obsidian';
+import type NutEggPlugin from './main';
+import { PROMPTS } from './prompt-templates';
+import workflowReadmeTpl from '../../shared/workflow/README.md';
 
 export type WorkflowPromptKey =
-  | "discussionAnalysis"
-  | "aggregateDiscussion"
-  | "contentAnalysis"
-  | "verdictSummary"
-  | "mindMapAnalysis"
-  | "eggAnalysis"
-  | "followUp"
-  | "eggRouting"
-  | "contentTaskDefault"
-  | "mergeUnprocessed"
-  | "aggregateContent"
-  | "aggregateEgg"
-  | "localizeEgg"
-  | "sharedOutputRules"
-  | "conversationRules"
-  | "chromeKnowledge";
+  | 'discussionAnalysis'
+  | 'aggregateDiscussion'
+  | 'contentAnalysis'
+  | 'verdictSummary'
+  | 'mindMapAnalysis'
+  | 'eggAnalysis'
+  | 'followUp'
+  | 'eggRouting'
+  | 'contentTaskDefault'
+  | 'mergeUnprocessed'
+  | 'aggregateContent'
+  | 'aggregateEgg'
+  | 'localizeEgg'
+  | 'sharedOutputRules'
+  | 'conversationRules'
+  | 'chromeKnowledge';
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
-  discussionAnalysis: "discussion-analysis.md",
-  aggregateDiscussion: "aggregate-discussion.md",
-  contentAnalysis: "content-analysis.md",
-  verdictSummary: "verdict-summary.md",
-  mindMapAnalysis: "mindmap-analysis.md",
-  eggAnalysis: "egg-analysis.md",
-  followUp: "follow-up.md",
-  eggRouting: "egg-routing.md",
-  contentTaskDefault: "content-task-default.md",
-  mergeUnprocessed: "merge-unprocessed.md",
-  aggregateContent: "aggregate-content.md",
-  aggregateEgg: "aggregate-egg.md",
-  localizeEgg: "localize-egg.md",
-  sharedOutputRules: "shared-output-rules.md",
-  conversationRules: "conversation-rules.md",
-  chromeKnowledge: "chrome-knowledge.md",
+  discussionAnalysis: 'discussion-analysis.md',
+  aggregateDiscussion: 'aggregate-discussion.md',
+  contentAnalysis: 'content-analysis.md',
+  verdictSummary: 'verdict-summary.md',
+  mindMapAnalysis: 'mindmap-analysis.md',
+  eggAnalysis: 'egg-analysis.md',
+  followUp: 'follow-up.md',
+  eggRouting: 'egg-routing.md',
+  contentTaskDefault: 'content-task-default.md',
+  mergeUnprocessed: 'merge-unprocessed.md',
+  aggregateContent: 'aggregate-content.md',
+  aggregateEgg: 'aggregate-egg.md',
+  localizeEgg: 'localize-egg.md',
+  sharedOutputRules: 'shared-output-rules.md',
+  conversationRules: 'conversation-rules.md',
+  chromeKnowledge: 'chrome-knowledge.md',
 };
 
 /** All built-in workflow files including README.md */
 export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
-  "README.md": workflowReadmeTpl,
-  "discussion-analysis.md": PROMPTS.discussionAnalysis,
-  "aggregate-discussion.md": PROMPTS.aggregateDiscussion,
-  "content-analysis.md": PROMPTS.contentAnalysis,
-  "verdict-summary.md": PROMPTS.verdictSummary,
-  "mindmap-analysis.md": PROMPTS.mindMapAnalysis,
-  "egg-analysis.md": PROMPTS.eggAnalysis,
-  "follow-up.md": PROMPTS.followUp,
-  "egg-routing.md": PROMPTS.eggRouting,
-  "content-task-default.md": PROMPTS.contentTaskDefault,
-  "merge-unprocessed.md": PROMPTS.mergeUnprocessed,
-  "aggregate-content.md": PROMPTS.aggregateContent,
-  "aggregate-egg.md": PROMPTS.aggregateEgg,
-  "localize-egg.md": PROMPTS.localizeEgg,
-  "shared-output-rules.md": PROMPTS.sharedOutputRules,
-  "conversation-rules.md": PROMPTS.conversationRules,
-  "chrome-knowledge.md": PROMPTS.chromeKnowledge,
+  'README.md': workflowReadmeTpl,
+  'discussion-analysis.md': PROMPTS.discussionAnalysis,
+  'aggregate-discussion.md': PROMPTS.aggregateDiscussion,
+  'content-analysis.md': PROMPTS.contentAnalysis,
+  'verdict-summary.md': PROMPTS.verdictSummary,
+  'mindmap-analysis.md': PROMPTS.mindMapAnalysis,
+  'egg-analysis.md': PROMPTS.eggAnalysis,
+  'follow-up.md': PROMPTS.followUp,
+  'egg-routing.md': PROMPTS.eggRouting,
+  'content-task-default.md': PROMPTS.contentTaskDefault,
+  'merge-unprocessed.md': PROMPTS.mergeUnprocessed,
+  'aggregate-content.md': PROMPTS.aggregateContent,
+  'aggregate-egg.md': PROMPTS.aggregateEgg,
+  'localize-egg.md': PROMPTS.localizeEgg,
+  'shared-output-rules.md': PROMPTS.sharedOutputRules,
+  'conversation-rules.md': PROMPTS.conversationRules,
+  'chrome-knowledge.md': PROMPTS.chromeKnowledge,
 };
 
 /** Fast deterministic DJB2 hash for string comparison */
@@ -83,20 +83,20 @@ export class WorkflowManager {
     if (this.plugin.settings?.workflowFolder) {
       return this.plugin.settings.workflowFolder;
     }
-    const base = this.plugin.vaultFolder || "nutegg";
+    const base = this.plugin.vaultFolder || 'nutegg';
     return `${base}/_workflow`;
   }
 
   /** Initialize watcher, seed files, and load cache */
   async init(): Promise<void> {
     if (!this.initialized && this.plugin.app?.vault?.on) {
-      this.plugin.app.vault.on("modify", (file: TAbstractFile) => {
+      this.plugin.app.vault.on('modify', (file: TAbstractFile) => {
         this.onFileChanged(file);
       });
-      this.plugin.app.vault.on("create", (file: TAbstractFile) => {
+      this.plugin.app.vault.on('create', (file: TAbstractFile) => {
         this.onFileChanged(file);
       });
-      this.plugin.app.vault.on("delete", (file: TAbstractFile) => {
+      this.plugin.app.vault.on('delete', (file: TAbstractFile) => {
         this.onFileDeleted(file);
       });
       this.initialized = true;
@@ -177,7 +177,7 @@ export class WorkflowManager {
           } else {
             // User HAS customized this file AND built-in version is different!
             // Do NOT clobber the user's file. Write [name].new.md instead.
-            const baseName = filename.replace(/\.md$/, "");
+            const baseName = filename.replace(/\.md$/, '');
             const newPath = `${folder}/${baseName}.new.md`;
             const existingNew = this.plugin.app.vault.getAbstractFileByPath(newPath);
             const newExistsOnDisk = await this.plugin.app.vault.adapter.exists(newPath);
@@ -205,7 +205,7 @@ export class WorkflowManager {
     const localFiles = this.getWorkflowFiles();
     for (const file of localFiles) {
       const relName = file.path.slice(folder.length + 1);
-      if (!(relName in BUILTIN_WORKFLOW_FILES) && !relName.endsWith(".new.md")) {
+      if (!(relName in BUILTIN_WORKFLOW_FILES) && !relName.endsWith('.new.md')) {
         const recordedHash = this.plugin.settings.workflowHashes[relName];
         if (recordedHash) {
           const content = await this.plugin.app.vault.read(file);
@@ -231,23 +231,21 @@ export class WorkflowManager {
     const folder = this.workflowFolder;
     const vault = this.plugin.app.vault;
     let allFiles: TFile[] = [];
-    if (typeof vault.getFiles === "function") {
+    if (typeof vault.getFiles === 'function') {
       allFiles = vault.getFiles();
-    } else if (typeof vault.getMarkdownFiles === "function") {
+    } else if (typeof vault.getMarkdownFiles === 'function') {
       allFiles = vault.getMarkdownFiles();
     }
     return allFiles.filter(
       (f: TFile) =>
-        f.path.startsWith(`${folder}/`) &&
-        !f.path.startsWith(`${folder}/_backup/`) &&
-        !f.path.endsWith("/_backup")
+        f.path.startsWith(`${folder}/`) && !f.path.startsWith(`${folder}/_backup/`) && !f.path.endsWith('/_backup')
     );
   }
 
   /** Retrieve prompt text dynamically from vault cache, falling back to built-in */
   getPrompt(key: WorkflowPromptKey): string {
     const filename = WORKFLOW_FILE_MAP[key];
-    if (!filename) return "";
+    if (!filename) return '';
 
     const cached = this.cache.get(filename);
     if (cached && cached.trim().length > 0) {
@@ -255,7 +253,7 @@ export class WorkflowManager {
     }
 
     // Built-in fallback
-    return BUILTIN_WORKFLOW_FILES[filename] || "";
+    return BUILTIN_WORKFLOW_FILES[filename] || '';
   }
 
   /**
@@ -266,7 +264,7 @@ export class WorkflowManager {
    */
   async resetToDefaults(): Promise<void> {
     const folder = this.workflowFolder;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const backupFolder = `${folder}/_backup/${timestamp}`;
     await this.ensureFolder(backupFolder);
 
@@ -274,7 +272,7 @@ export class WorkflowManager {
     const existingFiles = this.getWorkflowFiles();
     for (const file of existingFiles) {
       const relName = file.path.slice(folder.length + 1);
-      const lastSlash = relName.lastIndexOf("/");
+      const lastSlash = relName.lastIndexOf('/');
       if (lastSlash !== -1) {
         await this.ensureFolder(`${backupFolder}/${relName.slice(0, lastSlash)}`);
       }
@@ -322,7 +320,7 @@ export class WorkflowManager {
     if (!file.path.startsWith(this.workflowFolder)) {
       return;
     }
-    const parts = file.path.split("/");
+    const parts = file.path.split('/');
     const filename = parts[parts.length - 1];
     if (this.cache.has(filename)) {
       this.cache.delete(filename);
@@ -330,11 +328,11 @@ export class WorkflowManager {
   }
 
   private async ensureFolder(path: string): Promise<void> {
-    const parts = path.split("/");
-    let currentPath = "";
+    const parts = path.split('/');
+    let currentPath = '';
     for (const part of parts) {
       if (!part) continue;
-      currentPath += (currentPath ? "/" : "") + part;
+      currentPath += (currentPath ? '/' : '') + part;
       try {
         const exists = await this.plugin.app.vault.adapter.exists(currentPath);
         if (!exists) {
@@ -346,4 +344,3 @@ export class WorkflowManager {
     }
   }
 }
-

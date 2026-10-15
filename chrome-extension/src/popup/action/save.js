@@ -1,7 +1,14 @@
 class SaveAction {
-  constructor(deps) { Object.assign(this, deps); this.store = deps.tabStateManager; }
-  handleConfirm() { return this.operations.save(this.store.activeTabId, true); }
-  handleSaveRaw() { return this.operations.save(this.store.activeTabId, false); }
+  constructor(deps) {
+    Object.assign(this, deps);
+    this.store = deps.tabStateManager;
+  }
+  handleConfirm() {
+    return this.operations.save(this.store.activeTabId, true);
+  }
+  handleSaveRaw() {
+    return this.operations.save(this.store.activeTabId, false);
+  }
   handleCreateEgg(inline = false) {
     const tabId = this.store.activeTabId;
     const input = this.ui.eggsUI.getNewEggInput();

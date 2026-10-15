@@ -2,12 +2,8 @@
 // NutEgg Unified AI Client & Transport
 // ============================================================
 
-import { trackAIRequest } from "./ai-diagnostics";
-import {
-  PROVIDER_CATALOG,
-  isSubscriptionProvider,
-  resolveConfig,
-} from "./catalog";
+import { trackAIRequest } from './ai-diagnostics';
+import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig } from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -15,23 +11,23 @@ import type {
   ResolvedConfig,
   SubscriptionExecutor,
   SubscriptionProvider,
-} from "./types";
+} from './types';
 
 export type AIErrorCode =
-  | "cancelled"
-  | "timeout"
-  | "subscription_requires_obsidian"
-  | "no_api_key"
-  | "auth_failed"
-  | "bridge_auth_failed"
-  | "pairing_token_missing"
-  | "forbidden"
-  | "model_not_found"
-  | "rate_limited"
-  | "quota_exceeded"
-  | "network_error"
-  | "server_error"
-  | "unknown";
+  | 'cancelled'
+  | 'timeout'
+  | 'subscription_requires_obsidian'
+  | 'no_api_key'
+  | 'auth_failed'
+  | 'bridge_auth_failed'
+  | 'pairing_token_missing'
+  | 'forbidden'
+  | 'model_not_found'
+  | 'rate_limited'
+  | 'quota_exceeded'
+  | 'network_error'
+  | 'server_error'
+  | 'unknown';
 
 export class AIError extends Error {
   code: AIErrorCode;
@@ -39,7 +35,7 @@ export class AIError extends Error {
 
   constructor(code: AIErrorCode, message: string, statusCode?: number) {
     super(message);
-    this.name = "AIError";
+    this.name = 'AIError';
     this.code = code;
     this.statusCode = statusCode ?? null;
   }
@@ -53,58 +49,50 @@ export function classifyError(statusCode: number, body: string): AIError {
 
   if (statusCode === 401) {
     return new AIError(
-      "auth_failed",
-      "API key is invalid or missing. Check your API key in NutEgg settings.",
+      'auth_failed',
+      'API key is invalid or missing. Check your API key in NutEgg settings.',
       statusCode
     );
   }
   if (statusCode === 403) {
     return new AIError(
-      "forbidden",
-      "Access denied. Your API key may not have permission for this model, or your account needs a funded billing plan.",
+      'forbidden',
+      'Access denied. Your API key may not have permission for this model, or your account needs a funded billing plan.',
       statusCode
     );
   }
-  if (
-    statusCode === 404 ||
-    lower.includes("model not found") ||
-    lower.includes("model_not_found")
-  ) {
+  if (statusCode === 404 || lower.includes('model not found') || lower.includes('model_not_found')) {
     return new AIError(
-      "model_not_found",
-      "The selected model was not found. The model name may be incorrect or not available on this endpoint.",
+      'model_not_found',
+      'The selected model was not found. The model name may be incorrect or not available on this endpoint.',
       statusCode
     );
   }
   if (statusCode === 429) {
-    return new AIError(
-      "rate_limited",
-      "Rate limit exceeded. Wait a moment and try again.",
-      statusCode
-    );
+    return new AIError('rate_limited', 'Rate limit exceeded. Wait a moment and try again.', statusCode);
   }
   if (statusCode >= 500) {
     return new AIError(
-      "server_error",
+      'server_error',
       `The AI service returned a server error (${statusCode}). It may be temporarily down — try again shortly.`,
       statusCode
     );
   }
   if (
-    lower.includes("quota") ||
-    lower.includes("insufficient") ||
-    lower.includes("balance") ||
-    lower.includes("billing")
+    lower.includes('quota') ||
+    lower.includes('insufficient') ||
+    lower.includes('balance') ||
+    lower.includes('billing')
   ) {
     return new AIError(
-      "quota_exceeded",
-      "API quota exceeded or insufficient funds. Check your account balance or billing settings.",
+      'quota_exceeded',
+      'API quota exceeded or insufficient funds. Check your account balance or billing settings.',
       statusCode
     );
   }
 
   const snippet = body.slice(0, 300);
-  return new AIError("unknown", `API error (${statusCode}): ${snippet}`, statusCode);
+  return new AIError('unknown', `API error (${statusCode}): ${snippet}`, statusCode);
 }
 
 export interface AICreditInfo {
@@ -137,22 +125,22 @@ async function chatAnthropic(
   try {
     response = await fetch(config.endpoint, {
       signal: config.signal,
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.apiKey,
+        'Content-Type': 'application/json',
+        'x-api-key': config.apiKey,
         ...(config.extraHeaders || {}),
       },
       body: JSON.stringify({
         model: config.model,
         max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
   } catch {
     throw new AIError(
-      "network_error",
-      "Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct."
+      'network_error',
+      'Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct.'
     );
   }
 
@@ -162,7 +150,7 @@ async function chatAnthropic(
   }
 
   const data = await response.json();
-  return data?.content?.[0]?.text || "";
+  return data?.content?.[0]?.text || '';
 }
 
 /**
@@ -175,16 +163,16 @@ async function chatOllama(
 ): Promise<string> {
   let response: Response;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
     ...(config.extraHeaders || {}),
   };
   if (config.apiKey && config.apiKey.trim().length > 0) {
-    headers["Authorization"] = `Bearer ${config.apiKey}`;
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
   }
 
   const bodyPayload: Record<string, any> = {
-    model: config.model || "default",
-    messages: [{ role: "user", content: prompt }],
+    model: config.model || 'default',
+    messages: [{ role: 'user', content: prompt }],
     stream: false,
     options: {
       num_predict: maxTokens,
@@ -195,14 +183,14 @@ async function chatOllama(
   try {
     response = await fetch(config.endpoint, {
       signal: config.signal,
-      method: "POST",
+      method: 'POST',
       headers,
       body: JSON.stringify(bodyPayload),
     });
   } catch {
     throw new AIError(
-      "network_error",
-      "Cannot reach Ollama server. Ensure Ollama is running and the endpoint is accessible."
+      'network_error',
+      'Cannot reach Ollama server. Ensure Ollama is running and the endpoint is accessible.'
     );
   }
 
@@ -212,7 +200,7 @@ async function chatOllama(
   }
 
   const data = await response.json();
-  return data?.message?.content || "";
+  return data?.message?.content || '';
 }
 
 /**
@@ -225,18 +213,18 @@ async function chatOpenAICompatible(
 ): Promise<string> {
   let response: Response;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
     ...(config.extraHeaders || {}),
   };
   if (config.apiKey && config.apiKey.trim().length > 0) {
-    headers["Authorization"] = `Bearer ${config.apiKey}`;
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
   }
 
   const bodyPayload: Record<string, any> = {
     model: config.model,
-    messages: [{ role: "user", content: prompt }],
+    messages: [{ role: 'user', content: prompt }],
   };
-  if (config.provider === "openai") {
+  if (config.provider === 'openai') {
     bodyPayload.max_completion_tokens = maxTokens;
   } else {
     bodyPayload.max_tokens = maxTokens;
@@ -245,14 +233,14 @@ async function chatOpenAICompatible(
   try {
     response = await fetch(config.endpoint, {
       signal: config.signal,
-      method: "POST",
+      method: 'POST',
       headers,
       body: JSON.stringify(bodyPayload),
     });
   } catch {
     throw new AIError(
-      "network_error",
-      "Cannot reach the AI API. Check your network or local LLM server status. If using a custom endpoint, verify the URL is correct."
+      'network_error',
+      'Cannot reach the AI API. Check your network or local LLM server status. If using a custom endpoint, verify the URL is correct.'
     );
   }
 
@@ -260,36 +248,38 @@ async function chatOpenAICompatible(
     const err = await response.text();
     if (isSubscriptionProvider(config.provider)) {
       const classified = classifyError(response.status, err);
-      const code = response.status === 401 || response.status === 403
-        ? "bridge_auth_failed" : classified.code;
+      const code = response.status === 401 || response.status === 403 ? 'bridge_auth_failed' : classified.code;
       try {
         const message = JSON.parse(err)?.error?.message;
-        if (typeof message === "string" && message.trim()) throw new AIError(code, message, response.status);
+        if (typeof message === 'string' && message.trim()) throw new AIError(code, message, response.status);
       } catch (error) {
         if (error instanceof AIError) throw error;
       }
-      throw new AIError(code, "AI bridge request failed. Check the local pairing token in NutEgg settings and the CLI sign-in in the bridge terminal.", response.status);
+      throw new AIError(
+        code,
+        'AI bridge request failed. Check the local pairing token in NutEgg settings and the CLI sign-in in the bridge terminal.',
+        response.status
+      );
     }
     throw classifyError(response.status, err);
   }
 
   const data = await response.json();
   const choice = data?.choices?.[0];
-  const content = choice?.message?.content || "";
-  const reasoning = choice?.message?.reasoning_content || "";
+  const content = choice?.message?.content || '';
+  const reasoning = choice?.message?.reasoning_content || '';
   const finishReason = choice?.finish_reason;
 
-  if (finishReason === "length") {
-    const reasoningTokens =
-      data?.usage?.completion_tokens_details?.reasoning_tokens || 0;
+  if (finishReason === 'length') {
+    const reasoningTokens = data?.usage?.completion_tokens_details?.reasoning_tokens || 0;
     const completionTokens = data?.usage?.completion_tokens || 0;
     console.warn(
       `[NutEgg] AI response was cut off by max_tokens limit (finish_reason: "length"). ` +
-      `Reasoning tokens: ${reasoningTokens}, Completion tokens: ${completionTokens}, Content length: ${content.length}`
+        `Reasoning tokens: ${reasoningTokens}, Completion tokens: ${completionTokens}, Content length: ${content.length}`
     );
     if (!content.trim() && reasoning) {
       throw new AIError(
-        "rate_limited",
+        'rate_limited',
         `The AI model (${config.model}) spent all its tokens on internal reasoning before writing the answer. Try increasing Max Tokens in settings.`
       );
     }
@@ -308,13 +298,14 @@ export async function chatAI(
   debugScope?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  if (config.authMethod === 'subscription') throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
-  if (config.provider !== "local" && !config.apiKey) {
+  if (config.authMethod === 'subscription')
+    throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
+  if (config.provider !== 'local' && !config.apiKey) {
     throw new AIError(
-      isSubscriptionProvider(config.provider) ? "pairing_token_missing" : "no_api_key",
+      isSubscriptionProvider(config.provider) ? 'pairing_token_missing' : 'no_api_key',
       isSubscriptionProvider(config.provider)
-        ? "No bridge pairing token configured. Start the NutEgg AI bridge and paste its token in settings."
-        : "No AI API key configured. Open settings and enter your API key."
+        ? 'No bridge pairing token configured. Start the NutEgg AI bridge and paste its token in settings.'
+        : 'No AI API key configured. Open settings and enter your API key.'
     );
   }
 
@@ -326,25 +317,36 @@ export async function chatAI(
   const requestConfig = { ...config, signal: controller.signal };
   try {
     if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
-    const result = await trackAIRequest(prompt, async () => {
-      try {
-        if (config.apiFormat === 'anthropic') return await chatAnthropic(prompt, maxTokens, requestConfig);
-        if (config.apiFormat === 'ollama') return await chatOllama(prompt, maxTokens, requestConfig);
-        return await chatOpenAICompatible(prompt, maxTokens, requestConfig);
-      } catch(error: any) {
-        if(config.apiKey && typeof error?.message==='string')error.message=error.message.split(config.apiKey).join('[redacted]');
-        throw error;
-      }
-    }, debugScope);
+    const result = await trackAIRequest(
+      prompt,
+      async () => {
+        try {
+          if (config.apiFormat === 'anthropic') return await chatAnthropic(prompt, maxTokens, requestConfig);
+          if (config.apiFormat === 'ollama') return await chatOllama(prompt, maxTokens, requestConfig);
+          return await chatOpenAICompatible(prompt, maxTokens, requestConfig);
+        } catch (error: any) {
+          if (config.apiKey && typeof error?.message === 'string')
+            error.message = error.message.split(config.apiKey).join('[redacted]');
+          throw error;
+        }
+      },
+      debugScope
+    );
     if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
     return result;
   } catch (error: any) {
-    if (controller.signal.aborted) throw new AIError(controller.signal.reason === 'timeout' ? 'timeout' : 'cancelled',
-      controller.signal.reason === 'timeout' ? 'AI request timed out. Retry explicitly.' : 'AI request cancelled.');
-    if (config.apiKey && typeof error?.message === 'string') error.message = error.message.split(config.apiKey).join('[redacted]');
+    if (controller.signal.aborted)
+      throw new AIError(
+        controller.signal.reason === 'timeout' ? 'timeout' : 'cancelled',
+        controller.signal.reason === 'timeout' ? 'AI request timed out. Retry explicitly.' : 'AI request cancelled.'
+      );
+    if (config.apiKey && typeof error?.message === 'string')
+      error.message = error.message.split(config.apiKey).join('[redacted]');
     throw error;
-  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
-
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 
 /**
@@ -353,18 +355,19 @@ export async function chatAI(
 export async function checkCreditAI(settings: NutEggAISettings): Promise<AICreditInfo> {
   const result = await checkCreditRequest(settings);
   const key = settings.chromeAiApiKey ?? settings.aiApiKey;
-  if (key) for (const field of ['error', 'statusText'] as const) {
-    if (result[field]) result[field] = result[field]!.split(key).join('[redacted]');
-  }
+  if (key)
+    for (const field of ['error', 'statusText'] as const) {
+      if (result[field]) result[field] = result[field]!.split(key).join('[redacted]');
+    }
   return result;
 }
 
 async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditInfo> {
-  const providerId = (settings.chromeAiProvider || settings.aiProvider || "gemini") as AIProviderId;
+  const providerId = (settings.chromeAiProvider || settings.aiProvider || 'gemini') as AIProviderId;
   const provider = PROVIDER_CATALOG[providerId];
-  const source: AISource = providerId === "openrouter" ? "openrouter" : "official";
-  const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || "";
-  const model = settings.chromeAiModel || settings.aiModel || provider?.defaultModel || "";
+  const source: AISource = providerId === 'openrouter' ? 'openrouter' : 'official';
+  const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || '';
+  const model = settings.chromeAiModel || settings.aiModel || provider?.defaultModel || '';
 
   const baseInfo: AICreditInfo = {
     provider: providerId,
@@ -372,36 +375,35 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
     source,
     model,
     hasBalance: false,
-    statusText: "Checking...",
+    statusText: 'Checking...',
   };
 
-  if (isSubscriptionProvider(settings)) return { ...baseInfo, statusText: 'Key required', error: 'Set up an AI API key in Chrome Settings.' };
+  if (isSubscriptionProvider(settings))
+    return { ...baseInfo, statusText: 'Key required', error: 'Set up an AI API key in Chrome Settings.' };
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
-  if (providerId === "local") {
-    const isOllama = settings.localApiType === "ollama";
-    const defaultEndpoint = isOllama
-      ? "http://127.0.0.1:11434/api/chat"
-      : "http://127.0.0.1:11434/v1/chat/completions";
+  if (providerId === 'local') {
+    const isOllama = settings.localApiType === 'ollama';
+    const defaultEndpoint = isOllama ? 'http://127.0.0.1:11434/api/chat' : 'http://127.0.0.1:11434/v1/chat/completions';
     const endpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint || defaultEndpoint;
     const pingEndpoint = isOllama
-      ? endpoint.replace(/\/api\/chat\/?$/, "/api/tags")
-      : endpoint.replace(/\/chat\/completions\/?$/, "/models");
+      ? endpoint.replace(/\/api\/chat\/?$/, '/api/tags')
+      : endpoint.replace(/\/chat\/completions\/?$/, '/models');
     try {
-      const headers: Record<string, string> = { Accept: "application/json" };
-      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
       const resp = await fetch(pingEndpoint, {
-        method: "GET",
+        method: 'GET',
         headers,
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
 
       if (resp.ok) {
-        const typeLabel = isOllama ? "Ollama Native" : "OpenAI-compatible";
+        const typeLabel = isOllama ? 'Ollama Native' : 'OpenAI-compatible';
         return {
           ...baseInfo,
           hasBalance: false,
@@ -419,8 +421,8 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
       return {
         ...baseInfo,
         hasBalance: false,
-        statusText: "Offline — ensure local runner is running",
-        error: "Cannot connect to local LLM server",
+        statusText: 'Offline — ensure local runner is running',
+        error: 'Cannot connect to local LLM server',
       };
     }
   }
@@ -428,18 +430,18 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
   if (!apiKey) {
     return {
       ...baseInfo,
-      statusText: "No API key configured",
-      error: "No API key",
+      statusText: 'No API key configured',
+      error: 'No API key',
     };
   }
 
   // 1. OpenRouter
-  if (providerId === "openrouter") {
+  if (providerId === 'openrouter') {
     try {
-      const resp = await fetch("https://openrouter.ai/api/v1/credits", {
+      const resp = await fetch('https://openrouter.ai/api/v1/credits', {
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       });
       if (resp.ok) {
@@ -452,7 +454,7 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
           ...baseInfo,
           hasBalance: true,
           balanceFormatted,
-          currency: "USD",
+          currency: 'USD',
           remainingCredits: remaining,
           totalCredits,
           totalUsage,
@@ -461,39 +463,39 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
       } else if (resp.status === 401) {
         return {
           ...baseInfo,
-          statusText: "Invalid API key",
-          error: "Authentication failed",
+          statusText: 'Invalid API key',
+          error: 'Authentication failed',
         };
       } else {
         return {
           ...baseInfo,
-          statusText: "OpenRouter (Active)",
+          statusText: 'OpenRouter (Active)',
         };
       }
     } catch (err) {
       return {
         ...baseInfo,
-        statusText: "OpenRouter (Network error)",
+        statusText: 'OpenRouter (Network error)',
         error: String(err),
       };
     }
   }
 
   // 2. Official DeepSeek
-  if (providerId === "deepseek") {
+  if (providerId === 'deepseek') {
     try {
-      const resp = await fetch("https://api.deepseek.com/user/balance", {
+      const resp = await fetch('https://api.deepseek.com/user/balance', {
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          Accept: "application/json",
+          Accept: 'application/json',
         },
       });
       if (resp.ok) {
         const json = await resp.json();
         const info = json?.balance_infos?.[0];
-        const curr = info?.currency || "CNY";
-        const symbol = curr === "USD" ? "$" : "¥";
-        const balance = parseFloat(info?.total_balance || "0");
+        const curr = info?.currency || 'CNY';
+        const symbol = curr === 'USD' ? '$' : '¥';
+        const balance = parseFloat(info?.total_balance || '0');
         const balanceFormatted = `${symbol}${balance.toFixed(2)}`;
         return {
           ...baseInfo,
@@ -504,16 +506,16 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
           statusText: `${balanceFormatted} available`,
         };
       } else if (resp.status === 401) {
-        return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+        return { ...baseInfo, statusText: 'Invalid API key', error: 'Auth failed' };
       }
     } catch {}
-    return { ...baseInfo, statusText: "DeepSeek (Active)" };
+    return { ...baseInfo, statusText: 'DeepSeek (Active)' };
   }
 
   // 3. Official Kimi (Moonshot)
-  if (providerId === "kimi") {
+  if (providerId === 'kimi') {
     try {
-      const resp = await fetch("https://api.moonshot.cn/v1/users/me/balance", {
+      const resp = await fetch('https://api.moonshot.cn/v1/users/me/balance', {
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
@@ -526,15 +528,15 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
           ...baseInfo,
           hasBalance: true,
           balanceFormatted,
-          currency: "CNY",
+          currency: 'CNY',
           remainingCredits: Number(balance),
           statusText: `${balanceFormatted} available`,
         };
       } else if (resp.status === 401) {
-        return { ...baseInfo, statusText: "Invalid API key", error: "Auth failed" };
+        return { ...baseInfo, statusText: 'Invalid API key', error: 'Auth failed' };
       }
     } catch {}
-    return { ...baseInfo, statusText: "Kimi (Active)" };
+    return { ...baseInfo, statusText: 'Kimi (Active)' };
   }
 
   // 4. Anthropic / OpenAI / Gemini / Zhipu / Qwen
@@ -548,7 +550,11 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
 export class AIClient {
   private settings: NutEggAISettings;
 
-  constructor(settings: NutEggAISettings, private subscription?: SubscriptionExecutor, private signal?: AbortSignal) {
+  constructor(
+    settings: NutEggAISettings,
+    private subscription?: SubscriptionExecutor,
+    private signal?: AbortSignal
+  ) {
     this.settings = structuredClone(settings);
   }
 
@@ -556,9 +562,17 @@ export class AIClient {
     if (isSubscriptionProvider(settings) && this.subscription) {
       const config = resolveConfig(settings);
       const status = await this.subscription.status(config.provider as SubscriptionProvider);
-      return { provider: config.provider, providerLabel: PROVIDER_CATALOG[config.provider]?.label || config.provider,
-        source: 'official', model: config.model, hasBalance: false, statusText: status.message,
-        ...(status.state === 'error' ? { error: status.message } : {}), subscriptionState: status.state, usageRemaining: status.usageRemaining };
+      return {
+        provider: config.provider,
+        providerLabel: PROVIDER_CATALOG[config.provider]?.label || config.provider,
+        source: 'official',
+        model: config.model,
+        hasBalance: false,
+        statusText: status.message,
+        ...(status.state === 'error' ? { error: status.message } : {}),
+        subscriptionState: status.state,
+        usageRemaining: status.usageRemaining,
+      };
     }
     return checkCreditAI(settings);
   }
@@ -566,8 +580,12 @@ export class AIClient {
   async chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> {
     // Each executor uses the configuration captured for its owning job.
     const config = resolveConfig(this.settings);
-    if (config.authMethod === 'subscription' && this.subscription) return trackAIRequest(prompt,
-      () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt, this.signal), debugScope);
+    if (config.authMethod === 'subscription' && this.subscription)
+      return trackAIRequest(
+        prompt,
+        () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt, this.signal),
+        debugScope
+      );
     return chatAI(prompt, maxTokens, config, debugScope, this.signal);
   }
 }

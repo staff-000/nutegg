@@ -1,37 +1,42 @@
 // NutEgg Background Service Worker
 
-importScripts("../../dist/ai-core.js", "chinese-fetch.js", "../content/extractors/youtube.js", "execution-session.js");
+importScripts('../../dist/ai-core.js', 'chinese-fetch.js', '../content/extractors/youtube.js', 'execution-session.js');
 
-const {
-  PROVIDER_CATALOG,
-  isSubscriptionProvider,
-  checkCreditAI,
-  analyzeContentStandalone,
-  askFollowUpStandalone,
-} = NutEggAI;
+const { PROVIDER_CATALOG, isSubscriptionProvider, checkCreditAI, analyzeContentStandalone, askFollowUpStandalone } =
+  NutEggAI;
 
 const DEFAULT_PORT = 27123;
 let serverPort = DEFAULT_PORT;
 
 let initPromise = null;
 async function init() {
-  await chrome.storage.local.setAccessLevel?.({accessLevel:'TRUSTED_CONTEXTS'});
-  const legacy=await chrome.storage.local.get(null);
-  if(legacy.executionSchemaVersion!==2) {
-    const normalized=NutEggAI.migrateChromeApiPreferences(legacy);
-    const keys=['chromeAiProvider','chromeAiAuthMethod','chromeAiApiKey','chromeAiModel','chromeAiEndpoint','chromeAiLocalEndpoint','chunkWindowChars','contentAnalysisMaxTokens'];
-    const updates={executionSchemaVersion:2,legacyApiCandidates:legacy.aiProfiles||{}};
-    for(const key of keys)if(normalized[key]!==undefined)updates[key]=normalized[key];
+  await chrome.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' });
+  const legacy = await chrome.storage.local.get(null);
+  if (legacy.executionSchemaVersion !== 2) {
+    const normalized = NutEggAI.migrateChromeApiPreferences(legacy);
+    const keys = [
+      'chromeAiProvider',
+      'chromeAiAuthMethod',
+      'chromeAiApiKey',
+      'chromeAiModel',
+      'chromeAiEndpoint',
+      'chromeAiLocalEndpoint',
+      'chunkWindowChars',
+      'contentAnalysisMaxTokens',
+    ];
+    const updates = { executionSchemaVersion: 2, legacyApiCandidates: legacy.aiProfiles || {} };
+    for (const key of keys) {
+      if (normalized[key] !== undefined) updates[key] = normalized[key];
+    }
     await chrome.storage.local.set(updates);
   }
-  const stored = await chrome.storage.local.get(["serverPort"]);
+  const stored = await chrome.storage.local.get(['serverPort']);
   if (stored.serverPort) serverPort = stored.serverPort;
 
   // Side panel only — clicking the extension icon opens the panel directly
-  chrome.action.setPopup({ popup: "" });
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-    .catch(() => {}); // OK if sidePanel API not available
-  console.log("[NutEgg] Port:", serverPort);
+  chrome.action.setPopup({ popup: '' });
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}); // OK if sidePanel API not available
+  console.log('[NutEgg] Port:', serverPort);
 }
 
 function ensureInit() {
@@ -46,23 +51,23 @@ async function getServerUrl() {
 }
 
 async function getConnectionMode() {
-  const stored = await chrome.storage.local.get(["connectionMode"]);
-  return stored.connectionMode === "obsidian" ? "obsidian" : "chrome";
+  const stored = await chrome.storage.local.get(['connectionMode']);
+  return stored.connectionMode === 'obsidian' ? 'obsidian' : 'chrome';
 }
 
 function obsidianOfflineError() {
   return {
-    error: "Obsidian is not connected. Open Obsidian with NutEgg enabled, or switch to Chrome in Settings.",
-    errorCode: "obsidian_offline",
-    mode: "obsidian",
+    error: 'Obsidian is not connected. Open Obsidian with NutEgg enabled, or switch to Chrome in Settings.',
+    errorCode: 'obsidian_offline',
+    mode: 'obsidian',
   };
 }
 
 function obsidianModeRequiredError() {
   return {
-    error: "Enable Obsidian mode in Settings to save to your vault.",
-    errorCode: "obsidian_mode_required",
-    mode: "chrome",
+    error: 'Enable Obsidian mode in Settings to save to your vault.',
+    errorCode: 'obsidian_mode_required',
+    mode: 'chrome',
   };
 }
 
@@ -70,81 +75,117 @@ async function loadChromeAiSettings() {
   await ensureInit();
   await configurationUpdate;
   const stored = await chrome.storage.local.get([
-    "chromeAiProvider",
-    "chromeApiRevision",
-    "chromeAiSource",
-    "chromeAiAuthMethod",
-    "chromeAiApiKey",
-    "chromeAiModel",
-    "chromeAiModelFamily",
-    "chromeAiEndpoint",
-    "chromeAiLocalEndpoint",
-    "outputLanguage",
-    "contentOutputLanguage",
-    "chromeAiOutputLanguage",
-    "chromeAiMaxTokens",
-    "chunkWindowChars",
-    "contentAnalysisMaxTokens",
-    "chromeAiPromptOverrides",
-    "optimizeForConversation",
+    'chromeAiProvider',
+    'chromeApiRevision',
+    'chromeAiSource',
+    'chromeAiAuthMethod',
+    'chromeAiApiKey',
+    'chromeAiModel',
+    'chromeAiModelFamily',
+    'chromeAiEndpoint',
+    'chromeAiLocalEndpoint',
+    'outputLanguage',
+    'contentOutputLanguage',
+    'chromeAiOutputLanguage',
+    'chromeAiMaxTokens',
+    'chunkWindowChars',
+    'contentAnalysisMaxTokens',
+    'chromeAiPromptOverrides',
+    'optimizeForConversation',
   ]);
-  stored.chromeAiProvider ||= "gemini";
-  stored.chromeAiModel ||= PROVIDER_CATALOG[stored.chromeAiProvider]?.defaultModel || "default";
-  stored.chunkWindowChars = Number.isSafeInteger(stored.chunkWindowChars) && stored.chunkWindowChars >= 1000 ? stored.chunkWindowChars : 30000;
+  stored.chromeAiProvider ||= 'gemini';
+  stored.chromeAiModel ||= PROVIDER_CATALOG[stored.chromeAiProvider]?.defaultModel || 'default';
+  const validChunkWindow = Number.isSafeInteger(stored.chunkWindowChars) && stored.chunkWindowChars >= 1000;
+  stored.chunkWindowChars = validChunkWindow ? stored.chunkWindowChars : 30000;
   const maxTokens = stored.contentAnalysisMaxTokens ?? stored.chromeAiMaxTokens;
   stored.contentAnalysisMaxTokens = Number.isSafeInteger(maxTokens) && maxTokens >= 500 ? maxTokens : 16384;
   // Chrome AI is available by default; the legacy enable toggle is no longer required.
   stored.chromeAiEnabled = true;
   stored.chromeAiEndpoint = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint;
   stored.optimizeForConversation = stored.optimizeForConversation !== false;
-  const lang = stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
+  const lang =
+    stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || 'same-as-content';
   stored.outputLanguage = lang;
   stored.contentOutputLanguage = lang;
   stored.chromeAiOutputLanguage = lang;
   if (stored.chromeAiPromptOverrides) {
     stored.promptOverrides = stored.chromeAiPromptOverrides;
   }
-  stored.chromeAiAuthMethod="apiKey";
+  stored.chromeAiAuthMethod = 'apiKey';
   const migrated = NutEggAI.migrateAISettings(stored);
   if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
   return migrated;
 }
 
 async function fetchObsidianAiConfig() {
-  const state=await NutEggExecution.latest();
-  const settings=await loadChromeAiSettings();
-  const aiConfig=state.mode==='subscription'?{aiProvider:state.subscription.provider,aiModel:state.subscription.model,aiAuthMethod:'subscription'}:
-    {aiProvider:settings.chromeAiProvider,aiModel:settings.chromeAiModel,aiAuthMethod:'apiKey'};
-  return {success:true,aiConfig:{...aiConfig,chunkWindowChars:settings.chunkWindowChars,contentAnalysisMaxTokens:settings.contentAnalysisMaxTokens},matches:true,subscriptionEnabled:state.subscriptionAvailable,state};
+  const state = await NutEggExecution.latest();
+  const settings = await loadChromeAiSettings();
+  const aiConfig =
+    state.mode === 'subscription'
+      ? { aiProvider: state.subscription.provider, aiModel: state.subscription.model, aiAuthMethod: 'subscription' }
+      : { aiProvider: settings.chromeAiProvider, aiModel: settings.chromeAiModel, aiAuthMethod: 'apiKey' };
+  return {
+    success: true,
+    aiConfig: {
+      ...aiConfig,
+      chunkWindowChars: settings.chunkWindowChars,
+      contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
+    },
+    matches: true,
+    subscriptionEnabled: state.subscriptionAvailable,
+    state,
+  };
 }
+
 async function syncAiConfig() {
-  if(await getConnectionMode()!=='obsidian')return {success:true};
+  if ((await getConnectionMode()) !== 'obsidian') return { success: true };
   return fetchObsidianAiConfig(); // Compatibility action is read-only.
 }
-const standaloneControllers=new Set();
-let configurationUpdate=Promise.resolve();
-chrome.storage.onChanged?.addListener((changes,area)=>{
-  if(area!=='local')return;
-  if(changes.serverPort)serverPort=changes.serverPort.newValue||DEFAULT_PORT;
-  if(changes.connectionMode||changes.serverPort){NutEggExecution.close();if(changes.connectionMode?.newValue==='obsidian')void NutEggExecution.ensure().catch(()=>{});}
-  if(['chromeAiProvider','chromeAiApiKey','chromeAiModel','chromeAiModelFamily','chromeAiSource','chromeAiEndpoint','chromeAiLocalEndpoint','chromeApiRevision'].some(key=>key in changes)) {
-    for(const controller of standaloneControllers)controller.abort();
-    const revision=changes.chromeApiRevision?.newValue||crypto.randomUUID();
-    if(!changes.chromeApiRevision)configurationUpdate=chrome.storage.local.set({chromeApiRevision:revision});
+
+const standaloneControllers = new Set();
+let configurationUpdate = Promise.resolve();
+chrome.storage.onChanged?.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (changes.serverPort) serverPort = changes.serverPort.newValue || DEFAULT_PORT;
+  if (changes.connectionMode || changes.serverPort) {
+    NutEggExecution.close();
+    if (changes.connectionMode?.newValue === 'obsidian') {
+      void NutEggExecution.ensure().catch(() => {});
+    }
+  }
+  const configKeys = [
+    'chromeAiProvider',
+    'chromeAiApiKey',
+    'chromeAiModel',
+    'chromeAiModelFamily',
+    'chromeAiSource',
+    'chromeAiEndpoint',
+    'chromeAiLocalEndpoint',
+    'chromeApiRevision',
+  ];
+  if (configKeys.some(key => key in changes)) {
+    for (const controller of standaloneControllers) controller.abort();
+    const revision = changes.chromeApiRevision?.newValue || crypto.randomUUID();
+    if (!changes.chromeApiRevision) {
+      configurationUpdate = chrome.storage.local.set({ chromeApiRevision: revision });
+    }
     NutEggExecution.configurationChanged(revision);
   }
 });
 
 function subscriptionModeError() {
-  return { error: "Set up an AI API key in Chrome Settings.", errorCode: "subscription_requires_obsidian", mode: "chrome" };
+  return {
+    error: 'Set up an AI API key in Chrome Settings.',
+    errorCode: 'subscription_requires_obsidian',
+    mode: 'chrome',
+  };
 }
-
 
 async function serverFetch(url, options = {}) {
   const parsed = new URL(url);
   if (parsed.hostname !== '127.0.0.1') throw new Error('Invalid Obsidian endpoint');
   if (parsed.pathname === '/health') return fetch(url, options);
-  const health=await fetch(`${parsed.origin}/health`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
+  const health = await fetch(`${parsed.origin}/health`, { signal: AbortSignal.timeout(3000) }).then(r => r.json());
   const key = `obsidianConnection:${parsed.origin}:${health.instanceId}`;
   let stored = await chrome.storage.local.get([key]);
   const headers = { ...options.headers };
@@ -162,11 +203,11 @@ async function serverFetch(url, options = {}) {
     headers.Authorization = `Bearer ${stored[key]}`;
   }
   let executionJobId;
-  if(options.method==='POST' && ['/analyze','/ask','/confirm','/create-egg'].includes(parsed.pathname)) {
-    const payload=JSON.parse(options.body||'{}');
-    payload.execution=await NutEggExecution.register(await loadChromeAiSettings());
-    executionJobId=payload.execution.jobId;
-    options={...options,body:JSON.stringify(payload)};
+  if (options.method === 'POST' && ['/analyze', '/ask', '/confirm', '/create-egg'].includes(parsed.pathname)) {
+    const payload = JSON.parse(options.body || '{}');
+    payload.execution = await NutEggExecution.register(await loadChromeAiSettings());
+    executionJobId = payload.execution.jobId;
+    options = { ...options, body: JSON.stringify(payload) };
   }
   let response;
   try {
@@ -185,61 +226,108 @@ async function serverFetch(url, options = {}) {
 
 let connectionRequest = null;
 async function connectObsidian() {
-  if(connectionRequest)return connectionRequest;
-  connectionRequest=(async()=>{
-    const serverUrl=await getServerUrl();
-    const health=await fetch(`${serverUrl}/health`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
-    if(!health.capabilities?.includes('execution-v2'))throw new Error('Update the NutEgg Obsidian plugin.');
-    const key=`obsidianConnection:${serverUrl}:${health.instanceId}`;
-    const saved=await chrome.storage.local.get([key]);
-    if(saved[key]) {
-      const response=await fetch(`${serverUrl}/execution/state`,{headers:{'X-NutEgg-Extension-Origin':chrome.runtime.getURL('/').replace(/\/$/,''),Authorization:`Bearer ${saved[key]}`},signal:AbortSignal.timeout(3000)});
-      if(response.ok)return {success:true,instanceId:health.instanceId,credential:saved[key]};
-      if(response.status!==401)throw new Error('Could not read AI connection state.');
+  if (connectionRequest) return connectionRequest;
+  connectionRequest = (async () => {
+    const serverUrl = await getServerUrl();
+    const health = await fetch(`${serverUrl}/health`, { signal: AbortSignal.timeout(3000) }).then(r => r.json());
+    if (!health.capabilities?.includes('execution-v2')) throw new Error('Update the NutEgg Obsidian plugin.');
+    const key = `obsidianConnection:${serverUrl}:${health.instanceId}`;
+    const saved = await chrome.storage.local.get([key]);
+    if (saved[key]) {
+      const origin = chrome.runtime.getURL('/').replace(/\/$/, '');
+      const response = await fetch(`${serverUrl}/execution/state`, {
+        headers: {
+          'X-NutEgg-Extension-Origin': origin,
+          Authorization: `Bearer ${saved[key]}`,
+        },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) return { success: true, instanceId: health.instanceId, credential: saved[key] };
+      if (response.status !== 401) throw new Error('Could not read AI connection state.');
       await chrome.storage.local.remove(key);
     }
-    const nonce=[...crypto.getRandomValues(new Uint8Array(32))].map(b=>b.toString(16).padStart(2,'0')).join('');
-    const request=path=>fetch(`${serverUrl}/connection/${path}`,{method:'POST',headers:{'Content-Type':'application/json','X-NutEgg-Extension-Origin':chrome.runtime.getURL('/').replace(/\/$/,'')},body:JSON.stringify({nonce}),signal:AbortSignal.timeout(3000)}).then(async r=>{if(!r.ok)throw new Error('Connection approval failed.');return r.json();});
-    await request('start');const deadline=Date.now()+120000;
-    while(Date.now()<deadline){
-      const result=await request('finish');
-      if(result.state==='approved'){await chrome.storage.local.set({[key]:result.credential});return {success:true,instanceId:health.instanceId,credential:result.credential};}
-      if(result.state==='denied')throw new Error('Connection was not approved in Obsidian.');
-      await new Promise(resolve=>setTimeout(resolve,1000));
+    const nonce = [...crypto.getRandomValues(new Uint8Array(32))].map(b => b.toString(16).padStart(2, '0')).join('');
+    const request = path =>
+      fetch(`${serverUrl}/connection/${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-NutEgg-Extension-Origin': chrome.runtime.getURL('/').replace(/\/$/, ''),
+        },
+        body: JSON.stringify({ nonce }),
+        signal: AbortSignal.timeout(3000),
+      }).then(async r => {
+        if (!r.ok) throw new Error('Connection approval failed.');
+        return r.json();
+      });
+    await request('start');
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      const result = await request('finish');
+      if (result.state === 'approved') {
+        await chrome.storage.local.set({ [key]: result.credential });
+        return { success: true, instanceId: health.instanceId, credential: result.credential };
+      }
+      if (result.state === 'denied') throw new Error('Connection was not approved in Obsidian.');
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     throw new Error('Connection approval timed out.');
-  })().finally(()=>connectionRequest=null);
+  })().finally(() => (connectionRequest = null));
   return connectionRequest;
 }
 
 // --- Messages ---
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.action === 'youtube-player-snapshot') return handleYouTubePlayerSnapshotMessage(message, _sender, sendResponse);
-  if (_sender?.id !== chrome.runtime.id || (_sender?.url && !_sender.url.startsWith(chrome.runtime.getURL('/')))) {sendResponse({error:'Privileged extension page required.',errorCode:'forbidden'});return false;}
-  if(message.action==='set-execution-mode'){NutEggExecution.changeMode(message.mode).then(sendResponse).catch(error=>sendResponse({error:error.message}));return true;}
+  if (message.action === 'youtube-player-snapshot')
+    return handleYouTubePlayerSnapshotMessage(message, _sender, sendResponse);
+  if (_sender?.id !== chrome.runtime.id || (_sender?.url && !_sender.url.startsWith(chrome.runtime.getURL('/')))) {
+    sendResponse({ error: 'Privileged extension page required.', errorCode: 'forbidden' });
+    return false;
+  }
+  if (message.action === 'set-execution-mode') {
+    NutEggExecution.changeMode(message.mode)
+      .then(sendResponse)
+      .catch(error => sendResponse({ error: error.message }));
+    return true;
+  }
   if (message.action === 'connect-obsidian') {
-    NutEggExecution.ensure().then(()=>({success:true})).then(sendResponse).catch(error => sendResponse({ error: error.message })); return true;
+    NutEggExecution.ensure()
+      .then(() => ({ success: true }))
+      .then(sendResponse)
+      .catch(error => sendResponse({ error: error.message }));
+    return true;
   }
   if (message.action === 'subscription-control') {
     (async () => {
       const operations = ['status'];
-      if (!operations.includes(message.operation) || !NutEggAI.supportsSubscription(message.provider)) throw new Error('Invalid subscription operation');
+      if (!operations.includes(message.operation) || !NutEggAI.supportsSubscription(message.provider)) {
+        throw new Error('Invalid subscription operation');
+      }
       const url = await getServerUrl();
       const health = await serverFetch(`${url}/health`, { signal: AbortSignal.timeout(3000) }).then(r => r.json());
-      if (health.subscriptionEnabled !== true) { sendResponse({ state: 'disabled', error: 'AI connection unavailable.' }); return; }
-      if (!health.capabilities?.includes('subscription-v1')) throw new Error('Update the NutEgg Obsidian plugin to use subscriptions.');
+      if (health.subscriptionEnabled !== true) {
+        sendResponse({ state: 'disabled', error: 'AI connection unavailable.' });
+        return;
+      }
+      if (!health.capabilities?.includes('subscription-v1')) {
+        throw new Error('Update the NutEgg Obsidian plugin to use subscriptions.');
+      }
       const response = await serverFetch(`${url}/subscription/${message.operation}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: message.provider, model: message.model, device: message.device }),
         signal: AbortSignal.timeout(message.operation === 'test' ? 190000 : 20000),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Subscription operation failed.');
       return result;
-    })().then(sendResponse).catch(error => sendResponse({ state: 'error', error: error.message, message: error.message })); return true;
+    })()
+      .then(sendResponse)
+      .catch(error => sendResponse({ state: 'error', error: error.message, message: error.message }));
+    return true;
   }
-  if (message.action === "get-obsidian-ai-config") {
+  if (message.action === 'get-obsidian-ai-config') {
     fetchObsidianAiConfig(null, message.settings)
       .then(sendResponse)
       .catch(error => sendResponse({ error: error.message }));
@@ -247,160 +335,207 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.action === 'sync-obsidian-api') {
     (async () => {
-      if (await getConnectionMode() !== 'obsidian') return {synced: false};
+      if ((await getConnectionMode()) !== 'obsidian') return { synced: false };
       const current = await NutEggExecution.ensure();
       const settings = await loadChromeAiSettings();
-      if (!settings.chromeAiApiKey || current.state.mode !== 'apiKey') return {synced: false};
-      const response = await serverFetch(`${await getServerUrl()}/execution/native-api/sync`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'}, signal: AbortSignal.timeout(10000),
-        body: JSON.stringify({clientId: current.session.clientId, sessionId: current.session.sessionId,
-          instanceId: current.state.instanceId, expectedRevision: current.state.revision,
-          key: settings.chromeAiApiKey, config: {aiProvider: settings.chromeAiProvider, aiModel: settings.chromeAiModel,
-            aiSource: settings.chromeAiSource, aiModelFamily: settings.chromeAiModelFamily,
-            ...(settings.chromeAiEndpoint ? {localEndpoint: settings.chromeAiEndpoint} : {}),
-            chunkWindowChars: settings.chunkWindowChars, contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens}}),
+      if (!settings.chromeAiApiKey || current.state.mode !== 'apiKey') return { synced: false };
+      const serverUrl = await getServerUrl();
+      const response = await serverFetch(`${serverUrl}/execution/native-api/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+        body: JSON.stringify({
+          clientId: current.session.clientId,
+          sessionId: current.session.sessionId,
+          instanceId: current.state.instanceId,
+          expectedRevision: current.state.revision,
+          key: settings.chromeAiApiKey,
+          config: {
+            aiProvider: settings.chromeAiProvider,
+            aiModel: settings.chromeAiModel,
+            aiSource: settings.chromeAiSource,
+            aiModelFamily: settings.chromeAiModelFamily,
+            ...(settings.chromeAiEndpoint ? { localEndpoint: settings.chromeAiEndpoint } : {}),
+            chunkWindowChars: settings.chunkWindowChars,
+            contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
+          },
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not sync Obsidian AI.');
       return result;
-    })().then(sendResponse).catch(error => sendResponse({error: error.message}));
+    })()
+      .then(sendResponse)
+      .catch(error => sendResponse({ error: error.message }));
     return true;
   }
-  if (message.action === "sync-ai-config") {
-    syncAiConfig().then(sendResponse).catch(err => sendResponse({ error: err.message, errorCode: "ai_config_sync_failed" }));
+  if (message.action === 'sync-ai-config') {
+    syncAiConfig()
+      .then(sendResponse)
+      .catch(err => sendResponse({ error: err.message, errorCode: 'ai_config_sync_failed' }));
     return true;
   }
   if (message.action === 'get-debug-info') {
     const scope = NutEggAI.normalizeAIDebugScope(message.debugScope);
-    if (!scope) { sendResponse({ unavailable: true, mode: message.mode }); return false; }
-    if (message.mode === 'chrome') { sendResponse({ ...NutEggAI.getAIDebugInfo(scope), mode: 'chrome' }); return false; }
+    if (!scope) {
+      sendResponse({ unavailable: true, mode: message.mode });
+      return false;
+    }
+    if (message.mode === 'chrome') {
+      sendResponse({ ...NutEggAI.getAIDebugInfo(scope), mode: 'chrome' });
+      return false;
+    }
     (async () => {
-      if (await getConnectionMode() !== 'obsidian') return { unavailable: true, mode: 'obsidian' };
-      const response = await serverFetch(`${await getServerUrl()}/debug-info?scope=${encodeURIComponent(scope)}`, { signal: AbortSignal.timeout(2500), cache: 'no-store' });
+      if ((await getConnectionMode()) !== 'obsidian') return { unavailable: true, mode: 'obsidian' };
+      const serverUrl = await getServerUrl();
+      const response = await serverFetch(`${serverUrl}/debug-info?scope=${encodeURIComponent(scope)}`, {
+        signal: AbortSignal.timeout(2500),
+        cache: 'no-store',
+      });
       if (!response.ok) throw new Error('Debug info unavailable');
-      return { ...await response.json(), mode: 'obsidian' };
-    })().then(sendResponse).catch(() => sendResponse({ unavailable: true, mode: 'obsidian' }));
+      return { ...(await response.json()), mode: 'obsidian' };
+    })()
+      .then(sendResponse)
+      .catch(() => sendResponse({ unavailable: true, mode: 'obsidian' }));
     return true;
   }
-  if (message.action === "analyze") {
+  if (message.action === 'analyze') {
     handleAnalyze(message.payload)
-      .then((r) => sendResponse(r))
-      .catch((err) => sendResponse({ error: err.message }));
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err.message }));
     return true;
   }
 
-  if (message.action === "confirm") {
+  if (message.action === 'confirm') {
     handleConfirm(message.payload)
-      .then((r) => sendResponse(r))
-      .catch((err) => sendResponse({ error: err.message }));
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err.message }));
     return true;
   }
 
-  if (message.action === "ask") {
+  if (message.action === 'ask') {
     handleAsk(message.payload)
-      .then((r) => sendResponse(r))
-      .catch((err) => sendResponse({ error: err.message }));
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err.message }));
     return true;
   }
 
-  if (message.action === "create-egg") {
+  if (message.action === 'create-egg') {
     handleCreateEgg(message)
-      .then((r) => sendResponse(r))
-      .catch((err) => sendResponse({ error: err.message }));
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err.message }));
     return true;
   }
 
-  if (message.action === "get-eggs") {
+  if (message.action === 'get-eggs') {
     fetchEggs()
-      .then((r) => sendResponse(r))
+      .then(r => sendResponse(r))
       .catch(() => sendResponse({ eggs: [] }));
     return true;
   }
 
-  if (message.action === "history") {
+  if (message.action === 'history') {
     fetchHistory(message.url)
-      .then((r) => sendResponse(r))
+      .then(r => sendResponse(r))
       .catch(() => sendResponse({ history: [], latest: null }));
     return true;
   }
 
-  if (message.action === "clear-chrome-cache") {
+  if (message.action === 'clear-chrome-cache') {
     clearChromeCache()
       .then(() => sendResponse({ success: true }))
-      .catch((err) => sendResponse({ error: err.message }));
+      .catch(err => sendResponse({ error: err.message }));
     return true;
   }
 
-  if (message.action === "get-chrome-cache-info") {
+  if (message.action === 'get-chrome-cache-info') {
     getChromeCacheInfo()
-      .then((info) => sendResponse(info))
+      .then(info => sendResponse(info))
       .catch(() => sendResponse({ count: 0, limit: 100 }));
     return true;
   }
 
-  if (message.action === "check-server") {
+  if (message.action === 'check-server') {
     checkServer()
-      .then((r) => sendResponse(r))
+      .then(r => sendResponse(r))
       .catch(() => sendResponse({ online: false }));
     return true;
   }
 
-  if (message.action === "check-chrome-ai") {
-    loadChromeAiSettings().then(async (settings) => {
-      const stored=await chrome.storage.local.get(['connectionMode','obsidianExecutionState']);
-      if(NutEggAI.selectEffectiveExecution(stored.connectionMode,stored.obsidianExecutionState)==='subscription'){const selected=stored.obsidianExecutionState.subscription;sendResponse({enabled:true,configured:false,provider:selected.provider,authMethod:'subscription',model:selected.model});return;}
-      const provider = settings.chromeAiProvider || "gemini";
-      const isLocal = provider === "local";
+  if (message.action === 'check-chrome-ai') {
+    loadChromeAiSettings().then(async settings => {
+      const stored = await chrome.storage.local.get(['connectionMode', 'obsidianExecutionState']);
+      const effectiveMode = NutEggAI.selectEffectiveExecution(stored.connectionMode, stored.obsidianExecutionState);
+      if (effectiveMode === 'subscription') {
+        const selected = stored.obsidianExecutionState.subscription;
+        sendResponse({
+          enabled: true,
+          configured: false,
+          provider: selected.provider,
+          authMethod: 'subscription',
+          model: selected.model,
+        });
+        return;
+      }
+      const provider = settings.chromeAiProvider || 'gemini';
+      const isLocal = provider === 'local';
       const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
+      const defaultModel = typeof PROVIDER_CATALOG !== 'undefined' ? PROVIDER_CATALOG[provider]?.defaultModel : '';
       sendResponse({
         enabled: true,
         configured: hasKey && !isSubscriptionProvider(settings),
         provider,
         authMethod: settings.chromeAiAuthMethod,
-        model: settings.chromeAiModel || (typeof PROVIDER_CATALOG !== "undefined" ? PROVIDER_CATALOG[provider]?.defaultModel : "") || "",
+        model: settings.chromeAiModel || defaultModel || '',
       });
     });
     return true;
   }
 
-  if (message.action === "check-chrome-credit") {
-    loadChromeAiSettings().then((settings) => {
-      if (isSubscriptionProvider(settings)) { sendResponse(subscriptionModeError()); return; }
+  if (message.action === 'check-chrome-credit') {
+    loadChromeAiSettings().then(settings => {
+      if (isSubscriptionProvider(settings)) {
+        sendResponse(subscriptionModeError());
+        return;
+      }
       checkCreditAI(settings)
-        .then((credit) => sendResponse(credit))
-        .catch((err) => sendResponse({ error: String(err), hasBalance: false, statusText: "Credit check failed" }));
+        .then(credit => sendResponse(credit))
+        .catch(err => sendResponse({ error: String(err), hasBalance: false, statusText: 'Credit check failed' }));
     });
     return true;
   }
 
-  if (message.action === "get-credit") {
+  if (message.action === 'get-credit') {
     fetchCredit()
-      .then((r) => sendResponse(r))
-      .catch((err) => sendResponse({ error: String(err), hasBalance: false }));
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: String(err), hasBalance: false }));
     return true;
   }
 
-  if (message.action === "config-status") {
+  if (message.action === 'config-status') {
     checkConfigStatus()
-      .then((r) => sendResponse(r))
-      .catch(() => sendResponse({ status: "error", issues: ["Cannot reach server"] }));
+      .then(r => sendResponse(r))
+      .catch(() => sendResponse({ status: 'error', issues: ['Cannot reach server'] }));
     return true;
   }
 
-  if (message.action === "set-port") {
+  if (message.action === 'set-port') {
     serverPort = message.port || DEFAULT_PORT;
-    chrome.storage.local.set({ serverPort }).then(() => {
-      sendResponse({ success: true, port: serverPort });
-    }).catch((err) => {
-      sendResponse({ success: false, error: err?.message });
-    });
+    chrome.storage.local
+      .set({ serverPort })
+      .then(() => {
+        sendResponse({ success: true, port: serverPort });
+      })
+      .catch(err => {
+        sendResponse({ success: false, error: err?.message });
+      });
     return true;
   }
 
-  if (message.action === "metrics") {
+  if (message.action === 'metrics') {
     fetchMetrics()
-      .then((r) => sendResponse(r))
-      .catch(() => sendResponse({ nuts: 0, eggs: 0, timeSaved: "0m" }));
+      .then(r => sendResponse(r))
+      .catch(() => sendResponse({ nuts: 0, eggs: 0, timeSaved: '0m' }));
     return true;
   }
 });
@@ -409,23 +544,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // The popup/side-panel opens a port for the analyze action. An open port keeps
 // the service worker alive during long LLM calls (Chrome kills idle workers
 // after ~30s). The port receives { action, payload } and posts back the result.
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== "nutegg-analyze") return;
-  if (port.sender?.id !== chrome.runtime.id || !port.sender?.url?.startsWith(chrome.runtime.getURL('/'))) {port.disconnect();return;}
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== 'nutegg-analyze') return;
+  if (port.sender?.id !== chrome.runtime.id || !port.sender?.url?.startsWith(chrome.runtime.getURL('/'))) {
+    port.disconnect();
+    return;
+  }
 
   let isConnected = true;
   port.onDisconnect.addListener(() => {
     isConnected = false;
   });
 
-  port.onMessage.addListener(async (message) => {
-    if (message.action === "ping") {
+  port.onMessage.addListener(async message => {
+    if (message.action === 'ping') {
       // Heartbeat to keep service worker alive during long LLM calls (prevents MV3 30s idle termination)
       return;
     }
-    if (message.action === "analyze") {
+    if (message.action === 'analyze') {
       try {
-        const onProgress = (event) => {
+        const onProgress = event => {
           if (isConnected) {
             try {
               port.postMessage(event);
@@ -457,10 +595,15 @@ function hasKnowledgeSelected(payload) {
 }
 
 function hasKnowledgeGenerated(result) {
-  if (!result || typeof result !== "object") return false;
+  if (!result || typeof result !== 'object') return false;
   if (Array.isArray(result.extractedEntries) && result.extractedEntries.length > 0) return true;
   if (Array.isArray(result.newKnowledge) && result.newKnowledge.length > 0) return true;
-  if (Array.isArray(result.eggResults) && result.eggResults.some((e) => Array.isArray(e?.extractedEntries) && e.extractedEntries.length > 0)) return true;
+  if (Array.isArray(result.eggResults)) {
+    const hasEggEntries = result.eggResults.some(
+      e => Array.isArray(e?.extractedEntries) && e.extractedEntries.length > 0
+    );
+    if (hasEggEntries) return true;
+  }
   return false;
 }
 
@@ -469,17 +612,17 @@ function isKnowledgeSelectedAndGenerated(payload, result) {
 }
 
 async function handleAnalyze(payload, onProgress) {
-  if (await getConnectionMode() === "obsidian") {
+  if ((await getConnectionMode()) === 'obsidian') {
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
-    if (server.error) return { ...server, mode: "obsidian" };
+    if (server.error) return { ...server, mode: 'obsidian' };
     try {
       const serverUrl = await getServerUrl();
       const response = await serverFetch(`${serverUrl}/analyze`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/x-ndjson, application/json",
+          'Content-Type': 'application/json',
+          Accept: 'application/x-ndjson, application/json',
         },
         body: JSON.stringify({ ...payload, stream: true }),
       });
@@ -489,31 +632,31 @@ async function handleAnalyze(payload, onProgress) {
 
         return {
           error: data.error || `Server error (${response.status})`,
-          errorCode: data.errorCode || "unknown",
+          errorCode: data.errorCode || 'unknown',
           statusCode: data.statusCode || response.status,
-          mode: "obsidian",
+          mode: 'obsidian',
         };
       }
 
-      if (response.headers?.get?.("content-type")?.includes("application/x-ndjson") && response.body) {
+      if (response.headers?.get?.('content-type')?.includes('application/x-ndjson') && response.body) {
         const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let buffer = "";
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
         let finalResult = null;
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
             try {
               const event = JSON.parse(trimmed);
-              if (event.type === "partial") {
+              if (event.type === 'partial') {
                 onProgress?.(event);
-              } else if (event.type === "complete") {
+              } else if (event.type === 'complete') {
                 finalResult = event.result;
               }
             } catch {}
@@ -522,11 +665,11 @@ async function handleAnalyze(payload, onProgress) {
         if (buffer.trim()) {
           try {
             const event = JSON.parse(buffer.trim());
-            if (event.type === "complete") finalResult = event.result;
+            if (event.type === 'complete') finalResult = event.result;
           } catch {}
         }
-        if(!finalResult)throw new Error("AI execution interrupted. Retry explicitly.");
-        const result = { ...finalResult, mode: "obsidian" };
+        if (!finalResult) throw new Error('AI execution interrupted. Retry explicitly.');
+        const result = { ...finalResult, mode: 'obsidian' };
         if (isKnowledgeSelectedAndGenerated(payload, result)) {
           await recordChromeEggMetric();
         }
@@ -534,17 +677,16 @@ async function handleAnalyze(payload, onProgress) {
       }
 
       const data = await response.json();
-      const result = { ...data, mode: "obsidian" };
+      const result = { ...data, mode: 'obsidian' };
       if (isKnowledgeSelectedAndGenerated(payload, result)) {
         await recordChromeEggMetric();
       }
       return result;
     } catch (err) {
-
       return {
         error: `Failed to connect to Obsidian: ${err.message}`,
-        errorCode: "network_error",
-        mode: "obsidian",
+        errorCode: 'network_error',
+        mode: 'obsidian',
       };
     }
   }
@@ -556,45 +698,55 @@ async function handleAnalyzeChrome(payload, onProgress) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
-  const provider = aiSettings.chromeAiProvider || "gemini";
-  const isLocal = provider === "local";
+  const provider = aiSettings.chromeAiProvider || 'gemini';
+  const isLocal = provider === 'local';
   if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Add your AI API key in Settings to start analyzing.",
-      errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
-      mode: "chrome",
+      error: 'Add your AI API key in Settings to start analyzing.',
+      errorCode: isSubscriptionProvider(provider) ? 'pairing_token_missing' : 'no_api_key',
+      mode: 'chrome',
     };
   }
 
-  const controller=new AbortController();standaloneControllers.add(controller);
+  const controller = new AbortController();
+  standaloneControllers.add(controller);
   try {
     const result = await analyzeContentStandalone(payload, aiSettings, onProgress, controller.signal);
     const finalResult = {
       ...result,
-      execution: {jobId:crypto.randomUUID(),origin:'chrome',configurationRevision:Date.now().toString(),authMethod:'apiKey',provider:aiSettings.chromeAiProvider,model:aiSettings.chromeAiModel},
+      execution: {
+        jobId: crypto.randomUUID(),
+        origin: 'chrome',
+        configurationRevision: Date.now().toString(),
+        authMethod: 'apiKey',
+        provider: aiSettings.chromeAiProvider,
+        model: aiSettings.chromeAiModel,
+      },
       nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      stage: "stage1",
-      mode: "chrome",
+      stage: 'stage1',
+      mode: 'chrome',
       matchedEggs: [],
       allEggs: [],
       extractedEntries: result.extractedEntries || [],
       generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
     };
     if (result.extractedEntries?.length) {
-      finalResult.eggResults = [{
-        egg: "Knowledge",
-        generateKnowledgeEntries: true,
-        keyQuestionAnswers: [],
-        extractedEntries: result.extractedEntries,
-        readAction: "highlights",
-        readVerdict: true,
-        readVerdictReason: "",
-        readingSources: [],
-      }];
-      finalResult.newKnowledge = result.extractedEntries.map((e) => ({
-        egg: "Knowledge",
+      finalResult.eggResults = [
+        {
+          egg: 'Knowledge',
+          generateKnowledgeEntries: true,
+          keyQuestionAnswers: [],
+          extractedEntries: result.extractedEntries,
+          readAction: 'highlights',
+          readVerdict: true,
+          readVerdictReason: '',
+          readingSources: [],
+        },
+      ];
+      finalResult.newKnowledge = result.extractedEntries.map(e => ({
+        egg: 'Knowledge',
         content: e.content,
       }));
     }
@@ -603,12 +755,14 @@ async function handleAnalyzeChrome(payload, onProgress) {
     return finalResult;
   } catch (err) {
     return {
-      error: err.message || "Chrome AI analysis failed",
-      errorCode: err.code || "unknown",
+      error: err.message || 'Chrome AI analysis failed',
+      errorCode: err.code || 'unknown',
       statusCode: err.statusCode || 500,
-      mode: "chrome",
+      mode: 'chrome',
     };
-  } finally {standaloneControllers.delete(controller);}
+  } finally {
+    standaloneControllers.delete(controller);
+  }
 }
 
 const DEFAULT_CHROME_CACHE_LIMIT = 100;
@@ -629,7 +783,7 @@ function trimChromeCache(cache, limit) {
 }
 
 async function loadChromeCache() {
-  const stored = await chrome.storage.local.get(["chromeTabCache"]);
+  const stored = await chrome.storage.local.get(['chromeTabCache']);
   const existing = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
   const cache = trimChromeCache(existing, await getChromeCacheLimit());
   if (cache.length !== existing.length) await chrome.storage.local.set({ chromeTabCache: cache });
@@ -637,45 +791,47 @@ async function loadChromeCache() {
 }
 
 function extractVideoIdentity(rawUrl, metadata = null) {
-  if (typeof NutEggAI !== "undefined" && typeof NutEggAI.getVideoIdentity === "function") {
+  if (typeof NutEggAI !== 'undefined' && typeof NutEggAI.getVideoIdentity === 'function') {
     try {
       const vid = NutEggAI.getVideoIdentity(rawUrl);
       if (vid) return vid;
     } catch {}
   }
-  if (!rawUrl || typeof rawUrl !== "string") return null;
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
   try {
     const u = new URL(rawUrl);
     const host = u.hostname.toLowerCase();
-    const segments = u.pathname.split("/").filter(Boolean);
+    const segments = u.pathname.split('/').filter(Boolean);
 
     // YouTube
-    const youtubeHosts = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"];
+    const youtubeHosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
     let ytId = null;
     if (youtubeHosts.includes(host)) {
-      if (segments[0] === "watch") ytId = u.searchParams.get("v");
-      else if (["shorts", "live", "embed", "v"].includes(segments[0])) ytId = segments[1];
-    } else if (host === "youtu.be" || host === "www.youtu.be") {
+      if (segments[0] === 'watch') ytId = u.searchParams.get('v');
+      else if (['shorts', 'live', 'embed', 'v'].includes(segments[0])) ytId = segments[1];
+    } else if (host === 'youtu.be' || host === 'www.youtu.be') {
       ytId = segments[0];
-    } else if (["youtube-nocookie.com", "www.youtube-nocookie.com"].includes(host) && segments[0] === "embed") {
+    } else if (['youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host) && segments[0] === 'embed') {
       ytId = segments[1];
     }
     if (ytId && /^[A-Za-z0-9_-]{11}$/.test(ytId)) {
-      return { platform: "youtube", id: ytId, canonicalUrl: `https://www.youtube.com/watch?v=${ytId}` };
+      return { platform: 'youtube', id: ytId, canonicalUrl: `https://www.youtube.com/watch?v=${ytId}` };
     }
 
     // Bilibili
-    const bilibiliHosts = ["bilibili.com", "www.bilibili.com", "m.bilibili.com", "player.bilibili.com"];
-    if (bilibiliHosts.some(h => host === h || host.endsWith("." + h))) {
-      let bvid = segments[0] === "video" ? segments[1] : u.searchParams.get("bvid");
-      if (!bvid && u.searchParams.get("aid")) bvid = `av${u.searchParams.get("aid")}`;
-      if (!bvid && segments[0] === "video" && /^av\d+$/i.test(segments[1])) bvid = segments[1];
+    const bilibiliHosts = ['bilibili.com', 'www.bilibili.com', 'm.bilibili.com', 'player.bilibili.com'];
+    if (bilibiliHosts.some(h => host === h || host.endsWith('.' + h))) {
+      let bvid = segments[0] === 'video' ? segments[1] : u.searchParams.get('bvid');
+      if (!bvid && u.searchParams.get('aid')) bvid = `av${u.searchParams.get('aid')}`;
+      if (!bvid && segments[0] === 'video' && /^av\d+$/i.test(segments[1])) bvid = segments[1];
       if (bvid) {
-        const cleanBvid = bvid.split("?")[0].split("/")[0];
-        const part = Number(u.searchParams.get("p") || (host === "player.bilibili.com" ? u.searchParams.get("page") : null) || 1);
-        const partSuffix = Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : "";
+        const cleanBvid = bvid.split('?')[0].split('/')[0];
+        const part = Number(
+          u.searchParams.get('p') || (host === 'player.bilibili.com' ? u.searchParams.get('page') : null) || 1
+        );
+        const partSuffix = Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : '';
         return {
-          platform: "bilibili",
+          platform: 'bilibili',
           id: cleanBvid,
           canonicalUrl: `https://www.bilibili.com/video/${cleanBvid}${partSuffix}`,
         };
@@ -683,13 +839,14 @@ function extractVideoIdentity(rawUrl, metadata = null) {
     }
   } catch {}
 
-  if (metadata?.video_id && (metadata.platform === "youtube" || metadata.platform === "bilibili")) {
+  if (metadata?.video_id && (metadata.platform === 'youtube' || metadata.platform === 'bilibili')) {
     const id = metadata.video_id;
     const platform = metadata.platform;
     const part = Number(metadata.part || 1);
-    const canonicalUrl = platform === "youtube"
-      ? `https://www.youtube.com/watch?v=${id}`
-      : `https://www.bilibili.com/video/${id}${Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : ""}`;
+    const canonicalUrl =
+      platform === 'youtube'
+        ? `https://www.youtube.com/watch?v=${id}`
+        : `https://www.bilibili.com/video/${id}${Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : ''}`;
     return { platform, id, canonicalUrl };
   }
 
@@ -697,11 +854,11 @@ function extractVideoIdentity(rawUrl, metadata = null) {
 }
 
 function normalizeCacheUrl(rawUrl, metadata = null) {
-  if (!rawUrl || typeof rawUrl !== "string") return "";
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
   const video = extractVideoIdentity(rawUrl, metadata);
   if (video) return video.canonicalUrl;
 
-  if (typeof NutEggAI !== "undefined" && typeof NutEggAI.normalizeContentUrl === "function") {
+  if (typeof NutEggAI !== 'undefined' && typeof NutEggAI.normalizeContentUrl === 'function') {
     try {
       return NutEggAI.normalizeContentUrl(rawUrl);
     } catch {}
@@ -709,25 +866,43 @@ function normalizeCacheUrl(rawUrl, metadata = null) {
 
   try {
     const u = new URL(rawUrl);
-    u.hash = "";
-    if (["twitter.com", "www.twitter.com", "mobile.twitter.com", "x.com", "www.x.com"].includes(u.hostname.toLowerCase())) {
-      u.hostname = "x.com";
+    u.hash = '';
+    const twitterHosts = ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com'];
+    if (twitterHosts.includes(u.hostname.toLowerCase())) {
+      u.hostname = 'x.com';
       if (/\/status\/\d+/.test(u.pathname)) {
-        u.search = "";
-        return u.toString().replace(/\/$/, "");
+        u.search = '';
+        return u.toString().replace(/\/$/, '');
       }
     }
-    for (const param of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "ref", "source", "fbclid", "gclid", "si", "pp", "feature", "spm", "vd_source", "spm_id_from"]) {
+    const trackingParams = [
+      'utm_source',
+      'utm_medium',
+      'utm_campaign',
+      'utm_content',
+      'utm_term',
+      'ref',
+      'source',
+      'fbclid',
+      'gclid',
+      'si',
+      'pp',
+      'feature',
+      'spm',
+      'vd_source',
+      'spm_id_from',
+    ];
+    for (const param of trackingParams) {
       u.searchParams.delete(param);
     }
     u.searchParams.sort();
     let pathname = u.pathname;
-    if (pathname.length > 1 && pathname.endsWith("/")) {
+    if (pathname.length > 1 && pathname.endsWith('/')) {
       u.pathname = pathname.slice(0, -1);
     }
-    return u.toString().replace(/\/$/, "");
+    return u.toString().replace(/\/$/, '');
   } catch {
-    return rawUrl.split("#")[0].replace(/\/+$/, "");
+    return rawUrl.split('#')[0].replace(/\/+$/, '');
   }
 }
 
@@ -745,13 +920,14 @@ function matchesCacheEntry(entry, targetUrl) {
   }
 
   // 2. Video ID & platform match
-  const entryVideo = (entry.videoPlatform && entry.videoId)
-    ? { platform: entry.videoPlatform, id: entry.videoId }
-    : extractVideoIdentity(entry.url, entry.capturePayload?.metadata);
+  const entryVideo =
+    entry.videoPlatform && entry.videoId
+      ? { platform: entry.videoPlatform, id: entry.videoId }
+      : extractVideoIdentity(entry.url, entry.capturePayload?.metadata);
 
   if (targetVideo && entryVideo) {
     if (targetVideo.platform === entryVideo.platform && targetVideo.id === entryVideo.id) {
-      if (targetVideo.platform === "bilibili") {
+      if (targetVideo.platform === 'bilibili') {
         return (entry.canonicalUrl || normalizeCacheUrl(entry.url)) === targetNorm;
       }
       return true;
@@ -759,10 +935,10 @@ function matchesCacheEntry(entry, targetUrl) {
   }
 
   // 3. Fallback URL match
-  if (entry.url && entry.url.split("#")[0] === targetUrl.split("#")[0]) {
+  if (entry.url && entry.url.split('#')[0] === targetUrl.split('#')[0]) {
     return true;
   }
-  if (entry.capturePayload?.url && entry.capturePayload.url.split("#")[0] === targetUrl.split("#")[0]) {
+  if (entry.capturePayload?.url && entry.capturePayload.url.split('#')[0] === targetUrl.split('#')[0]) {
     return true;
   }
 
@@ -770,8 +946,8 @@ function matchesCacheEntry(entry, targetUrl) {
 }
 
 async function getChromeCacheLimit() {
-  const stored = await chrome.storage.local.get(["chromeCacheTabLimit"]);
-  if (typeof stored.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0) {
+  const stored = await chrome.storage.local.get(['chromeCacheTabLimit']);
+  if (typeof stored.chromeCacheTabLimit === 'number' && stored.chromeCacheTabLimit >= 0) {
     return Math.min(1000, Math.round(stored.chromeCacheTabLimit));
   }
   return DEFAULT_CHROME_CACHE_LIMIT;
@@ -780,7 +956,7 @@ async function getChromeCacheLimit() {
 async function getChromeCacheHistory(url) {
   if (!url) return { history: [], latest: null };
   const cache = await loadChromeCache();
-  const entry = cache.find((item) => matchesCacheEntry(item, url));
+  const entry = cache.find(item => matchesCacheEntry(item, url));
   if (!entry) return { history: [], latest: null };
   return { history: [entry], latest: entry };
 }
@@ -795,11 +971,11 @@ async function saveChromeCacheEntry(payload, result) {
     const norm = normalizeCacheUrl(url, payload?.metadata);
     const video = extractVideoIdentity(url, payload?.metadata);
 
-    const stored = await chrome.storage.local.get(["chromeTabCache"]);
+    const stored = await chrome.storage.local.get(['chromeTabCache']);
     let cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
 
     // Remove existing entry for the same video or URL
-    cache = cache.filter((item) => !matchesCacheEntry(item, url));
+    cache = cache.filter(item => !matchesCacheEntry(item, url));
 
     const entry = {
       nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -807,13 +983,13 @@ async function saveChromeCacheEntry(payload, result) {
       canonicalUrl: norm,
       videoId: video?.id || null,
       videoPlatform: video?.platform || null,
-      title: payload.title || result.titleVerdict?.title || "",
+      title: payload.title || result.titleVerdict?.title || '',
       result,
       saved: null,
-      sourceType: payload.sourceType || video?.platform || "generic",
-      author: payload.author || payload.metadata?.author || "",
-      publishedAt: payload.publishedAt || payload.metadata?.published || "",
-      content: typeof payload.content === "string" ? payload.content.slice(0, 30000) : "",
+      sourceType: payload.sourceType || video?.platform || 'generic',
+      author: payload.author || payload.metadata?.author || '',
+      publishedAt: payload.publishedAt || payload.metadata?.published || '',
+      content: typeof payload.content === 'string' ? payload.content.slice(0, 30000) : '',
       capturePayload: {
         url,
         title: payload.title,
@@ -829,7 +1005,7 @@ async function saveChromeCacheEntry(payload, result) {
     cache = trimChromeCache(cache, limit);
     await chrome.storage.local.set({ chromeTabCache: cache });
   } catch (err) {
-    console.warn?.("[NutEgg] Failed to save Chrome cache entry:", err);
+    console.warn?.('[NutEgg] Failed to save Chrome cache entry:', err);
   }
 }
 
@@ -839,17 +1015,18 @@ async function clearChromeCache() {
 
 async function getChromeCacheInfo() {
   const cache = await loadChromeCache();
-  const stored = await chrome.storage.local.get(["chromeTabCache", "chromeCacheTabLimit"]);
-  const limit = typeof stored.chromeCacheTabLimit === "number" ? stored.chromeCacheTabLimit : DEFAULT_CHROME_CACHE_LIMIT;
+  const stored = await chrome.storage.local.get(['chromeTabCache', 'chromeCacheTabLimit']);
+  const limit =
+    typeof stored.chromeCacheTabLimit === 'number' ? stored.chromeCacheTabLimit : DEFAULT_CHROME_CACHE_LIMIT;
   return { count: cache.length, limit };
 }
 
 async function handleConfirm(payload) {
-  if (await getConnectionMode() !== "obsidian") return obsidianModeRequiredError();
+  if ((await getConnectionMode()) !== 'obsidian') return obsidianModeRequiredError();
   const serverUrl = await getServerUrl();
   const response = await serverFetch(`${serverUrl}/confirm`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
@@ -863,17 +1040,16 @@ async function handleConfirm(payload) {
 }
 
 async function fetchHistory(url) {
-  if (await getConnectionMode() !== "obsidian") {
+  if ((await getConnectionMode()) !== 'obsidian') {
     return await getChromeCacheHistory(url);
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
     const serverUrl = await getServerUrl();
-    const response = await serverFetch(
-      `${serverUrl}/history?url=${encodeURIComponent(url)}`,
-      { signal: controller.signal }
-    );
+    const response = await serverFetch(`${serverUrl}/history?url=${encodeURIComponent(url)}`, {
+      signal: controller.signal,
+    });
     clearTimeout(timeout);
     if (!response.ok) return await getChromeCacheHistory(url);
     return await response.json();
@@ -884,14 +1060,14 @@ async function fetchHistory(url) {
 }
 
 async function handleCreateEgg({ name, description }) {
-  if (await getConnectionMode() !== "obsidian") return obsidianModeRequiredError();
+  if ((await getConnectionMode()) !== 'obsidian') return obsidianModeRequiredError();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 190000);
   try {
     const serverUrl = await getServerUrl();
     const response = await serverFetch(`${serverUrl}/create-egg`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
       signal: controller.signal,
     });
@@ -905,12 +1081,12 @@ async function handleCreateEgg({ name, description }) {
     return data;
   } catch (err) {
     clearTimeout(timeout);
-    return { error: err.name === "AbortError" ? "Request timed out" : (err.message || "Failed to connect to Obsidian") };
+    return { error: err.name === 'AbortError' ? 'Request timed out' : err.message || 'Failed to connect to Obsidian' };
   }
 }
 
 async function fetchEggs() {
-  if (await getConnectionMode() !== "obsidian") return { eggs: [] };
+  if ((await getConnectionMode()) !== 'obsidian') return { eggs: [] };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -927,31 +1103,30 @@ async function fetchEggs() {
 }
 
 async function handleAsk(payload) {
-  if (await getConnectionMode() === "obsidian") {
+  if ((await getConnectionMode()) === 'obsidian') {
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
-    if (server.error) return { ...server, mode: "obsidian", answers: [] };
+    if (server.error) return { ...server, mode: 'obsidian', answers: [] };
     try {
       const serverUrl = await getServerUrl();
       const response = await serverFetch(`${serverUrl}/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-
         return {
           error: data.error || `Server error (${response.status})`,
-          errorCode: data.errorCode || "unknown",
+          errorCode: data.errorCode || 'unknown',
         };
       }
 
       return data;
-    } catch(error) {
-      return {error:error.message,errorCode:"execution_interrupted",mode:"obsidian",answers:[]};
+    } catch (error) {
+      return { error: error.message, errorCode: 'execution_interrupted', mode: 'obsidian', answers: [] };
     }
   }
 
@@ -962,39 +1137,56 @@ async function handleAskChrome(payload) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
-  const provider = aiSettings.chromeAiProvider || "gemini";
-  const isLocal = provider === "local";
+  const provider = aiSettings.chromeAiProvider || 'gemini';
+  const isLocal = provider === 'local';
   if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
-      error: "Add your AI API key in Settings to ask a question.",
-      errorCode: isSubscriptionProvider(provider) ? "pairing_token_missing" : "no_api_key",
+      error: 'Add your AI API key in Settings to ask a question.',
+      errorCode: isSubscriptionProvider(provider) ? 'pairing_token_missing' : 'no_api_key',
       answers: [],
     };
   }
 
-  const controller=new AbortController();standaloneControllers.add(controller);
+  const controller = new AbortController();
+  standaloneControllers.add(controller);
   try {
-    const question = (payload.questions && payload.questions[0]) || "";
-    const scope = payload.scope || "within";
-    const answer = await askFollowUpStandalone(payload, question, payload.priorQa || [], aiSettings, scope, controller.signal);
+    const question = (payload.questions && payload.questions[0]) || '';
+    const scope = payload.scope || 'within';
+    const answer = await askFollowUpStandalone(
+      payload,
+      question,
+      payload.priorQa || [],
+      aiSettings,
+      scope,
+      controller.signal
+    );
     return {
       answers: [{ question, answer, scope }],
-      execution: {jobId:crypto.randomUUID(),origin:'chrome',configurationRevision:Date.now().toString(),authMethod:'apiKey',provider:aiSettings.chromeAiProvider,model:aiSettings.chromeAiModel},
-      mode: "chrome",
+      execution: {
+        jobId: crypto.randomUUID(),
+        origin: 'chrome',
+        configurationRevision: Date.now().toString(),
+        authMethod: 'apiKey',
+        provider: aiSettings.chromeAiProvider,
+        model: aiSettings.chromeAiModel,
+      },
+      mode: 'chrome',
     };
   } catch (err) {
     return {
-      error: err.message || "Failed to answer question",
-      errorCode: err.code || "unknown",
+      error: err.message || 'Failed to answer question',
+      errorCode: err.code || 'unknown',
       answers: [],
     };
-  } finally {standaloneControllers.delete(controller);}
+  } finally {
+    standaloneControllers.delete(controller);
+  }
 }
 
 async function checkConfigStatus() {
-  if (await getConnectionMode() !== "obsidian") return { status: "ok", issues: [], mode: "chrome" };
+  if ((await getConnectionMode()) !== 'obsidian') return { status: 'ok', issues: [], mode: 'chrome' };
   const controller = new AbortController();
   let timeout;
   try {
@@ -1006,33 +1198,55 @@ async function checkConfigStatus() {
     const response = await serverFetch(`${serverUrl}/config-status`, { signal: controller.signal });
     if (!response.ok) throw new Error(`Obsidian configuration check failed (${response.status}).`);
     const data = await response.json();
-    if(NutEggExecution.state?.mode==='apiKey'){const settings=await loadChromeAiSettings();const configured=NutEggAI.isAIConfigured(settings);data.aiConfigured=configured;data.issues=(data.issues||[]).filter(issue=>!issue.startsWith('AI is not configured'));data.status=configured?(data.issues.length?'warning':'ok'):'error';if(!configured)data.issues.unshift('Set up an AI API key in Chrome Settings.');}
+    if (NutEggExecution.state?.mode === 'apiKey') {
+      const settings = await loadChromeAiSettings();
+      const configured = NutEggAI.isAIConfigured(settings);
+      data.aiConfigured = configured;
+      data.issues = (data.issues || []).filter(issue => !issue.startsWith('AI is not configured'));
+      data.status = configured ? (data.issues.length ? 'warning' : 'ok') : 'error';
+      if (!configured) {
+        data.issues.unshift('Set up an AI API key in Chrome Settings.');
+      }
+    }
     if (data.port && data.port !== serverPort) {
       serverPort = data.port;
       chrome.storage.local.set({ serverPort: data.port });
     }
-    return {...data,state:NutEggExecution.state};
+    return { ...data, state: NutEggExecution.state };
   } catch (error) {
-    return { status: "error", unavailable: true, issues: [controller.signal.aborted || error.name === 'TimeoutError'
-      ? "Obsidian configuration check timed out. Retry the connection check."
-      : error.message || "Cannot read Obsidian configuration"] };
-  } finally { clearTimeout(timeout); }
+    const isTimeout = controller.signal.aborted || error.name === 'TimeoutError';
+    return {
+      status: 'error',
+      unavailable: true,
+      issues: [
+        isTimeout
+          ? 'Obsidian configuration check timed out. Retry the connection check.'
+          : error.message || 'Cannot read Obsidian configuration',
+      ],
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchCredit() {
-  const settings=await loadChromeAiSettings();
-  if(await getConnectionMode()!=='obsidian')return checkCreditAI(settings);
+  const settings = await loadChromeAiSettings();
+  if ((await getConnectionMode()) !== 'obsidian') return checkCreditAI(settings);
   try {
-    const state=await NutEggExecution.latest();
-    if(state.mode==='apiKey')return checkCreditAI(settings);
-    const response=await serverFetch(`${await getServerUrl()}/credit`,{signal:AbortSignal.timeout(20000)});return response.json();
-  }catch(error){return {hasBalance:false,statusText:error.message,error:error.message};}
+    const state = await NutEggExecution.latest();
+    if (state.mode === 'apiKey') return checkCreditAI(settings);
+    const serverUrl = await getServerUrl();
+    const response = await serverFetch(`${serverUrl}/credit`, { signal: AbortSignal.timeout(20000) });
+    return response.json();
+  } catch (error) {
+    return { hasBalance: false, statusText: error.message, error: error.message };
+  }
 }
 
 function getReadingTimeMinutes(metadata, content) {
-  const fromMeta = parseInt(metadata?.time_estimate_minutes || "0", 10);
+  const fromMeta = parseInt(metadata?.time_estimate_minutes || '0', 10);
   if (fromMeta > 0) return fromMeta;
-  const words = typeof content === "string" ? (content.split(/\s+/).length || 0) : 0;
+  const words = typeof content === 'string' ? content.split(/\s+/).length || 0 : 0;
   return Math.max(1, Math.ceil(words / 200));
 }
 
@@ -1055,8 +1269,8 @@ function getChromeMetrics() {
 }
 
 async function readChromeMetrics() {
-  const stored = await chrome.storage.local.get(["chromeMetrics", "chromeTabCache"]);
-  if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === "number") {
+  const stored = await chrome.storage.local.get(['chromeMetrics', 'chromeTabCache']);
+  if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === 'number') {
     const m = stored.chromeMetrics;
     const totalMinutes = Math.round(m.timeSavedMinutes || 0);
     if (!m.eggCounterVersion && Array.isArray(stored.chromeTabCache) && stored.chromeTabCache.length > 0) {
@@ -1081,7 +1295,10 @@ async function readChromeMetrics() {
   let timeSavedMinutes = 0;
   let eggs = 0;
   for (const entry of cache) {
-    timeSavedMinutes += getReadingTimeMinutes(entry.capturePayload?.metadata, entry.content || entry.capturePayload?.content);
+    timeSavedMinutes += getReadingTimeMinutes(
+      entry.capturePayload?.metadata,
+      entry.content || entry.capturePayload?.content
+    );
     if (isKnowledgeSelectedAndGenerated(entry.capturePayload, entry.result)) {
       eggs++;
     }
@@ -1116,7 +1333,7 @@ async function recordChromeAnalysisMetrics(payload, result) {
       });
     });
   } catch (err) {
-    console.warn("[NutEgg] Failed to record Chrome metrics:", err);
+    console.warn('[NutEgg] Failed to record Chrome metrics:', err);
   }
 }
 
@@ -1134,14 +1351,16 @@ async function recordChromeEggMetric() {
       });
     });
   } catch (err) {
-    console.warn("[NutEgg] Failed to record Chrome egg metric:", err);
+    console.warn('[NutEgg] Failed to record Chrome egg metric:', err);
   }
 }
 
 let metricsFetchTask = null;
 function fetchMetrics() {
   if (metricsFetchTask) return metricsFetchTask;
-  const task = refreshCombinedMetrics().finally(() => { if (metricsFetchTask === task) metricsFetchTask = null; });
+  const task = refreshCombinedMetrics().finally(() => {
+    if (metricsFetchTask === task) metricsFetchTask = null;
+  });
   metricsFetchTask = task;
   return task;
 }
@@ -1155,17 +1374,25 @@ async function refreshCombinedMetrics() {
     const response = await serverFetch(`${serverUrl}/metrics`, { signal: controller.signal });
     if (!response.ok) throw new Error('Metrics unavailable');
     const snapshot = await response.json();
-    if (![snapshot.nuts, snapshot.eggs, snapshot.timeSavedMinutes].every(value => Number.isFinite(value) && value >= 0)) throw new Error('Invalid metrics');
-    await chrome.storage.local.set({ obsidianMetricsSnapshot: {
-      nuts: snapshot.nuts, eggs: snapshot.eggs, timeSavedMinutes: Math.round(snapshot.timeSavedMinutes),
-    } });
-  } catch { /* Keep the last known vault snapshot while offline. */ }
-  finally {
+    const validMetrics = [snapshot.nuts, snapshot.eggs, snapshot.timeSavedMinutes].every(
+      value => Number.isFinite(value) && value >= 0
+    );
+    if (!validMetrics) throw new Error('Invalid metrics');
+    await chrome.storage.local.set({
+      obsidianMetricsSnapshot: {
+        nuts: snapshot.nuts,
+        eggs: snapshot.eggs,
+        timeSavedMinutes: Math.round(snapshot.timeSavedMinutes),
+      },
+    });
+  } catch {
+    /* Keep the last known vault snapshot while offline. */
+  } finally {
     clearTimeout(timeout);
   }
   const local = await getChromeMetrics();
   const { obsidianMetricsSnapshot: vault = {} } = await chrome.storage.local.get(['obsidianMetricsSnapshot']);
-  const number = value => Number.isFinite(value) && value >= 0 ? value : 0;
+  const number = value => (Number.isFinite(value) && value >= 0 ? value : 0);
   const total = {
     nuts: local.nuts + number(vault.nuts),
     eggs: number(local.eggs),
@@ -1177,7 +1404,7 @@ async function refreshCombinedMetrics() {
 }
 
 async function checkServer() {
-  if (await getConnectionMode() !== "obsidian") return { online: false, mode: "chrome" };
+  if ((await getConnectionMode()) !== 'obsidian') return { online: false, mode: 'chrome' };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
@@ -1190,14 +1417,17 @@ async function checkServer() {
       chrome.storage.local.set({ serverPort: data.port });
     }
     if (response.ok) {
-      try { await syncAiConfig(await getServerUrl()); }
-      catch (error) { return { online: true, error: error.message, errorCode: "ai_config_sync_failed" }; }
+      try {
+        await syncAiConfig(await getServerUrl());
+      } catch (error) {
+        return { online: true, error: error.message, errorCode: 'ai_config_sync_failed' };
+      }
     }
-    return { online: response.ok, port: data.port, version: data.version, state:NutEggExecution.state };
+    return { online: response.ok, port: data.port, version: data.version, state: NutEggExecution.state };
   } catch {
     clearTimeout(timeout);
     return { online: false };
   }
 }
 
-console.log("[NutEgg] Background service worker started");
+console.log('[NutEgg] Background service worker started');

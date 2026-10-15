@@ -2,7 +2,7 @@
 // NutEgg Content Chunker & Timestamp Utilities
 // ============================================================
 
-import type { ContentChunk } from "./types";
+import type { ContentChunk } from './types';
 
 export const DEFAULT_CHUNK_WINDOW_CHARS = 30000;
 
@@ -10,7 +10,7 @@ export const DEFAULT_CHUNK_WINDOW_CHARS = 30000;
 export function lineSeconds(line: string): number | null {
   const m = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
   if (!m) return null;
-  const parts = m[0].slice(1, -1).split(":").map(Number);
+  const parts = m[0].slice(1, -1).split(':').map(Number);
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return null;
@@ -18,9 +18,9 @@ export function lineSeconds(line: string): number | null {
 
 /** "MM:SS" / "H:MM:SS" -> seconds (0 when unparseable). */
 export function toSeconds(time: string): number {
-  const clean = (time || "").replace(/[\[\]]/g, "").trim();
-  const parts = clean.split(":").map(Number);
-  if (parts.some((n) => Number.isNaN(n))) return 0;
+  const clean = (time || '').replace(/[\[\]]/g, '').trim();
+  const parts = clean.split(':').map(Number);
+  if (parts.some(n => Number.isNaN(n))) return 0;
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return 0;
@@ -31,14 +31,14 @@ export function formatSeconds(sec: number): string {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   const s = Math.floor(sec % 60);
-  const mm = String(m).padStart(2, "0");
-  const ss = String(s).padStart(2, "0");
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 /** `**Part:** i of N (from MM:SS)` label for per-part calls. */
 export function partNote(chunk: ContentChunk): string {
-  const at = chunk.startTime ? ` (from ${chunk.startTime})` : "";
+  const at = chunk.startTime ? ` (from ${chunk.startTime})` : '';
   return `**Part:** ${chunk.index + 1} of ${chunk.total}${at}`;
 }
 
@@ -60,9 +60,9 @@ export function paragraphChunks(
     chunks.push({
       index: 0,
       total: 0,
-      content: buf.join("\n\n"),
+      content: buf.join('\n\n'),
       chapters: [],
-      startTime: "",
+      startTime: '',
     });
     buf = [];
     bufChars = 0;
@@ -78,7 +78,7 @@ export function paragraphChunks(
           total: 0,
           content: p.slice(i, i + chunkSize),
           chapters: [],
-          startTime: "",
+          startTime: '',
         });
       }
       continue;
@@ -90,7 +90,7 @@ export function paragraphChunks(
   flush();
 
   if (chunks.length === 0) {
-    chunks.push({ index: 0, total: 1, content, chapters, startTime: "" });
+    chunks.push({ index: 0, total: 1, content, chapters, startTime: '' });
   }
 
   chunks.forEach((c, i) => {
@@ -108,7 +108,7 @@ export function timestampedChunks(
   lines: string[],
   firstTsIdx: number,
   chapters: Array<{ time: string; title: string }>,
-  chunkSize: number = DEFAULT_CHUNK_WINDOW_CHARS,
+  chunkSize: number = DEFAULT_CHUNK_WINDOW_CHARS
 ): ContentChunk[] {
   // Title/meta/description lines before the first caption
   const preambleLines = lines.slice(0, firstTsIdx);
@@ -116,18 +116,18 @@ export function timestampedChunks(
   let inChaptersSection = false;
 
   for (const line of preambleLines) {
-    if (line.trim().startsWith("## Chapters")) {
+    if (line.trim().startsWith('## Chapters')) {
       inChaptersSection = true;
       continue;
     }
-    if (inChaptersSection && line.trim().startsWith("#")) {
+    if (inChaptersSection && line.trim().startsWith('#')) {
       inChaptersSection = false;
     }
     if (!inChaptersSection) {
       filteredPreamble.push(line);
     }
   }
-  const cleanPreamble = filteredPreamble.join("\n").trim();
+  const cleanPreamble = filteredPreamble.join('\n').trim();
 
   const units: Array<{ sec: number; line: string }> = [];
   for (let i = firstTsIdx; i < lines.length; i++) {
@@ -146,7 +146,7 @@ export function timestampedChunks(
     chunks.push({
       index: 0,
       total: 0,
-      content: buf.join("\n"),
+      content: buf.join('\n'),
       chapters: [],
       startTime: formatSeconds(startSec),
     });
@@ -163,11 +163,11 @@ export function timestampedChunks(
   flush();
 
   if (chunks.length === 0) {
-    return paragraphChunks(lines.join("\n"), chapters, chunkSize);
+    return paragraphChunks(lines.join('\n'), chapters, chunkSize);
   }
 
   // Attach each chapter to the chunk covering its start time
-  const starts = chunks.map((c) => toSeconds(c.startTime));
+  const starts = chunks.map(c => toSeconds(c.startTime));
   for (const ch of chapters) {
     const t = toSeconds(ch.time);
     let idx = 0;
@@ -184,7 +184,7 @@ export function timestampedChunks(
     c.index = i;
     c.total = chunks.length;
     if (chunks.length === 1) {
-      c.content = `${preambleLines.join("\n")}\n\n${c.content}`;
+      c.content = `${preambleLines.join('\n')}\n\n${c.content}`;
     } else if (cleanPreamble) {
       c.content = `${cleanPreamble}\n\n${c.content}`;
     }
@@ -203,21 +203,13 @@ export function chunkContent(
   chapters: Array<{ time: string; title: string }> = [],
   chunkWindowChars: number = DEFAULT_CHUNK_WINDOW_CHARS
 ): ContentChunk[] {
-  const lines = (content || "").split("\n");
-  const firstTsIdx = lines.findIndex((l) => lineSeconds(l) !== null);
+  const lines = (content || '').split('\n');
+  const firstTsIdx = lines.findIndex(l => lineSeconds(l) !== null);
   if (firstTsIdx !== -1) {
-    return timestampedChunks(
-      lines,
-      firstTsIdx,
-      chapters,
-      chunkWindowChars
-    );
+    return timestampedChunks(lines, firstTsIdx, chapters, chunkWindowChars);
   }
   if (content.length <= chunkWindowChars) {
-    return [
-      { index: 0, total: 1, content, chapters, startTime: "" },
-    ];
+    return [{ index: 0, total: 1, content, chapters, startTime: '' }];
   }
   return paragraphChunks(content, chapters, chunkWindowChars);
 }
-

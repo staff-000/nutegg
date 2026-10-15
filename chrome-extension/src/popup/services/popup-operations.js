@@ -1,7 +1,10 @@
 // Async orchestration: immutable contexts in, guarded events out. No DOM/session access.
 class PopupOperations {
   constructor({ store, service, extractor, chromeApi = chrome }) {
-    this.store = store; this.service = service; this.extractor = extractor; this.chromeApi = chromeApi;
+    this.store = store;
+    this.service = service;
+    this.extractor = extractor;
+    this.chromeApi = chromeApi;
     this.catalogTask = null;
     this.extractionTasks = new Map();
     this.debugPending = new Set();
@@ -16,21 +19,30 @@ class PopupOperations {
     this.debugPending.add(key);
     try {
       const value = await this.service.sendMessage({ action: 'get-debug-info', mode, debugScope });
-      if (!this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) return;
+      if (!this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian'))
+        return;
       this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value });
     } catch {
-      if (this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')) this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value: { unavailable: true, mode } });
-    } finally { this.debugPending.delete(key); }
+      if (this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian'))
+        this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value: { unavailable: true, mode } });
+    } finally {
+      this.debugPending.delete(key);
+    }
   }
   fail(context, error) {
-    this.store.commitOperation(context.token, { type: 'operationFailed', error: error?.message || String(error), code: error?.code });
+    this.store.commitOperation(context.token, {
+      type: 'operationFailed',
+      error: error?.message || String(error),
+      code: error?.code,
+    });
     return { error: error?.message || String(error) };
   }
   extract(tabId, { waitForSettle = false } = {}) {
     const tab = this.store.getTab(tabId);
     if (!tab) return Promise.resolve(null);
     const existing = this.extractionTasks.get(tabId);
-    if (existing?.generation === tab.pageGeneration && this.store.isOperationCurrent(existing.token)) return existing.task;
+    if (existing?.generation === tab.pageGeneration && this.store.isOperationCurrent(existing.token))
+      return existing.task;
     const ctx = this.store.beginOperation(tabId, 'extraction', {}, ['sourceVersion']);
     if (!ctx) return Promise.resolve(null);
     const task = this.runExtraction(ctx, waitForSettle).finally(() => {
@@ -55,7 +67,8 @@ class PopupOperations {
         if (cancelled()) return null;
       }
       const content = await this.extractor.extractPage(tabId, {
-        isCancelled: cancelled, expectedUrl: ctx.tab.url,
+        isCancelled: cancelled,
+        expectedUrl: ctx.tab.url,
         discussionSessionId: `${ctx.token.pageGeneration}:capture:${ctx.token.requestId}`,
         retryCount: this.store.settings?.captureRetryCount ?? 3,
         retryDelayMs: this.store.settings?.captureRetryDelayMs ?? 3000,
@@ -69,7 +82,10 @@ class PopupOperations {
       const accepted = this.store.commitOperation(ctx.token, { type: 'extracted', content, warning });
       if (accepted && this.extractor.collectDiscussion) void this.discussion(tabId, false, true);
       return accepted ? content : null;
-    } catch (error) { this.fail(ctx, error); return null; }
+    } catch (error) {
+      this.fail(ctx, error);
+      return null;
+    }
   }
   async discussion(tabId, load = false, passive = false) {
     const ctx = this.store.beginOperation(tabId, 'discussion');
@@ -77,44 +93,69 @@ class PopupOperations {
       if (ctx) this.store.commitOperation(ctx.token, { type: 'operationFinished' });
       return;
     }
-    const cancelled = () => !this.store.isOperationCurrent(ctx.token) || (!passive && !this.store.getTab(tabId)?.enabledSections.discussion);
+    const cancelled = () =>
+      !this.store.isOperationCurrent(ctx.token) || (!passive && !this.store.getTab(tabId)?.enabledSections.discussion);
     const sessionId = `${ctx.token.pageGeneration}:${ctx.token.requestId}`;
     try {
-      const discussion = await this.extractor.collectDiscussion(tabId, { sessionId, load, isCancelled: cancelled,
+      const discussion = await this.extractor.collectDiscussion(tabId, {
+        sessionId,
+        load,
+        isCancelled: cancelled,
         onUpdate: (discussion, loading) => {
           if (cancelled() || discussion.url?.split('#')[0] !== ctx.tab.url?.split('#')[0]) return;
           this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading, passive });
-        } });
+        },
+      });
       if (this.store.isOperationCurrent(ctx.token)) {
-        if (discussion) this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading: false, passive });
+        if (discussion)
+          this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading: false, passive });
         else this.store.commitOperation(ctx.token, { type: 'operationFinished' });
       }
     } catch (error) {
-      if (passive && !this.store.getTab(tabId)?.enabledSections.discussion) this.store.commitOperation(ctx.token, { type: 'operationFinished' });
+      if (passive && !this.store.getTab(tabId)?.enabledSections.discussion)
+        this.store.commitOperation(ctx.token, { type: 'operationFinished' });
       else this.fail(ctx, error);
     }
   }
   stopDiscussion(tabId) {
-    const tab = this.store.getTab(tabId), operation = tab?.operations.discussion;
+    const tab = this.store.getTab(tabId),
+      operation = tab?.operations.discussion;
     this.store.dispatch({ type: 'discussionCancelled', tabId });
     if (operation) void this.extractor.stopDiscussion(tabId, `${tab.pageGeneration}:${operation.requestId}`);
   }
   async history(tabId, select = true, expectedSelection) {
     const ctx = this.store.beginOperation(tabId, 'history', { select }, ['selectionRevision', 'sourceVersion']);
     if (!ctx) return;
-    if (expectedSelection != null && ctx.tab.selectionRevision !== expectedSelection) { this.store.commitOperation(ctx.token, { type: 'operationFinished' }); return; }
+    if (expectedSelection != null && ctx.tab.selectionRevision !== expectedSelection) {
+      this.store.commitOperation(ctx.token, { type: 'operationFinished' });
+      return;
+    }
     try {
       const history = await this.service.loadHistory(ctx.tab.url || ctx.tab.extractedContent?.url);
-      this.store.commitOperation(ctx.token, { type: 'historyLoaded', history: history || [], select, selectionIntent: ctx.tab.intentRevision });
-    } catch (error) { this.fail(ctx, error); }
+      this.store.commitOperation(ctx.token, {
+        type: 'historyLoaded',
+        history: history || [],
+        select,
+        selectionIntent: ctx.tab.intentRevision,
+      });
+    } catch (error) {
+      this.fail(ctx, error);
+    }
   }
   async catalog() {
     if (this.catalogTask) return this.catalogTask;
     const version = this.store.dispatch({ type: 'catalogRequested' });
-    const task = this.service.sendMessage({ action: 'get-eggs' }).then(response => {
-      this.store.dispatch({ type: 'catalog', version, eggs: response?.eggs || [] });
-    }).catch(() => {}).finally(() => { if (this.catalogTask === task) this.catalogTask = null; });
-    this.catalogTask = task; return task;
+    const task = this.service
+      .sendMessage({ action: 'get-eggs' })
+      .then(response => {
+        this.store.dispatch({ type: 'catalog', version, eggs: response?.eggs || [] });
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (this.catalogTask === task) this.catalogTask = null;
+      });
+    this.catalogTask = task;
+    return task;
   }
   async analyze(tabId, options) {
     const ctx = this.store.beginOperation(tabId, 'analysis', options, ['sourceVersion']);
@@ -123,12 +164,21 @@ class PopupOperations {
     const content = tab.extractedContent;
     try {
       if (!content?.content) throw new Error(t('couldNotRetrieveContent'));
-      const payload = { ...content, debugScope: tab.debugScope, force: true, stage: 1, questions: inputs.questions || [], questionsScope: tab.customQuestionsScope,
-        generateKnowledgeEntries: tab.generateKnowledgeEntries, enabledSections: tab.enabledSections,
+      const payload = {
+        ...content,
+        debugScope: tab.debugScope,
+        force: true,
+        stage: 1,
+        questions: inputs.questions || [],
+        questionsScope: tab.customQuestionsScope,
+        generateKnowledgeEntries: tab.generateKnowledgeEntries,
+        enabledSections: tab.enabledSections,
         optimizeForConversation: tab.optimizeForConversation !== false,
         discussion: tab.enabledSections.discussion === true ? content.discussion : undefined,
-        outputLanguage: inputs.outputLanguage, ...(inputs.eggs ? { eggs: inputs.eggs } : {}) };
-      const response = await this.service.sendAnalyzeViaPort(payload, (event) => {
+        outputLanguage: inputs.outputLanguage,
+        ...(inputs.eggs ? { eggs: inputs.eggs } : {}),
+      };
+      const response = await this.service.sendAnalyzeViaPort(payload, event => {
         if (!this.store.isOperationCurrent(token)) return;
         this.store.commitOperation(token, { type: 'analysisPartial', partial: event });
       });
@@ -137,7 +187,11 @@ class PopupOperations {
       const stage1 = { ...response, generateKnowledgeEntries: tab.generateKnowledgeEntries };
       const chromeMode = response.mode === 'chrome' || inputs.chromeMode;
       const eggs = chromeMode ? [] : inputs.eggs || response.matchedEggs || [];
-      if (!chromeMode && (inputs.analysisMode === 'full' || inputs.analysisMode === 'fast' || inputs.reanalyze) && eggs.length) {
+      if (
+        !chromeMode &&
+        (inputs.analysisMode === 'full' || inputs.analysisMode === 'fast' || inputs.reanalyze) &&
+        eggs.length
+      ) {
         this.store.commitOperation(token, { type: 'analysisInterim', result: stage1, payload, eggs });
         this.store.commitOperation(token, { type: 'phase', phase: 'stage2' });
         const result = await this.runEggs(ctx, stage1, payload, eggs, []);
@@ -147,15 +201,26 @@ class PopupOperations {
         stage1.stage = 'stage1';
         for (const key of ['eggResults', 'shouldRead', 'shouldReadReason', 'newKnowledge']) delete stage1[key];
       }
-      this.store.commitOperation(token, { type: 'analysisComplete', result: stage1, payload: { ...payload, nutId: stage1.nutId }, stage1: true, eggs });
+      this.store.commitOperation(token, {
+        type: 'analysisComplete',
+        result: stage1,
+        payload: { ...payload, nutId: stage1.nutId },
+        stage1: true,
+        eggs,
+      });
       return { success: true, result: stage1 };
-    } catch (error) { return this.fail(ctx, error); }
+    } catch (error) {
+      return this.fail(ctx, error);
+    }
   }
   async eggs(tabId, options) {
     const tab = this.store.getTab(tabId);
     if (!tab || this.store.isBusy(tabId)) return { busy: true };
     const eggs = options.eggs || tab.selectedEggs;
-    if (!eggs.length) { this.store.dispatch({ type: 'notice', tabId, message: t('selectEggWarning') }); return; }
+    if (!eggs.length) {
+      this.store.dispatch({ type: 'notice', tabId, message: t('selectEggWarning') });
+      return;
+    }
     const result = tab.analysisResult || {};
     const cached = [...(result.eggResults || []), ...(result.eggAnalysisCache || [])];
     const byEgg = new Map(cached.map(r => [r.egg, r]));
@@ -164,9 +229,16 @@ class PopupOperations {
       const cachedResult = byEgg.get(egg);
       if (tab.generateKnowledgeEntries && !cachedResult.entryGenerationDisabledByEgg) {
         const wasEggOnly = cachedResult.generateKnowledgeEntries === false || result.generateKnowledgeEntries === false;
-        const hasKnowledge = Boolean(cachedResult.extractedEntries?.length ||
-          cachedResult.keyQuestionAnswers?.some(a => a.answered !== false && a.answer && !/^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(String(a.answer).trim())));
-        if (wasEggOnly && !hasKnowledge || cachedResult.generateKnowledgeEntries === false) {
+        const hasKnowledge = Boolean(
+          cachedResult.extractedEntries?.length ||
+          cachedResult.keyQuestionAnswers?.some(
+            a =>
+              a.answered !== false &&
+              a.answer &&
+              !/^(?:not addressed in this content|not addressed in this part)[.!]?$/i.test(String(a.answer).trim())
+          )
+        );
+        if ((wasEggOnly && !hasKnowledge) || cachedResult.generateKnowledgeEntries === false) {
           return true;
         }
       }
@@ -174,9 +246,23 @@ class PopupOperations {
     });
     if (!pending.length) {
       try {
-        const composed = { ...globalThis.NutEggAI.composeEggResults(tab.stage1ContentAnalysis || result, eggs.map(egg => byEgg.get(egg)), [...byEgg.values()]),
-          stage: 'stage2', mode: result.mode, generateKnowledgeEntries: tab.generateKnowledgeEntries };
-        this.store.dispatch({ type: 'cachedResult', tabId, result: composed, eggs, message: t('cachedEggAnalysisShown') });
+        const composed = {
+          ...globalThis.NutEggAI.composeEggResults(
+            tab.stage1ContentAnalysis || result,
+            eggs.map(egg => byEgg.get(egg)),
+            [...byEgg.values()]
+          ),
+          stage: 'stage2',
+          mode: result.mode,
+          generateKnowledgeEntries: tab.generateKnowledgeEntries,
+        };
+        this.store.dispatch({
+          type: 'cachedResult',
+          tabId,
+          result: composed,
+          eggs,
+          message: t('cachedEggAnalysisShown'),
+        });
         return { success: true, result: composed, cached: true };
       } catch (error) {
         const message = error?.message || String(error);
@@ -184,11 +270,21 @@ class PopupOperations {
         return { error: message };
       }
     }
-    const ctx = this.store.beginOperation(tabId, 'analysis', { ...options, eggs, cached: [...byEgg.values()], pending }, ['sourceVersion', 'stage1Version']);
+    const ctx = this.store.beginOperation(
+      tabId,
+      'analysis',
+      { ...options, eggs, cached: [...byEgg.values()], pending },
+      ['sourceVersion', 'stage1Version']
+    );
     if (!ctx) return { busy: true };
     this.store.commitOperation(ctx.token, { type: 'phase', phase: 'stage2' });
-    try { return await this.runEggs(ctx, ctx.tab.stage1ContentAnalysis || result, ctx.tab.stage1Payload, eggs, [...byEgg.values()]); }
-    catch (error) { return this.fail(ctx, error); }
+    try {
+      return await this.runEggs(ctx, ctx.tab.stage1ContentAnalysis || result, ctx.tab.stage1Payload, eggs, [
+        ...byEgg.values(),
+      ]);
+    } catch (error) {
+      return this.fail(ctx, error);
+    }
   }
   async runEggs(ctx, analysis, base, eggs, cached) {
     const { tab, inputs, token } = ctx;
@@ -197,16 +293,33 @@ class PopupOperations {
     // fetched source captured in this operation, never a fresh active-tab read.
     const source = typeof base?.content === 'string' && base.content.trim() ? base : tab.extractedContent;
     if (typeof source?.content !== 'string' || !source.content.trim()) throw new Error(t('couldNotRetrieveContent'));
-    const payload = { ...source, debugScope: tab.debugScope, stage: 2, force: true, contentAnalysis: analysis, eggs: inputs.pending || eggs,
-      selectedEggs: eggs, cachedEggResults: cached, generateKnowledgeEntries: tab.generateKnowledgeEntries,
-      outputLanguage: inputs.outputLanguage, nutId: source.nutId || analysis.nutId || tab.currentNutId };
+    const payload = {
+      ...source,
+      debugScope: tab.debugScope,
+      stage: 2,
+      force: true,
+      contentAnalysis: analysis,
+      eggs: inputs.pending || eggs,
+      selectedEggs: eggs,
+      cachedEggResults: cached,
+      generateKnowledgeEntries: tab.generateKnowledgeEntries,
+      outputLanguage: inputs.outputLanguage,
+      nutId: source.nutId || analysis.nutId || tab.currentNutId,
+    };
     const response = await this.service.sendAnalyzeViaPort(payload);
     if (!this.store.isOperationCurrent(token)) return { stale: true };
     if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
     const cache = new Map(cached.map(r => [r.egg, r]));
     for (const r of [...(response.eggResults || []), ...(response.eggAnalysisCache || [])]) cache.set(r.egg, r);
-    const result = { ...globalThis.NutEggAI.composeEggResults(analysis, eggs.map(egg => cache.get(egg)).filter(Boolean), [...cache.values()]),
-      stage: 'stage2', mode: response.mode ?? analysis.mode, nutId: response.nutId || payload.nutId, generateKnowledgeEntries: tab.generateKnowledgeEntries };
+    const result = {
+      ...globalThis.NutEggAI.composeEggResults(analysis, eggs.map(egg => cache.get(egg)).filter(Boolean), [
+        ...cache.values(),
+      ]),
+      stage: 'stage2',
+      mode: response.mode ?? analysis.mode,
+      nutId: response.nutId || payload.nutId,
+      generateKnowledgeEntries: tab.generateKnowledgeEntries,
+    };
     this.store.commitOperation(token, { type: 'analysisComplete', result, eggs });
     return { success: true, result };
   }
@@ -216,23 +329,47 @@ class PopupOperations {
     const { tab, token } = ctx;
     let requested = false;
     let received = false;
-    const receipt = outcome => this.store.dispatch({ type: 'receipt', receipt: { tabId, pageGeneration: token.pageGeneration,
-      resultRevision: tab.resultRevision, requestId: token.requestId, nutId: tab.currentNutId, time: Date.now(), ...outcome } });
+    const receipt = outcome =>
+      this.store.dispatch({
+        type: 'receipt',
+        receipt: {
+          tabId,
+          pageGeneration: token.pageGeneration,
+          resultRevision: tab.resultRevision,
+          requestId: token.requestId,
+          nutId: tab.currentNutId,
+          time: Date.now(),
+          ...outcome,
+        },
+      });
     try {
       const result = tab.analysisResult;
-      if (hatch && globalThis.NutEggHelpers.selectedEggsNeedAnalysis(tab)) throw new Error(t('hatchAnalyzeSelectedEggs'));
+      if (hatch && globalThis.NutEggHelpers.selectedEggsNeedAnalysis(tab))
+        throw new Error(t('hatchAnalyzeSelectedEggs'));
       const entries = hatch ? result?.newKnowledge || [] : [];
       if (hatch && !entries.length) throw new Error(t('noNewKnowledgeToAdd'));
       const content = tab.stage1Payload || tab.extractedContent;
       if (!content) throw new Error(t('couldNotExtractToSave'));
-      const payload = { ...content, debugScope: tab.debugScope, analysis: result, summary: result?.summary || '', matchedEggs: result?.matchedEggs || [],
-        newKnowledge: entries, nutId: tab.currentNutId ?? undefined, skipRaw: hatch && tab.nutCollected };
+      const payload = {
+        ...content,
+        debugScope: tab.debugScope,
+        analysis: result,
+        summary: result?.summary || '',
+        matchedEggs: result?.matchedEggs || [],
+        newKnowledge: entries,
+        nutId: tab.currentNutId ?? undefined,
+        skipRaw: hatch && tab.nutCollected,
+      };
       requested = true;
       const response = await this.service.sendMessage({ action: 'confirm', payload });
       received = true;
       receipt({ success: !!response?.success, outcome: response?.success ? 'saved' : 'failed' });
       if (!response?.success) throw new Error(response?.error || t('failedToSave'));
-      this.store.commitOperation(token, { type: 'saved', hatch, message: t(hatch ? 'eggHatchedSuccess' : 'nutCollectedVault', { mergedNote: '' }) });
+      this.store.commitOperation(token, {
+        type: 'saved',
+        hatch,
+        message: t(hatch ? 'eggHatchedSuccess' : 'nutCollectedVault', { mergedNote: '' }),
+      });
       return { success: true };
     } catch (error) {
       // A disconnected client cannot know whether the backend accepted its write.
@@ -244,15 +381,38 @@ class PopupOperations {
     const ctx = this.store.beginOperation(tabId, 'followup', { question, ...options }, ['resultRevision']);
     if (!ctx) return;
     const { token, tab } = ctx;
-    this.store.commitOperation(token, { type: 'questionStarted', id: token.requestId, question, scope: tab.followupScope });
-    const priorQa = [...(tab.analysisResult?.eggResults || []).flatMap(r => r.keyQuestionAnswers || []), ...(tab.analysisResult?.customQuestionAnswers || []), ...tab.followUpQa.filter(q => !q.pending)];
+    this.store.commitOperation(token, {
+      type: 'questionStarted',
+      id: token.requestId,
+      question,
+      scope: tab.followupScope,
+    });
+    const priorQa = [
+      ...(tab.analysisResult?.eggResults || []).flatMap(r => r.keyQuestionAnswers || []),
+      ...(tab.analysisResult?.customQuestionAnswers || []),
+      ...tab.followUpQa.filter(q => !q.pending),
+    ];
     try {
-      const response = await this.service.sendMessage({ action: 'ask', payload: { ...(tab.stage1Payload || tab.extractedContent),
-        debugScope: tab.debugScope,
-        questions: [question], scope: tab.followupScope, priorQa, outputLanguage: ctx.inputs.outputLanguage } });
+      const response = await this.service.sendMessage({
+        action: 'ask',
+        payload: {
+          ...(tab.stage1Payload || tab.extractedContent),
+          debugScope: tab.debugScope,
+          questions: [question],
+          scope: tab.followupScope,
+          priorQa,
+          outputLanguage: ctx.inputs.outputLanguage,
+        },
+      });
       if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
-      this.store.commitOperation(token, { type: 'questionAnswered', id: token.requestId, answer: {...(response.answers?.[0] || { answer: t('noContentExtracted') }),execution:response.execution} });
-    } catch (error) { return this.fail(ctx, error); }
+      this.store.commitOperation(token, {
+        type: 'questionAnswered',
+        id: token.requestId,
+        answer: { ...(response.answers?.[0] || { answer: t('noContentExtracted') }), execution: response.execution },
+      });
+    } catch (error) {
+      return this.fail(ctx, error);
+    }
   }
   async create(tabId, inputs) {
     const ctx = this.store.beginOperation(tabId, 'creation', inputs);
@@ -266,10 +426,18 @@ class PopupOperations {
       this.store.dispatch({ type: 'eggCreated', egg: { fileName, description: captured.desc || captured.name } });
       // A fetch started before creation is discarded; refresh it to retain the other eggs too.
       if (pendingCatalog) void pendingCatalog.then(() => this.catalog());
-      if (!this.store.commitOperation(ctx.token, { type: 'creationComplete', fileName,
-        message: t('eggCreatedSelected', { egg: globalThis.NutEggHelpers.cleanEggName(fileName) }) })) return { stale: true };
+      if (
+        !this.store.commitOperation(ctx.token, {
+          type: 'creationComplete',
+          fileName,
+          message: t('eggCreatedSelected', { egg: globalThis.NutEggHelpers.cleanEggName(fileName) }),
+        })
+      )
+        return { stale: true };
       return { success: true, fileName };
-    } catch (error) { return this.fail(ctx, error); }
+    } catch (error) {
+      return this.fail(ctx, error);
+    }
   }
 }
 globalThis.NutEggServices = globalThis.NutEggServices || {};

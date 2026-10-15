@@ -2,18 +2,22 @@
 // NutEgg Unified AI Processor (Stage 1 + Stage 2 + Orchestration)
 // ============================================================
 
-import { buildDiscussionResult, compactDiscussionRecords, discussionBase, discussionBatches, discussionEvidenceText, discussionSourceText, discussionSummaryText, normalizeDiscussion, unpackDiscussionPart } from "./discussion";
-import { getVideoIdentity } from "./content-url";
-import { composeEggResults } from "./analysis-results";
-import { isAIConfigured, resolveConfig } from "./catalog";
-import { AIError } from "./client";
 import {
-  DEFAULT_CHUNK_WINDOW_CHARS,
-  chunkContent,
-  formatSeconds,
-  partNote,
-  toSeconds,
-} from "./chunker";
+  buildDiscussionResult,
+  compactDiscussionRecords,
+  discussionBase,
+  discussionBatches,
+  discussionEvidenceText,
+  discussionSourceText,
+  discussionSummaryText,
+  normalizeDiscussion,
+  unpackDiscussionPart,
+} from './discussion';
+import { getVideoIdentity } from './content-url';
+import { composeEggResults } from './analysis-results';
+import { isAIConfigured, resolveConfig } from './catalog';
+import { AIError } from './client';
+import { DEFAULT_CHUNK_WINDOW_CHARS, chunkContent, formatSeconds, partNote, toSeconds } from './chunker';
 import {
   countUnprocessed,
   extractEggLanguage,
@@ -21,13 +25,9 @@ import {
   formatEggInstructionsForPrompt,
   formatEggKnowledgeForPrompt,
   insertEggLanguage,
-} from "./egg-format";
-import {
-  parseJson,
-  repairTruncatedJson,
-  sanitizeJsonString,
-} from "./json-repair";
-import { PROMPTS, renderPrompt } from "./prompt-templates";
+} from './egg-format';
+import { parseJson, repairTruncatedJson, sanitizeJsonString } from './json-repair';
+import { PROMPTS, renderPrompt } from './prompt-templates';
 import {
   DEFAULT_ANALYSIS_SECTIONS,
   type AIProcessorHost,
@@ -55,15 +55,15 @@ import {
   type ReadAction,
   type QuestionScope,
   type WorkflowPromptKey,
-} from "./types";
-import { conversationHints, sanitizeConversationMeta, normalizeConversationMindMap, stripConversationFields } from "./conversation";
+} from './types';
+import {
+  conversationHints,
+  sanitizeConversationMeta,
+  normalizeConversationMindMap,
+  stripConversationFields,
+} from './conversation';
 
-export {
-  repairTruncatedJson,
-  sanitizeJsonString,
-  parseJson,
-  chunkContent,
-};
+export { repairTruncatedJson, sanitizeJsonString, parseJson, chunkContent };
 
 export type {
   AnalysisSectionsConfig,
@@ -86,13 +86,10 @@ export { DEFAULT_ANALYSIS_SECTIONS };
  * Prune task instructions from an existing task template string based on enabled sections,
  * preserving any user customizations to the prompt wording, and renumbering remaining items.
  */
-export function pruneTaskContent(
-  taskText: string,
-  sections: AnalysisSectionsConfig
-): string {
-  if (!taskText) return "";
-  const lines = taskText.split("\n");
-  const filtered = lines.filter((line) => {
+export function pruneTaskContent(taskText: string, sections: AnalysisSectionsConfig): string {
+  if (!taskText) return '';
+  const lines = taskText.split('\n');
+  const filtered = lines.filter(line => {
     const trimmed = line.trim();
     if (!trimmed) return false;
     if (!sections.titleVerdict && /title\s*verdict/i.test(line)) return false;
@@ -100,21 +97,16 @@ export function pruneTaskContent(
     if (!sections.mindMap && /mind\s*map/i.test(line)) return false;
     return true;
   });
-  return filtered
-    .map((line, idx) => line.replace(/^\s*\d+[\.\)]\s*/, `${idx + 1}. `))
-    .join("\n");
+  return filtered.map((line, idx) => line.replace(/^\s*\d+[\.\)]\s*/, `${idx + 1}. `)).join('\n');
 }
 
 /**
  * Prune section-specific output rules from an existing rules template string,
  * preserving any user customizations or extra custom rules.
  */
-export function pruneRulesFromTemplate(
-  rulesBlock: string,
-  sections: AnalysisSectionsConfig
-): string {
-  if (!rulesBlock) return "";
-  const lines = rulesBlock.split("\n");
+export function pruneRulesFromTemplate(rulesBlock: string, sections: AnalysisSectionsConfig): string {
+  if (!rulesBlock) return '';
+  const lines = rulesBlock.split('\n');
   const result: string[] = [];
   let skippingCurrentBullet = false;
 
@@ -140,19 +132,19 @@ export function pruneRulesFromTemplate(
       result.push(line);
     }
   }
-  return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return result
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 /**
  * Prune disabled keys from a JSON schema string found in the prompt template,
  * preserving user schema formatting and customizations.
  */
-export function pruneSchemaFromTemplate(
-  schemaText: string,
-  sections: AnalysisSectionsConfig
-): string {
-  const startIdx = schemaText.indexOf("{");
-  const endIdx = schemaText.lastIndexOf("}");
+export function pruneSchemaFromTemplate(schemaText: string, sections: AnalysisSectionsConfig): string {
+  const startIdx = schemaText.indexOf('{');
+  const endIdx = schemaText.lastIndexOf('}');
   if (startIdx === -1 || endIdx === -1) return schemaText;
 
   const inner = schemaText.slice(startIdx + 1, endIdx);
@@ -160,7 +152,7 @@ export function pruneSchemaFromTemplate(
   let depth = 0;
   let inString = false;
   let escaped = false;
-  let currentProp = "";
+  let currentProp = '';
 
   for (let i = 0; i < inner.length; i++) {
     const c = inner[i];
@@ -168,7 +160,7 @@ export function pruneSchemaFromTemplate(
       currentProp += c;
       if (escaped) {
         escaped = false;
-      } else if (c === "\\") {
+      } else if (c === '\\') {
         escaped = true;
       } else if (c === '"') {
         inString = false;
@@ -182,21 +174,21 @@ export function pruneSchemaFromTemplate(
       continue;
     }
 
-    if (c === "{" || c === "[") {
+    if (c === '{' || c === '[') {
       depth++;
       currentProp += c;
       continue;
     }
 
-    if (c === "}" || c === "]") {
+    if (c === '}' || c === ']') {
       depth--;
       currentProp += c;
       continue;
     }
 
-    if (c === "," && depth === 0) {
+    if (c === ',' && depth === 0) {
       properties.push(currentProp);
-      currentProp = "";
+      currentProp = '';
       continue;
     }
 
@@ -206,17 +198,17 @@ export function pruneSchemaFromTemplate(
     properties.push(currentProp);
   }
 
-  const filtered = properties.filter((prop) => {
+  const filtered = properties.filter(prop => {
     const keyMatch = prop.match(/"([^"]+)"\s*:/);
     if (!keyMatch) return true;
     const key = keyMatch[1];
-    if (!sections.titleVerdict && key === "titleVerdict") return false;
-    if (!sections.coreSummary && key === "coreSummary") return false;
-    if (!sections.mindMap && key === "mindMap") return false;
+    if (!sections.titleVerdict && key === 'titleVerdict') return false;
+    if (!sections.coreSummary && key === 'coreSummary') return false;
+    if (!sections.mindMap && key === 'mindMap') return false;
     return true;
   });
 
-  return "{\n  " + filtered.map((p) => p.trim()).join(",\n  ") + "\n}";
+  return '{\n  ' + filtered.map(p => p.trim()).join(',\n  ') + '\n}';
 }
 
 /**
@@ -224,48 +216,34 @@ export function pruneSchemaFromTemplate(
  * given template string when any section is disabled.
  * Preserves user custom rules, custom schema modifications, and prompt formatting.
  */
-export function applyPrunedSections(
-  tpl: string,
-  sections: AnalysisSectionsConfig,
-  _isAggregate = false
-): string {
-  const isDefault =
-    sections.titleVerdict &&
-    sections.coreSummary &&
-    sections.mindMap;
+export function applyPrunedSections(tpl: string, sections: AnalysisSectionsConfig, _isAggregate = false): string {
+  const isDefault = sections.titleVerdict && sections.coreSummary && sections.mindMap;
   if (isDefault) return tpl;
 
   let out = tpl;
 
   // 1. Prune hardcoded task items inside ## Task if not using {{content_task_default}}
-  out = out.replace(
-    /(## Task[^\n]*\n)([\s\S]*?)(\n##\s+|$)/,
-    (match, header, taskBody, footer) => {
-      if (taskBody.includes("{{content_task_default}}")) {
-        return match;
-      }
-      const pruned = pruneTaskContent(taskBody, sections);
-      return `${header}${pruned}${footer}`;
+  out = out.replace(/(## Task[^\n]*\n)([\s\S]*?)(\n##\s+|$)/, (match, header, taskBody, footer) => {
+    if (taskBody.includes('{{content_task_default}}')) {
+      return match;
     }
-  );
+    const pruned = pruneTaskContent(taskBody, sections);
+    return `${header}${pruned}${footer}`;
+  });
 
   // 2. Prune schema inside ## Output Format
-  const formatIdx = out.indexOf("## Output Format");
+  const formatIdx = out.indexOf('## Output Format');
   if (formatIdx !== -1) {
-    const afterFormat = formatIdx + "## Output Format".length;
+    const afterFormat = formatIdx + '## Output Format'.length;
     const nextHeaderMatch = out.slice(afterFormat).search(/\n##\s+/);
-    const endOfFormatIdx =
-      nextHeaderMatch !== -1 ? afterFormat + nextHeaderMatch : out.length;
+    const endOfFormatIdx = nextHeaderMatch !== -1 ? afterFormat + nextHeaderMatch : out.length;
     const formatSection = out.slice(formatIdx, endOfFormatIdx);
-    const startBrace = formatSection.indexOf("{");
-    const endBrace = formatSection.lastIndexOf("}");
+    const startBrace = formatSection.indexOf('{');
+    const endBrace = formatSection.lastIndexOf('}');
     if (startBrace !== -1 && endBrace !== -1 && endBrace > startBrace) {
       const schemaBody = formatSection.slice(startBrace, endBrace + 1);
       const pruned = pruneSchemaFromTemplate(schemaBody, sections);
-      out =
-        out.slice(0, formatIdx + startBrace) +
-        pruned +
-        out.slice(formatIdx + endBrace + 1);
+      out = out.slice(0, formatIdx + startBrace) + pruned + out.slice(formatIdx + endBrace + 1);
     }
   }
 
@@ -291,11 +269,23 @@ const discussionCache = new Map<string, DiscussionCache>();
 const DISCUSSION_CACHE_TTL = 15 * 60 * 1000;
 function discussionFingerprints(items: DiscussionItem[]): Map<string, string> {
   const byId = new Map(items.map(item => [item.id, item]));
-  return new Map(items.map(item => {
-    const parent = item.parentId ? byId.get(item.parentId) : undefined;
-    return [item.id, JSON.stringify([item.id, item.parentId, item.authorId || item.author, item.text,
-      item.reaction?.kind, item.reaction?.count, parent && [parent.id, parent.authorId || parent.author, parent.text.slice(0, 1000)]])];
-  }));
+  return new Map(
+    items.map(item => {
+      const parent = item.parentId ? byId.get(item.parentId) : undefined;
+      return [
+        item.id,
+        JSON.stringify([
+          item.id,
+          item.parentId,
+          item.authorId || item.author,
+          item.text,
+          item.reaction?.kind,
+          item.reaction?.count,
+          parent && [parent.id, parent.authorId || parent.author, parent.text.slice(0, 1000)],
+        ]),
+      ];
+    })
+  );
 }
 
 /**
@@ -309,11 +299,17 @@ function discussionFingerprints(items: DiscussionItem[]): Map<string, string> {
 export class AIProcessor {
   private host: AIProcessorHost;
 
-  constructor(host: AIProcessorHost, private debugScope?: string) {
+  constructor(
+    host: AIProcessorHost,
+    private debugScope?: string
+  ) {
     this.host = host;
   }
 
-  ensureActive(): void {this.host.assertActive?.();if(this.host.signal?.aborted)throw new AIError("cancelled","AI job cancelled.");}
+  ensureActive(): void {
+    this.host.assertActive?.();
+    if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+  }
 
   /** Keep each concurrent request's diagnostics separate without mutating the host. */
   withDebugScope(scope?: string): AIProcessor {
@@ -322,46 +318,37 @@ export class AIProcessor {
 
   get chunkWindowChars(): number {
     const val = this.host?.settings?.chunkWindowChars;
-    return typeof val === "number" && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
+    return typeof val === 'number' && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
   }
 
   private getPrompt(key: WorkflowPromptKey): string {
-    const overrides =
-      this.host?.settings?.promptOverrides ||
-      this.host?.settings?.chromeAiPromptOverrides;
-    if (overrides && typeof overrides[key] === "string" && overrides[key].trim().length > 0) {
+    const overrides = this.host?.settings?.promptOverrides || this.host?.settings?.chromeAiPromptOverrides;
+    if (overrides && typeof overrides[key] === 'string' && overrides[key].trim().length > 0) {
       return overrides[key];
     }
-    return (
-      this.host?.workflowManager?.getPrompt(key) ||
-      PROMPTS[key as keyof typeof PROMPTS] ||
-      ""
-    );
+    return this.host?.workflowManager?.getPrompt(key) || PROMPTS[key as keyof typeof PROMPTS] || '';
   }
 
   /** Output rules for Stage 1 content analysis (follows payload.outputLanguage or host settings.outputLanguage). */
   private getContentOutputRules(
     capture?: { outputLanguage?: string; [key: string]: any },
-    scope: QuestionScope = "within"
+    scope: QuestionScope = 'within'
   ): string {
-    const langSetting =
-      capture?.outputLanguage ||
-      this.host?.settings?.outputLanguage ||
-      "same-as-content";
-    const isSame = !langSetting || langSetting === "same-as-content";
+    const langSetting = capture?.outputLanguage || this.host?.settings?.outputLanguage || 'same-as-content';
+    const isSame = !langSetting || langSetting === 'same-as-content';
     const outputLanguage = isSame
-      ? "the same language as the captured content"
+      ? 'the same language as the captured content'
       : `${langSetting} (translate into ${langSetting} even if the source content is in a different language)`;
 
-    const tpl = this.getPrompt("sharedOutputRules");
+    const tpl = this.getPrompt('sharedOutputRules');
     let rendered = renderPrompt(tpl, { output_language: outputLanguage }).trim();
 
-    if (scope === "beyond") {
+    if (scope === 'beyond') {
       const globalModeRule =
-        "- Mode: Global Mode (Open / External Knowledge). You are in Global Mode and are NOT restricted to the provided content. You MUST use your full external world knowledge, independent reasoning, and fact-checking capabilities to answer questions. The provided content is only reference context or the subject of inquiry, NOT an exclusive boundary or sole source of truth. Freely fact-check, verify, refute, critique, supplement, or answer open-ended questions using general world knowledge. Do NOT limit your answer to only what is stated in the content.";
+        '- Mode: Global Mode (Open / External Knowledge). You are in Global Mode and are NOT restricted to the provided content. You MUST use your full external world knowledge, independent reasoning, and fact-checking capabilities to answer questions. The provided content is only reference context or the subject of inquiry, NOT an exclusive boundary or sole source of truth. Freely fact-check, verify, refute, critique, supplement, or answer open-ended questions using general world knowledge. Do NOT limit your answer to only what is stated in the content.';
 
       const globalSourceRule =
-        "- Source References: In Global Mode, source references to the content are optional. If an answer draws on external knowledge, set \"sources\": []. Only include sources if you are directly citing or quoting a specific passage from the provided content.";
+        '- Source References: In Global Mode, source references to the content are optional. If an answer draws on external knowledge, set "sources": []. Only include sources if you are directly citing or quoting a specific passage from the provided content.';
 
       if (/^[ \t]*- Grounding:.*(?:\r?\n|$)/m.test(rendered)) {
         rendered = rendered.replace(/^[ \t]*- Grounding:.*(?:\r?\n|$)/m, `${globalModeRule}\n`);
@@ -382,35 +369,32 @@ export class AIProcessor {
 
   /** Output rules for Stage 2 egg analysis (follows the egg's language property). */
   private getEggOutputRules(
-    eggOrLanguage: EggContent | string = "",
-    fallbackDescription = "",
+    eggOrLanguage: EggContent | string = '',
+    fallbackDescription = '',
     capture?: { outputLanguage?: string; [key: string]: any }
   ): string {
-    let lang = "";
+    let lang = '';
     let desc = fallbackDescription;
 
-    if (typeof eggOrLanguage === "object" && eggOrLanguage !== null) {
-      lang = (eggOrLanguage.language || "").trim();
-      desc = desc || (eggOrLanguage.indexDescription || "").trim();
+    if (typeof eggOrLanguage === 'object' && eggOrLanguage !== null) {
+      lang = (eggOrLanguage.language || '').trim();
+      desc = desc || (eggOrLanguage.indexDescription || '').trim();
     } else {
-      lang = (eggOrLanguage || "").trim();
+      lang = (eggOrLanguage || '').trim();
     }
 
-    const hostSetting =
-      capture?.outputLanguage ||
-      this.host?.settings?.outputLanguage;
-    const hostLang =
-      hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+    const hostSetting = capture?.outputLanguage || this.host?.settings?.outputLanguage;
+    const hostLang = hostSetting && hostSetting !== 'same-as-content' ? hostSetting.trim() : '';
 
     const outputLanguage = lang
-      ? lang.includes(" ") && !/^[A-Za-z]+$/.test(lang)
+      ? lang.includes(' ') && !/^[A-Za-z]+$/.test(lang)
         ? `the same language as this reference: "${lang}"`
         : `${lang} (translate into ${lang} even if the source content is in a different language)`
       : hostLang
-      ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)`
-      : "the same language as the captured content";
+        ? `${hostLang} (translate into ${hostLang} even if the source content is in a different language)`
+        : 'the same language as the captured content';
 
-    const tpl = this.getPrompt("sharedOutputRules");
+    const tpl = this.getPrompt('sharedOutputRules');
     return renderPrompt(tpl, {
       output_language: outputLanguage,
     }).trim();
@@ -444,14 +428,11 @@ export class AIProcessor {
    * Stage 1 — content summary + mind map + custom question answers.
    * Progressively renders and streams partial results as soon as available.
    */
-  async analyzeContent(
-    capture: CapturePayload,
-    onProgress?: AnalysisProgressCallback
-  ): Promise<ContentAnalysis> {
+  async analyzeContent(capture: CapturePayload, onProgress?: AnalysisProgressCallback): Promise<ContentAnalysis> {
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const discussionEnabled = sections.discussion === true;
     const needsDiscussionContext =
-      capture.discussion?.kind === "forum" ||
+      capture.discussion?.kind === 'forum' ||
       capture.transcriptAvailable === false ||
       Boolean(capture.questions?.length);
 
@@ -462,15 +443,15 @@ export class AIProcessor {
       if (needsDiscussionContext) {
         discussion = await this.analyzeDiscussion(capture);
         onProgress?.({
-          type: "partial",
-          section: "discussion",
+          type: 'partial',
+          section: 'discussion',
           data: { discussion },
         });
       } else {
-        discussionPromise = this.analyzeDiscussion(capture).then((disc) => {
+        discussionPromise = this.analyzeDiscussion(capture).then(disc => {
           onProgress?.({
-            type: "partial",
-            section: "discussion",
+            type: 'partial',
+            section: 'discussion',
             data: { discussion: disc },
           });
           return disc;
@@ -480,15 +461,14 @@ export class AIProcessor {
 
     const context =
       discussion && needsDiscussionContext
-        ? discussionSummaryText(capture, discussion) +
-          discussionEvidenceText(capture, discussion)
-        : "";
+        ? discussionSummaryText(capture, discussion) + discussionEvidenceText(capture, discussion)
+        : '';
     const bodyCapture = {
       ...capture,
       content:
         (capture.transcriptAvailable === false
-          ? "No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n"
-          : "") +
+          ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n'
+          : '') +
         capture.content +
         context,
     };
@@ -496,28 +476,26 @@ export class AIProcessor {
     let knowledgePromise: Promise<ExtractedKnowledgeEntry[]> | null = null;
     if (capture.generateKnowledgeEntries) {
       knowledgePromise = this.extractChromeKnowledge(bodyCapture)
-        .then((entries) => {
+        .then(entries => {
           onProgress?.({
-            type: "partial",
-            section: "knowledge",
+            type: 'partial',
+            section: 'knowledge',
             data: { extractedEntries: entries },
           });
           return entries;
         })
-        .catch((err) => {
-          console.warn("[NutEgg] Chrome knowledge extraction error:", err);
+        .catch(err => {
+          console.warn('[NutEgg] Chrome knowledge extraction error:', err);
           return [];
         });
     }
 
-    const needsVerdictSummary = Boolean(
-      sections.titleVerdict || sections.coreSummary || capture.questions?.length
-    );
+    const needsVerdictSummary = Boolean(sections.titleVerdict || sections.coreSummary || capture.questions?.length);
     const needsMindMap = Boolean(sections.mindMap);
     const optimizeConversation = this.isConversationOptimizationEnabled(capture);
 
     let verdictSummaryRes: ContentAnalysis = {
-      titleVerdict: "",
+      titleVerdict: '',
       coreSummary: [],
       mindMap: [],
       customQuestionAnswers: [],
@@ -532,8 +510,8 @@ export class AIProcessor {
       conversationRes = res.conversation;
       if (res.titleVerdict || res.coreSummary?.length) {
         onProgress?.({
-          type: "partial",
-          section: "summary",
+          type: 'partial',
+          section: 'summary',
           data: {
             titleVerdict: res.titleVerdict,
             coreSummary: res.coreSummary,
@@ -544,8 +522,8 @@ export class AIProcessor {
       }
       if (mindMapRes.length) {
         onProgress?.({
-          type: "partial",
-          section: "mindmap",
+          type: 'partial',
+          section: 'mindmap',
           data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
         });
       }
@@ -555,10 +533,10 @@ export class AIProcessor {
         const pVerdict = this.analyzeBodySection(bodyCapture, {
           ...sections,
           mindMap: false,
-        }).then((res) => {
+        }).then(res => {
           onProgress?.({
-            type: "partial",
-            section: "summary",
+            type: 'partial',
+            section: 'summary',
             data: {
               titleVerdict: res.titleVerdict,
               coreSummary: res.coreSummary,
@@ -574,10 +552,10 @@ export class AIProcessor {
           titleVerdict: false,
           coreSummary: false,
           mindMap: true,
-        }).then((res) => {
+        }).then(res => {
           onProgress?.({
-            type: "partial",
-            section: "mindmap",
+            type: 'partial',
+            section: 'mindmap',
             data: {
               mindMap: res.mindMap || [],
               ...(res.conversation ? { conversation: res.conversation } : {}),
@@ -587,19 +565,19 @@ export class AIProcessor {
         });
 
         const [vSettled, mSettled] = await Promise.allSettled([pVerdict, pMindMap]);
-        if (vSettled.status === "rejected" && mSettled.status === "rejected") {
+        if (vSettled.status === 'rejected' && mSettled.status === 'rejected') {
           throw vSettled.reason;
         }
-        if (vSettled.status === "fulfilled") {
+        if (vSettled.status === 'fulfilled') {
           verdictSummaryRes = vSettled.value;
         } else {
-          console.warn("[NutEgg] Verdict & Summary call failed:", vSettled.reason);
+          console.warn('[NutEgg] Verdict & Summary call failed:', vSettled.reason);
         }
-        if (mSettled.status === "fulfilled") {
+        if (mSettled.status === 'fulfilled') {
           mindMapRes = mSettled.value.mindMap || [];
           conversationRes = mSettled.value.conversation;
         } else {
-          console.warn("[NutEgg] Mind Map call failed:", mSettled.reason);
+          console.warn('[NutEgg] Mind Map call failed:', mSettled.reason);
         }
       } else {
         // Rule 2: when "optimize for discussion" is ON, mindmap waits for classification result!
@@ -609,8 +587,8 @@ export class AIProcessor {
             mindMap: false,
           });
           onProgress?.({
-            type: "partial",
-            section: "summary",
+            type: 'partial',
+            section: 'summary',
             data: {
               titleVerdict: verdictSummaryRes.titleVerdict,
               coreSummary: verdictSummaryRes.coreSummary,
@@ -619,13 +597,13 @@ export class AIProcessor {
             },
           });
         } catch (err) {
-          console.warn("[NutEgg] Verdict & Summary call failed:", err);
+          console.warn('[NutEgg] Verdict & Summary call failed:', err);
         }
 
-        const detectedFormat = verdictSummaryRes?.conversation?.format || "monologue";
+        const detectedFormat = verdictSummaryRes?.conversation?.format || 'monologue';
         const verdictContext = verdictSummaryRes?.titleVerdict
-          ? `Stage 1 title answer: ${verdictSummaryRes.titleVerdict}\nStage 1 summary:\n${(verdictSummaryRes.coreSummary || []).join("\n")}`
-          : "";
+          ? `Stage 1 title answer: ${verdictSummaryRes.titleVerdict}\nStage 1 summary:\n${(verdictSummaryRes.coreSummary || []).join('\n')}`
+          : '';
 
         try {
           const mRes = await this.analyzeBodySection(
@@ -642,14 +620,18 @@ export class AIProcessor {
             }
           );
           mindMapRes = mRes.mindMap || [];
-          conversationRes = mRes.conversation || (detectedFormat !== "monologue" ? { format: detectedFormat, participants: [], confidence: "high" } : undefined);
+          conversationRes =
+            mRes.conversation ||
+            (detectedFormat !== 'monologue'
+              ? { format: detectedFormat, participants: [], confidence: 'high' }
+              : undefined);
           onProgress?.({
-            type: "partial",
-            section: "mindmap",
+            type: 'partial',
+            section: 'mindmap',
             data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
           });
         } catch (err) {
-          console.warn("[NutEgg] Mind Map call failed:", err);
+          console.warn('[NutEgg] Mind Map call failed:', err);
           if (!verdictSummaryRes) throw err;
         }
       }
@@ -659,8 +641,8 @@ export class AIProcessor {
         mindMap: false,
       });
       onProgress?.({
-        type: "partial",
-        section: "summary",
+        type: 'partial',
+        section: 'summary',
         data: {
           titleVerdict: verdictSummaryRes.titleVerdict,
           coreSummary: verdictSummaryRes.coreSummary,
@@ -678,8 +660,8 @@ export class AIProcessor {
       mindMapRes = res.mindMap || [];
       conversationRes = res.conversation;
       onProgress?.({
-        type: "partial",
-        section: "mindmap",
+        type: 'partial',
+        section: 'mindmap',
         data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
       });
     }
@@ -694,7 +676,7 @@ export class AIProcessor {
     }
 
     const result: ContentAnalysis = {
-      titleVerdict: verdictSummaryRes.titleVerdict || "",
+      titleVerdict: verdictSummaryRes.titleVerdict || '',
       coreSummary: verdictSummaryRes.coreSummary || [],
       customQuestionAnswers: verdictSummaryRes.customQuestionAnswers || [],
       mindMap: mindMapRes || [],
@@ -703,21 +685,31 @@ export class AIProcessor {
       ...(extractedEntries.length ? { extractedEntries } : {}),
     };
 
-    onProgress?.({ type: "complete", result });
+    onProgress?.({ type: 'complete', result });
     return result;
   }
 
   private discussionCacheKey(capture: CapturePayload, discussion: DiscussionCapture): string {
     const config = resolveConfig(this.host?.settings || {});
-    return JSON.stringify([getVideoIdentity(capture.url)?.canonicalUrl || capture.url, capture.title, discussion.kind, capture.content.slice(0, 4000),
-      config.provider, config.model, config.endpoint, this.getPrompt('discussionAnalysis'), this.getPrompt('aggregateDiscussion'),
-      this.getContentOutputRules(capture, 'within')]);
+    return JSON.stringify([
+      getVideoIdentity(capture.url)?.canonicalUrl || capture.url,
+      capture.title,
+      discussion.kind,
+      capture.content.slice(0, 4000),
+      config.provider,
+      config.model,
+      config.endpoint,
+      this.getPrompt('discussionAnalysis'),
+      this.getPrompt('aggregateDiscussion'),
+      this.getContentOutputRules(capture, 'within'),
+    ]);
   }
 
   private readDiscussionCache(key: string): DiscussionCache | undefined {
     const cached = discussionCache.get(key);
     if (cached && Date.now() - cached.updatedAt < DISCUSSION_CACHE_TTL) return cached;
-    discussionCache.delete(key); return undefined;
+    discussionCache.delete(key);
+    return undefined;
   }
 
   private cachedDiscussion(capture: CapturePayload): DiscussionAnalysis | undefined {
@@ -726,50 +718,85 @@ export class AIProcessor {
     if (!discussion?.items.length) return undefined;
     const cached = this.readDiscussionCache(this.discussionCacheKey(capture, discussion));
     if (cached?.signature !== JSON.stringify([...discussionFingerprints(discussion.items)])) return undefined;
-    return buildDiscussionResult(discussion, cached.chunks.map(chunk => chunk.part), cached.aggregate);
+    return buildDiscussionResult(
+      discussion,
+      cached.chunks.map(chunk => chunk.part),
+      cached.aggregate
+    );
   }
 
   private async analyzeDiscussion(capture: CapturePayload): Promise<DiscussionAnalysis> {
-    const discussion = normalizeDiscussion(capture.discussion), base = discussionBase(discussion);
+    const discussion = normalizeDiscussion(capture.discussion),
+      base = discussionBase(discussion);
     if (!discussion?.items.length) return base;
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return { ...base, status: 'unavailable' };
-    const key = this.discussionCacheKey(capture, discussion), cached = this.readDiscussionCache(key);
-    const fingerprints = discussionFingerprints(discussion.items), signature = JSON.stringify([...fingerprints]);
+    const key = this.discussionCacheKey(capture, discussion),
+      cached = this.readDiscussionCache(key);
+    const fingerprints = discussionFingerprints(discussion.items),
+      signature = JSON.stringify([...fingerprints]);
     const used = new Set<string>();
     const chunks: DiscussionChunkCache[] = [];
     for (const chunk of cached?.chunks || []) {
       if (![...chunk.fingerprints].every(([id, fingerprint]) => fingerprints.get(id) === fingerprint)) continue;
-      chunk.fingerprints.forEach((_, id) => used.add(id)); chunks.push(chunk);
+      chunk.fingerprints.forEach((_, id) => used.add(id));
+      chunks.push(chunk);
     }
     // Reuse whole batches so their topic groupings stay intact; changed batches are reclassified.
     const pending = discussion.items.filter(item => !used.has(item.id));
     const byId = new Map(discussion.items.map(item => [item.id, item]));
     for (const items of discussionBatches(pending, Math.max(8000, this.chunkWindowChars - 6000))) {
       const ids = new Set(items.map(item => item.id));
-      const parents = [...new Map(items.map(item => item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined)
-        .filter(Boolean).map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])).values()];
+      const parents = [
+        ...new Map(
+          items
+            .map(item => (item.parentId && !ids.has(item.parentId) ? byId.get(item.parentId) : undefined))
+            .filter(Boolean)
+            .map(item => [item!.id, { ...item!, text: item!.text.slice(0, 1000) }])
+        ).values(),
+      ];
       const compact = compactDiscussionRecords(items, discussion.items);
-      const prompt = 'Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only. Long comments may span batches under the same ID; assess only the supplied excerpt.\n'
-        + renderPrompt(this.getPrompt('discussionAnalysis'), {
-          title: capture.title, kind: discussion.kind, body: capture.content.slice(0, 4000),
-          parents: JSON.stringify(compactDiscussionRecords(parents, discussion.items).rows), items: JSON.stringify(compact.rows),
+      const prompt =
+        'Rows are [local ID, parent ID or null, anonymous author ID or null, text, reaction kind (l=likes/s=net score) or null, count or null]. Cite local numeric IDs; parent rows are context only. Long comments may span batches under the same ID; assess only the supplied excerpt.\n' +
+        renderPrompt(this.getPrompt('discussionAnalysis'), {
+          title: capture.title,
+          kind: discussion.kind,
+          body: capture.content.slice(0, 4000),
+          parents: JSON.stringify(compactDiscussionRecords(parents, discussion.items).rows),
+          items: JSON.stringify(compact.rows),
           shared_output_rules: this.getContentOutputRules(capture, 'within'),
         });
-      const raw = this.parseJson(await this.callAI(prompt, Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 8192)), 'discussion-analysis');
+      const raw = this.parseJson(
+        await this.callAI(prompt, Math.max(4096, this.host?.settings?.contentAnalysisMaxTokens || 8192)),
+        'discussion-analysis'
+      );
       const part = unpackDiscussionPart(raw, items, compact.aliases);
       chunks.push({ fingerprints: new Map(items.map(item => [item.id, fingerprints.get(item.id)!])), part });
     }
     const parts = chunks.map(chunk => chunk.part);
     let aggregate = cached?.signature === signature ? cached.aggregate : undefined;
     if (parts.length > 1 && parts.some(part => part.topics?.length) && !aggregate) {
-      const drafts = parts.flatMap((part, index) => part.topics.map((topic: any) => ({
-        id: `${index}:${topic.id}`, title: topic.title, claim: topic.claim, summary: topic.summary, highlights: topic.highlights,
-        ...(topic.agreeArguments?.length ? { agreeArguments: topic.agreeArguments } : {}),
-        ...(topic.disagreeArguments?.length ? { disagreeArguments: topic.disagreeArguments } : {}),
-      })));
-      aggregate = this.parseJson(await this.callAI(renderPrompt(this.getPrompt('aggregateDiscussion'), {
-        title: capture.title, drafts: JSON.stringify(drafts), shared_output_rules: this.getContentOutputRules(capture, 'within'),
-      }), 8192), 'aggregate-discussion');
+      const drafts = parts.flatMap((part, index) =>
+        part.topics.map((topic: any) => ({
+          id: `${index}:${topic.id}`,
+          title: topic.title,
+          claim: topic.claim,
+          summary: topic.summary,
+          highlights: topic.highlights,
+          ...(topic.agreeArguments?.length ? { agreeArguments: topic.agreeArguments } : {}),
+          ...(topic.disagreeArguments?.length ? { disagreeArguments: topic.disagreeArguments } : {}),
+        }))
+      );
+      aggregate = this.parseJson(
+        await this.callAI(
+          renderPrompt(this.getPrompt('aggregateDiscussion'), {
+            title: capture.title,
+            drafts: JSON.stringify(drafts),
+            shared_output_rules: this.getContentOutputRules(capture, 'within'),
+          }),
+          8192
+        ),
+        'aggregate-discussion'
+      );
     }
     const result = buildDiscussionResult(discussion, parts, aggregate);
     discussionCache.delete(key);
@@ -784,12 +811,12 @@ export class AIProcessor {
   ): Promise<ContentAnalysis> {
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       return {
-        titleVerdict: effectiveSections.titleVerdict ? capture.title : "",
+        titleVerdict: effectiveSections.titleVerdict ? capture.title : '',
         coreSummary: effectiveSections.coreSummary ? [capture.title] : [],
-        customQuestionAnswers: (capture.questions || []).map((q) => ({
+        customQuestionAnswers: (capture.questions || []).map(q => ({
           question: q,
-          answer: "No API key configured — cannot answer.",
-          scope: capture.questionsScope || "within",
+          answer: 'No API key configured — cannot answer.',
+          scope: capture.questionsScope || 'within',
         })),
         mindMap: [],
       };
@@ -798,7 +825,7 @@ export class AIProcessor {
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     if (chunks.length > 1) {
       const partResults = await Promise.all(
-        chunks.map((chunk) =>
+        chunks.map(chunk =>
           this.callContentChunk(
             {
               ...capture,
@@ -838,18 +865,30 @@ export class AIProcessor {
       chapters: single?.chapters,
       enabledSections: effectiveSections,
     };
-    return this.callContentChunk(effective, "");
+    return this.callContentChunk(effective, '');
   }
 
   /**
    * Stage 2 — follow egg instructions and synthesize reading recommendations.
    * Existing notes are only read during merge.
    */
-  async analyzeEggs(capture: CapturePayload, eggs: EggContent[], contentAnalysis: ContentAnalysis, onProgress?: AnalysisProgressCallback): Promise<AnalysisResult> {
+  async analyzeEggs(
+    capture: CapturePayload,
+    eggs: EggContent[],
+    contentAnalysis: ContentAnalysis,
+    onProgress?: AnalysisProgressCallback
+  ): Promise<AnalysisResult> {
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings)) || !eggs.length) {
-      return { ...contentAnalysis, schemaVersion: 3, shouldRead: null,
-        shouldReadReason: eggs.length ? "AI analysis unavailable." : "", matchedEggs: eggs.map(e => e.fileName),
-        eggResults: [], newKnowledge: [], ...(eggs.length ? { readAction: "uncertain" as const } : {}) };
+      return {
+        ...contentAnalysis,
+        schemaVersion: 3,
+        shouldRead: null,
+        shouldReadReason: eggs.length ? 'AI analysis unavailable.' : '',
+        matchedEggs: eggs.map(e => e.fileName),
+        eggResults: [],
+        newKnowledge: [],
+        ...(eggs.length ? { readAction: 'uncertain' as const } : {}),
+      };
     }
     if (capture.enabledSections?.discussion === true && !contentAnalysis.discussion) {
       contentAnalysis = { ...contentAnalysis, discussion: await this.analyzeDiscussion(capture) };
@@ -857,46 +896,98 @@ export class AIProcessor {
     capture = { ...capture, content: capture.content + discussionEvidenceText(capture, contentAnalysis.discussion) };
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     const signals = this.eggStage1Signals(capture, contentAnalysis);
-    const eggResults = await Promise.all(eggs.map(async egg => {
-      if (chunks.length === 1) return await this.analyzeAgainstEgg(capture, egg, "", signals) || this.failedEgg(egg);
-      const parts = await Promise.all(chunks.map(chunk => this.analyzeAgainstEgg(
-        { ...capture, content: chunk.content }, egg, partNote(chunk), signals)));
-      const disabledByEgg = egg.generateKnowledgeEntries === false || parts.some(part => part?.entryGenerationDisabledByEgg);
-      const generateEntries = capture.generateKnowledgeEntries !== false && !disabledByEgg;
-      const entries = generateEntries ? parts.flatMap(part => part?.extractedEntries || []) : [];
-      try {
-        const aggregate = await this.aggregateEgg(egg, chunks.map((chunk, i) => ({
-          part: i + 1, startTime: chunk.startTime, success: !!parts[i],
-          keyQuestionAnswers: parts[i]?.keyQuestionAnswers || [],
-          readAction: parts[i]?.readAction || "uncertain", readVerdictReason: parts[i]?.readVerdictReason || "Part failed to process.",
-          readingSources: parts[i]?.readingSources || [],
-        })), signals);
-        // Incomplete coverage must remain explicit, even if the model overlooks it.
-        if (parts.some(p => !p)) Object.assign(aggregate, { readAction: "uncertain", readVerdict: null,
-          readVerdictReason: "Some parts failed to process; coverage is incomplete." });
-        return { egg: egg.fileName, generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, language: parts.find(p => p?.language)?.language, extractedEntries: entries, ...aggregate };
-      } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
-        console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
-        return { ...this.failedEgg(egg), generateKnowledgeEntries: generateEntries, entryGenerationDisabledByEgg: disabledByEgg, extractedEntries: entries,
-          readVerdictReason: "Whole-content aggregation failed; showing available per-part answers.",
-          keyQuestionAnswers: parts.flatMap((part, i) => (part?.keyQuestionAnswers || []).map(answer => ({
-            ...answer, question: `[Part ${i + 1}] ${answer.question}`,
-          }))) };
-      }
-    }));
+    const eggResults = await Promise.all(
+      eggs.map(async egg => {
+        if (chunks.length === 1)
+          return (await this.analyzeAgainstEgg(capture, egg, '', signals)) || this.failedEgg(egg);
+        const parts = await Promise.all(
+          chunks.map(chunk =>
+            this.analyzeAgainstEgg({ ...capture, content: chunk.content }, egg, partNote(chunk), signals)
+          )
+        );
+        const disabledByEgg =
+          egg.generateKnowledgeEntries === false || parts.some(part => part?.entryGenerationDisabledByEgg);
+        const generateEntries = capture.generateKnowledgeEntries !== false && !disabledByEgg;
+        const entries = generateEntries ? parts.flatMap(part => part?.extractedEntries || []) : [];
+        try {
+          const aggregate = await this.aggregateEgg(
+            egg,
+            chunks.map((chunk, i) => ({
+              part: i + 1,
+              startTime: chunk.startTime,
+              success: !!parts[i],
+              keyQuestionAnswers: parts[i]?.keyQuestionAnswers || [],
+              readAction: parts[i]?.readAction || 'uncertain',
+              readVerdictReason: parts[i]?.readVerdictReason || 'Part failed to process.',
+              readingSources: parts[i]?.readingSources || [],
+            })),
+            signals
+          );
+          if (parts.some(p => !p)) {
+            Object.assign(aggregate, {
+              readAction: 'uncertain',
+              readVerdict: null,
+              readVerdictReason: 'Some parts failed to process; coverage is incomplete.',
+            });
+          }
+          return {
+            egg: egg.fileName,
+            generateKnowledgeEntries: generateEntries,
+            entryGenerationDisabledByEgg: disabledByEgg,
+            language: parts.find(p => p?.language)?.language,
+            extractedEntries: entries,
+            ...aggregate,
+          };
+        } catch (err) {
+          if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+          console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
+          return {
+            ...this.failedEgg(egg),
+            generateKnowledgeEntries: generateEntries,
+            entryGenerationDisabledByEgg: disabledByEgg,
+            extractedEntries: entries,
+            readVerdictReason: 'Whole-content aggregation failed; showing available per-part answers.',
+            keyQuestionAnswers: parts.flatMap((part, i) =>
+              (part?.keyQuestionAnswers || []).map(answer => ({
+                ...answer,
+                question: `[Part ${i + 1}] ${answer.question}`,
+              }))
+            ),
+          };
+        }
+      })
+    );
     return composeEggResults(contentAnalysis, eggResults, eggResults, capture.generateKnowledgeEntries !== false);
   }
 
   private failedEgg(egg: EggContent): EggAnalysis {
-    return { egg: egg.fileName, keyQuestionAnswers: [], extractedEntries: [], readAction: "uncertain",
-      readVerdict: null, readVerdictReason: "Egg analysis unavailable or failed.", readingSources: [] };
+    return {
+      egg: egg.fileName,
+      keyQuestionAnswers: [],
+      extractedEntries: [],
+      readAction: 'uncertain',
+      readVerdict: null,
+      readVerdictReason: 'Egg analysis unavailable or failed.',
+      readingSources: [],
+    };
   }
 
   private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
-    return [discussionSummaryText(capture, analysis.discussion), capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict ? `Stage 1 title answer: ${analysis.titleVerdict}` : "",
-      capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length ? `Stage 1 summary:\n${analysis.coreSummary.join("\n")}` : "",
-      capture.enabledSections?.mindMap !== false && analysis.mindMap?.length ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}` : ""].filter(Boolean).join("\n\n");
+    const titleSignal =
+      capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict
+        ? `Stage 1 title answer: ${analysis.titleVerdict}`
+        : '';
+    const summarySignal =
+      capture.enabledSections?.coreSummary !== false && analysis.coreSummary?.length
+        ? `Stage 1 summary:\n${analysis.coreSummary.join('\n')}`
+        : '';
+    const mindMapSignal =
+      capture.enabledSections?.mindMap !== false && analysis.mindMap?.length
+        ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}`
+        : '';
+    return [discussionSummaryText(capture, analysis.discussion), titleSignal, summarySignal, mindMapSignal]
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   /** Phase 1 — content-level summary + mind map + custom question answers. */
@@ -914,21 +1005,21 @@ export class AIProcessor {
       detectedFormat?: ConversationFormat;
       verdictContext?: string;
     },
-    partNoteStr = ""
+    partNoteStr = ''
   ): Promise<ContentAnalysis> {
     const sections: AnalysisSectionsConfig = {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
     };
     const optimizeConversation = this.isConversationOptimizationEnabled(capture as any);
-    let rawTpl = this.getPrompt("contentAnalysis");
+    let rawTpl = this.getPrompt('contentAnalysis');
     if (!sections.mindMap && (sections.titleVerdict || sections.coreSummary)) {
-      rawTpl = this.getPrompt("verdictSummary") || rawTpl;
+      rawTpl = this.getPrompt('verdictSummary') || rawTpl;
     } else if (sections.mindMap && !sections.titleVerdict && !sections.coreSummary) {
-      rawTpl = this.getPrompt("mindMapAnalysis") || rawTpl;
+      rawTpl = this.getPrompt('mindMapAnalysis') || rawTpl;
     }
     const prunedTpl = applyPrunedSections(rawTpl, sections, false);
-    const rawTask = this.getPrompt("contentTaskDefault");
+    const rawTask = this.getPrompt('contentTaskDefault');
     const prunedTask = pruneTaskContent(rawTask, sections);
 
     const prompt = renderPrompt(prunedTpl, {
@@ -937,122 +1028,166 @@ export class AIProcessor {
       url: capture.url,
       source_type: capture.sourceType,
       part_note: partNoteStr,
-      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       questions: this.questionsBlock(
         capture.questions,
-        capture.questionsScope === "beyond"
-          ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
-          : "User Questions (answer each directly and concisely)"
+        capture.questionsScope === 'beyond'
+          ? 'User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)'
+          : 'User Questions (answer each directly and concisely)'
       ),
-      verdict_context: capture.verdictContext || "",
-      conversation_hints: optimizeConversation
-        ? conversationHints(capture as any, capture.detectedFormat)
-        : "",
-      conversation_rules: sections.mindMap && optimizeConversation && capture.detectedFormat !== "monologue"
-        ? this.getPrompt("conversationRules")
-        : "",
+      verdict_context: capture.verdictContext || '',
+      conversation_hints: optimizeConversation ? conversationHints(capture as any, capture.detectedFormat) : '',
+      conversation_rules:
+        sections.mindMap && optimizeConversation && capture.detectedFormat !== 'monologue'
+          ? this.getPrompt('conversationRules')
+          : '',
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
+      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || 'within'),
     });
 
     const defaultMax = !sections.mindMap ? 4096 : 16384;
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || defaultMax;
     const budget = Math.min(configuredMax, !sections.mindMap ? 4096 : configuredMax);
     const response = await this.callAI(prompt, budget);
-    const parsed = this.parseJson(response, !sections.mindMap ? "verdict-summary" : "content-analysis");
-    const validFormats = new Set<ConversationFormat>(["monologue", "interview", "podcast", "ama", "panel", "debate"]);
+    const parsed = this.parseJson(response, !sections.mindMap ? 'verdict-summary' : 'content-analysis');
+    const validFormats = new Set<ConversationFormat>(['monologue', 'interview', 'podcast', 'ama', 'panel', 'debate']);
     let summaryConversation: ConversationMeta | undefined;
     if (!sections.mindMap && optimizeConversation) {
-      const fmt: ConversationFormat = typeof parsed.format === "string" && validFormats.has(parsed.format as ConversationFormat)
-        ? (parsed.format as ConversationFormat)
-        : (parsed.conversation?.format && validFormats.has(parsed.conversation.format) ? parsed.conversation.format : "monologue");
-      summaryConversation = { format: fmt, participants: [], confidence: "high" };
+      const fmt: ConversationFormat =
+        typeof parsed.format === 'string' && validFormats.has(parsed.format as ConversationFormat)
+          ? (parsed.format as ConversationFormat)
+          : parsed.conversation?.format && validFormats.has(parsed.conversation.format)
+            ? parsed.conversation.format
+            : 'monologue';
+      summaryConversation = { format: fmt, participants: [], confidence: 'high' };
     }
 
-    const rawConversation = sections.mindMap && optimizeConversation
-      ? (sanitizeConversationMeta(parsed.conversation, capture.content) || (capture.detectedFormat && capture.detectedFormat !== "monologue" ? { format: capture.detectedFormat, participants: [], confidence: "high" as const } : undefined))
-      : undefined;
-    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && (rawConversation.participants?.length > 0 || capture.detectedFormat !== "monologue"));
-    const participantIds = isConversation
-      ? new Set(rawConversation?.participants?.map(p => p.id) || [])
-      : undefined;
+    let rawConversation: ConversationMeta | undefined;
+    if (sections.mindMap && optimizeConversation) {
+      const sanitized = sanitizeConversationMeta(parsed.conversation, capture.content);
+      const fallbackMeta =
+        capture.detectedFormat && capture.detectedFormat !== 'monologue'
+          ? { format: capture.detectedFormat, participants: [], confidence: 'high' as const }
+          : undefined;
+      rawConversation = sanitized || fallbackMeta;
+    }
+    const hasParticipants = (rawConversation?.participants?.length || 0) > 0;
+    const isNonMonologue = rawConversation && rawConversation.format !== 'monologue';
+    const isConversation = Boolean(isNonMonologue && (hasParticipants || capture.detectedFormat !== 'monologue'));
+    const participantIds = isConversation ? new Set(rawConversation?.participants?.map(p => p.id) || []) : undefined;
     const parsedMindMap = sections.mindMap ? this.parseMindMap(parsed.mindMap, 0, participantIds, isConversation) : [];
     const { mindMap, conversation } = optimizeConversation
       ? this.normalizeConversationMindMap(parsedMindMap, rawConversation)
       : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
 
     return {
-      titleVerdict: sections.titleVerdict
-        ? String(parsed.titleVerdict || "Could not generate a verdict.")
-        : "",
+      titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || 'Could not generate a verdict.') : '',
       coreSummary:
-        sections.coreSummary && Array.isArray(parsed.coreSummary)
-          ? parsed.coreSummary.map(String).slice(0, 3)
-          : [],
+        sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
       mindMap,
       ...(sections.mindMap
-        ? (conversation && conversation.format !== "monologue" ? { conversation } : {})
-        : (summaryConversation ? { conversation: summaryConversation } : {})),
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        ? conversation && conversation.format !== 'monologue'
+          ? { conversation }
+          : {}
+        : summaryConversation
+          ? { conversation: summaryConversation }
+          : {}),
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map(a => ({
         ...a,
-        scope: a.scope || capture.questionsScope || "within",
+        scope: a.scope || capture.questionsScope || 'within',
       })),
     };
   }
 
   /** One instruction-driven call per egg/part, without existing knowledge. */
-  private async analyzeAgainstEgg(capture: CapturePayload, egg: EggContent, partNoteStr = "", signals = ""): Promise<EggAnalysis | null> {
+  private async analyzeAgainstEgg(
+    capture: CapturePayload,
+    egg: EggContent,
+    partNoteStr = '',
+    signals = ''
+  ): Promise<EggAnalysis | null> {
     const generateEntries = capture.generateKnowledgeEntries !== false && egg.generateKnowledgeEntries !== false;
-    const prompt = renderPrompt(this.getPrompt("eggAnalysis"), {
-      entry_generation: generateEntries ? "Knowledge entry generation is enabled. Follow the egg instructions to decide what to extract." : "Knowledge entry generation is DISABLED. Return extractedEntries: []; still answer Key Questions and give the reading recommendation.",
-      egg_file: egg.fileName, egg_instructions: formatEggInstructionsForPrompt(egg),
-      stage1_signals: signals, title: capture.title, url: capture.url, source_type: capture.sourceType,
-      part_note: partNoteStr, content: capture.content,
-      shared_output_rules: this.getEggOutputRules(egg, "", capture),
+    const entryGenDesc = generateEntries
+      ? 'Knowledge entry generation is enabled. Follow the egg instructions to decide what to extract.'
+      : 'Knowledge entry generation is DISABLED. Return extractedEntries: []; still answer Key Questions and give the reading recommendation.';
+    const prompt = renderPrompt(this.getPrompt('eggAnalysis'), {
+      entry_generation: entryGenDesc,
+      egg_file: egg.fileName,
+      egg_instructions: formatEggInstructionsForPrompt(egg),
+      stage1_signals: signals,
+      title: capture.title,
+      url: capture.url,
+      source_type: capture.sourceType,
+      part_note: partNoteStr,
+      content: capture.content,
+      shared_output_rules: this.getEggOutputRules(egg, '', capture),
     });
     try {
-      const parsed = this.parseJson(await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384), "egg-analysis");
+      const response = await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384);
+      const parsed = this.parseJson(response, 'egg-analysis');
       const effectiveGeneration = generateEntries && parsed.generateKnowledgeEntries !== false;
-      return { egg: egg.fileName, generateKnowledgeEntries: effectiveGeneration, entryGenerationDisabledByEgg: egg.generateKnowledgeEntries === false || (generateEntries && parsed.generateKnowledgeEntries === false), language: typeof parsed.language === "string" ? parsed.language : egg.language,
-        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), extractedEntries: effectiveGeneration ? this.parseExtractedEntries(parsed.extractedEntries) : [],
-        ...this.parseRecommendation(parsed) };
+      const disabledByEgg =
+        egg.generateKnowledgeEntries === false || (generateEntries && parsed.generateKnowledgeEntries === false);
+      const lang = typeof parsed.language === 'string' ? parsed.language : egg.language;
+      return {
+        egg: egg.fileName,
+        generateKnowledgeEntries: effectiveGeneration,
+        entryGenerationDisabledByEgg: disabledByEgg,
+        language: lang,
+        keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers),
+        extractedEntries: effectiveGeneration ? this.parseExtractedEntries(parsed.extractedEntries) : [],
+        ...this.parseRecommendation(parsed),
+      };
     } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
       console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);
       return null;
     }
   }
 
-  private parseRecommendation(parsed: any): Pick<EggAnalysis, "readAction" | "readVerdict" | "readVerdictReason" | "readingSources"> {
-    const actions = ["full", "highlights", "summary", "skip", "uncertain"];
-    const readAction: ReadAction = actions.includes(parsed.readAction) ? parsed.readAction : "uncertain";
-    return { readAction, readVerdict: this.actionVerdict(readAction),
-      readVerdictReason: typeof parsed.readVerdictReason === "string" ? parsed.readVerdictReason : "Recommendation unavailable.",
-      readingSources: this.parseSources(parsed.readingSources) };
+  private parseRecommendation(
+    parsed: any
+  ): Pick<EggAnalysis, 'readAction' | 'readVerdict' | 'readVerdictReason' | 'readingSources'> {
+    const actions = ['full', 'highlights', 'summary', 'skip', 'uncertain'];
+    const readAction: ReadAction = actions.includes(parsed.readAction) ? parsed.readAction : 'uncertain';
+    return {
+      readAction,
+      readVerdict: this.actionVerdict(readAction),
+      readVerdictReason:
+        typeof parsed.readVerdictReason === 'string' ? parsed.readVerdictReason : 'Recommendation unavailable.',
+      readingSources: this.parseSources(parsed.readingSources),
+    };
   }
 
   private actionVerdict(action: ReadAction): boolean | null {
-    return action === "uncertain" ? null : action === "full" || action === "highlights";
+    return action === 'uncertain' ? null : action === 'full' || action === 'highlights';
   }
 
   private parseSources(raw: any): SourceRef[] {
-    return Array.isArray(raw) ? raw.filter(s => s && typeof s.ref === "string" && s.ref.trim()).map(s => ({
-      ref: s.ref.trim(), ...(typeof s.quote === "string" ? { quote: s.quote } : {}),
-      ...(typeof s.sourceId === "string" && s.sourceId.trim() ? { sourceId: s.sourceId.trim().slice(0, 300) } : {}),
-    })) : [];
+    return Array.isArray(raw)
+      ? raw
+          .filter(s => s && typeof s.ref === 'string' && s.ref.trim())
+          .map(s => ({
+            ref: s.ref.trim(),
+            ...(typeof s.quote === 'string' ? { quote: s.quote } : {}),
+            ...(typeof s.sourceId === 'string' && s.sourceId.trim()
+              ? { sourceId: s.sourceId.trim().slice(0, 300) }
+              : {}),
+          }))
+      : [];
   }
 
   private parseExtractedEntries(raw: any): ExtractedKnowledgeEntry[] {
-    const validKinds = ["concept", "method", "opinion", "fact", "insight", "list", "answer"];
+    const validKinds = ['concept', 'method', 'opinion', 'fact', 'insight', 'list', 'answer'];
     return Array.isArray(raw)
       ? raw
-          .filter((e) => e && typeof e.content === "string" && e.content.trim())
-          .map((e) => {
+          .filter(e => e && typeof e.content === 'string' && e.content.trim())
+          .map(e => {
             const content = e.content.trim();
-            let kind = typeof e.kind === "string" ? e.kind.toLowerCase() : "";
+            let kind = typeof e.kind === 'string' ? e.kind.toLowerCase() : '';
             if (!validKinds.includes(kind)) {
               const tagMatch = content.match(/^\s*-\s*\[(concept|method|opinion|fact|insight|list|answer)\]/i);
-              kind = tagMatch ? tagMatch[1].toLowerCase() : "insight";
+              kind = tagMatch ? tagMatch[1].toLowerCase() : 'insight';
             }
             return {
               kind,
@@ -1072,10 +1207,10 @@ export class AIProcessor {
     }
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     if (chunks.length === 1) {
-      return this.callChromeKnowledgeChunk(capture, "");
+      return this.callChromeKnowledgeChunk(capture, '');
     }
     const partResults = await Promise.all(
-      chunks.map((chunk) =>
+      chunks.map(chunk =>
         this.callChromeKnowledgeChunk(
           {
             ...capture,
@@ -1091,25 +1226,25 @@ export class AIProcessor {
 
   private async callChromeKnowledgeChunk(
     capture: CapturePayload,
-    partNoteStr = ""
+    partNoteStr = ''
   ): Promise<ExtractedKnowledgeEntry[]> {
-    const prompt = renderPrompt(this.getPrompt("chromeKnowledge"), {
+    const prompt = renderPrompt(this.getPrompt('chromeKnowledge'), {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
       part_note: partNoteStr,
       content: this.truncate(capture.content, this.chunkWindowChars),
-      shared_output_rules: this.getContentOutputRules(capture as any, "within"),
+      shared_output_rules: this.getContentOutputRules(capture as any, 'within'),
     });
 
     const configuredMax = this.host?.settings?.contentAnalysisMaxTokens || 16384;
     try {
       const response = await this.callAI(prompt, configuredMax);
-      const parsed = this.parseJson(response, "chrome-knowledge");
+      const parsed = this.parseJson(response, 'chrome-knowledge');
       return this.parseExtractedEntries(parsed.extractedEntries);
     } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
-      console.warn("[NutEgg] Chrome knowledge extraction failed:", err);
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+      console.warn('[NutEgg] Chrome knowledge extraction failed:', err);
       return [];
     }
   }
@@ -1145,79 +1280,95 @@ export class AIProcessor {
       ...(capture.enabledSections || {}),
     };
     const optimizeConversation = this.isConversationOptimizationEnabled(capture);
-    const rawTpl = this.getPrompt("aggregateContent");
+    const rawTpl = this.getPrompt('aggregateContent');
     const prunedTpl = applyPrunedSections(rawTpl, sections, true);
-    const rawTask = this.getPrompt("contentTaskDefault");
+    const rawTask = this.getPrompt('contentTaskDefault');
     const prunedTask = pruneTaskContent(rawTask, sections);
 
     const prompt = renderPrompt(prunedTpl, {
       title: capture.title,
       url: capture.url,
-      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : "",
+      chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       chunk_summaries: chunkSummaries
-        .map((c) => {
-          const at = c.startTime ? ` (${c.startTime})` : "";
-          const bullets = c.bullets.map((b) => `- ${b}`).join("\n");
-          let mmStr = "";
+        .map(c => {
+          const at = c.startTime ? ` (${c.startTime})` : '';
+          const bullets = c.bullets.map(b => `- ${b}`).join('\n');
+          let mmStr = '';
           if (sections.mindMap && Array.isArray(c.mindMap) && c.mindMap.length > 0) {
-            mmStr =
-              "\n### Key Concepts/Branches from this part:\n" +
-              JSON.stringify(c.mindMap);
+            mmStr = '\n### Key Concepts/Branches from this part:\n' + JSON.stringify(c.mindMap);
           }
-          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || "- (no summary)"}${mmStr}`;
+          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || '- (no summary)'}${mmStr}`;
         })
-        .join("\n\n"),
+        .join('\n\n'),
       questions: this.questionsBlock(
         capture.questions,
-        capture.questionsScope === "beyond"
-          ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
-          : "User Questions (answer each directly and concisely)"
+        capture.questionsScope === 'beyond'
+          ? 'User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)'
+          : 'User Questions (answer each directly and concisely)'
       ),
       content_task_default: prunedTask,
-      conversation_rules: sections.mindMap && optimizeConversation ? this.getPrompt("conversationRules") : "",
-      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
+      conversation_rules: sections.mindMap && optimizeConversation ? this.getPrompt('conversationRules') : '',
+      shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || 'within'),
     });
 
     const defaultMax = sections.mindMap ? 4096 : 1500;
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
     const response = await this.callAI(prompt, budget);
-    const parsed = this.parseJson(response, "aggregate-content");
-    const rawConversation = sections.mindMap && optimizeConversation ? sanitizeConversationMeta(parsed.conversation, capture.content || "") : undefined;
-    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && rawConversation.participants?.length > 0);
-    const participantIds = isConversation
-      ? new Set(rawConversation!.participants.map(p => p.id))
-      : undefined;
+    const parsed = this.parseJson(response, 'aggregate-content');
+    const rawConversation =
+      sections.mindMap && optimizeConversation
+        ? sanitizeConversationMeta(parsed.conversation, capture.content || '')
+        : undefined;
+    const isConversation = Boolean(
+      rawConversation && rawConversation.format !== 'monologue' && rawConversation.participants?.length > 0
+    );
+    const participantIds = isConversation ? new Set(rawConversation!.participants.map(p => p.id)) : undefined;
     const parsedMindMap = sections.mindMap ? this.parseMindMap(parsed.mindMap, 0, participantIds, isConversation) : [];
     const { mindMap, conversation } = optimizeConversation
       ? this.normalizeConversationMindMap(parsedMindMap, rawConversation)
       : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
 
     return {
-      titleVerdict: sections.titleVerdict
-        ? String(parsed.titleVerdict || "Could not generate a verdict.")
-        : "",
+      titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || 'Could not generate a verdict.') : '',
       coreSummary:
-        sections.coreSummary && Array.isArray(parsed.coreSummary)
-          ? parsed.coreSummary.map(String).slice(0, 3)
-          : [],
-      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
+        sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
+      customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map(a => ({
         ...a,
-        scope: a.scope || capture.questionsScope || "within",
+        scope: a.scope || capture.questionsScope || 'within',
       })),
       mindMap,
-      ...(conversation && conversation.format !== "monologue" ? { conversation } : {}),
+      ...(conversation && conversation.format !== 'monologue' ? { conversation } : {}),
     };
   }
 
   /** Whole-source answers/recommendation; no raw content or entry bodies. */
-  private async aggregateEgg(egg: EggContent, findings: Array<{ part: number; startTime: string; success: boolean;
-    keyQuestionAnswers: KeyAnswer[]; readAction: string; readVerdictReason: string; readingSources: SourceRef[] }>, signals = "") {
-    const prompt = renderPrompt(this.getPrompt("aggregateEgg"), {
-      egg_file: egg.fileName, scope: egg.scope, key_questions: egg.keyQuestions.join("\n"),
-      worth_reading_if: egg.worthReadingIf.join("\n"), skip_if: egg.skipIf.join("\n"), stage1_signals: signals,
-      chunk_findings: JSON.stringify(findings), shared_output_rules: this.getEggOutputRules(egg),
+  private async aggregateEgg(
+    egg: EggContent,
+    findings: Array<{
+      part: number;
+      startTime: string;
+      success: boolean;
+      keyQuestionAnswers: KeyAnswer[];
+      readAction: string;
+      readVerdictReason: string;
+      readingSources: SourceRef[];
+    }>,
+    signals = ''
+  ) {
+    const prompt = renderPrompt(this.getPrompt('aggregateEgg'), {
+      egg_file: egg.fileName,
+      scope: egg.scope,
+      key_questions: egg.keyQuestions.join('\n'),
+      worth_reading_if: egg.worthReadingIf.join('\n'),
+      skip_if: egg.skipIf.join('\n'),
+      stage1_signals: signals,
+      chunk_findings: JSON.stringify(findings),
+      shared_output_rules: this.getEggOutputRules(egg),
     });
-    const parsed = this.parseJson(await this.callAI(prompt, Math.max(4096, egg.keyQuestions.length * 512)), "aggregate-egg");
+    const parsed = this.parseJson(
+      await this.callAI(prompt, Math.max(4096, egg.keyQuestions.length * 512)),
+      'aggregate-egg'
+    );
     return { keyQuestionAnswers: this.parseKeyAnswers(parsed.keyQuestionAnswers), ...this.parseRecommendation(parsed) };
   }
 
@@ -1232,28 +1383,31 @@ export class AIProcessor {
   ): Promise<{ content: string; language: string } | null> {
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return null;
     try {
-      const prompt = renderPrompt(this.getPrompt("localizeEgg"), {
+      const prompt = renderPrompt(this.getPrompt('localizeEgg'), {
         description: description,
         template: templateContent,
       });
       const maxTokens = Math.max(8192, this.host?.settings?.contentAnalysisMaxTokens || 8192);
       const response = await this.callAI(prompt, maxTokens);
       let text = response.trim();
-      text = text.replace(/^```[a-z]*\s*\n/i, "").replace(/\n```$/g, "").trim();
+      text = text
+        .replace(/^```[a-z]*\s*\n/i, '')
+        .replace(/\n```$/g, '')
+        .trim();
       if (
-        text.includes("[!abstract]") &&
-        text.includes("**Scope:**") &&
-        text.includes("**Action Guide:**") &&
-        text.includes("# Knowledge") &&
-        text.includes("# Unprocessed")
+        text.includes('[!abstract]') &&
+        text.includes('**Scope:**') &&
+        text.includes('**Action Guide:**') &&
+        text.includes('# Knowledge') &&
+        text.includes('# Unprocessed')
       ) {
         const language = extractEggLanguage(text);
         return { content: text, language };
       }
       return null;
     } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
-      console.warn("[NutEgg] AI egg template localization failed:", err);
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+      console.warn('[NutEgg] AI egg template localization failed:', err);
       return null;
     }
   }
@@ -1263,41 +1417,29 @@ export class AIProcessor {
    * (YouTube) are split at caption lines and chapters are attached to the
    * chunk covering their start time; plain text is split at paragraphs.
    */
-  private chunkContent(
-    content: string,
-    chapters: Array<{ time: string; title: string }>
-  ): ContentChunk[] {
-    return chunkContent(
-      content,
-      chapters,
-      this.chunkWindowChars
-    );
+  private chunkContent(content: string, chapters: Array<{ time: string; title: string }>): ContentChunk[] {
+    return chunkContent(content, chapters, this.chunkWindowChars);
   }
-
 
   /** No-API-key fallback: naive content summary, no egg analysis. */
   private fallbackAnalysis(
     capture: { title: string; content: string; questions?: string[] },
     eggs: EggContent[]
   ): AnalysisResult {
-    const firstSentence =
-      capture.content.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || capture.title;
+    const firstSentence = capture.content.match(/^[^.!?]+[.!?]/)?.[0]?.trim() || capture.title;
     return {
       titleVerdict: firstSentence,
-      coreSummary: [
-        `Source: ${capture.title}`,
-        "(Configure an API key in NutEgg settings for AI analysis)",
-      ],
-      customQuestionAnswers: (capture.questions || []).map((q) => ({
+      coreSummary: [`Source: ${capture.title}`, '(Configure an API key in NutEgg settings for AI analysis)'],
+      customQuestionAnswers: (capture.questions || []).map(q => ({
         question: q,
-        answer: "No API key configured — cannot answer.",
+        answer: 'No API key configured — cannot answer.',
       })),
       mindMap: [],
       shouldRead: null,
-      readAction: "uncertain",
+      readAction: 'uncertain',
       schemaVersion: 3,
-      shouldReadReason: "No API key configured — cannot analyze.",
-      matchedEggs: eggs.map((e) => e.fileName),
+      shouldReadReason: 'No API key configured — cannot analyze.',
+      matchedEggs: eggs.map(e => e.fileName),
       eggResults: [],
       newKnowledge: [],
     };
@@ -1312,56 +1454,57 @@ export class AIProcessor {
     capture: CapturePayload,
     questions: string[],
     priorQa: KeyAnswer[] | string = [],
-    scope: QuestionScope = "within"
+    scope: QuestionScope = 'within'
   ): Promise<KeyAnswer[]> {
     if (questions.length === 0) return [];
 
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       const aiProvider = this.host?.settings?.chromeAiProvider || this.host?.settings?.aiProvider;
       const msg =
-        aiProvider === "local"
-          ? "Local LLM not configured — cannot answer."
-          : "No API key configured — cannot answer.";
-      return questions.map((q) => ({
+        aiProvider === 'local' ? 'Local LLM not configured — cannot answer.' : 'No API key configured — cannot answer.';
+      return questions.map(q => ({
         question: q,
         answer: msg,
         scope,
       }));
     }
 
-    let priorBlock = "";
+    let priorBlock = '';
     if (Array.isArray(priorQa) && priorQa.length > 0) {
       priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa
-        .map((qa: any) => (typeof qa === "string" ? qa : `Q: ${qa.question}\nA: ${qa.answer}`))
-        .join("\n")}`;
-    } else if (typeof priorQa === "string" && priorQa.trim().length > 0) {
+        .map((qa: any) => (typeof qa === 'string' ? qa : `Q: ${qa.question}\nA: ${qa.answer}`))
+        .join('\n')}`;
+    } else if (typeof priorQa === 'string' && priorQa.trim().length > 0) {
       priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa.trim()}`;
     }
 
     const cachedDiscussion = this.cachedDiscussion(capture);
-    const discussionContext = cachedDiscussion ? discussionSummaryText(capture, cachedDiscussion) + discussionEvidenceText(capture, cachedDiscussion) : discussionSourceText(capture);
-    const prompt = renderPrompt(this.getPrompt("followUp"), {
+    const discussionContext = cachedDiscussion
+      ? discussionSummaryText(capture, cachedDiscussion) + discussionEvidenceText(capture, cachedDiscussion)
+      : discussionSourceText(capture);
+    const prompt = renderPrompt(this.getPrompt('followUp'), {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
       prior_qa: priorBlock,
       content: discussionContext
-        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * .6)) + this.truncate(discussionContext, Math.floor(this.chunkWindowChars * .4))
+        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * 0.6)) +
+          this.truncate(discussionContext, Math.floor(this.chunkWindowChars * 0.4))
         : this.truncate(capture.content, this.chunkWindowChars),
-      questions: questions.map((q, i) => `${i + 1}. ${q}`).join("\n"),
+      questions: questions.map((q, i) => `${i + 1}. ${q}`).join('\n'),
       shared_output_rules: this.getContentOutputRules(capture, scope),
     });
 
     try {
       const response = await this.callAI(prompt, 2000);
-      const parsed = this.parseJson(response, "follow-up");
+      const parsed = this.parseJson(response, 'follow-up');
       const answers = this.parseKeyAnswers(parsed.answers);
-      const byQuestion = new Map(answers.map((a) => [a.question, a]));
-      return questions.map((q) => {
+      const byQuestion = new Map(answers.map(a => [a.question, a]));
+      return questions.map(q => {
         const found = byQuestion.get(q);
         const item: KeyAnswer = {
           question: q,
-          answer: found?.answer || "No answer returned — please try again.",
+          answer: found?.answer || 'No answer returned — please try again.',
           scope: found?.scope || scope,
         };
         if (found?.sources && found.sources.length > 0) {
@@ -1370,12 +1513,12 @@ export class AIProcessor {
         return item;
       });
     } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
       if (err instanceof AIError) throw err;
-      console.error("[NutEgg] Follow-up question failed:", err);
-      return questions.map((q) => ({
+      console.error('[NutEgg] Follow-up question failed:', err);
+      return questions.map(q => ({
         question: q,
-        answer: "Failed to answer — please try again.",
+        answer: 'Failed to answer — please try again.',
         scope,
       }));
     }
@@ -1391,7 +1534,9 @@ export class AIProcessor {
     const existing = this.mergeJobs.get(fileName);
     if (existing) return existing;
     const task = () => this.performMergeEgg(fileName);
-    const job = (this.host.withEggLock ? this.host.withEggLock(fileName, task) : task()).finally(() => this.mergeJobs.delete(fileName));
+    const job = (this.host.withEggLock ? this.host.withEggLock(fileName, task) : task()).finally(() =>
+      this.mergeJobs.delete(fileName)
+    );
     this.mergeJobs.set(fileName, job);
     return job;
   }
@@ -1401,9 +1546,7 @@ export class AIProcessor {
     if (!egg) return null;
 
     const countFn = (e: EggContent) =>
-      this.host?.eggParser?.countUnprocessed
-        ? this.host.eggParser.countUnprocessed(e)
-        : countUnprocessed(e);
+      this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
     const entries = countFn(egg);
     if (entries === 0) {
       console.log(`[NutEgg] ${fileName} has no unprocessed entries to merge`);
@@ -1411,41 +1554,36 @@ export class AIProcessor {
     }
 
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
-      console.log(
-        `[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (AI not configured)`
-      );
+      console.log(`[NutEgg] ${fileName} has ${entries} unprocessed entries — skipped merge (AI not configured)`);
       return null;
     }
 
-    let fallbackDesc = "";
+    let fallbackDesc = '';
     if (!egg.language && this.host?.indexReader) {
       try {
         const indexContent = await this.host.indexReader.getIndexContent?.();
         if (indexContent) {
           const indexEntries = this.host.indexReader.parseIndexContent?.(indexContent) || [];
-          const indexEntry = indexEntries.find(
-            (e) => e.fileName === fileName || e.fileName.endsWith("/" + fileName)
-          );
-          fallbackDesc = indexEntry?.description || "";
+          const indexEntry = indexEntries.find(e => e.fileName === fileName || e.fileName.endsWith('/' + fileName));
+          fallbackDesc = indexEntry?.description || '';
         }
       } catch {}
     }
 
     const hostSetting = this.host?.settings?.outputLanguage;
-    const hostLang =
-      hostSetting && hostSetting !== "same-as-content" ? hostSetting.trim() : "";
+    const hostLang = hostSetting && hostSetting !== 'same-as-content' ? hostSetting.trim() : '';
 
     const outputLanguage =
       egg.language ||
-      (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : "") ||
+      (hostLang ? `${hostLang} (translate into ${hostLang} even if the source is in a different language)` : '') ||
       "the same language as this egg's existing knowledge";
 
-    const prompt = renderPrompt(this.getPrompt("mergeUnprocessed"), {
+    const prompt = renderPrompt(this.getPrompt('mergeUnprocessed'), {
       egg_file: fileName,
       output_language: outputLanguage,
-      egg_description: fallbackDesc || egg.scope || egg.topic || "",
-      formatting_rules: egg.formattingRules || "(none)",
-      knowledge_tree: egg.knowledge || "(empty)",
+      egg_description: fallbackDesc || egg.scope || egg.topic || '',
+      formatting_rules: egg.formattingRules || '(none)',
+      knowledge_tree: egg.knowledge || '(empty)',
       unprocessed: egg.unprocessed,
       unprocessed_count: entries,
     });
@@ -1459,14 +1597,21 @@ export class AIProcessor {
       }
       const response = await this.callAI(prompt, needed);
       // Never repair truncated merge JSON: a repaired tree could delete notes.
-      const raw = response.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+      const raw = response
+        .trim()
+        .replace(/^```(?:json)?\s*/, '')
+        .replace(/\s*```$/, '');
       const parsed = JSON.parse(raw);
-      if (typeof parsed.knowledge !== "string" || !parsed.knowledge.trim() || typeof parsed.unprocessed !== "string") return null;
+      if (typeof parsed.knowledge !== 'string' || !parsed.knowledge.trim() || typeof parsed.unprocessed !== 'string')
+        return null;
       const knowledge = parsed.knowledge.trim();
       const unprocessed = parsed.unprocessed.trim();
       const current = await this.host?.eggParser?.readEgg?.(fileName);
-      const changed = current && (egg.sourceText ? current.sourceText !== egg.sourceText :
-        current.knowledge !== egg.knowledge || current.unprocessed !== egg.unprocessed);
+      const changed =
+        current &&
+        (egg.sourceText
+          ? current.sourceText !== egg.sourceText
+          : current.knowledge !== egg.knowledge || current.unprocessed !== egg.unprocessed);
       if (changed) return retried ? null : this.performMergeEgg(fileName, true);
       this.host.assertActive?.();
       const applied = await this.host?.eggParser?.applyMerge?.(fileName, knowledge, unprocessed, egg);
@@ -1474,7 +1619,7 @@ export class AIProcessor {
       console.log(`[NutEgg] Merged ${entries} unprocessed entries into ${fileName}`);
       return { egg: fileName, entries };
     } catch (err) {
-      if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
       console.error(`[NutEgg] Merge failed for ${fileName}:`, err);
       return null;
     }
@@ -1488,9 +1633,7 @@ export class AIProcessor {
     if (!egg) return null;
 
     const countFn = (e: EggContent) =>
-      this.host?.eggParser?.countUnprocessed
-        ? this.host.eggParser.countUnprocessed(e)
-        : countUnprocessed(e);
+      this.host?.eggParser?.countUnprocessed ? this.host.eggParser.countUnprocessed(e) : countUnprocessed(e);
     const entries = countFn(egg);
     if (entries < MERGE_THRESHOLD) return null;
 
@@ -1501,24 +1644,24 @@ export class AIProcessor {
 
   /** `## Video Chapters (use these EXACT timestamps)` block, or "". */
   private chaptersBlock(chapters?: Array<{ time: string; title: string }>): string {
-    if (!chapters?.length) return "";
+    if (!chapters?.length) return '';
     return `## Video Chapters (use these EXACT timestamps)\n${chapters
-      .map((c) => `- ${c.time} — ${c.title}`)
-      .join("\n")}`;
+      .map(c => `- ${c.time} — ${c.title}`)
+      .join('\n')}`;
   }
 
   /** Numbered questions block with a heading, or "". */
   private questionsBlock(questions: string[] | undefined, heading: string): string {
-    if (!questions?.length) return "";
-    return `## ${heading}\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
+    if (!questions?.length) return '';
+    return `## ${heading}\n${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
   }
 
   private async callAI(prompt: string, maxTokens: number): Promise<string> {
     if (!this.host?.aiClient) {
-      throw new AIError("unknown", "AIClient not provided to AIProcessor host");
+      throw new AIError('unknown', 'AIClient not provided to AIProcessor host');
     }
     this.host.assertActive?.();
-    if (this.host.signal?.aborted) throw new AIError("cancelled", "AI job cancelled.");
+    if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
     const result = await this.host.aiClient.chat(prompt, maxTokens, this.debugScope);
     this.host.assertActive?.();
     return result;
@@ -1534,8 +1677,8 @@ export class AIProcessor {
               question: String(qa.question),
               answer: String(qa.answer),
             };
-            if (typeof qa.answered === "boolean") entry.answered = qa.answered;
-            if (qa.scope === "within" || qa.scope === "beyond") {
+            if (typeof qa.answered === 'boolean') entry.answered = qa.answered;
+            if (qa.scope === 'within' || qa.scope === 'beyond') {
               entry.scope = qa.scope;
             }
             if (Array.isArray(qa.sources)) {
@@ -1548,7 +1691,8 @@ export class AIProcessor {
                   if (s.quote) {
                     item.quote = String(s.quote).trim();
                   }
-                  if (typeof s.sourceId === "string" && s.sourceId.trim()) item.sourceId = s.sourceId.trim().slice(0, 300);
+                  if (typeof s.sourceId === 'string' && s.sourceId.trim())
+                    item.sourceId = s.sourceId.trim().slice(0, 300);
                   return item;
                 })
                 .filter((s: SourceRef) => s.ref.length > 0);
@@ -1564,8 +1708,16 @@ export class AIProcessor {
   /** Normalize a hierarchical mind map array from the AI response. */
   private parseMindMap(raw: any, depth = 0, validParticipantIds?: Set<string>, isConversation = false): MindMapNode[] {
     if (!Array.isArray(raw) || depth > 5) return [];
-    const validKinds = new Set<MindMapNodeKind>(["topic", "question", "answer", "claim", "disagreement", "example", "takeaway"]);
-    const validStances = new Set<"agree" | "disagree" | "mixed">(["agree", "disagree", "mixed"]);
+    const validKinds = new Set<MindMapNodeKind>([
+      'topic',
+      'question',
+      'answer',
+      'claim',
+      'disagreement',
+      'example',
+      'takeaway',
+    ]);
+    const validStances = new Set<'agree' | 'disagree' | 'mixed'>(['agree', 'disagree', 'mixed']);
 
     return raw
       .filter((item: any) => item && (item.name || item.title || item.topic))
@@ -1577,7 +1729,7 @@ export class AIProcessor {
           if (item.kind && validKinds.has(item.kind)) {
             node.kind = item.kind;
           }
-          if (item.askedBy && typeof item.askedBy === "string") {
+          if (item.askedBy && typeof item.askedBy === 'string') {
             const askedBy = item.askedBy.trim();
             if (!validParticipantIds || validParticipantIds.has(askedBy)) {
               node.askedBy = askedBy;
@@ -1585,7 +1737,7 @@ export class AIProcessor {
           }
           if (Array.isArray(item.speakers)) {
             const speakers = item.speakers
-              .filter((s: any) => typeof s === "string")
+              .filter((s: any) => typeof s === 'string')
               .map((s: string) => s.trim())
               .filter((s: string) => !validParticipantIds || validParticipantIds.has(s));
             if (speakers.length > 0) node.speakers = speakers;
@@ -1596,10 +1748,10 @@ export class AIProcessor {
         }
         const sources = this.parseSources(item.sources).slice(0, 3);
         if (sources.length) node.sources = sources;
-        const time = typeof item.time === "string" ? item.time.trim().replace(/^\[|\]$/g, "") : "";
+        const time = typeof item.time === 'string' ? item.time.trim().replace(/^\[|\]$/g, '') : '';
         if (/^\d{1,3}:[0-5]\d(?::[0-5]\d)?$/.test(time)) node.time = time;
         const detail = item.detail || item.description || item.summary;
-        if (detail && typeof detail === "string" && detail.trim().length > 0) {
+        if (detail && typeof detail === 'string' && detail.trim().length > 0) {
           node.detail = detail.trim();
         }
         if (Array.isArray(item.children) && item.children.length > 0) {
@@ -1613,10 +1765,10 @@ export class AIProcessor {
   }
 
   private isConversationOptimizationEnabled(capture: { optimizeForConversation?: boolean }): boolean {
-    if (typeof capture?.optimizeForConversation === "boolean") {
+    if (typeof capture?.optimizeForConversation === 'boolean') {
       return capture.optimizeForConversation;
     }
-    if (typeof this.host?.settings?.optimizeForConversation === "boolean") {
+    if (typeof this.host?.settings?.optimizeForConversation === 'boolean') {
       return this.host.settings.optimizeForConversation;
     }
     return true;
@@ -1635,16 +1787,13 @@ export class AIProcessor {
    * Sanitizes unescaped control characters (\n, \r, \t) in strings and
    * recovers partial/truncated JSON when responses are cut off mid-stream.
    */
-  private parseJson(
-    response: string,
-    context = "response"
-  ): Record<string, any> {
+  private parseJson(response: string, context = 'response'): Record<string, any> {
     return parseJson(response, context);
   }
 
   private truncate(text: string, maxChars: number): string {
     if (text.length <= maxChars) return text;
-    return text.substring(0, maxChars) + "\n\n[...truncated]";
+    return text.substring(0, maxChars) + '\n\n[...truncated]';
   }
 
   toSeconds(time: string): number {

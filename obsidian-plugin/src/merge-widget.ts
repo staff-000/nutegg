@@ -1,27 +1,20 @@
-import { MarkdownPostProcessorContext, Notice } from "obsidian";
-import {
-  Decoration,
-  DecorationSet,
-  EditorView,
-  ViewPlugin,
-  ViewUpdate,
-  WidgetType,
-} from "@codemirror/view";
-import type NutEggPlugin from "./main";
-import type { MergeResult } from "./ai-processor";
-import { t } from "./i18n";
-import { resolveEggPath } from "./egg-parser";
+import { MarkdownPostProcessorContext, Notice } from 'obsidian';
+import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
+import type NutEggPlugin from './main';
+import type { MergeResult } from './ai-processor';
+import { t } from './i18n';
+import { resolveEggPath } from './egg-parser';
 
 /** Bind the editor to its own leaf, never whichever tab happens to be active. */
 function editorFilePath(plugin: NutEggPlugin, view: EditorView): string {
-  for (const leaf of plugin.app.workspace.getLeavesOfType("markdown")) {
-    if ((leaf.view as any)?.editor?.cm === view) return (leaf.view as any).file?.path || "";
+  for (const leaf of plugin.app.workspace.getLeavesOfType('markdown')) {
+    if ((leaf.view as any)?.editor?.cm === view) return (leaf.view as any).file?.path || '';
   }
-  return "";
+  return '';
 }
 
 function isScopedEgg(plugin: NutEggPlugin, path: string): boolean {
-  return !!path && resolveEggPath(path, plugin.vaultFolder || "nutegg") === path;
+  return !!path && resolveEggPath(path, plugin.vaultFolder || 'nutegg') === path;
 }
 
 /**
@@ -38,26 +31,24 @@ function isScopedEgg(plugin: NutEggPlugin, path: string): boolean {
 
 /** Line number (1-based) where the instruction block or heading ends. */
 export function findInstructionTargetLine(docText: string): number | null {
-  const lines = docText.split("\n");
+  const lines = docText.split('\n');
 
   // 1. Check for callout: > [!...]- Instructions or > [!abstract]
-  const calloutStart = lines.findIndex((l) =>
-    /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim())
-  );
+  const calloutStart = lines.findIndex(l => /^>\s*\[!\w+\]-?\s*(?:instructions?|scope)?/i.test(l.trim()));
   if (calloutStart !== -1) {
     // Scan downwards for the end of the callout (the last line starting with '>')
     let calloutEnd = calloutStart;
     for (let i = calloutStart + 1; i < lines.length; i++) {
       const trimmed = lines[i].trim();
-      if (trimmed.startsWith(">")) {
+      if (trimmed.startsWith('>')) {
         calloutEnd = i;
-      } else if (trimmed === "") {
+      } else if (trimmed === '') {
         // Empty lines can be inside callouts if followed by more '>' lines
         let moreCallout = false;
         for (let j = i + 1; j < Math.min(lines.length, i + 10); j++) {
           const nextTrimmed = lines[j].trim();
-          if (nextTrimmed === "") continue;
-          if (nextTrimmed.startsWith(">")) moreCallout = true;
+          if (nextTrimmed === '') continue;
+          if (nextTrimmed.startsWith('>')) moreCallout = true;
           break;
         }
         if (moreCallout) continue;
@@ -70,15 +61,13 @@ export function findInstructionTargetLine(docText: string): number | null {
   }
 
   // 2. Check for heading: # Instructions or ## Instructions
-  const headingIdx = lines.findIndex((l) =>
-    /^#+\s*instructions?\s*:?$/i.test(l.trim())
-  );
+  const headingIdx = lines.findIndex(l => /^#+\s*instructions?\s*:?$/i.test(l.trim()));
   if (headingIdx !== -1) {
     return headingIdx + 1;
   }
 
   // 3. Fallback: # Unprocessed
-  const unprocIdx = lines.findIndex((l) => /^#\s*Unprocessed\s*$/i.test(l.trim()));
+  const unprocIdx = lines.findIndex(l => /^#\s*Unprocessed\s*$/i.test(l.trim()));
   if (unprocIdx !== -1) {
     return unprocIdx + 1;
   }
@@ -114,24 +103,21 @@ export async function runMerge(
 
 /** Appends the asynchronous AI credit badge to a badge container element. */
 function appendCreditPill(plugin: NutEggPlugin, targetBadge: HTMLElement): void {
-  if (typeof plugin.aiClient?.checkCredit !== "function") return;
-  const creditPill = document.createElement("span");
-  creditPill.className = "nutegg-merge-credit";
-  creditPill.style.opacity = "0.75";
-  creditPill.style.marginLeft = "8px";
-  creditPill.style.fontSize = "0.85em";
+  if (typeof plugin.aiClient?.checkCredit !== 'function') return;
+  const creditPill = document.createElement('span');
+  creditPill.className = 'nutegg-merge-credit';
+  creditPill.style.opacity = '0.75';
+  creditPill.style.marginLeft = '8px';
+  creditPill.style.fontSize = '0.85em';
   plugin.aiClient
     .checkCredit(plugin.settings)
-    .then((credit) => {
+    .then(credit => {
       if (credit.hasBalance && credit.balanceFormatted) {
         creditPill.textContent = `• 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;
         creditPill.title = `NutEgg AI: ${credit.statusText}`;
         targetBadge.appendChild(creditPill);
       } else if (credit.providerLabel) {
-        const label =
-          plugin.settings.aiProvider === "openrouter"
-            ? "OpenRouter"
-            : credit.providerLabel;
+        const label = plugin.settings.aiProvider === 'openrouter' ? 'OpenRouter' : credit.providerLabel;
         creditPill.textContent = `• 🪙 ${label}`;
         creditPill.title = `NutEgg AI: ${credit.statusText}`;
         targetBadge.appendChild(creditPill);
@@ -153,12 +139,12 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     let targetElement: HTMLElement | null = null;
 
     // 1. Callout (e.g. [!abstract]- Instructions)
-    const callouts = el.querySelectorAll(".callout");
+    const callouts = el.querySelectorAll('.callout');
     for (let i = 0; i < callouts.length; i++) {
       const c = callouts[i] as HTMLElement;
-      const title = c.querySelector(".callout-title, .callout-title-inner")?.textContent?.toLowerCase() || "";
-      const type = c.getAttribute("data-callout")?.toLowerCase() || "";
-      if (title.includes("instruction") || type === "abstract" || type === "info") {
+      const title = c.querySelector('.callout-title, .callout-title-inner')?.textContent?.toLowerCase() || '';
+      const type = c.getAttribute('data-callout')?.toLowerCase() || '';
+      if (title.includes('instruction') || type === 'abstract' || type === 'info') {
         targetElement = c;
         break;
       }
@@ -166,11 +152,11 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
 
     // 2. Headings (h1, h2, h3)
     if (!targetElement) {
-      const headings = el.querySelectorAll("h1, h2, h3");
+      const headings = el.querySelectorAll('h1, h2, h3');
       for (let i = 0; i < headings.length; i++) {
         const h = headings[i] as HTMLElement;
-        const text = h.textContent?.trim().toLowerCase() || "";
-        if (text.startsWith("instruction") || text.includes("instruction")) {
+        const text = h.textContent?.trim().toLowerCase() || '';
+        if (text.startsWith('instruction') || text.includes('instruction')) {
           targetElement = h;
           break;
         }
@@ -179,11 +165,11 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
 
     // 3. Fallback: # Unprocessed heading
     if (!targetElement) {
-      const headings = el.querySelectorAll("h1, h2, h3");
+      const headings = el.querySelectorAll('h1, h2, h3');
       for (let i = 0; i < headings.length; i++) {
         const h = headings[i] as HTMLElement;
-        const text = h.textContent?.trim().toLowerCase() || "";
-        if (text === "unprocessed" || text.startsWith("unprocessed")) {
+        const text = h.textContent?.trim().toLowerCase() || '';
+        if (text === 'unprocessed' || text.startsWith('unprocessed')) {
           targetElement = h;
           break;
         }
@@ -193,7 +179,7 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     if (!targetElement) return;
 
     // Check if a widget has already been inserted next to this element
-    if (targetElement.parentElement?.querySelector(".nutegg-merge-container")) {
+    if (targetElement.parentElement?.querySelector('.nutegg-merge-container')) {
       return;
     }
 
@@ -204,52 +190,52 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     const count = plugin.eggParser.countUnprocessed(egg);
 
     // Create the widget container
-    const container = document.createElement("div");
-    container.className = "nutegg-merge-container";
+    const container = document.createElement('div');
+    container.className = 'nutegg-merge-container';
 
-    const badge = document.createElement("div");
-    badge.className = "nutegg-merge-badge";
+    const badge = document.createElement('div');
+    badge.className = 'nutegg-merge-badge';
     badge.textContent =
       count > 0
-        ? t("unprocessedEntries", {
+        ? t('unprocessedEntries', {
             count,
-            entries: count === 1 ? t("entrySingle") : t("entryPlural"),
+            entries: count === 1 ? t('entrySingle') : t('entryPlural'),
           })
-        : t("treeUpToDate");
+        : t('treeUpToDate');
 
     appendCreditPill(plugin, badge);
     container.appendChild(badge);
 
     if (count > 0) {
-      const button = document.createElement("button");
-      button.className = "nutegg-merge-btn mod-cta";
-      button.textContent = t("mergeButtonText");
+      const button = document.createElement('button');
+      button.className = 'nutegg-merge-btn mod-cta';
+      button.textContent = t('mergeButtonText');
 
-      button.addEventListener("click", async (e) => {
+      button.addEventListener('click', async e => {
         e.preventDefault();
         e.stopPropagation();
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
-        button.textContent = t("mergingWithAi");
+        button.textContent = t('mergingWithAi');
 
         try {
           const result = await runMerge(plugin, ctx.sourcePath, null);
           if (result && result.entries > 0) {
-            new Notice(t("mergedEntries", { count: result.entries }));
-            button.textContent = t("mergedSuccess");
-            badge.textContent = t("treeUpToDate");
+            new Notice(t('mergedEntries', { count: result.entries }));
+            button.textContent = t('mergedSuccess');
+            badge.textContent = t('treeUpToDate');
             setTimeout(() => {
               button.remove();
             }, 2000);
           } else {
-            new Notice(t("mergeNoChanges"));
+            new Notice(t('mergeNoChanges'));
             button.disabled = false;
             button.textContent = originalText;
           }
         } catch (err) {
-          console.error("[NutEgg] Merge button click failed:", err);
-          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
+          console.error('[NutEgg] Merge button click failed:', err);
+          new Notice(t('mergeFailed', { error: err instanceof Error ? err.message : String(err) }));
           button.disabled = false;
           button.textContent = originalText;
         }
@@ -259,7 +245,7 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
     }
 
     // Insert widget right after the target element (instruction block or heading)
-    targetElement.insertAdjacentElement("afterend", container);
+    targetElement.insertAdjacentElement('afterend', container);
   });
 }
 
@@ -278,53 +264,49 @@ class MergeButtonWidget extends WidgetType {
 
   toDOM(): HTMLElement {
     // Same classes as the reading-mode widget, so the two look identical
-    const wrap = document.createElement("div");
-    wrap.className = "nutegg-merge-container nutegg-merge-editor-widget";
+    const wrap = document.createElement('div');
+    wrap.className = 'nutegg-merge-container nutegg-merge-editor-widget';
 
-    const badge = document.createElement("div");
-    badge.className = "nutegg-merge-badge";
+    const badge = document.createElement('div');
+    badge.className = 'nutegg-merge-badge';
     badge.textContent =
       this.count > 0
-        ? t("unprocessedEntries", {
+        ? t('unprocessedEntries', {
             count: this.count,
-            entries: this.count === 1 ? t("entrySingle") : t("entryPlural"),
+            entries: this.count === 1 ? t('entrySingle') : t('entryPlural'),
           })
-        : t("treeUpToDate");
+        : t('treeUpToDate');
     appendCreditPill(this.plugin, badge);
     wrap.appendChild(badge);
 
     if (this.count > 0) {
-      const button = document.createElement("button");
-      button.className = "nutegg-merge-btn mod-cta";
-      button.textContent = t("mergeButtonText");
-      button.addEventListener("click", async (e) => {
+      const button = document.createElement('button');
+      button.className = 'nutegg-merge-btn mod-cta';
+      button.textContent = t('mergeButtonText');
+      button.addEventListener('click', async e => {
         e.preventDefault();
         e.stopPropagation();
         if (editorFilePath(this.plugin, this.view) !== this.filePath) return;
         if (button.disabled) return;
         button.disabled = true;
         const originalText = button.textContent;
-        button.textContent = t("merging");
+        button.textContent = t('merging');
         try {
           // The live buffer may hold edits made since the widget was built —
           // read it fresh at click time.
-          const result = await runMerge(
-            this.plugin,
-            this.filePath,
-            this.view.state.doc.toString()
-          );
+          const result = await runMerge(this.plugin, this.filePath, this.view.state.doc.toString());
           if (result && result.entries > 0) {
-            new Notice(t("mergedEntries", { count: result.entries }));
+            new Notice(t('mergedEntries', { count: result.entries }));
             // The merge rewrites the file; the editor reloads it and the
             // widget flips to the up-to-date badge.
           } else {
-            new Notice(t("mergeNoChanges"));
+            new Notice(t('mergeNoChanges'));
             button.disabled = false;
             button.textContent = originalText;
           }
         } catch (err) {
-          console.error("[NutEgg] Editor merge failed:", err);
-          new Notice(t("mergeFailed", { error: err instanceof Error ? err.message : String(err) }));
+          console.error('[NutEgg] Editor merge failed:', err);
+          new Notice(t('mergeFailed', { error: err instanceof Error ? err.message : String(err) }));
           button.disabled = false;
           button.textContent = originalText;
         }
@@ -339,7 +321,7 @@ class MergeButtonWidget extends WidgetType {
 class EggMergeEditorPlugin {
   decorations: DecorationSet;
   /** Last built state — logged once per transition, not per keystroke. */
-  private lastState = "";
+  private lastState = '';
 
   constructor(
     private readonly plugin: NutEggPlugin,
@@ -361,11 +343,11 @@ class EggMergeEditorPlugin {
 
   private build(): DecorationSet {
     const filePath = this.filePath();
-    if (!isScopedEgg(this.plugin, filePath)) return this.logState("not-egg", Decoration.none);
+    if (!isScopedEgg(this.plugin, filePath)) return this.logState('not-egg', Decoration.none);
     const docText = this.view.state.doc.toString();
     const lineNo = findInstructionTargetLine(docText);
     if (lineNo === null) {
-      return this.logState("no-target", Decoration.none);
+      return this.logState('no-target', Decoration.none);
     }
 
     // Count from the LIVE document (reflects unsaved edits). The badge
@@ -373,7 +355,7 @@ class EggMergeEditorPlugin {
     // there is something to merge.
     const egg = this.plugin.eggParser.parseEggFile(filePath, docText);
     const count = this.plugin.eggParser.countUnprocessed(egg);
-    const state = count === 0 ? "up-to-date" : `count-${count}`;
+    const state = count === 0 ? 'up-to-date' : `count-${count}`;
 
     const line = this.view.state.doc.line(lineNo);
     return this.logState(
@@ -394,14 +376,14 @@ class EggMergeEditorPlugin {
     if (state !== this.lastState) {
       this.lastState = state;
       const detail =
-        state === "no-target"
-          ? "no instruction block or heading in this file"
-          : state === "not-egg"
-            ? "outside egg folder or editor has no file binding"
-            : state === "up-to-date"
-              ? "0 entries — showing up-to-date badge"
-              : `${state.replace("count-", "")} entries — showing merge button`;
-      console.log(`[NutEgg] Editor merge widget (${this.filePath() || "?"}): ${detail}`);
+        state === 'no-target'
+          ? 'no instruction block or heading in this file'
+          : state === 'not-egg'
+            ? 'outside egg folder or editor has no file binding'
+            : state === 'up-to-date'
+              ? '0 entries — showing up-to-date badge'
+              : `${state.replace('count-', '')} entries — showing merge button`;
+      console.log(`[NutEgg] Editor merge widget (${this.filePath() || '?'}): ${detail}`);
     }
     return decorations;
   }
@@ -417,7 +399,7 @@ export function mergeEditorExtension(plugin: NutEggPlugin) {
     },
     // Required: fromClass only wires decorations into the editor when the
     // spec declares them — an instance `decorations` field alone is ignored.
-    { decorations: (v) => v.decorations }
+    { decorations: v => v.decorations }
   );
 }
 

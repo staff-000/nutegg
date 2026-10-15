@@ -2,26 +2,26 @@
 // NutEgg Unified AI Engine — Main Entry Point
 // ============================================================
 
-export * from "./types";
-export * from "./execution";
-export * from "./analysis-results";
-export * from "./catalog";
-export * from "./conversation";
-export * from "./client";
-export * from "./ai-diagnostics";
-export * from "./content-url";
-export * from "./chunker";
-export * from "./json-repair";
-export * from "./egg-format";
-export * from "./egg-parser";
-export * from "./egg-template";
-export * from "./egg-examples";
-export * from "./prompt-templates";
-export * from "./ai-processor";
+export * from './types';
+export * from './execution';
+export * from './analysis-results';
+export * from './catalog';
+export * from './conversation';
+export * from './client';
+export * from './ai-diagnostics';
+export * from './content-url';
+export * from './chunker';
+export * from './json-repair';
+export * from './egg-format';
+export * from './egg-parser';
+export * from './egg-template';
+export * from './egg-examples';
+export * from './prompt-templates';
+export * from './ai-processor';
 
-import { resolveConfig } from "./catalog";
-import { chatAI } from "./client";
-import { AIProcessor } from "./ai-processor";
+import { resolveConfig } from './catalog';
+import { chatAI } from './client';
+import { AIProcessor } from './ai-processor';
 import type {
   AIProcessorHost,
   AnalysisProgressCallback,
@@ -30,7 +30,7 @@ import type {
   KeyAnswer,
   NutEggAISettings,
   QuestionScope,
-} from "./types";
+} from './types';
 
 /**
  * Standalone Stage 1 analysis helper (ideal for Chrome extension service worker).
@@ -42,10 +42,7 @@ export async function analyzeContentStandalone(
   signal?: AbortSignal
 ): Promise<ContentAnalysis> {
   const config = resolveConfig(settings);
-  const language =
-    payload.outputLanguage ||
-    settings.outputLanguage ||
-    "same-as-content";
+  const language = payload.outputLanguage || settings.outputLanguage || 'same-as-content';
   const host: AIProcessorHost = {
     settings: {
       ...settings,
@@ -67,14 +64,11 @@ export async function askFollowUpStandalone(
   question: string,
   priorQa: KeyAnswer[] = [],
   settings: NutEggAISettings,
-  scope: QuestionScope = "within",
+  scope: QuestionScope = 'within',
   signal?: AbortSignal
 ): Promise<string> {
   const config = resolveConfig(settings);
-  const language =
-    payload.outputLanguage ||
-    settings.outputLanguage ||
-    "same-as-content";
+  const language = payload.outputLanguage || settings.outputLanguage || 'same-as-content';
   const host: AIProcessorHost = {
     settings: {
       ...settings,
@@ -86,8 +80,7 @@ export async function askFollowUpStandalone(
   };
   const processor = new AIProcessor(host, payload.debugScope);
   const answers = await processor.askFollowUp(payload, [question], priorQa, scope);
-  return answers[0]?.answer || "No answer returned.";
+  return answers[0]?.answer || 'No answer returned.';
 }
 
-
-export * from "./discussion";
+export * from './discussion';

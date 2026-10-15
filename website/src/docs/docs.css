@@ -11,7 +11,7 @@
   --egg-accent: #d97706;
   --egg-gradient: linear-gradient(135deg, #a8561e 0%, #d97706 100%);
   --code-bg: #f8fafc;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -170,7 +170,9 @@ a:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
   text-decoration: none;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .sidebar-links a:hover {
@@ -224,13 +226,16 @@ a:hover {
   color: #0f172a;
 }
 
-.docs-content p, .docs-content ul, .docs-content ol {
+.docs-content p,
+.docs-content ul,
+.docs-content ol {
   color: #334155;
   font-size: 0.96rem;
   margin-bottom: 18px;
 }
 
-.docs-content ul, .docs-content ol {
+.docs-content ul,
+.docs-content ol {
   padding-left: 24px;
 }
 
@@ -274,7 +279,8 @@ a:hover {
   font-size: 0.92rem;
 }
 
-.docs-content th, .docs-content td {
+.docs-content th,
+.docs-content td {
   padding: 10px 14px;
   text-align: left;
   border-bottom: 1px solid var(--border-subtle);

@@ -202,10 +202,13 @@ test('background debug messages return Chrome counters or bounded Obsidian snaps
   const vm = require('node:vm'); let listener, requests = 0;
   const stats = { activeCalls: 2, totalCalls: 4, promptWords: 100, lastPromptWords: 30 };
   const context = vm.createContext({
-    NutEggAI: { getAIDebugInfo: scope => { assert.equal(scope, 'tab:1'); return stats; }, normalizeAIDebugScope: core.normalizeAIDebugScope }, importScripts() {}, console: { log() {} }, AbortSignal, URL,
-    chrome: { storage: { local: { get: async () => ({ serverPort: 12345, connectionMode: 'obsidian', 'obsidianConnection:http://127.0.0.1:12345': 'approved-test-credential' }) } }, action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
+    NutEggAI: { getAIDebugInfo: scope => { assert.equal(scope, 'tab:1'); return stats; }, normalizeAIDebugScope: core.normalizeAIDebugScope, migrateChromeApiPreferences: core.migrateChromeApiPreferences }, importScripts() {}, console: { log() {} }, AbortSignal, URL,
+    chrome: { storage: { local: { get: async () => ({ executionSchemaVersion: 2, serverPort: 12345, connectionMode: 'obsidian', 'obsidianConnection:http://127.0.0.1:12345:test': 'approved-test-credential' }), set: async () => {} } }, action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
       runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } } },
-    fetch: async url => { requests++; assert.equal(url, 'http://127.0.0.1:12345/debug-info?scope=tab%3A1'); return { ok: true, json: async () => stats }; },
+    fetch: async url => {
+      if (url.endsWith('/health')) return { ok: true, json: async () => ({ instanceId: 'test' }) };
+      requests++; assert.equal(url, 'http://127.0.0.1:12345/debug-info?scope=tab%3A1'); return { ok: true, json: async () => stats };
+    },
   });
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
   const send = mode => new Promise(resolve => listener({ action: 'get-debug-info', mode, debugScope: 'tab:1' }, {}, resolve));

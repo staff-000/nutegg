@@ -2,22 +2,22 @@
 // NutEgg AI Prompt Templates & Substitution
 // ============================================================
 
-import discussionAnalysisTpl from "../workflow/discussion-analysis.md";
-import aggregateDiscussionTpl from "../workflow/aggregate-discussion.md";
-import contentAnalysisTpl from "../workflow/content-analysis.md";
-import eggAnalysisTpl from "../workflow/egg-analysis.md";
-import followUpTpl from "../workflow/follow-up.md";
-import eggRoutingTpl from "../workflow/egg-routing.md";
-import contentTaskDefaultTpl from "../workflow/content-task-default.md";
-import mergeUnprocessedTpl from "../workflow/merge-unprocessed.md";
-import aggregateContentTpl from "../workflow/aggregate-content.md";
-import aggregateEggTpl from "../workflow/aggregate-egg.md";
-import localizeEggTpl from "../workflow/localize-egg.md";
-import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
-import chromeKnowledgeTpl from "../workflow/chrome-knowledge.md";
-import verdictSummaryTpl from "../workflow/verdict-summary.md";
-import mindMapAnalysisTpl from "../workflow/mindmap-analysis.md";
-import conversationRulesTpl from "../workflow/conversation-rules.md";
+import discussionAnalysisTpl from '../workflow/discussion-analysis.md';
+import aggregateDiscussionTpl from '../workflow/aggregate-discussion.md';
+import contentAnalysisTpl from '../workflow/content-analysis.md';
+import eggAnalysisTpl from '../workflow/egg-analysis.md';
+import followUpTpl from '../workflow/follow-up.md';
+import eggRoutingTpl from '../workflow/egg-routing.md';
+import contentTaskDefaultTpl from '../workflow/content-task-default.md';
+import mergeUnprocessedTpl from '../workflow/merge-unprocessed.md';
+import aggregateContentTpl from '../workflow/aggregate-content.md';
+import aggregateEggTpl from '../workflow/aggregate-egg.md';
+import localizeEggTpl from '../workflow/localize-egg.md';
+import sharedOutputRulesTpl from '../workflow/shared-output-rules.md';
+import chromeKnowledgeTpl from '../workflow/chrome-knowledge.md';
+import verdictSummaryTpl from '../workflow/verdict-summary.md';
+import mindMapAnalysisTpl from '../workflow/mindmap-analysis.md';
+import conversationRulesTpl from '../workflow/conversation-rules.md';
 
 export const PROMPTS = {
   discussionAnalysis: discussionAnalysisTpl,
@@ -52,14 +52,10 @@ export const PROMPTS = {
 };
 
 /** Substitute {{placeholder}} variables in a template. */
-export function renderPrompt(
-  template: string,
-  vars: Record<string, string | number> = {}
-): string {
-  if (!template) return "";
+export function renderPrompt(template: string, vars: Record<string, string | number> = {}): string {
+  if (!template) return '';
   return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
     const value = vars[key];
-    return value === undefined || value === null ? "" : String(value);
+    return value === undefined || value === null ? '' : String(value);
   });
 }
-

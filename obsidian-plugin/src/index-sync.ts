@@ -1,14 +1,8 @@
-import { Notice, TAbstractFile } from "obsidian";
-import type NutEggPlugin from "./main";
-import type { IndexEntry } from "./index-reader";
-import { EGG_TEMPLATE } from "./defaults";
-import {
-  extractEggLanguage,
-  insertEggLanguage,
-  isEggPath,
-  matchesEggFormat,
-  resolveEggPath,
-} from "./egg-parser";
+import { Notice, TAbstractFile } from 'obsidian';
+import type NutEggPlugin from './main';
+import type { IndexEntry } from './index-reader';
+import { EGG_TEMPLATE } from './defaults';
+import { extractEggLanguage, insertEggLanguage, isEggPath, matchesEggFormat, resolveEggPath } from './egg-parser';
 
 export { isEggPath, matchesEggFormat };
 
@@ -49,11 +43,11 @@ export interface IndexDiffStatus {
  * Supports Unicode letters and numbers while replacing invalid characters with '_'.
  */
 export function sanitizeEggName(name: string): string {
-  return String(name || "")
+  return String(name || '')
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}_-]+/gu, "_")
-    .replace(/^_+|_+$/g, "")
+    .replace(/[^\p{L}\p{N}_-]+/gu, '_')
+    .replace(/^_+|_+$/g, '')
     .slice(0, 60);
 }
 
@@ -93,33 +87,33 @@ export class IndexSync {
 
     const hook = (event: string, cb: any) => {
       const ref = vault.on(event as any, cb);
-      if (typeof (this.plugin as any).registerEvent === "function") {
+      if (typeof (this.plugin as any).registerEvent === 'function') {
         (this.plugin as any).registerEvent(ref);
       }
     };
 
-    hook("create", async (file: TAbstractFile) => {
+    hook('create', async (file: TAbstractFile) => {
       if (this.isUpdatingIndex) return;
       if (file && (file as any).path) {
         await this.onEggFileCreated(file as any);
       }
     });
 
-    hook("delete", async (file: TAbstractFile) => {
+    hook('delete', async (file: TAbstractFile) => {
       if (this.isUpdatingIndex) return;
       if (file && (file as any).path) {
         await this.onEggFileDeleted((file as any).path);
       }
     });
 
-    hook("rename", async (file: TAbstractFile, oldPath: string) => {
+    hook('rename', async (file: TAbstractFile, oldPath: string) => {
       if (this.isUpdatingIndex) return;
       if (file && (file as any).path && oldPath) {
         await this.onEggFileRenamed(oldPath, (file as any).path);
       }
     });
 
-    hook("modify", async (file: TAbstractFile) => {
+    hook('modify', async (file: TAbstractFile) => {
       if (this.isUpdatingIndex) return;
       if (file && (file as any).path === this.plugin.settings?.indexFile) {
         this.debounceDirectIndexEdit();
@@ -129,7 +123,7 @@ export class IndexSync {
 
   /** Handle an egg file being created or dropped into nutegg/ */
   async onEggFileCreated(file: { path: string }): Promise<void> {
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
     if (!isEggPath(file.path, folder)) return;
 
     // _index.md is never auto-edited when an egg file is created/dropped.
@@ -139,17 +133,15 @@ export class IndexSync {
 
   /** Handle an egg file being deleted from nutegg/ */
   async onEggFileDeleted(filePath: string): Promise<void> {
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
     if (!isEggPath(filePath, folder)) return;
 
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
-    );
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(this.plugin.settings.indexFile);
     if (!indexFile) return;
 
     this.isUpdatingIndex = true;
     try {
-      const fileName = filePath.split("/").pop() || "";
+      const fileName = filePath.split('/').pop() || '';
       let modified = await this.removeIndexEntry(indexFile, filePath);
       if (fileName && fileName !== filePath) {
         const mod2 = await this.removeIndexEntry(indexFile, fileName);
@@ -166,21 +158,19 @@ export class IndexSync {
 
   /** Handle an egg file being renamed */
   async onEggFileRenamed(oldPath: string, newPath: string): Promise<void> {
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
     const wasEgg = isEggPath(oldPath, folder);
     const isEgg = isEggPath(newPath, folder);
     if (!wasEgg && !isEgg) return;
 
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
-    );
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(this.plugin.settings.indexFile);
     if (!indexFile) return;
 
     this.isUpdatingIndex = true;
     try {
       if (wasEgg && isEgg) {
         await this.rewriteIndexPath(indexFile, oldPath, newPath);
-        const oldBase = oldPath.split("/").pop() || "";
+        const oldBase = oldPath.split('/').pop() || '';
         if (oldBase) {
           await this.rewriteIndexPath(indexFile, oldBase, newPath);
         }
@@ -218,16 +208,16 @@ export class IndexSync {
 
   /** Calculate discrepancies between _index.md and disk */
   async getDiffStatus(): Promise<IndexDiffStatus> {
-    const folder = this.plugin.vaultFolder || "nutegg";
-    const norm = (p: string) => resolveEggPath(p, folder) || "";
+    const folder = this.plugin.vaultFolder || 'nutegg';
+    const norm = (p: string) => resolveEggPath(p, folder) || '';
 
     const eggFilesOnDisk = (this.plugin.app.vault.getMarkdownFiles?.() || [])
-      .filter((f) => isEggPath(f.path, folder))
-      .map((f) => f.path);
+      .filter(f => isEggPath(f.path, folder))
+      .map(f => f.path);
     const diskSet = new Set(eggFilesOnDisk);
 
     const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)") {
+    if (indexContent === '(No _index.md found)') {
       return { missingEggs: [], unindexedEggs: [], invalidEntries: [], totalDiffs: 0 };
     }
 
@@ -288,20 +278,18 @@ export class IndexSync {
       prunedIndexEntries: [],
     };
 
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
 
     // Index entries present in _index.md
     const indexContent = await this.plugin.indexReader.getIndexContent();
-    if (indexContent === "(No _index.md found)") {
+    if (indexContent === '(No _index.md found)') {
       return result;
     }
     const rawEntries = this.plugin.indexReader.parseIndexContent(indexContent, { includeInvalid: true });
 
-    const norm = (p: string) => resolveEggPath(p, folder) || "";
+    const norm = (p: string) => resolveEggPath(p, folder) || '';
 
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
-    );
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(this.plugin.settings.indexFile);
 
     // Rule 1: Only direct egg files under nutegg/ are allowed in _index.md.
     // Prune any invalid entries (system folders like _workflow/, _raw/, subdirectories, etc.)
@@ -318,8 +306,11 @@ export class IndexSync {
     if (result.prunedIndexEntries.length > 0 && indexFile) {
       await this.updateIndex(indexFile, content => {
         for (const entryPath of result.prunedIndexEntries) {
-          const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          content = content.replace(new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m"), "");
+          const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          content = content.replace(
+            new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, 'm'),
+            ''
+          );
         }
         return content;
       });
@@ -328,23 +319,22 @@ export class IndexSync {
 
     // If syncUnindexed is enabled (e.g. from user Sync button), add valid unindexed egg files
     if (options?.syncUnindexed && indexFile) {
-      const diskEggFiles = (this.plugin.app.vault.getMarkdownFiles?.() || [])
-        .filter((f) => isEggPath(f.path, folder));
-      const indexedTargets = new Set(entries.map((e) => norm(e.fileName)));
+      const diskEggFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(f => isEggPath(f.path, folder));
+      const indexedTargets = new Set(entries.map(e => norm(e.fileName)));
 
       for (const file of diskEggFiles) {
         if (!indexedTargets.has(file.path)) {
-          const content = await this.plugin.app.vault.read(file as any).catch(() => "");
+          const content = await this.plugin.app.vault.read(file as any).catch(() => '');
           if (matchesEggFormat(content)) {
-            let topic = "";
+            let topic = '';
             try {
               const egg = await this.plugin.eggParser.readEgg(file.path);
-              if (egg?.topic && egg.topic !== "Unknown") {
+              if (egg?.topic && egg.topic !== 'Unknown') {
                 topic = egg.topic;
               }
             } catch {}
             if (!topic) {
-              topic = file.path.split("/").pop()!.replace(/\.md$/, "");
+              topic = file.path.split('/').pop()!.replace(/\.md$/, '');
             }
             await this.appendIndexEntry(indexFile, file.path, topic);
             result.addedIndexEntries.push(file.path);
@@ -358,15 +348,15 @@ export class IndexSync {
     for (const entry of entries) {
       const target = norm(entry.fileName);
       if (await this.plugin.app.vault.adapter.exists(target)) continue;
-        try {
-          await this.createEggFromTemplate(target, entry);
-          if (target !== entry.fileName) {
-            await this.rewriteIndexPath(indexFile, entry.fileName, target);
-            result.fixedIndexPaths.push(target);
-          }
-          result.createdEggs.push(target);
-        } catch (err) {
-          console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
+      try {
+        await this.createEggFromTemplate(target, entry);
+        if (target !== entry.fileName) {
+          await this.rewriteIndexPath(indexFile, entry.fileName, target);
+          result.fixedIndexPaths.push(target);
+        }
+        result.createdEggs.push(target);
+      } catch (err) {
+        console.warn(`[NutEgg] Could not create egg from template for ${target}:`, err);
       }
     }
 
@@ -407,35 +397,42 @@ export class IndexSync {
   async createEgg(
     rawName: string,
     rawDescription: string,
-    processor?: import("./ai-processor").AIProcessor,
+    processor?: import('./ai-processor').AIProcessor,
     locked = false
   ): Promise<{ path: string; alreadyExists: boolean; language?: string }> {
-    if(!processor && this.plugin.server)return this.plugin.server.runNative(p=>this.createEgg(rawName,rawDescription,p),undefined,true);
+    if (!processor && this.plugin.server)
+      return this.plugin.server.runNative(p => this.createEgg(rawName, rawDescription, p), undefined, true);
     const name = sanitizeEggName(rawName);
-    const description = (rawDescription || "").trim();
+    const description = (rawDescription || '').trim();
     if (!name) {
-      throw new Error("Invalid egg name");
+      throw new Error('Invalid egg name');
     }
-    const folder = this.plugin.vaultFolder || "nutegg";
+    const folder = this.plugin.vaultFolder || 'nutegg';
     const fileName = `${folder}/${name}.md`;
-    if (!locked && this.plugin.server) return this.plugin.server.execution.withEggLock(fileName,()=>{processor?.ensureActive?.();return this.createEgg(rawName,rawDescription,processor,true);});
+    if (!locked && this.plugin.server) {
+      return this.plugin.server.execution.withEggLock(fileName, () => {
+        processor?.ensureActive?.();
+        return this.createEgg(rawName, rawDescription, processor, true);
+      });
+    }
     if (await this.plugin.app.vault.adapter.exists(fileName)) {
-      const existingContent = await this.plugin.app.vault.adapter
-        .read(fileName)
-        .catch(() => "");
+      const existingContent = await this.plugin.app.vault.adapter.read(fileName).catch(() => '');
       return {
         path: fileName,
         alreadyExists: true,
         language: extractEggLanguage(existingContent),
       };
     }
-    const { language } = await this.createEggFromTemplate(fileName, {
+    const { language } = await this.createEggFromTemplate(
       fileName,
-      description,
-    }, processor,true);
-    const indexFile = this.plugin.app.vault.getAbstractFileByPath(
-      this.plugin.settings.indexFile
+      {
+        fileName,
+        description,
+      },
+      processor,
+      true
     );
+    const indexFile = this.plugin.app.vault.getAbstractFileByPath(this.plugin.settings.indexFile);
     this.isUpdatingIndex = true;
     try {
       await this.appendIndexEntry(indexFile, fileName, description || name);
@@ -446,44 +443,34 @@ export class IndexSync {
     return { path: fileName, alreadyExists: false, language };
   }
 
-  async removeIndexEntry(
-    indexFile: any,
-    entryPath: string
-  ): Promise<boolean> {
+  async removeIndexEntry(indexFile: any, entryPath: string): Promise<boolean> {
     if (!indexFile) return false;
-    const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, "m");
-    const changed = await this.updateIndex(indexFile, content => content.replace(re, ""));
+    const escaped = entryPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^[\\t ]*[*\\-+]?[\\t ]*${escaped}(?:[\\t ]*:.*)?(?:\\r?\\n)?`, 'm');
+    const changed = await this.updateIndex(indexFile, content => content.replace(re, ''));
     if (!changed) return false;
     console.log(`[NutEgg] Removed index entry: ${entryPath}`);
     return true;
   }
 
-  private async appendIndexEntry(
-    indexFile: any,
-    eggPath: string,
-    description: string
-  ): Promise<void> {
+  private async appendIndexEntry(indexFile: any, eggPath: string, description: string): Promise<void> {
     if (!indexFile) return;
-    const line = `* ${eggPath}${description ? `: ${description}` : ""}`;
+    const line = `* ${eggPath}${description ? `: ${description}` : ''}`;
     await this.updateIndex(indexFile, content => {
       const entries = this.plugin.indexReader.parseIndexContent(content);
-      if (entries.some(entry => entry.fileName === eggPath || entry.fileName === eggPath.split('/').pop())) return content;
-      return content.replace(/\n+$/, "") + `\n${line}\n`;
+      if (entries.some(entry => entry.fileName === eggPath || entry.fileName === eggPath.split('/').pop()))
+        return content;
+      return content.replace(/\n+$/, '') + `\n${line}\n`;
     });
     console.log(`[NutEgg] Added index entry: ${line}`);
   }
 
   /** Rewrite one index entry's file path in place (keeps its description). */
-  private async rewriteIndexPath(
-    indexFile: any,
-    oldPath: string,
-    newPath: string
-  ): Promise<void> {
+  private async rewriteIndexPath(indexFile: any, oldPath: string, newPath: string): Promise<void> {
     if (!indexFile) return;
-    const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`^(\\s*[*\\-+]?\\s*)${escaped}(\\s*:)`, "m");
-    if (!await this.updateIndex(indexFile, content => content.replace(re, `$1${newPath}$2`))) return;
+    const escaped = oldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`^(\\s*[*\\-+]?\\s*)${escaped}(\\s*:)`, 'm');
+    if (!(await this.updateIndex(indexFile, content => content.replace(re, `$1${newPath}$2`)))) return;
     console.log(`[NutEgg] Index path fixed: ${oldPath} -> ${newPath}`);
   }
 
@@ -504,7 +491,10 @@ export class IndexSync {
       }
       return changed;
     });
-    this.indexMutationTask = task.then(() => {}, () => {});
+    this.indexMutationTask = task.then(
+      () => {},
+      () => {}
+    );
     return task;
   }
 
@@ -516,69 +506,66 @@ export class IndexSync {
   private async createEggFromTemplate(
     targetPath: string,
     entry: IndexEntry,
-    processor?: import("./ai-processor").AIProcessor,
-    locked=false
+    processor?: import('./ai-processor').AIProcessor,
+    locked = false
   ): Promise<{ path: string; language: string }> {
-    if(!processor && this.plugin.server)return this.plugin.server.runNative(p=>this.createEggFromTemplate(targetPath,entry,p),undefined,true);
-    if(!locked && this.plugin.server)return this.plugin.server.execution.withEggLock(targetPath,()=>{processor?.ensureActive?.();return this.createEggFromTemplate(targetPath,entry,processor,true);});
+    if (!processor && this.plugin.server) {
+      return this.plugin.server.runNative(p => this.createEggFromTemplate(targetPath, entry, p), undefined, true);
+    }
+    if (!locked && this.plugin.server) {
+      return this.plugin.server.execution.withEggLock(targetPath, () => {
+        processor?.ensureActive?.();
+        return this.createEggFromTemplate(targetPath, entry, processor, true);
+      });
+    }
     processor ||= this.plugin.aiProcessor;
     const assertTarget = () => {
-      if (resolveEggPath(targetPath, this.plugin.vaultFolder || "nutegg") !== targetPath) {
+      if (resolveEggPath(targetPath, this.plugin.vaultFolder || 'nutegg') !== targetPath) {
         throw new Error(`Cannot create egg outside the egg folder: ${targetPath}`);
       }
     };
     assertTarget();
-    if(await this.plugin.app.vault.adapter.exists(targetPath))return {path:targetPath,language:extractEggLanguage(await this.plugin.app.vault.adapter.read(targetPath))};
+    if (await this.plugin.app.vault.adapter.exists(targetPath)) {
+      const existing = await this.plugin.app.vault.adapter.read(targetPath);
+      return { path: targetPath, language: extractEggLanguage(existing) };
+    }
     await this.ensureParentFolders(targetPath);
-    const folder = this.plugin.vaultFolder || "nutegg";
-    const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), "").replace(/\.md$/, "");
+    const folder = this.plugin.vaultFolder || 'nutegg';
+    const fallbackTopic = targetPath.replace(new RegExp(`^${folder}/`), '').replace(/\.md$/, '');
     const topic = (entry.description || fallbackTopic).trim();
     const dateStr = new Date().toISOString().slice(0, 10);
 
     // Start with canonical EGG_TEMPLATE
     let content = EGG_TEMPLATE;
-    content = content.replace(
-      /^topic: .*$/m,
-      `topic: "${this.escapeYaml(topic)}"`
-    );
+    content = content.replace(/^topic: .*$/m, `topic: "${this.escapeYaml(topic)}"`);
     if (entry.description) {
-      content = content.replace(
-        /^> \*\*Scope:\*\* .*$/m,
-        `> **Scope:** ${entry.description}`
-      );
+      content = content.replace(/^> \*\*Scope:\*\* .*$/m, `> **Scope:** ${entry.description}`);
     }
-    content = content.replace(
-      /^last_updated: .*$/m,
-      `last_updated: "${dateStr}"`
-    );
+    content = content.replace(/^last_updated: .*$/m, `last_updated: "${dateStr}"`);
 
-    let detectedLanguage = "";
+    let detectedLanguage = '';
 
     // If AI is available, adapt the template instructions to match the description's language
     if (entry.description && processor?.localizeEggTemplate) {
       try {
-        const localized = await processor.localizeEggTemplate(
-          content,
-          entry.description
-        );
+        const localized = await processor.localizeEggTemplate(content, entry.description);
         if (localized) {
-          if (typeof localized === "string") {
+          if (typeof localized === 'string') {
             content = localized;
             detectedLanguage = extractEggLanguage(localized) || detectedLanguage;
           } else {
             content = localized.content;
-            detectedLanguage =
-              localized.language || extractEggLanguage(localized.content) || detectedLanguage;
+            detectedLanguage = localized.language || extractEggLanguage(localized.content) || detectedLanguage;
           }
         }
       } catch (err: any) {
-        if(err?.code === "cancelled")throw err;
-        console.warn("[NutEgg] Failed to localize egg template with AI:", err);
+        if (err?.code === 'cancelled') throw err;
+        console.warn('[NutEgg] Failed to localize egg template with AI:', err);
       }
     }
 
     if (!detectedLanguage) {
-      detectedLanguage = extractEggLanguage(content) || "English";
+      detectedLanguage = extractEggLanguage(content) || 'English';
     }
 
     if (detectedLanguage) {
@@ -593,10 +580,10 @@ export class IndexSync {
   }
 
   private async ensureParentFolders(path: string): Promise<void> {
-    const parts = path.split("/").slice(0, -1);
-    let currentPath = "";
+    const parts = path.split('/').slice(0, -1);
+    let currentPath = '';
     for (const part of parts) {
-      currentPath += (currentPath ? "/" : "") + part;
+      currentPath += (currentPath ? '/' : '') + part;
       const exists = await this.plugin.app.vault.adapter.exists(currentPath);
       if (!exists) {
         await this.plugin.app.vault.createFolder(currentPath);
@@ -605,6 +592,6 @@ export class IndexSync {
   }
 
   private escapeYaml(value: string): string {
-    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 }

@@ -7,7 +7,7 @@
  * Recovers valid fields, objects, and array elements generated before the cutoff.
  */
 export function repairTruncatedJson(jsonStr: string): string | null {
-  const firstBrace = jsonStr.indexOf("{");
+  const firstBrace = jsonStr.indexOf('{');
   if (firstBrace === -1) return null;
 
   let text = jsonStr.slice(firstBrace).trim();
@@ -20,7 +20,7 @@ export function repairTruncatedJson(jsonStr: string): string | null {
     if (inString) {
       if (escaped) {
         escaped = false;
-      } else if (c === "\\") {
+      } else if (c === '\\') {
         escaped = true;
       } else if (c === '"') {
         inString = false;
@@ -30,12 +30,12 @@ export function repairTruncatedJson(jsonStr: string): string | null {
 
     if (c === '"') {
       inString = true;
-    } else if (c === "{" || c === "[") {
+    } else if (c === '{' || c === '[') {
       stack.push(c);
-    } else if (c === "}") {
-      if (stack[stack.length - 1] === "{") stack.pop();
-    } else if (c === "]") {
-      if (stack[stack.length - 1] === "[") stack.pop();
+    } else if (c === '}') {
+      if (stack[stack.length - 1] === '{') stack.pop();
+    } else if (c === ']') {
+      if (stack[stack.length - 1] === '[') stack.pop();
     }
   }
 
@@ -50,15 +50,15 @@ export function repairTruncatedJson(jsonStr: string): string | null {
   }
 
   // If inside an object, check if the last token is an incomplete key-value pair
-  if (stack[stack.length - 1] === "{") {
+  if (stack[stack.length - 1] === '{') {
     // Drop dangling key with colon: e.g. `, "key":` or `{"key":`
-    text = text.replace(/,?\s*"[^"]*"\s*:\s*$/, "");
+    text = text.replace(/,?\s*"[^"]*"\s*:\s*$/, '');
     // Drop dangling key without colon after comma or brace: e.g. `, "key"` or `{"key"`
-    text = text.replace(/(?:\{|,)\s*"[^"]*"\s*$/, (m) => (m.startsWith("{") ? "{" : ""));
+    text = text.replace(/(?:\{|,)\s*"[^"]*"\s*$/, m => (m.startsWith('{') ? '{' : ''));
   }
 
   // Drop any trailing comma or whitespace
-  text = text.replace(/,\s*$/, "").trim();
+  text = text.replace(/,\s*$/, '').trim();
 
   // Re-scan stack on the cleaned text to get accurate unclosed brackets
   const finalStack: string[] = [];
@@ -68,24 +68,24 @@ export function repairTruncatedJson(jsonStr: string): string | null {
     const c = text[i];
     if (inStr) {
       if (esc) esc = false;
-      else if (c === "\\") esc = true;
+      else if (c === '\\') esc = true;
       else if (c === '"') inStr = false;
       continue;
     }
     if (c === '"') inStr = true;
-    else if (c === "{" || c === "[") finalStack.push(c);
-    else if (c === "}") {
-      if (finalStack[finalStack.length - 1] === "{") finalStack.pop();
-    } else if (c === "]") {
-      if (finalStack[finalStack.length - 1] === "[") finalStack.pop();
+    else if (c === '{' || c === '[') finalStack.push(c);
+    else if (c === '}') {
+      if (finalStack[finalStack.length - 1] === '{') finalStack.pop();
+    } else if (c === ']') {
+      if (finalStack[finalStack.length - 1] === '[') finalStack.pop();
     }
   }
 
   // Close unclosed brackets in reverse order
   while (finalStack.length > 0) {
     const open = finalStack.pop();
-    if (open === "{") text += "}";
-    else if (open === "[") text += "]";
+    if (open === '{') text += '}';
+    else if (open === '[') text += ']';
   }
 
   return text;
@@ -97,7 +97,7 @@ export function repairTruncatedJson(jsonStr: string): string | null {
  * - Removes trailing commas before closing braces/brackets
  */
 export function sanitizeJsonString(str: string): string {
-  let result = "";
+  let result = '';
   let inString = false;
   let escaped = false;
 
@@ -107,20 +107,20 @@ export function sanitizeJsonString(str: string): string {
       if (escaped) {
         escaped = false;
         result += c;
-      } else if (c === "\\") {
+      } else if (c === '\\') {
         escaped = true;
         result += c;
       } else if (c === '"') {
         inString = false;
         result += c;
-      } else if (c === "\n") {
-        result += "\\n";
-      } else if (c === "\r") {
-        result += "\\r";
-      } else if (c === "\t") {
-        result += "\\t";
+      } else if (c === '\n') {
+        result += '\\n';
+      } else if (c === '\r') {
+        result += '\\r';
+      } else if (c === '\t') {
+        result += '\\t';
       } else if (c.charCodeAt(0) < 32) {
-        result += "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0");
+        result += '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0');
       } else {
         result += c;
       }
@@ -131,17 +131,14 @@ export function sanitizeJsonString(str: string): string {
   }
 
   // Remove trailing commas outside of strings
-  return result.replace(/,\s*([}\]])/g, "$1");
+  return result.replace(/,\s*([}\]])/g, '$1');
 }
 
 /**
  * Parse JSON response with robust cleanup, code-fence stripping, and repairs.
  */
-export function parseJson(
-  response: string,
-  context = "response"
-): Record<string, any> {
-  let jsonStr = (response || "").trim();
+export function parseJson(response: string, context = 'response'): Record<string, any> {
+  let jsonStr = (response || '').trim();
   if (!jsonStr) {
     console.warn(`[NutEgg] Empty AI response received for (${context}).`);
     return {};
@@ -151,10 +148,8 @@ export function parseJson(
   const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
   if (codeBlockMatch) {
     jsonStr = codeBlockMatch[1].trim();
-  } else if (jsonStr.startsWith("```")) {
-    jsonStr = jsonStr
-      .replace(/^```(?:json)?\s*\n?/, "")
-      .replace(/\n?```\s*$/, "");
+  } else if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
 
   // Attempt 1: raw parse
@@ -192,4 +187,3 @@ export function parseJson(
   );
   return {};
 }
-

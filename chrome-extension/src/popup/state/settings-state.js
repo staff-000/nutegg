@@ -18,16 +18,16 @@ class SettingsState {
     this.DEFAULT_ANALYSIS_SECTIONS = DEFAULT_ANALYSIS_SECTIONS;
 
     // User preferences
-    this.connectionMode = "chrome"; // "chrome" | "obsidian"
-    this.analysisMode = "preview"; // "full" | "preview"
-    this.outputLanguage = "same-as-content";
+    this.connectionMode = 'chrome'; // "chrome" | "obsidian"
+    this.analysisMode = 'preview'; // "full" | "preview"
+    this.outputLanguage = 'same-as-content';
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = false;
     this.optimizeForConversation = true;
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
-    this.uiDensity = "compact"; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
+    this.uiDensity = 'compact'; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
     this.chromeCacheTabLimit = 100;
 
     // Obsidian server status
@@ -38,9 +38,9 @@ class SettingsState {
     // Chrome AI status
     this.chromeAiEnabled = true;
     this.chromeAiConfigured = false;
-    this.chromeAiAuthMethod = "apiKey";
-    this.chromeAiProvider = "";
-    this.chromeAiModel = "";
+    this.chromeAiAuthMethod = 'apiKey';
+    this.chromeAiProvider = '';
+    this.chromeAiModel = '';
     this.subscriptionState = null;
   }
 
@@ -49,38 +49,70 @@ class SettingsState {
    */
   async loadFromStorage() {
     try {
-      const stored = await new Promise((resolve) => {
+      const stored = await new Promise(resolve => {
         chrome.storage?.local?.get?.(
-          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "optimizeForConversation", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel", "obsidianExecutionState"],
+          [
+            'connectionMode',
+            'analysisMode',
+            'cachedMetrics',
+            'enabledSections',
+            'outputLanguage',
+            'generateKnowledgeEntries',
+            'optimizeForConversation',
+            'popupDiagnostics',
+            'debugInfo',
+            'captureRetryCount',
+            'captureRetryDelayMs',
+            'uiDensity',
+            'chromeCacheTabLimit',
+            'chromeAiAuthMethod',
+            'chromeAiProvider',
+            'chromeAiModel',
+            'obsidianExecutionState',
+          ],
           resolve
         );
       });
-      this.executionState=stored?.obsidianExecutionState;
-      this.chromeAiAuthMethod = globalThis.NutEggAI?.selectEffectiveExecution?.(stored?.connectionMode,stored?.obsidianExecutionState)||'apiKey';
-      this.chromeAiProvider = stored?.chromeAiProvider || "";
-      this.chromeAiModel = stored?.chromeAiModel || "";
+      this.executionState = stored?.obsidianExecutionState;
+      this.chromeAiAuthMethod =
+        globalThis.NutEggAI?.selectEffectiveExecution?.(stored?.connectionMode, stored?.obsidianExecutionState) ||
+        'apiKey';
+      this.chromeAiProvider = stored?.chromeAiProvider || '';
+      this.chromeAiModel = stored?.chromeAiModel || '';
       this.setConnectionMode(stored?.connectionMode, false);
-      if (stored?.analysisMode === "preview" || stored?.analysisMode === "full") {
+      if (stored?.analysisMode === 'preview' || stored?.analysisMode === 'full') {
         this.analysisMode = stored.analysisMode;
-      } else if (stored?.analysisMode === "confirm") {
-        this.analysisMode = "preview";
-      } else if (stored?.analysisMode === "fast") {
-        this.analysisMode = "full";
+      } else if (stored?.analysisMode === 'confirm') {
+        this.analysisMode = 'preview';
+      } else if (stored?.analysisMode === 'fast') {
+        this.analysisMode = 'full';
       } else {
-        this.analysisMode = "preview";
+        this.analysisMode = 'preview';
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries === true;
       this.optimizeForConversation = stored?.optimizeForConversation !== false;
       this.debugInfo = stored?.debugInfo === true;
-      if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "margin" || stored?.uiDensity === "compact" || stored?.uiDensity === "ultra-compact") {
-        this.uiDensity = stored.uiDensity === "comfortable" ? "margin" : stored.uiDensity;
+      if (
+        stored?.uiDensity === 'comfortable' ||
+        stored?.uiDensity === 'margin' ||
+        stored?.uiDensity === 'compact' ||
+        stored?.uiDensity === 'ultra-compact'
+      ) {
+        this.uiDensity = stored.uiDensity === 'comfortable' ? 'margin' : stored.uiDensity;
       }
-      if (typeof stored?.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0) {
+      if (typeof stored?.chromeCacheTabLimit === 'number' && stored.chromeCacheTabLimit >= 0) {
         this.chromeCacheTabLimit = Math.min(1000, Math.round(stored.chromeCacheTabLimit));
       }
       this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
-        this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof stored.enabledSections[key] === "boolean" ? stored.enabledSections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
+        this.enabledSections = Object.fromEntries(
+          Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [
+            key,
+            typeof stored.enabledSections[key] === 'boolean'
+              ? stored.enabledSections[key]
+              : DEFAULT_ANALYSIS_SECTIONS[key],
+          ])
+        );
       }
       if (stored?.outputLanguage) {
         this.outputLanguage = stored.outputLanguage;
@@ -92,19 +124,19 @@ class SettingsState {
   }
 
   setConnectionMode(mode, persist = true) {
-    this.connectionMode = mode === "obsidian" ? "obsidian" : "chrome";
+    this.connectionMode = mode === 'obsidian' ? 'obsidian' : 'chrome';
     this.setServerStatus();
-    this.setChromeAiStatus({ enabled: this.connectionMode === "chrome" });
-    if (persist && typeof chrome !== "undefined") {
+    this.setChromeAiStatus({ enabled: this.connectionMode === 'chrome' });
+    if (persist && typeof chrome !== 'undefined') {
       chrome.storage?.local?.set?.({ connectionMode: this.connectionMode });
     }
   }
 
   setAnalysisMode(mode, persist = true) {
-    const normalized = mode === "confirm" ? "preview" : mode === "fast" ? "full" : mode;
-    if (normalized === "preview" || normalized === "full") {
+    const normalized = mode === 'confirm' ? 'preview' : mode === 'fast' ? 'full' : mode;
+    if (normalized === 'preview' || normalized === 'full') {
       this.analysisMode = normalized;
-      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+      if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
         chrome.storage.local.set({ analysisMode: normalized });
       }
     }
@@ -112,40 +144,40 @@ class SettingsState {
 
   setOptimizeForConversation(enabled, persist = true) {
     this.optimizeForConversation = enabled !== false;
-    if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+    if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
       chrome.storage.local.set({ optimizeForConversation: this.optimizeForConversation });
     }
   }
 
   setCaptureRetries(values = {}) {
-    const bounded = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value)
-      ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
+    const bounded = (value, fallback, min, max) =>
+      typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, Math.round(value))) : fallback;
     this.captureRetryCount = bounded(values.captureRetryCount ?? this.captureRetryCount, 3, 0, 10);
     this.captureRetryDelayMs = bounded(values.captureRetryDelayMs ?? this.captureRetryDelayMs, 3000, 100, 10000);
   }
 
   setOutputLanguage(lang, persist = true) {
-    if (typeof lang === "string") {
+    if (typeof lang === 'string') {
       this.outputLanguage = lang;
-      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+      if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
         chrome.storage.local.set({ outputLanguage: lang });
       }
     }
   }
 
   setUiDensity(density, persist = true) {
-    if (density === "comfortable" || density === "margin" || density === "compact" || density === "ultra-compact") {
-      this.uiDensity = density === "comfortable" ? "margin" : density;
-      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+    if (density === 'comfortable' || density === 'margin' || density === 'compact' || density === 'ultra-compact') {
+      this.uiDensity = density === 'comfortable' ? 'margin' : density;
+      if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
         chrome.storage.local.set({ uiDensity: this.uiDensity });
       }
     }
   }
 
   setChromeCacheTabLimit(limit, persist = true) {
-    if (typeof limit === "number" && limit >= 0) {
+    if (typeof limit === 'number' && limit >= 0) {
       this.chromeCacheTabLimit = Math.min(1000, Math.round(limit));
-      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+      if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
         chrome.storage.local.set({ chromeCacheTabLimit: this.chromeCacheTabLimit });
       }
     }
@@ -153,33 +185,40 @@ class SettingsState {
 
   setGenerateKnowledgeEntries(enabled, persist = true) {
     this.generateKnowledgeEntries = Boolean(enabled);
-    if (persist && typeof chrome !== "undefined") {
+    if (persist && typeof chrome !== 'undefined') {
       chrome.storage?.local?.set?.({ generateKnowledgeEntries: this.generateKnowledgeEntries });
     }
   }
 
   setEnabledSections(sections, persist = false) {
-    if (sections && typeof sections === "object") {
-      this.enabledSections = Object.fromEntries(Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [key, typeof sections[key] === "boolean" ? sections[key] : DEFAULT_ANALYSIS_SECTIONS[key]]));
-      if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+    if (sections && typeof sections === 'object') {
+      this.enabledSections = Object.fromEntries(
+        Object.keys(DEFAULT_ANALYSIS_SECTIONS).map(key => [
+          key,
+          typeof sections[key] === 'boolean' ? sections[key] : DEFAULT_ANALYSIS_SECTIONS[key],
+        ])
+      );
+      if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
         chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
       }
     }
   }
 
   getToggledSections(key, sections = this.enabledSections) {
-    const keys = key === "verdictSummary" ? ["titleVerdict", "coreSummary"] : [key];
+    const keys = key === 'verdictSummary' ? ['titleVerdict', 'coreSummary'] : [key];
     if (keys.some(k => !(k in DEFAULT_ANALYSIS_SECTIONS))) return null;
     const nextVal = !keys.every(k => (sections[k] ?? DEFAULT_ANALYSIS_SECTIONS[k]) === true);
     const next = { ...sections, ...Object.fromEntries(keys.map(k => [k, nextVal])) };
-    return Object.keys(DEFAULT_ANALYSIS_SECTIONS).some(k => (next[k] ?? DEFAULT_ANALYSIS_SECTIONS[k]) === true) ? next : null;
+    return Object.keys(DEFAULT_ANALYSIS_SECTIONS).some(k => (next[k] ?? DEFAULT_ANALYSIS_SECTIONS[k]) === true)
+      ? next
+      : null;
   }
 
   async toggleSection(key, persist = true) {
     const next = this.getToggledSections(key);
     if (!next) return false;
     this.enabledSections = next;
-    if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+    if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
       await chrome.storage.local.set({ enabledSections: { ...this.enabledSections } });
     }
     return true;
@@ -193,11 +232,11 @@ class SettingsState {
     this.serverWarning = warning;
   }
 
-  setChromeAiStatus({ enabled = false, configured = false, provider = "", model = "" } = {}) {
+  setChromeAiStatus({ enabled = false, configured = false, provider = '', model = '' } = {}) {
     this.chromeAiEnabled = !!enabled;
     this.chromeAiConfigured = !!configured;
-    this.chromeAiProvider = provider || "";
-    this.chromeAiModel = model || "";
+    this.chromeAiProvider = provider || '';
+    this.chromeAiModel = model || '';
   }
 
   /**
@@ -205,22 +244,22 @@ class SettingsState {
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
     const res = resultOrMode;
-    const mode = typeof res === "string" ? res : res?.mode;
-    if (mode === "chrome") return true;
-    if (mode === "obsidian") return false;
-    if (res && typeof res === "object") return this.connectionMode !== "obsidian";
-    return this.connectionMode !== "obsidian";
+    const mode = typeof res === 'string' ? res : res?.mode;
+    if (mode === 'chrome') return true;
+    if (mode === 'obsidian') return false;
+    if (res && typeof res === 'object') return this.connectionMode !== 'obsidian';
+    return this.connectionMode !== 'obsidian';
   }
 }
 
-const _settingsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _settingsScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _settingsScope.NutEggState = _settingsScope.NutEggState || {};
 _settingsScope.NutEggState.SettingsState = SettingsState;
 _settingsScope.NutEggState.DEFAULT_ANALYSIS_SECTIONS = DEFAULT_ANALYSIS_SECTIONS;
 _settingsScope.SettingsState = SettingsState;
 _settingsScope.DEFAULT_ANALYSIS_SECTIONS = DEFAULT_ANALYSIS_SECTIONS;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     SettingsState,
     DEFAULT_ANALYSIS_SECTIONS,

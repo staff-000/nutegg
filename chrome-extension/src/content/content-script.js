@@ -22,25 +22,25 @@
 // ============================================================
 
 var EXTRACTORS = window.EXTRACTORS || [
-  { name: "youtube", detect: detectYouTube, extract: extractYouTube },
-  { name: "twitter", detect: detectTwitter, extract: extractTwitter },
-  { name: "bilibili", detect: detectBilibili, extract: extractBilibili },
-  { name: "douyin", detect: detectDouyin, extract: extractDouyin },
-  { name: "weibo", detect: detectWeibo, extract: extractWeibo },
-  { name: "zhihu", detect: detectZhihu, extract: extractZhihu },
-  { name: "forum", detect: detectForum, extract: extractForum },
-  { name: "tiktok", detect: detectTikTok, extract: extractTikTok },
-  { name: "article", detect: detectArticle, extract: extractArticle },
+  { name: 'youtube', detect: detectYouTube, extract: extractYouTube },
+  { name: 'twitter', detect: detectTwitter, extract: extractTwitter },
+  { name: 'bilibili', detect: detectBilibili, extract: extractBilibili },
+  { name: 'douyin', detect: detectDouyin, extract: extractDouyin },
+  { name: 'weibo', detect: detectWeibo, extract: extractWeibo },
+  { name: 'zhihu', detect: detectZhihu, extract: extractZhihu },
+  { name: 'forum', detect: detectForum, extract: extractForum },
+  { name: 'tiktok', detect: detectTikTok, extract: extractTikTok },
+  { name: 'article', detect: detectArticle, extract: extractArticle },
   // Generic must be last — it always matches
-  { name: "generic", detect: () => true, extract: extractGeneric },
+  { name: 'generic', detect: () => true, extract: extractGeneric },
 ];
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   if (Array.isArray(window.EXTRACTORS)) {
     for (const ex of window.EXTRACTORS) {
-      if (ex.name === "article" && typeof detectArticle === "function") {
+      if (ex.name === 'article' && typeof detectArticle === 'function') {
         ex.detect = detectArticle;
         ex.extract = extractArticle;
-      } else if (ex.name === "generic" && typeof extractGeneric === "function") {
+      } else if (ex.name === 'generic' && typeof extractGeneric === 'function') {
         ex.extract = extractGeneric;
       }
     }
@@ -55,8 +55,11 @@ if (typeof window !== "undefined") {
 async function extractContent(discussionSessionId, context) {
   context?.check();
   // Observe comments before potentially slow transcript/body fetching, without moving the page.
-  try { window.NutEggDiscussion?.start(discussionSessionId || `capture:${Date.now()}`, false); }
-  catch (error) { console.warn('[NutEgg] Passive discussion capture unavailable:', error); }
+  try {
+    window.NutEggDiscussion?.start(discussionSessionId || `capture:${Date.now()}`, false);
+  } catch (error) {
+    console.warn('[NutEgg] Passive discussion capture unavailable:', error);
+  }
   for (const ex of EXTRACTORS) {
     try {
       context?.check();
@@ -67,9 +70,12 @@ async function extractContent(discussionSessionId, context) {
         if (!capture) continue;
         if (capture.transcriptAvailable === false) capture.extractionStatus ||= 'transient';
         else if (capture.transcriptAvailable === true) capture.extractionStatus = 'ready';
-        else if (!capture.content?.trim() || (capture.extractionStatus !== 'ready' &&
-          (document.readyState !== 'complete'
-          || document.querySelector('main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]')))) {
+        else if (
+          !capture.content?.trim() ||
+          (capture.extractionStatus !== 'ready' &&
+            (document.readyState !== 'complete' ||
+              document.querySelector('main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]')))
+        ) {
           capture.extractionStatus = 'not_ready';
         }
         return window.NutEggDiscussion ? window.NutEggDiscussion.decorate(capture) : capture;
@@ -78,16 +84,16 @@ async function extractContent(discussionSessionId, context) {
       context?.check();
       console.warn(`[NutEgg] Extractor "${ex.name}" failed:`, e);
       // Site-specific failure must not silently capture a login wall or feed.
-      if (["bilibili", "douyin", "weibo", "zhihu"].includes(ex.name)) throw e;
+      if (['bilibili', 'douyin', 'weibo', 'zhihu'].includes(ex.name)) throw e;
     }
   }
   // Ultimate fallback
-  console.warn("[NutEgg] All extractors failed, using generic");
+  console.warn('[NutEgg] All extractors failed, using generic');
   return await extractGeneric();
 }
 
 async function runCaptureRequest(message) {
-  const state = window.__nuteggCaptureState ||= { active: null, latest: null };
+  const state = (window.__nuteggCaptureState ||= { active: null, latest: null });
   const requestId = message.requestId || `capture:${Date.now()}:${Math.random()}`;
   if (state.active?.id === requestId) return state.active.promise;
   state.latest = requestId;
@@ -99,13 +105,15 @@ async function runCaptureRequest(message) {
   const context = createCaptureContext({ ...message, requestId });
   const job = { id: requestId, context };
   state.active = job;
-  job.promise = context.wait(Promise.resolve().then(() => extractContent(message.discussionSessionId, context)))
+  job.promise = context
+    .wait(Promise.resolve().then(() => extractContent(message.discussionSessionId, context)))
     .catch(error => {
       if (error.code === 'timeout' && context.partial && context.isCurrent()) {
         return { ...context.partial, extractionStatus: 'transient' };
       }
       throw error;
-    }).finally(() => {
+    })
+    .finally(() => {
       context.dispose();
       if (state.active === job) state.active = null;
     });
@@ -126,18 +134,28 @@ if (!window.__nutegg_listener_attached) {
     if (message.action?.startsWith('discussion-') && window.NutEggDiscussion) {
       try {
         const collector = window.NutEggDiscussion;
-        const discussion = message.action === 'discussion-start' ? collector.start(message.sessionId, message.load)
-          : message.action === 'discussion-stop' ? (collector.stop(message.sessionId), null)
-          : message.action === 'discussion-step' ? collector.step(message.sessionId) : collector.snapshot();
+        const discussion =
+          message.action === 'discussion-start'
+            ? collector.start(message.sessionId, message.load)
+            : message.action === 'discussion-stop'
+              ? (collector.stop(message.sessionId), null)
+              : message.action === 'discussion-step'
+                ? collector.step(message.sessionId)
+                : collector.snapshot();
         sendResponse({ success: true, discussion, url: location.href });
-      } catch (error) { sendResponse({ success: false, error: String(error) }); }
+      } catch (error) {
+        sendResponse({ success: false, error: String(error) });
+      }
       return false;
     }
-    if (message.action === "page-identity") {
+    if (message.action === 'page-identity') {
       const pageUrl = new URL(location.href);
       const isYouTube = /(^|\.)youtube\.com$/.test(pageUrl.hostname) && pageUrl.pathname === '/watch';
       const isBilibili = /(^|\.)bilibili\.com$/.test(pageUrl.hostname);
-      let videoId, cid, captionTracksReady = false, playerReady = true;
+      let videoId,
+        cid,
+        captionTracksReady = false,
+        playerReady = true;
       if (isYouTube) {
         videoId = pageUrl.searchParams.get('v');
         const player = typeof readYtInitialPlayerResponse === 'function' ? readYtInitialPlayerResponse() : null;
@@ -145,24 +163,42 @@ if (!window.__nutegg_listener_attached) {
         playerReady = !!player || !!document.querySelector('#movie_player video');
       } else if (isBilibili && typeof bilibiliVideoId === 'function') {
         videoId = bilibiliVideoId();
-        const requests = performance.getEntriesByType('resource').map(entry => { try { return new URL(entry.name); } catch { return null; } });
-        const player = requests.reverse().find(url => url?.hostname === 'api.bilibili.com' && /^\/x\/player\/(?:wbi\/)?v2$/.test(url.pathname)
-          && (url.searchParams.get('bvid') === videoId || `av${url.searchParams.get('aid')}` === videoId));
-        cid = pageUrl.searchParams.get('cid') || (!pageUrl.searchParams.has('p') ? player?.searchParams.get('cid') : undefined);
+        const requests = performance.getEntriesByType('resource').map(entry => {
+          try {
+            return new URL(entry.name);
+          } catch {
+            return null;
+          }
+        });
+        const player = requests
+          .reverse()
+          .find(
+            url =>
+              url?.hostname === 'api.bilibili.com' &&
+              /^\/x\/player\/(?:wbi\/)?v2$/.test(url.pathname) &&
+              (url.searchParams.get('bvid') === videoId || `av${url.searchParams.get('aid')}` === videoId)
+          );
+        cid =
+          pageUrl.searchParams.get('cid') ||
+          (!pageUrl.searchParams.has('p') ? player?.searchParams.get('cid') : undefined);
         playerReady = !!player || !!document.querySelector('video');
       }
       // Cheap page-state check (no transcript fetching) — the popup uses it to
       // wait for the page to settle and to detect SPA navigation races.
-      const isTwitter = window.location.href.includes("twitter.com") || window.location.href.includes("x.com");
-      const twitterReady = !isTwitter || !!document.querySelector(
-        'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
-      );
+      const isTwitter = window.location.href.includes('twitter.com') || window.location.href.includes('x.com');
+      const twitterReady =
+        !isTwitter ||
+        !!document.querySelector(
+          'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
+        );
       const identity = {
         success: true,
         url: window.location.href,
         title: document.title,
         readyState: document.readyState,
-        videoId, cid, captionTracksReady,
+        videoId,
+        cid,
+        captionTracksReady,
         bilibiliReady: !isBilibili || playerReady,
         twitterReady,
         // YouTube: the watch page shell has rendered (not the loading skeleton)
@@ -172,25 +208,31 @@ if (!window.__nutegg_listener_attached) {
         // SPA player data can become ready without replacing initial script tags.
         // Read-only lookup: it must never start a second capture or move the UI.
         const context = createCaptureContext({ deadline: Date.now() + 500 });
-        const publish = snapshot => sendResponse({ ...identity, url: window.location.href,
-          videoId: new URL(window.location.href).searchParams.get('v'),
-          captionTracksReady: context.isCurrent() && !!snapshot?.tracks?.length,
-          youtubeReady: context.isCurrent() && (playerReady || !!snapshot?.playerResponse),
-        });
-        queryYouTubePlayerSnapshot(context).then(publish, () => publish(null)).finally(() => context.dispose()).catch(() => {});
+        const publish = snapshot =>
+          sendResponse({
+            ...identity,
+            url: window.location.href,
+            videoId: new URL(window.location.href).searchParams.get('v'),
+            captionTracksReady: context.isCurrent() && !!snapshot?.tracks?.length,
+            youtubeReady: context.isCurrent() && (playerReady || !!snapshot?.playerResponse),
+          });
+        queryYouTubePlayerSnapshot(context)
+          .then(publish, () => publish(null))
+          .finally(() => context.dispose())
+          .catch(() => {});
         return true;
       }
       sendResponse(identity);
       return false;
     }
 
-    if (message.action === "nutegg-seek") {
+    if (message.action === 'nutegg-seek') {
       // Seek the page's video to the given timestamp (seconds) — used by the
       // clickable Mind Map and Q&A timestamp pills in the popup.
       const video =
-        document.querySelector(".html5-main-video") ||
-        document.querySelector("video.video-stream") ||
-        document.querySelector("video");
+        document.querySelector('.html5-main-video') ||
+        document.querySelector('video.video-stream') ||
+        document.querySelector('video');
       if (video) {
         const secs = Number(message.seconds);
         if (!isNaN(secs)) {
@@ -199,24 +241,24 @@ if (!window.__nutegg_listener_attached) {
         }
         sendResponse({ success: true });
       } else {
-        sendResponse({ success: false, error: "No video element found" });
+        sendResponse({ success: false, error: 'No video element found' });
       }
       return false;
     }
 
-    if (message.action === "nutegg-page-position") {
+    if (message.action === 'nutegg-page-position') {
       const video =
-        document.querySelector("#movie_player video") ||
-        document.querySelector("ytd-watch-flexy video") ||
-        document.querySelector(".html5-main-video") ||
-        document.querySelector("video.video-stream") ||
-        document.querySelector(".bpx-player-video-wrap video") ||
-        document.querySelector("#bilibili-player video") ||
-        document.querySelector("video");
-      if (video && typeof video.currentTime === "number" && !isNaN(video.currentTime)) {
+        document.querySelector('#movie_player video') ||
+        document.querySelector('ytd-watch-flexy video') ||
+        document.querySelector('.html5-main-video') ||
+        document.querySelector('video.video-stream') ||
+        document.querySelector('.bpx-player-video-wrap video') ||
+        document.querySelector('#bilibili-player video') ||
+        document.querySelector('video');
+      if (video && typeof video.currentTime === 'number' && !isNaN(video.currentTime)) {
         sendResponse({
           success: true,
-          type: "video",
+          type: 'video',
           currentTime: video.currentTime,
           duration: isNaN(video.duration) ? 0 : video.duration,
           paused: Boolean(video.paused),
@@ -225,10 +267,7 @@ if (!window.__nutegg_listener_attached) {
       }
 
       const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-      const scrollHeight = Math.max(
-        document.documentElement.scrollHeight,
-        document.body?.scrollHeight || 0
-      );
+      const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
       const clientHeight = window.innerHeight || document.documentElement.clientHeight || 1;
       const maxScroll = Math.max(1, scrollHeight - clientHeight);
       const scrollRatio = Math.min(1, Math.max(0, scrollY / maxScroll));
@@ -257,7 +296,7 @@ if (!window.__nutegg_listener_attached) {
 
       sendResponse({
         success: true,
-        type: "text",
+        type: 'text',
         scrollY,
         scrollHeight,
         clientHeight,
@@ -267,20 +306,22 @@ if (!window.__nutegg_listener_attached) {
       return false;
     }
 
-    if (message.action === "nutegg-scroll-to") {
-      Promise.resolve().then(() => window.NutEggSources.jump(message))
-        .then(sendResponse).catch(() => sendResponse({ success: false, reason: 'not_found' }));
+    if (message.action === 'nutegg-scroll-to') {
+      Promise.resolve()
+        .then(() => window.NutEggSources.jump(message))
+        .then(sendResponse)
+        .catch(() => sendResponse({ success: false, reason: 'not_found' }));
       return true;
     }
 
-    if (message.action === "extract-content") {
+    if (message.action === 'extract-content') {
       runCaptureRequest(message)
-        .then((content) => sendResponse({ success: true, content }))
-        .catch((err) =>
+        .then(content => sendResponse({ success: true, content }))
+        .catch(err =>
           sendResponse({
             success: false,
             errorCode: err.code,
-            error: err instanceof Error ? err.message : "Extraction failed",
+            error: err instanceof Error ? err.message : 'Extraction failed',
           })
         );
       return true; // Keep channel open for async
@@ -288,4 +329,4 @@ if (!window.__nutegg_listener_attached) {
   });
 }
 
-console.log("[NutEgg] Content script loaded on:", window.location.href);
+console.log('[NutEgg] Content script loaded on:', window.location.href);

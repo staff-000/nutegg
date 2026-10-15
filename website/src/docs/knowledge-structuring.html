@@ -1,75 +1,90 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Knowledge Structuring & Eggs — NutEgg</title>
-  <link rel="icon" type="image/png" href="../icons/icon32.png">
-  <link rel="stylesheet" href="docs.css">
-</head>
-<body>
-
-  <header class="docs-header">
-    <div class="docs-header-content">
-      <a href="../index.html" class="brand-link">
-        <img src="../icons/icon48.png" alt="NutEgg icon">
-        <span data-i18n="docsHeaderTitle">NutEgg Docs</span>
-      </a>
-      <div class="header-nav">
-        <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
-        <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
-        <select id="lang-select" class="nav-lang-select" aria-label="Language">
-          <option value="en">English</option>
-          <option value="zh">简体中文</option>
-          <option value="es">Español</option>
-          <option value="ja">日本語</option>
-          <option value="ko">한국어</option>
-          <option value="ar">العربية</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="pt">Português</option>
-          <option value="ru">Русский</option>
-        </select>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Knowledge Structuring & Eggs — NutEgg</title>
+    <link rel="icon" type="image/png" href="../icons/icon32.png" />
+    <link rel="stylesheet" href="docs.css" />
+  </head>
+  <body>
+    <header class="docs-header">
+      <div class="docs-header-content">
+        <a href="../index.html" class="brand-link">
+          <img src="../icons/icon48.png" alt="NutEgg icon" />
+          <span data-i18n="docsHeaderTitle">NutEgg Docs</span>
+        </a>
+        <div class="header-nav">
+          <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
+          <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
+          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+            <option value="en">English</option>
+            <option value="zh">简体中文</option>
+            <option value="es">Español</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="ar">العربية</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="pt">Português</option>
+            <option value="ru">Русский</option>
+          </select>
+        </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <div class="docs-container">
-    <aside class="docs-sidebar">
-      <div class="sidebar-group">
-        <div class="sidebar-title" data-i18n="sidebarGettingStarted">Getting Started</div>
-        <ul class="sidebar-links">
-          <li><a href="index.html" data-i18n="sidebarOverview">Overview & Core Concepts</a></li>
-          <li><a href="chrome-extension.html" data-i18n="sidebarChrome">Chrome Extension</a></li>
-          <li><a href="obsidian-plugin.html" data-i18n="sidebarObsidian">Obsidian Plugin</a></li>
-          <li><a href="knowledge-structuring.html" class="active" data-i18n="sidebarKnowledge">Knowledge Structuring</a></li>
-          <li><a href="workflow.html" data-i18n="sidebarWorkflow">AI Workflow Engine</a></li>
-        </ul>
-      </div>
+    <div class="docs-container">
+      <aside class="docs-sidebar">
+        <div class="sidebar-group">
+          <div class="sidebar-title" data-i18n="sidebarGettingStarted">Getting Started</div>
+          <ul class="sidebar-links">
+            <li><a href="index.html" data-i18n="sidebarOverview">Overview & Core Concepts</a></li>
+            <li><a href="chrome-extension.html" data-i18n="sidebarChrome">Chrome Extension</a></li>
+            <li><a href="obsidian-plugin.html" data-i18n="sidebarObsidian">Obsidian Plugin</a></li>
+            <li>
+              <a href="knowledge-structuring.html" class="active" data-i18n="sidebarKnowledge">Knowledge Structuring</a>
+            </li>
+            <li><a href="workflow.html" data-i18n="sidebarWorkflow">AI Workflow Engine</a></li>
+          </ul>
+        </div>
 
-      <div class="sidebar-group">
-        <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
-        <ul class="sidebar-links">
-          <li><a href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol" target="_blank" rel="noopener">Chrome Web Store ↗</a></li>
-          <li><a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener">Obsidian Plugin ↗</a></li>
-          <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
-          <li><a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy Policy</a></li>
-        </ul>
-      </div>
-    </aside>
+        <div class="sidebar-group">
+          <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
+          <ul class="sidebar-links">
+            <li>
+              <a
+                href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
+                target="_blank"
+                rel="noopener"
+                >Chrome Web Store ↗</a
+              >
+            </li>
+            <li>
+              <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
+                >Obsidian Plugin ↗</a
+              >
+            </li>
+            <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
+            <li>
+              <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener"
+                >Privacy Policy</a
+              >
+            </li>
+          </ul>
+        </div>
+      </aside>
 
-    <main class="docs-content">
-      <h1>Knowledge Structuring & Eggs</h1>
-      <p class="lead">
-        Learn how NutEgg organizes your Obsidian vault, matches web content to topics using <code>_index.md</code>, and merges accumulated entries into knowledge trees.
-      </p>
+      <main class="docs-content">
+        <h1>Knowledge Structuring & Eggs</h1>
+        <p class="lead">
+          Learn how NutEgg organizes your Obsidian vault, matches web content to topics using <code>_index.md</code>,
+          and merges accumulated entries into knowledge trees.
+        </p>
 
-      <h2>The <code>nutegg/</code> Vault Layout</h2>
-      <p>
-        All NutEgg content is confined to a clean, isolated <code>nutegg/</code> folder in your Obsidian vault:
-      </p>
+        <h2>The <code>nutegg/</code> Vault Layout</h2>
+        <p>All NutEgg content is confined to a clean, isolated <code>nutegg/</code> folder in your Obsidian vault:</p>
 
-      <pre><code>vault/
+        <pre><code>vault/
 └── nutegg/
     ├── _raw/                          # Captured nuts (raw web content + metadata)
     │   └── 2026-09-06-14-30-youtube-author-title.md
@@ -78,33 +93,39 @@
     ├── invest_strategy.md             # Knowledge egg
     └── productivity.md                # Knowledge egg</code></pre>
 
-      <h2>The Routing Guide: <code>_index.md</code></h2>
-      <p>
-        The <code>_index.md</code> file tells NutEgg which egg notes you maintain and what domains they cover. Each line maps a relative file path to keywords and descriptions:
-      </p>
+        <h2>The Routing Guide: <code>_index.md</code></h2>
+        <p>
+          The <code>_index.md</code> file tells NutEgg which egg notes you maintain and what domains they cover. Each
+          line maps a relative file path to keywords and descriptions:
+        </p>
 
-      <pre><code>nutegg/ai_architecture.md: LLMs, multi-agent systems, prompt engineering, RAG, embeddings
+        <pre><code>nutegg/ai_architecture.md: LLMs, multi-agent systems, prompt engineering, RAG, embeddings
 nutegg/invest_strategy.md: value investing, index funds, asset allocation, macroeconomic indicators
 nutegg/productivity.md: deep work, time blocking, habits, personal knowledge management</code></pre>
 
-      <div class="callout">
-        <div class="callout-title">⚡ How Routing Works</div>
+        <div class="callout">
+          <div class="callout-title">⚡ How Routing Works</div>
+          <p>
+            When you click <strong>Analyze</strong> in the browser, NutEgg's AI reads your <code>_index.md</code> and
+            determines which egg (if any) matches the content. If no existing egg matches, NutEgg offers to
+            automatically create a new egg seeded from the page's topic!
+          </p>
+        </div>
+
+        <h2>Egg File Anatomy & How Instructions Work</h2>
         <p>
-          When you click <strong>Analyze</strong> in the browser, NutEgg's AI reads your <code>_index.md</code> and determines which egg (if any) matches the content. If no existing egg matches, NutEgg offers to automatically create a new egg seeded from the page's topic!
+          An <strong>Egg file</strong> (stored under <code>nutegg/*.md</code>) serves two crucial roles: it is both your
+          curated, evolving knowledge repository for a domain and an active prompt specification that steers NutEgg's AI
+          pipeline whenever content touches that topic.
         </p>
-      </div>
 
-      <h2>Egg File Anatomy & How Instructions Work</h2>
-      <p>
-        An <strong>Egg file</strong> (stored under <code>nutegg/*.md</code>) serves two crucial roles: it is both your curated, evolving knowledge repository for a domain and an active prompt specification that steers NutEgg's AI pipeline whenever content touches that topic.
-      </p>
+        <h3>1. Structural Blueprint</h3>
+        <p>
+          Every egg file combines YAML metadata, an Obsidian callout block with instructions, a curated knowledge tree,
+          and an unprocessed staging buffer:
+        </p>
 
-      <h3>1. Structural Blueprint</h3>
-      <p>
-        Every egg file combines YAML metadata, an Obsidian callout block with instructions, a curated knowledge tree, and an unprocessed staging buffer:
-      </p>
-
-      <pre><code>---
+        <pre><code>---
 topic: "AI Architecture & Multi-Agent Systems"
 status: "active"
 last_updated: "2026-09-10"
@@ -134,69 +155,95 @@ last_updated: "2026-09-10"
 # Unprocessed
 (Newly hatched insights land here from captures until auto-merged)</code></pre>
 
-      <h3>2. How to Write Egg Instructions</h3>
-      <p>
-        The <code>&gt; [!abstract]- Instructions:</code> callout contains six specialized fields. Each one guides a specific stage of the AI pipeline:
-      </p>
+        <h3>2. How to Write Egg Instructions</h3>
+        <p>
+          The <code>&gt; [!abstract]- Instructions:</code> callout contains six specialized fields. Each one guides a
+          specific stage of the AI pipeline:
+        </p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Purpose & Best Practices</th>
-            <th>Workflow Usage</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>**Scope:**</code></td>
-            <td>1–2 sentences defining the topical boundaries of this egg. Explicitly state what concepts, technologies, or questions are included or excluded.</td>
-            <td>Injected into <code>egg-analysis.md</code> (Stage 2) so the AI extracts knowledge strictly through this domain lens.</td>
-          </tr>
-          <tr>
-            <td><code>**Action Guide:**</code></td>
-            <td>1–5 step instructions for how the AI summarizes and evaluates content (e.g. asking for specific perspectives, depth, or tradeoffs). Falls back to default guide if omitted.</td>
-            <td>Injected into <code>egg-analysis.md</code> (Stage 2).</td>
-          </tr>
-          <tr>
-            <td><code>**Key Questions:**</code></td>
-            <td>Numbered list of recurring questions you want answered whenever content touches this domain (e.g. <em>"What is the token cost?"</em>, <em>"What are the failure modes?"</em>).</td>
-            <td>Injected into <code>egg-analysis.md</code> (Stage 2). Answered in the Chrome extension popup and saved in your raw capture notes.</td>
-          </tr>
-          <tr>
-            <td><code>**Worth Reading If:** / **Skip If:**</code></td>
-            <td>Two preference lists describing when the original deserves your time and when the summary is sufficient.</td>
-            <td>Guide the Stage 2 reading action: full, highlights, summary, skip, or uncertain. They never reject entries during merge.</td>
-          </tr>
-          <tr>
-            <td><code>**Formatting Rules:**</code></td>
-            <td>Formatting standards: bracketed tags (<code>[concept]</code>, <code>[architecture]</code>, <code>[method]</code>, etc.) and hierarchical bullet indentation.</td>
-            <td>Injected into <code>egg-analysis.md</code> (Stage 2). Guarantees candidate entries match your notes' formatting conventions.</td>
-          </tr>
-        </tbody>
-      </table>
+        <table>
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Purpose & Best Practices</th>
+              <th>Workflow Usage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>**Scope:**</code></td>
+              <td>
+                1–2 sentences defining the topical boundaries of this egg. Explicitly state what concepts, technologies,
+                or questions are included or excluded.
+              </td>
+              <td>
+                Injected into <code>egg-analysis.md</code> (Stage 2) so the AI extracts knowledge strictly through this
+                domain lens.
+              </td>
+            </tr>
+            <tr>
+              <td><code>**Action Guide:**</code></td>
+              <td>
+                1–5 step instructions for how the AI summarizes and evaluates content (e.g. asking for specific
+                perspectives, depth, or tradeoffs). Falls back to default guide if omitted.
+              </td>
+              <td>Injected into <code>egg-analysis.md</code> (Stage 2).</td>
+            </tr>
+            <tr>
+              <td><code>**Key Questions:**</code></td>
+              <td>
+                Numbered list of recurring questions you want answered whenever content touches this domain (e.g.
+                <em>"What is the token cost?"</em>, <em>"What are the failure modes?"</em>).
+              </td>
+              <td>
+                Injected into <code>egg-analysis.md</code> (Stage 2). Answered in the Chrome extension popup and saved
+                in your raw capture notes.
+              </td>
+            </tr>
+            <tr>
+              <td><code>**Worth Reading If:** / **Skip If:**</code></td>
+              <td>
+                Two preference lists describing when the original deserves your time and when the summary is sufficient.
+              </td>
+              <td>
+                Guide the Stage 2 reading action: full, highlights, summary, skip, or uncertain. They never reject
+                entries during merge.
+              </td>
+            </tr>
+            <tr>
+              <td><code>**Formatting Rules:**</code></td>
+              <td>
+                Formatting standards: bracketed tags (<code>[concept]</code>, <code>[architecture]</code>,
+                <code>[method]</code>, etc.) and hierarchical bullet indentation.
+              </td>
+              <td>
+                Injected into <code>egg-analysis.md</code> (Stage 2). Guarantees candidate entries match your notes'
+                formatting conventions.
+              </td>
+            </tr>
+          </tbody>
+        </table>
 
-      <h3>3. Curated Knowledge Tree vs. Unprocessed Queue</h3>
-      <p>
-        NutEgg protects your knowledge base from AI pollution by separating curated knowledge from new captures:
-      </p>
-      <ul>
-        <li>
-          <strong><code># Knowledge</code> (Curated Tree):</strong>
-          Structured with markdown headings and nested bullet points. Only merge reads this tree, consolidating equivalent claims while preserving distinct examples, caveats, disagreements, and sources. Stage 2 follows instructions without comparing against the tree.
-        </li>
-        <li>
-          <strong><code># Unprocessed</code> (Staging Queue):</strong>
-          When you click <strong>🥚 Hatch Egg</strong> in the browser, approved entries and supported answers are safely appended to <code># Unprocessed</code> rather than directly touching your curated hierarchy.
-        </li>
-      </ul>
+        <h3>3. Curated Knowledge Tree vs. Unprocessed Queue</h3>
+        <p>NutEgg protects your knowledge base from AI pollution by separating curated knowledge from new captures:</p>
+        <ul>
+          <li>
+            <strong><code># Knowledge</code> (Curated Tree):</strong>
+            Structured with markdown headings and nested bullet points. Only merge reads this tree, consolidating
+            equivalent claims while preserving distinct examples, caveats, disagreements, and sources. Stage 2 follows
+            instructions without comparing against the tree.
+          </li>
+          <li>
+            <strong><code># Unprocessed</code> (Staging Queue):</strong>
+            When you click <strong>🥚 Hatch Egg</strong> in the browser, approved entries and supported answers are
+            safely appended to <code># Unprocessed</code> rather than directly touching your curated hierarchy.
+          </li>
+        </ul>
 
-      <h3>4. How Each Part is Used in the Workflow</h3>
-      <p>
-        Here is how web content flows through your egg instructions from initial capture to final synthesis:
-      </p>
+        <h3>4. How Each Part is Used in the Workflow</h3>
+        <p>Here is how web content flows through your egg instructions from initial capture to final synthesis:</p>
 
-      <pre><code>[Captured Web Content]
+        <pre><code>[Captured Web Content]
           │
 Stage 1   ▼   _index.md (Topic routing guide)
 ─────────────────────────────────────────────────────────────
@@ -221,14 +268,16 @@ Merge Cycle (20+ entries or manual button)
 ─────────────────────────────────────────────────────────────
 • merge-unprocessed.md nests and integrates entries into # Knowledge</code></pre>
 
-      <h2>Auto-Merging Knowledge</h2>
-      <p>
-        When 20 or more entries accumulate in <code># Unprocessed</code> (or when you click <strong>Merge</strong> in the Obsidian reading view widget), NutEgg's AI runs an automated background synthesis using <code>merge-unprocessed.md</code>. It categorizes, deduplicates, and nests pending entries under the appropriate parent concepts in <code># Knowledge</code>, keeping your knowledge graph perpetually organized.
-      </p>
-    </main>
-  </div>
+        <h2>Auto-Merging Knowledge</h2>
+        <p>
+          When 20 or more entries accumulate in <code># Unprocessed</code> (or when you click <strong>Merge</strong> in
+          the Obsidian reading view widget), NutEgg's AI runs an automated background synthesis using
+          <code>merge-unprocessed.md</code>. It categorizes, deduplicates, and nests pending entries under the
+          appropriate parent concepts in <code># Knowledge</code>, keeping your knowledge graph perpetually organized.
+        </p>
+      </main>
+    </div>
 
-  <script src="../i18n.js"></script>
-</body>
+    <script src="../i18n.js"></script>
+  </body>
 </html>
-

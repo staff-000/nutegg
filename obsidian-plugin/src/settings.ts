@@ -1,24 +1,18 @@
-import { App, Notice, PluginSettingTab, Setting, type ButtonComponent } from "obsidian";
-import type NutEggPlugin from "./main";
-import {
-  AIClient,
-  type AIProviderId,
-  type AISource,
-  PROVIDER_CATALOG,
-  isAIConfigured,
-} from "./ai-client";
-import { AIProcessor } from "./ai-processor";
-import { t } from "./i18n";
-import type { SubscriptionProvider } from "../../shared/src/types";
-import type { SubscriptionStatus } from "../../shared/src/types";
+import { App, Notice, PluginSettingTab, Setting, type ButtonComponent } from 'obsidian';
+import type NutEggPlugin from './main';
+import { AIClient, type AIProviderId, type AISource, PROVIDER_CATALOG, isAIConfigured } from './ai-client';
+import { AIProcessor } from './ai-processor';
+import { t } from './i18n';
+import type { SubscriptionProvider } from '../../shared/src/types';
+import type { SubscriptionStatus } from '../../shared/src/types';
 
-export type LocalApiType = "openai" | "ollama";
+export type LocalApiType = 'openai' | 'ollama';
 
 export interface NutEggSettings {
   /** Show advanced server configuration */
   developerMode: boolean;
   executionState?: import('../../shared/src/execution').SharedExecutionState;
-  chromeClientBindings?: Record<string, {clientId: string; origin: string}>;
+  chromeClientBindings?: Record<string, { clientId: string; origin: string }>;
   nativeApiConfig?: Partial<NutEggSettings>;
   nativeApiKeyRef?: string;
   nativeConfigurationRevision?: number;
@@ -64,17 +58,17 @@ export interface NutEggSettings {
 export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
   subscriptionEnabled: false,
-  aiAuthMethod: "apiKey",
+  aiAuthMethod: 'apiKey',
   subscriptionModels: {},
-  aiProvider: "anthropic",
-  aiApiKey: "",
+  aiProvider: 'anthropic',
+  aiApiKey: '',
   aiModel: PROVIDER_CATALOG.anthropic.defaultModel!,
-  localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
-  localApiType: "openai",
+  localEndpoint: 'http://127.0.0.1:11434/v1/chat/completions',
+  localApiType: 'openai',
   serverPort: 27123,
-  rawFolder: "nutegg/_raw",
-  indexFile: "nutegg/_index.md",
-  workflowFolder: "nutegg/_workflow",
+  rawFolder: 'nutegg/_raw',
+  indexFile: 'nutegg/_index.md',
+  workflowFolder: 'nutegg/_workflow',
   workflowHashes: {},
   chunkWindowChars: 30000,
   contentAnalysisMaxTokens: 16384,
@@ -112,18 +106,19 @@ export class NutEggSettingTab extends PluginSettingTab {
     const settings = this.plugin.settings;
 
     clearInterval(this.profileTimer);
-    clearTimeout(this.setupTimer); ++this.setupRequest;
+    clearTimeout(this.setupTimer);
+    ++this.setupRequest;
     this.subscriptionCard = undefined;
     clearTimeout(this.connectionTimer);
     this.accountState = undefined;
     containerEl.empty();
-    containerEl.classList.add("nutegg-settings");
+    containerEl.classList.add('nutegg-settings');
     this.aiConfigSummary = null;
     this.aiChunkWindow = null;
     this.aiMaxTokens = null;
     this.aiCreditButton = null;
     ++this.aiCreditRequest;
-    containerEl.createEl("h2", { text: t("settingsTitle") });
+    containerEl.createEl('h2', { text: t('settingsTitle') });
     this.displayConnectionStatus(containerEl);
     if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
       this.displaySubscriptionSetup(containerEl);
@@ -134,53 +129,53 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Vault Paths (always visible)
     // ==========================================
-    containerEl.createEl("h3", { text: t("vaultPathsHeader") });
+    containerEl.createEl('h3', { text: t('vaultPathsHeader') });
 
     new Setting(containerEl)
-      .setName(t("rawFolder"))
-      .setDesc(t("rawFolderDesc"))
-      .addText((text) =>
+      .setName(t('rawFolder'))
+      .setDesc(t('rawFolderDesc'))
+      .addText(text =>
         text
-          .setPlaceholder("nutegg/_raw")
+          .setPlaceholder('nutegg/_raw')
           .setValue(settings.rawFolder)
-          .onChange(async (value) => {
-            settings.rawFolder = value.trim() || "nutegg/_raw";
+          .onChange(async value => {
+            settings.rawFolder = value.trim() || 'nutegg/_raw';
             await this.plugin.saveSettings();
           })
       );
 
     new Setting(containerEl)
-      .setName(t("indexFile"))
-      .setDesc(t("indexFileDesc"))
-      .addText((text) =>
+      .setName(t('indexFile'))
+      .setDesc(t('indexFileDesc'))
+      .addText(text =>
         text
-          .setPlaceholder("nutegg/_index.md")
+          .setPlaceholder('nutegg/_index.md')
           .setValue(settings.indexFile)
-          .onChange(async (value) => {
-            settings.indexFile = value.trim() || "nutegg/_index.md";
+          .onChange(async value => {
+            settings.indexFile = value.trim() || 'nutegg/_index.md';
             await this.plugin.saveSettings();
           })
       );
 
     new Setting(containerEl)
-      .setName(t("workflowFolder"))
-      .setDesc(t("workflowFolderDesc"))
-      .addText((text) =>
+      .setName(t('workflowFolder'))
+      .setDesc(t('workflowFolderDesc'))
+      .addText(text =>
         text
-          .setPlaceholder("nutegg/_workflow")
+          .setPlaceholder('nutegg/_workflow')
           .setValue(settings.workflowFolder)
-          .onChange(async (value) => {
-            settings.workflowFolder = value.trim() || "nutegg/_workflow";
+          .onChange(async value => {
+            settings.workflowFolder = value.trim() || 'nutegg/_workflow';
             await this.plugin.saveSettings();
           })
       );
 
     new Setting(containerEl)
-      .setName(t("useDefaultWorkflows"))
-      .setDesc(t("useDefaultWorkflowsDesc"))
-      .addButton((btn) =>
+      .setName(t('useDefaultWorkflows'))
+      .setDesc(t('useDefaultWorkflowsDesc'))
+      .addButton(btn =>
         btn
-          .setButtonText(t("useDefaultsBtn"))
+          .setButtonText(t('useDefaultsBtn'))
           .setWarning()
           .onClick(async () => {
             await this.plugin.workflowManager.resetToDefaults();
@@ -191,15 +186,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     // Developer Mode toggle
     // ==========================================
     new Setting(containerEl)
-      .setName(t("devMode"))
-      .setDesc(
-        settings.developerMode
-          ? t("devModeOn")
-          : t("devModeOff")
-      )
-      .addToggle((toggle) => {
+      .setName(t('devMode'))
+      .setDesc(settings.developerMode ? t('devModeOn') : t('devModeOff'))
+      .addToggle(toggle => {
         toggle.setValue(settings.developerMode);
-        toggle.onChange(async (value) => {
+        toggle.onChange(async value => {
           settings.developerMode = value;
           await this.plugin.saveSettings();
           this.display(); // refresh to show/hide sections
@@ -214,14 +205,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     // Bug Report & Feedback (at the bottom)
     // ==========================================
     new Setting(containerEl)
-      .setName(t("reportBugName"))
-      .setDesc(t("reportBugDesc"))
-      .addButton((btn) =>
-        btn
-          .setButtonText(t("reportBugBtn"))
-          .onClick(() => {
-            this.plugin.openBugReport();
-          })
+      .setName(t('reportBugName'))
+      .setDesc(t('reportBugDesc'))
+      .addButton(btn =>
+        btn.setButtonText(t('reportBugBtn')).onClick(() => {
+          this.plugin.openBugReport();
+        })
       );
     this.groupSettingsSections(containerEl);
   }
@@ -233,8 +222,11 @@ export class NutEggSettingTab extends PluginSettingTab {
       const section = container.createDiv({ cls: 'nutegg-settings-section' });
       container.insertBefore(section, heading);
       let element: Element | null = heading;
-      while (element && element.tagName !== 'H2' &&
-          (element === heading || (element.tagName !== 'H3' && !element.classList.contains('nutegg-settings-section')))) {
+      while (
+        element &&
+        element.tagName !== 'H2' &&
+        (element === heading || (element.tagName !== 'H3' && !element.classList.contains('nutegg-settings-section')))
+      ) {
         const next: Element | null = element.nextElementSibling;
         section.appendChild(element);
         element = next;
@@ -243,15 +235,22 @@ export class NutEggSettingTab extends PluginSettingTab {
   }
 
   private displayConnectionStatus(container: HTMLElement): void {
-    const panel = container.createDiv({ cls: 'nutegg-connection-panel', attr: { role: 'status', 'aria-live': 'polite' } });
+    const panel = container.createDiv({
+      cls: 'nutegg-connection-panel',
+      attr: { role: 'status', 'aria-live': 'polite' },
+    });
     this.connectionPanel = panel;
     const row = (label: string) => {
       const element = panel.createDiv({ cls: 'nutegg-connection-row' });
       element.createEl('span', { text: label, cls: 'nutegg-connection-label' });
       return element.createEl('span', { cls: 'nutegg-connection-value' });
     };
-    this.connectionRows = { local: row(t('connectionLocalLabel')), chrome: row(t('connectionChromeLabel')),
-      bridge: row(t('executionDetails')), warning: panel.createEl('p', { cls: 'nutegg-connection-warning' }) };
+    this.connectionRows = {
+      local: row(t('connectionLocalLabel')),
+      chrome: row(t('connectionChromeLabel')),
+      bridge: row(t('executionDetails')),
+      warning: panel.createEl('p', { cls: 'nutegg-connection-warning' }),
+    };
     this.connectionRows.chrome.title = t('connectionActivityHint');
     const refresh = () => {
       if (panel !== this.connectionPanel || !panel.isConnected) return;
@@ -269,10 +268,17 @@ export class NutEggSettingTab extends PluginSettingTab {
       if (element.textContent !== text) element.setText(text);
       element.dataset.state = state;
     };
-    paint(rows.local, t(connection?.listening ? 'connectionListening' : 'connectionStopped'), connection?.listening ? 'ready' : 'error');
+    paint(
+      rows.local,
+      t(connection?.listening ? 'connectionListening' : 'connectionStopped'),
+      connection?.listening ? 'ready' : 'error'
+    );
     const clients = connection?.recentClients || 0;
     const approvals = connection?.pendingApprovals || 0;
-    paint(rows.chrome, clients ? t('connectionRecentClients', { count: String(clients) }) : t(approvals ? 'connectionApprovalPending' : 'connectionWaiting'), clients ? 'ready' : 'waiting');
+    const clientText = clients
+      ? t('connectionRecentClients', { count: String(clients) })
+      : t(approvals ? 'connectionApprovalPending' : 'connectionWaiting');
+    paint(rows.chrome, clientText, clients ? 'ready' : 'waiting');
     const selected = this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
     const runtime = selected ? this.plugin.subscriptions?.getRuntimeStatus() : undefined;
     if (!selected) {
@@ -295,31 +301,62 @@ export class NutEggSettingTab extends PluginSettingTab {
       paint(rows.bridge, t('connectionIdle'), 'ready');
     }
     rows.warning.hidden = true;
-    if (connection?.conflictingMethods && rows.warning.textContent !== t('connectionConflict')) rows.warning.setText(t('connectionConflict'));
+    if (connection?.conflictingMethods && rows.warning.textContent !== t('connectionConflict')) {
+      rows.warning.setText(t('connectionConflict'));
+    }
   }
 
   private displaySyncedAiSettings(containerEl: HTMLElement, settings: NutEggSettings): void {
-    containerEl = containerEl.createDiv({ cls: "nutegg-settings-section nutegg-native-ai-section" });
-    const native=this.plugin.getNativeSettings();
-    const draft={...settings.nativeApiConfig}; let key:string|undefined;
-    containerEl.createEl('h3',{text:t('nativeApiTitle')});
-    containerEl.createEl('p',{text:t('nativeApiDescription'),cls:'setting-item-description'});
+    containerEl = containerEl.createDiv({ cls: 'nutegg-settings-section nutegg-native-ai-section' });
+    const native = this.plugin.getNativeSettings();
+    const draft = { ...settings.nativeApiConfig };
+    let key: string | undefined;
+    containerEl.createEl('h3', { text: t('nativeApiTitle') });
+    containerEl.createEl('p', { text: t('nativeApiDescription'), cls: 'setting-item-description' });
     const fields = containerEl.createDiv({ cls: 'nutegg-native-ai-fields' });
     let actions: HTMLElement | undefined;
-    if(!(this.app as any).secretStorage) {
-      containerEl.createEl('p',{text:t('nativeApiUpgradeRequired'),cls:'setting-item-description'});
+    if (!(this.app as any).secretStorage) {
+      containerEl.createEl('p', { text: t('nativeApiUpgradeRequired'), cls: 'setting-item-description' });
     } else {
-      new Setting(fields).setName(t('aiProvider')).addDropdown(dropdown=>{
-        for(const [id,provider] of Object.entries(PROVIDER_CATALOG))if(!id.endsWith('-cli'))dropdown.addOption(id,provider.label);
-        dropdown.setValue(native.aiProvider).onChange(value=>{draft.aiProvider=value as AIProviderId;updateFields();});
+      new Setting(fields).setName(t('aiProvider')).addDropdown(dropdown => {
+        for (const [id, provider] of Object.entries(PROVIDER_CATALOG)) {
+          if (!id.endsWith('-cli')) dropdown.addOption(id, provider.label);
+        }
+        dropdown.setValue(native.aiProvider).onChange(value => {
+          draft.aiProvider = value as AIProviderId;
+          updateFields();
+        });
       });
-      new Setting(fields).setName(t('aiModel')).addText(text=>text.setValue(native.aiModel||'').onChange(value=>{draft.aiModel=value.trim();}));
-      const keyRow = new Setting(fields).setName(t('aiApiKey')).addText(text=>{
-        text.inputEl.type='password';text.setValue(native.aiApiKey||'').onChange(value=>{key=value.trim();});
+      new Setting(fields).setName(t('aiModel')).addText(text => {
+        text.setValue(native.aiModel || '').onChange(value => {
+          draft.aiModel = value.trim();
+        });
       });
-      const familyRow = new Setting(fields).setName(t('aiModelFamily')).addText(text=>text.setValue(native.aiModelFamily||'').onChange(value=>{draft.aiModelFamily=value.trim();}));
-      const endpointRow = new Setting(fields).setName(t('localEndpoint')).addText(text=>text.setValue(native.localEndpoint||'').onChange(value=>{draft.localEndpoint=value.trim();}));
-      const formatRow = new Setting(fields).setName(t('localApiType')).addDropdown(dropdown=>dropdown.addOption('openai','OpenAI compatible').addOption('ollama','Ollama').setValue(native.localApiType||'openai').onChange(value=>{draft.localApiType=value as LocalApiType;}));
+      const keyRow = new Setting(fields).setName(t('aiApiKey')).addText(text => {
+        text.inputEl.type = 'password';
+        text.setValue(native.aiApiKey || '').onChange(value => {
+          key = value.trim();
+        });
+      });
+      const familyRow = new Setting(fields).setName(t('aiModelFamily')).addText(text => {
+        text.setValue(native.aiModelFamily || '').onChange(value => {
+          draft.aiModelFamily = value.trim();
+        });
+      });
+      const endpointRow = new Setting(fields).setName(t('localEndpoint')).addText(text => {
+        text.setValue(native.localEndpoint || '').onChange(value => {
+          draft.localEndpoint = value.trim();
+        });
+      });
+      const formatRow = new Setting(fields).setName(t('localApiType')).addDropdown(dropdown => {
+        dropdown
+          .addOption('openai', 'OpenAI compatible')
+          .addOption('ollama', 'Ollama')
+          .setValue(native.localApiType || 'openai')
+          .onChange(value => {
+            draft.localApiType = value as LocalApiType;
+          });
+      });
       keyRow.settingEl?.classList.add('nutegg-native-ai-wide');
       endpointRow.settingEl?.classList.add('nutegg-native-ai-wide');
       const updateFields = () => {
@@ -331,22 +368,46 @@ export class NutEggSettingTab extends PluginSettingTab {
       };
       updateFields();
       actions = containerEl.createDiv({ cls: 'nutegg-native-ai-actions' });
-      new Setting(actions).addButton(button=>button.setButtonText(t('nativeApiSave')).setCta().onClick(async()=>{
-        button.setDisabled(true);try{await this.plugin.saveNativeConfig(draft,key);new Notice(t('nativeApiSaved'));this.display();}catch(error){new Notice(String(error));}finally{button.setDisabled(false);}
-      }));
-      const previous=settings.legacyNativeApiCandidate;
-      if(previous)new Setting(containerEl).setDesc(t('nativeApiLegacy')).addButton(button=>button.setButtonText(t('nativeApiAdopt')).onClick(async()=>{
-        const secret=previous.keyRef.startsWith('legacy-file:')
-          ? JSON.parse(await this.app.vault.adapter.read(previous.keyRef.slice('legacy-file:'.length))).aiApiKey
-          : (this.app as any).secretStorage.getSecret(previous.keyRef);
-        await this.plugin.saveNativeConfig(previous.settings,secret||'');delete this.plugin.settings.legacyNativeApiCandidate;await this.plugin.saveSettings();this.display();
-      }));
+      new Setting(actions).addButton(button =>
+        button
+          .setButtonText(t('nativeApiSave'))
+          .setCta()
+          .onClick(async () => {
+            button.setDisabled(true);
+            try {
+              await this.plugin.saveNativeConfig(draft, key);
+              new Notice(t('nativeApiSaved'));
+              this.display();
+            } catch (error) {
+              new Notice(String(error));
+            } finally {
+              button.setDisabled(false);
+            }
+          })
+      );
+      const previous = settings.legacyNativeApiCandidate;
+      if (previous) {
+        new Setting(containerEl).setDesc(t('nativeApiLegacy')).addButton(button =>
+          button.setButtonText(t('nativeApiAdopt')).onClick(async () => {
+            const secret = previous.keyRef.startsWith('legacy-file:')
+              ? JSON.parse(await this.app.vault.adapter.read(previous.keyRef.slice('legacy-file:'.length))).aiApiKey
+              : (this.app as any).secretStorage.getSecret(previous.keyRef);
+            await this.plugin.saveNativeConfig(previous.settings, secret || '');
+            delete this.plugin.settings.legacyNativeApiCandidate;
+            await this.plugin.saveSettings();
+            this.display();
+          })
+        );
+      }
     }
     const footer = containerEl.createDiv({ cls: 'nutegg-native-ai-footer' });
     if (actions) footer.appendChild(actions);
     const account = footer.createDiv({ cls: 'nutegg-native-ai-account' });
-    this.aiConfigSummary=new Setting(account).addButton(button=>{
-      this.aiCreditButton=button;button.setButtonText(t('checking')).onClick(()=>{void this.refreshAICredit();});
+    this.aiConfigSummary = new Setting(account).addButton(button => {
+      this.aiCreditButton = button;
+      button.setButtonText(t('checking')).onClick(() => {
+        void this.refreshAICredit();
+      });
     });
     this.refreshAISettings();
   }
@@ -368,7 +429,10 @@ export class NutEggSettingTab extends PluginSettingTab {
         const model = card.createDiv({ cls: 'nutegg-profile-model' });
         model.createEl('span', { text: provider?.label || client.provider || '—' });
         model.createEl('code', { text: client.model || '—' });
-        card.createEl('p', { text: `${t('chunkWindowChars')}: ${client.chunkWindowChars ?? '—'} · ${t('maxTokens')}: ${client.contentAnalysisMaxTokens ?? '—'}`, cls: 'nutegg-profile-params' });
+        const windowParam = `${t('chunkWindowChars')}: ${client.chunkWindowChars ?? '—'}`;
+        const tokenParam = `${t('maxTokens')}: ${client.contentAnalysisMaxTokens ?? '—'}`;
+        const paramsText = `${windowParam} · ${tokenParam}`;
+        card.createEl('p', { text: paramsText, cls: 'nutegg-profile-params' });
       }
     };
     paint();
@@ -379,20 +443,33 @@ export class NutEggSettingTab extends PluginSettingTab {
   refreshAISettings(): void {
     const settings = this.plugin.getNativeSettings();
     const provider = PROVIDER_CATALOG[settings.aiProvider as AIProviderId];
-    this.aiConfigSummary?.setName(`${provider?.label || settings.aiProvider} · ${t(settings.aiAuthMethod === "subscription" ? settings.subscriptionEnabled ? "subscriptionLabel" : "aiConnectionUnavailable" : "subscriptionApiKey")} · ${settings.aiModel}`);
-    this.aiChunkWindow?.setName(`${t("chunkWindowChars")}: ${settings.chunkWindowChars}`);
-    this.aiMaxTokens?.setName(`${t("maxTokens")}: ${settings.contentAnalysisMaxTokens}`);
+    const authMethodLabel =
+      settings.aiAuthMethod === 'subscription'
+        ? settings.subscriptionEnabled
+          ? 'subscriptionLabel'
+          : 'aiConnectionUnavailable'
+        : 'subscriptionApiKey';
+    this.aiConfigSummary?.setName(
+      `${provider?.label || settings.aiProvider} · ${t(authMethodLabel)} · ${settings.aiModel}`
+    );
+    this.aiChunkWindow?.setName(`${t('chunkWindowChars')}: ${settings.chunkWindowChars}`);
+    this.aiMaxTokens?.setName(`${t('maxTokens')}: ${settings.contentAnalysisMaxTokens}`);
     if (this.aiCreditButton) void this.refreshAICredit();
   }
 
   private async boundedSettingsCheck<T>(operation: Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([operation, new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(t('settingsCheckTimeout'))), 15000);
-        timer.unref?.();
-      })]);
-    } finally { clearTimeout(timer); }
+      return await Promise.race([
+        operation,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(t('settingsCheckTimeout'))), 15000);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async refreshAICredit(): Promise<void> {
@@ -400,24 +477,41 @@ export class NutEggSettingTab extends PluginSettingTab {
     if (!button) return;
     const request = ++this.aiCreditRequest;
     if (!isAIConfigured(this.plugin.getNativeSettings())) {
-      button.setButtonText(t("setupAiKeyStatusBar")).setTooltip(t("nativeApiDescription")).setDisabled(false);
+      button.setButtonText(t('setupAiKeyStatusBar')).setTooltip(t('nativeApiDescription')).setDisabled(false);
       return;
     }
-    button.setDisabled(true).setButtonText(t("checking"));
+    button.setDisabled(true).setButtonText(t('checking'));
     try {
       const credit = await this.boundedSettingsCheck(this.plugin.aiClient.checkCredit(this.plugin.settings));
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
-      const label = credit.subscriptionState === 'disabled' ? t('aiConnectionUnavailable') : credit.subscriptionState ? `${credit.providerLabel} · ${t("subscriptionLabel")}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ""}` : credit.balanceFormatted || credit.statusText.split(" · ")[0];
-      button.setButtonText(credit.subscriptionState ? label : `🪙 ${label}`).setTooltip(`${credit.providerLabel}: ${credit.statusText} · ${t("refresh")}`);
+      let label: string;
+      if (credit.subscriptionState === 'disabled') {
+        label = t('aiConnectionUnavailable');
+      } else if (credit.subscriptionState) {
+        const usage = credit.usageRemaining ? ` · ${credit.usageRemaining}` : '';
+        label = `${credit.providerLabel} · ${t('subscriptionLabel')}${usage}`;
+      } else {
+        label = credit.balanceFormatted || credit.statusText.split(' · ')[0];
+      }
+      const tooltip = `${credit.providerLabel}: ${credit.statusText} · ${t('refresh')}`;
+      button.setButtonText(credit.subscriptionState ? label : `🪙 ${label}`).setTooltip(tooltip);
     } catch (error) {
       if (request !== this.aiCreditRequest || button !== this.aiCreditButton) return;
-      button.setButtonText(`🪙 ${t("refresh")}`).setTooltip(t("creditCheckFailed", { error: String(error) }));
+      button.setButtonText(`🪙 ${t('refresh')}`).setTooltip(t('creditCheckFailed', { error: String(error) }));
     } finally {
       if (request === this.aiCreditRequest && button === this.aiCreditButton) button.setDisabled(false);
     }
   }
 
-  hide(): void { ++this.aiCreditRequest; clearInterval(this.profileTimer); clearTimeout(this.setupTimer); clearTimeout(this.connectionTimer); this.connectionPanel = undefined; this.subscriptionCard = undefined; ++this.setupRequest; }
+  hide(): void {
+    ++this.aiCreditRequest;
+    clearInterval(this.profileTimer);
+    clearTimeout(this.setupTimer);
+    clearTimeout(this.connectionTimer);
+    this.connectionPanel = undefined;
+    this.subscriptionCard = undefined;
+    ++this.setupRequest;
+  }
 
   private displaySubscriptionSetup(containerEl: HTMLElement): void {
     const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
@@ -426,7 +520,8 @@ export class NutEggSettingTab extends PluginSettingTab {
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
 
     let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
-      ? this.plugin.settings.aiProvider as SubscriptionProvider : 'gemini';
+      ? (this.plugin.settings.aiProvider as SubscriptionProvider)
+      : 'gemini';
     if (!['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)) {
       this.plugin.settings.aiProvider = provider;
       this.plugin.settings.aiAuthMethod = 'subscription';
@@ -434,10 +529,15 @@ export class NutEggSettingTab extends PluginSettingTab {
       void this.plugin.saveSettings();
     }
     const selectedModel = (current: SubscriptionProvider) => {
-      const selection = this.plugin.server?.execution?.state?.subscription || this.plugin.settings.executionState?.subscription || this.plugin.settings.subscriptionSelection;
+      const coordinatorState = this.plugin.server?.execution?.state?.subscription;
+      const selection =
+        coordinatorState ||
+        this.plugin.settings.executionState?.subscription ||
+        this.plugin.settings.subscriptionSelection;
       if (selection?.provider === current) return selection.model || 'auto';
       return this.plugin.settings.aiProvider === current && this.plugin.settings.aiModel !== DEFAULT_SETTINGS.aiModel
-        ? this.plugin.settings.aiModel || 'auto' : 'auto';
+        ? this.plugin.settings.aiModel || 'auto'
+        : 'auto';
     };
     let feedback: { text: string; error?: boolean } | undefined;
     let forceRefresh = false;
@@ -461,9 +561,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       modelControls.empty();
       {
         const cached = this.plugin.settings.subscriptionModels?.[current];
-        let models: string[] = (cached && cached.length > 0)
-          ? [...cached]
-          : [...(DEFAULT_SUBSCRIPTION_MODELS[current] || ['auto'])];
+        let models: string[] =
+          cached && cached.length > 0 ? [...cached] : [...(DEFAULT_SUBSCRIPTION_MODELS[current] || ['auto'])];
         if (!models.includes('auto')) models.unshift('auto');
 
         const currentModel = selectedModel(current);
@@ -482,7 +581,7 @@ export class NutEggSettingTab extends PluginSettingTab {
             }
             dropdown.addOption('__custom__', t('customModelTag'));
             dropdown.setValue(isCustom ? '__custom__' : currentModel);
-            dropdown.onChange(async (val) => {
+            dropdown.onChange(async val => {
               if (!isCurrent()) return;
               this.plugin.subscriptions.clearModelFailure?.(current);
               if (val === '__custom__') {
@@ -503,26 +602,51 @@ export class NutEggSettingTab extends PluginSettingTab {
             });
           });
 
-        let customDraft=isCustom?currentModel:'';
+        let customDraft = isCustom ? currentModel : '';
         customInputSetting = new Setting(modelControls)
           .setName(t('customModelTag'))
           .addText(text => {
-            text.setPlaceholder('model-id').setValue(customDraft).onChange(value=>{customDraft=value.trim();});
-          }).addButton(button=>button.setButtonText(t('nativeApiSave')).onClick(async()=>{
-            if (!isCurrent()) return;
-            if(!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(customDraft)){new Notice(t('customModelTag'));return;}
-            button.setDisabled(true);
-            try {
-              this.plugin.subscriptions.clearModelFailure?.(current);
-              if(this.plugin.server)await this.plugin.server.changeSubscription({provider:current,model:customDraft});
-              else {this.plugin.settings.aiModel=customDraft;await this.plugin.saveSettings();}
+            text
+              .setPlaceholder('model-id')
+              .setValue(customDraft)
+              .onChange(value => {
+                customDraft = value.trim();
+              });
+          })
+          .addButton(button =>
+            button.setButtonText(t('nativeApiSave')).onClick(async () => {
               if (!isCurrent()) return;
-              feedback=undefined;this.refreshAISettings();void refresh();
-            }catch(error){new Notice(String(error));}finally{button.setDisabled(false);}
-          }));
+              if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(customDraft)) {
+                new Notice(t('customModelTag'));
+                return;
+              }
+              button.setDisabled(true);
+              try {
+                this.plugin.subscriptions.clearModelFailure?.(current);
+                if (this.plugin.server) {
+                  await this.plugin.server.changeSubscription({ provider: current, model: customDraft });
+                } else {
+                  this.plugin.settings.aiModel = customDraft;
+                  await this.plugin.saveSettings();
+                }
+                if (!isCurrent()) return;
+                feedback = undefined;
+                this.refreshAISettings();
+                void refresh();
+              } catch (error) {
+                new Notice(String(error));
+              } finally {
+                button.setDisabled(false);
+              }
+            })
+          );
         if (customInputSetting.settingEl) customInputSetting.settingEl.hidden = !isCustom;
 
-        const modelHint = modelControls.createEl('p', { text: t('connectionModelCheck'), cls: 'nutegg-model-refresh-hint', attr: {role: 'status', 'aria-live': 'polite'} });
+        const modelHint = modelControls.createEl('p', {
+          text: t('connectionModelCheck'),
+          cls: 'nutegg-model-refresh-hint',
+          attr: { role: 'status', 'aria-live': 'polite' },
+        });
         modelHint.dataset.state = 'loading';
         // Fetch fresh model list in background and update dropdown & settings
         void (async () => {
@@ -545,7 +669,8 @@ export class NutEggSettingTab extends PluginSettingTab {
                     dropdownComponent.addOption(m, m === 'auto' ? t('subscriptionAuto') : m);
                   }
                   dropdownComponent.addOption('__custom__', t('customModelTag'));
-                  if (activeVal !== '__custom__' && !normalized.includes(activeVal)) dropdownComponent.addOption(activeVal, activeVal);
+                  if (activeVal !== '__custom__' && !normalized.includes(activeVal))
+                    dropdownComponent.addOption(activeVal, activeVal);
                   dropdownComponent.setValue(activeVal);
                 }
               }
@@ -565,9 +690,14 @@ export class NutEggSettingTab extends PluginSettingTab {
 
       controls.createEl('p', { text: t('checking'), cls: 'setting-item-description' });
       let status;
-      try { status = await this.boundedSettingsCheck(this.plugin.subscriptions.status(current, force)); }
-      catch (error) { status = { state: 'error' as const, message: String(error) }; }
-      if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') return;
+      try {
+        status = await this.boundedSettingsCheck(this.plugin.subscriptions.status(current, force));
+      } catch (error) {
+        status = { state: 'error' as const, message: String(error) };
+      }
+      const subActive =
+        this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+      if (request !== this.setupRequest || !subActive) return;
       this.accountState = status.state;
       this.refreshConnectionStatus();
       controls.empty();
@@ -579,7 +709,8 @@ export class NutEggSettingTab extends PluginSettingTab {
       const providerSetting = new Setting(providerRow)
         .setName(t('subscriptionAccountProvider'))
         .addDropdown(dropdown => {
-          for (const id of ['openai', 'anthropic', 'gemini'] as const) dropdown.addOption(id, PROVIDER_CATALOG[id].label);
+          for (const id of ['openai', 'anthropic', 'gemini'] as const)
+            dropdown.addOption(id, PROVIDER_CATALOG[id].label);
           dropdown.setValue(provider).onChange(async value => {
             if (!isCurrent()) return;
             provider = value as SubscriptionProvider;
@@ -629,7 +760,9 @@ export class NutEggSettingTab extends PluginSettingTab {
                   this.plugin.subscriptions?.clearModelFailure?.(current);
                   const testModel = selectedModel(current);
                   outcome = await this.plugin.subscriptions.test(current, testModel);
-                  if (request !== this.setupRequest || !this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') return;
+                  const subActive =
+                    this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+                  if (request !== this.setupRequest || !subActive) return;
                   const passed = outcome?.state === 'ready';
                   if (passed) {
                     this.plugin.settings.aiProvider = current;
@@ -655,7 +788,9 @@ export class NutEggSettingTab extends PluginSettingTab {
                 feedback = { text: String(error), error: true };
                 new Notice(feedback.text);
               } finally {
-                if (request === this.setupRequest && this.plugin.settings.aiAuthMethod === 'subscription' && this.plugin.settings.subscriptionEnabled) {
+                const subActive =
+                  this.plugin.settings.aiAuthMethod === 'subscription' && this.plugin.settings.subscriptionEnabled;
+                if (request === this.setupRequest && subActive) {
                   showFeedback();
                   await refresh();
                 }
@@ -679,7 +814,10 @@ export class NutEggSettingTab extends PluginSettingTab {
         });
       });
 
-      const result = controls.createEl('p', { cls: 'setting-item-description', attr: { role: 'status', 'aria-live': 'polite' } });
+      const result = controls.createEl('p', {
+        cls: 'setting-item-description',
+        attr: { role: 'status', 'aria-live': 'polite' },
+      });
       const showFeedback = () => {
         result.setText(feedback?.text || '');
         result.style.color = feedback?.error ? 'var(--text-error)' : 'var(--text-success)';
@@ -710,74 +848,85 @@ export class NutEggSettingTab extends PluginSettingTab {
           .setDesc(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
       }
 
-
       if (status.installUrl) {
         const links = controls.createDiv({ cls: 'nutegg-subscription-links' });
-        links.createEl('a', { text: t('subscriptionInstall'), href: status.installUrl, attr: { target: '_blank', rel: 'noopener noreferrer' } });
+        links.createEl('a', {
+          text: t('subscriptionInstall'),
+          href: status.installUrl,
+          attr: { target: '_blank', rel: 'noopener noreferrer' },
+        });
       }
 
-      if (status.loginId || status.state === 'signing_in') this.setupTimer = setTimeout(() => { void refresh(); }, 3000);
+      if (status.loginId || status.state === 'signing_in')
+        this.setupTimer = setTimeout(() => {
+          void refresh();
+        }, 3000);
     };
 
     void refresh();
   }
 
-  private displayAdvancedSettings(
-    containerEl: HTMLElement,
-    settings: NutEggSettings
-  ): void {
+  private displayAdvancedSettings(containerEl: HTMLElement, settings: NutEggSettings): void {
     if (!(settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription')) {
       this.displaySyncedAiSettings(containerEl, settings);
     }
     const modelSection = containerEl.createDiv({ cls: 'nutegg-settings-section nutegg-model-config-section' });
-    modelSection.createEl("h3", { text: t("aiModelConfig") });
+    modelSection.createEl('h3', { text: t('aiModelConfig') });
     if (!this.aiConfigSummary) {
-      this.aiConfigSummary = new Setting(modelSection)
-        .setDesc(t("nativeApiDescription"))
-        .addButton(button => {
-          this.aiCreditButton = button;
-          button.setButtonText(t("checking"))
-            .setTooltip(t("refresh"))
-            .onClick(() => { void this.refreshAICredit(); });
-        });
+      this.aiConfigSummary = new Setting(modelSection).setDesc(t('nativeApiDescription')).addButton(button => {
+        this.aiCreditButton = button;
+        button
+          .setButtonText(t('checking'))
+          .setTooltip(t('refresh'))
+          .onClick(() => {
+            void this.refreshAICredit();
+          });
+      });
     }
     this.aiChunkWindow = new Setting(modelSection);
     this.aiMaxTokens = new Setting(modelSection);
     this.refreshAISettings();
 
-    if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
-      new Setting(modelSection).setName(`${PROVIDER_CATALOG[provider].label} · ${t('subscriptionPath')}`)
-        .setDesc(t('subscriptionPathHint')).addText(text => {
-          let currentVal = settings.subscriptionPaths?.[provider] || '';
-          if (!currentVal && this.plugin.subscriptions) {
-            void this.plugin.subscriptions.resolve(provider).then(autoPath => {
-              if (autoPath && !text.inputEl.value) {
-                text.setValue(autoPath);
-                (settings.subscriptionPaths ||= {})[provider] = autoPath;
-                void this.plugin.saveSettings();
-              }
-            }).catch(() => {});
-          }
-          text.setValue(currentVal).onChange(async value => {
-            (settings.subscriptionPaths ||= {})[provider] = value.trim();
-            await this.plugin.saveSettings();
+    if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
+      for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
+        new Setting(modelSection)
+          .setName(`${PROVIDER_CATALOG[provider].label} · ${t('subscriptionPath')}`)
+          .setDesc(t('subscriptionPathHint'))
+          .addText(text => {
+            let currentVal = settings.subscriptionPaths?.[provider] || '';
+            if (!currentVal && this.plugin.subscriptions) {
+              void this.plugin.subscriptions
+                .resolve(provider)
+                .then(autoPath => {
+                  if (autoPath && !text.inputEl.value) {
+                    text.setValue(autoPath);
+                    (settings.subscriptionPaths ||= {})[provider] = autoPath;
+                    void this.plugin.saveSettings();
+                  }
+                })
+                .catch(() => {});
+            }
+            text.setValue(currentVal).onChange(async value => {
+              (settings.subscriptionPaths ||= {})[provider] = value.trim();
+              await this.plugin.saveSettings();
+            });
           });
-        });
+      }
     }
 
     // ==========================================
     // Server
     // ==========================================
-    containerEl.createEl("h3", { text: t("serverHeader") });
+    containerEl.createEl('h3', { text: t('serverHeader') });
 
     new Setting(containerEl)
-      .setName(t("serverPort"))
-      .setDesc(t("serverPortDesc"))
-      .addText((text) =>
+      .setName(t('serverPort'))
+      .setDesc(t('serverPortDesc'))
+      .addText(text =>
         text
-          .setPlaceholder("27123")
+          .setPlaceholder('27123')
           .setValue(String(settings.serverPort))
-          .onChange(async (value) => {
+          .onChange(async value => {
             const port = parseInt(value, 10);
             if (!isNaN(port) && port > 0 && port < 65536) {
               settings.serverPort = port;
@@ -789,39 +938,26 @@ export class NutEggSettingTab extends PluginSettingTab {
     // ==========================================
     // Links & Resources
     // ==========================================
-    containerEl.createEl("h3", { text: t("linksHeader") });
+    containerEl.createEl('h3', { text: t('linksHeader') });
 
     new Setting(containerEl)
-      .setName(t("nuteggChromeStoreName"))
-      .setDesc(t("nuteggChromeStoreDesc"))
-      .addButton((btn) =>
-        btn
-          .setButtonText(t("openChromeWebStore"))
-          .onClick(() => {
-            window.open(
-              "https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol",
-              "_blank"
-            );
-          })
+      .setName(t('nuteggChromeStoreName'))
+      .setDesc(t('nuteggChromeStoreDesc'))
+      .addButton(btn =>
+        btn.setButtonText(t('openChromeWebStore')).onClick(() => {
+          window.open('https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol', '_blank');
+        })
       );
 
     new Setting(containerEl)
-      .setName(t("nuteggObsidianPluginName"))
-      .setDesc(t("nuteggObsidianPluginDesc"))
-      .addButton((btn) =>
-        btn
-          .setButtonText(t("openObsidianDirectory"))
-          .onClick(() => {
-            window.open("https://community.obsidian.md/plugins/nutegg", "_blank");
-          })
+      .setName(t('nuteggObsidianPluginName'))
+      .setDesc(t('nuteggObsidianPluginDesc'))
+      .addButton(btn =>
+        btn.setButtonText(t('openObsidianDirectory')).onClick(() => {
+          window.open('https://community.obsidian.md/plugins/nutegg', '_blank');
+        })
       );
   }
 
-  private displayLanguageSettings(
-    containerEl: HTMLElement,
-    settings: NutEggSettings
-  ): void {
-  }
+  private displayLanguageSettings(containerEl: HTMLElement, settings: NutEggSettings): void {}
 }
-
-

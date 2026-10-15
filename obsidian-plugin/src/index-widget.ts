@@ -1,16 +1,9 @@
-import { MarkdownPostProcessorContext, Modal, Notice, App } from "obsidian";
-import {
-  Decoration,
-  DecorationSet,
-  EditorView,
-  ViewPlugin,
-  ViewUpdate,
-  WidgetType,
-} from "@codemirror/view";
-import type NutEggPlugin from "./main";
-import { sanitizeEggName } from "./index-sync";
-import { isAIConfigured } from "./ai-client";
-import { t } from "./i18n";
+import { MarkdownPostProcessorContext, Modal, Notice, App } from 'obsidian';
+import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
+import type NutEggPlugin from './main';
+import { sanitizeEggName } from './index-sync';
+import { isAIConfigured } from './ai-client';
+import { t } from './i18n';
 
 /**
  * Modal dialog for quickly creating a new egg file.
@@ -21,12 +14,7 @@ export class CreateEggModal extends Modal {
   private defaultName: string;
   private defaultDescription: string;
 
-  constructor(
-    app: App,
-    plugin: NutEggPlugin,
-    defaultName = "",
-    defaultDescription = ""
-  ) {
+  constructor(app: App, plugin: NutEggPlugin, defaultName = '', defaultDescription = '') {
     super(app);
     this.plugin = plugin;
     this.defaultName = defaultName;
@@ -36,62 +24,61 @@ export class CreateEggModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.addClass("nutegg-create-egg-modal");
+    contentEl.addClass('nutegg-create-egg-modal');
 
-    contentEl.createEl("h2", { text: t("createEggTitle") });
+    contentEl.createEl('h2', { text: t('createEggTitle') });
 
     // Name field
-    const nameGroup = contentEl.createEl("div", {
-      cls: "nutegg-modal-field-group",
+    const nameGroup = contentEl.createEl('div', {
+      cls: 'nutegg-modal-field-group',
     });
-    nameGroup.style.marginBottom = "14px";
-    nameGroup.createEl("label", {
-      text: t("eggNameLabel"),
-      cls: "nutegg-modal-label",
-    }).style.cssText = "display: block; font-weight: 600; margin-bottom: 4px;";
-    const nameInput = nameGroup.createEl("input", {
-      type: "text",
+    nameGroup.style.marginBottom = '14px';
+    nameGroup.createEl('label', {
+      text: t('eggNameLabel'),
+      cls: 'nutegg-modal-label',
+    }).style.cssText = 'display: block; font-weight: 600; margin-bottom: 4px;';
+    const nameInput = nameGroup.createEl('input', {
+      type: 'text',
       value: this.defaultName,
-      placeholder: t("eggNamePlaceholder"),
+      placeholder: t('eggNamePlaceholder'),
     });
-    nameInput.style.cssText = "width: 100%; box-sizing: border-box; padding: 6px 10px;";
+    nameInput.style.cssText = 'width: 100%; box-sizing: border-box; padding: 6px 10px;';
 
     // Description field
-    const descGroup = contentEl.createEl("div", {
-      cls: "nutegg-modal-field-group",
+    const descGroup = contentEl.createEl('div', {
+      cls: 'nutegg-modal-field-group',
     });
-    descGroup.style.marginBottom = "10px";
-    descGroup.createEl("label", {
-      text: t("eggDescLabel"),
-      cls: "nutegg-modal-label",
-    }).style.cssText = "display: block; font-weight: 600; margin-bottom: 4px;";
-    const descInput = descGroup.createEl("textarea", {
-      placeholder: t("eggDescPlaceholder"),
+    descGroup.style.marginBottom = '10px';
+    descGroup.createEl('label', {
+      text: t('eggDescLabel'),
+      cls: 'nutegg-modal-label',
+    }).style.cssText = 'display: block; font-weight: 600; margin-bottom: 4px;';
+    const descInput = descGroup.createEl('textarea', {
+      placeholder: t('eggDescPlaceholder'),
     });
     descInput.value = this.defaultDescription;
     descInput.rows = 3;
-    descInput.style.cssText =
-      "width: 100%; box-sizing: border-box; padding: 6px 10px; resize: vertical;";
+    descInput.style.cssText = 'width: 100%; box-sizing: border-box; padding: 6px 10px; resize: vertical;';
 
     // Language hint
-    const hint = contentEl.createEl("p", {
-      cls: "nutegg-modal-hint",
-      text: t("eggLangHint"),
+    const hint = contentEl.createEl('p', {
+      cls: 'nutegg-modal-hint',
+      text: t('eggLangHint'),
     });
-    hint.style.cssText = "font-size: 0.85em; opacity: 0.75; margin: 4px 0 10px 0;";
+    hint.style.cssText = 'font-size: 0.85em; opacity: 0.75; margin: 4px 0 10px 0;';
 
     // Button row
-    const btnRow = contentEl.createEl("div", {
-      cls: "nutegg-modal-buttons",
+    const btnRow = contentEl.createEl('div', {
+      cls: 'nutegg-modal-buttons',
     });
-    btnRow.style.cssText = "display: flex; justify-content: flex-end; gap: 8px;";
+    btnRow.style.cssText = 'display: flex; justify-content: flex-end; gap: 8px;';
 
-    const cancelBtn = btnRow.createEl("button", { text: t("cancel") });
-    cancelBtn.addEventListener("click", () => this.close());
+    const cancelBtn = btnRow.createEl('button', { text: t('cancel') });
+    cancelBtn.addEventListener('click', () => this.close());
 
-    const submitBtn = btnRow.createEl("button", {
-      cls: "mod-cta",
-      text: t("createEgg"),
+    const submitBtn = btnRow.createEl('button', {
+      cls: 'mod-cta',
+      text: t('createEgg'),
     });
 
     const submit = async () => {
@@ -99,7 +86,7 @@ export class CreateEggModal extends Modal {
       const description = descInput.value.trim();
 
       if (!safeName) {
-        new Notice(t("eggNameRequired"));
+        new Notice(t('eggNameRequired'));
         nameInput.focus();
         return;
       }
@@ -107,19 +94,16 @@ export class CreateEggModal extends Modal {
       submitBtn.disabled = true;
       cancelBtn.disabled = true;
       const originalText = submitBtn.textContent;
-      submitBtn.textContent = t("creatingEgg");
+      submitBtn.textContent = t('creatingEgg');
 
       try {
-        const result = await this.plugin.indexSync.createEgg(
-          safeName,
-          description
-        );
+        const result = await this.plugin.indexSync.createEgg(safeName, description);
         this.close();
 
         if (result.alreadyExists) {
-          new Notice(t("eggAlreadyExists", { path: result.path }));
+          new Notice(t('eggAlreadyExists', { path: result.path }));
         } else {
-          new Notice(t("eggCreated", { path: result.path }));
+          new Notice(t('eggCreated', { path: result.path }));
         }
 
         // Open newly created or existing egg file in workspace
@@ -129,21 +113,17 @@ export class CreateEggModal extends Modal {
           await leaf.openFile(file as any);
         }
       } catch (err) {
-        console.error("[NutEgg] Failed to create egg from modal:", err);
-        new Notice(
-          `NutEgg: Failed to create egg: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
+        console.error('[NutEgg] Failed to create egg from modal:', err);
+        new Notice(`NutEgg: Failed to create egg: ${err instanceof Error ? err.message : String(err)}`);
         submitBtn.disabled = false;
         cancelBtn.disabled = false;
         submitBtn.textContent = originalText;
       }
     };
 
-    submitBtn.addEventListener("click", submit);
-    nameInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
+    submitBtn.addEventListener('click', submit);
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
         e.preventDefault();
         descInput.focus();
       }
@@ -155,24 +135,21 @@ export class CreateEggModal extends Modal {
 
 // --- Reading mode widget -----------------------------------------------
 
-export function renderSyncButton(
-  plugin: NutEggPlugin,
-  container: HTMLElement
-): HTMLElement {
-  const btn = container.createEl("button", {
-    cls: "nutegg-sync-btn",
-    text: "Checking...",
+export function renderSyncButton(plugin: NutEggPlugin, container: HTMLElement): HTMLElement {
+  const btn = container.createEl('button', {
+    cls: 'nutegg-sync-btn',
+    text: 'Checking...',
   });
   btn.style.cssText =
-    "display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; padding: 4px 10px; cursor: pointer;";
+    'display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; padding: 4px 10px; cursor: pointer;';
 
   const update = async () => {
     try {
       const status = await plugin.indexSync.getDiffStatus();
       if (status.totalDiffs === 0) {
-        btn.textContent = "✓ In Sync";
-        btn.className = "nutegg-sync-btn mod-muted";
-        btn.title = "Everything is in sync. Click to re-check.";
+        btn.textContent = '✓ In Sync';
+        btn.className = 'nutegg-sync-btn mod-muted';
+        btn.title = 'Everything is in sync. Click to re-check.';
       } else {
         const details: string[] = [];
         if (status.missingEggs.length) {
@@ -184,20 +161,20 @@ export function renderSyncButton(
         if (status.invalidEntries.length) {
           details.push(`${status.invalidEntries.length} invalid entry(ies)`);
         }
-        btn.textContent = `🔄 Sync (${status.totalDiffs} diff${status.totalDiffs > 1 ? "s" : ""})`;
-        btn.className = "nutegg-sync-btn mod-warning";
-        btn.title = `${details.join(", ")}. Click to sync.`;
+        btn.textContent = `🔄 Sync (${status.totalDiffs} diff${status.totalDiffs > 1 ? 's' : ''})`;
+        btn.className = 'nutegg-sync-btn mod-warning';
+        btn.title = `${details.join(', ')}. Click to sync.`;
       }
     } catch (err) {
-      console.warn("[NutEgg] Failed to get index diff status:", err);
+      console.warn('[NutEgg] Failed to get index diff status:', err);
     }
   };
 
-  btn.addEventListener("click", async (e) => {
+  btn.addEventListener('click', async e => {
     e.preventDefault();
     e.stopPropagation();
     const originalText = btn.textContent;
-    btn.textContent = t("syncingIndex");
+    btn.textContent = t('syncingIndex');
     btn.disabled = true;
     try {
       const res = await plugin.indexSync.sync();
@@ -216,13 +193,13 @@ export function renderSyncButton(
       }
 
       if (parts.length > 0) {
-        new Notice(t("indexSynced", { summary: parts.join(", ") }));
+        new Notice(t('indexSynced', { summary: parts.join(', ') }));
       } else {
-        new Notice(t("indexAllSynced"));
+        new Notice(t('indexAllSynced'));
       }
       await update();
     } catch (err) {
-      new Notice(t("indexSyncFailed", { error: err instanceof Error ? err.message : String(err) }));
+      new Notice(t('indexSyncFailed', { error: err instanceof Error ? err.message : String(err) }));
       btn.textContent = originalText;
     } finally {
       btn.disabled = false;
@@ -247,36 +224,35 @@ export function renderSetupBanner(plugin: NutEggPlugin): HTMLElement | null {
     return null;
   }
 
-  const callout = document.createElement("div");
-  callout.className = "callout nutegg-setup-callout";
-  callout.setAttribute("data-callout", "warning");
-  callout.style.cssText =
-    "margin: 10px 0 14px 0; width: 100%; box-sizing: border-box;";
+  const callout = document.createElement('div');
+  callout.className = 'callout nutegg-setup-callout';
+  callout.setAttribute('data-callout', 'warning');
+  callout.style.cssText = 'margin: 10px 0 14px 0; width: 100%; box-sizing: border-box;';
 
-  const titleWrap = document.createElement("div");
-  titleWrap.className = "callout-title";
-  const icon = document.createElement("div");
-  icon.className = "callout-icon";
-  icon.textContent = "⚠️";
-  const titleText = document.createElement("div");
-  titleText.className = "callout-title-inner";
-  titleText.textContent = t("setupAiBannerTitle");
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'callout-title';
+  const icon = document.createElement('div');
+  icon.className = 'callout-icon';
+  icon.textContent = '⚠️';
+  const titleText = document.createElement('div');
+  titleText.className = 'callout-title-inner';
+  titleText.textContent = t('setupAiBannerTitle');
   titleWrap.appendChild(icon);
   titleWrap.appendChild(titleText);
   callout.appendChild(titleWrap);
 
-  const content = document.createElement("div");
-  content.className = "callout-content";
-  const desc = document.createElement("p");
-  desc.textContent = t("setupAiBannerDesc");
-  desc.style.cssText = "margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.4;";
+  const content = document.createElement('div');
+  content.className = 'callout-content';
+  const desc = document.createElement('p');
+  desc.textContent = t('setupAiBannerDesc');
+  desc.style.cssText = 'margin: 0 0 10px 0; font-size: 0.9em; line-height: 1.4;';
   content.appendChild(desc);
 
-  const btn = document.createElement("button");
-  btn.className = "mod-cta nutegg-setup-btn";
-  btn.textContent = `⚙️ ${t("configureAiBtn")}`;
-  btn.style.cssText = "font-size: 0.85em; padding: 4px 12px; cursor: pointer;";
-  btn.addEventListener("click", (e) => {
+  const btn = document.createElement('button');
+  btn.className = 'mod-cta nutegg-setup-btn';
+  btn.textContent = `⚙️ ${t('configureAiBtn')}`;
+  btn.style.cssText = 'font-size: 0.85em; padding: 4px 12px; cursor: pointer;';
+  btn.addEventListener('click', e => {
     e.preventDefault();
     e.stopPropagation();
     plugin.openSettings();
@@ -288,61 +264,48 @@ export function renderSetupBanner(plugin: NutEggPlugin): HTMLElement | null {
 }
 
 export function registerIndexWidget(plugin: NutEggPlugin): void {
-  plugin.registerMarkdownPostProcessor(
-    async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
-      if (
-        !ctx.sourcePath ||
-        (!ctx.sourcePath.endsWith("_index.md") &&
-          ctx.sourcePath !== plugin.settings.indexFile)
-      ) {
-        return;
-      }
-
-      if (
-        el.querySelector(".nutegg-index-action-bar") ||
-        el.querySelector(".nutegg-setup-callout")
-      ) {
-        return;
-      }
-
-      // Find heading or callout to place the action bar after
-      const targetElement =
-        el.querySelector(".callout") ||
-        el.querySelector("h1, h2") ||
-        el.firstElementChild;
-
-      if (!targetElement) return;
-
-      const banner = renderSetupBanner(plugin);
-      if (banner) {
-        targetElement.insertAdjacentElement("afterend", banner);
-      }
-
-      const bar = document.createElement("div");
-      bar.className = "nutegg-index-action-bar";
-      bar.style.cssText =
-        "margin: 12px 0 16px 0; display: flex; align-items: center; gap: 8px;";
-
-      const btn = document.createElement("button");
-      btn.className = "nutegg-new-egg-btn mod-cta";
-      btn.textContent = `🐣 ${t("newEggButton")}`;
-      btn.title = t("cmdNewEgg");
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        new CreateEggModal(plugin.app, plugin).open();
-      });
-
-      bar.appendChild(btn);
-      renderSyncButton(plugin, bar);
-
-      if (banner) {
-        banner.insertAdjacentElement("afterend", bar);
-      } else {
-        targetElement.insertAdjacentElement("afterend", bar);
-      }
+  plugin.registerMarkdownPostProcessor(async (el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
+    if (!ctx.sourcePath || (!ctx.sourcePath.endsWith('_index.md') && ctx.sourcePath !== plugin.settings.indexFile)) {
+      return;
     }
-  );
+
+    if (el.querySelector('.nutegg-index-action-bar') || el.querySelector('.nutegg-setup-callout')) {
+      return;
+    }
+
+    // Find heading or callout to place the action bar after
+    const targetElement = el.querySelector('.callout') || el.querySelector('h1, h2') || el.firstElementChild;
+
+    if (!targetElement) return;
+
+    const banner = renderSetupBanner(plugin);
+    if (banner) {
+      targetElement.insertAdjacentElement('afterend', banner);
+    }
+
+    const bar = document.createElement('div');
+    bar.className = 'nutegg-index-action-bar';
+    bar.style.cssText = 'margin: 12px 0 16px 0; display: flex; align-items: center; gap: 8px;';
+
+    const btn = document.createElement('button');
+    btn.className = 'nutegg-new-egg-btn mod-cta';
+    btn.textContent = `🐣 ${t('newEggButton')}`;
+    btn.title = t('cmdNewEgg');
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      new CreateEggModal(plugin.app, plugin).open();
+    });
+
+    bar.appendChild(btn);
+    renderSyncButton(plugin, bar);
+
+    if (banner) {
+      banner.insertAdjacentElement('afterend', bar);
+    } else {
+      targetElement.insertAdjacentElement('afterend', bar);
+    }
+  });
 }
 
 // --- Editing mode (Live Preview) widget ---------------------------------
@@ -357,25 +320,24 @@ class IndexActionBarWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const root = document.createElement("div");
-    root.className = "nutegg-index-widget-container";
-    root.style.cssText = "width: 100%;";
+    const root = document.createElement('div');
+    root.className = 'nutegg-index-widget-container';
+    root.style.cssText = 'width: 100%;';
 
     const banner = renderSetupBanner(this.plugin);
     if (banner) {
       root.appendChild(banner);
     }
 
-    const wrap = document.createElement("div");
-    wrap.className = "nutegg-index-action-bar nutegg-index-editor-widget";
-    wrap.style.cssText =
-      "margin: 10px 0 14px 0; display: flex; align-items: center; gap: 8px; width: 100%;";
+    const wrap = document.createElement('div');
+    wrap.className = 'nutegg-index-action-bar nutegg-index-editor-widget';
+    wrap.style.cssText = 'margin: 10px 0 14px 0; display: flex; align-items: center; gap: 8px; width: 100%;';
 
-    const btn = document.createElement("button");
-    btn.className = "nutegg-new-egg-btn mod-cta";
-    btn.textContent = `🐣 ${t("newEggButton")}`;
-    btn.title = t("cmdNewEgg");
-    btn.addEventListener("click", (e) => {
+    const btn = document.createElement('button');
+    btn.className = 'nutegg-new-egg-btn mod-cta';
+    btn.textContent = `🐣 ${t('newEggButton')}`;
+    btn.title = t('cmdNewEgg');
+    btn.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
       new CreateEggModal(this.plugin.app, this.plugin).open();
@@ -405,20 +367,17 @@ class IndexActionBarEditorPlugin {
   }
 
   private isIndexFile(): boolean {
-    let filePath = "";
-    for (const leaf of this.plugin.app.workspace.getLeavesOfType("markdown")) {
+    let filePath = '';
+    for (const leaf of this.plugin.app.workspace.getLeavesOfType('markdown')) {
       if ((leaf.view as any)?.editor?.cm === this.view) {
-        filePath = (leaf.view as any).file?.path || "";
+        filePath = (leaf.view as any).file?.path || '';
         break;
       }
     }
     if (!filePath) {
-      filePath = this.plugin.app.workspace.getActiveFile()?.path || "";
+      filePath = this.plugin.app.workspace.getActiveFile()?.path || '';
     }
-    return (
-      filePath.endsWith("_index.md") ||
-      filePath === this.plugin.settings.indexFile
-    );
+    return filePath.endsWith('_index.md') || filePath === this.plugin.settings.indexFile;
   }
 
   private build(): DecorationSet {
@@ -428,19 +387,19 @@ class IndexActionBarEditorPlugin {
 
     const doc = this.view.state.doc;
     const docText = doc.toString();
-    const lines = docText.split("\n");
+    const lines = docText.split('\n');
 
     // Place right after the callout if present, otherwise after the first heading, or line 1
     let targetLineNo = 1;
     let inCallout = false;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      if (line.startsWith(">")) {
+      if (line.startsWith('>')) {
         inCallout = true;
         targetLineNo = i + 1;
       } else if (inCallout) {
         break;
-      } else if (line.startsWith("#")) {
+      } else if (line.startsWith('#')) {
         targetLineNo = i + 1;
       }
     }
@@ -464,9 +423,8 @@ export function registerIndexEditorExtension(plugin: NutEggPlugin): void {
         }
       },
       {
-        decorations: (v) => v.decorations,
+        decorations: v => v.decorations,
       }
     )
   );
 }
-

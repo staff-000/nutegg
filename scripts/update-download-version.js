@@ -70,14 +70,14 @@ function loadVersions() {
       githubVersion: chromeVer,
       storeUrl: 'https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol',
       githubZipUrl: `https://github.com/${REPO_OWNER}/nutegg-chrome-extension-release/releases/download/${chromeVer}/nutegg-chrome-extension-${chromeVer}.zip`,
-      githubReleaseUrl: `https://github.com/${REPO_OWNER}/nutegg-chrome-extension-release/releases/latest`
+      githubReleaseUrl: `https://github.com/${REPO_OWNER}/nutegg-chrome-extension-release/releases/latest`,
     },
     obsidianPlugin: {
       communityVersion: obsidianVer,
       githubVersion: obsidianVer,
       communityUrl: 'https://community.obsidian.md/plugins/nutegg',
-      githubReleaseUrl: `https://github.com/${REPO_OWNER}/nutegg-obsidian-release/releases/latest`
-    }
+      githubReleaseUrl: `https://github.com/${REPO_OWNER}/nutegg-obsidian-release/releases/latest`,
+    },
   };
 }
 

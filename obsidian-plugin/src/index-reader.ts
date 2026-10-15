@@ -1,14 +1,14 @@
-import type NutEggPlugin from "./main";
-import { PROMPTS, renderPrompt } from "./prompt-templates";
-import { isAIConfigured } from "./ai-client";
-import { resolveEggPath } from "./egg-parser";
+import type NutEggPlugin from './main';
+import { PROMPTS, renderPrompt } from './prompt-templates';
+import { isAIConfigured } from './ai-client';
+import { resolveEggPath } from './egg-parser';
 
 /**
  * Parsed entry from _index.md.
  * Format: `egg-file.md: description of what the egg covers`
  */
 export interface IndexEntry {
-  fileName: string;    // e.g. "invest.md"
+  fileName: string; // e.g. "invest.md"
   description: string; // e.g. "investment strategies and market analysis"
 }
 
@@ -47,7 +47,7 @@ export class IndexReader {
     content: { title: string; content: string; url: string },
     index: IndexEntry[],
     debugScope?: string,
-    executor?: {getPrompt?():string;chat(prompt:string,maxTokens:number,debugScope?:string):Promise<string>}
+    executor?: { getPrompt?(): string; chat(prompt: string, maxTokens: number, debugScope?: string): Promise<string> }
   ): Promise<IndexEntry[]> {
     if (index.length === 0) return [];
     if (index.length === 1) return index;
@@ -57,12 +57,10 @@ export class IndexReader {
       return [index[0]];
     }
 
-    const indexText = index
-      .map((e) => `- ${e.fileName}: ${e.description}`)
-      .join("\n");
+    const indexText = index.map(e => `- ${e.fileName}: ${e.description}`).join('\n');
 
     const promptTemplate =
-      executor?.getPrompt?.() || this.plugin.workflowManager?.getPrompt("eggRouting") || PROMPTS.eggRouting;
+      executor?.getPrompt?.() || this.plugin.workflowManager?.getPrompt('eggRouting') || PROMPTS.eggRouting;
     const prompt = renderPrompt(promptTemplate, {
       title: content.title,
       url: content.url,
@@ -75,8 +73,8 @@ export class IndexReader {
       const response = await (executor || this.plugin.aiClient).chat(prompt, 800, debugScope);
       return this.parseMatchedEggs(response, index);
     } catch (err: any) {
-      if(err?.code === "cancelled")throw err;
-      console.warn("[NutEgg] Egg routing failed, falling back to all index entries:", err);
+      if (err?.code === 'cancelled') throw err;
+      console.warn('[NutEgg] Egg routing failed, falling back to all index entries:', err);
       // On failure, return all index entries
       return index;
     }
@@ -100,8 +98,8 @@ export class IndexReader {
     const entryMap = new Map<IndexEntry, { full: string; base: string; stem: string }>();
     for (const entry of index) {
       const full = entry.fileName.trim().toLowerCase();
-      const base = entry.fileName.split("/").pop()!.trim().toLowerCase();
-      const stem = base.replace(/\.md$/, "");
+      const base = entry.fileName.split('/').pop()!.trim().toLowerCase();
+      const stem = base.replace(/\.md$/, '');
       entryMap.set(entry, { full, base, stem });
     }
 
@@ -116,7 +114,7 @@ export class IndexReader {
           for (const item of parsed) {
             const str = String(item).trim().toLowerCase();
             for (const [entry, names] of entryMap.entries()) {
-              if (str === names.full || str === names.base || str.endsWith("/" + names.base)) {
+              if (str === names.full || str === names.base || str.endsWith('/' + names.base)) {
                 matchedEntries.add(entry);
               }
             }
@@ -131,34 +129,37 @@ export class IndexReader {
     // Matches "nutegg/investment.md", "investment.md", etc.
     const mdMatches = text.match(/[\w\-./\\]+\.md\b/gi) || [];
     for (const rawMatch of mdMatches) {
-      const clean = rawMatch.replace(/^[\\/]+/, "").trim().toLowerCase();
+      const clean = rawMatch
+        .replace(/^[\\/]+/, '')
+        .trim()
+        .toLowerCase();
       for (const [entry, names] of entryMap.entries()) {
-        if (clean === names.full || clean === names.base || clean.endsWith("/" + names.base)) {
+        if (clean === names.full || clean === names.base || clean.endsWith('/' + names.base)) {
           matchedEntries.add(entry);
         }
       }
     }
 
     // Strategy 3: Clean lines (stripping bullets, numbers, markdown formatting)
-    const lines = text.split("\n");
+    const lines = text.split('\n');
     for (const rawLine of lines) {
       let line = rawLine.trim();
       if (!line) continue;
       // Strip markdown code fences, bullets, numbering
       line = line
-        .replace(/^```[a-z]*\s*/i, "")
-        .replace(/```$/, "")
-        .replace(/^[\s*\-•+]+/, "")
-        .replace(/^\d+[.)]\s*/, "")
-        .replace(/^[`"']+|[`"']+$/g, "")
-        .replace(/[.:;,!?]+$/, "")
+        .replace(/^```[a-z]*\s*/i, '')
+        .replace(/```$/, '')
+        .replace(/^[\s*\-•+]+/, '')
+        .replace(/^\d+[.)]\s*/, '')
+        .replace(/^[`"']+|[`"']+$/g, '')
+        .replace(/[.:;,!?]+$/, '')
         .trim()
         .toLowerCase();
 
       if (!line) continue;
 
       for (const [entry, names] of entryMap.entries()) {
-        if (line === names.full || line === names.base || line.endsWith("/" + names.base)) {
+        if (line === names.full || line === names.base || line.endsWith('/' + names.base)) {
           matchedEntries.add(entry);
         }
       }
@@ -167,9 +168,9 @@ export class IndexReader {
     // Strategy 4: If still no match and NOT explicitly "none", search for the basename in the text
     if (matchedEntries.size === 0 && !isExplicitNone) {
       for (const [entry, names] of entryMap.entries()) {
-        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const basePattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.base)}($|[^a-z0-9_-])`, "i");
-        const fullPattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.full)}($|[^a-z0-9_-])`, "i");
+        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const basePattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.base)}($|[^a-z0-9_-])`, 'i');
+        const fullPattern = new RegExp(`(^|[^a-z0-9_-])${escapeRegExp(names.full)}($|[^a-z0-9_-])`, 'i');
         if (basePattern.test(text) || fullPattern.test(text)) {
           matchedEntries.add(entry);
         }
@@ -185,7 +186,7 @@ export class IndexReader {
   async getIndexContent(): Promise<string> {
     const indexPath = this.plugin.settings.indexFile;
     const file = this.plugin.app.vault.getAbstractFileByPath(indexPath);
-    if (!file) return "(No _index.md found)";
+    if (!file) return '(No _index.md found)';
     return await this.plugin.app.vault.read(file as any);
   }
 
@@ -193,23 +194,23 @@ export class IndexReader {
   parseIndexContent(content: string, options?: { includeInvalid?: boolean }): IndexEntry[] {
     const entries: IndexEntry[] = [];
 
-    for (const rawLine of content.split("\n")) {
+    for (const rawLine of content.split('\n')) {
       const trimmed = rawLine.trim();
       // Skip empty lines, markdown headings, and callout blocks
-      if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith(">")) continue;
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('>')) continue;
 
       // Strip optional list bullet prefix: `* path/file.md: description`
-      const line = trimmed.replace(/^[*\-+]\s+/, "");
+      const line = trimmed.replace(/^[*\-+]\s+/, '');
 
       // Parse format: `file.md: description`
-      const colonIdx = line.indexOf(":");
+      const colonIdx = line.indexOf(':');
       if (colonIdx === -1) continue;
 
       const fileName = line.substring(0, colonIdx).trim();
       const description = line.substring(colonIdx + 1).trim();
 
-      if (!fileName.toLowerCase().endsWith(".md")) continue;
-      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || "nutegg")) continue;
+      if (!fileName.toLowerCase().endsWith('.md')) continue;
+      if (!options?.includeInvalid && !resolveEggPath(fileName, this.plugin.vaultFolder || 'nutegg')) continue;
       entries.push({ fileName, description });
     }
 
@@ -218,6 +219,6 @@ export class IndexReader {
 
   private truncate(text: string, maxChars: number): string {
     if (text.length <= maxChars) return text;
-    return text.substring(0, maxChars) + "\n\n[...truncated]";
+    return text.substring(0, maxChars) + '\n\n[...truncated]';
   }
 }

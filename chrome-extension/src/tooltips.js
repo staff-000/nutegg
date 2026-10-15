@@ -52,7 +52,8 @@
     // These controls may be inserted by translated HTML or result renderers.
     if (!text && typeof globalThis.t === 'function') {
       if (element?.matches('a[href^="mailto:"]')) text = t('reportBugEmailTooltip');
-      else if (element?.hasAttribute('data-time')) text = t('jumpToVideoTime', { time: element.getAttribute('data-time') });
+      else if (element?.hasAttribute('data-time'))
+        text = t('jumpToVideoTime', { time: element.getAttribute('data-time') });
       else if (element?.matches('.source-pill')) text = t('sourceTooltip');
     }
     if (!text || !element.isConnected || element.closest('.hidden, [hidden]')) return hide();
@@ -73,7 +74,9 @@
   }
   function target(node) {
     if (node?.closest?.('[data-hints="off"]')) return null;
-    const element = node?.closest?.('[data-hint], [data-tooltip]:not([data-tooltip=""]), a[href^="mailto:"], .source-pill, [data-time]');
+    const element = node?.closest?.(
+      '[data-hint], [data-tooltip]:not([data-tooltip=""]), a[href^="mailto:"], .source-pill, [data-time]'
+    );
     return suppressed(element) ? null : element;
   }
   scan(doc.body);
@@ -83,7 +86,12 @@
       else record.addedNodes.forEach(scan);
     }
     if (active) show(active);
-  }).observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['title', 'data-tooltip', 'class', 'data-hints'] });
+  }).observe(doc.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['title', 'data-tooltip', 'class', 'data-hints'],
+  });
   doc.addEventListener('pointerover', event => show(target(event.target)));
   doc.addEventListener('pointerout', event => {
     if (target(event.relatedTarget) !== active) hide();
@@ -91,7 +99,9 @@
   doc.addEventListener('focusin', event => show(target(event.target)));
   doc.addEventListener('focusout', hide);
   doc.addEventListener('pointerdown', hide);
-  doc.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+  doc.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hide();
+  });
   doc.addEventListener('scroll', hide, true);
   window.addEventListener('resize', hide);
   window.addEventListener('blur', hide);

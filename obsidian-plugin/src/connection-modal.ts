@@ -8,10 +8,22 @@ export function approveChromeConnection(app: App, origin: string): Promise<boole
         this.titleEl.setText(t('connectChromeTitle'));
         this.contentEl.createEl('p', { text: t('connectChromeDescription') });
         this.contentEl.createEl('code', { text: origin });
-        new Setting(this.contentEl).addButton(button => button.setButtonText(t('cancel')).onClick(() => this.close()))
-          .addButton(button => button.setButtonText(t('connectChromeTitle')).setCta().onClick(() => { this.approved = true; this.close(); }));
+        new Setting(this.contentEl)
+          .addButton(button => button.setButtonText(t('cancel')).onClick(() => this.close()))
+          .addButton(button =>
+            button
+              .setButtonText(t('connectChromeTitle'))
+              .setCta()
+              .onClick(() => {
+                this.approved = true;
+                this.close();
+              })
+          );
       }
-      onClose() { resolve(this.approved); this.contentEl.empty(); }
+      onClose() {
+        resolve(this.approved);
+        this.contentEl.empty();
+      }
     }
     new ConnectionModal(app).open();
   });

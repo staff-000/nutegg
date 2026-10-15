@@ -1,5 +1,8 @@
 class HistoryAction {
-  constructor(deps) { Object.assign(this, deps); this.store = deps.tabStateManager; }
+  constructor(deps) {
+    Object.assign(this, deps);
+    this.store = deps.tabStateManager;
+  }
   onHistorySelected(index) {
     const tabId = this.store.activeTabId;
     const entry = this.store.getTab(tabId)?.captureHistory[Number(index)];

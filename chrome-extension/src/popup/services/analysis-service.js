@@ -5,7 +5,7 @@
 // Transport only. PopupOperations owns immutable request contexts and guarded commits.
 class AnalysisService {
   constructor(options = {}) {
-    this.chromeApi = options.chrome || (typeof chrome !== "undefined" ? chrome : null);
+    this.chromeApi = options.chrome || (typeof chrome !== 'undefined' ? chrome : null);
   }
 
   /**
@@ -16,17 +16,17 @@ class AnalysisService {
   sendAnalyzeViaPort(payload, onProgress) {
     const api = this.chromeApi;
     if (!api || !api.runtime || !api.runtime.connect) {
-      return Promise.reject(new Error("Chrome runtime.connect unavailable"));
+      return Promise.reject(new Error('Chrome runtime.connect unavailable'));
     }
 
     return new Promise((resolve, reject) => {
       try {
         let settled = false;
-        const port = api.runtime.connect({ name: "nutegg-analyze" });
+        const port = api.runtime.connect({ name: 'nutegg-analyze' });
         const heartbeat = setInterval(() => {
           if (!settled && port) {
             try {
-              port.postMessage({ action: "ping" });
+              port.postMessage({ action: 'ping' });
             } catch {
               clearInterval(heartbeat);
             }
@@ -35,16 +35,18 @@ class AnalysisService {
           }
         }, 10000);
 
-        port.onMessage.addListener((message) => {
-          if (message?.type === "partial") {
+        port.onMessage.addListener(message => {
+          if (message?.type === 'partial') {
             onProgress?.(message);
             return;
           }
           if (settled) return;
           settled = true;
           clearInterval(heartbeat);
-          try { port.disconnect(); } catch {}
-          if (message?.type === "complete") {
+          try {
+            port.disconnect();
+          } catch {}
+          if (message?.type === 'complete') {
             resolve(message.result);
           } else {
             resolve(message);
@@ -58,11 +60,11 @@ class AnalysisService {
           if (api.runtime.lastError) {
             reject(new Error(api.runtime.lastError.message));
           } else {
-            reject(new Error("Connection closed before response received"));
+            reject(new Error('Connection closed before response received'));
           }
         });
 
-        port.postMessage({ action: "analyze", payload });
+        port.postMessage({ action: 'analyze', payload });
       } catch (err) {
         reject(err);
       }
@@ -74,7 +76,7 @@ class AnalysisService {
    */
   async loadHistory(url) {
     if (!url) return null;
-    const resp = await this.sendMessage({ action: "history", url });
+    const resp = await this.sendMessage({ action: 'history', url });
     if (resp?.error) throw new Error(resp.error);
     return resp?.history?.length ? resp.history : null;
   }
@@ -84,10 +86,10 @@ class AnalysisService {
    */
   async createEgg(name, description) {
     try {
-      const resp = await this.sendMessage({ action: "create-egg", name, description });
+      const resp = await this.sendMessage({ action: 'create-egg', name, description });
       return resp;
     } catch (err) {
-      return { error: err instanceof Error ? err.message : "Failed to create egg" };
+      return { error: err instanceof Error ? err.message : 'Failed to create egg' };
     }
   }
 
@@ -95,18 +97,18 @@ class AnalysisService {
   sendMessage(message) {
     const api = this.chromeApi;
     if (!api || !api.runtime || !api.runtime.sendMessage) {
-      return Promise.reject(new Error("Chrome runtime.sendMessage unavailable"));
+      return Promise.reject(new Error('Chrome runtime.sendMessage unavailable'));
     }
     return api.runtime.sendMessage(message);
   }
 }
 
-const _analysisScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _analysisScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _analysisScope.NutEggServices = _analysisScope.NutEggServices || {};
 _analysisScope.NutEggServices.AnalysisService = AnalysisService;
 _analysisScope.AnalysisService = AnalysisService;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     AnalysisService,
   };

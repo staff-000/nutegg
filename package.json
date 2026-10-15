@@ -10,6 +10,9 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "lint": "node scripts/lint.js",
+    "format": "node scripts/format.js",
+    "format:check": "node scripts/format.js --check",
     "dev:plugin": "npm run dev --workspace=@nutegg/obsidian-plugin",
     "build:plugin": "npm run build --workspace=@nutegg/obsidian-plugin",
     "test:plugin": "npm run test --workspace=@nutegg/obsidian-plugin",

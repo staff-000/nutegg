@@ -4,14 +4,28 @@ const tabStateManager = new globalThis.NutEggState.TabStateManager();
 tabStateManager.settings = settings;
 const pageExtractor = new globalThis.NutEggServices.PageExtractor();
 const analysisService = new globalThis.NutEggServices.AnalysisService();
-const operations = new globalThis.NutEggServices.PopupOperations({ store: tabStateManager, service: analysisService, extractor: pageExtractor });
+const operations = new globalThis.NutEggServices.PopupOperations({
+  store: tabStateManager,
+  service: analysisService,
+  extractor: pageExtractor,
+});
 const envService = new globalThis.NutEggServices.EnvironmentService({ settings, store: tabStateManager });
-const ui = Object.fromEntries([
-  ['headerUI', 'HeaderComponent'], ['bannersUI', 'BannersComponent'], ['captureUI', 'CaptureViewComponent'],
-  ['sectionsUI', 'SectionChipsComponent'], ['verdictUI', 'VerdictComponent'], ['actionsUI', 'ActionControlsComponent'],
-  ['resultsUI', 'ResultsViewComponent'], ['metricsUI', 'MetricsComponent'], ['mindmapUI', 'MindmapComponent'],
-  ['discussionUI', 'DiscussionComponent'], ['qaUI', 'QaComponent'], ['eggsUI', 'EggsComponent'],
-].map(([name, type]) => [name, new globalThis.NutEggUI[type]() ]));
+const ui = Object.fromEntries(
+  [
+    ['headerUI', 'HeaderComponent'],
+    ['bannersUI', 'BannersComponent'],
+    ['captureUI', 'CaptureViewComponent'],
+    ['sectionsUI', 'SectionChipsComponent'],
+    ['verdictUI', 'VerdictComponent'],
+    ['actionsUI', 'ActionControlsComponent'],
+    ['resultsUI', 'ResultsViewComponent'],
+    ['metricsUI', 'MetricsComponent'],
+    ['mindmapUI', 'MindmapComponent'],
+    ['discussionUI', 'DiscussionComponent'],
+    ['qaUI', 'QaComponent'],
+    ['eggsUI', 'EggsComponent'],
+  ].map(([name, type]) => [name, new globalThis.NutEggUI[type]()])
+);
 const renderer = new globalThis.NutEggUI.PopupRenderer({ store: tabStateManager, settings, ui });
 const activityUI = new globalThis.NutEggUI.AnalysisActivityComponent();
 const deps = { tabStateManager, settings, operations, envService, pageExtractor, ui };
@@ -21,12 +35,15 @@ const saveAction = new globalThis.NutEggActions.SaveAction(deps);
 const historyAction = new globalThis.NutEggActions.HistoryAction(deps);
 const interactionAction = new globalThis.NutEggActions.InteractionAction(deps);
 const activeDraft = values => tabStateManager.dispatch({ type: 'draft', tabId: tabStateManager.activeTabId, values });
-const presentation = values => activeDraft({ presentation: { ...tabStateManager.getTab(tabStateManager.activeTabId)?.presentation, ...values } });
+const presentation = values =>
+  activeDraft({ presentation: { ...tabStateManager.getTab(tabStateManager.activeTabId)?.presentation, ...values } });
 const click = (element, fn) => element?.addEventListener('click', fn);
 
 async function initPopup() {
-  if (typeof requestAnimationFrame === 'function') await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  globalThis.NutEggI18n?.initI18n(); globalThis.NutEggI18n?.applyI18n();
+  if (typeof requestAnimationFrame === 'function')
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  globalThis.NutEggI18n?.initI18n();
+  globalThis.NutEggI18n?.applyI18n();
   const stored = await settings.loadFromStorage();
   tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
   if (stored?.cachedMetrics) tabStateManager.dispatch({ type: 'metrics', value: stored.cachedMetrics });
@@ -46,24 +63,38 @@ async function initPopup() {
 
   const toggleSection = key => {
     const view = tabStateManager.viewModel();
-    if (key === 'generateKnowledgeEntries') { analyzeAction.setGenerateKnowledgeEntries(!view.generateKnowledgeEntries); return true; }
+    if (key === 'generateKnowledgeEntries') {
+      analyzeAction.setGenerateKnowledgeEntries(!view.generateKnowledgeEntries);
+      return true;
+    }
     const next = settings.getToggledSections(key, view.enabledSections);
-    if (!next) { tabStateManager.dispatch({ type: 'notice', tabId: view.activeTabId, message: t('atLeastOneSection') }); return false; }
+    if (!next) {
+      tabStateManager.dispatch({ type: 'notice', tabId: view.activeTabId, message: t('atLeastOneSection') });
+      return false;
+    }
     if (key === 'discussion') {
       activeDraft({ enabledSections: next, discussionOverride: next.discussion });
-      if (next.discussion) void operations.discussion(view.activeTabId); else operations.stopDiscussion(view.activeTabId);
+      if (next.discussion) void operations.discussion(view.activeTabId);
+      else operations.stopDiscussion(view.activeTabId);
       return true;
     }
     // Auto-enable is per-page and must not become a default on other pages.
     settings.setEnabledSections({ ...next, discussion: settings.enabledSections.discussion }, true);
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
-    activeDraft({ enabledSections: next }); return true;
+    activeDraft({ enabledSections: next });
+    return true;
   };
-  ui.sectionsUI.init({ chipVerdictSummary: document.getElementById('chip-verdict-summary'), chipMindmap: document.getElementById('chip-mindmap'),
-    reanalyzeChipVerdictSummary: document.getElementById('reanalyze-chip-verdict-summary'), chipReMindmap: document.getElementById('reanalyze-chip-mindmap'),
-    reanalyzeAccordion: document.getElementById('reanalyze-sections-accordion'), reanalyzeToggleBtn: document.getElementById('reanalyze-sections-toggle'),
-    reanalyzeSectionsBody: document.getElementById('reanalyze-sections-body'), onToggle: toggleSection,
-    onExpand: key => presentation({ [key]: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation[key] }) });
+  ui.sectionsUI.init({
+    chipVerdictSummary: document.getElementById('chip-verdict-summary'),
+    chipMindmap: document.getElementById('chip-mindmap'),
+    reanalyzeChipVerdictSummary: document.getElementById('reanalyze-chip-verdict-summary'),
+    chipReMindmap: document.getElementById('reanalyze-chip-mindmap'),
+    reanalyzeAccordion: document.getElementById('reanalyze-sections-accordion'),
+    reanalyzeToggleBtn: document.getElementById('reanalyze-sections-toggle'),
+    reanalyzeSectionsBody: document.getElementById('reanalyze-sections-body'),
+    onToggle: toggleSection,
+    onExpand: key => presentation({ [key]: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation[key] }),
+  });
   const { actionsUI: a, captureUI: c, qaUI: q, eggsUI: e, headerUI: h } = ui;
   ui.discussionUI.init({ onToggle: (topicId, stance) => interactionAction.toggleDiscussionComments(topicId, stance) });
   for (const prefix of ['discussion-capture', 'discussion-reanalyze']) {
@@ -97,35 +128,67 @@ async function initPopup() {
   c.onScopeChange = scope => activeDraft({ customQuestionsScope: scope });
   click(q.followupBtn, () => interactionAction.handleFollowUp());
   q.followupInput?.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) { event.preventDefault(); interactionAction.handleFollowUp(); }
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+      event.preventDefault();
+      interactionAction.handleFollowUp();
+    }
   });
-  click(c.questionsToggle, () => presentation({ questionsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.questionsExpanded }));
-  click(e.captureEggsToggle, () => presentation({ captureEggsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.captureEggsExpanded }));
+  click(c.questionsToggle, () =>
+    presentation({
+      questionsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.questionsExpanded,
+    })
+  );
+  click(e.captureEggsToggle, () =>
+    presentation({
+      captureEggsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.captureEggsExpanded,
+    })
+  );
   click(e.eggsToggle, () => {
-    const currentlyExpanded = e.eggsExpanded ? !e.eggsExpanded.classList.contains("hidden") : Boolean(tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.eggsExpanded);
+    const currentlyExpanded = e.eggsExpanded
+      ? !e.eggsExpanded.classList.contains('hidden')
+      : Boolean(tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.eggsExpanded);
     presentation({ eggsExpanded: !currentlyExpanded });
   });
-  click(e.eggsCreateToggle, () => presentation({ createFormOpen: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.createFormOpen }));
+  click(e.eggsCreateToggle, () =>
+    presentation({ createFormOpen: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.createFormOpen })
+  );
   click(e.eggsCreateCancelBtn, () => presentation({ createFormOpen: false }));
-  for (const input of [e.eggsNewName, e.newEggName]) input?.addEventListener('input', () => activeDraft({ newEggName: input.value }));
-  for (const input of [e.eggsNewDesc, e.newEggDescription]) input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
+  for (const input of [e.eggsNewName, e.newEggName])
+    input?.addEventListener('input', () => activeDraft({ newEggName: input.value }));
+  for (const input of [e.eggsNewDesc, e.newEggDescription])
+    input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
   click(e.createEggBtn, () => saveAction.handleCreateEgg(false));
   click(e.eggsCreateBtn, () => saveAction.handleCreateEgg(true));
-  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn')]) click(button, () => {
-    chrome.runtime.openOptionsPage();
-  });
+  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn')])
+    click(button, () => {
+      chrome.runtime.openOptionsPage();
+    });
   click(document.getElementById('subscription-open-obsidian'), () => chrome.tabs.create({ url: 'obsidian://open' }));
-  click(document.getElementById('subscription-api-setup'), () => chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html?setupApi=1') }));
+  click(document.getElementById('subscription-api-setup'), () =>
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/options/options.html?setupApi=1') })
+  );
   click(h.aiCreditPill, () => {
     h.setCheckingCredit();
     void envService.checkServerStatus(true);
   });
   h.statusIndicatorWrap?.addEventListener('keydown', event => {
-    if (['Enter', ' '].includes(event.key)) { event.preventDefault(); chrome.runtime.openOptionsPage(); }
+    if (['Enter', ' '].includes(event.key)) {
+      event.preventDefault();
+      chrome.runtime.openOptionsPage();
+    }
   });
-  click(document.getElementById('report-bug-link'), event => { event.preventDefault(); interactionAction.openGitHubBugReport(); });
-  click(document.getElementById('report-email-link'), event => { event.preventDefault(); interactionAction.openEmailBugReport(); });
-  click(ui.bannersUI.errorReportBug, event => { event.preventDefault(); interactionAction.openGitHubBugReport(tabStateManager.viewModel().error || ''); });
+  click(document.getElementById('report-bug-link'), event => {
+    event.preventDefault();
+    interactionAction.openGitHubBugReport();
+  });
+  click(document.getElementById('report-email-link'), event => {
+    event.preventDefault();
+    interactionAction.openEmailBugReport();
+  });
+  click(ui.bannersUI.errorReportBug, event => {
+    event.preventDefault();
+    interactionAction.openGitHubBugReport(tabStateManager.viewModel().error || '');
+  });
   document.addEventListener('click', event => {
     const mailto = event.target.closest?.('a[href^="mailto:"]');
     if (mailto && typeof chrome !== 'undefined' && chrome.tabs?.create) {
@@ -145,34 +208,66 @@ async function initPopup() {
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') a.toggleEggAnalysisMenu(false);
     const section = event.target.closest?.('#results-state .section-header');
-    if (section && ['Enter', ' '].includes(event.key)) { event.preventDefault(); section.click(); }
+    if (section && ['Enter', ' '].includes(event.key)) {
+      event.preventDefault();
+      section.click();
+    }
   });
-  window.addEventListener('scroll', () => {
-    const record = tabStateManager.getTab(tabStateManager.activeTabId);
-    if (record && record.presentation.scroll !== window.scrollY) presentation({ scroll: window.scrollY });
-  }, { passive: true });
+  window.addEventListener(
+    'scroll',
+    () => {
+      const record = tabStateManager.getTab(tabStateManager.activeTabId);
+      if (record && record.presentation.scroll !== window.scrollY) presentation({ scroll: window.scrollY });
+    },
+    { passive: true }
+  );
   chrome.storage?.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.connectionMode) settings.setConnectionMode(changes.connectionMode.newValue, false);
-    if(changes.obsidianExecutionState){settings.executionState=changes.obsidianExecutionState.newValue;settings.chromeAiAuthMethod=settings.connectionMode==='obsidian'?settings.executionState?.mode||'apiKey':'apiKey';}
-    if(changes.obsidianExecutionState||changes.connectionMode||changes.chromeApiRevision){
-      settings.aiStatusError=null;settings.subscriptionState=null;
-      tabStateManager.dispatch({type:'executionChanged'});
+    if (changes.obsidianExecutionState) {
+      settings.executionState = changes.obsidianExecutionState.newValue;
+      settings.chromeAiAuthMethod =
+        settings.connectionMode === 'obsidian' ? settings.executionState?.mode || 'apiKey' : 'apiKey';
+    }
+    if (changes.obsidianExecutionState || changes.connectionMode || changes.chromeApiRevision) {
+      settings.aiStatusError = null;
+      settings.subscriptionState = null;
+      tabStateManager.dispatch({ type: 'executionChanged' });
     }
     if (changes.analysisMode) settings.setAnalysisMode(changes.analysisMode.newValue, false);
     if (changes.outputLanguage) settings.setOutputLanguage(changes.outputLanguage.newValue, false);
     if (changes.uiDensity) settings.setUiDensity(changes.uiDensity.newValue, false);
     if (changes.enabledSections) settings.setEnabledSections(changes.enabledSections.newValue);
-    if (changes.generateKnowledgeEntries) settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
-    if (changes.optimizeForConversation !== undefined) settings.setOptimizeForConversation(changes.optimizeForConversation.newValue, false);
-    if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; void operations.refreshDebugInfo(); }
-    if (changes.captureRetryCount || changes.captureRetryDelayMs) settings.setCaptureRetries({
-      captureRetryCount: changes.captureRetryCount ? changes.captureRetryCount.newValue ?? 3 : settings.captureRetryCount,
-      captureRetryDelayMs: changes.captureRetryDelayMs ? changes.captureRetryDelayMs.newValue ?? 3000 : settings.captureRetryDelayMs,
-    });
+    if (changes.generateKnowledgeEntries)
+      settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
+    if (changes.optimizeForConversation !== undefined)
+      settings.setOptimizeForConversation(changes.optimizeForConversation.newValue, false);
+    if (changes.debugInfo) {
+      settings.debugInfo = changes.debugInfo.newValue === true;
+      void operations.refreshDebugInfo();
+    }
+    if (changes.captureRetryCount || changes.captureRetryDelayMs)
+      settings.setCaptureRetries({
+        captureRetryCount: changes.captureRetryCount
+          ? (changes.captureRetryCount.newValue ?? 3)
+          : settings.captureRetryCount,
+        captureRetryDelayMs: changes.captureRetryDelayMs
+          ? (changes.captureRetryDelayMs.newValue ?? 3000)
+          : settings.captureRetryDelayMs,
+      });
     tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
     if (changes.popupDiagnostics) tabStateManager.diagnosticsEnabled = changes.popupDiagnostics.newValue === true;
-    if (Object.keys(changes).some(key => key === 'connectionMode' || key === 'serverPort' || key === 'obsidianExecutionState' || key === 'chromeApiRevision' || key.startsWith('chromeAi'))) void envService.checkServerStatus(true);
+    if (
+      Object.keys(changes).some(
+        key =>
+          key === 'connectionMode' ||
+          key === 'serverPort' ||
+          key === 'obsidianExecutionState' ||
+          key === 'chromeApiRevision' ||
+          key.startsWith('chromeAi')
+      )
+    )
+      void envService.checkServerStatus(true);
     tabStateManager.emit({ type: 'settings' });
   });
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });
@@ -192,7 +287,8 @@ async function initPopup() {
     if (document.visibilityState === 'visible') void interactionAction.updateMindmapPosition();
   }, 750);
   setInterval(() => {
-    if (document.visibilityState === 'visible' && settings.connectionMode === 'obsidian') void envService.checkServerStatus();
+    if (document.visibilityState === 'visible' && settings.connectionMode === 'obsidian')
+      void envService.checkServerStatus();
   }, 15000);
   chrome.tabs.onActivated.addListener(info => {
     if (activityUI.windowId == null || activityUI.windowId === info.windowId) void tabAction.handleTabActivated(info);

@@ -5,11 +5,11 @@
 class MetricsComponent {
   constructor(root = document) {
     this.root = root;
-    this.metricNuts = root.getElementById("metric-nuts");
-    this.metricEggs = root.getElementById("metric-eggs");
-    this.metricTime = root.getElementById("metric-time");
-    this.obsidianPluginLink = root.getElementById("obsidian-plugin-link");
-    this.reportBugLink = root.getElementById("report-bug-link");
+    this.metricNuts = root.getElementById('metric-nuts');
+    this.metricEggs = root.getElementById('metric-eggs');
+    this.metricTime = root.getElementById('metric-time');
+    this.obsidianPluginLink = root.getElementById('obsidian-plugin-link');
+    this.reportBugLink = root.getElementById('report-bug-link');
   }
 
   render(data = {}) {
@@ -22,9 +22,9 @@ class MetricsComponent {
   showPluginLink(visible) {
     if (!this.obsidianPluginLink) return;
     if (visible) {
-      this.obsidianPluginLink.classList.remove("hidden");
+      this.obsidianPluginLink.classList.remove('hidden');
     } else {
-      this.obsidianPluginLink.classList.add("hidden");
+      this.obsidianPluginLink.classList.add('hidden');
     }
   }
 
@@ -32,19 +32,30 @@ class MetricsComponent {
     const panel = this.root.getElementById('debug-info');
     if (!panel) return;
     panel.classList.toggle('hidden', !enabled);
-    if (!enabled) { panel.textContent = ''; return; }
+    if (!enabled) {
+      panel.textContent = '';
+      return;
+    }
     const { view, settings } = context;
-    const statsText = !info || info.unavailable ? t('debugInfoUnavailable') : t('debugInfoStats', {
-      backend: info.mode === 'chrome' ? 'Chrome' : 'Obsidian', running: info.activeCalls, calls: info.totalCalls,
-      words: info.promptWords?.toLocaleString(), last: info.lastPromptWords?.toLocaleString(),
-    });
+    const statsText =
+      !info || info.unavailable
+        ? t('debugInfoUnavailable')
+        : t('debugInfoStats', {
+            backend: info.mode === 'chrome' ? 'Chrome' : 'Obsidian',
+            running: info.activeCalls,
+            calls: info.totalCalls,
+            words: info.promptWords?.toLocaleString(),
+            last: info.lastPromptWords?.toLocaleString(),
+          });
 
     const lines = [statsText];
 
     if (settings) {
       // Connection details
       const cParts = [];
-      const isChrome = settings.isChromeMode ? settings.isChromeMode(view?.analysisResult) : settings.connectionMode !== 'obsidian';
+      const isChrome = settings.isChromeMode
+        ? settings.isChromeMode(view?.analysisResult)
+        : settings.connectionMode !== 'obsidian';
       cParts.push(`Mode: ${isChrome ? 'Chrome' : 'Obsidian'}`);
 
       if (settings.serverOnline) {
@@ -119,8 +130,10 @@ class MetricsComponent {
       if (content?.content) {
         const len = content.content.length;
         const chunkCount = len <= 30000 ? 1 : Math.ceil(len / 30000);
-        const type = content.isVideo ? 'Video' : (content.sourceType || 'Content');
-        stParts.push(`Content: ${len.toLocaleString()} chars (${chunkCount} ${chunkCount === 1 ? 'chunk' : 'chunks'}) · ${type}`);
+        const type = content.isVideo ? 'Video' : content.sourceType || 'Content';
+        stParts.push(
+          `Content: ${len.toLocaleString()} chars (${chunkCount} ${chunkCount === 1 ? 'chunk' : 'chunks'}) · ${type}`
+        );
       }
 
       if (view.analysisResult?.conversation?.format) {
@@ -142,10 +155,10 @@ class MetricsComponent {
   }
 }
 
-const _metricsScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _metricsScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _metricsScope.NutEggUI = _metricsScope.NutEggUI || {};
 _metricsScope.NutEggUI.MetricsComponent = MetricsComponent;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = { MetricsComponent };
 }

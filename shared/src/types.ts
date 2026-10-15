@@ -3,25 +3,25 @@
 // ============================================================
 
 export type AIProviderId =
-  | "local"
-  | "openrouter"
-  | "anthropic"
-  | "deepseek"
-  | "gemini"
-  | "gemini-cli"
-  | "codex-cli"
-  | "claude-cli"
-  | "openai"
-  | "kimi"
-  | "zhipu"
-  | "qwen";
+  | 'local'
+  | 'openrouter'
+  | 'anthropic'
+  | 'deepseek'
+  | 'gemini'
+  | 'gemini-cli'
+  | 'codex-cli'
+  | 'claude-cli'
+  | 'openai'
+  | 'kimi'
+  | 'zhipu'
+  | 'qwen';
 
-export type AISource = "official" | "openrouter";
-export type AIAuthMethod = "apiKey" | "subscription";
-export type SubscriptionProvider = "openai" | "anthropic" | "gemini";
+export type AISource = 'official' | 'openrouter';
+export type AIAuthMethod = 'apiKey' | 'subscription';
+export type SubscriptionProvider = 'openai' | 'anthropic' | 'gemini';
 
 export interface SubscriptionStatus {
-  state: "disabled" | "missing" | "login_required" | "signing_in" | "unverified" | "ready" | "error";
+  state: 'disabled' | 'missing' | 'login_required' | 'signing_in' | 'unverified' | 'ready' | 'error';
   message: string;
   errorCode?: string;
   usageRemaining?: string;
@@ -48,7 +48,7 @@ export interface ProviderInfo {
   id: AIProviderId;
   label: string;
   officialEndpoint: string;
-  apiFormat: "anthropic" | "openai-compatible";
+  apiFormat: 'anthropic' | 'openai-compatible';
   defaultModel?: string;
   models?: string[];
   families?: ModelFamily[];
@@ -62,7 +62,7 @@ export interface ResolvedConfig {
   endpoint: string;
   apiKey: string;
   model: string;
-  apiFormat: "anthropic" | "openai-compatible" | "ollama";
+  apiFormat: 'anthropic' | 'openai-compatible' | 'ollama';
   provider: AIProviderId;
   isLocal?: boolean;
 }
@@ -114,7 +114,7 @@ export interface SourceRef {
   quote?: string;
 }
 
-export type QuestionScope = "within" | "beyond";
+export type QuestionScope = 'within' | 'beyond';
 
 export interface KeyAnswer {
   /** False when the source does not address this question (Stage 2). */
@@ -127,22 +127,22 @@ export interface KeyAnswer {
   scope?: QuestionScope;
 }
 
-export type ConversationFormat = "monologue" | "interview" | "podcast" | "ama" | "panel" | "debate";
-export type MindMapNodeKind = "topic" | "question" | "answer" | "claim" | "disagreement" | "example" | "takeaway";
+export type ConversationFormat = 'monologue' | 'interview' | 'podcast' | 'ama' | 'panel' | 'debate';
+export type MindMapNodeKind = 'topic' | 'question' | 'answer' | 'claim' | 'disagreement' | 'example' | 'takeaway';
 
 export interface Participant {
-  id: string;            // "p1" — stable within one result
-  label: string;         // e.g. "Lex Fridman", "Host", "Audience"
+  id: string; // "p1" — stable within one result
+  label: string; // e.g. "Lex Fridman", "Host", "Audience"
   name?: string;
-  role: "host" | "guest" | "audience" | "moderator" | "panelist" | "speaker" | "unknown";
-  named: boolean;        // true only if the source states the name
-  evidence?: SourceRef;  // where the name/role is stated (intro, title, description)
+  role: 'host' | 'guest' | 'audience' | 'moderator' | 'panelist' | 'speaker' | 'unknown';
+  named: boolean; // true only if the source states the name
+  evidence?: SourceRef; // where the name/role is stated (intro, title, description)
 }
 
 export interface ConversationMeta {
   format: ConversationFormat;
   participants: Participant[];
-  confidence: "high" | "medium" | "low";
+  confidence: 'high' | 'medium' | 'low';
 }
 
 /** A node in the concept mind map / outline tree. */
@@ -159,7 +159,7 @@ export interface MindMapNode {
   /** Participant ID of the person asking the question (for question nodes). */
   askedBy?: string;
   /** Stance relative to the parent question or topic. */
-  stance?: "agree" | "disagree" | "mixed";
+  stance?: 'agree' | 'disagree' | 'mixed';
   children?: MindMapNode[];
 }
 
@@ -178,7 +178,7 @@ export const DEFAULT_ANALYSIS_SECTIONS: AnalysisSectionsConfig = {
   discussion: false,
 };
 
-export type DiscussionStance = "agree" | "disagree" | "mixed" | "neutral" | "unclear";
+export type DiscussionStance = 'agree' | 'disagree' | 'mixed' | 'neutral' | 'unclear';
 export interface DiscussionItem {
   id: string;
   parentId?: string;
@@ -186,12 +186,12 @@ export interface DiscussionItem {
   authorId?: string;
   text: string;
   url?: string;
-  reaction?: { kind: "likes" | "score"; count: number | null; approximate?: boolean };
+  reaction?: { kind: 'likes' | 'score'; count: number | null; approximate?: boolean };
 }
 export interface DiscussionCapture {
-  kind: "forum" | "comments";
-  status: "not_loaded" | "loading" | "partial" | "complete" | "empty" | "unavailable";
-  reason?: "login" | "disabled" | "unsupported" | "error";
+  kind: 'forum' | 'comments';
+  status: 'not_loaded' | 'loading' | 'partial' | 'complete' | 'empty' | 'unavailable';
+  reason?: 'login' | 'disabled' | 'unsupported' | 'error';
   items: DiscussionItem[];
   totalCount?: number | null;
   truncated?: boolean;
@@ -224,9 +224,9 @@ export interface DiscussionTopic {
   commentIds?: Partial<Record<DiscussionStance, string[]>>;
 }
 export interface DiscussionAnalysis {
-  status: "ready" | "no_meaningful" | "not_loaded" | "unavailable";
-  kind: "forum" | "comments";
-  coverage: DiscussionCapture["status"];
+  status: 'ready' | 'no_meaningful' | 'not_loaded' | 'unavailable';
+  kind: 'forum' | 'comments';
+  coverage: DiscussionCapture['status'];
   capturedCount: number;
   analyzedCount: number;
   totalCount: number | null;
@@ -310,11 +310,11 @@ export interface EggContent {
   indexDescription?: string;
 }
 
-export type ReadAction = "full" | "highlights" | "summary" | "skip" | "uncertain";
+export type ReadAction = 'full' | 'highlights' | 'summary' | 'skip' | 'uncertain';
 
 /** Instruction-formatted result, not a claim of novelty. */
 export interface ExtractedKnowledgeEntry {
-  kind?: "insight" | "list" | "answer" | "concept" | "method" | "opinion" | "fact" | string;
+  kind?: 'insight' | 'list' | 'answer' | 'concept' | 'method' | 'opinion' | 'fact' | string;
   content: string;
   sources?: SourceRef[];
 }
@@ -345,7 +345,7 @@ export interface MergeResult {
 }
 
 export interface AnalysisResult extends ContentAnalysis {
-  execution?: import("./execution").ExecutionMetadata;
+  execution?: import('./execution').ExecutionMetadata;
   generateKnowledgeEntries?: boolean;
   shouldRead: boolean | null;
   readAction?: ReadAction;
@@ -360,33 +360,36 @@ export interface AnalysisResult extends ContentAnalysis {
 }
 
 export type WorkflowPromptKey =
-  | "discussionAnalysis"
-  | "aggregateDiscussion"
-  | "contentAnalysis"
-  | "verdictSummary"
-  | "mindMapAnalysis"
-  | "eggAnalysis"
-  | "followUp"
-  | "eggRouting"
-  | "contentTaskDefault"
-  | "mergeUnprocessed"
-  | "aggregateContent"
-  | "aggregateEgg"
-  | "localizeEgg"
-  | "sharedOutputRules"
-  | "conversationRules"
-  | "chromeKnowledge";
+  | 'discussionAnalysis'
+  | 'aggregateDiscussion'
+  | 'contentAnalysis'
+  | 'verdictSummary'
+  | 'mindMapAnalysis'
+  | 'eggAnalysis'
+  | 'followUp'
+  | 'eggRouting'
+  | 'contentTaskDefault'
+  | 'mergeUnprocessed'
+  | 'aggregateContent'
+  | 'aggregateEgg'
+  | 'localizeEgg'
+  | 'sharedOutputRules'
+  | 'conversationRules'
+  | 'chromeKnowledge';
 
 export type AnalysisProgressEvent =
-  | { type: "partial"; section: "summary"; data: { titleVerdict?: string; coreSummary?: string[]; customQuestionAnswers?: KeyAnswer[] } }
-  | { type: "partial"; section: "mindmap"; data: { mindMap: MindMapNode[]; conversation?: ConversationMeta } }
-  | { type: "partial"; section: "discussion"; data: { discussion: DiscussionAnalysis } }
-  | { type: "partial"; section: "matchedEggs"; data: { matchedEggs: string[] } }
-  | { type: "partial"; section: "knowledge"; data: { extractedEntries: ExtractedKnowledgeEntry[] } }
-  | { type: "complete"; result: AnalysisResult | ContentAnalysis };
+  | {
+      type: 'partial';
+      section: 'summary';
+      data: { titleVerdict?: string; coreSummary?: string[]; customQuestionAnswers?: KeyAnswer[] };
+    }
+  | { type: 'partial'; section: 'mindmap'; data: { mindMap: MindMapNode[]; conversation?: ConversationMeta } }
+  | { type: 'partial'; section: 'discussion'; data: { discussion: DiscussionAnalysis } }
+  | { type: 'partial'; section: 'matchedEggs'; data: { matchedEggs: string[] } }
+  | { type: 'partial'; section: 'knowledge'; data: { extractedEntries: ExtractedKnowledgeEntry[] } }
+  | { type: 'complete'; result: AnalysisResult | ContentAnalysis };
 
 export type AnalysisProgressCallback = (event: AnalysisProgressEvent) => void;
-
 
 /**
  * Host interface providing environment-specific services (Obsidian vault, custom prompt overrides, etc.)
@@ -406,7 +409,12 @@ export interface AIProcessorHost {
   };
   eggParser?: {
     readEgg?(fileName: string): Promise<EggContent | null>;
-    applyMerge?(fileName: string, knowledge: string, unprocessed: string, expected?: EggContent): Promise<void | boolean>;
+    applyMerge?(
+      fileName: string,
+      knowledge: string,
+      unprocessed: string,
+      expected?: EggContent
+    ): Promise<void | boolean>;
     countUnprocessed?(egg: EggContent): number;
     formatEggInstructionsForPrompt?(egg: EggContent): string;
     formatEggForPrompt?(egg: EggContent): string;

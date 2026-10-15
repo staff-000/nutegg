@@ -1,63 +1,59 @@
 // NutEgg Options Page
 
-const {
-  PROVIDER_CATALOG = {},
-  checkCreditAI,
-  isSubscriptionProvider = () => false,
-} = window.NutEggAI || {};
+const { PROVIDER_CATALOG = {}, checkCreditAI, isSubscriptionProvider = () => false } = window.NutEggAI || {};
 
 const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
 
 const DEFAULT_PORT = 27123;
 
 // Server connection elements
-const portInput = document.getElementById("port-input");
-const portDisplay = document.getElementById("port-display");
-const modeSelect = document.getElementById("mode-select");
-const fastDesc = document.getElementById("fast-desc");
-const confirmDesc = document.getElementById("confirm-desc");
-const saveBtn = document.getElementById("save-btn");
-const testBtn = document.getElementById("test-btn");
-const testResult = document.getElementById("test-result");
-const shortcutsLink = document.getElementById("shortcuts-link");
+const portInput = document.getElementById('port-input');
+const portDisplay = document.getElementById('port-display');
+const modeSelect = document.getElementById('mode-select');
+const fastDesc = document.getElementById('fast-desc');
+const confirmDesc = document.getElementById('confirm-desc');
+const saveBtn = document.getElementById('save-btn');
+const testBtn = document.getElementById('test-btn');
+const testResult = document.getElementById('test-result');
+const shortcutsLink = document.getElementById('shortcuts-link');
 
 // AI configuration elements
-const aiConfigSection = document.getElementById("ai-config-section");
-const aiStatusBanner = document.getElementById("ai-status-banner");
-const obsidianModeEnabled = document.getElementById("obsidian-mode-enabled");
-const obsidianConfig = document.getElementById("obsidian-config");
-const obsidianActiveCard = document.getElementById("obsidian-active-card");
-const connectionModeBadge = document.getElementById("connection-mode-badge");
-const connectionModeStatus = document.getElementById("connection-mode-status");
-const chromeAdvancedSettings = document.getElementById("chrome-advanced-settings");
-const aiAdvancedStatus = document.getElementById("ai-advanced-status");
-const aiProviderSelect = document.getElementById("ai-provider-select");
-const aiModelSelect = document.getElementById("ai-model-select");
-const aiModelCustom = document.getElementById("ai-model-custom");
-const aiLocalEndpointRow = document.getElementById("ai-local-endpoint-row");
-const aiLocalEndpoint = document.getElementById("ai-local-endpoint");
-const aiKeyInput = document.getElementById("ai-key-input");
-const aiKeyToggle = document.getElementById("ai-key-toggle");
-const chunkWindowInput = document.getElementById("chunk-window-chars");
-const maxTokensInput = document.getElementById("max-completion-tokens");
-const aiKeyHint = document.getElementById("ai-key-hint");
-const outputLangSelect = document.getElementById("output-lang-select");
-const aiSaveBtn = document.getElementById("ai-save-btn");
-const aiTestBtn = document.getElementById("ai-test-btn");
-const aiTestResult = document.getElementById("ai-test-result");
-const aiPromptSelect = document.getElementById("ai-prompt-select");
-const aiPromptTextarea = document.getElementById("ai-prompt-textarea");
-const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
+const aiConfigSection = document.getElementById('ai-config-section');
+const aiStatusBanner = document.getElementById('ai-status-banner');
+const obsidianModeEnabled = document.getElementById('obsidian-mode-enabled');
+const obsidianConfig = document.getElementById('obsidian-config');
+const obsidianActiveCard = document.getElementById('obsidian-active-card');
+const connectionModeBadge = document.getElementById('connection-mode-badge');
+const connectionModeStatus = document.getElementById('connection-mode-status');
+const chromeAdvancedSettings = document.getElementById('chrome-advanced-settings');
+const aiAdvancedStatus = document.getElementById('ai-advanced-status');
+const aiProviderSelect = document.getElementById('ai-provider-select');
+const aiModelSelect = document.getElementById('ai-model-select');
+const aiModelCustom = document.getElementById('ai-model-custom');
+const aiLocalEndpointRow = document.getElementById('ai-local-endpoint-row');
+const aiLocalEndpoint = document.getElementById('ai-local-endpoint');
+const aiKeyInput = document.getElementById('ai-key-input');
+const aiKeyToggle = document.getElementById('ai-key-toggle');
+const chunkWindowInput = document.getElementById('chunk-window-chars');
+const maxTokensInput = document.getElementById('max-completion-tokens');
+const aiKeyHint = document.getElementById('ai-key-hint');
+const outputLangSelect = document.getElementById('output-lang-select');
+const aiSaveBtn = document.getElementById('ai-save-btn');
+const aiTestBtn = document.getElementById('ai-test-btn');
+const aiTestResult = document.getElementById('ai-test-result');
+const aiPromptSelect = document.getElementById('ai-prompt-select');
+const aiPromptTextarea = document.getElementById('ai-prompt-textarea');
+const aiPromptResetBtn = document.getElementById('ai-prompt-reset-btn');
 
 // Content Analysis sections elements
-const sectionVerdictSummary = document.getElementById("section-verdict-summary");
-const sectionMindmap = document.getElementById("section-mindmap");
-const optimizeConversation = document.getElementById("optimize-conversation");
-const sectionKnowledge = document.getElementById("section-knowledge");
-const sectionDiscussion = document.getElementById("section-discussion");
-const sectionsSaveBtn = document.getElementById("sections-save-btn");
-const sectionsStatus = document.getElementById("sections-status");
-const uiDensitySelect = document.getElementById("ui-density-select");
+const sectionVerdictSummary = document.getElementById('section-verdict-summary');
+const sectionMindmap = document.getElementById('section-mindmap');
+const optimizeConversation = document.getElementById('optimize-conversation');
+const sectionKnowledge = document.getElementById('section-knowledge');
+const sectionDiscussion = document.getElementById('section-discussion');
+const sectionsSaveBtn = document.getElementById('sections-save-btn');
+const sectionsStatus = document.getElementById('sections-status');
+const uiDensitySelect = document.getElementById('ui-density-select');
 const debugInfoEnabled = document.getElementById('debug-info-enabled');
 
 const DEFAULT_SECTIONS = {
@@ -87,16 +83,22 @@ function probeHealth(port) {
   // Share parsed data, not a Response whose body can only be consumed once.
   const task = fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) })
     .then(async response => ({ ok: response.ok, health: response.ok ? await response.json() : {} }))
-    .finally(() => { if (healthProbe?.task === task) healthProbe = null; });
-  healthProbe = { port, task }; return task;
+    .finally(() => {
+      if (healthProbe?.task === task) healthProbe = null;
+    });
+  healthProbe = { port, task };
+  return task;
 }
 let subscriptionRequest = 0;
 let subscriptionTimer;
 const subscriptionSelected = () => aiAuthMethod.value === 'subscription';
 function rememberProfile() {
   if (!profileKey) return;
-  aiProfiles[profileKey] = { model: aiModelSelect.value === '__custom__' ? aiModelCustom.value.trim() : aiModelSelect.value,
-    apiKey: subscriptionSelected() ? '' : aiKeyInput.value, endpoint: aiLocalEndpoint.value };
+  aiProfiles[profileKey] = {
+    model: aiModelSelect.value === '__custom__' ? aiModelCustom.value.trim() : aiModelSelect.value,
+    apiKey: subscriptionSelected() ? '' : aiKeyInput.value,
+    endpoint: aiLocalEndpoint.value,
+  };
 }
 function restoreProfile() {
   profileKey = `${aiProviderSelect.value}:${aiAuthMethod.value}`;
@@ -113,10 +115,15 @@ let lastSubscriptionState = null;
 function syncSubscriptionToggle() {
   const toggle = document.getElementById('use-subscription-toggle');
   if (!toggle) return;
-  let notice=document.getElementById('shared-mode-notice');
-  if(!notice) {notice=document.createElement('p');notice.id='shared-mode-notice';notice.className='hint';document.querySelector('.ai-card-heading')?.after(notice);}
-  notice.textContent=t('sharedModeNotice');
-  notice.hidden=!subscriptionEnabled || !obsidianModeEnabled.checked;
+  let notice = document.getElementById('shared-mode-notice');
+  if (!notice) {
+    notice = document.createElement('p');
+    notice.id = 'shared-mode-notice';
+    notice.className = 'hint';
+    document.querySelector('.ai-card-heading')?.after(notice);
+  }
+  notice.textContent = t('sharedModeNotice');
+  notice.hidden = !subscriptionEnabled || !obsidianModeEnabled.checked;
   toggle.checked = aiAuthMethod.value === 'subscription';
   toggle.disabled = !subscriptionEnabled || !!methodChange || lastSubscriptionState?.transition === 'changing';
 }
@@ -130,12 +137,12 @@ function renderSubscriptionAccess() {
   }
   if (isSub) {
     if (aiTestResult) {
-      aiTestResult.textContent = "";
-      aiTestResult.className = "test-result hidden";
+      aiTestResult.textContent = '';
+      aiTestResult.className = 'test-result hidden';
     }
     if (aiAdvancedStatus) {
-      aiAdvancedStatus.textContent = "";
-      aiAdvancedStatus.className = "test-result hidden";
+      aiAdvancedStatus.textContent = '';
+      aiAdvancedStatus.className = 'test-result hidden';
     }
   }
   document.getElementById('ai-auth-row').hidden = !obsidianModeEnabled.checked || !subscriptionEnabled;
@@ -153,75 +160,123 @@ function renderSubscriptionAccess() {
   aiProviderSelect.disabled = isSub;
   aiProviderSelect.closest('.option-row').hidden = isSub;
   document.getElementById('ai-setup-help').hidden = isSub;
-  for (const control of chromeAdvancedSettings.querySelectorAll('input, select, textarea, button')) control.disabled = isSub;
+  for (const control of chromeAdvancedSettings.querySelectorAll('input, select, textarea, button'))
+    control.disabled = isSub;
   chromeAdvancedSettings.classList.toggle('hidden', isSub);
   const badge = document.getElementById('subscription-model-badge');
   if (badge && activeSubscriptionModel) badge.textContent = activeSubscriptionModel;
 }
 function subscriptionStatusText(info) {
-  return t(info?.state === 'ready' ? 'aiConnectionReady' : info?.state === 'error' || info?.error ? 'aiConnectionUnavailable' : 'aiConnectionSetupNeeded');
+  return t(
+    info?.state === 'ready'
+      ? 'aiConnectionReady'
+      : info?.state === 'error' || info?.error
+        ? 'aiConnectionUnavailable'
+        : 'aiConnectionSetupNeeded'
+  );
 }
 async function applySharedExecution(state) {
-  if(!state || !obsidianModeEnabled.checked)return;
-  state=window.NutEggAI?.reduceSharedExecutionState?.(acknowledgedSharedState,state)||state;acknowledgedSharedState=state;
-  subscriptionEnabled=state.subscriptionAvailable===true;subscriptionAccessKnown=true;
-  const next=state.mode==='subscription'?'subscription':'apiKey';
-  const previous=acknowledgedAuthMethod;
-  if(previous==='apiKey' && next==='subscription') {
-    rememberProfile();savedApiConfig={...getAiFormSettings(),chromeAiAuthMethod:'apiKey'};
+  if (!state || !obsidianModeEnabled.checked) return;
+  state = window.NutEggAI?.reduceSharedExecutionState?.(acknowledgedSharedState, state) || state;
+  acknowledgedSharedState = state;
+  subscriptionEnabled = state.subscriptionAvailable === true;
+  subscriptionAccessKnown = true;
+  const next = state.mode === 'subscription' ? 'subscription' : 'apiKey';
+  const previous = acknowledgedAuthMethod;
+  if (previous === 'apiKey' && next === 'subscription') {
+    rememberProfile();
+    savedApiConfig = { ...getAiFormSettings(), chromeAiAuthMethod: 'apiKey' };
   }
-  aiAuthMethod.value=next;acknowledgedAuthMethod=next;
-  if(next==='subscription') {
-    lastKnownSubscriptionProvider=state.subscription.provider;activeSubscriptionModel=state.subscription.model;
-    aiProviderSelect.value=state.subscription.provider;profileKey=`${state.subscription.provider}:subscription`;
-    updateModelOptions(state.subscription.provider,state.subscription.model);
-    document.getElementById('subscription-provider-badge').textContent=PROVIDER_CATALOG[state.subscription.provider]?.label||state.subscription.provider;
-    document.getElementById('subscription-model-badge').textContent=state.subscription.model;
-  } else if(previous==='subscription') {
-    const api=savedApiConfig||await chrome.storage.local.get(['chromeAiProvider','chromeAiModel','chromeAiApiKey','chromeAiEndpoint','chunkWindowChars','contentAnalysisMaxTokens']);
-    aiProviderSelect.value=api.chromeAiProvider||lastApiKeyProvider||'gemini';
-    profileKey=`${aiProviderSelect.value}:apiKey`;
-    aiKeyInput.value=api.chromeAiApiKey||'';aiLocalEndpoint.value=api.chromeAiEndpoint||api.chromeAiLocalEndpoint||'';
-    updateModelOptions(aiProviderSelect.value,api.chromeAiModel);
-    chunkWindowInput.value=api.chunkWindowChars||30000;maxTokensInput.value=api.contentAnalysisMaxTokens||16384;
-    lastSubscriptionState=null;aiTestResult.textContent='';aiAdvancedStatus.textContent='';
+  aiAuthMethod.value = next;
+  acknowledgedAuthMethod = next;
+  if (next === 'subscription') {
+    lastKnownSubscriptionProvider = state.subscription.provider;
+    activeSubscriptionModel = state.subscription.model;
+    aiProviderSelect.value = state.subscription.provider;
+    profileKey = `${state.subscription.provider}:subscription`;
+    updateModelOptions(state.subscription.provider, state.subscription.model);
+    document.getElementById('subscription-provider-badge').textContent =
+      PROVIDER_CATALOG[state.subscription.provider]?.label || state.subscription.provider;
+    document.getElementById('subscription-model-badge').textContent = state.subscription.model;
+  } else if (previous === 'subscription') {
+    const api =
+      savedApiConfig ||
+      (await chrome.storage.local.get([
+        'chromeAiProvider',
+        'chromeAiModel',
+        'chromeAiApiKey',
+        'chromeAiEndpoint',
+        'chunkWindowChars',
+        'contentAnalysisMaxTokens',
+      ]));
+    aiProviderSelect.value = api.chromeAiProvider || lastApiKeyProvider || 'gemini';
+    profileKey = `${aiProviderSelect.value}:apiKey`;
+    aiKeyInput.value = api.chromeAiApiKey || '';
+    aiLocalEndpoint.value = api.chromeAiEndpoint || api.chromeAiLocalEndpoint || '';
+    updateModelOptions(aiProviderSelect.value, api.chromeAiModel);
+    chunkWindowInput.value = api.chunkWindowChars || 30000;
+    maxTokensInput.value = api.contentAnalysisMaxTokens || 16384;
+    lastSubscriptionState = null;
+    aiTestResult.textContent = '';
+    aiAdvancedStatus.textContent = '';
   }
-  syncSubscriptionToggle();renderSubscriptionAccess();
-  const toggle=document.getElementById('use-subscription-toggle');if(toggle)toggle.disabled=state.transition!=='ready'||!!methodChange||!subscriptionEnabled;
-  if(next==='subscription'&&previous!==next)void refreshSubscription();
+  syncSubscriptionToggle();
+  renderSubscriptionAccess();
+  const toggle = document.getElementById('use-subscription-toggle');
+  if (toggle) toggle.disabled = state.transition !== 'ready' || !!methodChange || !subscriptionEnabled;
+  if (next === 'subscription' && previous !== next) void refreshSubscription();
 }
 async function changeAiMethod(method) {
-  if(methodChange)return;
-  aiAuthMethod.value=acknowledgedAuthMethod;
-  const toggle=document.getElementById('use-subscription-toggle');if(toggle)toggle.disabled=true;
-  methodChange=(async()=>{
-    const result=await chrome.runtime.sendMessage({action:'set-execution-mode',mode:method});
-    if(result?.error)throw new Error(result.error);
-    await applySharedExecution(result.state);await refreshObsidianAiConfig();
+  if (methodChange) return;
+  aiAuthMethod.value = acknowledgedAuthMethod;
+  const toggle = document.getElementById('use-subscription-toggle');
+  if (toggle) toggle.disabled = true;
+  methodChange = (async () => {
+    const result = await chrome.runtime.sendMessage({ action: 'set-execution-mode', mode: method });
+    if (result?.error) throw new Error(result.error);
+    await applySharedExecution(result.state);
+    await refreshObsidianAiConfig();
   })();
-  try {await methodChange;}catch(error){showAiResult(t('aiError',{error:error.message}),'error');await refreshSubscriptionAccess();}
-  finally {methodChange=null;renderSubscriptionAccess();}
+  try {
+    await methodChange;
+  } catch (error) {
+    showAiResult(t('aiError', { error: error.message }), 'error');
+    await refreshSubscriptionAccess();
+  } finally {
+    methodChange = null;
+    renderSubscriptionAccess();
+  }
 }
 async function refreshSubscriptionAccess() {
-  const request=++subscriptionFeatureRequest;
-  if(!obsidianModeEnabled.checked){subscriptionEnabled=false;subscriptionAccessKnown=true;renderSubscriptionAccess();return;}
+  const request = ++subscriptionFeatureRequest;
+  if (!obsidianModeEnabled.checked) {
+    subscriptionEnabled = false;
+    subscriptionAccessKnown = true;
+    renderSubscriptionAccess();
+    return;
+  }
   try {
-    const result=await chrome.runtime.sendMessage({action:'get-obsidian-ai-config'});
-    if(request!==subscriptionFeatureRequest||!obsidianModeEnabled.checked)return;
-    if(result?.error)throw new Error(result.error);
-    if(result?.state)await applySharedExecution(result.state);
-  }catch(error){
-    if(request===subscriptionFeatureRequest&&obsidianModeEnabled.checked)
-      aiStatusBanner.textContent=t('aiError',{error:error.message});
+    const result = await chrome.runtime.sendMessage({ action: 'get-obsidian-ai-config' });
+    if (request !== subscriptionFeatureRequest || !obsidianModeEnabled.checked) return;
+    if (result?.error) throw new Error(result.error);
+    if (result?.state) await applySharedExecution(result.state);
+  } catch (error) {
+    if (request === subscriptionFeatureRequest && obsidianModeEnabled.checked)
+      aiStatusBanner.textContent = t('aiError', { error: error.message });
   } // Offline preserves the last confirmed mode; no API billing fallback.
 }
 async function subscriptionControl(operation, extra = {}) {
   let provider = aiProviderSelect.value;
-  if (!(window.NutEggAI?.supportsSubscription?.(provider))) {
+  if (!window.NutEggAI?.supportsSubscription?.(provider)) {
     provider = lastKnownSubscriptionProvider || 'gemini';
   }
-  return chrome.runtime.sendMessage({ action: 'subscription-control', operation, provider,
-    model: activeSubscriptionModel || 'auto', ...extra });
+  return chrome.runtime.sendMessage({
+    action: 'subscription-control',
+    operation,
+    provider,
+    model: activeSubscriptionModel || 'auto',
+    ...extra,
+  });
 }
 async function refreshSubscription() {
   clearTimeout(subscriptionTimer);
@@ -231,7 +286,13 @@ async function refreshSubscription() {
   const provider = aiProviderSelect.value;
   try {
     const status = await subscriptionControl('status');
-    if (request !== subscriptionRequest || provider !== aiProviderSelect.value || !subscriptionEnabled || !subscriptionSelected()) return;
+    if (
+      request !== subscriptionRequest ||
+      provider !== aiProviderSelect.value ||
+      !subscriptionEnabled ||
+      !subscriptionSelected()
+    )
+      return;
     lastSubscriptionState = status?.state || 'error';
     const card = document.getElementById('subscription-card');
     const previousState = card.dataset.state;
@@ -252,7 +313,9 @@ async function refreshSubscription() {
     // Refresh after the previous request finishes: CLI status checks may take
     // longer than a fixed polling interval. Never discard every slow result.
     if (request === subscriptionRequest && subscriptionEnabled && subscriptionSelected() && !document.hidden) {
-      subscriptionTimer = setTimeout(() => { void refreshSubscription(); }, 5000);
+      subscriptionTimer = setTimeout(() => {
+        void refreshSubscription();
+      }, 5000);
     }
   }
 }
@@ -269,54 +332,54 @@ async function connectChrome() {
 
 let obsidianConfigRequest = 0;
 let obsidianConfigTimer = null;
-let activePromptKey = "contentAnalysis";
+let activePromptKey = 'contentAnalysis';
 
 function updateModeDesc(mode) {
-  if (mode === "preview" || mode === "confirm") {
-    confirmDesc?.classList.add("active-desc");
-    fastDesc?.classList.remove("active-desc");
+  if (mode === 'preview' || mode === 'confirm') {
+    confirmDesc?.classList.add('active-desc');
+    fastDesc?.classList.remove('active-desc');
   } else {
-    fastDesc?.classList.add("active-desc");
-    confirmDesc?.classList.remove("active-desc");
+    fastDesc?.classList.add('active-desc');
+    confirmDesc?.classList.remove('active-desc');
   }
 }
 
 // Load saved settings
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener('DOMContentLoaded', async () => {
   let stored = await chrome.storage.local.get([
-    "serverPort",
-    "analysisMode",
-    "enabledSections",
-    "generateKnowledgeEntries",
-    "optimizeForConversation",
-    "uiDensity",
-    "connectionMode",
-    "obsidianExecutionState",
-    "chromeAiEnabled",
-    "chromeAiProvider",
-    "chromeAiAuthMethod",
-    "aiProfiles",
-    "chromeApiConfig",
-    "lastApiKeyProvider",
-    "subscriptionModels",
-    "chromeAiApiKey",
-    "chromeAiModel",
-    "chromeAiLocalEndpoint",
-    "chromeAiEndpoint",
-    "outputLanguage",
-    "chromeAiPromptOverrides",
-    "chunkWindowChars",
-    "contentAnalysisMaxTokens",
-    "chromeAiMaxTokens",
-    "debugInfo",
-    "captureRetryCount",
-    "captureRetryDelayMs",
-    "chromeCacheTabLimit",
-    "chromeTabCache",
+    'serverPort',
+    'analysisMode',
+    'enabledSections',
+    'generateKnowledgeEntries',
+    'optimizeForConversation',
+    'uiDensity',
+    'connectionMode',
+    'obsidianExecutionState',
+    'chromeAiEnabled',
+    'chromeAiProvider',
+    'chromeAiAuthMethod',
+    'aiProfiles',
+    'chromeApiConfig',
+    'lastApiKeyProvider',
+    'subscriptionModels',
+    'chromeAiApiKey',
+    'chromeAiModel',
+    'chromeAiLocalEndpoint',
+    'chromeAiEndpoint',
+    'outputLanguage',
+    'chromeAiPromptOverrides',
+    'chunkWindowChars',
+    'contentAnalysisMaxTokens',
+    'chromeAiMaxTokens',
+    'debugInfo',
+    'captureRetryCount',
+    'captureRetryDelayMs',
+    'chromeCacheTabLimit',
+    'chromeTabCache',
   ]);
   const migrated = (window.NutEggAI?.migrateAISettings || (value => value))(stored);
   if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
-  stored = window.NutEggAI?.migrateChromeApiPreferences?.(migrated)||migrated;
+  stored = window.NutEggAI?.migrateChromeApiPreferences?.(migrated) || migrated;
   const captureSettings = new window.SettingsState();
   captureSettings.setCaptureRetries(stored);
   const retryCount = document.getElementById('capture-retry-count');
@@ -325,8 +388,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   retryDelay.value = captureSettings.captureRetryDelayMs / 1000;
   document.getElementById('capture-retry-save').addEventListener('click', async () => {
     if (!retryCount.reportValidity() || !retryDelay.reportValidity()) return;
-    captureSettings.setCaptureRetries({ captureRetryCount: Number(retryCount.value), captureRetryDelayMs: Number(retryDelay.value) * 1000 });
-    await chrome.storage.local.set({ captureRetryCount: captureSettings.captureRetryCount, captureRetryDelayMs: captureSettings.captureRetryDelayMs });
+    captureSettings.setCaptureRetries({
+      captureRetryCount: Number(retryCount.value),
+      captureRetryDelayMs: Number(retryDelay.value) * 1000,
+    });
+    await chrome.storage.local.set({
+      captureRetryCount: captureSettings.captureRetryCount,
+      captureRetryDelayMs: captureSettings.captureRetryDelayMs,
+    });
     const status = document.getElementById('capture-retry-status');
     status.textContent = t('captureRetrySaved');
     status.className = 'test-result ok';
@@ -337,7 +406,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   savedPromptOverrides = stored.chromeAiPromptOverrides || {};
   if (debugInfoEnabled) {
     debugInfoEnabled.checked = stored.debugInfo === true;
-    debugInfoEnabled.addEventListener('change', () => chrome.storage.local.set({ debugInfo: debugInfoEnabled.checked }));
+    debugInfoEnabled.addEventListener('change', () =>
+      chrome.storage.local.set({ debugInfo: debugInfoEnabled.checked })
+    );
   }
 
   // Initialize i18n following browser language
@@ -349,114 +420,135 @@ document.addEventListener("DOMContentLoaded", async () => {
   portInput.value = port;
   portDisplay.textContent = port;
 
-  const rawMode = stored.analysisMode || "preview";
-  const mode = rawMode === "confirm" ? "preview" : rawMode === "fast" ? "full" : rawMode;
+  const rawMode = stored.analysisMode || 'preview';
+  const mode = rawMode === 'confirm' ? 'preview' : rawMode === 'fast' ? 'full' : rawMode;
   if (modeSelect) {
     modeSelect.value = mode;
     updateModeDesc(mode);
-    modeSelect.addEventListener("change", async () => {
+    modeSelect.addEventListener('change', async () => {
       updateModeDesc(modeSelect.value);
       await chrome.storage.local.set({ analysisMode: modeSelect.value });
-      showResult(t("workflowModeUpdated"), "ok");
-      setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
+      showResult(t('workflowModeUpdated'), 'ok');
+      setTimeout(() => {
+        testResult.classList.add('hidden');
+      }, 2000);
     });
   }
 
-  portInput.addEventListener("input", () => {
+  portInput.addEventListener('input', () => {
     portDisplay.textContent = portInput.value || DEFAULT_PORT;
   });
 
-  saveBtn.addEventListener("click", handleSave);
-  testBtn.addEventListener("click", handleTest);
-  shortcutsLink.addEventListener("click", (e) => {
+  saveBtn.addEventListener('click', handleSave);
+  testBtn.addEventListener('click', handleTest);
+  shortcutsLink.addEventListener('click', e => {
     e.preventDefault();
-    chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
   });
 
   // 2. Content Analysis Sections initialization
   initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries, stored.optimizeForConversation);
 
   if (uiDensitySelect) {
-    const savedDensity = stored.uiDensity || "compact";
-    uiDensitySelect.value = savedDensity === "comfortable" ? "margin" : savedDensity;
-    uiDensitySelect.addEventListener("change", async () => {
+    const savedDensity = stored.uiDensity || 'compact';
+    uiDensitySelect.value = savedDensity === 'comfortable' ? 'margin' : savedDensity;
+    uiDensitySelect.addEventListener('change', async () => {
       await chrome.storage.local.set({ uiDensity: uiDensitySelect.value });
-      const status = document.getElementById("ui-density-status");
+      const status = document.getElementById('ui-density-status');
       if (status) {
-        status.textContent = t("saved");
-        status.className = "test-result ok";
-        status.classList.remove("hidden");
-        setTimeout(() => { status.classList.add("hidden"); }, 1500);
+        status.textContent = t('saved');
+        status.className = 'test-result ok';
+        status.classList.remove('hidden');
+        setTimeout(() => {
+          status.classList.add('hidden');
+        }, 1500);
       }
     });
   }
 
   // 3. AI Settings initialization
-  initAiSettings(window.NutEggAI?.migrateChromeApiPreferences?.(stored)||stored);
+  initAiSettings(window.NutEggAI?.migrateChromeApiPreferences?.(stored) || stored);
   initChromeCacheSettings(stored);
 
   // Chrome is ready to configure without probing for another application.
   initConnectionMode(stored);
   renderSubscriptionAccess();
-  if(obsidianModeEnabled.checked && stored.obsidianExecutionState)await applySharedExecution(stored.obsidianExecutionState);
+  if (obsidianModeEnabled.checked && stored.obsidianExecutionState)
+    await applySharedExecution(stored.obsidianExecutionState);
   if (obsidianModeEnabled.checked) await refreshSubscriptionAccess();
-  for (const element of [aiProviderSelect, aiModelSelect, aiModelCustom, aiKeyInput, aiLocalEndpoint, chunkWindowInput, maxTokensInput]) {
-    element.addEventListener("input", scheduleObsidianAiConfigCheck);
-    element.addEventListener("change", scheduleObsidianAiConfigCheck);
+  for (const element of [
+    aiProviderSelect,
+    aiModelSelect,
+    aiModelCustom,
+    aiKeyInput,
+    aiLocalEndpoint,
+    chunkWindowInput,
+    maxTokensInput,
+  ]) {
+    element.addEventListener('input', scheduleObsidianAiConfigCheck);
+    element.addEventListener('change', scheduleObsidianAiConfigCheck);
   }
-  chrome.storage.onChanged?.addListener((changes,area)=>{
-    if(area==='local'&&changes.obsidianExecutionState&&obsidianModeEnabled.checked)void applySharedExecution(changes.obsidianExecutionState.newValue);
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area === 'local' && changes.obsidianExecutionState && obsidianModeEnabled.checked)
+      void applySharedExecution(changes.obsidianExecutionState.newValue);
   });
-  setInterval(() => { if (obsidianModeEnabled.checked) { void refreshSubscriptionAccess(); void refreshObsidianAiConfig(); } }, 5000);
+  setInterval(() => {
+    if (obsidianModeEnabled.checked) {
+      void refreshSubscriptionAccess();
+      void refreshObsidianAiConfig();
+    }
+  }, 5000);
 
   // 4. Report bug button
-  const reportBugBtn = document.getElementById("report-bug-btn");
+  const reportBugBtn = document.getElementById('report-bug-btn');
   if (reportBugBtn) {
-    reportBugBtn.addEventListener("click", () => {
+    reportBugBtn.addEventListener('click', () => {
       const manifest = chrome.runtime?.getManifest?.() || {};
-      const version = manifest.version || "0.0.0";
+      const version = manifest.version || '0.0.0';
       const body = [
-        "### URL of the content",
-        "[Enter the URL of the article, video, or webpage here]",
-        "",
-        "### Expected behavior",
-        "<!-- A clear description of what you expected to happen -->",
-        "",
-        "",
-        "### Observed behavior",
-        "<!-- Describe what actually happened (e.g. error message, unexpected output, stuck on retrieving/analyzing) -->",
-        "",
-        "",
-        "### Environment",
+        '### URL of the content',
+        '[Enter the URL of the article, video, or webpage here]',
+        '',
+        '### Expected behavior',
+        '<!-- A clear description of what you expected to happen -->',
+        '',
+        '',
+        '### Observed behavior',
+        '<!-- Describe what actually happened (e.g. error message, unexpected output, stuck on retrieving/analyzing) -->',
+        '',
+        '',
+        '### Environment',
         `- NutEgg Extension Version: v${version}`,
-        `- Browser: ${navigator.userAgent || "Chrome"}`,
-      ].join("\n");
+        `- Browser: ${navigator.userAgent || 'Chrome'}`,
+      ].join('\n');
 
-      const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent("[Bug]: ")}&body=${encodeURIComponent(body)}`;
-      window.open(issueUrl, "_blank");
+      const issueUrl = `https://github.com/staff-000/nutegg/issues/new?title=${encodeURIComponent('[Bug]: ')}&body=${encodeURIComponent(body)}`;
+      window.open(issueUrl, '_blank');
     });
   }
 });
 
 function renderConnectionMode(mode) {
-  const usesObsidian = mode === "obsidian";
+  const usesObsidian = mode === 'obsidian';
   obsidianModeEnabled.checked = usesObsidian;
-  obsidianModeEnabled.setAttribute("aria-expanded", String(usesObsidian));
-  obsidianConfig.classList.toggle("hidden", !usesObsidian);
-  obsidianActiveCard.classList.toggle("hidden", !usesObsidian);
-  aiConfigSection.classList.remove("hidden");
-  chromeAdvancedSettings.classList.remove("hidden");
-  document.getElementById("chrome-cache-group").classList.toggle("hidden", usesObsidian);
-  if(!usesObsidian && subscriptionSelected()) {
-    aiAuthMethod.value='apiKey';
-    aiProviderSelect.value=savedApiConfig?.chromeAiProvider||lastApiKeyProvider||'gemini';
-    aiKeyInput.value=savedApiConfig?.chromeAiApiKey||'';aiLocalEndpoint.value=savedApiConfig?.chromeAiEndpoint||'';
-    profileKey=`${aiProviderSelect.value}:apiKey`;updateModelOptions(aiProviderSelect.value,savedApiConfig?.chromeAiModel);
+  obsidianModeEnabled.setAttribute('aria-expanded', String(usesObsidian));
+  obsidianConfig.classList.toggle('hidden', !usesObsidian);
+  obsidianActiveCard.classList.toggle('hidden', !usesObsidian);
+  aiConfigSection.classList.remove('hidden');
+  chromeAdvancedSettings.classList.remove('hidden');
+  document.getElementById('chrome-cache-group').classList.toggle('hidden', usesObsidian);
+  if (!usesObsidian && subscriptionSelected()) {
+    aiAuthMethod.value = 'apiKey';
+    aiProviderSelect.value = savedApiConfig?.chromeAiProvider || lastApiKeyProvider || 'gemini';
+    aiKeyInput.value = savedApiConfig?.chromeAiApiKey || '';
+    aiLocalEndpoint.value = savedApiConfig?.chromeAiEndpoint || '';
+    profileKey = `${aiProviderSelect.value}:apiKey`;
+    updateModelOptions(aiProviderSelect.value, savedApiConfig?.chromeAiModel);
   }
   renderSubscriptionAccess();
-  connectionModeBadge.textContent = t(usesObsidian ? "settingsObsidianMode" : "settingsChromeMode");
-  connectionModeBadge.classList.toggle("obsidian", usesObsidian);
-  const obsidianSettings = document.getElementById("obsidian-settings");
+  connectionModeBadge.textContent = t(usesObsidian ? 'settingsObsidianMode' : 'settingsChromeMode');
+  connectionModeBadge.classList.toggle('obsidian', usesObsidian);
+  const obsidianSettings = document.getElementById('obsidian-settings');
   if (obsidianSettings) obsidianSettings.open = usesObsidian;
 }
 
@@ -464,114 +556,138 @@ async function setConnectionMode(mode) {
   await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
   renderConnectionMode(mode);
   void refreshSubscriptionAccess();
-  connectionModeStatus.textContent = t(mode === "obsidian" ? "settingsObsidianSelected" : "settingsChromeSelected");
-  connectionModeStatus.className = "test-result ok";
-  if (mode === "obsidian") checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+  connectionModeStatus.textContent = t(mode === 'obsidian' ? 'settingsObsidianSelected' : 'settingsChromeSelected');
+  connectionModeStatus.className = 'test-result ok';
+  if (mode === 'obsidian') checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
 }
 
 function initConnectionMode(stored) {
   const urlParams = new URLSearchParams(window.location.search);
-  const forceChrome = ["1", "true"].includes(urlParams.get("enableAi"));
-  renderConnectionMode(forceChrome ? "chrome" : stored.connectionMode);
-  if (forceChrome) chrome.storage.local.set({ connectionMode: "chrome", chromeAiEnabled: true });
-  obsidianModeEnabled.addEventListener("change", () => setConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome"));
-  const obsidianSummary = document.querySelector("#obsidian-settings > summary");
+  const forceChrome = ['1', 'true'].includes(urlParams.get('enableAi'));
+  renderConnectionMode(forceChrome ? 'chrome' : stored.connectionMode);
+  if (forceChrome) chrome.storage.local.set({ connectionMode: 'chrome', chromeAiEnabled: true });
+  obsidianModeEnabled.addEventListener('change', () =>
+    setConnectionMode(obsidianModeEnabled.checked ? 'obsidian' : 'chrome')
+  );
+  const obsidianSummary = document.querySelector('#obsidian-settings > summary');
   if (obsidianSummary) {
-    obsidianSummary.addEventListener("click", (e) => {
+    obsidianSummary.addEventListener('click', e => {
       if (e.target !== obsidianModeEnabled) {
         e.preventDefault();
         obsidianModeEnabled.checked = !obsidianModeEnabled.checked;
-        obsidianModeEnabled.dispatchEvent(new Event("change", { bubbles: true }));
+        obsidianModeEnabled.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
   }
-  document.getElementById("use-chrome-btn").addEventListener("click", async () => {
-    await setConnectionMode("chrome");
+  document.getElementById('use-chrome-btn').addEventListener('click', async () => {
+    await setConnectionMode('chrome');
     aiProviderSelect.focus();
   });
   if (obsidianModeEnabled.checked) checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
-  else void chrome.runtime.sendMessage({ action: "sync-ai-config" }).catch(() => {});
+  else void chrome.runtime.sendMessage({ action: 'sync-ai-config' }).catch(() => {});
 }
 
 function scheduleObsidianAiConfigCheck() {
   clearTimeout(obsidianConfigTimer);
   obsidianConfigRequest++;
-  obsidianConfigTimer = setTimeout(() => { void refreshObsidianAiConfig(); }, 200);
+  obsidianConfigTimer = setTimeout(() => {
+    void refreshObsidianAiConfig();
+  }, 200);
 }
 
 async function refreshObsidianAiConfig() {
   if (typeof document === 'undefined' || !document || !obsidianModeEnabled?.checked) return;
   const request = ++obsidianConfigRequest;
-  const row = document?.getElementById?.("obsidian-ai-config");
+  const row = document?.getElementById?.('obsidian-ai-config');
   try {
-    const result = await chrome.runtime.sendMessage({ action: "get-obsidian-ai-config", settings: getAiFormSettings() });
-    if (request !== obsidianConfigRequest || typeof document === 'undefined' || !document || !obsidianModeEnabled?.checked) return;
-    if (result?.error || !result?.aiConfig) throw new Error(result?.error || "Unavailable");
+    const result = await chrome.runtime.sendMessage({
+      action: 'get-obsidian-ai-config',
+      settings: getAiFormSettings(),
+    });
+    if (
+      request !== obsidianConfigRequest ||
+      typeof document === 'undefined' ||
+      !document ||
+      !obsidianModeEnabled?.checked
+    )
+      return;
+    if (result?.error || !result?.aiConfig) throw new Error(result?.error || 'Unavailable');
     const config = result.aiConfig;
-    if(result.state)await applySharedExecution(result.state);
-    const values = document?.getElementById?.("obsidian-ai-config-text");
+    if (result.state) await applySharedExecution(result.state);
+    const values = document?.getElementById?.('obsidian-ai-config-text');
     if (!values) return;
     values.replaceChildren();
     for (const [label, value] of [
-      ["settingsProviderLabel", PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider],
-      ["subscriptionConnection", t(config.aiAuthMethod === "subscription" ? subscriptionEnabled ? "subscriptionLabel" : "aiConnectionUnavailable" : "settingsKeyLabel")],
-      ["settingsModelLabel", config.aiModel],
-      ["chunkWindowChars", config.chunkWindowChars],
-      ["maxTokens", config.contentAnalysisMaxTokens],
+      ['settingsProviderLabel', PROVIDER_CATALOG[config.aiProvider]?.label || config.aiProvider],
+      [
+        'subscriptionConnection',
+        t(
+          config.aiAuthMethod === 'subscription'
+            ? subscriptionEnabled
+              ? 'subscriptionLabel'
+              : 'aiConnectionUnavailable'
+            : 'settingsKeyLabel'
+        ),
+      ],
+      ['settingsModelLabel', config.aiModel],
+      ['chunkWindowChars', config.chunkWindowChars],
+      ['maxTokens', config.contentAnalysisMaxTokens],
     ]) {
-      const chip = document.createElement("span");
-      chip.className = "config-chip";
+      const chip = document.createElement('span');
+      chip.className = 'config-chip';
       chip.textContent = `${t(label)}: ${value}`;
       values.append(chip);
     }
-    const matchStatus = document?.getElementById?.("obsidian-ai-match-status");
+    const matchStatus = document?.getElementById?.('obsidian-ai-match-status');
     if (subscriptionSelected() && subscriptionEnabled && lastSubscriptionState !== 'ready') {
-      if (matchStatus) matchStatus.textContent = t("aiConnectionSetupNeeded");
-      if (row) row.className = "connection-status obsidian-ai-config mismatched";
+      if (matchStatus) matchStatus.textContent = t('aiConnectionSetupNeeded');
+      if (row) row.className = 'connection-status obsidian-ai-config mismatched';
     } else {
-      if (matchStatus) matchStatus.textContent = t(result.matches ? "settingsObsidianAiMatch" : "settingsObsidianAiMismatch");
-      if (row) row.className = `connection-status obsidian-ai-config ${result.matches ? "matched" : "mismatched"}`;
+      if (matchStatus)
+        matchStatus.textContent = t(result.matches ? 'settingsObsidianAiMatch' : 'settingsObsidianAiMismatch');
+      if (row) row.className = `connection-status obsidian-ai-config ${result.matches ? 'matched' : 'mismatched'}`;
     }
   } catch {
-    if (request === obsidianConfigRequest && row) row.className = "connection-status obsidian-ai-config hidden";
+    if (request === obsidianConfigRequest && row) row.className = 'connection-status obsidian-ai-config hidden';
   }
 }
 
 async function checkObsidianForAiBanner(port) {
   if (!aiStatusBanner || !obsidianModeEnabled.checked) return;
-  aiStatusBanner.textContent = t("settingsObsidianChecking");
-  aiStatusBanner.className = "connection-status";
+  aiStatusBanner.textContent = t('settingsObsidianChecking');
+  aiStatusBanner.className = 'connection-status';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 2000);
   try {
     const response = await probeHealth(port);
     if (!obsidianModeEnabled.checked) return;
     if (subscriptionSelected() && subscriptionEnabled && lastSubscriptionState !== 'ready') {
-      aiStatusBanner.textContent = t("aiConnectionSetupNeeded");
-      aiStatusBanner.className = "connection-status error";
+      aiStatusBanner.textContent = t('aiConnectionSetupNeeded');
+      aiStatusBanner.className = 'connection-status error';
     } else {
-      aiStatusBanner.textContent = t(response.ok ? "settingsObsidianConnected" : "settingsObsidianWaiting");
-      aiStatusBanner.classList.toggle("connected", response.ok);
+      aiStatusBanner.textContent = t(response.ok ? 'settingsObsidianConnected' : 'settingsObsidianWaiting');
+      aiStatusBanner.classList.toggle('connected', response.ok);
     }
     if (response.ok) {
-      const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
-      if (result?.error && obsidianModeEnabled.checked) aiStatusBanner.textContent = t("aiError", { error: result.error });
+      const result = await chrome.runtime.sendMessage({ action: 'sync-ai-config' });
+      if (result?.error && obsidianModeEnabled.checked)
+        aiStatusBanner.textContent = t('aiError', { error: result.error });
       await refreshObsidianAiConfig();
     }
   } catch {
-    if (obsidianModeEnabled.checked) aiStatusBanner.textContent = t("settingsObsidianWaiting");
+    if (obsidianModeEnabled.checked) aiStatusBanner.textContent = t('settingsObsidianWaiting');
   } finally {
     clearTimeout(timeout);
   }
 }
 
 function initAiSettings(stored) {
-  if (!aiProviderSelect || typeof PROVIDER_CATALOG === "undefined") return;
+  if (!aiProviderSelect || typeof PROVIDER_CATALOG === 'undefined') return;
 
   // Populate providers
-  aiProviderSelect.innerHTML = "";
+  aiProviderSelect.innerHTML = '';
   for (const [id, info] of Object.entries(PROVIDER_CATALOG)) {
-    const opt = document.createElement("option");
+    const opt = document.createElement('option');
     opt.value = id;
     opt.textContent = info.label;
     aiProviderSelect.appendChild(opt);
@@ -580,15 +696,16 @@ function initAiSettings(stored) {
   chunkWindowInput.value = stored.chunkWindowChars || 30000;
   maxTokensInput.value = stored.contentAnalysisMaxTokens || stored.chromeAiMaxTokens || 16384;
   aiProfiles = stored.aiProfiles || {};
-  subscriptionEnabled = stored.obsidianExecutionState?.subscriptionAvailable===true && stored.connectionMode === 'obsidian';
-  savedApiConfig = {...stored,chromeAiAuthMethod:"apiKey"};
+  subscriptionEnabled =
+    stored.obsidianExecutionState?.subscriptionAvailable === true && stored.connectionMode === 'obsidian';
+  savedApiConfig = { ...stored, chromeAiAuthMethod: 'apiKey' };
   lastApiKeyProvider = stored.lastApiKeyProvider || savedApiConfig?.chromeAiProvider || null;
   subscriptionModels = stored.subscriptionModels || {};
   activeSubscriptionModel = stored.obsidianExecutionState?.subscription.model || 'auto';
   const subModelBadge = document.getElementById('subscription-model-badge');
   if (subModelBadge) subModelBadge.textContent = activeSubscriptionModel;
   aiAuthMethod.value = 'apiKey';
-  const selectedProvider = stored.chromeAiProvider || "gemini";
+  const selectedProvider = stored.chromeAiProvider || 'gemini';
   aiProviderSelect.value = selectedProvider;
   if ((window.NutEggAI?.supportsSubscription || (() => false))(selectedProvider)) {
     lastKnownSubscriptionProvider = selectedProvider;
@@ -603,11 +720,11 @@ function initAiSettings(stored) {
     aiKeyInput.value = stored.chromeAiApiKey;
   }
 
-  aiLocalEndpoint.value = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint || "";
+  aiLocalEndpoint.value = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint || '';
 
   if (outputLangSelect) {
-    outputLangSelect.value = stored.outputLanguage || "same-as-content";
-    outputLangSelect.addEventListener("change", async () => {
+    outputLangSelect.value = stored.outputLanguage || 'same-as-content';
+    outputLangSelect.addEventListener('change', async () => {
       await chrome.storage.local.set({
         outputLanguage: outputLangSelect.value,
       });
@@ -627,61 +744,65 @@ function initAiSettings(stored) {
     renderSubscriptionAccess();
     restoreProfile();
   });
-  aiAuthMethod.addEventListener('change', () => { void changeAiMethod(aiAuthMethod.value); });
+  aiAuthMethod.addEventListener('change', () => {
+    void changeAiMethod(aiAuthMethod.value);
+  });
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
   useSubscriptionToggle?.addEventListener('change', () => {
     void changeAiMethod(useSubscriptionToggle.checked ? 'subscription' : 'apiKey');
   });
   document.getElementById('obsidian-connect-btn')?.addEventListener('click', connectChrome);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(subscriptionTimer); else void refreshSubscription(); });
-  aiModelSelect.addEventListener("change", () => {
-    if (aiModelSelect.value === "__custom__") {
-      aiModelCustom.style.display = "block";
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearTimeout(subscriptionTimer);
+    else void refreshSubscription();
+  });
+  aiModelSelect.addEventListener('change', () => {
+    if (aiModelSelect.value === '__custom__') {
+      aiModelCustom.style.display = 'block';
       aiModelCustom.focus();
     } else {
-      aiModelCustom.style.display = "none";
+      aiModelCustom.style.display = 'none';
     }
   });
 
-  aiKeyToggle.addEventListener("click", () => {
-    if (aiKeyInput.type === "password") {
-      aiKeyInput.type = "text";
-      aiKeyToggle.textContent = t("hideKeyBtn");
-      aiKeyToggle.setAttribute("aria-pressed", "true");
+  aiKeyToggle.addEventListener('click', () => {
+    if (aiKeyInput.type === 'password') {
+      aiKeyInput.type = 'text';
+      aiKeyToggle.textContent = t('hideKeyBtn');
+      aiKeyToggle.setAttribute('aria-pressed', 'true');
     } else {
-      aiKeyInput.type = "password";
-      aiKeyToggle.textContent = t("showKeyBtn");
-      aiKeyToggle.setAttribute("aria-pressed", "false");
+      aiKeyInput.type = 'password';
+      aiKeyToggle.textContent = t('showKeyBtn');
+      aiKeyToggle.setAttribute('aria-pressed', 'false');
     }
   });
 
-  aiConfigSection.addEventListener("submit", event => {
+  aiConfigSection.addEventListener('submit', event => {
     event.preventDefault();
     handleAiSave();
   });
-  document.getElementById("ai-advanced-save-btn").addEventListener("click", () => handleAiSave(true));
-  aiTestBtn.addEventListener("click", handleAiTest);
+  document.getElementById('ai-advanced-save-btn').addEventListener('click', () => handleAiSave(true));
+  aiTestBtn.addEventListener('click', handleAiTest);
 
   if (aiPromptSelect && aiPromptTextarea) {
     loadPromptIntoTextarea(activePromptKey);
 
-    aiPromptSelect.addEventListener("change", () => {
+    aiPromptSelect.addEventListener('change', () => {
       saveActivePromptToState();
       activePromptKey = aiPromptSelect.value;
       loadPromptIntoTextarea(activePromptKey);
     });
 
-    aiPromptTextarea.addEventListener("input", () => {
+    aiPromptTextarea.addEventListener('input', () => {
       saveActivePromptToState();
     });
 
     if (aiPromptResetBtn) {
-      aiPromptResetBtn.addEventListener("click", () => {
+      aiPromptResetBtn.addEventListener('click', () => {
         delete savedPromptOverrides[activePromptKey];
         loadPromptIntoTextarea(activePromptKey);
         chrome.storage.local.set({ chromeAiPromptOverrides: savedPromptOverrides });
-        showAiResult(t("resetPromptDefault", { key: activePromptKey }), "ok", true);
-
+        showAiResult(t('resetPromptDefault', { key: activePromptKey }), 'ok', true);
       });
     }
   }
@@ -692,10 +813,10 @@ function initAiSettings(stored) {
 function loadPromptIntoTextarea(key) {
   if (!aiPromptTextarea) return;
   const custom = savedPromptOverrides[key];
-  if (typeof custom === "string" && custom.trim().length > 0) {
+  if (typeof custom === 'string' && custom.trim().length > 0) {
     aiPromptTextarea.value = custom;
   } else {
-    const defaultTpl = window.NutEggAI?.PROMPTS?.[key] || "";
+    const defaultTpl = window.NutEggAI?.PROMPTS?.[key] || '';
     aiPromptTextarea.value = defaultTpl;
   }
 }
@@ -703,7 +824,7 @@ function loadPromptIntoTextarea(key) {
 function saveActivePromptToState() {
   if (!aiPromptTextarea) return;
   const currentVal = aiPromptTextarea.value;
-  const defaultVal = window.NutEggAI?.PROMPTS?.[activePromptKey] || "";
+  const defaultVal = window.NutEggAI?.PROMPTS?.[activePromptKey] || '';
   if (currentVal.trim() === defaultVal.trim() || currentVal.trim().length === 0) {
     delete savedPromptOverrides[activePromptKey];
   } else {
@@ -715,44 +836,46 @@ function updateModelOptions(providerId, savedModel) {
   const provider = PROVIDER_CATALOG[providerId];
   if (!provider) return;
 
-  const models = subscriptionSelected() ? subscriptionModels[providerId] || (providerId === 'anthropic' ? ['auto', 'sonnet', 'opus', 'haiku'] : ['auto']) : provider.models || [];
+  const models = subscriptionSelected()
+    ? subscriptionModels[providerId] || (providerId === 'anthropic' ? ['auto', 'sonnet', 'opus', 'haiku'] : ['auto'])
+    : provider.models || [];
   const defaultModel = subscriptionSelected() ? 'auto' : provider.defaultModel || models[0] || '';
   const activeModel = savedModel || defaultModel;
 
-  aiModelSelect.innerHTML = "";
+  aiModelSelect.innerHTML = '';
 
   for (const m of models) {
-    const opt = document.createElement("option");
+    const opt = document.createElement('option');
     opt.value = m;
     opt.textContent = m === 'auto' ? t('subscriptionAuto') : m;
     aiModelSelect.appendChild(opt);
   }
 
   // Custom option
-  const customOpt = document.createElement("option");
-  customOpt.value = "__custom__";
-  customOpt.textContent = t("customModelTag");
+  const customOpt = document.createElement('option');
+  customOpt.value = '__custom__';
+  customOpt.textContent = t('customModelTag');
   aiModelSelect.appendChild(customOpt);
 
   if (models.includes(activeModel)) {
     aiModelSelect.value = activeModel;
-    aiModelCustom.style.display = "none";
-  } else if (activeModel && activeModel !== "__custom__") {
-    aiModelSelect.value = "__custom__";
-    aiModelCustom.style.display = "block";
+    aiModelCustom.style.display = 'none';
+  } else if (activeModel && activeModel !== '__custom__') {
+    aiModelSelect.value = '__custom__';
+    aiModelCustom.style.display = 'block';
     aiModelCustom.value = activeModel;
   } else {
-    aiModelSelect.value = defaultModel || "__custom__";
-    aiModelCustom.style.display = defaultModel ? "none" : "block";
+    aiModelSelect.value = defaultModel || '__custom__';
+    aiModelCustom.style.display = defaultModel ? 'none' : 'block';
   }
 
-  aiKeyInput.required = !subscriptionSelected() && providerId !== "local";
+  aiKeyInput.required = !subscriptionSelected() && providerId !== 'local';
 
   // Local endpoint visibility
-  if (providerId === "local") {
-    aiLocalEndpointRow.style.display = "block";
+  if (providerId === 'local') {
+    aiLocalEndpointRow.style.display = 'block';
   } else {
-    aiLocalEndpointRow.style.display = "none";
+    aiLocalEndpointRow.style.display = 'none';
   }
 }
 
@@ -763,13 +886,13 @@ function updateProviderHints(providerId) {
   aiKeyInput.required = !subscriptionSelected() && providerId !== 'local';
   renderSubscriptionAccess();
   document.getElementById('ai-setup-help').open = false;
-  aiKeyHint.textContent = providerId === 'local' ? t('aiKeyHintLocal') : t('aiKeyHintProvider', { provider: provider.label });
+  aiKeyHint.textContent =
+    providerId === 'local' ? t('aiKeyHintLocal') : t('aiKeyHintProvider', { provider: provider.label });
   aiKeyInput.placeholder = provider.keyPlaceholder || t('settingsKeyLabel');
-
 }
 
 function getAiFormSettings() {
-  const model = aiModelSelect.value === "__custom__" ? aiModelCustom.value.trim() : aiModelSelect.value;
+  const model = aiModelSelect.value === '__custom__' ? aiModelCustom.value.trim() : aiModelSelect.value;
   const endpoint = aiLocalEndpoint.value.trim();
   return {
     chromeAiProvider: aiProviderSelect.value,
@@ -787,15 +910,18 @@ async function handleAiSave(advanced = false) {
   if (subscriptionSelected()) return;
   if (!chunkWindowInput.reportValidity() || !maxTokensInput.reportValidity()) return;
   const settings = getAiFormSettings();
-  if (subscriptionSelected() && !subscriptionEnabled) { showAiResult(t('aiConnectionUnavailable'), 'error', advanced); return; }
-  if (!subscriptionSelected() && settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t("settingsKeyRequired"), "error", advanced);
+  if (subscriptionSelected() && !subscriptionEnabled) {
+    showAiResult(t('aiConnectionUnavailable'), 'error', advanced);
+    return;
+  }
+  if (!subscriptionSelected() && settings.chromeAiProvider !== 'local' && !settings.chromeAiApiKey) {
+    showAiResult(t('settingsKeyRequired'), 'error', advanced);
     aiKeyInput.focus();
     return;
   }
   if (!settings.chromeAiModel) {
-    showAiResult(t("settingsModelRequired"), "error", advanced);
-    if (aiModelSelect.value === "__custom__") {
+    showAiResult(t('settingsModelRequired'), 'error', advanced);
+    if (aiModelSelect.value === '__custom__') {
       aiModelCustom.focus();
     } else {
       aiModelSelect.focus();
@@ -812,32 +938,42 @@ async function handleAiSave(advanced = false) {
       chromeApiRevision: crypto.randomUUID(),
       lastApiKeyProvider: settings.chromeAiProvider,
       aiProfiles,
-      connectionMode: new URLSearchParams(window.location.search).has("setupApi") && !subscriptionSelected() ? "chrome" : obsidianModeEnabled.checked ? "obsidian" : "chrome",
+      connectionMode:
+        new URLSearchParams(window.location.search).has('setupApi') && !subscriptionSelected()
+          ? 'chrome'
+          : obsidianModeEnabled.checked
+            ? 'obsidian'
+            : 'chrome',
       chromeAiEnabled: true,
       chromeAiPromptOverrides: savedPromptOverrides,
     });
 
-    if (new URLSearchParams(window.location.search).has("setupApi") && !subscriptionSelected()) obsidianModeEnabled.checked = false;
-    renderConnectionMode(obsidianModeEnabled.checked ? "obsidian" : "chrome");
-    const result = await chrome.runtime.sendMessage({ action: "sync-ai-config" });
+    if (new URLSearchParams(window.location.search).has('setupApi') && !subscriptionSelected())
+      obsidianModeEnabled.checked = false;
+    renderConnectionMode(obsidianModeEnabled.checked ? 'obsidian' : 'chrome');
+    const result = await chrome.runtime.sendMessage({ action: 'sync-ai-config' });
     let nativeSetupMessage = '';
     if (!advanced && obsidianModeEnabled.checked) {
-      const native = await chrome.runtime.sendMessage({action: 'sync-obsidian-api'});
+      const native = await chrome.runtime.sendMessage({ action: 'sync-obsidian-api' });
       if (native?.synced) nativeSetupMessage = ` ${t('settingsObsidianApiSynced')}`;
-      else if (native?.error) nativeSetupMessage = ` ${t('aiError', {error: native.error})}`;
+      else if (native?.error) nativeSetupMessage = ` ${t('aiError', { error: native.error })}`;
     }
     await refreshObsidianAiConfig();
     // API drafts are profile-local and remain saved even while Obsidian is offline.
-    const savedMessage = t("settingsSavedShort") + nativeSetupMessage;
-    showAiResult(`${savedMessage} ${t("testingAiConnection")}`, "ok", advanced);
+    const savedMessage = t('settingsSavedShort') + nativeSetupMessage;
+    showAiResult(`${savedMessage} ${t('testingAiConnection')}`, 'ok', advanced);
     try {
       const info = subscriptionSelected() ? await subscriptionControl('status') : await checkCreditAI(settings);
-      showAiResult(`${savedMessage} ${subscriptionSelected() ? subscriptionStatusText(info) : formatAiCreditResult(info)}`, info.error || info.state === 'error' ? "error" : "ok", advanced);
+      showAiResult(
+        `${savedMessage} ${subscriptionSelected() ? subscriptionStatusText(info) : formatAiCreditResult(info)}`,
+        info.error || info.state === 'error' ? 'error' : 'ok',
+        advanced
+      );
     } catch (error) {
-      showAiResult(`${savedMessage} ${t("aiError", { error: error.message })}`, "error", advanced);
+      showAiResult(`${savedMessage} ${t('aiError', { error: error.message })}`, 'error', advanced);
     }
   } catch (error) {
-    showAiResult(t("aiError", { error: error.message }), "error", advanced);
+    showAiResult(t('aiError', { error: error.message }), 'error', advanced);
   } finally {
     aiSaveBtn.disabled = false;
   }
@@ -846,27 +982,27 @@ async function handleAiSave(advanced = false) {
 async function handleAiTest() {
   if (subscriptionSelected()) return;
   const settings = getAiFormSettings();
-  if (!subscriptionSelected() && settings.chromeAiProvider !== "local" && !settings.chromeAiApiKey) {
-    showAiResult(t("settingsKeyRequired"), "error", true);
+  if (!subscriptionSelected() && settings.chromeAiProvider !== 'local' && !settings.chromeAiApiKey) {
+    showAiResult(t('settingsKeyRequired'), 'error', true);
     aiKeyInput.focus();
     return;
   }
   aiTestBtn.disabled = true;
-  showAiResult(t("testingAiConnection"), "", true);
+  showAiResult(t('testingAiConnection'), '', true);
   try {
     const info = await checkCreditAI(settings);
-    showAiResult(formatAiCreditResult(info), info.error ? "error" : "ok", true);
+    showAiResult(formatAiCreditResult(info), info.error ? 'error' : 'ok', true);
   } catch (err) {
-    showAiResult(t("aiError", { error: err.message }), "error", true);
+    showAiResult(t('aiError', { error: err.message }), 'error', true);
   } finally {
     aiTestBtn.disabled = false;
   }
 }
 
 function formatAiCreditResult(info) {
-  if (info.error) return t("aiConnectionFailed", { error: info.error, status: info.statusText });
-  if (info.hasBalance) return t("aiConnectedBalance", { provider: info.providerLabel, balance: info.balanceFormatted });
-  return t("aiConnectedStatus", { provider: info.providerLabel, status: info.statusText });
+  if (info.error) return t('aiConnectionFailed', { error: info.error, status: info.statusText });
+  if (info.hasBalance) return t('aiConnectedBalance', { provider: info.providerLabel, balance: info.balanceFormatted });
+  return t('aiConnectedStatus', { provider: info.providerLabel, status: info.statusText });
 }
 
 function showAiResult(msg, type, advanced = false) {
@@ -879,29 +1015,35 @@ function showAiResult(msg, type, advanced = false) {
 async function handleSave() {
   const port = parseInt(portInput.value, 10);
   if (!portInput.reportValidity() || !Number.isInteger(Number(portInput.value)) || !port || port < 1 || port > 65535) {
-    showResult(t("invalidPortNumber"), "error");
+    showResult(t('invalidPortNumber'), 'error');
     return;
   }
 
-  const mode = modeSelect ? modeSelect.value : "full";
-  await chrome.storage.local.set({ serverPort: port, analysisMode: mode, generateKnowledgeEntries: sectionKnowledge.checked });
+  const mode = modeSelect ? modeSelect.value : 'full';
+  await chrome.storage.local.set({
+    serverPort: port,
+    analysisMode: mode,
+    generateKnowledgeEntries: sectionKnowledge.checked,
+  });
   // Notify background
-  await chrome.runtime.sendMessage({ action: "set-port", port });
-  showResult(t("serverPortSaved"), "ok");
-  setTimeout(() => { testResult.classList.add("hidden"); }, 2000);
+  await chrome.runtime.sendMessage({ action: 'set-port', port });
+  showResult(t('serverPortSaved'), 'ok');
+  setTimeout(() => {
+    testResult.classList.add('hidden');
+  }, 2000);
   checkObsidianForAiBanner(port);
 }
 
 async function handleTest() {
   const port = parseInt(portInput.value, 10);
   if (!portInput.reportValidity() || !Number.isInteger(Number(portInput.value)) || !port || port < 1 || port > 65535) {
-    showResult(t("invalidPortNumber"), "error");
+    showResult(t('invalidPortNumber'), 'error');
     return;
   }
 
-  testResult.textContent = t("testingServer");
-  testResult.className = "test-result";
-  testResult.classList.remove("hidden");
+  testResult.textContent = t('testingServer');
+  testResult.className = 'test-result';
+  testResult.classList.remove('hidden');
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
@@ -915,30 +1057,30 @@ async function handleTest() {
     if (response.ok) {
       const health = await response.json().catch(() => ({}));
       const extVersion = chrome.runtime?.getManifest?.()?.version;
-      let versionWarn = "";
+      let versionWarn = '';
       if (health.version && extVersion && health.version !== extVersion) {
-        versionWarn = t("versionMismatchShort", { pluginVersion: health.version, extVersion });
+        versionWarn = t('versionMismatchShort', { pluginVersion: health.version, extVersion });
       }
-      let creditInfo = "";
+      let creditInfo = '';
       try {
-        const credit = await chrome.runtime.sendMessage({ action: "get-credit" });
+        const credit = await chrome.runtime.sendMessage({ action: 'get-credit' });
         if (!credit.error) {
           if (credit.hasBalance && credit.balanceFormatted) {
             creditInfo = ` | 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;
           } else if (credit.providerLabel) {
-            const label = credit.source === "openrouter" ? "OpenRouter" : credit.providerLabel;
+            const label = credit.source === 'openrouter' ? 'OpenRouter' : credit.providerLabel;
             creditInfo = ` | 🪙 ${label} (${credit.statusText})`;
           }
         }
       } catch {}
-      showResult(`${t("connectedSuccessfully")}${versionWarn}${creditInfo}`, versionWarn ? "warning" : "ok");
+      showResult(`${t('connectedSuccessfully')}${versionWarn}${creditInfo}`, versionWarn ? 'warning' : 'ok');
       checkObsidianForAiBanner(port);
     } else {
-      showResult(t("serverErrorResponse"), "error");
+      showResult(t('serverErrorResponse'), 'error');
     }
   } catch {
     clearTimeout(timeout);
-    showResult(t("cannotReachServer", { port }), "error");
+    showResult(t('cannotReachServer', { port }), 'error');
     checkObsidianForAiBanner(port);
   }
 }
@@ -946,50 +1088,49 @@ async function handleTest() {
 function showResult(msg, type) {
   testResult.textContent = msg;
   testResult.className = `test-result ${type}`;
-  testResult.classList.remove("hidden");
+  testResult.classList.remove('hidden');
 }
 
 function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, savedOptimizeForConversation) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
-  if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
+  if (sectionVerdictSummary)
+    sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
   if (optimizeConversation) {
     optimizeConversation.checked = savedOptimizeForConversation !== false;
-    optimizeConversation.addEventListener("change", () =>
+    optimizeConversation.addEventListener('change', () =>
       chrome.storage.local.set({ optimizeForConversation: optimizeConversation.checked })
     );
   }
   if (sectionKnowledge) {
     sectionKnowledge.checked = savedGenerateKnowledgeEntries === true;
-    sectionKnowledge.addEventListener("change", () => chrome.storage.local.set({ generateKnowledgeEntries: sectionKnowledge.checked }));
+    sectionKnowledge.addEventListener('change', () =>
+      chrome.storage.local.set({ generateKnowledgeEntries: sectionKnowledge.checked })
+    );
   }
   if (sectionDiscussion) sectionDiscussion.checked = sections.discussion === true;
 
-  const contentCheckboxes = [
-    sectionVerdictSummary,
-    sectionMindmap,
-    sectionDiscussion,
-  ].filter(Boolean);
+  const contentCheckboxes = [sectionVerdictSummary, sectionMindmap, sectionDiscussion].filter(Boolean);
 
   function getActiveContentCount() {
-    return contentCheckboxes.filter((cb) => cb.checked).length;
+    return contentCheckboxes.filter(cb => cb.checked).length;
   }
 
-  contentCheckboxes.forEach((cb) => {
-    cb.addEventListener("change", () => {
+  contentCheckboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
       if (getActiveContentCount() === 0) {
         cb.checked = true;
-        showSectionStatus(t("atLeastOneSection"), "error");
+        showSectionStatus(t('atLeastOneSection'), 'error');
         setTimeout(() => {
-          sectionsStatus?.classList.add("hidden");
+          sectionsStatus?.classList.add('hidden');
         }, 2500);
       }
     });
   });
 
-  sectionsSaveBtn?.addEventListener("click", async () => {
+  sectionsSaveBtn?.addEventListener('click', async () => {
     if (getActiveContentCount() === 0) {
-      showSectionStatus(t("atLeastOneSection"), "error");
+      showSectionStatus(t('atLeastOneSection'), 'error');
       return;
     }
     const newConfig = {
@@ -1002,12 +1143,12 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, save
       enabledSections: newConfig,
       generateKnowledgeEntries: sectionKnowledge ? sectionKnowledge.checked : false,
       optimizeForConversation: optimizeConversation ? optimizeConversation.checked : true,
-      outputLanguage: outputLangSelect ? outputLangSelect.value : "same-as-content",
-      uiDensity: uiDensitySelect ? uiDensitySelect.value : "compact",
+      outputLanguage: outputLangSelect ? outputLangSelect.value : 'same-as-content',
+      uiDensity: uiDensitySelect ? uiDensitySelect.value : 'compact',
     });
-    showSectionStatus(t("sectionPreferencesSaved"), "ok");
+    showSectionStatus(t('sectionPreferencesSaved'), 'ok');
     setTimeout(() => {
-      sectionsStatus?.classList.add("hidden");
+      sectionsStatus?.classList.add('hidden');
     }, 2500);
   });
 }
@@ -1016,26 +1157,27 @@ function showSectionStatus(msg, type) {
   if (!sectionsStatus) return;
   sectionsStatus.textContent = msg;
   sectionsStatus.className = `test-result ${type}`;
-  sectionsStatus.classList.remove("hidden");
+  sectionsStatus.classList.remove('hidden');
 }
 
 function initChromeCacheSettings(stored) {
-  const limitInput = document.getElementById("chrome-cache-limit-input");
-  const saveBtn = document.getElementById("chrome-cache-save-btn");
-  const clearBtn = document.getElementById("chrome-cache-clear-btn");
-  const countDisplay = document.getElementById("chrome-cache-count");
-  const statusDisplay = document.getElementById("chrome-cache-status");
+  const limitInput = document.getElementById('chrome-cache-limit-input');
+  const saveBtn = document.getElementById('chrome-cache-save-btn');
+  const clearBtn = document.getElementById('chrome-cache-clear-btn');
+  const countDisplay = document.getElementById('chrome-cache-count');
+  const statusDisplay = document.getElementById('chrome-cache-status');
   if (!limitInput) return;
 
-  const initialLimit = (typeof stored?.chromeCacheTabLimit === "number" && stored.chromeCacheTabLimit >= 0)
-    ? Math.min(1000, Math.round(stored.chromeCacheTabLimit))
-    : 100;
+  const initialLimit =
+    typeof stored?.chromeCacheTabLimit === 'number' && stored.chromeCacheTabLimit >= 0
+      ? Math.min(1000, Math.round(stored.chromeCacheTabLimit))
+      : 100;
   limitInput.value = initialLimit;
 
-  const updateCountDisplay = (cache) => {
+  const updateCountDisplay = cache => {
     if (countDisplay) {
       const count = Array.isArray(cache) ? cache.length : 0;
-      countDisplay.textContent = t("cachedTabsCount", { count });
+      countDisplay.textContent = t('cachedTabsCount', { count });
     }
   };
 
@@ -1044,7 +1186,7 @@ function initChromeCacheSettings(stored) {
   const saveLimit = async () => {
     const val = Math.min(1000, Math.max(0, Math.round(Number(limitInput.value) || 0)));
     limitInput.value = val;
-    const current = await chrome.storage.local.get(["chromeTabCache"]);
+    const current = await chrome.storage.local.get(['chromeTabCache']);
     let cache = Array.isArray(current.chromeTabCache) ? current.chromeTabCache : [];
     if (cache.length > val) {
       cache = cache.slice(0, val);
@@ -1054,26 +1196,30 @@ function initChromeCacheSettings(stored) {
     }
     updateCountDisplay(cache);
     if (statusDisplay) {
-      statusDisplay.textContent = t("saved");
-      statusDisplay.className = "test-result ok";
-      statusDisplay.classList.remove("hidden");
-      setTimeout(() => { statusDisplay.classList.add("hidden"); }, 2000);
+      statusDisplay.textContent = t('saved');
+      statusDisplay.className = 'test-result ok';
+      statusDisplay.classList.remove('hidden');
+      setTimeout(() => {
+        statusDisplay.classList.add('hidden');
+      }, 2000);
     }
   };
 
   if (saveBtn) {
-    saveBtn.addEventListener("click", saveLimit);
+    saveBtn.addEventListener('click', saveLimit);
   }
 
   if (clearBtn) {
-    clearBtn.addEventListener("click", async () => {
+    clearBtn.addEventListener('click', async () => {
       await chrome.storage.local.set({ chromeTabCache: [] });
       updateCountDisplay([]);
       if (statusDisplay) {
-        statusDisplay.textContent = t("cacheCleared");
-        statusDisplay.className = "test-result ok";
-        statusDisplay.classList.remove("hidden");
-        setTimeout(() => { statusDisplay.classList.add("hidden"); }, 2000);
+        statusDisplay.textContent = t('cacheCleared');
+        statusDisplay.className = 'test-result ok';
+        statusDisplay.classList.remove('hidden');
+        setTimeout(() => {
+          statusDisplay.classList.add('hidden');
+        }, 2000);
       }
     });
   }

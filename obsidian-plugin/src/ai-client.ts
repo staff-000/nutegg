@@ -9,7 +9,7 @@ export {
   isAIConfigured,
   isSubscriptionProvider,
   resolveConfig,
-} from "../../shared/src/catalog";
+} from '../../shared/src/catalog';
 
 export {
   AIError,
@@ -19,7 +19,7 @@ export {
   AIClient,
   type AIErrorCode,
   type AICreditInfo,
-} from "../../shared/src/client";
+} from '../../shared/src/client';
 
 export type {
   AIProviderId,
@@ -28,4 +28,4 @@ export type {
   ProviderInfo,
   ResolvedConfig,
   NutEggAISettings,
-} from "../../shared/src/types";
+} from '../../shared/src/types';

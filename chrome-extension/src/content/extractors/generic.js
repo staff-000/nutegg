@@ -9,19 +9,26 @@
 
 function extractGeneric() {
   const url = window.location.href;
-  const title = document.title ||
-    getMeta("og:title") ||
-    document.querySelector("h1")?.textContent?.trim() ||
-    url;
+  const title = document.title || getMeta('og:title') || document.querySelector('h1')?.textContent?.trim() || url;
 
   // Try common content containers
   const contentSelectors = [
-    "main", "article", '[role="main"]',
-    '[itemprop="articleBody"]', ".RichTextStoryBody", ".ArticleBody-articleBody",
-    ".article-body", ".article__body", ".article-content",
-    "#content", "#main-content",
-    ".post-content", ".entry-content", ".content",
-    "#article", ".main",
+    'main',
+    'article',
+    '[role="main"]',
+    '[itemprop="articleBody"]',
+    '.RichTextStoryBody',
+    '.ArticleBody-articleBody',
+    '.article-body',
+    '.article__body',
+    '.article-content',
+    '#content',
+    '#main-content',
+    '.post-content',
+    '.entry-content',
+    '.content',
+    '#article',
+    '.main',
   ];
 
   let container = null;
@@ -30,33 +37,48 @@ function extractGeneric() {
     if (container && container.textContent && container.textContent.trim().length > 100) break;
   }
 
-  let mainContent = "";
+  let mainContent = '';
   if (container) {
     const body = container.cloneNode(true);
     body.querySelectorAll('.comments, #comments, [itemprop="comment"], [data-comment-id]').forEach(el => el.remove());
     mainContent = extractText(body);
   } else {
     const body = document.body.cloneNode(true);
-    const removeSelectors = ["nav", "header", "footer", "script", "style", "noscript",
-      "iframe", ".sidebar", ".navigation", ".nav", ".menu", ".comments",
-      "#comments", ".advertisement", ".ads", ".social-share"];
-    removeSelectors.forEach((sel) => {
-      body.querySelectorAll(sel).forEach((el) => el.remove());
+    const removeSelectors = [
+      'nav',
+      'header',
+      'footer',
+      'script',
+      'style',
+      'noscript',
+      'iframe',
+      '.sidebar',
+      '.navigation',
+      '.nav',
+      '.menu',
+      '.comments',
+      '#comments',
+      '.advertisement',
+      '.ads',
+      '.social-share',
+    ];
+    removeSelectors.forEach(sel => {
+      body.querySelectorAll(sel).forEach(el => el.remove());
     });
     mainContent = extractText(body);
   }
 
   // Metadata
-  const description = getMeta("description") || getMeta("og:description");
-  const author = getMeta("author") || getMeta("article:author");
+  const description = getMeta('description') || getMeta('og:description');
+  const author = getMeta('author') || getMeta('article:author');
   const published =
-    getMeta("article:published_time") ||
-    getMeta("datePublished") ||
-    getMeta("uploadDate") ||
-    getMeta("pubdate") ||
-    getMeta("date") ||
-    getMeta("DC.date.issued");
-  const siteName = getMeta("og:site_name");
+    getMeta('article:published_time') ||
+    getMeta('datePublished') ||
+    getMeta('uploadDate') ||
+    getMeta('pubdate') ||
+    getMeta('date') ||
+    getMeta('DC.date.issued');
+  const siteName = getMeta('og:site_name');
 
   const metadata = {};
   if (description) metadata.description = description;
@@ -64,15 +86,16 @@ function extractGeneric() {
   if (published) metadata.published = published;
   if (siteName) metadata.site = siteName;
 
-  metadata.time_estimate_minutes = estimateTime(mainContent, "webpage");
+  metadata.time_estimate_minutes = estimateTime(mainContent, 'webpage');
 
   const wordCount = mainContent.split(/\s+/).filter(Boolean).length;
-  const extractionStatus = wordCount >= 200 ? "ready" : undefined;
+  const extractionStatus = wordCount >= 200 ? 'ready' : undefined;
 
   return {
-    url, title,
+    url,
+    title,
     content: `# ${title}\n\n${truncate(mainContent, 60000)}`,
-    sourceType: "webpage",
+    sourceType: 'webpage',
     ...(extractionStatus && { extractionStatus }),
     metadata,
   };

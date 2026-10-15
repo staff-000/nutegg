@@ -1,489 +1,1107 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NutEgg</title>
-  <!-- Critical frame styles paint while the full stylesheet and scripts load. -->
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; min-width: 280px; background: #fcfaf7; color: #302b26;
-      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .popup-container { padding: 16px; }
-    .hidden { display: none !important; }
-    .header { margin-bottom: 12px; }
-    .header-top { display: flex; align-items: center; justify-content: space-between; }
-    .logo { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
-    .logo-icon { width: 32px; height: 32px; }
-    .page-info { margin-bottom: 12px; }
-    .content-preview { height: 340px; min-height: 200px; resize: vertical; overflow-y: auto; background: #fff;
-      border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;
-      margin-bottom: 8px; color: #6b7280; font-size: 12px; white-space: pre-wrap; }
-    .booting .header-actions, .booting .metrics-bar, .booting .footer,
-    .booting #capture-state > :not(.page-info):not(.content-preview) { display: none; }
-  </style>
-  <link id="popup-styles" rel="stylesheet" href="popup.css" media="print">
-  <link rel="stylesheet" href="../tooltips.css">
-</head>
-<body class="booting chrome-reader">
-  <div class="popup-container" id="popup-app" inert aria-busy="true">
-    <!-- Header -->
-    <header class="header">
-      <div class="header-top">
-        <div class="brand"><span class="logo"><img src="../../icons/icon32.png" alt="" class="logo-icon"> NutEgg</span><span class="brand-tagline" data-i18n="readerTagline">Read Less, Hatch More, Save Time.</span></div>
-        <div class="header-actions">
-          <button type="button" id="ai-credit-pill" class="ai-credit-pill hidden" title="Current AI provider and remaining credit (click to refresh)" data-i18n-title="aiCreditTooltip">
-            <span class="ai-credit-icon">🪙</span>
-            <span id="ai-credit-text" class="ai-credit-text" data-i18n="aiCredit">AI Credit</span>
-          </button>
-          <div class="status-indicator-wrap" id="status-indicator-wrap" role="button" tabindex="0" aria-describedby="server-status-tooltip">
-            <span id="server-status" class="status-dot checking" aria-label="Checking..." data-i18n-aria-label="checking"></span>
-            <div id="server-status-tooltip" class="status-tooltip checking" role="tooltip">
-              <div class="status-tooltip-title" id="status-tooltip-title" data-i18n="checking">Checking...</div>
-              <div class="status-tooltip-sub" id="status-tooltip-sub"></div>
-            </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NutEgg</title>
+    <!-- Critical frame styles paint while the full stylesheet and scripts load. -->
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 280px;
+        background: #fcfaf7;
+        color: #302b26;
+        font:
+          14px -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      .popup-container {
+        padding: 16px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .header {
+        margin-bottom: 12px;
+      }
+      .header-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+      }
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+      }
+      .page-info {
+        margin-bottom: 12px;
+      }
+      .content-preview {
+        height: 340px;
+        min-height: 200px;
+        resize: vertical;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        color: #6b7280;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .booting .header-actions,
+      .booting .metrics-bar,
+      .booting .footer,
+      .booting #capture-state > :not(.page-info):not(.content-preview) {
+        display: none;
+      }
+    </style>
+    <link id="popup-styles" rel="stylesheet" href="popup.css" media="print" />
+    <link rel="stylesheet" href="../tooltips.css" />
+  </head>
+  <body class="booting chrome-reader">
+    <div class="popup-container" id="popup-app" inert aria-busy="true">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-top">
+          <div class="brand">
+            <span class="logo"><img src="../../icons/icon32.png" alt="" class="logo-icon" /> NutEgg</span
+            ><span class="brand-tagline" data-i18n="readerTagline">Read Less, Hatch More, Save Time.</span>
           </div>
-          <button id="settings-btn" class="settings-btn" title="Settings" aria-label="Settings" data-i18n-title="settingsTooltip">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </header>
-    <div id="subscription-recovery" class="subscription-recovery hidden" role="status" data-hints="off">
-      <p data-i18n="aiConnectionRecovery">Set up an AI API key in Chrome Settings.</p>
-      <button id="subscription-open-obsidian" type="button" data-i18n="subscriptionOpenObsidian">Open Obsidian</button>
-      <button id="subscription-api-setup" type="button" data-i18n="subscriptionApiSetup">Set up Chrome API key</button>
-    </div>
-
-    <div id="analysis-activity" class="analysis-activity hidden">
-      <button type="button" id="analysis-activity-toggle" aria-expanded="false" aria-controls="analysis-activity-list" aria-live="polite" title="Show running analyses and unread results" data-i18n-title="buttonActivityHint"></button>
-      <div id="analysis-activity-list" class="analysis-activity-list hidden"></div>
-    </div>
-
-    <!-- State 1: Capture -->
-    <div id="capture-state">
-      <div id="capture-banners" class="capture-banners"></div>
-      <section id="setup-hub" class="setup-hub hidden" aria-labelledby="setup-title">
-        <span class="setup-mark" aria-hidden="true">✦</span>
-        <h1 id="setup-title" data-i18n="readerSetupTitle">Start with your AI key</h1>
-        <p id="setup-description" data-i18n="readerSetupBody">Connect an AI provider once, then analyze pages right here in Chrome.</p>
-        <button type="button" id="setup-open-settings-btn" class="setup-primary" data-i18n="readerSetupAction" title="Connect an AI provider once, then analyze pages right here in Chrome." data-i18n-title="readerSetupBody">Add API key</button>
-      </section>
-      <div id="page-info" class="page-info">
-        <div class="page-info-top">
-          <div class="page-title" id="page-title" data-i18n="loading">Loading...</div>
-          <div class="page-refresh-control">
-            <span id="transcript-refresh-hint" class="transcript-refresh-hint hidden" role="status"></span>
-            <button id="refresh-btn" class="refresh-btn" aria-label="Refresh content extraction" data-i18n-aria-label="refreshTooltip" data-hints="off">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                <path d="M3 3v5h5"></path>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                <path d="M16 16h5v5"></path>
+          <div class="header-actions">
+            <button
+              type="button"
+              id="ai-credit-pill"
+              class="ai-credit-pill hidden"
+              title="Current AI provider and remaining credit (click to refresh)"
+              data-i18n-title="aiCreditTooltip"
+            >
+              <span class="ai-credit-icon">🪙</span>
+              <span id="ai-credit-text" class="ai-credit-text" data-i18n="aiCredit">AI Credit</span>
+            </button>
+            <div
+              class="status-indicator-wrap"
+              id="status-indicator-wrap"
+              role="button"
+              tabindex="0"
+              aria-describedby="server-status-tooltip"
+            >
+              <span
+                id="server-status"
+                class="status-dot checking"
+                aria-label="Checking..."
+                data-i18n-aria-label="checking"
+              ></span>
+              <div id="server-status-tooltip" class="status-tooltip checking" role="tooltip">
+                <div class="status-tooltip-title" id="status-tooltip-title" data-i18n="checking">Checking...</div>
+                <div class="status-tooltip-sub" id="status-tooltip-sub"></div>
+              </div>
+            </div>
+            <button
+              id="settings-btn"
+              class="settings-btn"
+              title="Settings"
+              aria-label="Settings"
+              data-i18n-title="settingsTooltip"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3"></circle>
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                ></path>
               </svg>
             </button>
           </div>
         </div>
-        <div class="page-url" id="page-url"></div>
-        <div class="page-type" id="page-type"></div>
-        <div class="page-provenance">
-          <span id="page-author"></span>
-          <span id="page-published"></span>
-          <span id="page-word-count"></span>
-          <span id="page-caption-source" class="caption-source-tag hidden"></span>
-        </div>
-      </div>
-      <div class="content-fetch-box">
-        <div id="content-preview" class="content-preview" data-i18n="loadingContent">Loading content…</div>
-        <button type="button" id="preview-refresh-btn" class="preview-refresh-btn hidden" data-i18n="contentRefreshHint" data-hints="off">Refresh content</button>
-      </div>
-
-      <button type="button" id="view-analysis-btn" class="back-btn view-analysis-btn hidden" title="View analysis →" data-i18n-title="viewAnalysis"><span class="btn-icon">👁️</span> <span data-i18n="viewAnalysis">View analysis →</span></button>
-      <div id="analyze-btn-wrap" class="analyze-btn-wrap" data-hints="off">
-        <button id="analyze-btn" class="analyze-btn inactive" data-hints="off">
-          <span class="btn-icon">⚡</span> <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
+      </header>
+      <div id="subscription-recovery" class="subscription-recovery hidden" role="status" data-hints="off">
+        <p data-i18n="aiConnectionRecovery">Set up an AI API key in Chrome Settings.</p>
+        <button id="subscription-open-obsidian" type="button" data-i18n="subscriptionOpenObsidian">
+          Open Obsidian
+        </button>
+        <button id="subscription-api-setup" type="button" data-i18n="subscriptionApiSetup">
+          Set up Chrome API key
         </button>
       </div>
 
-      <!-- Analysis Mode Selector -->
-      <div class="mode-toggle-wrap" id="obsidian-analysis-mode" data-obsidian-only>
-        <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
-          <button type="button" class="mode-pill-btn" id="mode-fast-btn" title="Full analysis: summary + knowledge comparison in one go" data-i18n="modeFast" data-i18n-title="modeFastTooltip">🌞 Full Mode</button>
-          <button type="button" class="mode-pill-btn active" id="mode-confirm-btn" title="Preview summary first, then choose eggs to compare" data-i18n="modeConfirm" data-i18n-title="modeConfirmTooltip">🌛 Preview Summary</button>
-        </div>
+      <div id="analysis-activity" class="analysis-activity hidden">
+        <button
+          type="button"
+          id="analysis-activity-toggle"
+          aria-expanded="false"
+          aria-controls="analysis-activity-list"
+          aria-live="polite"
+          title="Show running analyses and unread results"
+          data-i18n-title="buttonActivityHint"
+        ></button>
+        <div id="analysis-activity-list" class="analysis-activity-list hidden"></div>
       </div>
 
-      <button id="questions-toggle" class="sections-toggle-btn" type="button" aria-expanded="false" aria-controls="questions-area" data-hints="off">
-        <span class="sections-toggle-left"><span class="sections-toggle-title" data-i18n="askQuestionsToggle">❓ Ask your own questions</span></span>
-        <span class="sections-toggle-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-      </button>
-      <div id="questions-area" class="questions-area hidden">
-        <div class="questions-composer">
-          <textarea id="custom-questions" rows="3" data-i18n-aria-label="readerOptionalQuestion"
-            data-i18n-placeholder="readerQuestionsPlaceholder"
-            placeholder="What would you like to understand about this page?"></textarea>
-          <select id="capture-questions-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
-            <option value="within" data-i18n="scopeWithin">Content only</option>
-            <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
-          </select>
-        </div>
-      </div>
-
-      <div id="duplicate-banner" class="duplicate-banner hidden">
-        <span class="duplicate-icon">📎</span>
-        <span id="duplicate-message"></span>
-      </div>
-
-      <div id="capture-credit-row" class="capture-credit-row hidden" title="Current AI provider & remaining balance (click to refresh)" data-i18n-title="aiCreditTooltip">
-        <span class="capture-credit-icon">🪙</span>
-        <span id="capture-credit-text" data-i18n="aiCredit">AI Credit</span>
-      </div>
-
-      <!-- Expandable Sections Selector -->
-      <div class="sections-accordion" id="sections-accordion">
-        <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" data-hints="off">
-          <div class="sections-toggle-left">
-            <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
-            <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-            <span class="sections-badge" id="sections-badge">2/4</span>
-          </div>
-          <span class="section-chevron sections-toggle-chevron" id="sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </button>
-        <div class="sections-body hidden" id="sections-body">
-          <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
-            <button type="button" class="section-chip active" id="chip-verdict-summary" data-section="verdictSummary" data-hints="off">
-              <span class="chip-icon">📋</span>
-              <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
-            </button>
-            <button type="button" class="section-chip active" id="chip-mindmap" data-section="mindMap" data-hints="off">
-              <span class="chip-icon">🧠</span>
-              <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
-            </button>
-            <button type="button" class="section-chip inactive" id="chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
-              <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
-            </button>
-            <button type="button" class="section-chip inactive" id="chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">👥</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
-          </div>
-          <div id="discussion-capture" class="discussion-controls hidden">
-            <div class="discussion-status-bar">
-              <span id="discussion-capture-indicator" class="discussion-status-indicator"></span>
-              <p id="discussion-capture-status" class="discussion-status-text" role="status" aria-live="polite"></p>
-            </div>
-            <div class="discussion-actions">
-              <button type="button" id="discussion-capture-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad" title="Load discussion" data-i18n-title="discussionLoad">Load discussion</button>
-              <button type="button" id="discussion-capture-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh" title="Refresh comments" data-i18n-title="discussionRefresh">Refresh comments</button>
-            </div>
-            <div class="discussion-tip">
-              <span class="discussion-tip-icon">💡</span>
-              <small data-i18n="discussionLoadingHint">Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured comments at any time.</small>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Target Egg Selector (Content-Fetch View) -->
-      <div class="sections-accordion capture-eggs-accordion hidden" id="capture-eggs-accordion" data-obsidian-only>
-        <button type="button" class="sections-toggle-btn" id="capture-eggs-toggle" aria-expanded="false" data-hints="off">
-          <div class="sections-toggle-left">
-            <span class="sections-toggle-icon">🥚</span>
-            <span class="sections-toggle-title" data-i18n="targetEggHeader">Target eggs (auto-select by default)</span>
-            <span id="capture-eggs-label" class="eggs-toggle-label"></span>
-          </div>
-          <span class="section-chevron sections-toggle-chevron" id="capture-eggs-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </button>
-        <div class="sections-body hidden" id="capture-eggs-area">
-          <div id="capture-eggs-list" class="eggs-list"></div>
-        </div>
-      </div>
-      <div id="capture-success-banners"></div>
-    </div>
-
-    <!-- State 2: Results -->
-    <div id="results-state" class="hidden">
-      <div id="result-page-info" class="page-info hidden">
-        <div class="page-title" id="result-page-title"></div>
-        <div class="page-provenance">
-          <span id="result-page-author"></span>
-          <span id="result-page-published"></span>
-          <span id="result-page-word-count"></span>
-          <select id="history-select" class="history-select hidden" aria-label="Analysis history" data-i18n-aria-label="analysisHistory"></select>
-        </div>
-      </div>
-
-      <div class="result-section" id="verdict-section">
-        <div class="section-header">
-          <div class="section-label" data-i18n="verdictReadSection">📖 Should you read it?</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="verdict-badge" class="verdict-badge">
-            <span id="verdict-icon"></span>
-            <span id="verdict-text"></span>
-          </div>
-          <div id="verdict-reason" class="verdict-reason"></div>
-        </div>
-      </div>
-
-      <div class="result-section" id="title-verdict-section">
-        <div class="section-header">
-          <div class="section-label" data-i18n="titleVerdictSection">🎯 Title Verdict</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="verdict-answer" class="summary-text"></div>
-        </div>
-      </div>
-
-      <div class="result-section" id="core-summary-section">
-        <div class="section-header">
-          <div class="section-label" data-i18n="coreSummarySection">📋 Core Summary</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <ul id="core-summary" class="core-summary summary-text"></ul>
-        </div>
-      </div>
-
-      <div id="mindmap-section" class="result-section hidden">
-        <div class="section-header">
-          <div class="section-label" data-i18n="mindmapSection">🧠 Mind Map</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="mindmap-tree" class="mindmap-tree"></div>
-        </div>
-      </div>
-
-      <div class="result-section hidden" id="discussion-section">
-        <div class="section-header" role="button" tabindex="0"><div class="section-label"><span class="section-icon">👥</span> <span data-i18n="discussionSection">Discussion</span></div><span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span></div>
-        <div class="section-content" id="discussion-result"></div>
-      </div>
-
-      <!-- Chrome Mode Knowledge Section -->
-      <div class="result-section hidden" id="chrome-knowledge-section">
-        <div class="section-header">
-          <div class="section-label"><span class="section-icon">🍃</span> <span data-i18n="knowledgePanel">Knowledge</span></div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="chrome-knowledge-content" class="egg-knowledge-content"></div>
-        </div>
-      </div>
-
-      <!-- Unified Egg Knowledge Section with Tabs -->
-      <div id="egg-knowledge-section" data-obsidian-only class="result-section hidden">
-        <div class="section-header">
-          <div class="section-label"><span data-i18n="eggKnowledgeSection">🥚 Egg Knowledge</span> <span class="section-hint" id="egg-knowledge-hint" data-i18n="eggKnowledgeHint">(by egg)</span></div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="egg-tabs-bar" class="egg-tabs-bar hidden"></div>
-          <div id="egg-knowledge-content" class="egg-knowledge-content"></div>
-        </div>
-      </div>
-
-      <div id="custom-questions-section" class="result-section hidden">
-        <div class="section-header">
-          <div class="section-label" data-i18n="yourQuestionsSection">❓ Your Questions</div>
-          <span class="section-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
-        </div>
-        <div class="section-content">
-          <div id="custom-questions-list" class="keyquestions-list"></div>
-          <div class="followup-area">
-            <div class="followup-input-row">
-              <input id="followup-input" type="text" data-i18n-placeholder="askQuestionPlaceholder" placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)" />
-              <select id="followup-scope" class="scope-select" aria-label="Question Scope" data-i18n-aria-label="scopeLabel" title="Question Scope">
-                <option value="within" data-i18n="scopeWithin">Content only</option>
-                <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
-              </select>
-              <button id="followup-btn" class="followup-btn" data-i18n="askBtn" data-hints="off">Ask</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="processed-note" class="duplicate-banner hidden">
-        <span class="duplicate-icon">📎</span>
-        <div class="processed-info">
-          <span id="processed-message"></span>
-          <!-- Re-analysis sections and action; history lives at the top of results. -->
-          <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
-            <div class="reanalyze-header-row">
-              <button type="button" class="sections-toggle-btn" id="reanalyze-sections-toggle" aria-expanded="false" data-hints="off">
-                <div class="sections-toggle-left">
-                  <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
-                  <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
-                  <span class="sections-badge" id="reanalyze-sections-badge">2/4</span>
-                </div>
-                <span class="section-chevron sections-toggle-chevron" id="reanalyze-sections-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      <!-- State 1: Capture -->
+      <div id="capture-state">
+        <div id="capture-banners" class="capture-banners"></div>
+        <section id="setup-hub" class="setup-hub hidden" aria-labelledby="setup-title">
+          <span class="setup-mark" aria-hidden="true">✦</span>
+          <h1 id="setup-title" data-i18n="readerSetupTitle">Start with your AI key</h1>
+          <p id="setup-description" data-i18n="readerSetupBody">
+            Connect an AI provider once, then analyze pages right here in Chrome.
+          </p>
+          <button
+            type="button"
+            id="setup-open-settings-btn"
+            class="setup-primary"
+            data-i18n="readerSetupAction"
+            title="Connect an AI provider once, then analyze pages right here in Chrome."
+            data-i18n-title="readerSetupBody"
+          >
+            Add API key
+          </button>
+        </section>
+        <div id="page-info" class="page-info">
+          <div class="page-info-top">
+            <div class="page-title" id="page-title" data-i18n="loading">Loading...</div>
+            <div class="page-refresh-control">
+              <span id="transcript-refresh-hint" class="transcript-refresh-hint hidden" role="status"></span>
+              <button
+                id="refresh-btn"
+                class="refresh-btn"
+                aria-label="Refresh content extraction"
+                data-i18n-aria-label="refreshTooltip"
+                data-hints="off"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+                  <path d="M16 16h5v5"></path>
+                </svg>
               </button>
-              <div class="processed-actions">
-                <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"><button id="reanalyze-btn" class="reanalyze-btn" data-i18n="reanalyze" title="Run a new analysis with the selected sections" data-i18n-title="buttonReanalyzeHint">🔄 Re-analyze</button></span>
-              </div>
             </div>
-            <div class="sections-body hidden" id="reanalyze-sections-body">
-              <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
-                <button type="button" class="section-chip active" id="reanalyze-chip-verdict-summary" data-section="verdictSummary" data-hints="off">
-                  <span class="chip-icon">📋</span>
-                  <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
-                </button>
-                <button type="button" class="section-chip active" id="reanalyze-chip-mindmap" data-section="mindMap" data-hints="off">
-                  <span class="chip-icon">🧠</span>
-                  <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
-                </button>
-                <button type="button" class="section-chip inactive" id="reanalyze-chip-knowledge" data-section="generateKnowledgeEntries" aria-pressed="false" data-hints="off">
-                  <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
-                </button>
-                <button type="button" class="section-chip inactive" id="reanalyze-chip-discussion" data-section="discussion" aria-pressed="false" data-hints="off"><span class="chip-icon">👥</span><span class="chip-label" data-i18n="discussionSection">Discussion</span></button>
-              </div>
-              <div id="discussion-reanalyze" class="discussion-controls hidden">
-                <div class="discussion-status-bar">
-                  <span id="discussion-reanalyze-indicator" class="discussion-status-indicator"></span>
-                  <p id="discussion-reanalyze-status" class="discussion-status-text" role="status" aria-live="polite"></p>
-                </div>
-                <div class="discussion-actions">
-                  <button type="button" id="discussion-reanalyze-load" class="discussion-btn discussion-btn-load" data-i18n="discussionLoad" title="Load discussion" data-i18n-title="discussionLoad">Load discussion</button>
-                  <button type="button" id="discussion-reanalyze-refresh" class="discussion-btn discussion-btn-refresh" data-i18n="discussionRefresh" title="Refresh comments" data-i18n-title="discussionRefresh">Refresh comments</button>
-                </div>
-                <div class="discussion-tip">
-                  <span class="discussion-tip-icon">💡</span>
-                  <small data-i18n="discussionLoadingHint">Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured comments at any time.</small>
-                </div>
-              </div>
-            </div>
+          </div>
+          <div class="page-url" id="page-url"></div>
+          <div class="page-type" id="page-type"></div>
+          <div class="page-provenance">
+            <span id="page-author"></span>
+            <span id="page-published"></span>
+            <span id="page-word-count"></span>
+            <span id="page-caption-source" class="caption-source-tag hidden"></span>
           </div>
         </div>
-      </div>
+        <div class="content-fetch-box">
+          <div id="content-preview" class="content-preview" data-i18n="loadingContent">Loading content…</div>
+          <button
+            type="button"
+            id="preview-refresh-btn"
+            class="preview-refresh-btn hidden"
+            data-i18n="contentRefreshHint"
+            data-hints="off"
+          >
+            Refresh content
+          </button>
+        </div>
 
-      <div id="eggs-section" data-obsidian-only class="sections-accordion eggs-accordion hidden">
-        <button type="button" id="eggs-toggle" class="sections-toggle-btn" aria-expanded="false" data-hints="off">
-          <div class="sections-toggle-left">
-            <span class="sections-toggle-icon">🥚</span>
-            <span class="sections-toggle-title" data-i18n="eggsHeader">Eggs</span>
-            <span id="eggs-toggle-label" class="eggs-toggle-label"></span>
-          </div>
-          <span class="section-chevron sections-toggle-chevron" id="eggs-toggle-chevron" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+        <button
+          type="button"
+          id="view-analysis-btn"
+          class="back-btn view-analysis-btn hidden"
+          title="View analysis →"
+          data-i18n-title="viewAnalysis"
+        >
+          <span class="btn-icon">👁️</span> <span data-i18n="viewAnalysis">View analysis →</span>
         </button>
-        <div id="eggs-expanded" class="sections-body hidden">
-          <div id="eggs-list" class="eggs-list"></div>
-          <div id="eggs-create-inline" class="create-egg-inline">
-            <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg" data-hints="off">➕ Create a new egg</button>
-            <div id="eggs-create-form" class="create-egg-box hidden">
-              <input id="eggs-new-name" type="text" data-i18n-placeholder="eggNamePlaceholder" placeholder="egg name (e.g. productivity)" />
-              <input id="eggs-new-desc" type="text" data-i18n-placeholder="eggDescPlaceholder" placeholder="what this egg captures (one line)" aria-describedby="eggs-create-hint" />
-              <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">Write the description in your preferred language; the egg and its knowledge output will use that language. Edit its file in Obsidian to customize the scope, questions, and formatting.</p>
-              <div class="create-egg-actions">
-                <button id="eggs-create-btn" class="confirm-btn create-egg-btn" data-i18n="createEggBtn" title="Create Egg" data-i18n-title="createEggBtn">Create an Egg</button>
-                <button id="eggs-create-cancel-btn" type="button" class="cancel-btn eggs-cancel-btn" data-i18n="cancel" title="Cancel" data-i18n-title="cancel">Cancel</button>
+        <div id="analyze-btn-wrap" class="analyze-btn-wrap" data-hints="off">
+          <button id="analyze-btn" class="analyze-btn inactive" data-hints="off">
+            <span class="btn-icon">⚡</span> <span id="analyze-btn-text" data-i18n="analyze">Analyze</span>
+          </button>
+        </div>
+
+        <!-- Analysis Mode Selector -->
+        <div class="mode-toggle-wrap" id="obsidian-analysis-mode" data-obsidian-only>
+          <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
+            <button
+              type="button"
+              class="mode-pill-btn"
+              id="mode-fast-btn"
+              title="Full analysis: summary + knowledge comparison in one go"
+              data-i18n="modeFast"
+              data-i18n-title="modeFastTooltip"
+            >
+              🌞 Full Mode
+            </button>
+            <button
+              type="button"
+              class="mode-pill-btn active"
+              id="mode-confirm-btn"
+              title="Preview summary first, then choose eggs to compare"
+              data-i18n="modeConfirm"
+              data-i18n-title="modeConfirmTooltip"
+            >
+              🌛 Preview Summary
+            </button>
+          </div>
+        </div>
+
+        <button
+          id="questions-toggle"
+          class="sections-toggle-btn"
+          type="button"
+          aria-expanded="false"
+          aria-controls="questions-area"
+          data-hints="off"
+        >
+          <span class="sections-toggle-left"
+            ><span class="sections-toggle-title" data-i18n="askQuestionsToggle">❓ Ask your own questions</span></span
+          >
+          <span class="sections-toggle-chevron" aria-hidden="true"
+            ><svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="6 9 12 15 18 9"></polyline></svg
+          ></span>
+        </button>
+        <div id="questions-area" class="questions-area hidden">
+          <div class="questions-composer">
+            <textarea
+              id="custom-questions"
+              rows="3"
+              data-i18n-aria-label="readerOptionalQuestion"
+              data-i18n-placeholder="readerQuestionsPlaceholder"
+              placeholder="What would you like to understand about this page?"
+            ></textarea>
+            <select
+              id="capture-questions-scope"
+              class="scope-select"
+              aria-label="Question Scope"
+              data-i18n-aria-label="scopeLabel"
+              title="Question Scope"
+            >
+              <option value="within" data-i18n="scopeWithin">Content only</option>
+              <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="duplicate-banner" class="duplicate-banner hidden">
+          <span class="duplicate-icon">📎</span>
+          <span id="duplicate-message"></span>
+        </div>
+
+        <div
+          id="capture-credit-row"
+          class="capture-credit-row hidden"
+          title="Current AI provider & remaining balance (click to refresh)"
+          data-i18n-title="aiCreditTooltip"
+        >
+          <span class="capture-credit-icon">🪙</span>
+          <span id="capture-credit-text" data-i18n="aiCredit">AI Credit</span>
+        </div>
+
+        <!-- Expandable Sections Selector -->
+        <div class="sections-accordion" id="sections-accordion">
+          <button type="button" class="sections-toggle-btn" id="sections-toggle" aria-expanded="false" data-hints="off">
+            <div class="sections-toggle-left">
+              <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
+              <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
+              <span class="sections-badge" id="sections-badge">2/4</span>
+            </div>
+            <span class="section-chevron sections-toggle-chevron" id="sections-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </button>
+          <div class="sections-body hidden" id="sections-body">
+            <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
+              <button
+                type="button"
+                class="section-chip active"
+                id="chip-verdict-summary"
+                data-section="verdictSummary"
+                data-hints="off"
+              >
+                <span class="chip-icon">📋</span>
+                <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
+              </button>
+              <button
+                type="button"
+                class="section-chip active"
+                id="chip-mindmap"
+                data-section="mindMap"
+                data-hints="off"
+              >
+                <span class="chip-icon">🧠</span>
+                <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
+              </button>
+              <button
+                type="button"
+                class="section-chip inactive"
+                id="chip-knowledge"
+                data-section="generateKnowledgeEntries"
+                aria-pressed="false"
+                data-hints="off"
+              >
+                <span class="chip-icon">🍃</span><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
+              </button>
+              <button
+                type="button"
+                class="section-chip inactive"
+                id="chip-discussion"
+                data-section="discussion"
+                aria-pressed="false"
+                data-hints="off"
+              >
+                <span class="chip-icon">👥</span
+                ><span class="chip-label" data-i18n="discussionSection">Discussion</span>
+              </button>
+            </div>
+            <div id="discussion-capture" class="discussion-controls hidden">
+              <div class="discussion-status-bar">
+                <span id="discussion-capture-indicator" class="discussion-status-indicator"></span>
+                <p id="discussion-capture-status" class="discussion-status-text" role="status" aria-live="polite"></p>
+              </div>
+              <div class="discussion-actions">
+                <button
+                  type="button"
+                  id="discussion-capture-load"
+                  class="discussion-btn discussion-btn-load"
+                  data-i18n="discussionLoad"
+                  title="Load discussion"
+                  data-i18n-title="discussionLoad"
+                >
+                  Load discussion
+                </button>
+                <button
+                  type="button"
+                  id="discussion-capture-refresh"
+                  class="discussion-btn discussion-btn-refresh"
+                  data-i18n="discussionRefresh"
+                  title="Refresh comments"
+                  data-i18n-title="discussionRefresh"
+                >
+                  Refresh comments
+                </button>
+              </div>
+              <div class="discussion-tip">
+                <span class="discussion-tip-icon">💡</span>
+                <small data-i18n="discussionLoadingHint"
+                  >Keep scrolling on the page to load more comments, then refresh the preview. You can analyze captured
+                  comments at any time.</small
+                >
               </div>
             </div>
           </div>
-          <div id="eggs-error" class="eggs-error hidden"></div>
         </div>
+
+        <!-- Target Egg Selector (Content-Fetch View) -->
+        <div class="sections-accordion capture-eggs-accordion hidden" id="capture-eggs-accordion" data-obsidian-only>
+          <button
+            type="button"
+            class="sections-toggle-btn"
+            id="capture-eggs-toggle"
+            aria-expanded="false"
+            data-hints="off"
+          >
+            <div class="sections-toggle-left">
+              <span class="sections-toggle-icon">🥚</span>
+              <span class="sections-toggle-title" data-i18n="targetEggHeader"
+                >Target eggs (auto-select by default)</span
+              >
+              <span id="capture-eggs-label" class="eggs-toggle-label"></span>
+            </div>
+            <span class="section-chevron sections-toggle-chevron" id="capture-eggs-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </button>
+          <div class="sections-body hidden" id="capture-eggs-area">
+            <div id="capture-eggs-list" class="eggs-list"></div>
+          </div>
+        </div>
+        <div id="capture-success-banners"></div>
       </div>
 
-      <!-- Notification & Error Banners (Bottom, above egg-analysis and hatch-egg buttons) -->
-      <div id="results-banners" class="results-banners">
-        <div id="success-banner" class="success-banner hidden">
-          <span class="success-icon">✅</span>
-          <span id="success-message"></span>
+      <!-- State 2: Results -->
+      <div id="results-state" class="hidden">
+        <div id="result-page-info" class="page-info hidden">
+          <div class="page-title" id="result-page-title"></div>
+          <div class="page-provenance">
+            <span id="result-page-author"></span>
+            <span id="result-page-published"></span>
+            <span id="result-page-word-count"></span>
+            <select
+              id="history-select"
+              class="history-select hidden"
+              aria-label="Analysis history"
+              data-i18n-aria-label="analysisHistory"
+            ></select>
+          </div>
         </div>
 
-        <div id="warning-banner" class="warning-banner hidden">
-          <span class="warning-icon">⚠️</span>
-          <div id="warning-message"></div>
+        <div class="result-section" id="verdict-section">
+          <div class="section-header">
+            <div class="section-label" data-i18n="verdictReadSection">📖 Should you read it?</div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="verdict-badge" class="verdict-badge">
+              <span id="verdict-icon"></span>
+              <span id="verdict-text"></span>
+            </div>
+            <div id="verdict-reason" class="verdict-reason"></div>
+          </div>
         </div>
 
-        <div id="error-banner" class="error-banner hidden">
-          <span class="error-icon">❌</span>
-          <div>
-            <div id="error-message"></div>
-            <div id="error-hint" class="error-hint hidden"></div>
-            <div class="error-report-row">
-              <a href="#" id="error-report-bug" class="error-report-link" data-i18n="reportBug">🐛 Report Bug</a>
-              <span class="error-report-email-fallback" data-i18n-html="reportBugEmailHint">or Email <a href="mailto:staffhacker.000@gmail.com">staffhacker.000@gmail.com</a></span>
+        <div class="result-section" id="title-verdict-section">
+          <div class="section-header">
+            <div class="section-label" data-i18n="titleVerdictSection">🎯 Title Verdict</div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="verdict-answer" class="summary-text"></div>
+          </div>
+        </div>
+
+        <div class="result-section" id="core-summary-section">
+          <div class="section-header">
+            <div class="section-label" data-i18n="coreSummarySection">📋 Core Summary</div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <ul id="core-summary" class="core-summary summary-text"></ul>
+          </div>
+        </div>
+
+        <div id="mindmap-section" class="result-section hidden">
+          <div class="section-header">
+            <div class="section-label" data-i18n="mindmapSection">🧠 Mind Map</div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="mindmap-tree" class="mindmap-tree"></div>
+          </div>
+        </div>
+
+        <div class="result-section hidden" id="discussion-section">
+          <div class="section-header" role="button" tabindex="0">
+            <div class="section-label">
+              <span class="section-icon">👥</span> <span data-i18n="discussionSection">Discussion</span>
+            </div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content" id="discussion-result"></div>
+        </div>
+
+        <!-- Chrome Mode Knowledge Section -->
+        <div class="result-section hidden" id="chrome-knowledge-section">
+          <div class="section-header">
+            <div class="section-label">
+              <span class="section-icon">🍃</span> <span data-i18n="knowledgePanel">Knowledge</span>
+            </div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="chrome-knowledge-content" class="egg-knowledge-content"></div>
+          </div>
+        </div>
+
+        <!-- Unified Egg Knowledge Section with Tabs -->
+        <div id="egg-knowledge-section" data-obsidian-only class="result-section hidden">
+          <div class="section-header">
+            <div class="section-label">
+              <span data-i18n="eggKnowledgeSection">🥚 Egg Knowledge</span>
+              <span class="section-hint" id="egg-knowledge-hint" data-i18n="eggKnowledgeHint">(by egg)</span>
+            </div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="egg-tabs-bar" class="egg-tabs-bar hidden"></div>
+            <div id="egg-knowledge-content" class="egg-knowledge-content"></div>
+          </div>
+        </div>
+
+        <div id="custom-questions-section" class="result-section hidden">
+          <div class="section-header">
+            <div class="section-label" data-i18n="yourQuestionsSection">❓ Your Questions</div>
+            <span class="section-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </div>
+          <div class="section-content">
+            <div id="custom-questions-list" class="keyquestions-list"></div>
+            <div class="followup-area">
+              <div class="followup-input-row">
+                <input
+                  id="followup-input"
+                  type="text"
+                  data-i18n-placeholder="askQuestionPlaceholder"
+                  placeholder="Ask a follow-up question… (⌘/Ctrl+Enter)"
+                />
+                <select
+                  id="followup-scope"
+                  class="scope-select"
+                  aria-label="Question Scope"
+                  data-i18n-aria-label="scopeLabel"
+                  title="Question Scope"
+                >
+                  <option value="within" data-i18n="scopeWithin">Content only</option>
+                  <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
+                </select>
+                <button id="followup-btn" class="followup-btn" data-i18n="askBtn" data-hints="off">Ask</button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Stage 1 Slim Banner (Review eggs to proceed) -->
-      <div id="stage1-confirm-box" data-obsidian-only class="stage1-confirm-box hidden">
-        <div class="stage1-confirm-header">
-          <span class="stage1-confirm-icon">ℹ️</span>
-          <span class="stage1-confirm-text" id="stage1-confirm-text" data-i18n="stage1Complete">Review matching eggs to proceed</span>
-        </div>
-        <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap hidden" style="display: none;"><button id="stage1-skip-btn" class="collect-nut-btn" data-i18n="collectNutOnly" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut Only</button></span>
-      </div>
-
-      <div class="action-buttons">
-        <div id="egg-analysis-selector" class="egg-analysis-selector hidden" data-hints="self-off">
-          <button id="stage1-proceed-btn" class="confirm-btn stage1-proceed-btn" aria-expanded="false" aria-controls="egg-analysis-menu" data-hints="off"><span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span></button>
-          <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
-            <button type="button" id="egg-analysis-only" role="menuitemradio" aria-checked="true" data-i18n="eggAnalysisOnly" title="🥚 Analysis only" data-i18n-title="eggAnalysisOnly">🥚 Analysis only</button>
-            <button type="button" id="egg-analysis-with-knowledge" role="menuitemradio" aria-checked="false" data-i18n="eggAnalysisWithKnowledge" title="Generate knowledge entries" data-i18n-title="generateKnowledgeEntries">🍃 Include knowledge</button>
+        <div id="processed-note" class="duplicate-banner hidden">
+          <span class="duplicate-icon">📎</span>
+          <div class="processed-info">
+            <span id="processed-message"></span>
+            <!-- Re-analysis sections and action; history lives at the top of results. -->
+            <div class="sections-accordion reanalyze-sections" id="reanalyze-sections-accordion">
+              <div class="reanalyze-header-row">
+                <button
+                  type="button"
+                  class="sections-toggle-btn"
+                  id="reanalyze-sections-toggle"
+                  aria-expanded="false"
+                  data-hints="off"
+                >
+                  <div class="sections-toggle-left">
+                    <span class="sections-toggle-icon" aria-hidden="true">🎯</span>
+                    <span class="sections-toggle-title" data-i18n="analysisSections">Analysis Sections</span>
+                    <span class="sections-badge" id="reanalyze-sections-badge">2/4</span>
+                  </div>
+                  <span
+                    class="section-chevron sections-toggle-chevron"
+                    id="reanalyze-sections-chevron"
+                    aria-hidden="true"
+                    ><svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline></svg
+                  ></span>
+                </button>
+                <div class="processed-actions">
+                  <span id="reanalyze-btn-wrap" class="reanalyze-btn-wrap"
+                    ><button
+                      id="reanalyze-btn"
+                      class="reanalyze-btn"
+                      data-i18n="reanalyze"
+                      title="Run a new analysis with the selected sections"
+                      data-i18n-title="buttonReanalyzeHint"
+                    >
+                      🔄 Re-analyze
+                    </button></span
+                  >
+                </div>
+              </div>
+              <div class="sections-body hidden" id="reanalyze-sections-body">
+                <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
+                  <button
+                    type="button"
+                    class="section-chip active"
+                    id="reanalyze-chip-verdict-summary"
+                    data-section="verdictSummary"
+                    data-hints="off"
+                  >
+                    <span class="chip-icon">📋</span>
+                    <span class="chip-label" data-i18n="chipVerdictSummary">Verdict &amp; Summary</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="section-chip active"
+                    id="reanalyze-chip-mindmap"
+                    data-section="mindMap"
+                    data-hints="off"
+                  >
+                    <span class="chip-icon">🧠</span>
+                    <span class="chip-label" data-i18n="chipMindmap">Mind Map</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="section-chip inactive"
+                    id="reanalyze-chip-knowledge"
+                    data-section="generateKnowledgeEntries"
+                    aria-pressed="false"
+                    data-hints="off"
+                  >
+                    <span class="chip-icon">🍃</span
+                    ><span class="chip-label" data-i18n="knowledgePanel">Knowledge</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="section-chip inactive"
+                    id="reanalyze-chip-discussion"
+                    data-section="discussion"
+                    aria-pressed="false"
+                    data-hints="off"
+                  >
+                    <span class="chip-icon">👥</span
+                    ><span class="chip-label" data-i18n="discussionSection">Discussion</span>
+                  </button>
+                </div>
+                <div id="discussion-reanalyze" class="discussion-controls hidden">
+                  <div class="discussion-status-bar">
+                    <span id="discussion-reanalyze-indicator" class="discussion-status-indicator"></span>
+                    <p
+                      id="discussion-reanalyze-status"
+                      class="discussion-status-text"
+                      role="status"
+                      aria-live="polite"
+                    ></p>
+                  </div>
+                  <div class="discussion-actions">
+                    <button
+                      type="button"
+                      id="discussion-reanalyze-load"
+                      class="discussion-btn discussion-btn-load"
+                      data-i18n="discussionLoad"
+                      title="Load discussion"
+                      data-i18n-title="discussionLoad"
+                    >
+                      Load discussion
+                    </button>
+                    <button
+                      type="button"
+                      id="discussion-reanalyze-refresh"
+                      class="discussion-btn discussion-btn-refresh"
+                      data-i18n="discussionRefresh"
+                      title="Refresh comments"
+                      data-i18n-title="discussionRefresh"
+                    >
+                      Refresh comments
+                    </button>
+                  </div>
+                  <div class="discussion-tip">
+                    <span class="discussion-tip-icon">💡</span>
+                    <small data-i18n="discussionLoadingHint"
+                      >Keep scrolling on the page to load more comments, then refresh the preview. You can analyze
+                      captured comments at any time.</small
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"><button id="confirm-btn" class="confirm-btn hidden" data-i18n="hatchEgg" title="Save new knowledge to the selected eggs" data-i18n-title="buttonHatchHint">🐣 Hatch Egg</button></span>
-        <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"><button id="collect-nut-btn" class="collect-nut-btn" data-i18n="collectNut" title="Save the captured content to your Obsidian vault" data-i18n-title="buttonCollectHint">🌰 Collect Nut</button></span>
-        <button id="back-btn" class="back-btn" data-i18n="readerBack" title="Return to the captured page content" data-i18n-title="buttonBackHint">Back</button>
+
+        <div id="eggs-section" data-obsidian-only class="sections-accordion eggs-accordion hidden">
+          <button type="button" id="eggs-toggle" class="sections-toggle-btn" aria-expanded="false" data-hints="off">
+            <div class="sections-toggle-left">
+              <span class="sections-toggle-icon">🥚</span>
+              <span class="sections-toggle-title" data-i18n="eggsHeader">Eggs</span>
+              <span id="eggs-toggle-label" class="eggs-toggle-label"></span>
+            </div>
+            <span class="section-chevron sections-toggle-chevron" id="eggs-toggle-chevron" aria-hidden="true"
+              ><svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline></svg
+            ></span>
+          </button>
+          <div id="eggs-expanded" class="sections-body hidden">
+            <div id="eggs-list" class="eggs-list"></div>
+            <div id="eggs-create-inline" class="create-egg-inline">
+              <button id="eggs-create-toggle" class="eggs-create-toggle" data-i18n="createNewEgg" data-hints="off">
+                ➕ Create a new egg
+              </button>
+              <div id="eggs-create-form" class="create-egg-box hidden">
+                <input
+                  id="eggs-new-name"
+                  type="text"
+                  data-i18n-placeholder="eggNamePlaceholder"
+                  placeholder="egg name (e.g. productivity)"
+                />
+                <input
+                  id="eggs-new-desc"
+                  type="text"
+                  data-i18n-placeholder="eggDescPlaceholder"
+                  placeholder="what this egg captures (one line)"
+                  aria-describedby="eggs-create-hint"
+                />
+                <p id="eggs-create-hint" class="create-egg-hint" data-i18n="eggCreationHint">
+                  Write the description in your preferred language; the egg and its knowledge output will use that
+                  language. Edit its file in Obsidian to customize the scope, questions, and formatting.
+                </p>
+                <div class="create-egg-actions">
+                  <button
+                    id="eggs-create-btn"
+                    class="confirm-btn create-egg-btn"
+                    data-i18n="createEggBtn"
+                    title="Create Egg"
+                    data-i18n-title="createEggBtn"
+                  >
+                    Create an Egg
+                  </button>
+                  <button
+                    id="eggs-create-cancel-btn"
+                    type="button"
+                    class="cancel-btn eggs-cancel-btn"
+                    data-i18n="cancel"
+                    title="Cancel"
+                    data-i18n-title="cancel"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div id="eggs-error" class="eggs-error hidden"></div>
+          </div>
+        </div>
+
+        <!-- Notification & Error Banners (Bottom, above egg-analysis and hatch-egg buttons) -->
+        <div id="results-banners" class="results-banners">
+          <div id="success-banner" class="success-banner hidden">
+            <span class="success-icon">✅</span>
+            <span id="success-message"></span>
+          </div>
+
+          <div id="warning-banner" class="warning-banner hidden">
+            <span class="warning-icon">⚠️</span>
+            <div id="warning-message"></div>
+          </div>
+
+          <div id="error-banner" class="error-banner hidden">
+            <span class="error-icon">❌</span>
+            <div>
+              <div id="error-message"></div>
+              <div id="error-hint" class="error-hint hidden"></div>
+              <div class="error-report-row">
+                <a href="#" id="error-report-bug" class="error-report-link" data-i18n="reportBug">🐛 Report Bug</a>
+                <span class="error-report-email-fallback" data-i18n-html="reportBugEmailHint"
+                  >or Email <a href="mailto:staffhacker.000@gmail.com">staffhacker.000@gmail.com</a></span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stage 1 Slim Banner (Review eggs to proceed) -->
+        <div id="stage1-confirm-box" data-obsidian-only class="stage1-confirm-box hidden">
+          <div class="stage1-confirm-header">
+            <span class="stage1-confirm-icon">ℹ️</span>
+            <span class="stage1-confirm-text" id="stage1-confirm-text" data-i18n="stage1Complete"
+              >Review matching eggs to proceed</span
+            >
+          </div>
+          <span id="stage1-skip-btn-wrap" class="stage1-skip-btn-wrap hidden" style="display: none"
+            ><button
+              id="stage1-skip-btn"
+              class="collect-nut-btn"
+              data-i18n="collectNutOnly"
+              title="Save the captured content to your Obsidian vault"
+              data-i18n-title="buttonCollectHint"
+            >
+              🌰 Collect Nut Only
+            </button></span
+          >
+        </div>
+
+        <div class="action-buttons">
+          <div id="egg-analysis-selector" class="egg-analysis-selector hidden" data-hints="self-off">
+            <button
+              id="stage1-proceed-btn"
+              class="confirm-btn stage1-proceed-btn"
+              aria-expanded="false"
+              aria-controls="egg-analysis-menu"
+              data-hints="off"
+            >
+              <span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span
+              ><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span>
+            </button>
+            <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
+              <button
+                type="button"
+                id="egg-analysis-only"
+                role="menuitemradio"
+                aria-checked="true"
+                data-i18n="eggAnalysisOnly"
+                title="🥚 Analysis only"
+                data-i18n-title="eggAnalysisOnly"
+              >
+                🥚 Analysis only
+              </button>
+              <button
+                type="button"
+                id="egg-analysis-with-knowledge"
+                role="menuitemradio"
+                aria-checked="false"
+                data-i18n="eggAnalysisWithKnowledge"
+                title="Generate knowledge entries"
+                data-i18n-title="generateKnowledgeEntries"
+              >
+                🍃 Include knowledge
+              </button>
+            </div>
+          </div>
+          <span id="confirm-btn-wrap" class="confirm-btn-wrap hidden"
+            ><button
+              id="confirm-btn"
+              class="confirm-btn hidden"
+              data-i18n="hatchEgg"
+              title="Save new knowledge to the selected eggs"
+              data-i18n-title="buttonHatchHint"
+            >
+              🐣 Hatch Egg
+            </button></span
+          >
+          <span id="collect-nut-btn-wrap" class="collect-nut-btn-wrap"
+            ><button
+              id="collect-nut-btn"
+              class="collect-nut-btn"
+              data-i18n="collectNut"
+              title="Save the captured content to your Obsidian vault"
+              data-i18n-title="buttonCollectHint"
+            >
+              🌰 Collect Nut
+            </button></span
+          >
+          <button
+            id="back-btn"
+            class="back-btn"
+            data-i18n="readerBack"
+            title="Return to the captured page content"
+            data-i18n-title="buttonBackHint"
+          >
+            Back
+          </button>
+        </div>
       </div>
+
+      <div id="metrics-bar" class="metrics-bar">
+        <span class="metric" title="Nuts collected" data-i18n-title="metricNutsTooltip"
+          ><span data-i18n="metricNuts">Collected 🌰</span> <strong id="metric-nuts">0</strong></span
+        >
+        <span class="metric" title="Knowledge generated" data-i18n-title="metricEggsTooltip"
+          ><span data-i18n="metricEggs">Hatched 🥚</span> <strong id="metric-eggs">0</strong></span
+        >
+        <span class="metric" title="Time saved" data-i18n-title="metricTimeTooltip"
+          ><span data-i18n="metricTime">Saved ⏱️</span> <strong id="metric-time">0m</strong></span
+        >
+      </div>
+
+      <div id="debug-info" class="debug-info hidden" role="status" aria-live="polite"></div>
+
+      <footer class="footer">
+        <small id="version-tag" data-hints="off">NutEgg 0.0.0</small>
+        <div class="footer-links">
+          <a
+            href="#"
+            class="footer-link"
+            id="report-bug-link"
+            title="Report a Bug on GitHub (or email staffhacker.000@gmail.com if no GitHub account)"
+            data-i18n-title="reportBugTooltip"
+          >
+            <span data-i18n="reportBug">🐛 Report Bug</span>
+          </a>
+          <a
+            href="mailto:staffhacker.000@gmail.com"
+            class="footer-link footer-email-link"
+            id="report-email-link"
+            title="No GitHub account? Email staffhacker.000@gmail.com"
+            data-i18n-title="reportBugEmailTooltip"
+          >
+            <span aria-hidden="true">✉️</span>
+          </a>
+        </div>
+      </footer>
     </div>
 
-    <div id="metrics-bar" class="metrics-bar">
-      <span class="metric" title="Nuts collected" data-i18n-title="metricNutsTooltip"><span data-i18n="metricNuts">Collected 🌰</span> <strong id="metric-nuts">0</strong></span>
-      <span class="metric" title="Knowledge generated" data-i18n-title="metricEggsTooltip"><span data-i18n="metricEggs">Hatched 🥚</span> <strong id="metric-eggs">0</strong></span>
-      <span class="metric" title="Time saved" data-i18n-title="metricTimeTooltip"><span data-i18n="metricTime">Saved ⏱️</span> <strong id="metric-time">0m</strong></span>
-    </div>
-
-    <div id="debug-info" class="debug-info hidden" role="status" aria-live="polite"></div>
-
-    <footer class="footer">
-      <small id="version-tag" data-hints="off">NutEgg 0.0.0</small>
-      <div class="footer-links">
-        <a href="#" class="footer-link" id="report-bug-link" title="Report a Bug on GitHub (or email staffhacker.000@gmail.com if no GitHub account)" data-i18n-title="reportBugTooltip">
-          <span data-i18n="reportBug">🐛 Report Bug</span>
-        </a>
-        <a href="mailto:staffhacker.000@gmail.com" class="footer-link footer-email-link" id="report-email-link" title="No GitHub account? Email staffhacker.000@gmail.com" data-i18n-title="reportBugEmailTooltip">
-          <span aria-hidden="true">✉️</span>
-        </a>
-      </div>
-    </footer>
-  </div>
-
-  <script defer src="../tooltips.js"></script>
-  <script defer src="startup-frame.js"></script>
-  <script defer src="../i18n.js"></script>
-  <script defer src="helpers.js"></script>
-  <script defer src="state/tab-state.js"></script>
-  <script defer src="state/settings-state.js"></script>
-  <script defer src="services/page-extractor.js"></script>
-  <script defer src="../../dist/ai-core.js"></script>
-  <script defer src="services/analysis-service.js"></script>
-  <script defer src="services/environment-service.js"></script>
-  <script defer src="services/popup-operations.js"></script>
-  <script defer src="ui/mindmap.js"></script>
-  <script defer src="ui/qa.js"></script>
-  <script defer src="ui/eggs.js"></script>
-  <script defer src="ui/header.js"></script>
-  <script defer src="ui/analysis-activity.js"></script>
-  <script defer src="ui/banners.js"></script>
-  <script defer src="ui/capture-view.js"></script>
-  <script defer src="ui/section-chips.js"></script>
-  <script defer src="ui/verdict.js"></script>
-  <script defer src="ui/action-controls.js"></script>
-  <script defer src="ui/results-view.js"></script>
-  <script defer src="ui/metrics.js"></script>
-  <script defer src="ui/discussion.js"></script>
-  <script defer src="ui/popup-renderer.js"></script>
-  <script defer src="action/tab.js"></script>
-  <script defer src="action/analyze.js"></script>
-  <script defer src="action/save.js"></script>
-  <script defer src="action/history.js"></script>
-  <script defer src="action/interaction.js"></script>
-  <script defer src="popup.js"></script>
-</body>
+    <script defer src="../tooltips.js"></script>
+    <script defer src="startup-frame.js"></script>
+    <script defer src="../i18n.js"></script>
+    <script defer src="helpers.js"></script>
+    <script defer src="state/tab-state.js"></script>
+    <script defer src="state/settings-state.js"></script>
+    <script defer src="services/page-extractor.js"></script>
+    <script defer src="../../dist/ai-core.js"></script>
+    <script defer src="services/analysis-service.js"></script>
+    <script defer src="services/environment-service.js"></script>
+    <script defer src="services/popup-operations.js"></script>
+    <script defer src="ui/mindmap.js"></script>
+    <script defer src="ui/qa.js"></script>
+    <script defer src="ui/eggs.js"></script>
+    <script defer src="ui/header.js"></script>
+    <script defer src="ui/analysis-activity.js"></script>
+    <script defer src="ui/banners.js"></script>
+    <script defer src="ui/capture-view.js"></script>
+    <script defer src="ui/section-chips.js"></script>
+    <script defer src="ui/verdict.js"></script>
+    <script defer src="ui/action-controls.js"></script>
+    <script defer src="ui/results-view.js"></script>
+    <script defer src="ui/metrics.js"></script>
+    <script defer src="ui/discussion.js"></script>
+    <script defer src="ui/popup-renderer.js"></script>
+    <script defer src="action/tab.js"></script>
+    <script defer src="action/analyze.js"></script>
+    <script defer src="action/save.js"></script>
+    <script defer src="action/history.js"></script>
+    <script defer src="action/interaction.js"></script>
+    <script defer src="popup.js"></script>
+  </body>
 </html>

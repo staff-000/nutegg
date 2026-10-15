@@ -13,15 +13,14 @@
 function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...opts, signal: controller.signal }).finally(() =>
-    clearTimeout(timer)
-  );
+  return fetch(url, { ...opts, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 // Capture contexts are passed explicitly, so an obsolete task never acquires
 // the signal or page identity of a newer task in the same document.
 if (typeof window !== 'undefined' && !window.__nuteggNavigationState) {
-  const initialUrl = typeof performance !== 'undefined' ? performance.getEntriesByType?.('navigation')?.[0]?.name : null;
+  const initialUrl =
+    typeof performance !== 'undefined' ? performance.getEntriesByType?.('navigation')?.[0]?.name : null;
   window.__nuteggNavigationState = { generation: 0, initialUrl: initialUrl || window.location.href };
   for (const event of ['yt-navigate-start', 'popstate']) {
     window.addEventListener?.(event, () => {
@@ -43,10 +42,18 @@ function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = 
   };
   const timer = setTimeout(() => abort('timeout'), Math.max(1, deadline - Date.now()));
   const context = {
-    requestId, url, deadline, attempt, signal: controller.signal, abort,
+    requestId,
+    url,
+    deadline,
+    attempt,
+    signal: controller.signal,
+    abort,
     isCurrent() {
-      return document === captureDocument && window.location.href.split('#')[0] === url.split('#')[0]
-        && (!youtube || window.__nuteggNavigationState?.generation === generation);
+      return (
+        document === captureDocument &&
+        window.location.href.split('#')[0] === url.split('#')[0] &&
+        (!youtube || window.__nuteggNavigationState?.generation === generation)
+      );
     },
     check() {
       if (!context.isCurrent()) abort('stale');
@@ -57,23 +64,34 @@ function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = 
       let listener;
       try {
         context.check();
-        return await Promise.race([promise, new Promise((_, reject) => {
-          listener = () => reject(controller.signal.reason);
-          controller.signal.addEventListener('abort', listener, { once: true });
-        })]);
+        return await Promise.race([
+          promise,
+          new Promise((_, reject) => {
+            listener = () => reject(controller.signal.reason);
+            controller.signal.addEventListener('abort', listener, { once: true });
+          }),
+        ]);
       } finally {
         if (listener) controller.signal.removeEventListener('abort', listener);
         // Also observe a rejection if cancellation won before it was awaited.
         Promise.resolve(promise).catch(() => {});
       }
     },
-    dispose() { clearTimeout(timer); },
+    dispose() {
+      clearTimeout(timer);
+    },
   };
-  controller.signal.addEventListener('abort', () => {
-    if (requestId) {
-      try { chrome.runtime.sendMessage({ action: 'chinese-content-cancel', requestId })?.catch?.(() => {}); } catch {}
-    }
-  }, { once: true });
+  controller.signal.addEventListener(
+    'abort',
+    () => {
+      if (requestId) {
+        try {
+          chrome.runtime.sendMessage({ action: 'chinese-content-cancel', requestId })?.catch?.(() => {});
+        } catch {}
+      }
+    },
+    { once: true }
+  );
   return context;
 }
 
@@ -96,21 +114,23 @@ async function captureFetchText(url, opts = {}, timeoutMs = 8000, context) {
 
 function extractText(element) {
   const clone = element.cloneNode(true);
-  clone.querySelectorAll("script, style, noscript, svg, img, video, audio, iframe, nav, footer")
-    .forEach((el) => el.remove());
-  let text = clone.textContent || "";
-  return text.replace(/\n{3,}/g, "\n\n").replace(/[ \t]{3,}/g, "  ")
-    .replace(/^\s+|\s+$/gm, "").trim();
+  clone
+    .querySelectorAll('script, style, noscript, svg, img, video, audio, iframe, nav, footer')
+    .forEach(el => el.remove());
+  let text = clone.textContent || '';
+  return text
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{3,}/g, '  ')
+    .replace(/^\s+|\s+$/gm, '')
+    .trim();
 }
 
 function getMeta(name) {
   return (
     document
-      .querySelector(
-        `meta[name="${name}"], meta[property="${name}"], meta[itemprop="${name}"]`
-      )
-      ?.getAttribute("content")
-      ?.trim() || ""
+      .querySelector(`meta[name="${name}"], meta[property="${name}"], meta[itemprop="${name}"]`)
+      ?.getAttribute('content')
+      ?.trim() || ''
   );
 }
 
@@ -121,21 +141,13 @@ function getMeta(name) {
 function readJsonLd(typeFilter) {
   for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
     try {
-      const parsed = JSON.parse(script.textContent || "");
-      const items = Array.isArray(parsed)
-        ? parsed
-        : parsed["@graph"]
-        ? parsed["@graph"]
-        : [parsed];
+      const parsed = JSON.parse(script.textContent || '');
+      const items = Array.isArray(parsed) ? parsed : parsed['@graph'] ? parsed['@graph'] : [parsed];
       for (const item of items) {
-        if (!item || typeof item !== "object") continue;
+        if (!item || typeof item !== 'object') continue;
         if (!typeFilter) return item;
-        const itemType = item["@type"];
-        if (
-          Array.isArray(itemType)
-            ? itemType.includes(typeFilter)
-            : itemType === typeFilter
-        ) {
+        const itemType = item['@type'];
+        if (Array.isArray(itemType) ? itemType.includes(typeFilter) : itemType === typeFilter) {
           return item;
         }
       }
@@ -146,21 +158,21 @@ function readJsonLd(typeFilter) {
 
 function truncate(text, max) {
   if (text.length <= max) return text;
-  return text.substring(0, max) + "\n\n[...truncated]";
+  return text.substring(0, max) + '\n\n[...truncated]';
 }
 
 function estimateTime(text, sourceType) {
-  if (sourceType === "youtube") {
+  if (sourceType === 'youtube') {
     // Try to get actual video duration
-    const video = document.querySelector("video");
-    if (video && typeof video.duration === "number" && !isNaN(video.duration) && video.duration > 0) {
+    const video = document.querySelector('video');
+    if (video && typeof video.duration === 'number' && !isNaN(video.duration) && video.duration > 0) {
       return Math.ceil(video.duration / 60);
     }
     // Fallback: estimate from description + transcript word count
     const words = text.split(/\s+/).length;
     return Math.max(2, Math.ceil(words / 150)); // ~150 wpm for video content
   }
-  if (sourceType === "twitter") {
+  if (sourceType === 'twitter') {
     const tweetCount = document.querySelectorAll('article[data-testid="tweet"]').length;
     return Math.max(1, tweetCount * 2); // ~2 min per tweet in a thread
   }
@@ -171,12 +183,12 @@ function estimateTime(text, sourceType) {
 
 function readingTime(text) {
   const mins = Math.ceil(text.split(/\s+/).length / 200);
-  return mins <= 1 ? "~1 min" : `~${mins} min`;
+  return mins <= 1 ? '~1 min' : `~${mins} min`;
 }
 
 /** Poll until `getter` returns a truthy value (or null after `timeoutMs`). */
 function waitFor(getter, timeoutMs) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
       try {
@@ -198,14 +210,18 @@ function waitFor(getter, timeoutMs) {
  * don't break the scan. Returns "" when unbalanced (truncated input).
  */
 function extractBalanced(text, from) {
-  const brace = text.indexOf("{", from);
-  const bracket = text.indexOf("[", from);
+  const brace = text.indexOf('{', from);
+  const bracket = text.indexOf('[', from);
   let start, open, close;
-  if (brace === -1 && bracket === -1) return "";
+  if (brace === -1 && bracket === -1) return '';
   if (brace !== -1 && (bracket === -1 || brace < bracket)) {
-    start = brace; open = "{"; close = "}";
+    start = brace;
+    open = '{';
+    close = '}';
   } else {
-    start = bracket; open = "["; close = "]";
+    start = bracket;
+    open = '[';
+    close = ']';
   }
 
   let depth = 0;
@@ -215,18 +231,21 @@ function extractBalanced(text, from) {
     const c = text[i];
     if (inString) {
       if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
+      else if (c === '\\') escaped = true;
       else if (c === '"') inString = false;
       continue;
     }
-    if (c === '"') { inString = true; continue; }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
     if (c === open) depth++;
     else if (c === close) {
       depth--;
       if (depth === 0) return text.slice(start, i + 1);
     }
   }
-  return "";
+  return '';
 }
 
 /** Seconds → "MM:SS" or "H:MM:SS". */
@@ -234,14 +253,14 @@ function formatTime(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
-  const mm = String(m).padStart(2, "0");
-  const ss = String(s).padStart(2, "0");
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
 /** "[MM:SS]" / "[H:MM:SS]" → seconds, or -1. */
 function parseTimestamp(ts) {
-  const parts = ts.slice(1, -1).split(":").map(Number);
+  const parts = ts.slice(1, -1).split(':').map(Number);
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return -1;

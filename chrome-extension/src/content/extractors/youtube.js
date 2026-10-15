@@ -17,7 +17,15 @@ async function extractYouTube(context) {
   context?.check();
   const url = window.location.href;
   let meta = extractYouTubeMetadata(url);
-  if (context) context.partial = { url, title: meta.title, sourceType: "youtube", transcriptAvailable: false, content: `# ${meta.title}\n\n${meta.description || ""}`, metadata: { video_id: meta.videoId } };
+  if (context)
+    context.partial = {
+      url,
+      title: meta.title,
+      sourceType: 'youtube',
+      transcriptAvailable: false,
+      content: `# ${meta.title}\n\n${meta.description || ''}`,
+      metadata: { video_id: meta.videoId },
+    };
 
   // Start captions before optional chapter work. Snapshot completion never delays
   // the successful script-track path; it can improve metadata/chapters if ready.
@@ -25,7 +33,11 @@ async function extractYouTube(context) {
   const pendingCaptions = fetchYouTubeCaptions(captionMetadata, context);
   pendingCaptions.catch(() => {}); // Also observe rejection if optional DOM work aborts extraction.
   let chapters = [];
-  try { chapters = extractChapters(context); } catch { context?.check(); }
+  try {
+    chapters = extractChapters(context);
+  } catch {
+    context?.check();
+  }
   const transcript = await pendingCaptions;
   context?.check();
   if (context?.youtubeSnapshot?.playerResponse) {
@@ -44,7 +56,7 @@ async function extractYouTube(context) {
     parts.push(`\n## Description\n\n${meta.description}`);
   }
   if (chapters.length > 0) {
-    parts.push(`\n## Chapters\n\n${chapters.map((c) => `- ${c.time} — ${c.title}`).join("\n")}`);
+    parts.push(`\n## Chapters\n\n${chapters.map(c => `- ${c.time} — ${c.title}`).join('\n')}`);
   }
   if (transcript) {
     // 100k chars ≈ 2 hours of speech — only a sanity cap, so long videos
@@ -54,22 +66,21 @@ async function extractYouTube(context) {
     parts.push(`\n## Transcript\n\n*No transcript available for this video.*`);
   }
 
-  const timeMinutes = meta.durationSeconds > 0
-    ? Math.ceil(meta.durationSeconds / 60)
-    : estimateTime(parts.join(" "), "youtube");
+  const timeMinutes =
+    meta.durationSeconds > 0 ? Math.ceil(meta.durationSeconds / 60) : estimateTime(parts.join(' '), 'youtube');
 
   return {
     url,
     title: meta.title,
-    content: parts.join("\n"),
-    sourceType: "youtube",
+    content: parts.join('\n'),
+    sourceType: 'youtube',
     chapters,
     // False when captions could not be fetched — the popup refuses to
     // analyze, because description-only analysis would be misleading.
     transcriptAvailable: !!transcript,
-    extractionStatus: transcript ? "ready" : captionMetadata.caption_unavailable ? "unavailable" : "transient",
+    extractionStatus: transcript ? 'ready' : captionMetadata.caption_unavailable ? 'unavailable' : 'transient',
     metadata: {
-      platform: "YouTube",
+      platform: 'YouTube',
       ...captionMetadata,
       ...(meta.channelName && { channel: meta.channelName }),
       ...(meta.date && { published: meta.date }),
@@ -89,39 +100,44 @@ async function extractYouTube(context) {
 function extractYouTubeMetadata(url, playerResponse) {
   const pr = playerResponse || readYtInitialPlayerResponse();
   const expectedVideoId = new URL(url).searchParams.get('v');
-  const rawJsonLd = readJsonLd("VideoObject") || readJsonLd();
+  const rawJsonLd = readJsonLd('VideoObject') || readJsonLd();
   const identifiesVideo = value => {
-    try { const candidate = new URL(value); return candidate.searchParams.get('v') === expectedVideoId || candidate.pathname === `/embed/${expectedVideoId}`; }
-    catch { return false; }
+    try {
+      const candidate = new URL(value);
+      return candidate.searchParams.get('v') === expectedVideoId || candidate.pathname === `/embed/${expectedVideoId}`;
+    } catch {
+      return false;
+    }
   };
   const jsonLd = [rawJsonLd?.url, rawJsonLd?.embedUrl, rawJsonLd?.contentUrl].some(identifiesVideo) ? rawJsonLd : null;
-  const pageMeta = name => identifiesVideo(getMeta('og:url')) ? getMeta(name) : '';
+  const pageMeta = name => (identifiesVideo(getMeta('og:url')) ? getMeta(name) : '');
   const videoDetails = pr?.videoDetails || {};
   const microformat = pr?.microformat?.playerMicroformatRenderer || {};
-  const videoId = new URL(url).searchParams.get("v") || videoDetails.videoId || "";
+  const videoId = new URL(url).searchParams.get('v') || videoDetails.videoId || '';
 
   // 1. Title
   const title =
     videoDetails.title ||
     microformat.title?.simpleText ||
     jsonLd?.name ||
-    document.querySelector("h1.ytd-watch-metadata yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector("h1 yt-formatted-string")?.textContent?.trim() ||
-    pageMeta("title") ||
-    pageMeta("og:title") ||
-    pageMeta("name") ||
-    document.title.replace(" - YouTube", "").trim();
+    document.querySelector('h1.ytd-watch-metadata yt-formatted-string')?.textContent?.trim() ||
+    document.querySelector('h1 yt-formatted-string')?.textContent?.trim() ||
+    pageMeta('title') ||
+    pageMeta('og:title') ||
+    pageMeta('name') ||
+    document.title.replace(' - YouTube', '').trim();
 
   // 2. Channel / Author
   const channelName =
     videoDetails.author ||
     microformat.ownerChannelName ||
-    (typeof jsonLd?.author === "string" ? jsonLd.author : jsonLd?.author?.name) ||
-    document.querySelector("#channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("ytd-channel-name yt-formatted-string a")?.textContent?.trim() ||
-    document.querySelector("#owner-name a")?.textContent?.trim() ||
-    document.querySelector("#upload-info ytd-channel-name a")?.textContent?.trim() ||
-    pageMeta("author") || "";
+    (typeof jsonLd?.author === 'string' ? jsonLd.author : jsonLd?.author?.name) ||
+    document.querySelector('#channel-name yt-formatted-string a')?.textContent?.trim() ||
+    document.querySelector('ytd-channel-name yt-formatted-string a')?.textContent?.trim() ||
+    document.querySelector('#owner-name a')?.textContent?.trim() ||
+    document.querySelector('#upload-info ytd-channel-name a')?.textContent?.trim() ||
+    pageMeta('author') ||
+    '';
 
   // 3. Published Date
   let date =
@@ -129,36 +145,31 @@ function extractYouTubeMetadata(url, playerResponse) {
     microformat.uploadDate ||
     jsonLd?.datePublished ||
     jsonLd?.uploadDate ||
-    pageMeta("datePublished") ||
-    pageMeta("uploadDate") ||
-    pageMeta("date") ||
-    document.querySelector("#info-strings yt-formatted-string")?.textContent?.trim() ||
-    document.querySelector("#info yt-formatted-string.date")?.textContent?.trim() ||
-    "";
+    pageMeta('datePublished') ||
+    pageMeta('uploadDate') ||
+    pageMeta('date') ||
+    document.querySelector('#info-strings yt-formatted-string')?.textContent?.trim() ||
+    document.querySelector('#info yt-formatted-string.date')?.textContent?.trim() ||
+    '';
 
   if (date) {
     // Normalize date strings that may have text prefixes (e.g. from DOM fallbacks)
-    date = date.replace(/^(?:Streamed live on|Premiered on|Premiered)\s+/i, "").trim();
+    date = date.replace(/^(?:Streamed live on|Premiered on|Premiered)\s+/i, '').trim();
   }
 
   // 4. Description
-  let description =
-    videoDetails.shortDescription ||
-    microformat.description?.simpleText ||
-    jsonLd?.description ||
-    "";
+  let description = videoDetails.shortDescription || microformat.description?.simpleText || jsonLd?.description || '';
   if (!description) {
-    const descEl = document.querySelector("#description-inline-expander, ytd-expander#description");
+    const descEl = document.querySelector('#description-inline-expander, ytd-expander#description');
     if (descEl) {
-      const snippet = descEl.querySelector("yt-formatted-string, #snippet") ||
-        descEl.querySelector('[slot="content"]');
-      if (snippet) description = snippet.textContent?.trim() || "";
+      const snippet = descEl.querySelector('yt-formatted-string, #snippet') || descEl.querySelector('[slot="content"]');
+      if (snippet) description = snippet.textContent?.trim() || '';
     }
   }
-  if (!description) description = pageMeta("og:description") || pageMeta("description");
+  if (!description) description = pageMeta('og:description') || pageMeta('description');
 
   // 5. View Count
-  let viewCount = "";
+  let viewCount = '';
   if (videoDetails.viewCount) {
     const n = Number(videoDetails.viewCount);
     viewCount = isNaN(n) ? videoDetails.viewCount : n.toLocaleString();
@@ -169,15 +180,15 @@ function extractYouTubeMetadata(url, playerResponse) {
     viewCount = String(jsonLd.interactionCount);
   } else {
     viewCount =
-      document.querySelector("ytd-video-view-count-renderer .view-count")?.textContent?.trim() ||
-      document.querySelector("#info .view-count")?.textContent?.trim() ||
-      "";
+      document.querySelector('ytd-video-view-count-renderer .view-count')?.textContent?.trim() ||
+      document.querySelector('#info .view-count')?.textContent?.trim() ||
+      '';
   }
 
   // 6. Duration in seconds
   let durationSeconds = parseInt(videoDetails.lengthSeconds, 10);
   if (isNaN(durationSeconds) || durationSeconds <= 0) {
-    const video = document.querySelector("video");
+    const video = document.querySelector('video');
     if (video && video.duration && !isNaN(video.duration)) {
       durationSeconds = Math.ceil(video.duration);
     }
@@ -198,47 +209,88 @@ function extractYouTubeMetadata(url, playerResponse) {
 function readYouTubePlayerSnapshot(expectedVideoId) {
   try {
     const url = new URL(location.href);
-    if (!/(^|\.)youtube\.com$/.test(url.hostname) || url.pathname !== '/watch'
-      || url.searchParams.get('v') !== expectedVideoId) return null;
+    if (
+      !/(^|\.)youtube\.com$/.test(url.hostname) ||
+      url.pathname !== '/watch' ||
+      url.searchParams.get('v') !== expectedVideoId
+    )
+      return null;
     const player = document.querySelector('#movie_player');
     const live = player?.getPlayerResponse?.();
-    const response = live?.videoDetails?.videoId === expectedVideoId ? live
-      : window.ytInitialPlayerResponse?.videoDetails?.videoId === expectedVideoId ? window.ytInitialPlayerResponse : null;
+    const response =
+      live?.videoDetails?.videoId === expectedVideoId
+        ? live
+        : window.ytInitialPlayerResponse?.videoDetails?.videoId === expectedVideoId
+          ? window.ytInitialPlayerResponse
+          : null;
     const details = response?.videoDetails;
     let tracks = response?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
     // tracklist belongs to the live player, never the stale initial response.
     if (!tracks.length && live?.videoDetails?.videoId === expectedVideoId) {
       tracks = player?.getOption?.('captions', 'tracklist') || [];
     }
-    const text = value => typeof value === 'string' ? value.slice(0, 100000) : '';
+    const text = value => (typeof value === 'string' ? value.slice(0, 100000) : '');
     const config = name => window.ytcfg?.get?.(name);
     const client = config('INNERTUBE_CONTEXT')?.client || {};
     const markers = response?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer;
-    const markersMap = markers?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap
-      || markers?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap || [];
+    const markersMap =
+      markers?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap ||
+      markers?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap ||
+      [];
     const micro = response?.microformat?.playerMicroformatRenderer;
     return {
       videoId: expectedVideoId,
-      playerResponse: details ? {
-        videoDetails: Object.fromEntries(['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [key, text(details[key])])),
-        microformat: { playerMicroformatRenderer: { publishDate: text(micro?.publishDate), uploadDate: text(micro?.uploadDate) } },
-        playabilityStatus: { status: text(response?.playabilityStatus?.status) },
-      } : null,
-      tracks: Array.isArray(tracks) ? tracks.slice(0, 100).map(track => ({
-        baseUrl: text(track.baseUrl || track.url).slice(0, 16384), languageCode: text(track.languageCode).slice(0, 50), kind: text(track.kind).slice(0, 50),
-      })) : [],
-      markersMap: (Array.isArray(markersMap) ? markersMap.slice(0, 10) : []).map(marker => ({ value: { chapters:
-        (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 100) : []).flatMap(item => {
-          const chapter = item?.chapterRenderer;
-          const rawMillis = chapter?.timeRangeStartMillis;
-          const millis = typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis)) ? Number(rawMillis) : NaN;
-          const title = text(chapter?.title?.simpleText) || (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => text(run?.text)).join('') : '');
-          return Number.isFinite(millis) && millis >= 0 && title ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title.slice(0, 500) } } }] : [];
-        }) } })),
-      client: { clientName: text(client.clientName || config('INNERTUBE_CLIENT_NAME')), clientVersion: text(client.clientVersion || config('INNERTUBE_CLIENT_VERSION')),
-        hl: text(client.hl || config('HL')), gl: text(client.gl || config('GL')) },
+      playerResponse: details
+        ? {
+            videoDetails: Object.fromEntries(
+              ['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [
+                key,
+                text(details[key]),
+              ])
+            ),
+            microformat: {
+              playerMicroformatRenderer: { publishDate: text(micro?.publishDate), uploadDate: text(micro?.uploadDate) },
+            },
+            playabilityStatus: { status: text(response?.playabilityStatus?.status) },
+          }
+        : null,
+      tracks: Array.isArray(tracks)
+        ? tracks.slice(0, 100).map(track => ({
+            baseUrl: text(track.baseUrl || track.url).slice(0, 16384),
+            languageCode: text(track.languageCode).slice(0, 50),
+            kind: text(track.kind).slice(0, 50),
+          }))
+        : [],
+      markersMap: (Array.isArray(markersMap) ? markersMap.slice(0, 10) : []).map(marker => ({
+        value: {
+          chapters: (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 100) : []).flatMap(
+            item => {
+              const chapter = item?.chapterRenderer;
+              const rawMillis = chapter?.timeRangeStartMillis;
+              const millis =
+                typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis))
+                  ? Number(rawMillis)
+                  : NaN;
+              const title =
+                text(chapter?.title?.simpleText) ||
+                (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => text(run?.text)).join('') : '');
+              return Number.isFinite(millis) && millis >= 0 && title
+                ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title.slice(0, 500) } } }]
+                : [];
+            }
+          ),
+        },
+      })),
+      client: {
+        clientName: text(client.clientName || config('INNERTUBE_CLIENT_NAME')),
+        clientVersion: text(client.clientVersion || config('INNERTUBE_CLIENT_VERSION')),
+        hl: text(client.hl || config('HL')),
+        gl: text(client.gl || config('GL')),
+      },
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // Called only by the worker; the same file supplies the serialized MAIN-world reader.
@@ -246,18 +298,38 @@ function handleYouTubePlayerSnapshotMessage(message, sender, sendResponse) {
   if (message.action !== 'youtube-player-snapshot') return false;
   try {
     const url = new URL(sender.url);
-    if (sender.id !== chrome.runtime.id || !sender.tab || !sender.documentId || sender.frameId !== 0
-      || !/(^|\.)youtube\.com$/.test(url.hostname) || url.protocol !== 'https:' || url.pathname !== '/watch'
-      || url.searchParams.get('v') !== message.videoId) throw new Error('Invalid snapshot request');
+    if (
+      sender.id !== chrome.runtime.id ||
+      !sender.tab ||
+      !sender.documentId ||
+      sender.frameId !== 0 ||
+      !/(^|\.)youtube\.com$/.test(url.hostname) ||
+      url.protocol !== 'https:' ||
+      url.pathname !== '/watch' ||
+      url.searchParams.get('v') !== message.videoId
+    )
+      throw new Error('Invalid snapshot request');
     // documentIds prevents a delayed request from executing in a replacement document.
-    const work = chrome.scripting.executeScript({ target: { tabId: sender.tab.id, documentIds: [sender.documentId] },
-      world: 'MAIN', func: readYouTubePlayerSnapshot, args: [message.videoId] });
+    const work = chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id, documentIds: [sender.documentId] },
+      world: 'MAIN',
+      func: readYouTubePlayerSnapshot,
+      args: [message.videoId],
+    });
     let timer;
-    Promise.race([work, new Promise(resolve => { timer = setTimeout(() => resolve(null), 500); })])
+    Promise.race([
+      work,
+      new Promise(resolve => {
+        timer = setTimeout(() => resolve(null), 500);
+      }),
+    ])
       .then(results => sendResponse({ success: true, snapshot: results?.[0]?.result || null }))
       .catch(() => sendResponse({ success: false }))
       .finally(() => clearTimeout(timer));
-  } catch { sendResponse({ success: false }); return false; }
+  } catch {
+    sendResponse({ success: false });
+    return false;
+  }
   return true;
 }
 
@@ -267,10 +339,19 @@ function validYouTubeTracks(tracks, videoId) {
   return tracks.slice(0, 100).filter(track => {
     try {
       const url = new URL(track?.baseUrl || track?.url);
-      return (!track.languageCode || typeof track.languageCode === 'string') && (!track.kind || typeof track.kind === 'string') && url.protocol === 'https:' && /(^|\.)youtube\.com$/.test(url.hostname)
-        && url.pathname === '/api/timedtext' && !url.username && !url.password
-        && (!url.searchParams.get('v') || url.searchParams.get('v') === videoId);
-    } catch { return false; }
+      return (
+        (!track.languageCode || typeof track.languageCode === 'string') &&
+        (!track.kind || typeof track.kind === 'string') &&
+        url.protocol === 'https:' &&
+        /(^|\.)youtube\.com$/.test(url.hostname) &&
+        url.pathname === '/api/timedtext' &&
+        !url.username &&
+        !url.password &&
+        (!url.searchParams.get('v') || url.searchParams.get('v') === videoId)
+      );
+    } catch {
+      return false;
+    }
   });
 }
 
@@ -279,24 +360,57 @@ function validYouTubeSnapshot(snapshot, videoId) {
   const response = snapshot.playerResponse;
   if (response && response.videoDetails?.videoId !== videoId) return null;
   const details = response?.videoDetails;
-  if (details && ['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].some(key => details[key] != null && typeof details[key] !== 'string')) return null;
+  if (
+    details &&
+    ['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].some(
+      key => details[key] != null && typeof details[key] !== 'string'
+    )
+  )
+    return null;
   const micro = response?.microformat?.playerMicroformatRenderer;
-  const safeText = value => typeof value === 'string' ? value.slice(0, 100000) : '';
-  const safeResponse = details ? { videoDetails: Object.fromEntries(['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [key, safeText(details[key])])),
-    microformat: { playerMicroformatRenderer: { publishDate: safeText(micro?.publishDate), uploadDate: safeText(micro?.uploadDate) } },
-    playabilityStatus: { status: safeText(response?.playabilityStatus?.status) } } : null;
-  const markersMap = (Array.isArray(snapshot.markersMap) ? snapshot.markersMap.slice(0, 10) : []).map(marker => ({ value: { chapters:
-    (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 500) : []).flatMap(item => {
-      const chapter = item?.chapterRenderer;
-      const rawMillis = chapter?.timeRangeStartMillis;
-      const millis = typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis)) ? Number(rawMillis) : NaN;
-      const title = safeText(chapter?.title?.simpleText) || (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => safeText(run?.text)).join('') : '');
-      return Number.isFinite(millis) && millis >= 0 && title ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title } } }] : [];
-    }) } }));
-  return { videoId, playerResponse: safeResponse,
+  const safeText = value => (typeof value === 'string' ? value.slice(0, 100000) : '');
+  const safeResponse = details
+    ? {
+        videoDetails: Object.fromEntries(
+          ['videoId', 'title', 'author', 'shortDescription', 'viewCount', 'lengthSeconds'].map(key => [
+            key,
+            safeText(details[key]),
+          ])
+        ),
+        microformat: {
+          playerMicroformatRenderer: {
+            publishDate: safeText(micro?.publishDate),
+            uploadDate: safeText(micro?.uploadDate),
+          },
+        },
+        playabilityStatus: { status: safeText(response?.playabilityStatus?.status) },
+      }
+    : null;
+  const markersMap = (Array.isArray(snapshot.markersMap) ? snapshot.markersMap.slice(0, 10) : []).map(marker => ({
+    value: {
+      chapters: (Array.isArray(marker?.value?.chapters) ? marker.value.chapters.slice(0, 500) : []).flatMap(item => {
+        const chapter = item?.chapterRenderer;
+        const rawMillis = chapter?.timeRangeStartMillis;
+        const millis =
+          typeof rawMillis === 'number' || (typeof rawMillis === 'string' && /^\d+$/.test(rawMillis))
+            ? Number(rawMillis)
+            : NaN;
+        const title =
+          safeText(chapter?.title?.simpleText) ||
+          (Array.isArray(chapter?.title?.runs) ? chapter.title.runs.map(run => safeText(run?.text)).join('') : '');
+        return Number.isFinite(millis) && millis >= 0 && title
+          ? [{ chapterRenderer: { timeRangeStartMillis: millis, title: { simpleText: title } } }]
+          : [];
+      }),
+    },
+  }));
+  return {
+    videoId,
+    playerResponse: safeResponse,
     tracks: validYouTubeTracks(snapshot.tracks, videoId),
     markersMap,
-    client: snapshot.client && typeof snapshot.client === 'object' ? snapshot.client : {} };
+    client: snapshot.client && typeof snapshot.client === 'object' ? snapshot.client : {},
+  };
 }
 
 // Abort-aware timeout for messaging and short DOM waits. Cleans every listener.
@@ -312,10 +426,19 @@ function youtubeBounded(promise, ms, context, fallback = null) {
       error ? reject(error) : resolve(value);
     };
     const abort = () => finish(null, context.signal.reason);
-    try { context?.check(); } catch (error) { Promise.resolve(promise).catch(() => {}); reject(error); return; }
+    try {
+      context?.check();
+    } catch (error) {
+      Promise.resolve(promise).catch(() => {});
+      reject(error);
+      return;
+    }
     context?.signal?.addEventListener('abort', abort, { once: true });
     timer = setTimeout(() => finish(fallback), Math.max(1, Math.min(ms, (context?.deadline || Infinity) - Date.now())));
-    Promise.resolve(promise).then(value => finish(value), error => finish(null, error));
+    Promise.resolve(promise).then(
+      value => finish(value),
+      error => finish(null, error)
+    );
   });
 }
 
@@ -324,11 +447,17 @@ async function queryYouTubePlayerSnapshot(context) {
   const videoId = new URL(window.location.href).searchParams.get('v');
   const until = Math.min(Date.now() + 500, context?.deadline || Infinity);
   try {
-    const response = await youtubeBounded(chrome.runtime.sendMessage({ action: 'youtube-player-snapshot', videoId }), 250, context);
+    const response = await youtubeBounded(
+      chrome.runtime.sendMessage({ action: 'youtube-player-snapshot', videoId }),
+      250,
+      context
+    );
     context?.check();
     const snapshot = validYouTubeSnapshot(response?.snapshot, videoId);
     if (snapshot) return snapshot;
-  } catch { context?.check(); }
+  } catch {
+    context?.check();
+  }
   if (typeof readYouTubePlayerSnapshot !== 'function' || Date.now() >= until) return null;
   return new Promise((resolve, reject) => {
     const eventId = 'nutegg_yt_snapshot_' + Math.random().toString(36).slice(2);
@@ -345,8 +474,12 @@ async function queryYouTubePlayerSnapshot(context) {
       error ? reject(error) : resolve(value);
     };
     const handler = event => {
-      try { context?.check(); finish(validYouTubeSnapshot(event.detail, videoId)); }
-      catch (error) { finish(null, error); }
+      try {
+        context?.check();
+        finish(validYouTubeSnapshot(event.detail, videoId));
+      } catch (error) {
+        finish(null, error);
+      }
     };
     const abort = () => finish(null, context.signal.reason);
     try {
@@ -360,12 +493,19 @@ async function queryYouTubePlayerSnapshot(context) {
       script.textContent = `window.dispatchEvent(new CustomEvent(${JSON.stringify(eventId)}, {detail: (${readYouTubePlayerSnapshot.toString()})(${JSON.stringify(videoId)})}));`;
       (document.head || document.documentElement).appendChild(script);
       script.remove();
-    } catch { finish(null); }
+    } catch {
+      finish(null);
+    }
   });
 }
 
 function youtubeRouteLog(route, started, outcome, context) {
-  console.log('[NutEgg] Captions:', { route, elapsedMs: Date.now() - started, outcome, attempt: context?.attempt || 0 });
+  console.log('[NutEgg] Captions:', {
+    route,
+    elapsedMs: Date.now() - started,
+    outcome,
+    attempt: context?.attempt || 0,
+  });
 }
 
 /** Current player/page tracks, bounded parallel fresh discovery, then DOM fallback. */
@@ -383,11 +523,13 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
     return '';
   }
   const pageTracks = findCaptionTracksInDom(videoId) || pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  const snapshotPromise = queryYouTubePlayerSnapshot(context).then(snapshot => {
-    context?.check();
-    if (context) context.youtubeSnapshot = snapshot;
-    return snapshot;
-  }).catch(() => null);
+  const snapshotPromise = queryYouTubePlayerSnapshot(context)
+    .then(snapshot => {
+      context?.check();
+      if (context) context.youtubeSnapshot = snapshot;
+      return snapshot;
+    })
+    .catch(() => null);
   // Each request retains its normal timeout. Fractional phase deadlines could
   // cut valid caption downloads off in under a second on the default settings.
   let network = youtubeNetworkContext(context);
@@ -398,7 +540,12 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
       result = await fetchTimedtext(validYouTubeTracks(tracks, videoId), network.context, attemptedUrls);
       network.context.check();
     } catch (error) {
-      youtubeRouteLog(route, started, error.code === 'phase_timeout' || error.code === 'timeout' ? 'timeout' : 'cancelled', context);
+      youtubeRouteLog(
+        route,
+        started,
+        error.code === 'phase_timeout' || error.code === 'timeout' ? 'timeout' : 'cancelled',
+        context
+      );
       throw error;
     }
     youtubeRouteLog(route, started, result ? 'success' : 'empty', context);
@@ -416,15 +563,21 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
         // An already-open, verified transcript costs no clicks or downloads.
         // Keep manual tracks ahead of this ASR fast path.
         snapshotPromise.then(async snapshot => {
-          if ([...(pageTracks || []), ...(snapshot?.tracks || [])].some(track => track.kind !== 'asr')) throw new Error('Prefer manual tracks');
+          if ([...(pageTracks || []), ...(snapshot?.tracks || [])].some(track => track.kind !== 'asr'))
+            throw new Error('Prefer manual tracks');
           const text = await readTranscriptPanel(context, { existingOnly: true, waitMs: 500 });
           if (!text) throw new Error('No verified visible transcript');
           context?.check();
           return { text, route: 'transcript_panel' };
         }),
       ]);
-    } catch { context?.check(); }
-    if (winner) { metadata.caption_source = winner.route; return winner.text; }
+    } catch {
+      context?.check();
+    }
+    if (winner) {
+      metadata.caption_source = winner.route;
+      return winner.text;
+    }
     network.dispose();
     const snapshot = await snapshotPromise;
     context?.check();
@@ -436,24 +589,41 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
     // The limiter includes discovery AND downloads. The faster route can start
     // its caption request while the other discovery request is still pending.
     try {
-      const discover = (route, promise) => promise.catch(error => {
-        youtubeRouteLog(route, started, 'failed', context);
-        throw error;
-      }).then(tracks => tryTracks(tracks, route));
+      const discover = (route, promise) =>
+        promise
+          .catch(error => {
+            youtubeRouteLog(route, started, 'failed', context);
+            throw error;
+          })
+          .then(tracks => tryTracks(tracks, route));
       winner = await Promise.any([
-        discover('innertube', fetchInnertubePlayer(videoId, network.context,
-          snapshot?.client?.clientVersion && snapshot?.client?.clientName ? snapshot.client : readYouTubeClientConfig())
-          .then(response => response?.captions?.playerCaptionsTracklistRenderer?.captionTracks)),
+        discover(
+          'innertube',
+          fetchInnertubePlayer(
+            videoId,
+            network.context,
+            snapshot?.client?.clientVersion && snapshot?.client?.clientName
+              ? snapshot.client
+              : readYouTubeClientConfig()
+          ).then(response => response?.captions?.playerCaptionsTracklistRenderer?.captionTracks)
+        ),
         discover('watch_page', fetchYouTubeWatchTracks(videoId, network.context)),
       ]);
-    } catch { context?.check(); }
-    if (winner) { metadata.caption_source = winner.route; return winner.text; }
+    } catch {
+      context?.check();
+    }
+    if (winner) {
+      metadata.caption_source = winner.route;
+      return winner.text;
+    }
     const transcript = await readTranscriptPanel(context);
     context?.check();
     youtubeRouteLog('transcript_panel', started, transcript ? 'success' : 'transient', context);
     if (transcript) metadata.caption_source = 'transcript_panel';
     return transcript;
-  } finally { network.dispose(); }
+  } finally {
+    network.dispose();
+  }
 }
 
 async function fetchYouTubeWatchTracks(videoId, context) {
@@ -468,7 +638,9 @@ async function fetchYouTubeWatchTracks(videoId, context) {
 }
 
 function youtubeFetchText(url, options, timeout, context) {
-  return context?.fetchText ? context.fetchText(url, options, timeout) : captureFetchText(url, options, timeout, context);
+  return context?.fetchText
+    ? context.fetchText(url, options, timeout)
+    : captureFetchText(url, options, timeout, context);
 }
 
 function youtubeNetworkContext(parent, deadline = parent?.deadline) {
@@ -477,30 +649,49 @@ function youtubeNetworkContext(parent, deadline = parent?.deadline) {
   parent?.signal?.addEventListener('abort', stop, { once: true });
   let active = 0;
   const queue = [];
-  const context = { deadline: Math.min(deadline || Infinity, parent?.deadline || Infinity), attempt: parent?.attempt, signal: controller.signal,
+  const context = {
+    deadline: Math.min(deadline || Infinity, parent?.deadline || Infinity),
+    attempt: parent?.attempt,
+    signal: controller.signal,
     check() {
       parent?.check();
       if (controller.signal.aborted) throw controller.signal.reason;
-      if (Date.now() >= context.deadline) throw Object.assign(new Error('Caption route deadline'), { code: 'phase_timeout' });
+      if (Date.now() >= context.deadline)
+        throw Object.assign(new Error('Caption route deadline'), { code: 'phase_timeout' });
     },
     async fetchText(url, options, timeout) {
       context.check();
-      if (active >= 2) await youtubeBounded(new Promise(resolve => queue.push(resolve)), Math.max(1, (context.deadline || Date.now() + 20000) - Date.now()), context);
+      if (active >= 2)
+        await youtubeBounded(
+          new Promise(resolve => queue.push(resolve)),
+          Math.max(1, (context.deadline || Date.now() + 20000) - Date.now()),
+          context
+        );
       context.check();
       active++;
-      try { return await captureFetchText(url, options, timeout, context); }
-      finally { active--; queue.shift()?.(); }
+      try {
+        return await captureFetchText(url, options, timeout, context);
+      } finally {
+        active--;
+        queue.shift()?.();
+      }
     },
   };
-  return { context, dispose() { parent?.signal?.removeEventListener('abort', stop); controller.abort(); } };
+  return {
+    context,
+    dispose() {
+      parent?.signal?.removeEventListener('abort', stop);
+      controller.abort();
+    },
+  };
 }
 
 /**
  * Scan all <script> tags in the current page DOM for `"captionTracks"`.
  */
 function findCaptionTracksInDom(videoId = new URL(window.location.href).searchParams.get('v')) {
-  for (const script of document.querySelectorAll("script")) {
-    const text = script.textContent || "";
+  for (const script of document.querySelectorAll('script')) {
+    const text = script.textContent || '';
     const marker = text.indexOf('ytInitialPlayerResponse');
     let scriptVideoId;
     if (marker >= 0) {
@@ -518,8 +709,12 @@ function findCaptionTracksInDom(videoId = new URL(window.location.href).searchPa
         const tracks = JSON.parse(raw);
         if (Array.isArray(tracks)) {
           const matching = tracks.filter(track => {
-            try { const id = new URL(track.baseUrl || track.url).searchParams.get('v'); return id === videoId || (!id && scriptVideoId === videoId); }
-            catch { return false; }
+            try {
+              const id = new URL(track.baseUrl || track.url).searchParams.get('v');
+              return id === videoId || (!id && scriptVideoId === videoId);
+            } catch {
+              return false;
+            }
           });
           if (matching.length) return matching;
         }
@@ -542,9 +737,12 @@ function readYouTubeClientConfig() {
     try {
       const config = JSON.parse(extractBalanced(text, marker + 'ytcfg.set('.length));
       const client = config.INNERTUBE_CONTEXT?.client || {};
-      const fields = { clientName: client.clientName || config.INNERTUBE_CLIENT_NAME,
+      const fields = {
+        clientName: client.clientName || config.INNERTUBE_CLIENT_NAME,
         clientVersion: client.clientVersion || config.INNERTUBE_CLIENT_VERSION,
-        hl: client.hl || config.HL, gl: client.gl || config.GL };
+        hl: client.hl || config.HL,
+        gl: client.gl || config.GL,
+      };
       if (typeof fields.clientName === 'string' && typeof fields.clientVersion === 'string') return fields;
     } catch {}
   }
@@ -553,17 +751,37 @@ function readYouTubeClientConfig() {
 
 async function fetchInnertubePlayer(videoId, context, client = readYouTubeClientConfig()) {
   context?.check();
-  if (!client || typeof client.clientName !== 'string' || typeof client.clientVersion !== 'string'
-    || !client.clientName || !client.clientVersion || client.clientVersion.length > 100 || client.clientName.length > 30) return null;
+  if (
+    !client ||
+    typeof client.clientName !== 'string' ||
+    typeof client.clientVersion !== 'string' ||
+    !client.clientName ||
+    !client.clientVersion ||
+    client.clientVersion.length > 100 ||
+    client.clientName.length > 30
+  )
+    return null;
   const origin = new URL(window.location.href).origin;
-  const response = await youtubeFetchText(`${origin}/youtubei/v1/player?prettyPrint=false`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ videoId, context: { client: {
-      clientName: client.clientName, clientVersion: client.clientVersion,
-      ...(typeof client.hl === 'string' && client.hl.length <= 20 && { hl: client.hl }),
-      ...(typeof client.gl === 'string' && client.gl.length <= 10 && { gl: client.gl }),
-    } } }),
-  }, 4000, context);
+  const response = await youtubeFetchText(
+    `${origin}/youtubei/v1/player?prettyPrint=false`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        videoId,
+        context: {
+          client: {
+            clientName: client.clientName,
+            clientVersion: client.clientVersion,
+            ...(typeof client.hl === 'string' && client.hl.length <= 20 && { hl: client.hl }),
+            ...(typeof client.gl === 'string' && client.gl.length <= 10 && { gl: client.gl }),
+          },
+        },
+      }),
+    },
+    4000,
+    context
+  );
   if (!response.ok) return null;
   const player = JSON.parse(response.text);
   return player?.videoDetails?.videoId === videoId ? player : null;
@@ -571,9 +789,9 @@ async function fetchInnertubePlayer(videoId, context, client = readYouTubeClient
 
 /** "json3" / "srv3" / "default" label for a timedtext URL, for logs. */
 function timedtextFormat(url) {
-  if (url.includes("fmt=json3")) return "json3";
-  if (url.includes("fmt=srv3")) return "srv3";
-  return "default";
+  if (url.includes('fmt=json3')) return 'json3';
+  if (url.includes('fmt=srv3')) return 'srv3';
+  return 'default';
 }
 
 /**
@@ -583,7 +801,7 @@ function timedtextFormat(url) {
  */
 async function fetchTimedtext(tracks, context, attemptedUrls = new Map()) {
   context?.check();
-  if (!Array.isArray(tracks) || tracks.length === 0) return "";
+  if (!Array.isArray(tracks) || tracks.length === 0) return '';
 
   // Prioritize candidate tracks:
   // 1. English human track (non-ASR)
@@ -592,10 +810,10 @@ async function fetchTimedtext(tracks, context, attemptedUrls = new Map()) {
   // 4. Any other ASR tracks
   // 5. Fallback tracks
   const sortedTracks = [...tracks].sort((a, b) => {
-    const aIsEn = (a.languageCode || "").toLowerCase().startsWith("en");
-    const bIsEn = (b.languageCode || "").toLowerCase().startsWith("en");
-    const aIsAsr = a.kind === "asr";
-    const bIsAsr = b.kind === "asr";
+    const aIsEn = (a.languageCode || '').toLowerCase().startsWith('en');
+    const bIsEn = (b.languageCode || '').toLowerCase().startsWith('en');
+    const aIsAsr = a.kind === 'asr';
+    const bIsAsr = b.kind === 'asr';
 
     if (aIsEn && !aIsAsr && (!bIsEn || bIsAsr)) return -1;
     if (bIsEn && !bIsAsr && (!aIsEn || aIsAsr)) return 1;
@@ -613,27 +831,26 @@ async function fetchTimedtext(tracks, context, attemptedUrls = new Map()) {
     const rawUrl = track.baseUrl || track.url;
     if (!rawUrl) continue;
 
-    const baseUrl = rawUrl.replace(/\\u0026/g, "&");
-    const isSigned =
-      baseUrl.includes("sparams=") ||
-      baseUrl.includes("signature=") ||
-      baseUrl.includes("sig=");
+    const baseUrl = rawUrl.replace(/\\u0026/g, '&');
+    const isSigned = baseUrl.includes('sparams=') || baseUrl.includes('signature=') || baseUrl.includes('sig=');
 
     // On signed URLs, tampering with query parameters like &fmt=json3 invalidates the signature.
     // Try baseUrl first!
-    const urls = isSigned
-      ? [baseUrl]
-      : (baseUrl.includes("fmt=") ? [baseUrl] : [baseUrl, `${baseUrl}&fmt=json3`]);
+    const urls = isSigned ? [baseUrl] : baseUrl.includes('fmt=') ? [baseUrl] : [baseUrl, `${baseUrl}&fmt=json3`];
 
     for (const url of urls) {
       try {
         context?.check();
         if (!attemptedUrls.has(url)) {
-          attemptedUrls.set(url, youtubeFetchText(url, {}, 2500, context).then(resp =>
-            resp.ok ? parseYouTubeCaptionResponse(resp.text) : '').catch(() => {
-              context?.check();
-              return '';
-            }));
+          attemptedUrls.set(
+            url,
+            youtubeFetchText(url, {}, 2500, context)
+              .then(resp => (resp.ok ? parseYouTubeCaptionResponse(resp.text) : ''))
+              .catch(() => {
+                context?.check();
+                return '';
+              })
+          );
         }
         const parsed = await attemptedUrls.get(url);
         context?.check();
@@ -644,7 +861,7 @@ async function fetchTimedtext(tracks, context, attemptedUrls = new Map()) {
     }
   }
 
-  return "";
+  return '';
 }
 
 /** Passive chapters only, using data that belongs to the current video. */
@@ -653,11 +870,10 @@ function extractChapters(context) {
   // Layer 1: player response — the source the chapter ring renders from
   const pr = readYtInitialPlayerResponse();
   const markerPaths = [
-    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer
-      ?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer
+    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer?.playerBar
+      ?.multiMarkersPlayerBarRenderer?.markersMap,
+    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer?.playerBar?.multiMarkersPlayerBarRenderer
       ?.markersMap,
-    pr?.playerOverlays?.playerOverlayRenderer?.decoratedPlayerBarRenderer
-      ?.playerBar?.multiMarkersPlayerBarRenderer?.markersMap,
   ];
   for (const markers of markerPaths) {
     const chapters = chaptersFromMarkersMap(markers);
@@ -673,8 +889,11 @@ function extractChapters(context) {
     const chapters = chaptersFromMacroMarkers(initialData);
     if (chapters.length) return chapters;
   }
-  const ownedPanel = [...document.querySelectorAll('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-macro-markers-description-chapters"]')]
-    .find(panel => panel.getAttribute('video-id') === expected);
+  const ownedPanel = [
+    ...document.querySelectorAll(
+      'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-macro-markers-description-chapters"]'
+    ),
+  ].find(panel => panel.getAttribute('video-id') === expected);
   return ownedPanel ? readChapterListDom(ownedPanel) : [];
 }
 
@@ -688,8 +907,7 @@ function chaptersFromMarkersMap(markers) {
     for (const c of list) {
       const ms = c?.chapterRenderer?.timeRangeStartMillis;
       const title =
-        c?.chapterRenderer?.title?.simpleText ||
-        (c?.chapterRenderer?.title?.runs || []).map((x) => x.text).join("");
+        c?.chapterRenderer?.title?.simpleText || (c?.chapterRenderer?.title?.runs || []).map(x => x.text).join('');
       if (ms != null && title) out.push({ time: formatTime(ms / 1000), title: cleanChapterTitle(title) });
     }
     const deduped = dedupChapters(out);
@@ -701,20 +919,17 @@ function chaptersFromMarkersMap(markers) {
 /** Chapters from macroMarkersListItemRenderer objects anywhere in the data. */
 function chaptersFromMacroMarkers(data) {
   const found = [];
-  if (!data || typeof data !== "object") return found;
+  if (!data || typeof data !== 'object') return found;
   (function walk(node) {
-    if (!node || typeof node !== "object" || found.length >= 500) return;
+    if (!node || typeof node !== 'object' || found.length >= 500) return;
     if (Array.isArray(node)) {
       for (const item of node) walk(item);
       return;
     }
-    if ("macroMarkersListItemRenderer" in node) {
+    if ('macroMarkersListItemRenderer' in node) {
       const r = node.macroMarkersListItemRenderer;
-      const title =
-        r?.title?.simpleText || (r?.title?.runs || []).map((x) => x.text).join("");
-      const timeDesc =
-        r?.timeDescription?.simpleText ||
-        (r?.timeDescription?.runs || []).map((x) => x.text).join("");
+      const title = r?.title?.simpleText || (r?.title?.runs || []).map(x => x.text).join('');
+      const timeDesc = r?.timeDescription?.simpleText || (r?.timeDescription?.runs || []).map(x => x.text).join('');
       if (title && timeDesc) {
         found.push({
           time: timeDesc,
@@ -731,11 +946,11 @@ function chaptersFromMacroMarkers(data) {
 /** `ytd-macro-markers-list-item-renderer` items currently in the DOM. */
 function readChapterListDom(root = document) {
   const chapters = [];
-  root.querySelectorAll("ytd-macro-markers-list-item-renderer").forEach((el) => {
-    const time = el.querySelector("#time")?.textContent?.trim();
+  root.querySelectorAll('ytd-macro-markers-list-item-renderer').forEach(el => {
+    const time = el.querySelector('#time')?.textContent?.trim();
     // YouTube's h4 contains both #title and child yt-formatted-string or spans, which causes textContent to repeat if we query `h4` directly
-    const titleEl = el.querySelector("h4 yt-formatted-string, h4 [id='title'], h4 #endpoint") || el.querySelector("h4");
-    const rawTitle = titleEl?.textContent?.trim() || "";
+    const titleEl = el.querySelector("h4 yt-formatted-string, h4 [id='title'], h4 #endpoint") || el.querySelector('h4');
+    const rawTitle = titleEl?.textContent?.trim() || '';
     const title = cleanChapterTitle(rawTitle);
     if (time && title) chapters.push({ time, title });
   });
@@ -744,10 +959,13 @@ function readChapterListDom(root = document) {
 
 /** Clean chapter title: strip timestamps and eliminate duplicated repeated strings. */
 function cleanChapterTitle(raw) {
-  if (!raw) return "";
-  let title = raw.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+  if (!raw) return '';
+  let title = raw
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   // Strip leading timestamp if present: e.g. "0:00 - Intro", "[01:23] Intro", "0:00 Intro"
-  title = title.replace(/^\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*[-—–:]?\s*/, "").trim();
+  title = title.replace(/^\[?\d{1,2}:\d{2}(?::\d{2})?\]?\s*[-—–:]?\s*/, '').trim();
 
   // Check for duplicated halves:
   // Case A: "Introduction - Introduction"
@@ -756,10 +974,10 @@ function cleanChapterTitle(raw) {
     title = midDash[0].trim();
   } else {
     // Case B: "Introduction Introduction" (even split by words)
-    const words = title.split(" ");
+    const words = title.split(' ');
     if (words.length >= 2 && words.length % 2 === 0) {
-      const half1 = words.slice(0, words.length / 2).join(" ");
-      const half2 = words.slice(words.length / 2).join(" ");
+      const half1 = words.slice(0, words.length / 2).join(' ');
+      const half2 = words.slice(words.length / 2).join(' ');
       if (half1 === half2) {
         title = half1;
       }
@@ -787,11 +1005,11 @@ function dedupChapters(chapters) {
   let lastSeconds = -1;
 
   for (const c of chapters) {
-    const time = (c.time || "").trim();
-    const title = cleanChapterTitle(c.title || "");
+    const time = (c.time || '').trim();
+    const title = cleanChapterTitle(c.title || '');
     if (!time || !title) continue;
 
-    const seconds = parseTimestamp(`[${time.replace(/^\[|\]$/g, "")}]`);
+    const seconds = parseTimestamp(`[${time.replace(/^\[|\]$/g, '')}]`);
     // If the list starts repeating from an earlier time, or duplicate timestamp
     if (seenTimes.has(time) || (seconds >= 0 && seconds <= lastSeconds && seenTimes.size >= 2)) {
       if (seconds >= 0 && seconds < lastSeconds && seenTimes.size >= 2) break;
@@ -812,11 +1030,11 @@ function dedupChapters(chapters) {
  * script tag text is regular DOM — extract with balanced-brace scanning.
  */
 function readYtVar(name) {
-  for (const script of document.querySelectorAll("script")) {
-    const text = script.textContent || "";
+  for (const script of document.querySelectorAll('script')) {
+    const text = script.textContent || '';
     const marker = text.indexOf(name);
     if (marker === -1) continue;
-    const eq = text.indexOf("=", marker);
+    const eq = text.indexOf('=', marker);
     if (eq === -1) continue;
     const json = extractBalanced(text, eq + 1);
     if (!json) continue;
@@ -831,14 +1049,14 @@ function readYtVar(name) {
 
 /** The page's `ytInitialPlayerResponse` (captions, chapters, ...). */
 function readYtInitialPlayerResponse() {
-  const response = readYtVar("ytInitialPlayerResponse");
-  const expected = new URL(window.location.href).searchParams.get("v");
+  const response = readYtVar('ytInitialPlayerResponse');
+  const expected = new URL(window.location.href).searchParams.get('v');
   return response?.videoDetails?.videoId === expected ? response : null;
 }
 
 /** The page's `ytInitialData` (description chapter markers, ...). */
 function readYtInitialData() {
-  return readYtVar("ytInitialData");
+  return readYtVar('ytInitialData');
 }
 
 /**
@@ -856,21 +1074,31 @@ function youtubeTranscriptPanelOwner(panel, context, response) {
     // On the original watch document, before any SPA navigation, a panel under
     // the matching watch renderer cannot be left over from a different video.
     // After navigation, unknown panels still require newly requested segments.
-    if (navigation.generation === 0 && initial.pathname === '/watch' && initial.searchParams.get('v') === expected
-      && panel?.closest('ytd-watch-flexy')?.getAttribute('video-id') === expected
-      && (context?.youtubeSnapshot?.playerResponse || response)?.videoDetails?.videoId === expected) return expected;
+    if (
+      navigation.generation === 0 &&
+      initial.pathname === '/watch' &&
+      initial.searchParams.get('v') === expected &&
+      panel?.closest('ytd-watch-flexy')?.getAttribute('video-id') === expected &&
+      (context?.youtubeSnapshot?.playerResponse || response)?.videoDetails?.videoId === expected
+    )
+      return expected;
   } catch {}
   return '';
 }
 
 async function readTranscriptPanel(context, { existingOnly = false, waitMs = 2000 } = {}) {
   const expected = new URL(window.location.href).searchParams.get('v');
-  const panelSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]';
-  const segmentSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, ytd-transcript-segment-list-renderer [role="button"]';
-  const current = () => (!context || context.isCurrent?.() !== false)
-    && new URL(window.location.href).searchParams.get('v') === expected
-    && (!context?.requestId || !window.__nuteggCaptureState?.latest || window.__nuteggCaptureState.latest === context.requestId
-      || window.__nuteggCaptureState.active?.id === context.requestId);
+  const panelSelector =
+    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]';
+  const segmentSelector =
+    'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, ytd-transcript-segment-list-renderer [role="button"]';
+  const current = () =>
+    (!context || context.isCurrent?.() !== false) &&
+    new URL(window.location.href).searchParams.get('v') === expected &&
+    (!context?.requestId ||
+      !window.__nuteggCaptureState?.latest ||
+      window.__nuteggCaptureState.latest === context.requestId ||
+      window.__nuteggCaptureState.active?.id === context.requestId);
   const getPanel = () => document.querySelector(panelSelector);
   const expanded = panel => panel?.getAttribute('visibility') === 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED';
   const until = Math.min(Date.now() + waitMs, context?.deadline || Infinity);
@@ -880,21 +1108,35 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
   const wasExpanded = expanded(initialPanel);
   if (existingOnly && (!wasExpanded || owner(initialPanel) !== expected)) return '';
   const baselineNodes = new Set(initialPanel?.querySelectorAll(segmentSelector) || []);
-  const fingerprint = panel => [...(panel?.querySelectorAll(segmentSelector) || [])].map(el => el.textContent?.trim()).join('\n');
+  const fingerprint = panel =>
+    [...(panel?.querySelectorAll(segmentSelector) || [])].map(el => el.textContent?.trim()).join('\n');
   const baselineText = fingerprint(initialPanel);
-  const description = document.querySelector('#description-inline-expander, ytd-expander#description, #description.ytd-watch-metadata');
+  const description = document.querySelector(
+    '#description-inline-expander, ytd-expander#description, #description.ytd-watch-metadata'
+  );
   const expandControl = description?.querySelector('#expand');
-  const initiallyCollapsed = description?.hasAttribute('collapse') || description?.getAttribute('aria-expanded') === 'false'
-    || (expandControl && (expandControl.offsetParent !== null || expandControl.offsetWidth > 0));
-  let changedDescription = false, openedPanel = false, requested = false, userChanged = false;
+  const initiallyCollapsed =
+    description?.hasAttribute('collapse') ||
+    description?.getAttribute('aria-expanded') === 'false' ||
+    (expandControl && (expandControl.offsetParent !== null || expandControl.offsetWidth > 0));
+  let changedDescription = false,
+    openedPanel = false,
+    requested = false,
+    userChanged = false;
   let ownedPanel = null;
   const userInteraction = event => {
-    if (event.isTrusted && (description?.contains(event.target) || getPanel()?.contains(event.target))) userChanged = true;
+    if (event.isTrusted && (description?.contains(event.target) || getPanel()?.contains(event.target)))
+      userChanged = true;
   };
   document.addEventListener('click', userInteraction, true);
   const pause = ms => youtubeBounded(new Promise(() => {}), ms, context);
-  const findButton = () => description?.querySelector('ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button')
-    || document.querySelector('ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button');
+  const findButton = () =>
+    description?.querySelector(
+      'ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button'
+    ) ||
+    document.querySelector(
+      'ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button'
+    );
   try {
     context?.check();
     let button = findButton();
@@ -920,19 +1162,27 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
       button.click();
       requested = true;
     }
-    let stableText = '', stableSince = 0;
+    let stableText = '',
+      stableSince = 0;
     while (Date.now() < until) {
       context?.check();
       if (!current() || userChanged) return '';
       panel = getPanel();
-      if (panel && !wasExpanded && expanded(panel)) { openedPanel = true; ownedPanel = panel; }
+      if (panel && !wasExpanded && expanded(panel)) {
+        openedPanel = true;
+        ownedPanel = panel;
+      }
       if (owner(panel) && owner(panel) !== expected) return '';
       const segments = [...(panel?.querySelectorAll(segmentSelector) || [])];
       const text = fingerprint(panel);
-      const fresh = requested && segments.length > 0
-        && (text !== baselineText || segments.every(segment => !baselineNodes.has(segment)));
+      const fresh =
+        requested &&
+        segments.length > 0 &&
+        (text !== baselineText || segments.every(segment => !baselineNodes.has(segment)));
       const owned = owner(panel) === expected || fresh;
-      const loading = [...(panel?.querySelectorAll('[aria-busy="true"], [role="progressbar"], tp-yt-paper-spinner[active]') || [])].some(node => {
+      const loading = [
+        ...(panel?.querySelectorAll('[aria-busy="true"], [role="progressbar"], tp-yt-paper-spinner[active]') || []),
+      ].some(node => {
         for (let el = node; el && el !== panel; el = el.parentElement) {
           if (el.hidden || el.getAttribute('aria-hidden') === 'true') return false;
           const style = window.getComputedStyle?.(el);
@@ -941,17 +1191,32 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
         return true;
       });
       if (owned && text && !loading) {
-        if (text !== stableText) { stableText = text; stableSince = Date.now(); }
-        else if (Date.now() - stableSince >= 300) {
+        if (text !== stableText) {
+          stableText = text;
+          stableSince = Date.now();
+        } else if (Date.now() - stableSince >= 300) {
           context?.check();
-          return dedupTranscriptLines(segments.map(segment => {
-            const time = segment.querySelector('.segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')?.textContent?.trim() || '';
-            const textElement = segment.querySelector('.segment-text, .ytwTranscriptSegmentViewModelText, yt-formatted-string, [class*="segment-text"]') || segment;
-            const line = decodeHtmlEntities(textElement.textContent?.trim() || '');
-            return line ? (time ? `[${time}] ${line}` : line) : '';
-          }).filter(Boolean)).join('\n');
+          return dedupTranscriptLines(
+            segments
+              .map(segment => {
+                const time =
+                  segment
+                    .querySelector('.segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')
+                    ?.textContent?.trim() || '';
+                const textElement =
+                  segment.querySelector(
+                    '.segment-text, .ytwTranscriptSegmentViewModelText, yt-formatted-string, [class*="segment-text"]'
+                  ) || segment;
+                const line = decodeHtmlEntities(textElement.textContent?.trim() || '');
+                return line ? (time ? `[${time}] ${line}` : line) : '';
+              })
+              .filter(Boolean)
+          ).join('\n');
         }
-      } else { stableText = ''; stableSince = 0; }
+      } else {
+        stableText = '';
+        stableSince = 0;
+      }
       await pause(Math.min(100, Math.max(1, until - Date.now())));
     }
     return '';
@@ -977,11 +1242,11 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
  * Parses caption responses from YouTube in JSON3, TTML / srv3, legacy XML, or WebVTT format.
  */
 function parseYouTubeCaptionResponse(rawText) {
-  if (!rawText || !rawText.trim()) return "";
-  const trimmed = rawText.replace(/^\uFEFF/, "").trim();
+  if (!rawText || !rawText.trim()) return '';
+  const trimmed = rawText.replace(/^\uFEFF/, '').trim();
 
   // 1. JSON (json3 format: events array with segs)
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
       const data = JSON.parse(trimmed);
       const events = data.events;
@@ -990,9 +1255,12 @@ function parseYouTubeCaptionResponse(rawText) {
         for (const ev of events) {
           if (!ev.segs) continue;
           const text = decodeHtmlEntities(
-            ev.segs.map((s) => s.utf8 || "").join("").trim()
+            ev.segs
+              .map(s => s.utf8 || '')
+              .join('')
+              .trim()
           );
-          if (!text || text === "\n") continue;
+          if (!text || text === '\n') continue;
           const startMs = ev.tStartMs;
           if (startMs != null && !isNaN(startMs)) {
             raw.push(`[${formatTime(startMs / 1000)}] ${text}`);
@@ -1001,7 +1269,7 @@ function parseYouTubeCaptionResponse(rawText) {
           }
         }
         const out = dedupTranscriptLines(raw);
-        if (out.length > 0) return out.join("\n");
+        if (out.length > 0) return out.join('\n');
       }
     } catch {}
   }
@@ -1010,17 +1278,17 @@ function parseYouTubeCaptionResponse(rawText) {
   const raw = [];
 
   // Helper to extract clean text from inside an XML tag, replacing tags with spaces
-  const cleanTagText = (str) =>
+  const cleanTagText = str =>
     decodeHtmlEntities(
       str
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim()
     );
 
   // Helper to parse time in seconds from various attribute formats:
   // e.g. t="12340" (ms), begin="00:01:23.456", begin="12.34s", start="12.34"
-  const parseTimeSec = (attrStr) => {
+  const parseTimeSec = attrStr => {
     // 1. t="12340" (ms)
     const tMatch = attrStr.match(/\bt\s*=\s*["']?(\d+)["']?/i);
     if (tMatch) return parseInt(tMatch[1], 10) / 1000;
@@ -1032,9 +1300,9 @@ function parseYouTubeCaptionResponse(rawText) {
     // 3. begin="00:01:23.456" or begin="12.34s" or begin="12.34"
     const beginMatch = attrStr.match(/\bbegin\s*=\s*["']?([^"'\s>]+)["']?/i);
     if (beginMatch) {
-      const val = beginMatch[1].replace(/s$/i, "");
-      if (val.includes(":")) {
-        const parts = val.split(":").map(Number);
+      const val = beginMatch[1].replace(/s$/i, '');
+      if (val.includes(':')) {
+        const parts = val.split(':').map(Number);
         if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
         if (parts.length === 2) return parts[0] * 60 + parts[1];
       }
@@ -1068,19 +1336,17 @@ function parseYouTubeCaptionResponse(rawText) {
   }
 
   // 3. WebVTT format
-  if (raw.length === 0 && trimmed.includes("-->")) {
+  if (raw.length === 0 && trimmed.includes('-->')) {
     const vttLines = trimmed.split(/\r?\n/);
-    let currentTime = "";
+    let currentTime = '';
     for (const line of vttLines) {
       const timeMatch = line.match(/^(\d{1,2}:)?(\d{2}):(\d{2})\.\d{3}\s*-->/);
       if (timeMatch) {
-        currentTime = line.split("-->")[0].trim().replace(/\.\d{3}$/, "");
-      } else if (
-        line.trim() &&
-        !line.startsWith("WEBVTT") &&
-        !line.match(/^\d+$/) &&
-        currentTime
-      ) {
+        currentTime = line
+          .split('-->')[0]
+          .trim()
+          .replace(/\.\d{3}$/, '');
+      } else if (line.trim() && !line.startsWith('WEBVTT') && !line.match(/^\d+$/) && currentTime) {
         const text = cleanTagText(line);
         if (text) {
           raw.push(`[${currentTime}] ${text}`);
@@ -1090,34 +1356,34 @@ function parseYouTubeCaptionResponse(rawText) {
   }
 
   const out = dedupTranscriptLines(raw);
-  return out.join("\n");
+  return out.join('\n');
 }
 
 /** Decodes XML and HTML entity strings into plain unicode characters. */
 function decodeHtmlEntities(str) {
-  if (!str) return "";
+  if (!str) return '';
   return str
-    .replace(/&amp;/g, "&")
+    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&#(\d+);/g, (_, dec) => {
       try {
         return String.fromCodePoint(parseInt(dec, 10));
       } catch {
-        return "";
+        return '';
       }
     })
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
       try {
         return String.fromCodePoint(parseInt(hex, 16));
       } catch {
-        return "";
+        return '';
       }
     })
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, ' ');
 }
 
 /**
@@ -1145,7 +1411,7 @@ function dedupTranscriptLines(lines) {
   for (const line of lines) {
     const timeMatch = line.trim().match(/^\[(\d{1,2}:)?(\d{1,2}):(\d{2})\]/);
     const start = timeMatch ? parseTimestamp(timeMatch[0]) : -1;
-    const text = line.replace(/^\[[^\]]*\]\s*/, "").trim();
+    const text = line.replace(/^\[[^\]]*\]\s*/, '').trim();
 
     // Junk: the whole caption is a timestamp (on-screen timer read by the ASR)
     if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(text)) {
@@ -1156,7 +1422,7 @@ function dedupTranscriptLines(lines) {
     // CJK-safe key: lowercase + collapsed whitespace only. (Stripping
     // non-Latin characters made every Chinese line's key empty, so the
     // text-dedup silently stopped working for non-English tracks.)
-    const key = text.toLowerCase().replace(/\s+/g, " ").trim();
+    const key = text.toLowerCase().replace(/\s+/g, ' ').trim();
 
     // Loop detection: timeline jumped backwards
     if (start >= 0 && start < lastStart) {
@@ -1166,10 +1432,7 @@ function dedupTranscriptLines(lines) {
 
     // Overlapping / duplicate cue detection within a 3-second window
     const lastSeenTime = key ? recentSeen.get(key) : undefined;
-    const isOverlappingRepeat =
-      key &&
-      lastSeenTime !== undefined &&
-      (start < 0 || Math.abs(start - lastSeenTime) <= 3);
+    const isOverlappingRepeat = key && lastSeenTime !== undefined && (start < 0 || Math.abs(start - lastSeenTime) <= 3);
 
     if (isOverlappingRepeat) {
       dropped++;
@@ -1189,14 +1452,12 @@ function dedupTranscriptLines(lines) {
   }
 
   if (dropped > 0) {
-    console.log(
-      `[NutEgg] Captions: dedup dropped ${dropped} of ${lines.length} lines`
-    );
+    console.log(`[NutEgg] Captions: dedup dropped ${dropped} of ${lines.length} lines`);
   }
   return out;
 }
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     decodeHtmlEntities,
     dedupChapters,

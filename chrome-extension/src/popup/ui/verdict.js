@@ -8,82 +8,90 @@ class VerdictComponent {
     this.bindElements(root);
   }
 
-  bindElements(root = this.root || (typeof document !== "undefined" ? document : null)) {
+  bindElements(root = this.root || (typeof document !== 'undefined' ? document : null)) {
     if (!root) return;
-    const getEl = (id) => (root.getElementById ? root.getElementById(id) : root.querySelector ? root.querySelector(`#${id}`) : null) || (typeof document !== "undefined" ? document.getElementById(id) : null);
+    const getEl = id =>
+      (root.getElementById ? root.getElementById(id) : root.querySelector ? root.querySelector(`#${id}`) : null) ||
+      (typeof document !== 'undefined' ? document.getElementById(id) : null);
 
-    this.verdictSection = getEl("verdict-section");
-    this.titleVerdictSection = getEl("title-verdict-section");
-    this.verdictAnswer = getEl("verdict-answer");
-    this.verdictBadge = getEl("verdict-badge");
-    this.verdictIcon = getEl("verdict-icon");
-    this.verdictText = getEl("verdict-text");
-    this.verdictReason = getEl("verdict-reason");
+    this.verdictSection = getEl('verdict-section');
+    this.titleVerdictSection = getEl('title-verdict-section');
+    this.verdictAnswer = getEl('verdict-answer');
+    this.verdictBadge = getEl('verdict-badge');
+    this.verdictIcon = getEl('verdict-icon');
+    this.verdictText = getEl('verdict-text');
+    this.verdictReason = getEl('verdict-reason');
   }
 
   renderTitleVerdict(titleVerdict, enabled = true) {
-    if (!this.titleVerdictSection && (this.root || typeof document !== "undefined")) {
+    if (!this.titleVerdictSection && (this.root || typeof document !== 'undefined')) {
       this.bindElements(this.root || document);
     }
     if (!this.titleVerdictSection || !this.verdictAnswer) return;
     if (titleVerdict && enabled) {
-      this.titleVerdictSection.classList.remove("hidden");
+      this.titleVerdictSection.classList.remove('hidden');
       this.verdictAnswer.textContent = titleVerdict;
     } else {
-      this.titleVerdictSection.classList.add("hidden");
-      this.verdictAnswer.textContent = "";
+      this.titleVerdictSection.classList.add('hidden');
+      this.verdictAnswer.textContent = '';
     }
   }
 
   renderDecision(result) {
-    if (!this.verdictSection && (this.root || typeof document !== "undefined")) {
+    if (!this.verdictSection && (this.root || typeof document !== 'undefined')) {
       this.bindElements(this.root || document);
     }
     if (!this.verdictSection) return;
-    this.verdictSection.classList.remove("hidden");
+    this.verdictSection.classList.remove('hidden');
 
-    const actions = { full: ["📖", "readingFull"], highlights: ["⏱️", "readingHighlights"], summary: ["✅", "readingSummary"], skip: ["⏭️", "readingSkip"], uncertain: ["❔", "readingUncertain"] };
+    const actions = {
+      full: ['📖', 'readingFull'],
+      highlights: ['⏱️', 'readingHighlights'],
+      summary: ['✅', 'readingSummary'],
+      skip: ['⏭️', 'readingSkip'],
+      uncertain: ['❔', 'readingUncertain'],
+    };
     const [icon, label] = actions[result.readAction] || actions.uncertain;
     if (this.verdictIcon) this.verdictIcon.textContent = icon;
     if (this.verdictText) this.verdictText.textContent = t(label);
-    if (this.verdictBadge) this.verdictBadge.className = `verdict-badge verdict-${result.readAction || "uncertain"}`;
+    if (this.verdictBadge) this.verdictBadge.className = `verdict-badge verdict-${result.readAction || 'uncertain'}`;
     if (this.verdictReason) {
-      const sources = globalThis.NutEggUI?.renderQaSources || (() => "");
-      const escape = globalThis.NutEggHelpers?.escapeHtml || (text => String(text).replace(/[<>&"']/g, ""));
-      this.verdictReason.innerHTML = escape(result.shouldReadReason || "") + sources(result.readingSources);
+      const sources = globalThis.NutEggUI?.renderQaSources || (() => '');
+      const escape = globalThis.NutEggHelpers?.escapeHtml || (text => String(text).replace(/[<>&"']/g, ''));
+      this.verdictReason.innerHTML = escape(result.shouldReadReason || '') + sources(result.readingSources);
     }
   }
 
   setAnalyzing(count = 0) {
-    if (!this.verdictSection && (this.root || typeof document !== "undefined")) {
+    if (!this.verdictSection && (this.root || typeof document !== 'undefined')) {
       this.bindElements(this.root || document);
     }
     if (!this.verdictSection) return;
-    this.verdictSection.classList.remove("hidden");
-    if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
-    if (this.verdictIcon) this.verdictIcon.textContent = "⏳";
-    if (this.verdictText) this.verdictText.textContent = t("analyzingEggs");
+    this.verdictSection.classList.remove('hidden');
+    if (this.verdictBadge) this.verdictBadge.className = 'verdict-badge';
+    if (this.verdictIcon) this.verdictIcon.textContent = '⏳';
+    if (this.verdictText) this.verdictText.textContent = t('analyzingEggs');
     if (this.verdictReason) {
-      this.verdictReason.textContent = count > 0 ? t("analyzingEggsCount", { count }) : "";
+      this.verdictReason.textContent = count > 0 ? t('analyzingEggsCount', { count }) : '';
     }
   }
 
   show() {
-    this.verdictSection?.classList.remove("hidden");
+    this.verdictSection?.classList.remove('hidden');
   }
 
   hide() {
-    this.verdictSection?.classList.add("hidden");
-    this.titleVerdictSection?.classList.add("hidden");
+    this.verdictSection?.classList.add('hidden');
+    this.titleVerdictSection?.classList.add('hidden');
   }
 
   reset() {
     this.hide();
-    if (this.verdictAnswer) this.verdictAnswer.textContent = "";
-    if (this.verdictText) this.verdictText.textContent = "";
-    if (this.verdictReason) this.verdictReason.textContent = "";
-    if (this.verdictIcon) this.verdictIcon.textContent = "";
-    if (this.verdictBadge) this.verdictBadge.className = "verdict-badge";
+    if (this.verdictAnswer) this.verdictAnswer.textContent = '';
+    if (this.verdictText) this.verdictText.textContent = '';
+    if (this.verdictReason) this.verdictReason.textContent = '';
+    if (this.verdictIcon) this.verdictIcon.textContent = '';
+    if (this.verdictBadge) this.verdictBadge.className = 'verdict-badge';
   }
 
   render(session, settings) {
@@ -101,11 +109,13 @@ class VerdictComponent {
     // Only available when matching/comparing against eggs in vault (Obsidian mode).
     // Not applicable in Chrome standalone mode or before eggs are confirmed in Stage 1 confirm mode.
     const isChrome = settings ? settings.isChromeMode(result) : false;
-    const isStage1 = session?.isStage1 ? session.isStage1(result) : (result.stage === "stage1" || result.mode === "chrome");
-    const confirmMode = settings?.analysisMode === "preview" || settings?.analysisMode === "confirm";
+    const isStage1 = session?.isStage1
+      ? session.isStage1(result)
+      : result.stage === 'stage1' || result.mode === 'chrome';
+    const confirmMode = settings?.analysisMode === 'preview' || settings?.analysisMode === 'confirm';
 
     if (isChrome || (isStage1 && confirmMode)) {
-      this.verdictSection?.classList.add("hidden");
+      this.verdictSection?.classList.add('hidden');
       return;
     }
 
@@ -114,16 +124,15 @@ class VerdictComponent {
     } else if (session?.isAnalyzing && !isChrome && !(isStage1 && confirmMode)) {
       this.setAnalyzing();
     } else {
-      this.verdictSection?.classList.add("hidden");
+      this.verdictSection?.classList.add('hidden');
     }
   }
 }
 
-const _verdictScope = typeof window !== "undefined" ? window : (typeof globalThis !== "undefined" ? globalThis : this);
+const _verdictScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _verdictScope.NutEggUI = _verdictScope.NutEggUI || {};
 _verdictScope.NutEggUI.VerdictComponent = VerdictComponent;
 
-if (typeof module !== "undefined" && module.exports) {
+if (typeof module !== 'undefined' && module.exports) {
   module.exports = { VerdictComponent };
 }
-

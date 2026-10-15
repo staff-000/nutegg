@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.venv
+obsidian-plugin/main.js
+obsidian-plugin/tests-dist
+chrome-extension/dist/ai-core.js
+package-lock.json
+
