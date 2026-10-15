@@ -211,4 +211,5 @@ export const zh: Record<TranslationKey, string> = {
   setupAiBannerTitle: '需要配置 AI',
   setupAiBannerDesc: 'AI 设置只能在 NutEgg Chrome 扩展中更改。Obsidian 读取从 Chrome 同步的配置。',
   configureAiBtn: '配置 AI 设置',
+  workflowUpdateNotice: '工作流模版有更新（{files}）。请查看 _workflow 中的 *.new.md 以更新自定义工作流。',
 };

@@ -205,4 +205,5 @@ export const ar = {
   setupAiBannerDesc:
     'لا يمكن تغيير إعدادات AI إلا من إضافة NutEgg في Chrome. يقرأ Obsidian الإعدادات المتزامنة من Chrome.',
   configureAiBtn: 'تهيئة إعدادات AI',
+  workflowUpdateNotice: 'يتوفر تحديث لسير العمل ({files}). راجع ملفات *.new.md في _workflow لتحديث سير العمل المخصص.',
 };

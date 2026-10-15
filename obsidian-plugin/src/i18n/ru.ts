@@ -207,4 +207,6 @@ export const ru = {
   setupAiBannerDesc:
     'Настройки ИИ можно изменить только в расширении NutEgg для Chrome. Obsidian читает конфигурацию, синхронизированную из Chrome.',
   configureAiBtn: 'Настроить параметры AI',
+  workflowUpdateNotice:
+    'Доступно обновление рабочего процесса ({files}). Проверьте *.new.md в _workflow, чтобы обновить пользовательский рабочий процесс.',
 };

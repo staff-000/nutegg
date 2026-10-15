@@ -117,6 +117,7 @@ export function makeFakePlugin(overrides: any = {}) {
     knowledgeBase: overrides.knowledgeBase ?? {},
     workflowManager: overrides.workflowManager ?? {
       getPrompt: () => "",
+      getPendingWorkflowUpdates: () => [],
     },
     db: overrides.db ?? null,
     ...overrides,

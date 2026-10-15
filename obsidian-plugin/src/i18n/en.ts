@@ -216,6 +216,8 @@ export const en = {
   setupAiBannerDesc:
     'AI settings can only be changed in the NutEgg Chrome extension. Obsidian reads the synced configuration from Chrome.',
   configureAiBtn: 'Configure AI Settings',
+  workflowUpdateNotice:
+    'Workflow update available ({files}). Review *.new.md in _workflow to update your customized workflow.',
 };
 
 export type TranslationKey = keyof typeof en;

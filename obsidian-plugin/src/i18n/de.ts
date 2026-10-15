@@ -212,4 +212,6 @@ export const de = {
   setupAiBannerDesc:
     'KI-Einstellungen können nur in der NutEgg-Erweiterung für Chrome geändert werden. Obsidian liest die synchronisierte Konfiguration aus Chrome.',
   configureAiBtn: 'KI-Einstellungen konfigurieren',
+  workflowUpdateNotice:
+    'Workflow-Update verfügbar ({files}). Überprüfe *.new.md in _workflow, um deinen benutzerdefinierten Workflow zu aktualisieren.',
 };

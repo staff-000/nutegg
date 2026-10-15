@@ -1,4 +1,4 @@
-import { MarkdownPostProcessorContext, Notice } from 'obsidian';
+import { MarkdownPostProcessorContext, Notice, TFile } from 'obsidian';
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from '@codemirror/view';
 import type NutEggPlugin from './main';
 import type { MergeResult } from './ai-processor';
@@ -126,6 +126,32 @@ function appendCreditPill(plugin: NutEggPlugin, targetBadge: HTMLElement): void 
     .catch(() => {});
 }
 
+/** Appends a workflow template update notice banner if *.new.md files exist. */
+export function appendWorkflowUpdateNotice(plugin: NutEggPlugin, container: HTMLElement): void {
+  if (typeof plugin.workflowManager?.getPendingWorkflowUpdates !== 'function') return;
+  const pending = plugin.workflowManager.getPendingWorkflowUpdates() || [];
+  if (pending.length === 0) return;
+  const notice = document.createElement('div');
+  notice.className = 'nutegg-workflow-update-banner';
+  const fileNames = pending.join(', ');
+  notice.textContent = `⚠️ ${t('workflowUpdateNotice', { files: fileNames })}`;
+  notice.title = 'Click to open workflow file in Obsidian';
+  notice.style.cursor = 'pointer';
+  notice.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const folder = plugin.workflowManager?.workflowFolder;
+    if (folder && pending[0]) {
+      const filePath = `${folder}/${pending[0]}`;
+      const file = plugin.app?.vault?.getAbstractFileByPath?.(filePath);
+      if (file instanceof TFile && (plugin.app?.workspace as any)?.getLeaf) {
+        (plugin.app.workspace as any).getLeaf().openFile(file);
+      }
+    }
+  });
+  container.appendChild(notice);
+}
+
 // --- Reading mode ------------------------------------------------------
 
 export function registerMergeWidget(plugin: NutEggPlugin): void {
@@ -244,6 +270,8 @@ export function registerMergeWidget(plugin: NutEggPlugin): void {
       container.appendChild(button);
     }
 
+    appendWorkflowUpdateNotice(plugin, container);
+
     // Insert widget right after the target element (instruction block or heading)
     targetElement.insertAdjacentElement('afterend', container);
   });
@@ -313,6 +341,7 @@ class MergeButtonWidget extends WidgetType {
       });
       wrap.appendChild(button);
     }
+    appendWorkflowUpdateNotice(this.plugin, wrap);
     return wrap;
   }
 }

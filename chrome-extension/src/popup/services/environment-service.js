@@ -96,7 +96,10 @@ class EnvironmentService {
     }
     this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
-    this.store.dispatch({ type: 'environment', value: { issues, credit: config?.credit || null } });
+    this.store.dispatch({
+      type: 'environment',
+      value: { issues, credit: config?.credit || null, workflowUpdates: config?.workflowUpdates || [] },
+    });
     if (status.online) {
       void this.fetchMetrics();
       void this.fetchCredit(version, true);

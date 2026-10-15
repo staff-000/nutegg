@@ -548,3 +548,24 @@ test('switching an existing Obsidian result to Chrome keeps the summary and hide
   f.renderer.render();
   assert.equal(f.ui.actionsUI.stage1ConfirmBox.classList.contains('hidden'), false);
 });
+
+test('workflow update notice from environment issues renders in Chrome warning banner and clears when removed', context => {
+  const f = setup(context);
+  f.settings.setConnectionMode('obsidian', false);
+  f.settings.setServerStatus({ online: true, aiConfigured: true });
+
+  // Simulate Obsidian server returning workflow update notice in issues
+  const noticeMsg = 'Workflow update available (content-analysis.new.md). Review *.new.md in _workflow to update your customized workflow.';
+  f.store.dispatch({ type: 'environment', value: { issues: [noticeMsg], credit: null } });
+  f.renderer.render();
+
+  assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), false);
+  assert.match(f.ui.bannersUI.warningMessage.textContent, /Workflow update available/);
+  assert.match(f.ui.bannersUI.warningMessage.textContent, /content-analysis\.new\.md/);
+
+  // When *.new.md is removed and issues are cleared
+  f.store.dispatch({ type: 'environment', value: { issues: [], credit: null } });
+  f.renderer.render();
+
+  assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
+});

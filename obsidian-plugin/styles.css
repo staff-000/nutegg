@@ -45,6 +45,7 @@
 /* Merge widget banner in egg notes */
 .nutegg-merge-container {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -53,6 +54,19 @@
   border-radius: 8px;
   padding: 10px 14px;
   margin: 12px 0 16px 0;
+}
+
+.nutegg-workflow-update-banner {
+  flex-basis: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--text-warning, #f59e0b);
+  border-top: 1px dashed var(--background-modifier-border);
+  padding-top: 8px;
+  margin-top: 4px;
 }
 
 .nutegg-merge-badge {

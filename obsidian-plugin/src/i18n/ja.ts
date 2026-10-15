@@ -209,4 +209,6 @@ export const ja = {
   setupAiBannerDesc:
     'AI 設定は NutEgg Chrome 拡張機能でのみ変更できます。Obsidian は Chrome から同期された設定を読み取ります。',
   configureAiBtn: 'AI 設定を構成',
+  workflowUpdateNotice:
+    'ワークフローの更新があります（{files}）。カスタマイズしたワークフローを更新するには _workflow の *.new.md を確認してください。',
 };

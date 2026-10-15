@@ -218,4 +218,29 @@ describe("WorkflowManager", () => {
     assert.equal(files.has("nutegg/_workflow/egg-compare.md"), false);
     assert.equal(plugin.settings.workflowHashes["egg-compare.md"], undefined);
   });
+
+  it("getPendingWorkflowUpdates detects *.new.md files and clears when removed", async () => {
+    const customContent = "Custom prompt";
+    const oldDefault = "Old default";
+    const { manager, files, store } = makeManager(
+      {
+        "nutegg/_workflow/content-analysis.md": customContent,
+      },
+      {
+        workflowHashes: {
+          "content-analysis.md": simpleHash(oldDefault),
+        },
+      }
+    );
+
+    await manager.init();
+
+    // *.new.md was created due to conflict
+    assert.equal(files.has("nutegg/_workflow/content-analysis.new.md"), true);
+    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["content-analysis.new.md"]);
+
+    // When the user reviews and removes *.new.md
+    await store.vault.delete({ path: "nutegg/_workflow/content-analysis.new.md" });
+    assert.deepEqual(manager.getPendingWorkflowUpdates(), []);
+  });
 });

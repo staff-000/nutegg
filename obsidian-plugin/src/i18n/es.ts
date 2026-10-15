@@ -208,4 +208,6 @@ export const es = {
   setupAiBannerDesc:
     'Los ajustes de IA solo se pueden cambiar en la extensión NutEgg de Chrome. Obsidian lee la configuración sincronizada desde Chrome.',
   configureAiBtn: 'Configurar ajustes de IA',
+  workflowUpdateNotice:
+    'Actualización de flujo de trabajo disponible ({files}). Revisa *.new.md en _workflow para actualizar tu flujo de trabajo personalizado.',
 };

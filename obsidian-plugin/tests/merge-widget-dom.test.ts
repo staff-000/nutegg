@@ -175,4 +175,25 @@ describe("merge-widget editor extension (DOM)", () => {
     await callback(el, { sourcePath: "outside/egg.md" });
     assert.equal(el.querySelector(".nutegg-merge-container"), null);
   });
+
+  it("renders workflow update banner in merge widget when pending new files exist and hides when empty", async () => {
+    const plugin = makePlugin();
+    const { vault } = makeFakeVault({ "nutegg/egg.md": EGG_EMPTY });
+    plugin.app.vault = vault;
+    plugin.workflowManager = {
+      getPendingWorkflowUpdates: () => ["content-analysis.new.md"],
+      workflowFolder: "nutegg/_workflow",
+    };
+    const view = await renderEditor(EGG_EMPTY, plugin);
+    views.push(view);
+    const banner = view.dom.querySelector<HTMLElement>(".nutegg-workflow-update-banner");
+    assert.ok(banner, "Workflow update banner should render in merge container");
+    assert.match(banner.textContent || "", /content-analysis\.new\.md/);
+
+    // When removed
+    plugin.workflowManager.getPendingWorkflowUpdates = () => [];
+    const cleanView = await renderEditor(EGG_EMPTY, plugin);
+    views.push(cleanView);
+    assert.equal(cleanView.dom.querySelector(".nutegg-workflow-update-banner"), null);
+  });
 });

@@ -1,6 +1,7 @@
 import { Notice, TAbstractFile, TFile } from 'obsidian';
 import type NutEggPlugin from './main';
 import { PROMPTS } from './prompt-templates';
+import { t } from './i18n';
 import workflowReadmeTpl from '../../shared/workflow/README.md';
 
 export type WorkflowPromptKey =
@@ -186,10 +187,7 @@ export class WorkflowManager {
               try {
                 await this.plugin.app.vault.create(newPath, builtinContent);
                 console.log(`[NutEgg] Saved updated workflow template to: ${newPath}`);
-                new Notice(
-                  `[NutEgg] Workflow update available for ${filename}. Your custom file was preserved; see ${baseName}.new.md to compare.`,
-                  8000
-                );
+                new Notice(`[NutEgg] ${t('workflowUpdateNotice', { files: `${baseName}.new.md` })}`, 10000);
               } catch {
                 // Ignore if created concurrently
               }
@@ -240,6 +238,16 @@ export class WorkflowManager {
       (f: TFile) =>
         f.path.startsWith(`${folder}/`) && !f.path.startsWith(`${folder}/_backup/`) && !f.path.endsWith('/_backup')
     );
+  }
+
+  /**
+   * Returns list of filenames for pending workflow updates (*.new.md) in workflow folder.
+   * If all *.new.md files are deleted or moved, returns an empty array.
+   */
+  getPendingWorkflowUpdates(): string[] {
+    const folder = this.workflowFolder;
+    const files = this.getWorkflowFiles();
+    return files.filter(f => f.path.startsWith(`${folder}/`) && f.name.endsWith('.new.md')).map(f => f.name);
   }
 
   /** Retrieve prompt text dynamically from vault cache, falling back to built-in */

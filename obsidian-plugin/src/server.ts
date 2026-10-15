@@ -2,6 +2,7 @@ import { ExecutionCoordinator, ExecutionProtocolError, type Job } from './execut
 import { EXECUTION_PROTOCOL, publicExecutionSettings } from '../../shared/src/execution';
 import { randomUUID } from 'node:crypto';
 import { PROMPTS } from './prompt-templates';
+import { t } from './i18n';
 import { ConnectionAccess } from './connection-access';
 import { supportsSubscription } from '../../shared/src/catalog';
 import type { SubscriptionProvider } from '../../shared/src/types';
@@ -865,6 +866,13 @@ export class NutEggServer {
         status = status === 'error' ? 'error' : 'warning';
       }
 
+      // Check for pending workflow updates (*.new.md)
+      const pendingWorkflows = this.plugin.workflowManager?.getPendingWorkflowUpdates() || [];
+      if (pendingWorkflows.length > 0) {
+        issues.push(t('workflowUpdateNotice', { files: pendingWorkflows.join(', ') }));
+        status = status === 'error' ? 'error' : 'warning';
+      }
+
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -875,6 +883,7 @@ export class NutEggServer {
           // Account/CLI checks are handled independently by /credit. They must
           // not hold the local configuration/connection check open.
           aiConfigured: isAIConfigured(settings),
+          workflowUpdates: pendingWorkflows,
           credit: null,
         })
       );

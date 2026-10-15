@@ -41,7 +41,13 @@ class PopupRenderer {
     ui.bannersUI.hideAll();
     ui.bannersUI.render(view, settings);
     if (view.error) ui.bannersUI.showError(view.error, view.errorCode);
-    const warning = view.warning || this.store.environment?.issues?.join('\n');
+    const envIssues = this.store.environment?.issues?.filter(Boolean) || [];
+    const warningParts = [];
+    if (view.warning) warningParts.push(view.warning);
+    for (const issue of envIssues) {
+      if (!warningParts.includes(issue)) warningParts.push(issue);
+    }
+    const warning = warningParts.join('\n');
     if (warning) ui.bannersUI.showWarning(warning);
     else ui.bannersUI.hideWarning();
     if (view.success) ui.bannersUI.showSuccess(view.success);
