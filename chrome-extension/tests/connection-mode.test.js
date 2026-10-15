@@ -78,6 +78,26 @@ test('a saved Chrome key works immediately and Chrome-only mode never writes sha
   assert.equal(app.http.length,0,'Chrome-only AI execution does not contact Obsidian');
 });
 
+test('configuration checks do not fetch credit and health uses one request', async () => {
+  const app = worker({ connectionMode: 'obsidian', chromeAiApiKey: 'test' });
+  assert.equal((await app.send('check-server')).online, true);
+  assert.equal(app.http.filter(call => call.url.endsWith('/health')).length, 1);
+  const result = await app.send('config-status');
+  assert.equal(result.status, 'ok');
+  assert.equal(app.ai.filter(call => call.action === 'credit').length, 0);
+});
+
+test('configuration timeout reports a retryable check failure rather than a raw abort', async () => {
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async url => {
+    if (url.endsWith('/config-status')) throw new DOMException('signal aborted without reason', 'TimeoutError');
+    return { ok: true, json: async () => ({}) };
+  } });
+  const result = await app.send('config-status');
+  assert.equal(result.unavailable, true);
+  assert.match(result.issues[0], /configuration check timed out/);
+  assert.doesNotMatch(result.issues[0], /aborted/);
+});
+
 test('Chrome mode guards every Obsidian-only request and uses Chrome credit', async () => {
   const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test' });
   assert.equal((await app.send('check-server')).online, false);

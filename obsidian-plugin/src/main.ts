@@ -64,7 +64,12 @@ export default class NutEggPlugin extends Plugin {
     else Object.assign(this.settings,this.settings.nativeApiConfig,{aiAuthMethod:'apiKey',aiApiKey:''});
     this.persistingExecution=true;
     try {await this.saveSettings();}catch(error){this.settings=previous;throw error;}finally{this.persistingExecution=false;}
-    this.settingsTab?.display();
+    // Do not start new status/model processes while the coordinator is draining
+    // the previous provider. Render once the new execution state is ready.
+    if (state.transition === 'ready') {
+      this.settingsTab?.display();
+      this.updateCreditStatusBar();
+    }
   }
   private nativeApiSyncQueue: Promise<unknown> = Promise.resolve();
   async syncNativeApi(config: Partial<NutEggSettings>, key: string): Promise<boolean> {
@@ -493,8 +498,10 @@ export default class NutEggPlugin extends Plugin {
       this.settings.subscriptionSelection = { provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini', model: this.settings.aiModel || 'auto' };
     }
     if (typeof this.saveData === 'function') await this.saveData({...this.settings,aiApiKey:"",nativeApiConfig:{...this.settings.nativeApiConfig,aiApiKey:""}});
-    this.settingsTab?.refreshAISettings();
-    this.updateCreditStatusBar();
+    if (!this.persistingExecution) {
+      this.settingsTab?.refreshAISettings();
+      this.updateCreditStatusBar();
+    }
   }
 
   /**

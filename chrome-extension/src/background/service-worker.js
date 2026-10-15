@@ -143,6 +143,7 @@ function subscriptionModeError() {
 async function serverFetch(url, options = {}) {
   const parsed = new URL(url);
   if (parsed.hostname !== '127.0.0.1') throw new Error('Invalid Obsidian endpoint');
+  if (parsed.pathname === '/health') return fetch(url, options);
   const health=await fetch(`${parsed.origin}/health`,{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
   const key = `obsidianConnection:${parsed.origin}:${health.instanceId}`;
   let stored = await chrome.storage.local.get([key]);
@@ -995,23 +996,27 @@ async function handleAskChrome(payload) {
 async function checkConfigStatus() {
   if (await getConnectionMode() !== "obsidian") return { status: "ok", issues: [], mode: "chrome" };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), isSubscriptionProvider(await loadChromeAiSettings()) ? 20000 : 3000);
+  let timeout;
   try {
     const serverUrl = await getServerUrl();
     await syncAiConfig(serverUrl);
+    // Session setup has its own deadline. Start the configuration deadline
+    // after it, and fetch account/CLI status separately through get-credit.
+    timeout = setTimeout(() => controller.abort(), 3000);
     const response = await serverFetch(`${serverUrl}/config-status`, { signal: controller.signal });
-    clearTimeout(timeout);
+    if (!response.ok) throw new Error(`Obsidian configuration check failed (${response.status}).`);
     const data = await response.json();
-    if(NutEggExecution.state?.mode==='apiKey'){const settings=await loadChromeAiSettings();const configured=NutEggAI.isAIConfigured(settings);data.credit=await checkCreditAI(settings);data.issues=(data.issues||[]).filter(issue=>!issue.startsWith('AI is not configured'));data.status=configured?(data.issues.length?'warning':'ok'):'error';if(!configured)data.issues.unshift('Set up an AI API key in Chrome Settings.');}
+    if(NutEggExecution.state?.mode==='apiKey'){const settings=await loadChromeAiSettings();const configured=NutEggAI.isAIConfigured(settings);data.aiConfigured=configured;data.issues=(data.issues||[]).filter(issue=>!issue.startsWith('AI is not configured'));data.status=configured?(data.issues.length?'warning':'ok'):'error';if(!configured)data.issues.unshift('Set up an AI API key in Chrome Settings.');}
     if (data.port && data.port !== serverPort) {
       serverPort = data.port;
       chrome.storage.local.set({ serverPort: data.port });
     }
     return {...data,state:NutEggExecution.state};
   } catch (error) {
-    clearTimeout(timeout);
-    return { status: "error", issues: [error.message || "Cannot reach server"] };
-  }
+    return { status: "error", unavailable: true, issues: [controller.signal.aborted || error.name === 'TimeoutError'
+      ? "Obsidian configuration check timed out. Retry the connection check."
+      : error.message || "Cannot read Obsidian configuration"] };
+  } finally { clearTimeout(timeout); }
 }
 
 async function fetchCredit() {

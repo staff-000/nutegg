@@ -193,6 +193,65 @@ test('Gemini status never generates inference or claims a verified login', async
   assert.equal((await service.status('gemini')).state, 'unverified');
 });
 
+test('Codex models settle on the protocol response even when the CLI ignores SIGTERM', { timeout: 3000 }, async t => {
+  const { service } = await fixture(t, `
+process.on('SIGTERM', () => {});
+require('node:readline').createInterface({input:process.stdin}).on('line', line => {
+ const m = JSON.parse(line);
+ if (m.method === 'initialize') console.log(JSON.stringify({id:m.id,result:{}}));
+ if (m.method === 'model/list') console.log(JSON.stringify({id:m.id,result:{data:[{model:'supported-model'}]}}));
+});`);
+  assert.deepEqual(await service.models('openai'), ['auto', 'supported-model']);
+  assert.equal(service.getRuntimeStatus().models, 0);
+  assert.equal(service['discovery'].size, 0);
+});
+
+test('cancelling a stalled discovery settles it and allows a fresh provider check', { timeout: 3000 }, async t => {
+  const { service, command } = await fixture(t, `process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`);
+  const pending = service.models('gemini');
+  while (!service['discovery'].size) await flush();
+  await service.cancelWork();
+  await pending;
+  assert.equal(service.getRuntimeStatus().models, 0);
+  assert.equal(service['modelTimes'].has('gemini'), false, 'cancelled probes do not create a fresh cache');
+  await writeFile(command, `#!${process.execPath}\nconsole.log('gemini-current');`);
+  assert.deepEqual(await service.models('gemini'), ['auto', 'gemini-current']);
+});
+
+test('model cache avoids repeated discovery on settings refresh but explicit refresh bypasses it', async t => {
+  const { service } = await fixture(t, '');
+  let discoveries = 0;
+  service['discoverModels'] = async () => { discoveries++; return ['auto']; };
+  await service.models('gemini');
+  // Model lists are much less volatile than account status.
+  service['modelTimes'].set('gemini', Date.now() - 120000);
+  await service.models('gemini');
+  assert.equal(discoveries, 1);
+  await service.models('gemini', true);
+  assert.equal(discoveries, 2);
+});
+
+test('a model discovery timeout settles without waiting for child close', async t => {
+  const { service } = await fixture(t, 'setInterval(() => {}, 1000);');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const pending = service.models('gemini');
+  while (!service['discovery'].size) await flush();
+  t.mock.timers.tick(10000);
+  assert.deepEqual(await pending, ['auto']);
+  assert.equal(service.getRuntimeStatus().models, 0);
+  assert.equal(service['discovery'].size, 0);
+});
+
+test('quota checks are not reported as model discovery', async t => {
+  const { service } = await fixture(t, 'setInterval(() => {}, 1000);');
+  delete service['codexUsage'];
+  const pending = service['codexUsage']();
+  while (!service['discovery'].size) await flush();
+  assert.equal(service.getRuntimeStatus().models, 0);
+  await service.cancelWork();
+  await pending;
+});
+
 test('Codex model discovery is non-generating and preserves cache on failure', async t => {
   const { service, command } = await fixture(t, `
 const readline = require('node:readline');
@@ -262,7 +321,7 @@ else { console.log(JSON.stringify({type:'item.completed',item:{type:'agent_messa
   let loginCanceled = false, discoveryKilled = false;
   service['logins'].set('openai', { id: 'owned-test', state: 'signing_in', command: '', child: { kill() { loginCanceled = true; } } } as any);
   const discovery=new EventEmitter() as any;discovery.exitCode=null;discovery.kill=()=>{discoveryKilled=true;discovery.emit('close');};
-  service['discovery'].add(discovery);
+  service['discovery'].set(discovery, () => { discovery.kill(); service['discovery'].delete(discovery); });
   active = false;
   await service.cancelWork();
   assert.deepEqual(service.getRuntimeStatus(), { active: false, requests: 0, logins: 0, models: 0 });

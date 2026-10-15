@@ -21,7 +21,8 @@ export class SubscriptionService implements SubscriptionExecutor {
   private closed = false;
   private pending = 0;
   private modelCache = new Map<SubscriptionProvider, string[]>();
-  private discovery = new Set<ChildProcess>();
+  private discovery = new Map<ChildProcess, () => void>();
+  private stopping?: Promise<void>;
   private loginStarts = new Map<SubscriptionProvider, Promise<SubscriptionStatus>>();
   private usageCache?: { expires: number; value?: string; exhausted: boolean };
   private usageTask?: Promise<{ value?: string; exhausted: boolean }>;
@@ -30,10 +31,11 @@ export class SubscriptionService implements SubscriptionExecutor {
 
   getRuntimeStatus() {
     return { active: this.enabled() && !this.closed, requests: this.pending,
-      logins: new Set([...this.logins.keys(), ...this.loginStarts.keys()]).size, models: this.discovery.size };
+      logins: new Set([...this.logins.keys(), ...this.loginStarts.keys()]).size, models: this.modelPending.size };
   }
   private requireEnabled() {
     if (!this.enabled()) throw new AIError('forbidden', 'AI connection unavailable.');
+    if (this.stopping) throw new AIError('cancelled', 'AI provider is changing. Retry shortly.');
   }
 
   resolve(provider: SubscriptionProvider) {
@@ -44,14 +46,16 @@ export class SubscriptionService implements SubscriptionExecutor {
   private statusCache = new Map<SubscriptionProvider, {at:number; value:SubscriptionStatus}>();
   private statusPending = new Map<SubscriptionProvider, Promise<SubscriptionStatus>>();
   async status(provider: SubscriptionProvider, force = false): Promise<SubscriptionStatus> {
+    if (this.stopping) return { state: 'error', message: 'AI provider is changing. Retry shortly.' };
     const cached = this.statusCache.get(provider);
-    if (!force && cached && Date.now()-cached.at < 5000) return cached.value;
+    if (!force && cached && Date.now()-cached.at < (cached.value.state === 'ready' ? 30000 : 5000)) return cached.value;
     const pending = this.statusPending.get(provider); if (pending) return pending;
     const epoch=this.statusEpoch;
-    const request = this.queryStatus(provider).then(value => {if(epoch===this.statusEpoch)this.statusCache.set(provider,{at:Date.now(),value});return value;}).finally(()=>this.statusPending.delete(provider));
+    const request = this.queryStatus(provider).then(value => {if(epoch===this.statusEpoch)this.statusCache.set(provider,{at:Date.now(),value});return value;}).finally(()=>{if(this.statusPending.get(provider)===request)this.statusPending.delete(provider);});
     this.statusPending.set(provider,request); return request;
   }
   private async queryStatus(provider: SubscriptionProvider): Promise<SubscriptionStatus> {
+    const epoch = this.statusEpoch;
     if (!this.enabled()) return { state: 'disabled', message: 'AI connection unavailable.' };
     if (this.closed) return { state: 'error', message: 'Obsidian subscription service stopped.' };
     try { await this.resolve(provider); }
@@ -60,6 +64,7 @@ export class SubscriptionService implements SubscriptionExecutor {
         ? (process.platform === 'win32' ? 'irm https://claude.ai/install.ps1 | iex' : 'curl -fsSL https://claude.ai/install.sh | bash')
         : (process.platform === 'win32' ? 'irm https://antigravity.google/cli/install.ps1 | iex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash') }; }
     if (!this.enabled()) return {state:'disabled',message:'AI connection unavailable.'};
+    if (epoch !== this.statusEpoch || this.stopping) return {state:'error',message:'AI provider changed. Retry shortly.'};
     const login = this.logins.get(provider);
     if (provider !== 'gemini') {
       try {
@@ -67,6 +72,7 @@ export class SubscriptionService implements SubscriptionExecutor {
         this.controllers.add(controller);
         try { await checkSubscriptionCli(cli[provider], this.paths[provider], { signal: controller.signal }); }
         finally { this.controllers.delete(controller); }
+        if (epoch !== this.statusEpoch) return {state:'error',message:'AI provider changed. Retry shortly.'};
         this.verified.add(provider);
         if (login) await this.cancelLogin(provider);
       } catch (error: any) {
@@ -81,6 +87,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       state: login?.state || 'unverified', message: login ? 'Finish signing in, then test connection.' : 'Sign-in needs verification. Test connection uses a small amount of subscription quota.',
       loginId: login?.id, command: login?.command,
     };
+    if (epoch !== this.statusEpoch || this.stopping) return {state:'error',message:'AI provider changed. Retry shortly.'};
     const usage = provider === 'openai' ? await this.codexUsage() : undefined;
     if (!this.enabled()) return {state:'disabled',message:'AI connection unavailable.'};
     if (usage?.exhausted) return { state: 'error', errorCode: 'quota_exceeded', message: 'Subscription usage limit reached. Retry after the provider resets your limit.', usageRemaining: usage.value };
@@ -113,12 +120,14 @@ export class SubscriptionService implements SubscriptionExecutor {
       const options = { command: this.paths[provider], signal: controller.signal };
       const result = provider === 'gemini' ? await runGemini(prompt, model, options) : await runSubscription(cli[provider], prompt, model, options);
       this.verified.add(provider); this.failures.delete(provider); this.usageCache = undefined;
+      this.statusCache.delete(provider);
       return result;
     } catch (error: any) {
       if (controller.signal.aborted) throw new AIError('cancelled', 'Subscription job cancelled.');
       const code = error.status === 401 ? 'auth_failed' : error.status === 429 ? 'quota_exceeded' : error.status === 400 ? 'model_not_found' : 'server_error';
       const message = error.status === 400 ? `${error.message} Choose another model.` : error.message;
       this.failures.set(provider, { message, errorCode: code });
+      this.statusCache.delete(provider);
       throw new AIError(code, message, error.status);
     } finally { release(); this.pending--; this.controllers.delete(controller); signal?.removeEventListener('abort', abort); }
   }
@@ -133,12 +142,15 @@ export class SubscriptionService implements SubscriptionExecutor {
   private modelPending=new Map<SubscriptionProvider,Promise<string[]>>();
   private modelTimes=new Map<SubscriptionProvider,number>();
   async models(provider: SubscriptionProvider, force=false): Promise<string[]> {
-    if(!force && Date.now()-(this.modelTimes.get(provider)||0)<60000)return this.modelCache.get(provider)||['auto'];
+    this.requireEnabled();
+    if(!force && Date.now()-(this.modelTimes.get(provider)||0)<300000)return this.modelCache.get(provider)||['auto'];
     const pending=this.modelPending.get(provider);if(pending)return pending;
-    const request=this.discoverModels(provider).then(models=>{this.modelTimes.set(provider,Date.now());return models;}).finally(()=>this.modelPending.delete(provider));
+    const epoch = this.statusEpoch;
+    const request=this.discoverModels(provider).then(models=>{if(epoch===this.statusEpoch)this.modelTimes.set(provider,Date.now());return models;}).finally(()=>{if(this.modelPending.get(provider)===request)this.modelPending.delete(provider);});
     this.modelPending.set(provider,request);return request;
   }
   private async discoverModels(provider: SubscriptionProvider): Promise<string[]> {
+    const epoch = this.statusEpoch;
     this.requireEnabled();
     if (this.closed) return this.modelCache.get(provider) || ['auto'];
     try {
@@ -147,45 +159,69 @@ export class SubscriptionService implements SubscriptionExecutor {
       else if (provider === 'gemini') {
         const executable = await this.resolve(provider);
         this.requireEnabled();
+        if (epoch !== this.statusEpoch) throw new Error('AI provider changed');
         if (this.closed) return this.modelCache.get(provider) || ['auto'];
-        const output = await new Promise<string>((resolve, reject) => {
-          const child = spawn(executable, ['models'], { env: this.environment(provider), stdio: ['ignore', 'pipe', 'pipe'], shell: false });
-          this.discovery.add(child);
-          let text = ''; const timer = setTimeout(() => child.kill(), 10000);
-          child.stdout.on('data', chunk => { text += chunk; if (text.length > 1024 * 1024) child.kill(); });
-          child.on('error', reject); child.on('close', code => { this.discovery.delete(child); clearTimeout(timer); code === 0 ? resolve(text) : reject(new Error('Model discovery unavailable')); });
+        const output = await this.runDiscovery<string>(provider, executable, ['models'], 10000, (child, finish) => {
+          child.stdin!.end();
+          let text = '';
+          child.stdout!.on('data', chunk => { text += chunk; if (text.length > 1024 * 1024) finish(new Error('Model list too large')); });
+          child.on('close', code => finish(code === 0 ? undefined : new Error('Model discovery unavailable'), text));
         });
         models = [...new Set(output.replace(/\x1b\[[0-9;]*m/g, '').split(/\s+/).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(id) && /gemini|claude|gpt|^auto$/.test(id)))];
       } else models = await this.codexModels();
-      this.modelCache.set(provider, ['auto', ...models.filter(id => id !== 'auto')]);
+      if (epoch === this.statusEpoch) this.modelCache.set(provider, ['auto', ...models.filter(id => id !== 'auto')]);
     } catch { /* Retain the last successful list; custom IDs always remain available. */ }
     return this.modelCache.get(provider) || ['auto'];
   }
 
+  private runDiscovery<T>(provider: SubscriptionProvider, executable: string, args: string[], timeoutMs: number,
+    start: (child: ChildProcess, finish: (error?: Error, value?: T) => void) => void): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const child = spawn(executable, args, { env: this.environment(provider), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
+      let settled = false;
+      const finish = (error?: Error, value?: T) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.discovery.delete(child);
+        // A CLI (or inherited pipe) need not emit close after SIGTERM. Settle
+        // explicitly and stop our read-only probe without waiting for close.
+        child.kill('SIGKILL');
+        child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy();
+        if (error) reject(error); else resolve(value as T);
+      };
+      const timer = setTimeout(() => finish(new Error('Subscription check timed out')), timeoutMs);
+      this.discovery.set(child, () => finish(new Error('Subscription check cancelled')));
+      child.stdin!.on('error', () => {});
+      child.stderr!.resume();
+      child.on('error', error => finish(error));
+      try { start(child, finish); } catch (error) { finish(error as Error); }
+      child.on('close', () => finish(new Error('Subscription check unavailable')));
+    });
+  }
+
   private async codexModels(): Promise<string[]> {
+    const epoch = this.statusEpoch;
     const executable = await this.resolve('openai');
     this.requireEnabled();
-    if (this.closed) throw new Error('Obsidian subscription service stopped.');
-    return new Promise((resolve, reject) => {
-      const child = spawn(executable, ['app-server'], { env: this.environment('openai'), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
-      this.discovery.add(child);
-      let buffer = '', models: string[] = [], pages = 0;
-      const timer = setTimeout(() => { child.kill(); reject(new Error('Model discovery timed out')); }, 10000);
-      const send = (data: unknown) => child.stdin.write(JSON.stringify(data) + '\n');
-      child.stdin.on('error', () => {});
-      child.on('error', reject);
-      child.on('close', () => { this.discovery.delete(child); clearTimeout(timer); models.length ? resolve(models) : reject(new Error('Model discovery unavailable')); });
-      child.stdout.on('data', chunk => {
-        buffer += chunk; if (buffer.length > 1024 * 1024) { child.kill(); return; }
+    if (this.closed || epoch !== this.statusEpoch) throw new Error('Obsidian subscription service stopped.');
+    return this.runDiscovery<string[]>('openai', executable, ['app-server'], 10000, (child, finish) => {
+      let buffer = '', models: string[] = [], pages = 0, total = 0;
+      const send = (data: unknown) => child.stdin!.write(JSON.stringify(data) + '\n');
+      child.stdout!.on('data', chunk => {
+        total += chunk.length;
+        buffer += chunk; if (total > 1024 * 1024) { finish(new Error('Model list too large')); return; }
         const lines = buffer.split('\n'); buffer = lines.pop() || '';
         for (const line of lines) {
           try {
             const message = JSON.parse(line);
+            if (message.error) { finish(new Error('Model discovery unavailable')); return; }
             if (message.id === 1) { send({ method: 'initialized' }); send({ id: 2, method: 'model/list', params: {} }); }
             if (message.id === 2) {
-              models.push(...(message.result?.data || []).map((m: any) => m.model || m.id));
+              if (!Array.isArray(message.result?.data)) { finish(new Error('Invalid model list')); return; }
+              models.push(...message.result.data.map((m: any) => m.model || m.id).filter((id: unknown) => typeof id === 'string'));
               if (message.result?.nextCursor && ++pages < 20) send({ id: 2, method: 'model/list', params: { cursor: message.result.nextCursor } });
-              else child.kill();
+              else { finish(undefined, models); return; }
             }
           } catch { /* Ignore non-protocol log lines. */ }
         }
@@ -199,26 +235,23 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (this.usageCache && this.usageCache.expires > Date.now()) return Promise.resolve(this.usageCache);
     if (this.usageTask) return this.usageTask;
     this.usageTask = (async () => {
+      const epoch = this.statusEpoch;
       const fallback = { exhausted: false };
       try {
         const executable = await this.resolve('openai');
-        this.requireEnabled(); if (this.closed) return fallback;
-        const result = await new Promise<any>((resolve, reject) => {
-          const child = spawn(executable, ['app-server'], { env: this.environment('openai'), stdio: ['pipe', 'pipe', 'pipe'], shell: false });
-          this.discovery.add(child);
+        this.requireEnabled(); if (this.closed || epoch !== this.statusEpoch) return fallback;
+        const result = await this.runDiscovery<any>('openai', executable, ['app-server'], 5000, (child, finish) => {
           let buffer = '', total = 0;
-          const timer = setTimeout(() => { child.kill(); reject(new Error('Usage unavailable')); }, 5000);
-          const send = (message: unknown) => child.stdin.write(JSON.stringify(message) + '\n');
-          child.stdin.on('error', () => {}); child.on('error', reject);
-          child.on('close', () => { this.discovery.delete(child); clearTimeout(timer); reject(new Error('Usage unavailable')); });
-          child.stdout.on('data', chunk => {
+          const send = (message: unknown) => child.stdin!.write(JSON.stringify(message) + '\n');
+          child.stdout!.on('data', chunk => {
             total += chunk.length; buffer += chunk;
-            if (total > 1024 * 1024) { child.kill(); return; }
+            if (total > 1024 * 1024) { finish(new Error('Usage response too large')); return; }
             const lines = buffer.split('\n'); buffer = lines.pop() || '';
             for (const line of lines) try {
               const message = JSON.parse(line);
+              if (message.error) { finish(new Error('Usage unavailable')); return; }
               if (message.id === 1 && !message.error) { send({ method: 'initialized' }); send({ id: 2, method: 'account/rateLimits/read' }); }
-              if (message.id === 2) { message.error ? reject(new Error('Usage unavailable')) : resolve(message.result); child.kill(); }
+              if (message.id === 2) { finish(undefined, message.result); return; }
             } catch {}
           });
           send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'nutegg', version: '1' } } });
@@ -227,8 +260,8 @@ export class SubscriptionService implements SubscriptionExecutor {
         const windows = [bucket?.primary, bucket?.secondary].filter(window => Number.isFinite(window?.usedPercent));
         const value = windows.map(window => `${Math.max(0, Math.min(100, 100 - window.usedPercent))}% left (${window.windowDurationMins >= 1440 ? `${Math.round(window.windowDurationMins / 1440)}d` : window.windowDurationMins >= 60 ? `${window.windowDurationMins / 60}h` : `${window.windowDurationMins || '?'}m`})`).join(' · ') || undefined;
         const usage = { value, exhausted: windows.some(window => window.usedPercent >= 100) || !!bucket?.rateLimitReachedType };
-        this.usageCache = { ...usage, expires: Date.now() + 30000 }; return usage;
-      } catch { this.usageCache = { ...fallback, expires: Date.now() + 30000 }; return fallback; }
+        if (epoch === this.statusEpoch) this.usageCache = { ...usage, expires: Date.now() + 30000 }; return usage;
+      } catch { if (epoch === this.statusEpoch) this.usageCache = { ...fallback, expires: Date.now() + 30000 }; return fallback; }
     })().finally(() => { this.usageTask = undefined; });
     return this.usageTask;
   }
@@ -310,16 +343,15 @@ export class SubscriptionService implements SubscriptionExecutor {
     login.child?.kill(); this.logins.delete(provider);
     if (login.directory) await rm(login.directory, { recursive: true, force: true });
   }
-  async cancelWork() {
+  cancelWork(): Promise<void> {
+    if (this.stopping) return this.stopping;
+    this.stopping = this.drainWork().finally(() => { this.stopping = undefined; });
+    return this.stopping;
+  }
+  private async drainWork() {
     this.statusEpoch++;this.statusCache.clear();
     for (const controller of this.controllers) controller.abort();
-    const stopped=[...this.discovery].map(child=>new Promise<void>(resolve=>{
-      if(child.exitCode!==null){resolve();return;}
-      child.once('close',()=>{clearTimeout(force);resolve();});
-      const force=setTimeout(()=>child.kill('SIGKILL'),1000);child.kill();
-    }));
-    await Promise.all(stopped);
-    this.discovery.clear();
+    for (const cancel of this.discovery.values()) cancel();
     await Promise.all([...new Set([...this.logins.keys(), ...this.loginStarts.keys()])].map(provider => this.cancelLogin(provider)));
     await Promise.allSettled([...this.loginStarts.values()]);
     await this.tail;
@@ -331,6 +363,9 @@ export class SubscriptionService implements SubscriptionExecutor {
   async dispose() { this.closed = true; await this.cancelWork(); }
 
   clearModelFailure(provider: SubscriptionProvider) {
-    if (this.failures.get(provider)?.errorCode === 'model_not_found') this.failures.delete(provider);
+    if (this.failures.get(provider)?.errorCode === 'model_not_found') {
+      this.failures.delete(provider);
+      this.statusCache.delete(provider);
+    }
   }
 }

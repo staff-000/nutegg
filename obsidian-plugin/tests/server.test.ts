@@ -682,7 +682,8 @@ describe("NutEggServer.handleCredit & handleConfigStatus", () => {
     assert.equal(body.balanceFormatted, "$8.45");
   });
 
-  it("includes credit info in handleConfigStatus", async () => {
+  it("returns configuration without waiting for an account check", async () => {
+    let creditCalls = 0;
     const s = makeServer({
       settings: {
         aiApiKey: "sk-test",
@@ -696,15 +697,7 @@ describe("NutEggServer.handleCredit & handleConfigStatus", () => {
         },
       },
       aiClient: {
-        checkCredit: async () => ({
-          provider: "deepseek",
-          providerLabel: "DeepSeek",
-          source: "official",
-          model: "deepseek-chat",
-          hasBalance: true,
-          balanceFormatted: "¥10.00",
-          statusText: "¥10.00 available",
-        }),
+        checkCredit: () => { creditCalls++; return new Promise(() => {}); },
       },
     });
     const res = {
@@ -724,7 +717,9 @@ describe("NutEggServer.handleCredit & handleConfigStatus", () => {
     const body = JSON.parse(res.body);
     assert.equal(body.status, "ok");
     assert.equal(body.version, "0.1.0");
-    assert.equal(body.credit?.balanceFormatted, "¥10.00");
+    assert.equal(body.credit, null);
+    assert.equal(body.aiConfigured, true);
+    assert.equal(creditCalls, 0);
   });
 });
 

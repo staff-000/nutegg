@@ -34,7 +34,8 @@ class PopupRenderer {
     const setupHub = root.getElementById?.('setup-hub');
     const captureState = root.getElementById?.('capture-state');
     // An unfinished connection check is not evidence that setup is needed.
-    const showSetupHub = settings.environmentChecked !== false && !isFunctional;
+    const configurationUnavailable = obsidianMode && settings.serverOnline && settings.serverConfigurationChecked === false;
+    const showSetupHub = settings.environmentChecked !== false && !isFunctional && !configurationUnavailable;
     if (setupHub) setupHub.classList.toggle('hidden', !showSetupHub);
     if (captureState) captureState.classList.toggle('not-functional', showSetupHub);
     const showRecovery = settings.environmentChecked !== false && !showSetupHub && (settings.chromeAiAuthMethod === 'subscription' && !settings.serverOnline);

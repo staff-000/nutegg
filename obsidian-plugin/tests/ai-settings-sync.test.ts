@@ -31,6 +31,69 @@ test('a delayed balance response from the previous provider cannot overwrite the
 
 import { NutEggSettingTab } from '../src/settings';
 
+test('provider switching cannot restart a detached settings card and strand the new status', async t => {
+  const dom = new JSDOM('<main></main>');
+  const proto = dom.window.HTMLElement.prototype as any;
+  proto.empty = function () { this.replaceChildren(); };
+  proto.setText = function (value: string) { this.textContent = value; };
+  proto.createEl = function (tag: string, options: any = {}) {
+    const element = dom.window.document.createElement(tag);
+    element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
+    this.appendChild(element); return element;
+  };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
+  const dropdowns: any[] = [];
+  t.mock.method(Setting.prototype, 'addDropdown', function (configure: any) {
+    const component = { options: [] as string[], value: '', change: undefined as any,
+      addOption(value: string) { this.options.push(value); return this; },
+      setValue(value: string) { this.value = value; return this; },
+      getValue() { return this.value; },
+      onChange(fn: any) { this.change = fn; return this; } };
+    configure(component); dropdowns.push(component); return this;
+  });
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription', aiModel: 'auto' };
+  const pending: Array<{provider: string; resolve: (value: any) => void}> = [];
+  plugin.subscriptions = { models: async () => ['auto'],
+    status: (provider: string) => new Promise(resolve => pending.push({provider, resolve})) } as any;
+  const tab = new NutEggSettingTab({} as any, plugin);
+  const container = dom.window.document.querySelector('main')!;
+  t.after(() => { tab.hide(); dom.window.close(); });
+  const render = () => { container.replaceChildren(); (tab as any).displaySubscriptionSetup(container); };
+  // Execution persistence rebuilds settings before the onChange save returns.
+  plugin.saveSettings = async () => { render(); };
+  render();
+  pending[0].resolve({state: 'ready', message: 'Gemini ready'});
+  await new Promise(resolve => setImmediate(resolve));
+  const provider = dropdowns.find(item => item.options.includes('gemini'));
+  await provider.change('openai');
+  assert.equal(pending.length, 2, 'only the replacement view starts the Codex check');
+  assert.equal(pending[1].provider, 'openai');
+  pending[1].resolve({state: 'ready', message: 'Codex ready'});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.doesNotMatch(container.textContent!, /Checking/);
+  assert.equal((tab as any).accountState, 'ready');
+  // Old controls cannot switch the current provider again.
+  await provider.change('gemini');
+  assert.equal(plugin.settings.aiProvider, 'openai');
+});
+
+test('execution persistence starts settings probes only after provider cleanup completes', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS };
+  let displays = 0, refreshes = 0, creditChecks = 0;
+  plugin.settingsTab = { display() { displays++; }, refreshAISettings() { refreshes++; } } as any;
+  plugin.updateCreditStatusBar = async () => { creditChecks++; };
+  const state: any = { instanceId: 'test', protocolVersion: 2, revision: 2, mode: 'subscription',
+    subscriptionAvailable: true, subscription: {provider: 'openai', model: 'auto'}, transition: 'changing' };
+  await plugin.persistExecutionState(state);
+  assert.equal(displays + refreshes + creditChecks, 0);
+  await plugin.persistExecutionState({...state, transition: 'ready'});
+  assert.equal(displays, 1);
+  assert.equal(creditChecks, 1);
+});
+
 test('read-only AI settings display received Chrome values and update after sync', () => {
   const plugin = new NutEggPlugin();
   plugin.settings = { ...DEFAULT_SETTINGS, aiProvider: 'deepseek', aiModel: 'deepseek-chat',
@@ -351,7 +414,7 @@ test('subscription models render Auto/custom before status resolves, including a
   assert.ok(capturedOptions.includes('auto'));
   assert.ok(capturedOptions.includes('__custom__'));
   assert.ok(selectedValues.includes('auto'), 'first setup selects Auto before status or model discovery completes');
-  assert.equal(container.querySelector('.nutegg-model-refresh-hint')?.getAttribute('data-state'), 'waiting');
+  assert.equal(container.querySelector('.nutegg-model-refresh-hint')?.getAttribute('data-state'), 'loading');
   assert.ok(!capturedOptions.includes('gemini-2.5-flash'));
   assert.ok(!capturedOptions.includes('gemini-2.5-pro'));
 

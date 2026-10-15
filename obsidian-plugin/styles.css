@@ -252,4 +252,6 @@
 .nutegg-settings .nutegg-model-refresh-hint { margin: 8px 0 0; font-size: var(--font-ui-smaller); line-height: 1.5; }
 .nutegg-model-refresh-hint[data-state="waiting"] { color: var(--text-warning); }
 .nutegg-model-refresh-hint[data-state="ready"] { color: var(--text-success); }
+.nutegg-settings .nutegg-model-refresh-hint[data-state="loading"],
+.nutegg-settings .nutegg-connection-value[data-state="loading"] { color: var(--text-muted); }
 .nutegg-settings .nutegg-connection-value[data-state="waiting"] { color: var(--text-warning); }

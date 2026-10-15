@@ -6,6 +6,28 @@ const { TabStateManager } = require('../src/popup/state/tab-state.js');
 const { deferred } = require('./helpers/popup-fixture');
 globalThis.t = require('../src/i18n.js').t;
 
+test('configuration timeout preserves server connectivity and uses the latest execution state', async () => {
+  const settings = new SettingsState(), store = new TabStateManager();
+  settings.setConnectionMode('obsidian', false);
+  let unavailable = true;
+  const state = { mode: 'subscription', subscription: { provider: 'openai', model: 'auto' }, transition: 'ready' };
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+    if (action === 'check-server') return { online: true, state: { ...state, transition: 'changing' } };
+    if (action === 'config-status') return unavailable
+      ? { status: 'error', unavailable: true, issues: ['Configuration check timed out'] }
+      : { status: 'ok', issues: [], state };
+    return {};
+  } } } });
+  await env.checkServerStatus();
+  assert.equal(settings.serverOnline, true);
+  assert.equal(settings.serverConfigurationChecked, false);
+  assert.equal(settings.obsidianAiConfigured, false);
+  unavailable = false;
+  await env.checkServerStatus();
+  assert.equal(settings.serverConfigurationChecked, true);
+  assert.equal(settings.executionState.transition, 'ready');
+});
+
 test('credit exhaustion uses the unrounded balance and clears after credit is restored', async () => {
   for (const mode of ['chrome', 'obsidian']) {
     const settings = new SettingsState(), store = new TabStateManager();

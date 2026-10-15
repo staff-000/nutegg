@@ -20,6 +20,17 @@ function setup(t) {
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 
+test('a temporary configuration failure does not ask a connected vault to reconnect', context => {
+  const f = setup(context);
+  Object.assign(f.settings, { environmentChecked: true, serverOnline: true, serverConfigurationChecked: false,
+    obsidianAiConfigured: false, serverError: 'Configuration check timed out' });
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), true);
+  f.settings.serverConfigurationChecked = true;
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), false, 'confirmed missing setup still prompts');
+});
+
 test('startup shows captured content without a premature Obsidian setup prompt', context => {
   const f = setup(context);
   f.settings.setServerStatus();

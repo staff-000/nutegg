@@ -95,6 +95,7 @@ export class NutEggSettingTab extends PluginSettingTab {
   private aiCreditRequest = 0;
   private setupTimer?: ReturnType<typeof setTimeout>;
   private setupRequest = 0;
+  private subscriptionCard?: HTMLElement;
   private profileTimer?: ReturnType<typeof setInterval>;
   private connectionTimer?: ReturnType<typeof setTimeout>;
   private connectionPanel?: HTMLElement;
@@ -112,6 +113,7 @@ export class NutEggSettingTab extends PluginSettingTab {
 
     clearInterval(this.profileTimer);
     clearTimeout(this.setupTimer); ++this.setupRequest;
+    this.subscriptionCard = undefined;
     clearTimeout(this.connectionTimer);
     this.accountState = undefined;
     containerEl.empty();
@@ -282,9 +284,9 @@ export class NutEggSettingTab extends PluginSettingTab {
     } else if (runtime.logins) {
       paint(rows.bridge, t('connectionAuthorizing'), 'waiting');
     } else if (runtime.models) {
-      paint(rows.bridge, t('connectionModelCheck'), 'waiting');
+      paint(rows.bridge, t('connectionModelCheck'), 'loading');
     } else if (!this.accountState) {
-      paint(rows.bridge, t('checking'), 'waiting');
+      paint(rows.bridge, t('checking'), 'loading');
     } else if (this.accountState === 'error') {
       paint(rows.bridge, t('aiConnectionUnavailable'), 'error');
     } else if (this.accountState !== 'ready') {
@@ -415,10 +417,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     }
   }
 
-  hide(): void { ++this.aiCreditRequest; clearInterval(this.profileTimer); clearTimeout(this.setupTimer); clearTimeout(this.connectionTimer); this.connectionPanel = undefined; ++this.setupRequest; }
+  hide(): void { ++this.aiCreditRequest; clearInterval(this.profileTimer); clearTimeout(this.setupTimer); clearTimeout(this.connectionTimer); this.connectionPanel = undefined; this.subscriptionCard = undefined; ++this.setupRequest; }
 
   private displaySubscriptionSetup(containerEl: HTMLElement): void {
     const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
+    this.subscriptionCard = card;
     card.createEl('h3', { text: t('subscriptionEnabledTitle') });
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
 
@@ -444,8 +447,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     const modelControls = card.createDiv({ cls: 'nutegg-subscription-models' });
 
     const refresh = async () => {
+      // Saving a provider can rebuild the whole tab. A detached view must never
+      // invalidate the replacement view's in-flight checks.
+      if (this.subscriptionCard !== card) return;
       clearTimeout(this.setupTimer);
       const request = ++this.setupRequest;
+      const isCurrent = () => this.subscriptionCard === card && request === this.setupRequest;
       const current = provider;
       const force = forceRefresh;
       forceRefresh = false;
@@ -476,6 +483,7 @@ export class NutEggSettingTab extends PluginSettingTab {
             dropdown.addOption('__custom__', t('customModelTag'));
             dropdown.setValue(isCustom ? '__custom__' : currentModel);
             dropdown.onChange(async (val) => {
+              if (!isCurrent()) return;
               this.plugin.subscriptions.clearModelFailure?.(current);
               if (val === '__custom__') {
                 if (customInputSetting?.settingEl) customInputSetting.settingEl.hidden = false;
@@ -485,6 +493,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                 this.plugin.settings.aiAuthMethod = 'subscription';
                 this.plugin.settings.aiModel = val;
                 await this.plugin.saveSettings();
+                if (!isCurrent()) return;
                 this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
                 this.plugin.aiProcessor = new AIProcessor(this.plugin);
                 this.refreshAISettings();
@@ -500,19 +509,21 @@ export class NutEggSettingTab extends PluginSettingTab {
           .addText(text => {
             text.setPlaceholder('model-id').setValue(customDraft).onChange(value=>{customDraft=value.trim();});
           }).addButton(button=>button.setButtonText(t('nativeApiSave')).onClick(async()=>{
+            if (!isCurrent()) return;
             if(!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(customDraft)){new Notice(t('customModelTag'));return;}
             button.setDisabled(true);
             try {
               this.plugin.subscriptions.clearModelFailure?.(current);
               if(this.plugin.server)await this.plugin.server.changeSubscription({provider:current,model:customDraft});
               else {this.plugin.settings.aiModel=customDraft;await this.plugin.saveSettings();}
+              if (!isCurrent()) return;
               feedback=undefined;this.refreshAISettings();void refresh();
             }catch(error){new Notice(String(error));}finally{button.setDisabled(false);}
           }));
         if (customInputSetting.settingEl) customInputSetting.settingEl.hidden = !isCustom;
 
         const modelHint = modelControls.createEl('p', { text: t('connectionModelCheck'), cls: 'nutegg-model-refresh-hint', attr: {role: 'status', 'aria-live': 'polite'} });
-        modelHint.dataset.state = 'waiting';
+        modelHint.dataset.state = 'loading';
         // Fetch fresh model list in background and update dropdown & settings
         void (async () => {
           try {
@@ -570,11 +581,13 @@ export class NutEggSettingTab extends PluginSettingTab {
         .addDropdown(dropdown => {
           for (const id of ['openai', 'anthropic', 'gemini'] as const) dropdown.addOption(id, PROVIDER_CATALOG[id].label);
           dropdown.setValue(provider).onChange(async value => {
+            if (!isCurrent()) return;
             provider = value as SubscriptionProvider;
             this.plugin.settings.aiProvider = provider;
             this.plugin.settings.aiAuthMethod = 'subscription';
             this.plugin.settings.aiModel = 'auto';
             await this.plugin.saveSettings();
+            if (!isCurrent()) return;
             this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
             this.plugin.aiProcessor = new AIProcessor(this.plugin);
             this.refreshAISettings();
@@ -589,6 +602,7 @@ export class NutEggSettingTab extends PluginSettingTab {
         providerSetting.addButton(button => {
           buttons.push(button);
           button.setButtonText(t('cancel')).onClick(async () => {
+            if (!isCurrent()) return;
             clearTimeout(this.setupTimer);
             for (const item of buttons) item.setDisabled(true);
             await this.plugin.subscriptions.cancelLogin(current);
@@ -603,6 +617,7 @@ export class NutEggSettingTab extends PluginSettingTab {
             button.setDisabled(true);
           } else {
             button.onClick(async () => {
+              if (!isCurrent()) return;
               clearTimeout(this.setupTimer);
               for (const item of buttons) item.setDisabled(true);
               const isTest = ['ready', 'unverified'].includes(status.state) || status.errorCode === 'model_not_found';
@@ -621,6 +636,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                     this.plugin.settings.aiAuthMethod = 'subscription';
                     this.plugin.settings.aiModel = testModel;
                     await this.plugin.saveSettings();
+                    if (!isCurrent()) return;
                     this.plugin.aiClient = new AIClient(this.plugin.settings, this.plugin.subscriptions);
                     this.plugin.aiProcessor = new AIProcessor(this.plugin);
                     this.refreshAISettings();
@@ -653,6 +669,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       providerSetting.addButton(button => {
         buttons.push(button);
         button.setButtonText(t('refresh')).onClick(async () => {
+          if (!isCurrent()) return;
           clearTimeout(this.setupTimer);
           for (const item of buttons) item.setDisabled(true);
           this.plugin.subscriptions?.clearModelFailure?.(current);

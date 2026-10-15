@@ -607,18 +607,16 @@ export class NutEggServer {
         status = status === "error" ? "error" : "warning";
       }
 
-      let credit = null;
-      try {
-        credit = await this.plugin.aiClient.checkCredit(settings);
-      } catch {}
-
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         status,
         issues,
         port: this.port,
         version: this.plugin.manifest?.version || "",
-        credit,
+        // Account/CLI checks are handled independently by /credit. They must
+        // not hold the local configuration/connection check open.
+        aiConfigured: isAIConfigured(settings),
+        credit: null,
       }));
     } catch (err: any) {
       console.error("[NutEgg] Config status error:", err);

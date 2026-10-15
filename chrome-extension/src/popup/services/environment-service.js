@@ -34,13 +34,15 @@ class EnvironmentService {
     let config = {};
     try {
       if (status.online) config = await this.chromeApi.runtime.sendMessage({ action: 'config-status' });
-    } catch (error) { config = { status: 'error', issues: [error.message || 'Cannot reach server'] }; }
+    } catch (error) { config = { status: 'error', unavailable: true, issues: [error.message || 'Cannot reach server'] }; }
     if (version !== this.version || this.settings.connectionMode !== 'obsidian') return;
     const issues = config?.issues || [];
     const error = status.error || (!config || config.status === 'error' ? issues.join('\n') || 'Cannot read Obsidian configuration' : null);
+    this.settings.serverConfigurationChecked = !!config && config.unavailable !== true && !status.error;
     this.settings.setServerStatus({ online: !!status.online, version: status.version, error, warning: issues.join('\n'), aiConfigured: !error && !issues.some(i => /no api key|not configured/i.test(i)) });
     this.settings.setChromeAiStatus();
-    if(status.state){this.settings.executionState=status.state;this.settings.chromeAiAuthMethod=status.state.mode;if(status.state.mode==='subscription'){this.settings.chromeAiProvider=status.state.subscription.provider;this.settings.chromeAiModel=status.state.subscription.model;}else{const ai=await this.chromeApi.runtime.sendMessage({action:'check-chrome-ai'});if(version!==this.version)return;this.settings.setChromeAiStatus({enabled:true,configured:ai.configured,provider:ai.provider,model:ai.model});}}
+    const state = config?.state || status.state;
+    if(state){this.settings.executionState=state;this.settings.chromeAiAuthMethod=state.mode;if(state.mode==='subscription'){this.settings.chromeAiProvider=state.subscription.provider;this.settings.chromeAiModel=state.subscription.model;}else{const ai=await this.chromeApi.runtime.sendMessage({action:'check-chrome-ai'});if(version!==this.version)return;this.settings.setChromeAiStatus({enabled:true,configured:ai.configured,provider:ai.provider,model:ai.model});}}
     this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
     this.store.dispatch({ type: 'environment', value: { issues, credit: config?.credit || null } });
