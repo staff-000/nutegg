@@ -151,14 +151,19 @@ class PopupRenderer {
       view.operations?.analysis?.phase,
       view.operations?.analysis?.running,
       view.analysisResult?.stage,
+      view.analysisResult?.mode,
       view.analysisResult?.conversation?.format,
       view.analysisResult?.matchedEggs,
       view.extractedContent?.content?.length,
       view.optimizeForConversation,
+      settings.connectionMode,
       settings.analysisMode,
       settings.chromeAiModel,
       settings.chromeAiProvider,
+      settings.chromeAiConfigured,
       settings.serverOnline,
+      settings.obsidianAiConfigured,
+      settings.obsidianPluginVersion,
     ], () => ui.metricsUI.renderDebug?.(debugInfo, settings.debugInfo, { view, settings }));
     if (this.store.environment?.credit) ui.headerUI.renderCredit(this.store.environment.credit, settings.serverOnline, settings?.chromeAiModel);
     else ui.headerUI.hideCredit();

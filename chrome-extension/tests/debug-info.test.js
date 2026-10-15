@@ -118,6 +118,7 @@ test('debug info displays settings and status when enabled', () => {
   };
   ui.renderDebug({ mode: 'chrome', activeCalls: 0, totalCalls: 5, promptWords: 24000, lastPromptWords: 8000 }, true, { view, settings });
   assert.match(panel.textContent, /Chrome.*5 calls total/);
+  assert.match(panel.textContent, /Connection.*Mode: Chrome.*Obsidian: Offline.*Chrome AI: Ready \(gemini \/ gemini-2\.5-flash\)/);
   assert.match(panel.textContent, /Settings.*Backend: Chrome \(gemini \/ gemini-2\.5-flash\).*Analysis: full.*Dialogue enhance: ON/);
   assert.match(panel.textContent, /Status.*Pipeline: complete \(stage1\).*35,000 chars \(2 chunks\).*Video.*Format: interview.*Eggs: 2 matched/);
 });
@@ -128,6 +129,24 @@ test('debug info shows Dialogue enhance OFF when optimizeForConversation is fals
   const settings = { isChromeMode: () => true, optimizeForConversation: false };
   ui.renderDebug({ mode: 'chrome', activeCalls: 0, totalCalls: 2, promptWords: 5000, lastPromptWords: 2000 }, true, { view, settings });
   assert.match(panel.textContent, /Dialogue enhance: OFF/);
+});
+
+test('debug info shows Obsidian connection status and AI readiness', () => {
+  const root = createMockRoot(), ui = new MetricsComponent(root), panel = root.getElementById('debug-info');
+  const view = { analysisResult: { stage: 'stage2', mode: 'obsidian' } };
+  const settings = {
+    connectionMode: 'obsidian',
+    isChromeMode: () => false,
+    serverOnline: true,
+    obsidianPluginVersion: '0.3.0',
+    obsidianAiConfigured: true,
+    chromeAiConfigured: true,
+    chromeAiProvider: 'gemini',
+    chromeAiModel: 'gemini-2.5-flash',
+  };
+  ui.renderDebug({ mode: 'obsidian', activeCalls: 0, totalCalls: 4 }, true, { view, settings });
+  assert.match(panel.textContent, /Connection.*Mode: Obsidian.*Obsidian: Connected \(v0\.3\.0\) \[AI ready\].*Chrome AI: Ready \(gemini \/ gemini-2\.5-flash\)/);
+  assert.match(panel.textContent, /Pipeline: complete \(stage2\) \[obsidian mode\]/);
 });
 
 test('debug polling is opt-in and rejects stale backend responses and disabled preference', async () => {

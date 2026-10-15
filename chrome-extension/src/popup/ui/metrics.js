@@ -42,8 +42,33 @@ class MetricsComponent {
     const lines = [statsText];
 
     if (settings) {
+      // Connection details
+      const cParts = [];
+      const isChrome = settings.isChromeMode ? settings.isChromeMode(view?.analysisResult) : settings.connectionMode !== 'obsidian';
+      cParts.push(`Mode: ${isChrome ? 'Chrome' : 'Obsidian'}`);
+
+      if (settings.serverOnline) {
+        const ver = settings.obsidianPluginVersion ? ` (v${settings.obsidianPluginVersion})` : '';
+        const ai = settings.obsidianAiConfigured ? 'AI ready' : 'AI unconfigured';
+        cParts.push(`Obsidian: Connected${ver} [${ai}]`);
+      } else {
+        const obsStatus = settings.connectionMode === 'obsidian' ? 'Disconnected (offline)' : 'Offline';
+        cParts.push(`Obsidian: ${obsStatus}`);
+      }
+
+      if (settings.chromeAiConfigured !== false) {
+        const provider = settings.chromeAiProvider || 'Gemini';
+        const model = settings.chromeAiModel ? ` / ${settings.chromeAiModel}` : '';
+        const auth = settings.chromeAiAuthMethod === 'subscription' ? ' [sub]' : '';
+        cParts.push(`Chrome AI: Ready (${provider}${model}${auth})`);
+      } else {
+        cParts.push('Chrome AI: Not configured');
+      }
+
+      lines.push(`🔌 Connection: ${cParts.join(' · ')}`);
+
+      // Settings details
       const sParts = [];
-      const isChrome = settings.isChromeMode ? settings.isChromeMode() : settings.connectionMode === 'chrome';
       if (isChrome) {
         const provider = settings.chromeAiProvider || 'Gemini';
         const model = settings.chromeAiModel ? ` / ${settings.chromeAiModel}` : '';
@@ -84,7 +109,8 @@ class MetricsComponent {
         stParts.push(`Pipeline: running${phase}`);
       } else if (view.analysisResult) {
         const stage = view.analysisResult.stage ? ` (${view.analysisResult.stage})` : '';
-        stParts.push(`Pipeline: complete${stage}`);
+        const resMode = view.analysisResult.mode ? ` [${view.analysisResult.mode} mode]` : '';
+        stParts.push(`Pipeline: complete${stage}${resMode}`);
       } else {
         stParts.push('Pipeline: idle');
       }
