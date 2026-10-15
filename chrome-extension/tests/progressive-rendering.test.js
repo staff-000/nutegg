@@ -89,6 +89,50 @@ test("progressive rendering: switches view to results as soon as summary arrives
   assert.deepEqual([...tabFinished.selectedEggs], ["tech.md", "ai.md"]);
 });
 
+test("progressive rendering: preserves conversation metadata in analysisResult on partial updates", () => {
+  const store = new TabStateManager();
+  const tabId = 102;
+  store.dispatch({ type: "extracted", tabId, content: { title: "Interview Video", url: "https://example.com/interview", content: "Interview transcript" } });
+
+  const ctx = store.beginOperation(tabId, "analysis", {}, []);
+
+  // Summary returns with conversation format
+  store.commitOperation(ctx.token, {
+    type: "analysisPartial",
+    partial: {
+      type: "partial",
+      section: "summary",
+      data: {
+        titleVerdict: "Interview summary",
+        coreSummary: ["Key takeaway"],
+        conversation: { format: "interview", confidence: "high", participants: [{ name: "Host" }, { name: "Guest" }] },
+      },
+    },
+  });
+
+  const tabAfterSummary = store.getTab(tabId);
+  assert.equal(tabAfterSummary.analysisResult?.conversation?.format, "interview");
+  assert.equal(tabAfterSummary.analysisResult?.conversation?.participants?.length, 2);
+
+  // Mind map partial returns
+  store.commitOperation(ctx.token, {
+    type: "analysisPartial",
+    partial: {
+      type: "partial",
+      section: "mindmap",
+      data: {
+        mindMap: [{ name: "Discussion Point", detail: "Details", speaker: "Host", kind: "question" }],
+        conversation: { format: "interview", confidence: "high", participants: [{ name: "Host" }, { name: "Guest" }] },
+      },
+    },
+  });
+
+  const tabAfterMindMap = store.getTab(tabId);
+  assert.equal(tabAfterMindMap.analysisResult?.conversation?.format, "interview");
+  assert.equal(tabAfterMindMap.analysisResult?.mindMap?.length, 1);
+  assert.equal(tabAfterMindMap.analysisResult?.mindMap?.[0].speaker, "Host");
+});
+
 function createMockElement(id = "") {
   return {
     id,

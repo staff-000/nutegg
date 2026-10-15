@@ -179,6 +179,7 @@ class TabStateManager {
             titleVerdict: partial.data.titleVerdict,
             coreSummary: partial.data.coreSummary,
             customQuestionAnswers: partial.data.customQuestionAnswers || existing.customQuestionAnswers || [],
+            ...(partial.data.conversation ? { conversation: popupCopy(partial.data.conversation) } : {}),
           };
           if (next.currentView !== 'results') next.presentation.scroll = 0;
           next.currentView = 'results';
@@ -188,6 +189,7 @@ class TabStateManager {
           updated = {
             ...updated,
             mindMap: popupCopy(partial.data.mindMap || []),
+            ...(partial.data.conversation ? { conversation: popupCopy(partial.data.conversation) } : {}),
           };
         } else if (partial.section === 'discussion') {
           updated = {

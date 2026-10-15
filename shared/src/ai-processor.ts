@@ -538,6 +538,7 @@ export class AIProcessor {
             titleVerdict: res.titleVerdict,
             coreSummary: res.coreSummary,
             customQuestionAnswers: res.customQuestionAnswers,
+            ...(res.conversation ? { conversation: res.conversation } : {}),
           },
         });
       }
@@ -562,6 +563,7 @@ export class AIProcessor {
               titleVerdict: res.titleVerdict,
               coreSummary: res.coreSummary,
               customQuestionAnswers: res.customQuestionAnswers,
+              ...(res.conversation ? { conversation: res.conversation } : {}),
             },
           });
           return res;
@@ -576,7 +578,10 @@ export class AIProcessor {
           onProgress?.({
             type: "partial",
             section: "mindmap",
-            data: { mindMap: res.mindMap || [] },
+            data: {
+              mindMap: res.mindMap || [],
+              ...(res.conversation ? { conversation: res.conversation } : {}),
+            },
           });
           return res;
         });
@@ -610,6 +615,7 @@ export class AIProcessor {
               titleVerdict: verdictSummaryRes.titleVerdict,
               coreSummary: verdictSummaryRes.coreSummary,
               customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
+              ...(verdictSummaryRes.conversation ? { conversation: verdictSummaryRes.conversation } : {}),
             },
           });
         } catch (err) {
@@ -659,6 +665,7 @@ export class AIProcessor {
           titleVerdict: verdictSummaryRes.titleVerdict,
           coreSummary: verdictSummaryRes.coreSummary,
           customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
+          ...(verdictSummaryRes.conversation ? { conversation: verdictSummaryRes.conversation } : {}),
         },
       });
     } else if (needsMindMap) {
