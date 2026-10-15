@@ -493,3 +493,21 @@ test('Save and continue explicitly syncs Obsidian AI in connected mode; advanced
   app.el('ai-config-section').dispatchEvent(new app.win.Event('submit', {bubbles: true, cancelable: true})); await flush();
   assert.equal(app.messages.some(message => message.action === 'sync-obsidian-api'), false);
 });
+
+test('dialogue enhance (optimizeForConversation) checkbox saves to storage and restores on reload', async t => {
+  // 1. Initial state defaults to checked
+  const app1 = await setup(t, {});
+  const cb1 = app1.el('optimize-conversation');
+  assert.equal(cb1.checked, true);
+
+  // 2. Uncheck and verify storage update
+  cb1.checked = false;
+  cb1.dispatchEvent(new app1.win.Event('change', { bubbles: true }));
+  await flush();
+  assert.equal(app1.values.optimizeForConversation, false);
+
+  // 3. Reload with optimizeForConversation: false in storage
+  const app2 = await setup(t, { optimizeForConversation: false });
+  const cb2 = app2.el('optimize-conversation');
+  assert.equal(cb2.checked, false, 'Checkbox must stay unchecked when restored from storage');
+});

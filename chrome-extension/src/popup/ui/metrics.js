@@ -57,7 +57,7 @@ class MetricsComponent {
       }
       const optConv = view?.optimizeForConversation ?? settings.optimizeForConversation;
       if (optConv != null) {
-        sParts.push(`Discussion opt: ${optConv !== false ? 'ON' : 'OFF'}`);
+        sParts.push(`Dialogue enhance: ${optConv !== false ? 'ON' : 'OFF'}`);
       }
       const sections = view?.enabledSections || settings.enabledSections || {};
       const activeSecs = [];

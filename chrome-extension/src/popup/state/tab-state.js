@@ -123,7 +123,18 @@ class TabStateManager {
       this.emit(event);return;
     }
     if (event.type === 'visibility') { this.panelVisible = event.visible; this.emit(event); return; }
-    if (event.type === 'defaults') { this.defaults = popupFreeze(popupCopy(event.defaults)); return; }
+    if (event.type === 'defaults') {
+      this.defaults = popupFreeze(popupCopy(event.defaults));
+      for (const [id, tab] of this.#tabs.entries()) {
+        const next = { ...tab };
+        if (event.defaults?.optimizeForConversation !== undefined) {
+          next.optimizeForConversation = event.defaults.optimizeForConversation !== false;
+        }
+        this.#tabs.set(id, popupFreeze(next));
+      }
+      this.emit(event);
+      return;
+    }
     if (event.type === 'catalogRequested') { return ++this.catalogVersion; }
     if (event.type === 'catalog') {
       if (event.version !== this.catalogVersion) return;

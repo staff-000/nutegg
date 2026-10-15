@@ -288,6 +288,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     "analysisMode",
     "enabledSections",
     "generateKnowledgeEntries",
+    "optimizeForConversation",
     "uiDensity",
     "connectionMode",
     "obsidianExecutionState",

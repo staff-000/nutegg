@@ -164,6 +164,7 @@ async function initPopup() {
     if (changes.uiDensity) settings.setUiDensity(changes.uiDensity.newValue, false);
     if (changes.enabledSections) settings.setEnabledSections(changes.enabledSections.newValue);
     if (changes.generateKnowledgeEntries) settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
+    if (changes.optimizeForConversation !== undefined) settings.setOptimizeForConversation(changes.optimizeForConversation.newValue, false);
     if (changes.debugInfo) { settings.debugInfo = changes.debugInfo.newValue === true; void operations.refreshDebugInfo(); }
     if (changes.captureRetryCount || changes.captureRetryDelayMs) settings.setCaptureRetries({
       captureRetryCount: changes.captureRetryCount ? changes.captureRetryCount.newValue ?? 3 : settings.captureRetryCount,
