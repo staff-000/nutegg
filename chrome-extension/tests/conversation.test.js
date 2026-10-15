@@ -571,4 +571,135 @@ test("AIProcessor guarantees monologue and article mind maps have zero dialogue 
   assert.deepEqual(child.sources, [{ ref: "Chapter 2", quote: "Gradients propagate backwards through layers." }]);
 });
 
+test("chained execution when optimizeForConversation is on: summary classifies format and feeds into mind map", async () => {
+  const callSequence = [];
+  const promptsSeen = [];
+
+  const fakeAIClient = {
+    chat: async (prompt) => {
+      promptsSeen.push(prompt);
+      if (prompt.includes("## Task\n1. Title Verdict")) {
+        // Summary call
+        callSequence.push("summary");
+        return JSON.stringify({
+          titleVerdict: "French tech interview answer",
+          coreSummary: ["Point 1", "Point 2"],
+          format: "interview",
+        });
+      } else {
+        // Mind map call
+        callSequence.push("mindmap");
+        return JSON.stringify({
+          mindMap: [
+            {
+              name: "French Tech Innovation",
+              kind: "topic",
+              children: [
+                {
+                  name: "Question sur les modèles?",
+                  kind: "question",
+                  children: [{ name: "Réponse détaillée", kind: "answer" }],
+                },
+              ],
+            },
+          ],
+        });
+      }
+    },
+  };
+
+  const progressEvents = [];
+  const processor = new NutEggAI.AIProcessor({
+    settings: { optimizeForConversation: true, aiApiKey: "dummy-key" },
+    isConfigured: () => true,
+    aiClient: fakeAIClient,
+  });
+
+  const res = await processor.analyzeContent(
+    {
+      url: "https://example.com/french-interview",
+      title: "Entretien exclusif avec le chercheur",
+      content: "Merci d'avoir accepté notre invitation. Aujourd'hui nous parlons d'IA.",
+      sourceType: "video",
+      optimizeForConversation: true,
+    },
+    (evt) => progressEvents.push(evt)
+  );
+
+  // 1. Summary call ran BEFORE mind map call
+  assert.deepEqual(callSequence, ["summary", "mindmap"], "Summary must run before mindmap when optimize is on");
+
+  // 2. Summary partial event fired first
+  assert.equal(progressEvents[0].type, "partial");
+  assert.equal(progressEvents[0].section, "summary");
+  assert.equal(progressEvents[0].data.titleVerdict, "French tech interview answer");
+
+  // 3. Mind map prompt received the verified format
+  const mindMapPrompt = promptsSeen[1];
+  assert.ok(
+    mindMapPrompt.includes("Verified interview"),
+    "Mind map prompt should receive AI-detected format clue"
+  );
+  assert.ok(
+    mindMapPrompt.includes("French tech interview answer"),
+    "Mind map prompt should receive verdict context"
+  );
+
+  // 4. Result retains conversation metadata
+  assert.ok(res.conversation);
+  assert.equal(res.conversation.format, "interview");
+  assert.equal(res.mindMap[0].kind, "topic");
+});
+
+test("parallel execution when optimizeForConversation is off: no waiting for classification", async () => {
+  let summaryStarted = false;
+  let mindmapStarted = false;
+  let summaryCompleted = false;
+  let mindmapCompleted = false;
+  let wasConcurrent = false;
+
+  const fakeAIClient = {
+    chat: async (prompt) => {
+      if (prompt.includes("## Task\n1. Title Verdict")) {
+        summaryStarted = true;
+        if (mindmapStarted) wasConcurrent = true;
+        await new Promise((r) => setTimeout(r, 10));
+        summaryCompleted = true;
+        return JSON.stringify({
+          titleVerdict: "Direct answer",
+          coreSummary: ["Point 1"],
+        });
+      } else {
+        mindmapStarted = true;
+        if (summaryStarted) wasConcurrent = true;
+        await new Promise((r) => setTimeout(r, 10));
+        mindmapCompleted = true;
+        return JSON.stringify({
+          mindMap: [{ name: "Topic 1", children: [] }],
+        });
+      }
+    },
+  };
+
+  const processor = new NutEggAI.AIProcessor({
+    settings: { optimizeForConversation: false, aiApiKey: "dummy-key" },
+    isConfigured: () => true,
+    aiClient: fakeAIClient,
+  });
+
+  const res = await processor.analyzeContent({
+    url: "https://example.com/french-interview",
+    title: "Entretien exclusif avec le chercheur",
+    content: "Merci d'avoir accepté notre invitation. Aujourd'hui nous parlons d'IA.",
+    sourceType: "video",
+    optimizeForConversation: false,
+  });
+
+  assert.equal(wasConcurrent, true, "Both calls should launch concurrently when optimize is off");
+  assert.equal(summaryCompleted, true);
+  assert.equal(mindmapCompleted, true);
+  assert.equal(res.conversation, undefined);
+});
+
+
 

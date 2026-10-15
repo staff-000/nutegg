@@ -514,6 +514,7 @@ export class AIProcessor {
       sections.titleVerdict || sections.coreSummary || capture.questions?.length
     );
     const needsMindMap = Boolean(sections.mindMap);
+    const optimizeConversation = this.isConversationOptimizationEnabled(capture);
 
     let verdictSummaryRes: ContentAnalysis = {
       titleVerdict: "",
@@ -548,51 +549,103 @@ export class AIProcessor {
         });
       }
     } else if (needsVerdictSummary && needsMindMap) {
-      // Split into concurrent calls: Verdict & Summary, and Mind Map
-      const pVerdict = this.analyzeBodySection(bodyCapture, {
-        ...sections,
-        mindMap: false,
-      }).then((res) => {
-        onProgress?.({
-          type: "partial",
-          section: "summary",
-          data: {
-            titleVerdict: res.titleVerdict,
-            coreSummary: res.coreSummary,
-            customQuestionAnswers: res.customQuestionAnswers,
-          },
+      if (!optimizeConversation) {
+        // Rule 1: when "optimize for discussion" is OFF, no need to wait, run concurrently in parallel!
+        const pVerdict = this.analyzeBodySection(bodyCapture, {
+          ...sections,
+          mindMap: false,
+        }).then((res) => {
+          onProgress?.({
+            type: "partial",
+            section: "summary",
+            data: {
+              titleVerdict: res.titleVerdict,
+              coreSummary: res.coreSummary,
+              customQuestionAnswers: res.customQuestionAnswers,
+            },
+          });
+          return res;
         });
-        return res;
-      });
 
-      const pMindMap = this.analyzeBodySection(bodyCapture, {
-        ...sections,
-        titleVerdict: false,
-        coreSummary: false,
-        mindMap: true,
-      }).then((res) => {
-        onProgress?.({
-          type: "partial",
-          section: "mindmap",
-          data: { mindMap: res.mindMap || [], ...(res.conversation ? { conversation: res.conversation } : {}) },
+        const pMindMap = this.analyzeBodySection(bodyCapture, {
+          ...sections,
+          titleVerdict: false,
+          coreSummary: false,
+          mindMap: true,
+        }).then((res) => {
+          onProgress?.({
+            type: "partial",
+            section: "mindmap",
+            data: { mindMap: res.mindMap || [] },
+          });
+          return res;
         });
-        return res;
-      });
 
-      const [vSettled, mSettled] = await Promise.allSettled([pVerdict, pMindMap]);
-      if (vSettled.status === "rejected" && mSettled.status === "rejected") {
-        throw vSettled.reason;
-      }
-      if (vSettled.status === "fulfilled") {
-        verdictSummaryRes = vSettled.value;
+        const [vSettled, mSettled] = await Promise.allSettled([pVerdict, pMindMap]);
+        if (vSettled.status === "rejected" && mSettled.status === "rejected") {
+          throw vSettled.reason;
+        }
+        if (vSettled.status === "fulfilled") {
+          verdictSummaryRes = vSettled.value;
+        } else {
+          console.warn("[NutEgg] Verdict & Summary call failed:", vSettled.reason);
+        }
+        if (mSettled.status === "fulfilled") {
+          mindMapRes = mSettled.value.mindMap || [];
+          conversationRes = mSettled.value.conversation;
+        } else {
+          console.warn("[NutEgg] Mind Map call failed:", mSettled.reason);
+        }
       } else {
-        console.warn("[NutEgg] Verdict & Summary call failed:", vSettled.reason);
-      }
-      if (mSettled.status === "fulfilled") {
-        mindMapRes = mSettled.value.mindMap || [];
-        conversationRes = mSettled.value.conversation;
-      } else {
-        console.warn("[NutEgg] Mind Map call failed:", mSettled.reason);
+        // Rule 2: when "optimize for discussion" is ON, mindmap waits for classification result!
+        try {
+          verdictSummaryRes = await this.analyzeBodySection(bodyCapture, {
+            ...sections,
+            mindMap: false,
+          });
+          onProgress?.({
+            type: "partial",
+            section: "summary",
+            data: {
+              titleVerdict: verdictSummaryRes.titleVerdict,
+              coreSummary: verdictSummaryRes.coreSummary,
+              customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
+            },
+          });
+        } catch (err) {
+          console.warn("[NutEgg] Verdict & Summary call failed:", err);
+        }
+
+        const detectedFormat = verdictSummaryRes?.conversation?.format || "monologue";
+        const verdictContext = verdictSummaryRes?.titleVerdict
+          ? `Stage 1 title answer: ${verdictSummaryRes.titleVerdict}\nStage 1 summary:\n${(verdictSummaryRes.coreSummary || []).join("\n")}`
+          : "";
+
+        try {
+          const mRes = await this.analyzeBodySection(
+            {
+              ...bodyCapture,
+              detectedFormat,
+              verdictContext,
+            },
+            {
+              ...sections,
+              titleVerdict: false,
+              coreSummary: false,
+              mindMap: true,
+            }
+          );
+          mindMapRes = mRes.mindMap || [];
+          conversationRes = mRes.conversation || (detectedFormat !== "monologue" ? { format: detectedFormat, participants: [], confidence: "high" } : undefined);
+          onProgress?.({
+            type: "partial",
+            section: "mindmap",
+            data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
+          });
+        } catch (err) {
+          console.warn("[NutEgg] Mind Map call failed:", err);
+          if (!verdictSummaryRes) throw err;
+        }
       }
     } else if (needsVerdictSummary) {
       verdictSummaryRes = await this.analyzeBodySection(bodyCapture, {
@@ -851,6 +904,8 @@ export class AIProcessor {
       questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
       optimizeForConversation?: boolean;
+      detectedFormat?: ConversationFormat;
+      verdictContext?: string;
     },
     partNoteStr = ""
   ): Promise<ContentAnalysis> {
@@ -882,8 +937,13 @@ export class AIProcessor {
           ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
           : "User Questions (answer each directly and concisely)"
       ),
-      conversation_hints: sections.mindMap && optimizeConversation ? conversationHints(capture as any) : "",
-      conversation_rules: sections.mindMap && optimizeConversation ? this.getPrompt("conversationRules") : "",
+      verdict_context: capture.verdictContext || "",
+      conversation_hints: optimizeConversation
+        ? conversationHints(capture as any, capture.detectedFormat)
+        : "",
+      conversation_rules: sections.mindMap && optimizeConversation && capture.detectedFormat !== "monologue"
+        ? this.getPrompt("conversationRules")
+        : "",
       content: this.truncate(capture.content, this.chunkWindowChars),
       shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
@@ -893,10 +953,21 @@ export class AIProcessor {
     const budget = Math.min(configuredMax, !sections.mindMap ? 4096 : configuredMax);
     const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, !sections.mindMap ? "verdict-summary" : "content-analysis");
-    const rawConversation = sections.mindMap && optimizeConversation ? sanitizeConversationMeta(parsed.conversation, capture.content) : undefined;
-    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && rawConversation.participants?.length > 0);
+    const validFormats = new Set<ConversationFormat>(["monologue", "interview", "podcast", "ama", "panel", "debate"]);
+    let summaryConversation: ConversationMeta | undefined;
+    if (!sections.mindMap && optimizeConversation) {
+      const fmt: ConversationFormat = typeof parsed.format === "string" && validFormats.has(parsed.format as ConversationFormat)
+        ? (parsed.format as ConversationFormat)
+        : (parsed.conversation?.format && validFormats.has(parsed.conversation.format) ? parsed.conversation.format : "monologue");
+      summaryConversation = { format: fmt, participants: [], confidence: "high" };
+    }
+
+    const rawConversation = sections.mindMap && optimizeConversation
+      ? (sanitizeConversationMeta(parsed.conversation, capture.content) || (capture.detectedFormat && capture.detectedFormat !== "monologue" ? { format: capture.detectedFormat, participants: [], confidence: "high" as const } : undefined))
+      : undefined;
+    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && (rawConversation.participants?.length > 0 || capture.detectedFormat !== "monologue"));
     const participantIds = isConversation
-      ? new Set(rawConversation!.participants.map(p => p.id))
+      ? new Set(rawConversation?.participants?.map(p => p.id) || [])
       : undefined;
     const parsedMindMap = sections.mindMap ? this.parseMindMap(parsed.mindMap, 0, participantIds, isConversation) : [];
     const { mindMap, conversation } = optimizeConversation
@@ -912,7 +983,9 @@ export class AIProcessor {
           ? parsed.coreSummary.map(String).slice(0, 3)
           : [],
       mindMap,
-      ...(conversation && conversation.format !== "monologue" ? { conversation } : {}),
+      ...(sections.mindMap
+        ? (conversation && conversation.format !== "monologue" ? { conversation } : {})
+        : (summaryConversation ? { conversation: summaryConversation } : {})),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
         ...a,
         scope: a.scope || capture.questionsScope || "within",

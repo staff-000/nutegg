@@ -12,10 +12,19 @@ const CONVERSATION_KEYWORD_PATTERNS: Array<{ pattern: RegExp; format: Conversati
 ];
 
 /**
- * Builds an advisory format hint block for the AI model to verify against content.
- * Does not make an extra AI call — runs deterministically in O(N) over captured text.
+ * Builds a format hint block for the AI model.
+ * If an AI-detected format is supplied from the summary classification, it is used directly.
+ * Otherwise, falls back to advisory text clues.
  */
-export function conversationHints(capture: CapturePayload): string {
+export function conversationHints(capture: CapturePayload, detectedFormat?: ConversationFormat): string {
+  const format = detectedFormat || capture.detectedFormat;
+  if (format) {
+    if (format === "monologue") {
+      return "Content format: Verified monologue / solo presentation (use standard concept tree rules; do not apply conversational kind tags or speaker roles).";
+    }
+    return `Content format: Verified ${format} (conversational dialogue). Structure topics and Q&A accordingly.`;
+  }
+
   const isVideoOrTranscript =
     capture.sourceType === "youtube" ||
     capture.sourceType === "video" ||

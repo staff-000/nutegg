@@ -268,6 +268,8 @@ export interface CapturePayload {
   questionsScope?: QuestionScope;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   optimizeForConversation?: boolean;
+  detectedFormat?: ConversationFormat;
+  verdictContext?: string;
   outputLanguage?: string;
   stream?: boolean;
 }
