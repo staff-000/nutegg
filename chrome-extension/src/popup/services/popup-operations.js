@@ -125,6 +125,7 @@ class PopupOperations {
       if (!content?.content) throw new Error(t('couldNotRetrieveContent'));
       const payload = { ...content, debugScope: tab.debugScope, force: true, stage: 1, questions: inputs.questions || [], questionsScope: tab.customQuestionsScope,
         generateKnowledgeEntries: tab.generateKnowledgeEntries, enabledSections: tab.enabledSections,
+        optimizeForConversation: tab.optimizeForConversation !== false,
         discussion: tab.enabledSections.discussion === true ? content.discussion : undefined,
         outputLanguage: inputs.outputLanguage, ...(inputs.eggs ? { eggs: inputs.eggs } : {}) };
       const response = await this.service.sendAnalyzeViaPort(payload, (event) => {

@@ -18,6 +18,7 @@ export type WorkflowPromptKey =
   | "aggregateEgg"
   | "localizeEgg"
   | "sharedOutputRules"
+  | "conversationRules"
   | "chromeKnowledge";
 
 export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
@@ -35,6 +36,7 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   aggregateEgg: "aggregate-egg.md",
   localizeEgg: "localize-egg.md",
   sharedOutputRules: "shared-output-rules.md",
+  conversationRules: "conversation-rules.md",
   chromeKnowledge: "chrome-knowledge.md",
 };
 
@@ -55,6 +57,7 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   "aggregate-egg.md": PROMPTS.aggregateEgg,
   "localize-egg.md": PROMPTS.localizeEgg,
   "shared-output-rules.md": PROMPTS.sharedOutputRules,
+  "conversation-rules.md": PROMPTS.conversationRules,
   "chrome-knowledge.md": PROMPTS.chromeKnowledge,
 };
 

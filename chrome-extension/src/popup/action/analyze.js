@@ -7,7 +7,7 @@ class AnalyzeAction {
     this.store.dispatch({ type: 'defaults', defaults: this.settingsDefaults() });
     this.store.dispatch({ type: 'draft', tabId: this.store.activeTabId, values: { generateKnowledgeEntries: enabled } });
   }
-  settingsDefaults() { return { enabledSections: this.settings.enabledSections, generateKnowledgeEntries: this.settings.generateKnowledgeEntries }; }
+  settingsDefaults() { return { enabledSections: this.settings.enabledSections, generateKnowledgeEntries: this.settings.generateKnowledgeEntries, optimizeForConversation: this.settings.optimizeForConversation }; }
   setAnalysisMode(mode) { this.settings.setAnalysisMode(mode); this.store.emit({ type: 'settings' }); }
   getAnalyzeNotReadyReason() {
     const view = this.store.viewModel();
@@ -16,7 +16,7 @@ class AnalyzeAction {
   }
   requestOptions(eggs) {
     return { eggs, outputLanguage: this.settings.outputLanguage, analysisMode: this.settings.analysisMode,
-      chromeMode: this.settings.isChromeMode(), questions: this.ui.captureUI?.getParsedQuestions?.() || [] };
+      chromeMode: this.settings.isChromeMode(), optimizeForConversation: this.settings.optimizeForConversation, questions: this.ui.captureUI?.getParsedQuestions?.() || [] };
   }
   handleAnalyze(force = true, eggsOverride = null, isReanalyze = false) {
     const tabId = this.store.activeTabId;

@@ -89,6 +89,7 @@ export interface NutEggAISettings {
   chromeAiEndpoint?: string;
   promptOverrides?: Partial<Record<string, string>>;
   chromeAiPromptOverrides?: Partial<Record<string, string>>;
+  optimizeForConversation?: boolean;
   [key: string]: any;
 }
 
@@ -126,6 +127,24 @@ export interface KeyAnswer {
   scope?: QuestionScope;
 }
 
+export type ConversationFormat = "monologue" | "interview" | "podcast" | "ama" | "panel" | "debate";
+export type MindMapNodeKind = "topic" | "question" | "answer" | "claim" | "disagreement" | "example" | "takeaway";
+
+export interface Participant {
+  id: string;            // "p1" — stable within one result
+  label: string;         // e.g. "Lex Fridman", "Host", "Audience"
+  name?: string;
+  role: "host" | "guest" | "audience" | "moderator" | "panelist" | "speaker" | "unknown";
+  named: boolean;        // true only if the source states the name
+  evidence?: SourceRef;  // where the name/role is stated (intro, title, description)
+}
+
+export interface ConversationMeta {
+  format: ConversationFormat;
+  participants: Participant[];
+  confidence: "high" | "medium" | "low";
+}
+
 /** A node in the concept mind map / outline tree. */
 export interface MindMapNode {
   /** References for scrolling to supporting text or comments. */
@@ -134,6 +153,13 @@ export interface MindMapNode {
   detail?: string;
   /** Exact timestamp from the source transcript, when available. */
   time?: string;
+  kind?: MindMapNodeKind;
+  /** Participant IDs of the speaker(s) contributing this node. */
+  speakers?: string[];
+  /** Participant ID of the person asking the question (for question nodes). */
+  askedBy?: string;
+  /** Stance relative to the parent question or topic. */
+  stance?: "agree" | "disagree" | "mixed";
   children?: MindMapNode[];
 }
 
@@ -219,6 +245,8 @@ export interface ContentAnalysis {
   customQuestionAnswers: KeyAnswer[];
   /** Hierarchical concept mind-map / outline tree. */
   mindMap?: MindMapNode[];
+  /** Conversation metadata (participants, format) when content is an interview/podcast/AMA/debate. */
+  conversation?: ConversationMeta;
   /** Substantive knowledge entries extracted in Chrome mode. */
   extractedEntries?: ExtractedKnowledgeEntry[];
 }
@@ -239,6 +267,7 @@ export interface CapturePayload {
   /** Scope for custom questions: strictly within content vs unconstrained beyond content. */
   questionsScope?: QuestionScope;
   enabledSections?: Partial<AnalysisSectionsConfig>;
+  optimizeForConversation?: boolean;
   outputLanguage?: string;
   stream?: boolean;
 }
@@ -343,11 +372,12 @@ export type WorkflowPromptKey =
   | "aggregateEgg"
   | "localizeEgg"
   | "sharedOutputRules"
+  | "conversationRules"
   | "chromeKnowledge";
 
 export type AnalysisProgressEvent =
   | { type: "partial"; section: "summary"; data: { titleVerdict?: string; coreSummary?: string[]; customQuestionAnswers?: KeyAnswer[] } }
-  | { type: "partial"; section: "mindmap"; data: { mindMap: MindMapNode[] } }
+  | { type: "partial"; section: "mindmap"; data: { mindMap: MindMapNode[]; conversation?: ConversationMeta } }
   | { type: "partial"; section: "discussion"; data: { discussion: DiscussionAnalysis } }
   | { type: "partial"; section: "matchedEggs"; data: { matchedEggs: string[] } }
   | { type: "partial"; section: "knowledge"; data: { extractedEntries: ExtractedKnowledgeEntry[] } }

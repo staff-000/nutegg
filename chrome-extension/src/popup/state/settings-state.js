@@ -23,6 +23,7 @@ class SettingsState {
     this.outputLanguage = "same-as-content";
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = false;
+    this.optimizeForConversation = true;
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
@@ -50,7 +51,7 @@ class SettingsState {
     try {
       const stored = await new Promise((resolve) => {
         chrome.storage?.local?.get?.(
-          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel", "obsidianExecutionState"],
+          ["connectionMode", "analysisMode", "cachedMetrics", "enabledSections", "outputLanguage", "generateKnowledgeEntries", "optimizeForConversation", "popupDiagnostics", "debugInfo", "captureRetryCount", "captureRetryDelayMs", "uiDensity", "chromeCacheTabLimit", "chromeAiAuthMethod", "chromeAiProvider", "chromeAiModel", "obsidianExecutionState"],
           resolve
         );
       });
@@ -69,6 +70,7 @@ class SettingsState {
         this.analysisMode = "preview";
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries === true;
+      this.optimizeForConversation = stored?.optimizeForConversation !== false;
       this.debugInfo = stored?.debugInfo === true;
       if (stored?.uiDensity === "comfortable" || stored?.uiDensity === "margin" || stored?.uiDensity === "compact" || stored?.uiDensity === "ultra-compact") {
         this.uiDensity = stored.uiDensity === "comfortable" ? "margin" : stored.uiDensity;
@@ -105,6 +107,13 @@ class SettingsState {
       if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
         chrome.storage.local.set({ analysisMode: normalized });
       }
+    }
+  }
+
+  setOptimizeForConversation(enabled, persist = true) {
+    this.optimizeForConversation = enabled !== false;
+    if (persist && typeof chrome !== "undefined" && chrome.storage?.local?.set) {
+      chrome.storage.local.set({ optimizeForConversation: this.optimizeForConversation });
     }
   }
 

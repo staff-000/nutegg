@@ -45,6 +45,10 @@ import {
   type ExtractedKnowledgeEntry,
   type KeyAnswer,
   type MindMapNode,
+  type MindMapNodeKind,
+  type ConversationFormat,
+  type ConversationMeta,
+  type Participant,
   type SourceRef,
   type MergeResult,
   type EggSaveEntry,
@@ -52,6 +56,7 @@ import {
   type QuestionScope,
   type WorkflowPromptKey,
 } from "./types";
+import { conversationHints, sanitizeConversationMeta, normalizeConversationMindMap, stripConversationFields } from "./conversation";
 
 export {
   repairTruncatedJson,
@@ -517,11 +522,13 @@ export class AIProcessor {
       customQuestionAnswers: [],
     };
     let mindMapRes: MindMapNode[] = [];
+    let conversationRes: ConversationMeta | undefined;
     const chunks = this.chunkContent(bodyCapture.content, bodyCapture.chapters || []);
     if (chunks.length > 1) {
       const res = await this.analyzeBodySection(bodyCapture, sections);
       verdictSummaryRes = res;
       mindMapRes = res.mindMap || [];
+      conversationRes = res.conversation;
       if (res.titleVerdict || res.coreSummary?.length) {
         onProgress?.({
           type: "partial",
@@ -537,7 +544,7 @@ export class AIProcessor {
         onProgress?.({
           type: "partial",
           section: "mindmap",
-          data: { mindMap: mindMapRes },
+          data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
         });
       }
     } else if (needsVerdictSummary && needsMindMap) {
@@ -567,9 +574,9 @@ export class AIProcessor {
         onProgress?.({
           type: "partial",
           section: "mindmap",
-          data: { mindMap: res.mindMap || [] },
+          data: { mindMap: res.mindMap || [], ...(res.conversation ? { conversation: res.conversation } : {}) },
         });
-        return res.mindMap || [];
+        return res;
       });
 
       const [vSettled, mSettled] = await Promise.allSettled([pVerdict, pMindMap]);
@@ -582,7 +589,8 @@ export class AIProcessor {
         console.warn("[NutEgg] Verdict & Summary call failed:", vSettled.reason);
       }
       if (mSettled.status === "fulfilled") {
-        mindMapRes = mSettled.value;
+        mindMapRes = mSettled.value.mindMap || [];
+        conversationRes = mSettled.value.conversation;
       } else {
         console.warn("[NutEgg] Mind Map call failed:", mSettled.reason);
       }
@@ -608,10 +616,11 @@ export class AIProcessor {
         mindMap: true,
       });
       mindMapRes = res.mindMap || [];
+      conversationRes = res.conversation;
       onProgress?.({
         type: "partial",
         section: "mindmap",
-        data: { mindMap: mindMapRes },
+        data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
       });
     }
 
@@ -629,6 +638,7 @@ export class AIProcessor {
       coreSummary: verdictSummaryRes.coreSummary || [],
       customQuestionAnswers: verdictSummaryRes.customQuestionAnswers || [],
       mindMap: mindMapRes || [],
+      ...(conversationRes ? { conversation: conversationRes } : {}),
       ...(discussion ? { discussion } : {}),
       ...(extractedEntries.length ? { extractedEntries } : {}),
     };
@@ -758,6 +768,7 @@ export class AIProcessor {
         coreSummary: summary.coreSummary,
         customQuestionAnswers: summary.customQuestionAnswers,
         mindMap: summary.mindMap,
+        ...(summary.conversation ? { conversation: summary.conversation } : {}),
       };
     }
 
@@ -839,6 +850,7 @@ export class AIProcessor {
       questions?: string[];
       questionsScope?: QuestionScope;
       enabledSections?: Partial<AnalysisSectionsConfig>;
+      optimizeForConversation?: boolean;
     },
     partNoteStr = ""
   ): Promise<ContentAnalysis> {
@@ -846,6 +858,7 @@ export class AIProcessor {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
     };
+    const optimizeConversation = this.isConversationOptimizationEnabled(capture as any);
     let rawTpl = this.getPrompt("contentAnalysis");
     if (!sections.mindMap && (sections.titleVerdict || sections.coreSummary)) {
       rawTpl = this.getPrompt("verdictSummary") || rawTpl;
@@ -869,6 +882,8 @@ export class AIProcessor {
           ? "User Questions — Global Mode (answer using broad external world knowledge, reasoning, and fact-checking)"
           : "User Questions (answer each directly and concisely)"
       ),
+      conversation_hints: sections.mindMap && optimizeConversation ? conversationHints(capture as any) : "",
+      conversation_rules: sections.mindMap && optimizeConversation ? this.getPrompt("conversationRules") : "",
       content: this.truncate(capture.content, this.chunkWindowChars),
       shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
@@ -878,6 +893,16 @@ export class AIProcessor {
     const budget = Math.min(configuredMax, !sections.mindMap ? 4096 : configuredMax);
     const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, !sections.mindMap ? "verdict-summary" : "content-analysis");
+    const rawConversation = sections.mindMap && optimizeConversation ? sanitizeConversationMeta(parsed.conversation, capture.content) : undefined;
+    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && rawConversation.participants?.length > 0);
+    const participantIds = isConversation
+      ? new Set(rawConversation!.participants.map(p => p.id))
+      : undefined;
+    const parsedMindMap = sections.mindMap ? this.parseMindMap(parsed.mindMap, 0, participantIds, isConversation) : [];
+    const { mindMap, conversation } = optimizeConversation
+      ? this.normalizeConversationMindMap(parsedMindMap, rawConversation)
+      : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
+
     return {
       titleVerdict: sections.titleVerdict
         ? String(parsed.titleVerdict || "Could not generate a verdict.")
@@ -886,7 +911,8 @@ export class AIProcessor {
         sections.coreSummary && Array.isArray(parsed.coreSummary)
           ? parsed.coreSummary.map(String).slice(0, 3)
           : [],
-      mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
+      mindMap,
+      ...(conversation && conversation.format !== "monologue" ? { conversation } : {}),
       customQuestionAnswers: this.parseKeyAnswers(parsed.customQuestionAnswers).map((a) => ({
         ...a,
         scope: a.scope || capture.questionsScope || "within",
@@ -1013,6 +1039,9 @@ export class AIProcessor {
     capture: {
       title: string;
       url: string;
+      sourceType?: string;
+      optimizeForConversation?: boolean;
+      content?: string;
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
       questionsScope?: QuestionScope;
@@ -1029,11 +1058,13 @@ export class AIProcessor {
     coreSummary: string[];
     customQuestionAnswers: KeyAnswer[];
     mindMap?: MindMapNode[];
+    conversation?: ConversationMeta;
   }> {
     const sections: AnalysisSectionsConfig = {
       ...DEFAULT_ANALYSIS_SECTIONS,
       ...(capture.enabledSections || {}),
     };
+    const optimizeConversation = this.isConversationOptimizationEnabled(capture);
     const rawTpl = this.getPrompt("aggregateContent");
     const prunedTpl = applyPrunedSections(rawTpl, sections, true);
     const rawTask = this.getPrompt("contentTaskDefault");
@@ -1063,6 +1094,7 @@ export class AIProcessor {
           : "User Questions (answer each directly and concisely)"
       ),
       content_task_default: prunedTask,
+      conversation_rules: sections.mindMap && optimizeConversation ? this.getPrompt("conversationRules") : "",
       shared_output_rules: this.getContentOutputRules(capture as any, capture.questionsScope || "within"),
     });
 
@@ -1070,6 +1102,16 @@ export class AIProcessor {
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
     const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, "aggregate-content");
+    const rawConversation = sections.mindMap && optimizeConversation ? sanitizeConversationMeta(parsed.conversation, capture.content || "") : undefined;
+    const isConversation = Boolean(rawConversation && rawConversation.format !== "monologue" && rawConversation.participants?.length > 0);
+    const participantIds = isConversation
+      ? new Set(rawConversation!.participants.map(p => p.id))
+      : undefined;
+    const parsedMindMap = sections.mindMap ? this.parseMindMap(parsed.mindMap, 0, participantIds, isConversation) : [];
+    const { mindMap, conversation } = optimizeConversation
+      ? this.normalizeConversationMindMap(parsedMindMap, rawConversation)
+      : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
+
     return {
       titleVerdict: sections.titleVerdict
         ? String(parsed.titleVerdict || "Could not generate a verdict.")
@@ -1082,7 +1124,8 @@ export class AIProcessor {
         ...a,
         scope: a.scope || capture.questionsScope || "within",
       })),
-      mindMap: sections.mindMap ? this.parseMindMap(parsed.mindMap) : [],
+      mindMap,
+      ...(conversation && conversation.format !== "monologue" ? { conversation } : {}),
     };
   }
 
@@ -1439,14 +1482,38 @@ export class AIProcessor {
   }
 
   /** Normalize a hierarchical mind map array from the AI response. */
-  private parseMindMap(raw: any, depth = 0): MindMapNode[] {
+  private parseMindMap(raw: any, depth = 0, validParticipantIds?: Set<string>, isConversation = false): MindMapNode[] {
     if (!Array.isArray(raw) || depth > 5) return [];
+    const validKinds = new Set<MindMapNodeKind>(["topic", "question", "answer", "claim", "disagreement", "example", "takeaway"]);
+    const validStances = new Set<"agree" | "disagree" | "mixed">(["agree", "disagree", "mixed"]);
+
     return raw
       .filter((item: any) => item && (item.name || item.title || item.topic))
       .map((item: any) => {
         const node: MindMapNode = {
           name: String(item.name || item.title || item.topic).trim(),
         };
+        if (isConversation) {
+          if (item.kind && validKinds.has(item.kind)) {
+            node.kind = item.kind;
+          }
+          if (item.askedBy && typeof item.askedBy === "string") {
+            const askedBy = item.askedBy.trim();
+            if (!validParticipantIds || validParticipantIds.has(askedBy)) {
+              node.askedBy = askedBy;
+            }
+          }
+          if (Array.isArray(item.speakers)) {
+            const speakers = item.speakers
+              .filter((s: any) => typeof s === "string")
+              .map((s: string) => s.trim())
+              .filter((s: string) => !validParticipantIds || validParticipantIds.has(s));
+            if (speakers.length > 0) node.speakers = speakers;
+          }
+          if (item.stance && validStances.has(item.stance)) {
+            node.stance = item.stance;
+          }
+        }
         const sources = this.parseSources(item.sources).slice(0, 3);
         if (sources.length) node.sources = sources;
         const time = typeof item.time === "string" ? item.time.trim().replace(/^\[|\]$/g, "") : "";
@@ -1456,13 +1523,31 @@ export class AIProcessor {
           node.detail = detail.trim();
         }
         if (Array.isArray(item.children) && item.children.length > 0) {
-          const children = this.parseMindMap(item.children, depth + 1);
+          const children = this.parseMindMap(item.children, depth + 1, validParticipantIds, isConversation);
           if (children.length > 0) {
             node.children = children;
           }
         }
         return node;
       });
+  }
+
+  private isConversationOptimizationEnabled(capture: { optimizeForConversation?: boolean }): boolean {
+    if (typeof capture?.optimizeForConversation === "boolean") {
+      return capture.optimizeForConversation;
+    }
+    if (typeof this.host?.settings?.optimizeForConversation === "boolean") {
+      return this.host.settings.optimizeForConversation;
+    }
+    return true;
+  }
+
+  /** Validates conversation structure, sorts topics chronologically if timed, and enforces budget caps. */
+  private normalizeConversationMindMap(
+    nodes: MindMapNode[],
+    conversation?: ConversationMeta
+  ): { mindMap: MindMapNode[]; conversation?: ConversationMeta } {
+    return normalizeConversationMindMap(nodes, conversation);
   }
 
   /**

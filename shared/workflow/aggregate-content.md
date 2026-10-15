@@ -13,12 +13,21 @@ You are a knowledge curator. The content below was too long for one pass and was
 ## Task
 {{content_task_default}}
 
+{{conversation_rules}}
+
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
 The `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node. For text-based content, include `sources` on each supported node with the original section heading/location hint in `ref` and a distinctive exact excerpt in `quote`. If citing a captured discussion item, also include its exact `sourceId`.
+For conversational formats, set `conversation.format` accordingly, unify participants across chunks, and maintain question/topic structure.
+For monologues, solo lectures, and written articles/essays, set `conversation`: `{"format": "monologue", "confidence": "high", "participants": []}` and use standard hierarchical concept nodes.
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2"],
+  "conversation": {
+    "format": "monologue",
+    "confidence": "high",
+    "participants": []
+  },
   "mindMap": [
     {
       "name": "First Main Topic",

@@ -52,6 +52,7 @@ const aiPromptResetBtn = document.getElementById("ai-prompt-reset-btn");
 // Content Analysis sections elements
 const sectionVerdictSummary = document.getElementById("section-verdict-summary");
 const sectionMindmap = document.getElementById("section-mindmap");
+const optimizeConversation = document.getElementById("optimize-conversation");
 const sectionKnowledge = document.getElementById("section-knowledge");
 const sectionDiscussion = document.getElementById("section-discussion");
 const sectionsSaveBtn = document.getElementById("sections-save-btn");
@@ -372,7 +373,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // 2. Content Analysis Sections initialization
-  initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries);
+  initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries, stored.optimizeForConversation);
 
   if (uiDensitySelect) {
     const savedDensity = stored.uiDensity || "compact";
@@ -947,10 +948,16 @@ function showResult(msg, type) {
   testResult.classList.remove("hidden");
 }
 
-function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
+function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, savedOptimizeForConversation) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
   if (sectionVerdictSummary) sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
   if (sectionMindmap) sectionMindmap.checked = sections.mindMap !== false;
+  if (optimizeConversation) {
+    optimizeConversation.checked = savedOptimizeForConversation !== false;
+    optimizeConversation.addEventListener("change", () =>
+      chrome.storage.local.set({ optimizeForConversation: optimizeConversation.checked })
+    );
+  }
   if (sectionKnowledge) {
     sectionKnowledge.checked = savedGenerateKnowledgeEntries === true;
     sectionKnowledge.addEventListener("change", () => chrome.storage.local.set({ generateKnowledgeEntries: sectionKnowledge.checked }));
@@ -993,6 +1000,7 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries) {
     await chrome.storage.local.set({
       enabledSections: newConfig,
       generateKnowledgeEntries: sectionKnowledge ? sectionKnowledge.checked : false,
+      optimizeForConversation: optimizeConversation ? optimizeConversation.checked : true,
       outputLanguage: outputLangSelect ? outputLangSelect.value : "same-as-content",
       uiDensity: uiDensitySelect ? uiDensitySelect.value : "compact",
     });

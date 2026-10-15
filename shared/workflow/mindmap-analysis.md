@@ -6,16 +6,26 @@ You are a knowledge curator. Analyze the content below and construct a structure
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
 {{verdict_context}}
+{{conversation_hints}}
 
 {{content}}
 
 ## Task
 Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`. Use an optional `time` per Mind Map node for an exact supporting timestamp in video transcripts. Omit it for untimestamped sources; never invent a time. For text nodes, include `sources` with an original heading/location hint and distinctive verbatim `quote`; add exact `sourceId` when referencing a captured discussion item.
 
+{{conversation_rules}}
+
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
 The `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node. For text-based content, include `sources` on each supported node with the original section heading/location hint in `ref` and a distinctive exact excerpt in `quote`. If citing a captured discussion item, also include its exact `sourceId`.
+For conversational formats (interview, podcast, AMA, panel, debate), set `conversation.format` accordingly, populate `participants`, and use conversation node kinds (`question`, `answer`, `disagreement`, `example`, `takeaway`) as instructed.
+For monologues, solo lectures, and written articles/essays, set `conversation`: `{"format": "monologue", "confidence": "high", "participants": []}` and use standard hierarchical concept nodes without conversation kind tags.
 {
+  "conversation": {
+    "format": "monologue",
+    "confidence": "high",
+    "participants": []
+  },
   "mindMap": [
     {
       "name": "First Main Topic / Theme",

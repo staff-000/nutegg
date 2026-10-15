@@ -6,6 +6,7 @@ export * from "./types";
 export * from "./execution";
 export * from "./analysis-results";
 export * from "./catalog";
+export * from "./conversation";
 export * from "./client";
 export * from "./ai-diagnostics";
 export * from "./content-url";

@@ -6,18 +6,28 @@ You are a knowledge curator. Analyze the content below following the Task.
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
 {{questions}}
+{{conversation_hints}}
 
 {{content}}
 
 ## Task
 {{content_task_default}}
 
+{{conversation_rules}}
+
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
 The `time` field shown on mind-map nodes is optional: include it only when a source timestamp supports that node. For text-based content, include `sources` on each supported node with the original section heading/location hint in `ref` and a distinctive exact excerpt in `quote`. If citing a captured discussion item, also include its exact `sourceId`.
+For conversational formats (interview, podcast, AMA, panel, debate), set `conversation.format` accordingly, populate `participants`, and use conversation node kinds (`question`, `answer`, `disagreement`, `example`, `takeaway`) as instructed.
+For monologues, solo lectures, and written articles/essays, set `conversation`: `{"format": "monologue", "confidence": "high", "participants": []}` and use standard hierarchical concept nodes without conversation kind tags.
 {
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
+  "conversation": {
+    "format": "monologue",
+    "confidence": "high",
+    "participants": []
+  },
   "mindMap": [
     {
       "name": "First Main Topic / Theme",

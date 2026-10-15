@@ -59,6 +59,8 @@ describe("PROMPTS", () => {
       "kind", "body", "parents", "items", "drafts",
       // progressive rendering verdict & summary
       "verdict_context",
+      // conversation-aware mind map
+      "conversation_rules", "conversation_hints",
     ];
     for (const v of used) {
       assert.ok(known.includes(v), `unknown placeholder {{${v}}}`);

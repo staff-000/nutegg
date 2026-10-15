@@ -157,7 +157,7 @@ function findCurrentNode(nodes, progress) {
 }
 
 /** Render the Mind Map hierarchical concept tree. */
-function renderMindMap(nodes, container, progress = null) {
+function renderMindMap(nodes, container, progress = null, conversation = null, options = {}) {
   const helpers = typeof require === "function" ? require("../helpers.js") : globalThis.NutEggHelpers;
   const t = (key, params) => (typeof globalThis.t === "function" ? globalThis.t(key, params) : (helpers?.t ? helpers.t(key, params) : key));
   const renderText = text => helpers.linkifyTimestamps(helpers.escapeHtml(String(text || "")));
@@ -166,11 +166,103 @@ function renderMindMap(nodes, container, progress = null) {
   target.innerHTML = "";
   if (!Array.isArray(nodes) || nodes.length === 0) return;
 
-  const displayNodes = unwrapMindMapRoots(nodes);
+  const isConversation = Boolean(
+    options?.optimizeForConversation !== false &&
+    conversation &&
+    conversation.format &&
+    conversation.format !== "monologue"
+  );
+
+  let displayNodes;
+  if (isConversation && options?.questionsOnly) {
+    function extractQuestions(list) {
+      const qs = [];
+      function walk(items) {
+        if (!Array.isArray(items)) return;
+        for (const item of items) {
+          if (!item) continue;
+          if (item.kind === "question") {
+            qs.push(item);
+          } else if (Array.isArray(item.children)) {
+            walk(item.children);
+          }
+        }
+      }
+      walk(list);
+      return qs;
+    }
+    const questions = extractQuestions(nodes);
+    displayNodes = questions.length > 0 ? questions : unwrapMindMapRoots(nodes);
+  } else {
+    displayNodes = unwrapMindMapRoots(nodes);
+  }
+
   if (!Array.isArray(displayNodes) || displayNodes.length === 0) return;
 
   const currentNode = progress != null ? findCurrentNode(nodes, progress) : null;
   let nodeIndex = 0;
+
+  const KIND_ICONS = {
+    topic: "🧭",
+    question: "❓",
+    answer: "💬",
+    disagreement: "⚔️",
+    example: "📌",
+    takeaway: "💡",
+  };
+
+  if (isConversation) {
+    const convHeader = document.createElement("div");
+    convHeader.className = "mindmap-conversation-header";
+
+    // Meta row (Format badge & Questions only filter toggle)
+    const metaRow = document.createElement("div");
+    metaRow.className = "mindmap-meta-row";
+
+    const formatLabel = t("conversationFormat_" + conversation.format) || conversation.format;
+    const formatBadge = document.createElement("span");
+    formatBadge.className = "mindmap-format-badge format-" + helpers.escapeHtml(conversation.format);
+    formatBadge.textContent = "🎙️ " + formatLabel;
+    metaRow.appendChild(formatBadge);
+
+    const filterBtn = document.createElement("button");
+    filterBtn.type = "button";
+    filterBtn.className = "mindmap-filter-toggle" + (options?.questionsOnly ? " active" : "");
+    filterBtn.setAttribute("aria-pressed", String(Boolean(options?.questionsOnly)));
+    filterBtn.innerHTML = `❓ <span>${helpers.escapeHtml(t("mindmapQuestionsOnly"))}</span>`;
+    filterBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      options?.onToggleQuestionsOnly?.(!options?.questionsOnly);
+    });
+    metaRow.appendChild(filterBtn);
+    convHeader.appendChild(metaRow);
+
+    // Topic timeline (for level-1 topics with timestamps)
+    const rootTopics = unwrapMindMapRoots(nodes);
+    const timelineTopics = rootTopics.filter(n => Boolean(n && (n.time || helpers?.extractTimestamp?.(n.name))));
+    if (timelineTopics.length > 1) {
+      const timelineEl = document.createElement("div");
+      timelineEl.className = "mindmap-timeline";
+      for (const topic of timelineTopics) {
+        const timeStr = (typeof topic.time === "string" && topic.time) || helpers?.extractTimestamp?.(topic.name);
+        const cleanName = (topic.name || "").replace(/\[?\d{1,3}:[0-5]\d(?::[0-5]\d)?\]?/g, "").trim();
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "mindmap-timeline-chip source-pill source-timestamp inline-timestamp";
+        chip.dataset.time = timeStr;
+        chip.title = `${timeStr} — ${cleanName}`;
+        chip.innerHTML = `<span class="mindmap-timeline-time">${helpers.escapeHtml(timeStr)}</span> <span class="mindmap-timeline-title">${helpers.escapeHtml(cleanName)}</span>`;
+        chip.addEventListener("click", () => {
+          const matched = target.querySelector(`.mindmap-node[data-topic-time="${timeStr}"]`);
+          matched?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+        timelineEl.appendChild(chip);
+      }
+      convHeader.appendChild(timelineEl);
+    }
+
+    target.appendChild(convHeader);
+  }
 
   function buildNode(node) {
     const currentIndex = nodeIndex++;
@@ -178,6 +270,8 @@ function renderMindMap(nodes, container, progress = null) {
     const nodeEl = document.createElement("div");
     nodeEl.className = "mindmap-node" + (isCurrent ? " is-current" : "");
     nodeEl.dataset.nodeIndex = String(currentIndex);
+    if (node.time) nodeEl.dataset.topicTime = node.time;
+    if (node.kind) nodeEl.dataset.kind = node.kind;
     nodeEl.__nuteggNode = node;
 
     const headerEl = document.createElement("div");
@@ -212,7 +306,26 @@ function renderMindMap(nodes, container, progress = null) {
       node.sources?.some(s => s && typeof s.ref === 'string' && /^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref.trim()))
     );
     const source = node.sources?.find(s => s && typeof s.ref === 'string' && (s.sourceId || !/^\[?\d{1,3}(?::\d{2}){1,2}\]?$/.test(s.ref)) && (s.quote || s.sourceId || s.ref));
-    nameEl.innerHTML = renderText(node.name);
+
+    let prefixHtml = "";
+    if (isConversation && node.kind && KIND_ICONS[node.kind]) {
+      const icon = KIND_ICONS[node.kind];
+      const kindLabel = t("nodeKind_" + node.kind) || node.kind;
+      prefixHtml = `<span class="mindmap-kind-badge kind-${helpers.escapeHtml(node.kind)}" title="${helpers.escapeHtml(kindLabel)}">${icon} ${helpers.escapeHtml(kindLabel)}</span>`;
+    }
+
+    nameEl.innerHTML = (prefixHtml ? prefixHtml + " " : "") + renderText(node.name);
+
+    if (isConversation && node.stance) {
+      if (node.stance === "agree") {
+        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-agree">✓ ${helpers.escapeHtml(t("stanceAgree") || "Agree")}</span>`);
+      } else if (node.stance === "disagree") {
+        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-disagree">✗ ${helpers.escapeHtml(t("stanceDisagree") || "Disagree")}</span>`);
+      } else if (node.stance === "mixed") {
+        nameEl.insertAdjacentHTML("beforeend", ` <span class="mindmap-stance-badge stance-mixed">~ ${helpers.escapeHtml(t("stanceMixed") || "Mixed")}</span>`);
+      }
+    }
+
     if (source && !hasTime) {
       nameEl.insertAdjacentHTML("beforeend", ` <button type="button" class="source-pill source-section source-mindmap inline-timestamp" data-heading="${helpers.escapeHtml(source.ref)}" data-quote="${helpers.escapeHtml(source.quote || '')}" data-source-id="${helpers.escapeHtml(source.sourceId || '')}" title="${helpers.escapeHtml(t('sourceTooltip'))}"><span class="source-icon">📍</span><span class="source-ref">${helpers.escapeHtml(t('jumpToSource'))}</span></button>`);
     }
@@ -270,6 +383,8 @@ class MindmapComponent {
     this.mindmapSection = root.getElementById("mindmap-section");
     this.mindmapTree = root.getElementById("mindmap-tree");
     this.nodes = null;
+    this.conversation = null;
+    this.options = {};
     this.lastProgress = null;
     this.currentNode = null;
   }
@@ -348,12 +463,14 @@ class MindmapComponent {
     }
   }
 
-  render(nodes, enabled = true, progress = null, isLoading = false) {
+  render(nodes, enabled = true, progress = null, isLoading = false, conversation = null, options = {}) {
     this.nodes = nodes;
+    this.conversation = conversation;
+    this.options = options;
     if (progress != null) this.lastProgress = progress;
     if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {
       this.show();
-      const res = renderMindMap(nodes, this.mindmapTree, this.lastProgress);
+      const res = renderMindMap(nodes, this.mindmapTree, this.lastProgress, conversation, options);
       if (this.lastProgress != null) {
         this.updateProgress(this.lastProgress);
       }

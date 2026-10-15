@@ -86,6 +86,7 @@ async function loadChromeAiSettings() {
     "chunkWindowChars",
     "contentAnalysisMaxTokens",
     "chromeAiPromptOverrides",
+    "optimizeForConversation",
   ]);
   stored.chromeAiProvider ||= "gemini";
   stored.chromeAiModel ||= PROVIDER_CATALOG[stored.chromeAiProvider]?.defaultModel || "default";
@@ -95,6 +96,7 @@ async function loadChromeAiSettings() {
   // Chrome AI is available by default; the legacy enable toggle is no longer required.
   stored.chromeAiEnabled = true;
   stored.chromeAiEndpoint = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint;
+  stored.optimizeForConversation = stored.optimizeForConversation !== false;
   const lang = stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || "same-as-content";
   stored.outputLanguage = lang;
   stored.contentOutputLanguage = lang;

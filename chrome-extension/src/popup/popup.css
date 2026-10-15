@@ -1386,6 +1386,232 @@ body {
   50% { opacity: 0.35; transform: scale(0.7); }
 }
 
+/* Conversation Mind Map Styling */
+.mindmap-conversation-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.mindmap-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mindmap-format-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: rgba(168, 86, 30, 0.08);
+  color: var(--primary, #a8561e);
+  border: 1px solid rgba(168, 86, 30, 0.18);
+}
+
+.mindmap-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 9px;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mindmap-filter-toggle:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+}
+
+.mindmap-filter-toggle.active {
+  background: var(--primary, #a8561e);
+  color: #ffffff;
+  border-color: var(--primary, #a8561e);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(168, 86, 30, 0.2);
+}
+
+.mindmap-participants-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.mindmap-participant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+}
+
+.mindmap-participant-chip.is-named {
+  font-weight: 600;
+}
+
+.mindmap-approx-hint {
+  font-size: 10.5px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.mindmap-timeline {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0 6px 0;
+  scrollbar-width: thin;
+}
+
+.mindmap-timeline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  cursor: pointer;
+}
+
+.mindmap-timeline-chip:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.mindmap-timeline-time {
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--primary, #a8561e);
+}
+
+.mindmap-timeline-title {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mindmap-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-right: 5px;
+  vertical-align: middle;
+  line-height: 1.3;
+}
+
+.mindmap-kind-badge.kind-topic {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+.mindmap-kind-badge.kind-question {
+  background: rgba(217, 119, 6, 0.1);
+  color: #b45309;
+}
+
+.mindmap-kind-badge.kind-answer {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+.mindmap-kind-badge.kind-disagreement {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.mindmap-kind-badge.kind-example {
+  background: rgba(124, 58, 237, 0.1);
+  color: #6d28d9;
+}
+
+.mindmap-kind-badge.kind-takeaway {
+  background: rgba(202, 138, 4, 0.1);
+  color: #a16207;
+}
+
+.mindmap-askedby-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(217, 119, 6, 0.08);
+  color: #b45309;
+  border: 1px solid rgba(217, 119, 6, 0.2);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.mindmap-speaker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.mindmap-stance-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.mindmap-stance-badge.stance-agree {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+}
+
+.mindmap-stance-badge.stance-disagree {
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.mindmap-stance-badge.stance-mixed {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+}
+
 /* Question Scope Selector & Badges */
 .qa-scope-selector {
   display: inline-flex;

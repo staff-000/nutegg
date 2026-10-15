@@ -17,10 +17,12 @@ import sharedOutputRulesTpl from "../workflow/shared-output-rules.md";
 import chromeKnowledgeTpl from "../workflow/chrome-knowledge.md";
 import verdictSummaryTpl from "../workflow/verdict-summary.md";
 import mindMapAnalysisTpl from "../workflow/mindmap-analysis.md";
+import conversationRulesTpl from "../workflow/conversation-rules.md";
 
 export const PROMPTS = {
   discussionAnalysis: discussionAnalysisTpl,
   aggregateDiscussion: aggregateDiscussionTpl,
+  conversationRules: conversationRulesTpl.trim(),
   /** Phase 1 — content summary + mind map + custom question answers. */
   contentAnalysis: contentAnalysisTpl,
   /** Standalone Verdict & Summary (+ user questions). */

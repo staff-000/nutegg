@@ -99,7 +99,23 @@ class PopupRenderer {
       else ui.captureUI.setLoading(t('retrievingPageContent'));
     });
     const isMindMapLoading = Boolean(view.isAnalyzing && (!view.analysisResult?.mindMap || view.analysisResult.mindMap.length === 0));
-    keyed('mindmap', [view.analysisResult?.mindMap, view.enabledSections.mindMap, isMindMapLoading], () => ui.mindmapUI.render(view.analysisResult?.mindMap, view.enabledSections.mindMap !== false, null, isMindMapLoading));
+    keyed('mindmap', [view.analysisResult?.mindMap, view.analysisResult?.conversation, view.presentation?.mindmapQuestionsOnly, view.enabledSections.mindMap, isMindMapLoading, view.optimizeForConversation], () => ui.mindmapUI.render(
+      view.analysisResult?.mindMap,
+      view.enabledSections.mindMap !== false,
+      null,
+      isMindMapLoading,
+      view.optimizeForConversation !== false ? view.analysisResult?.conversation : null,
+      {
+        questionsOnly: Boolean(view.presentation?.mindmapQuestionsOnly),
+        optimizeForConversation: view.optimizeForConversation !== false,
+        onToggleQuestionsOnly: (val) => draft({
+          presentation: {
+            ...view.presentation,
+            mindmapQuestionsOnly: val,
+          },
+        }),
+      }
+    ));
     keyed('qa', [view.resultRevision, view.followUpQa], () => ui.qaUI.render(view.analysisResult || {}, view.followUpQa));
     ui.qaUI.setFollowupLoading(view.busy);
     keyed('eggs', [view.resultRevision, view.operations.analysis, view.selectedEggs.size, [...view.selectedEggs], view.activeEggTab, view.allEggs, view.presentation.eggsExpanded, settings.serverOnline, settings.analysisMode, settings.connectionMode, view.isAnalyzing], () => {
