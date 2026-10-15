@@ -28,15 +28,91 @@ class MetricsComponent {
     }
   }
 
-  renderDebug(info, enabled) {
+  renderDebug(info, enabled, context = {}) {
     const panel = this.root.getElementById('debug-info');
     if (!panel) return;
     panel.classList.toggle('hidden', !enabled);
     if (!enabled) { panel.textContent = ''; return; }
-    panel.textContent = !info || info.unavailable ? t('debugInfoUnavailable') : t('debugInfoStats', {
+    const { view, settings } = context;
+    const statsText = !info || info.unavailable ? t('debugInfoUnavailable') : t('debugInfoStats', {
       backend: info.mode === 'chrome' ? 'Chrome' : 'Obsidian', running: info.activeCalls, calls: info.totalCalls,
       words: info.promptWords?.toLocaleString(), last: info.lastPromptWords?.toLocaleString(),
     });
+
+    const lines = [statsText];
+
+    if (settings) {
+      const sParts = [];
+      const isChrome = settings.isChromeMode ? settings.isChromeMode() : settings.connectionMode === 'chrome';
+      if (isChrome) {
+        const provider = settings.chromeAiProvider || 'Gemini';
+        const model = settings.chromeAiModel ? ` / ${settings.chromeAiModel}` : '';
+        sParts.push(`Backend: Chrome (${provider}${model})`);
+      } else {
+        const status = settings.serverOnline ? 'online' : 'offline';
+        sParts.push(`Backend: Obsidian (${status})`);
+      }
+      if (settings.analysisMode) {
+        sParts.push(`Analysis: ${settings.analysisMode}`);
+      }
+      const optConv = view?.optimizeForConversation ?? settings.optimizeForConversation;
+      if (optConv != null) {
+        sParts.push(`Discussion opt: ${optConv !== false ? 'ON' : 'OFF'}`);
+      }
+      const sections = view?.enabledSections || settings.enabledSections || {};
+      const activeSecs = [];
+      if (sections.titleVerdict !== false) activeSecs.push('Verdict');
+      if (sections.coreSummary !== false) activeSecs.push('Summary');
+      if (sections.mindMap !== false) activeSecs.push('MindMap');
+      if (sections.discussion === true) activeSecs.push('Discussion');
+      if (view?.generateKnowledgeEntries || settings.generateKnowledgeEntries) activeSecs.push('Knowledge');
+      if (activeSecs.length) {
+        sParts.push(`Sections: ${activeSecs.join(', ')}`);
+      }
+      if (settings.outputLanguage && settings.outputLanguage !== 'same-as-content') {
+        sParts.push(`Lang: ${settings.outputLanguage}`);
+      }
+      if (sParts.length) {
+        lines.push(`⚙️ Settings: ${sParts.join(' · ')}`);
+      }
+    }
+
+    if (view) {
+      const stParts = [];
+      if (view.operations?.analysis?.running) {
+        const phase = view.operations.analysis.phase ? ` (${view.operations.analysis.phase})` : '';
+        stParts.push(`Pipeline: running${phase}`);
+      } else if (view.analysisResult) {
+        const stage = view.analysisResult.stage ? ` (${view.analysisResult.stage})` : '';
+        stParts.push(`Pipeline: complete${stage}`);
+      } else {
+        stParts.push('Pipeline: idle');
+      }
+
+      const content = view.extractedContent;
+      if (content?.content) {
+        const len = content.content.length;
+        const chunkCount = len <= 30000 ? 1 : Math.ceil(len / 30000);
+        const type = content.isVideo ? 'Video' : (content.sourceType || 'Content');
+        stParts.push(`Content: ${len.toLocaleString()} chars (${chunkCount} ${chunkCount === 1 ? 'chunk' : 'chunks'}) · ${type}`);
+      }
+
+      if (view.analysisResult?.conversation?.format) {
+        stParts.push(`Format: ${view.analysisResult.conversation.format}`);
+      }
+
+      const eggs = view.analysisResult?.matchedEggs || (view.selectedEggs?.length ? view.selectedEggs : null);
+      if (eggs?.length) {
+        const eggList = Array.isArray(eggs) ? eggs : [...eggs];
+        stParts.push(`Eggs: ${eggList.length} matched (${eggList.join(', ')})`);
+      }
+
+      if (stParts.length) {
+        lines.push(`📊 Status: ${stParts.join(' · ')}`);
+      }
+    }
+
+    panel.textContent = lines.join('\n');
   }
 }
 

@@ -101,6 +101,27 @@ test('debug preference defaults off, renders tab counters only when enabled and 
   ui.renderDebug(null, false); assert.equal(panel.textContent, '');
 });
 
+test('debug info displays settings and status when enabled', () => {
+  const root = createMockRoot(), ui = new MetricsComponent(root), panel = root.getElementById('debug-info');
+  const view = {
+    operations: { analysis: { running: false } },
+    analysisResult: { stage: 'stage1', conversation: { format: 'interview' }, matchedEggs: ['tech.md', 'ai.md'] },
+    extractedContent: { content: 'a'.repeat(35000), isVideo: true },
+    enabledSections: { titleVerdict: true, coreSummary: true, mindMap: true },
+    optimizeForConversation: true,
+  };
+  const settings = {
+    isChromeMode: () => true,
+    chromeAiProvider: 'gemini',
+    chromeAiModel: 'gemini-2.5-flash',
+    analysisMode: 'full',
+  };
+  ui.renderDebug({ mode: 'chrome', activeCalls: 0, totalCalls: 5, promptWords: 24000, lastPromptWords: 8000 }, true, { view, settings });
+  assert.match(panel.textContent, /Chrome.*5 calls total/);
+  assert.match(panel.textContent, /Settings.*Backend: Chrome \(gemini \/ gemini-2\.5-flash\).*Analysis: full.*Discussion opt: ON/);
+  assert.match(panel.textContent, /Status.*Pipeline: complete \(stage1\).*35,000 chars \(2 chunks\).*Video.*Format: interview.*Eggs: 2 matched/);
+});
+
 test('debug polling is opt-in and rejects stale backend responses and disabled preference', async () => {
   const { store, service, operations } = fixture(); let requests = 0;
   store.settings = { debugInfo: false, isChromeMode: () => true };
