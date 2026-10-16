@@ -4,6 +4,7 @@ The content reader now uses exact platform host/path detection, application-rout
 
 ## Runtime behavior
 
+- Opening a page or activating its tab checks saved history before starting page extraction, independently of connection readiness. A cached body avoids a fresh capture; a miss, lookup failure, or analysis-only entry falls through to extraction. Explicit refresh bypasses saved history. Navigation generations and user intent still guard late lookups, and a pending manual extraction takes precedence over automatic history selection.
 - Article/generic readiness observes the selected body for 300 ms of stable text, for at most one second per attempt. Short complete bodies remain usable. Missing bodies and loaders remain retryable; explicit access restrictions preserve available text and report a warning.
 - The reader preserves headings, links, code whitespace, lists, quotes, captions, and simple tables. Merged tables use row text. Hidden controls and comment/sidebar/navigation regions are excluded.
 - Open shadow roots, slots, and accessible same-origin frames participate in selection and serialization. Limits: 64 roots, 16 frames, four boundary levels, 100,000 visited nodes; candidate scoring inspects at most 128 candidates per root. A reached limit records partial coverage.

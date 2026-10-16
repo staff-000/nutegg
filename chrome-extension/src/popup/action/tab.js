@@ -37,12 +37,12 @@ class TabAction {
     const tabId = this.store.activeTabId;
     if (tabId != null) {
       if (forceExtract) this.store.invalidateTab(tabId, this.store.getTab(tabId)?.url);
-      return this.handleTabActivated({ tabId });
+      return this.handleTabActivated({ tabId }, { forceExtract });
     }
     const epoch = this.store.activationEpoch;
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (epoch !== this.store.activationEpoch || !tab) return;
-    return this.handleTabActivated({ tabId: tab.id });
+    return this.handleTabActivated({ tabId: tab.id }, { forceExtract });
   }
   handleTabActivated({ tabId }, options = {}) {
     this.store.ensure(tabId);
@@ -62,36 +62,33 @@ class TabAction {
         loading: tab.status === 'loading',
       });
       const statusPromise = this.envService.checkServerStatus();
-      const current = this.store.getTab(lease.tabId);
-      // Page content does not depend on Obsidian. Start it while connection
-      // readiness is checked; reuse any extraction already running for this page.
-      const captureTask =
-        current.operations.extraction?.running || (!current.analysisResult && !current.extractedContent)
-          ? this.operations.extract(lease.tabId, options)
-          : null;
-      // History depends on sourceVersion, so load it after capture settles.
-      await Promise.all([statusPromise, captureTask]);
+      // Restore saved content before touching the page. History routes through
+      // the worker using the saved mode and does not need connection readiness.
+      await Promise.all([statusPromise, this.restoreOrExtract(lease, record, options)]);
       if (!this.store.isActivationCurrent(lease)) return;
       const isChrome = this.settings.isChromeMode();
-      if (this.settings.serverOnline || isChrome) {
-        if (this.settings.serverOnline && !isChrome) void this.operations.catalog();
-        if (!this.store.getTab(lease.tabId).analysisResult && !this.store.isBusy(lease.tabId)) {
-          await this.operations.history(lease.tabId, true, record.selectionRevision);
-          if (!this.store.isActivationCurrent(lease)) return;
-        }
-      }
-      const afterHistory = this.store.getTab(lease.tabId);
-      if (
-        !captureTask &&
-        !afterHistory.analysisResult &&
-        (!afterHistory.extractedContent || afterHistory.operations.extraction?.running)
-      ) {
-        await this.operations.extract(lease.tabId, options);
-        if (!this.store.isActivationCurrent(lease)) return;
-      }
+      if (this.settings.serverOnline && !isChrome) void this.operations.catalog();
     } catch (error) {
       if (this.store.isActivationCurrent(lease))
         this.store.dispatch({ type: 'notice', tabId: lease.tabId, message: error.message });
+    }
+  }
+  async restoreOrExtract(lease, record, options) {
+    const current = this.store.getTab(lease.tabId);
+    if (
+      !options.forceExtract &&
+      !current.analysisResult &&
+      !current.operations.extraction?.running &&
+      !this.store.isBusy(lease.tabId)
+    ) {
+      await this.operations.history(lease.tabId, true, record.selectionRevision);
+    }
+    if (!this.store.isActivationCurrent(lease) || this.store.isBusy(lease.tabId)) return;
+    const restored = this.store.getTab(lease.tabId);
+    // A user action during lookup takes precedence over automatic capture.
+    if (restored.intentRevision !== record.intentRevision) return;
+    if (restored.operations.extraction?.running || !restored.extractedContent) {
+      await this.operations.extract(lease.tabId, options);
     }
   }
   async handleVisibilityChange() {

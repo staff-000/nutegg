@@ -449,6 +449,7 @@ class TabStateManager {
           event.select &&
           event.history.length &&
           !this.isBusy(tabId) &&
+          !next.operations.extraction?.running &&
           (event.selectionIntent == null || event.selectionIntent === next.intentRevision)
         )
           this.applyHistory(next, event.history[0]);

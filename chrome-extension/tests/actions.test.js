@@ -32,17 +32,17 @@ test('URL changes and reloads invalidate background jobs immediately', () => {
   f.store.dispatch({ type: 'loading', tabId: 1, loading: false }); f.tab.handleTabUpdated(1, { status: 'loading' });
   assert(f.store.getTab(1).pageGeneration > generation);
 });
-test('slow activation setup cannot load old history after analysis completes', async t => {
+test('slow history lookup cannot replace analysis completed during activation', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
-  const f = actions(); const status = deferred();
+  const f = actions(); const status = deferred(), saved = deferred();
   globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
   f.deps.envService.checkServerStatus = () => status.promise;
-  let histories = 0; f.service.loadHistory = async () => { histories++; return [{ result: { titleVerdict: 'Old history' } }]; };
+  let histories = 0; f.service.loadHistory = async () => { histories++; return saved.promise; };
   const setup = f.tab.handleTabActivated({ tabId: 1 });
   await new Promise(resolve => setImmediate(resolve));
   const job = f.analyze.handleAnalyze(); f.calls[0].resolve({ titleVerdict: 'New analysis' }); await job;
-  status.resolve(); await setup;
-  assert.equal(histories, 0); assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'New analysis');
+  saved.resolve([{ result: { titleVerdict: 'Old history' } }]); status.resolve(); await setup;
+  assert.equal(histories, 1); assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'New analysis');
 });
 
 test('fresh page capture finishes while the Obsidian connection check is pending', async t => {
@@ -57,24 +57,26 @@ test('fresh page capture finishes while the Obsidian connection check is pending
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.store.getTab(1).extractedContent.content, 'Extracted');
   assert.equal(f.store.getTab(1).operations.extraction.running, false);
-  assert.equal(histories, 0);
+  assert.equal(histories, 1);
   status.resolve(); await setup;
   assert.equal(histories, 1);
 });
 
-test('pending connection checks cannot restore history after switching tabs', async t => {
+test('pending history lookup cannot start extraction after switching tabs', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
-  const f = actions(), status = deferred();
+  const f = actions(), status = deferred(), saved = deferred();
   globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
   f.store.invalidateTab(1, 'https://tab1.test');
   f.deps.envService.checkServerStatus = () => status.promise;
-  let histories = 0;
-  f.service.loadHistory = async () => { histories++; return []; };
+  let histories = 0, extractions = 0;
+  f.service.loadHistory = async () => { histories++; return saved.promise; };
+  f.extractor.extractPage = async () => { extractions++; return { content: 'Obsolete page' }; };
   const setup = f.tab.handleTabActivated({ tabId: 1 });
   await new Promise(resolve => setImmediate(resolve));
   f.store.activateTab(2);
-  status.resolve(); await setup;
-  assert.equal(histories, 0);
+  saved.resolve([]); status.resolve(); await setup;
+  assert.equal(histories, 1);
+  assert.equal(extractions, 0);
   assert.equal(f.store.activeTabId, 2);
   assert.equal(f.store.getTab(2).extractedContent.content, 'Content 2');
 });
@@ -232,7 +234,7 @@ test('URL-only navigation extracts the new route after settling; fragments retai
   assert.equal(extractions, 1);
 });
 
-test('activation captures immediately and then restores saved analysis', async t => {
+test('activation restores saved analysis before fetching and skips extraction on a cache hit', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
   const f = actions(); let extractions = 0, histories = 0;
   globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
@@ -241,7 +243,8 @@ test('activation captures immediately and then restores saved analysis', async t
   f.service.loadHistory = async () => { histories++; return [{ nutId: 99, title: 'Saved capture', content: 'Old content', result: { titleVerdict: 'Saved history' } }]; };
   await f.tab.handleTabActivated({ tabId: 1 });
   assert.equal(histories, 1);
-  assert.equal(extractions, 1, 'Fresh content starts before remote history is available');
+  assert.equal(extractions, 0, 'Saved content avoids a fresh page capture');
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Old content');
   assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Saved history');
   assert.equal(f.store.getTab(1).currentView, 'results');
 });
@@ -258,6 +261,102 @@ test('activation keeps fresh captured content when history is empty', async t =>
   assert.equal(extractions, 1, 'Extraction runs when no history is present');
   assert.equal(f.store.getTab(1).currentView, 'capture');
   assert.equal(f.store.getTab(1).extractedContent.content, 'Fresh content');
+});
+
+for (const mode of ['chrome', 'obsidian']) {
+  test(`${mode} activation waits for cache before capture without waiting for connection readiness`, async t => {
+    const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+    const f = actions(), saved = deferred(), status = deferred();
+    f.settings.setConnectionMode(mode, false);
+    f.settings.setServerStatus({ online: false });
+    f.store.invalidateTab(1, 'https://tab1.test');
+    globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+    f.deps.envService.checkServerStatus = () => status.promise;
+    let extractions = 0;
+    f.service.loadHistory = () => saved.promise;
+    f.extractor.extractPage = async () => { extractions++; return { content: 'Fresh content' }; };
+    const setup = f.tab.handleTabActivated({ tabId: 1 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(extractions, 0, 'No DOM capture while cache lookup is pending');
+    saved.resolve([{ nutId: 99, content: 'Cached content', result: { titleVerdict: 'Cached analysis' } }]);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(f.store.getTab(1).extractedContent.content, 'Cached content');
+    assert.equal(f.store.getTab(1).currentView, 'results');
+    assert.equal(extractions, 0);
+    status.resolve(); await setup;
+  });
+}
+
+for (const outcome of ['miss', 'failure', 'missing body']) {
+  test(`cache ${outcome} falls through to fresh capture`, async t => {
+    const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+    const f = actions(), saved = deferred();
+    f.store.invalidateTab(1, 'https://tab1.test');
+    globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+    let extractions = 0;
+    f.service.loadHistory = () => saved.promise;
+    f.extractor.extractPage = async () => {
+      extractions++;
+      if (outcome === 'missing body') assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Cached analysis');
+      return { url: 'https://tab1.test', content: 'Fresh body' };
+    };
+    const setup = f.tab.handleTabActivated({ tabId: 1 });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(extractions, 0);
+    if (outcome === 'failure') saved.reject(new Error('Cache unavailable'));
+    else saved.resolve(outcome === 'miss' ? [] : [{ result: { titleVerdict: 'Cached analysis' } }]);
+    await setup;
+    assert.equal(extractions, 1);
+    assert.equal(f.store.getTab(1).extractedContent.content, 'Fresh body');
+  });
+}
+
+test('explicit forced refresh bypasses saved history', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(); let histories = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.service.loadHistory = async () => { histories++; return [{ content: 'Cached', result: {} }]; };
+  await f.tab.refreshForCurrentTab(true);
+  assert.equal(histories, 0);
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Extracted');
+});
+
+test('a pending cache lookup cannot fetch or restore a previous route after navigation away and back', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), saved = deferred(); let extractions = 0;
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.service.loadHistory = () => saved.promise;
+  f.extractor.extractPage = async () => { extractions++; return { content: 'Obsolete' }; };
+  const setup = f.tab.handleTabActivated({ tabId: 1 });
+  await new Promise(resolve => setImmediate(resolve));
+  f.store.invalidateTab(1, 'https://other.test');
+  f.store.invalidateTab(1, 'https://tab1.test');
+  saved.resolve([{ content: 'Old content', result: { titleVerdict: 'Obsolete' } }]);
+  await setup;
+  assert.equal(extractions, 0);
+  assert.equal(f.store.getTab(1).analysisResult, null);
+  assert.equal(f.store.getTab(1).extractedContent, null);
+});
+
+test('manual refresh during cache lookup keeps its fresh body and does not restore cached analysis', async t => {
+  const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
+  const f = actions(), saved = deferred(), capture = deferred();
+  globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.service.loadHistory = () => saved.promise;
+  f.extractor.extractPage = () => capture.promise;
+  const setup = f.tab.handleTabActivated({ tabId: 1 });
+  await new Promise(resolve => setImmediate(resolve));
+  const refresh = f.tab.refreshCaptureForCurrentTab();
+  await new Promise(resolve => setImmediate(resolve));
+  saved.resolve([{ content: 'Cached body', result: { titleVerdict: 'Cached analysis' } }]);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.store.getTab(1).analysisResult, null);
+  capture.resolve({ url: 'https://tab1.test', content: 'Manual fresh body' });
+  await Promise.all([refresh, setup]);
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Manual fresh body');
+  assert.equal(f.store.getTab(1).analysisResult, null);
 });
 
 test('reanalyze refreshes content by default before running analysis', async t => {
