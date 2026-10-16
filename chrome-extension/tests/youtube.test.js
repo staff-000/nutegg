@@ -94,7 +94,7 @@ test('stale player response and caption tracks from the previous video are ignor
   const oldResponse = { videoDetails: { videoId: 'old' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=old' }] } } };
   const scripts = [{ textContent: `var ytInitialPlayerResponse = ${JSON.stringify(oldResponse)};` }];
   const context = vm.createContext({ URL, window: { location: { href: 'https://www.youtube.com/watch?v=new' } }, document: { querySelectorAll: () => scripts } });
-  for (const file of ['utils', 'extractors/youtube']) vm.runInContext(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'), context);
+  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'extractors/youtube']) vm.runInContext(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'), context);
   assert.equal(context.readYtInitialPlayerResponse(), null);
   assert.equal(context.findCaptionTracksInDom(), null);
   scripts.push({ textContent: '"captionTracks":[{"baseUrl":"https://www.youtube.com/api/timedtext?v=new"}]' });
@@ -172,7 +172,7 @@ function youtubeFixture(t, html = '', videoId = 'new') {
     window: dom.window, document: dom.window.document, location: dom.window.location,
     chrome: { runtime: { sendMessage: async () => ({ success: false }) } },
     console: { log() {}, warn() {} }, fetch: async () => { throw new Error('Unexpected fetch'); } });
-  for (const file of ['utils', 'extractors/youtube']) {
+  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'extractors/youtube']) {
     vm.runInContext(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'), sandbox);
   }
   return { c: sandbox, dom };
@@ -703,4 +703,23 @@ test('worker boots with the merged extractor and dispatches one content snapshot
   assert.equal(imported.includes('youtube-snapshot.js'), false);
   assert.equal(responses.length, 1);
   assert.equal(responses[0].snapshot.videoId, 'h6vY3g8LFeA');
+});
+
+test('multiple stalled local tracks cannot starve fresh discovery and the panel budget', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const {c} = youtubeFixture(t);
+  const tracks = ['a','b','c'].map(id => ytTrack('new',id));
+  c.findCaptionTracksInDom = () => tracks;
+  c.queryYouTubePlayerSnapshot = async () => ({videoId:'new',tracks});
+  c.fetch = async (url, options) => {
+    if (url.includes('/watch?')) return {ok:true,status:200,text:async()=> 'No tracks'};
+    return {ok:true,status:200,text:()=>new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new Error('Aborted')),{once:true}))};
+  };
+  let panelStarted;
+  c.readTranscriptPanel = async () => {panelStarted=Date.now();return '[00:01] Recovered transcript';};
+  const ctx=c.createCaptureContext({deadline:Date.now()+6000}); t.after(()=>ctx.dispose());
+  const pending=c.fetchYouTubeCaptions({},ctx);
+  await flushYoutube();await advanceYoutube(t,4000);
+  assert.equal(await pending,'[00:01] Recovered transcript');
+  assert.ok(panelStarted<=5000);assert.equal(ctx.signal.aborted,false);
 });

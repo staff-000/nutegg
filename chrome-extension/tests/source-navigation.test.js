@@ -7,7 +7,7 @@ function page(t, html, url = 'https://example.test/article') {
   t.after(() => dom.window.close());
   const win = dom.window, scrolled = [];
   win.HTMLElement.prototype.scrollIntoView = function() { scrolled.push(this); };
-  for (const file of ['extractors/discussion', 'source-navigation']) win.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
+  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'extractors/discussion', 'source-navigation']) win.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
   return { win, nav: win.NutEggSources, scrolled };
 }
 test('text jumps prefer exact supporting passages over broad headings and handle inline markup', async t => {
@@ -69,4 +69,16 @@ test('content-script messaging keeps the response channel open and reports the r
   });
   assert.equal(response.success, true);
   assert.equal(scrolled[0].id, 'evidence');
+});
+
+test('same-origin framed quotes reveal the frame and scroll its exact passage', async t => {
+  const {win,nav,scrolled}=page(t,'<iframe></iframe>'); const frame=win.document.querySelector('iframe');
+  frame.contentDocument.body.innerHTML='<article><h2>Embedded heading</h2><p id="passage">Distinctive evidence inside an embedded guide.</p></article>';
+  const inside=[];frame.contentWindow.HTMLElement.prototype.scrollIntoView=function(){inside.push(this);};
+  const result=await nav.jump({quote:'Distinctive evidence inside an embedded guide.',expectedUrl:win.location.href});
+  assert.equal(result.success,true);assert.equal(scrolled[0],frame);assert.equal(inside[0].id,'passage');
+});
+test('source jumps reject another application hash route',async t=>{
+  const {nav}=page(t,'<h2>Heading</h2>','https://example.test/#/one');
+  assert.equal((await nav.jump({heading:'Heading',expectedUrl:'https://example.test/#/two'})).reason,'page_changed');
 });

@@ -1,3 +1,4 @@
+import { isApplicationHash } from './page-identity';
 export interface VideoIdentity {
   platform: 'youtube' | 'bilibili';
   id: string;
@@ -46,7 +47,7 @@ export function normalizeContentUrl(url: string): string {
   if (video) return video.canonicalUrl;
   try {
     const u = new URL(url);
-    u.hash = '';
+    if (!isApplicationHash(u.hash)) u.hash = '';
     if (
       ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com'].includes(u.hostname.toLowerCase())
     ) {

@@ -1,4 +1,9 @@
 export const ko = {
+  captureTruncatedWarning: '캡처 한도를 초과하여 원문 일부만 가져왔습니다.',
+  captureAccessWarning: '일부 콘텐츠는 로그인 또는 구독이 필요합니다.',
+  captureTraversalWarning: '캡처 한도로 인해 일부 삽입된 콘텐츠를 확인하지 못했습니다.',
+  captureRetryIncomplete: '콘텐츠가 아직 로딩 중일 수 있습니다. 새로고침하여 다시 시도하세요.',
+  captureCoverageTitle: '캡처 범위',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

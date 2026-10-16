@@ -1,4 +1,9 @@
 export const de = {
+  captureTruncatedWarning: 'Die Quelle überschreitet das Erfassungslimit und wurde nur teilweise erfasst.',
+  captureAccessWarning: 'Ein Teil des Inhalts erfordert eine Anmeldung oder ein Abonnement.',
+  captureTraversalWarning: 'Einige eingebettete Inhalte konnten innerhalb der Erfassungsgrenzen nicht geprüft werden.',
+  captureRetryIncomplete: 'Die Inhalte werden möglicherweise noch geladen. Zum erneuten Versuch aktualisieren.',
+  captureCoverageTitle: 'Erfassungsumfang',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

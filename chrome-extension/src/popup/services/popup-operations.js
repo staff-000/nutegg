@@ -102,7 +102,12 @@ class PopupOperations {
         load,
         isCancelled: cancelled,
         onUpdate: (discussion, loading) => {
-          if (cancelled() || discussion.url?.split('#')[0] !== ctx.tab.url?.split('#')[0]) return;
+          if (
+            cancelled() ||
+            globalThis.NutEggAI.capturePageKey(discussion.url || '') !==
+              globalThis.NutEggAI.capturePageKey(ctx.tab.url || '')
+          )
+            return;
           this.store.commitOperation(ctx.token, { type: 'discussionUpdated', discussion, loading, passive });
         },
       });

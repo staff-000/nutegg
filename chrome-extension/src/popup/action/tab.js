@@ -107,7 +107,9 @@ class TabAction {
     const existing = this.store.getTab(tabId);
     if (!existing) return;
     const fragmentOnly =
-      changeInfo.url && changeInfo.url.split('#')[0] === existing.url.split('#')[0] && changeInfo.status !== 'loading';
+      changeInfo.url &&
+      globalThis.NutEggAI.capturePageKey(changeInfo.url) === globalThis.NutEggAI.capturePageKey(existing.url) &&
+      changeInfo.status !== 'loading';
     if (fragmentOnly) {
       this.store.dispatch({
         type: 'pageInfo',

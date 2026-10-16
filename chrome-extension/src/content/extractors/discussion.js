@@ -111,7 +111,7 @@
     return { name: 'generic', ...adapters.generic };
   }
   function reset() {
-    const url = location.href.split('#')[0];
+    const url = NutEggPageIdentity.capturePageKey(location.href);
     if (page !== url) {
       stop();
       page = url;

@@ -230,3 +230,13 @@ describe("KnowledgeBase preserves original analysis", () => {
     assert.equal(await kb.readRawAnalysis('missing.md'), null);
   });
 });
+
+
+it('raw archives preserve known capture limitations separately from the source body', async () => {
+  const {kb,files}=makeKb();
+  const path=await kb.saveRaw({url:'https://example.test/#/one',title:'Partial',content:'Original source passage.',sourceType:'article',processingResult:'unprocessed',captureCoverage:{reasons:['truncated'],originalCharacters:65000,capturedCharacters:60000}});
+  const note=files.get(path)!;
+  assert.match(note,/capture_coverage:.*truncated/);
+  assert.match(note,/> \[!warning\] Capture coverage/);
+  assert.match(note,/Original source passage\./);
+});

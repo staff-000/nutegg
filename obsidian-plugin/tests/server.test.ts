@@ -997,3 +997,13 @@ it('shared state contains no API credentials and defaults subscription capabilit
   assert.equal(s.execution.snapshot().subscriptionAvailable,false);
   assert.ok(!JSON.stringify(s.execution.snapshot()).includes('private-api-key'));
 });
+
+
+it('capture snapshots preserve validated coverage without treating it as source evidence', () => {
+  const s=makeServer();
+  const payload={url:'https://example.test',title:'Partial article',content:'Body',sourceType:'article',captureCoverage:{reasons:['truncated','truncated','invented'],originalCharacters:65000,capturedCharacters:60000,secret:'omit'}};
+  const snapshot=s.captureSnapshot(payload);
+  assert.deepEqual(snapshot.captureCoverage,{reasons:['truncated'],originalCharacters:65000,capturedCharacters:60000});
+  assert.equal(snapshot.content,'Body');
+  assert.equal(s.captureSnapshot({...payload,captureCoverage:undefined}).captureCoverage,undefined);
+});

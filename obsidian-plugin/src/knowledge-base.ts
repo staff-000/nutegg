@@ -1,4 +1,6 @@
-import type { DiscussionCapture, AnalysisSectionsConfig } from '../../shared/src/types';
+import type { CaptureCoverage, DiscussionCapture, AnalysisSectionsConfig } from '../../shared/src/types';
+import { t } from './i18n';
+import { normalizeCaptureCoverage } from '../../shared/src/capture-coverage';
 import type NutEggPlugin from './main';
 import { EggParser, resolveEggPath } from './egg-parser';
 import { randomUUID } from 'crypto';
@@ -20,6 +22,7 @@ export class KnowledgeBase {
    */
   async saveRaw(capture: {
     discussion?: DiscussionCapture;
+    captureCoverage?: CaptureCoverage;
     enabledSections?: Partial<AnalysisSectionsConfig>;
     url: string;
     title: string;
@@ -32,6 +35,7 @@ export class KnowledgeBase {
     processingResult: 'saved' | 'skip' | 'unprocessed';
   }): Promise<string> {
     const folder = this.plugin.settings.rawFolder;
+    const coverage = normalizeCaptureCoverage(capture.captureCoverage);
     await this.ensureFolder(folder);
 
     const safeTitle = this.sanitizeFileName(capture.title);
@@ -113,12 +117,26 @@ export class KnowledgeBase {
       }
     }
 
+    if (coverage) frontmatterLines.push(`capture_coverage: ${JSON.stringify(coverage)}`);
     frontmatterLines.push('---');
     frontmatterLines.push('');
     frontmatterLines.push(`# ${capture.title}`);
     frontmatterLines.push('');
     frontmatterLines.push(`**Source:** ${capture.url}`);
     frontmatterLines.push('');
+    if (coverage) {
+      const labels = {
+        truncated: 'captureTruncatedWarning',
+        loading_timeout: 'captureRetryIncomplete',
+        access_restricted: 'captureAccessWarning',
+        traversal_limit: 'captureTraversalWarning',
+      } as const;
+      frontmatterLines.push(
+        `> [!warning] ${t('captureCoverageTitle')}`,
+        `> ${coverage.reasons.map(reason => t(labels[reason])).join(' ')}`,
+        ''
+      );
+    }
     frontmatterLines.push(capture.content);
     if (capture.enabledSections?.discussion && capture.discussion) {
       frontmatterLines.push(

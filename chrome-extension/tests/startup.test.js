@@ -92,7 +92,7 @@ test('environment requests are deduplicated, and superseded status/credit never 
   a.resolve({ online: true }); await first; assert.equal(settings.serverOnline, false);
 });
 
-test('offline Obsidian mode checks Chrome readiness and uses Chrome credit', async () => {
+test('offline Obsidian readiness does not initiate Chrome credit requests', async () => {
   const settings = new SettingsState(), store = new TabStateManager(), calls = [];
   settings.setConnectionMode('obsidian', false);
   const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
@@ -102,15 +102,14 @@ test('offline Obsidian mode checks Chrome readiness and uses Chrome credit', asy
     return { online: false };
   } } } });
   await env.checkServerStatus();
-  assert.deepEqual(calls, ['check-server', 'check-chrome-ai', 'metrics', 'check-chrome-credit']);
+  assert.deepEqual(calls, ['check-server', 'check-chrome-ai', 'metrics']);
   assert.equal(settings.serverOnline, false);
   assert.equal(settings.obsidianAiConfigured, false);
   assert.equal(settings.chromeAiConfigured, true);
-  assert.equal(settings.isChromeMode(), true);
+  assert.equal(settings.isChromeMode(), false);
   assert.equal(settings.connectionMode, 'obsidian');
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(store.environment.credit.isChromeAi, true);
-  assert.equal(store.environment.credit.balanceFormatted, '¥8.33');
+  assert.equal(store.environment.credit, null);
 });
 
 test('Obsidian reconnects after fallback and ignores a late Chrome balance response', async () => {

@@ -1,4 +1,9 @@
 export const ru = {
+  captureTruncatedWarning: 'Источник превышает лимит захвата, поэтому сохранена только его часть.',
+  captureAccessWarning: 'Часть содержимого требует входа или подписки.',
+  captureTraversalWarning: 'Часть встроенного содержимого не удалось проверить в пределах лимитов захвата.',
+  captureRetryIncomplete: 'Возможно, содержимое ещё загружается. Обновите, чтобы повторить попытку.',
+  captureCoverageTitle: 'Охват захвата',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

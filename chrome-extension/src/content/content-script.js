@@ -65,16 +65,32 @@ async function extractContent(discussionSessionId, context) {
       context?.check();
       if (ex.detect()) {
         console.log(`[NutEgg] Using extractor: ${ex.name}`);
-        const capture = await ex.extract(context);
+        const started = Date.now();
+        if (context && ['article', 'generic'].includes(ex.name)) await discoverCaptureRoots(context);
+        let capture = await ex.extract(context);
+        if (capture && context) context.partial = capture;
+        if (capture && ['article', 'generic'].includes(ex.name))
+          capture = await settleTextCapture(capture, ex.extract, context);
+        if (context)
+          (context.diagnostics ||= []).push({
+            extractor: ex.name,
+            attempt: context.attempt,
+            elapsed: Date.now() - started,
+            outcome: capture?.extractionStatus || 'empty',
+            coverage: capture?.captureCoverage?.reasons || [],
+          });
         context?.check();
         if (!capture) continue;
         if (capture.transcriptAvailable === false) capture.extractionStatus ||= 'transient';
         else if (capture.transcriptAvailable === true) capture.extractionStatus = 'ready';
         else if (
-          !capture.content?.trim() ||
-          (capture.extractionStatus !== 'ready' &&
-            (document.readyState !== 'complete' ||
-              document.querySelector('main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]')))
+          capture.extractionStatus !== 'unavailable' &&
+          (!capture.content?.trim() ||
+            (capture.extractionStatus !== 'ready' &&
+              (document.readyState !== 'complete' ||
+                document.querySelector(
+                  'main[aria-busy="true"], article[aria-busy="true"], main [role="progressbar"]'
+                ))))
         ) {
           capture.extractionStatus = 'not_ready';
         }
@@ -109,11 +125,13 @@ async function runCaptureRequest(message) {
     .wait(Promise.resolve().then(() => extractContent(message.discussionSessionId, context)))
     .catch(error => {
       if (error.code === 'timeout' && context.partial && context.isCurrent()) {
-        return { ...context.partial, extractionStatus: 'transient' };
+        return addCaptureCoverage({ ...context.partial, extractionStatus: 'transient' }, 'loading_timeout');
       }
       throw error;
     })
     .finally(() => {
+      if (context.diagnostics?.length)
+        state.diagnostics = [...(state.diagnostics || []), ...context.diagnostics].slice(-100);
       context.dispose();
       if (state.active === job) state.active = null;
     });
@@ -124,6 +142,20 @@ async function runCaptureRequest(message) {
 if (!window.__nutegg_listener_attached) {
   window.__nutegg_listener_attached = true;
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.action === 'capture-navigation') {
+      const active = window.__nuteggCaptureState?.active?.context;
+      if (
+        active &&
+        message.observedAt >= active.startedAt &&
+        (!message.previousKey || message.previousKey === capturePageKey(active.url)) &&
+        capturePageKey(active.url) !== message.key
+      ) {
+        window.__nuteggNavigationState.generation++;
+        active.abort('stale');
+      }
+      sendResponse({ success: true });
+      return false;
+    }
     if (message.action === 'cancel-extraction') {
       const state = window.__nuteggCaptureState;
       if (state?.active?.id === message.requestId) state.active.context.abort();
@@ -185,7 +217,9 @@ if (!window.__nutegg_listener_attached) {
       }
       // Cheap page-state check (no transcript fetching) — the popup uses it to
       // wait for the page to settle and to detect SPA navigation races.
-      const isTwitter = window.location.href.includes('twitter.com') || window.location.href.includes('x.com');
+      const isTwitter =
+        ['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(location.href, domain)) &&
+        /\/status\/|\/article\//.test(pageUrl.pathname);
       const twitterReady =
         !isTwitter ||
         !!document.querySelector(

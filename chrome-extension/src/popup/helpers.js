@@ -176,7 +176,8 @@ function detectPageTypeFromUrl(url) {
   if (!url) return 'webpage';
   try {
     const host = new URL(url).hostname;
-    if (host.includes('youtube.com') || host === 'youtu.be') return 'youtube';
+    const belongs = domain => host === domain || host.endsWith(`.${domain}`);
+    if (belongs('youtube.com') || belongs('youtu.be')) return 'youtube';
     for (const [domain, type] of [
       ['bilibili.com', 'bilibili'],
       ['douyin.com', 'douyin'],
@@ -186,8 +187,8 @@ function detectPageTypeFromUrl(url) {
     ]) {
       if (host === domain || host.endsWith(`.${domain}`)) return type;
     }
-    if (host.includes('tiktok.com')) return 'tiktok';
-    if (host.includes('twitter.com') || host === 'x.com') return 'twitter';
+    if (belongs('tiktok.com')) return 'tiktok';
+    if (belongs('twitter.com') || belongs('x.com')) return 'twitter';
   } catch {}
   return 'webpage';
 }
@@ -290,7 +291,7 @@ function isTranscriptBlocked(extractedContent) {
 }
 
 /** One extraction notice for both the tab warning and the fetched-content preview. */
-function getExtractionWarning(content) {
+function getBaseExtractionWarning(content) {
   if (!content) return null;
   // A long description cannot substitute for a missing transcript.
   if (isTranscriptBlocked(content)) return t('transcriptBlockedWarning');
@@ -300,6 +301,21 @@ function getExtractionWarning(content) {
   const words = content.discussion?.kind === 'forum' ? countCapturedWords(content) : countWords(content.content || '');
   const sourceType = isVideoMediaSource(content) ? 'video' : content.sourceType;
   return isContentSuspiciouslyLow(words, sourceType) ? t('contentLowWarning', { count: words.toLocaleString() }) : null;
+}
+
+function getExtractionWarning(content) {
+  const base = getBaseExtractionWarning(content);
+  const keys = {
+    truncated: 'captureTruncatedWarning',
+    loading_timeout: 'captureRetryIncomplete',
+    access_restricted: 'captureAccessWarning',
+    traversal_limit: 'captureTraversalWarning',
+  };
+  const warnings = [
+    base,
+    ...(content?.captureCoverage?.reasons || []).map(reason => (Object.hasOwn(keys, reason) ? t(keys[reason]) : null)),
+  ].filter(Boolean);
+  return [...new Set(warnings)].join(' ') || null;
 }
 
 /** A selected egg needs its own result before knowledge can be hatched into it. */

@@ -1,4 +1,9 @@
 export const ar = {
+  captureTruncatedWarning: 'تم التقاط جزء من المصدر فقط لأنه يتجاوز حد الالتقاط.',
+  captureAccessWarning: 'يتطلب جزء من المحتوى تسجيل الدخول أو اشتراكًا.',
+  captureTraversalWarning: 'تعذر فحص بعض المحتوى المضمّن ضمن حدود الالتقاط.',
+  captureRetryIncomplete: 'قد يكون المحتوى لا يزال قيد التحميل. حدّث الصفحة للمحاولة مجددًا.',
+  captureCoverageTitle: 'نطاق الالتقاط',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

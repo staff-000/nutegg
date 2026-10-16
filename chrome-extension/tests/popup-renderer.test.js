@@ -587,3 +587,17 @@ test('workflow update notice from environment issues renders in Chrome warning b
 
   assert.equal(f.ui.bannersUI.warningBanner.classList.contains('hidden'), true);
 });
+
+
+test('coverage notices remain isolated by tab and survive cached-history selection', context => {
+  const f=setup(context);
+  const partial={url:'https://tab1.test',title:'Partial',sourceType:'article',content:'Complete paragraph. '.repeat(250),captureCoverage:{reasons:['truncated']}};
+  const op=f.store.beginOperation(1,'extraction');
+  f.store.commitOperation(op.token,{type:'extracted',content:partial,warning:globalThis.NutEggHelpers.getExtractionWarning(partial)});
+  f.renderer.render();
+  assert.match(f.ui.captureUI.contentPreview.textContent,/capture limit/);
+  f.store.activateTab(2);f.renderer.render();assert.doesNotMatch(f.ui.captureUI.contentPreview.textContent,/capture limit/);
+  f.store.activateTab(1);
+  f.store.dispatch({type:'historySelected',tabId:1,entry:{url:partial.url,title:partial.title,content:partial.content,sourceType:'article',result:{mode:'chrome'},capturePayload:partial}});
+  f.renderer.render();assert.match(f.store.getTab(1).warning,/capture limit/);assert.match(f.ui.captureUI.contentPreview.textContent,/capture limit/);
+});

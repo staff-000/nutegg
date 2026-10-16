@@ -1,9 +1,13 @@
+if (typeof module !== 'undefined' && module.exports)
+  globalThis.NutEggPageIdentity ||= require('../../../dist/page-identity.js');
 // ============================================================
 // NutEgg Popup Services — Page Extractor & Tab Driver
 // ============================================================
 
 const CONTENT_SCRIPT_FILES = [
+  'dist/page-identity.js',
   'src/content/utils.js',
+  'src/content/dom-reader.js',
   'src/content/extractors/youtube.js',
   'src/content/extractors/twitter.js',
   'src/content/extractors/chinese.js',
@@ -255,7 +259,8 @@ class PageExtractor {
     retryDelayMs = Number.isFinite(retryDelayMs) ? Math.max(100, Math.min(10000, retryDelayMs)) : 3000;
     const deadline = Date.now() + timeoutMs;
     const requestPrefix = discussionSessionId || `capture:${Date.now()}:${Math.random()}`;
-    const samePage = url => !expectedUrl || !url || url.split('#')[0] === expectedUrl.split('#')[0];
+    const samePage = url =>
+      !expectedUrl || !url || NutEggPageIdentity.capturePageKey(url) === NutEggPageIdentity.capturePageKey(expectedUrl);
     let youtube = false;
     try {
       const url = new URL(
@@ -298,6 +303,7 @@ class PageExtractor {
       );
       if (isCancelled()) return null;
       if (response?.errorCode === 'stale') return null;
+      if (response?.errorCode === 'embedded_changed') best = null;
       if (response?.errorCode === 'timeout') {
         await this.cancelExtraction(tabId, requestId, Math.max(1, Math.min(500, deadline - Date.now() + 100)));
         if (Date.now() >= deadline) break;
@@ -305,7 +311,11 @@ class PageExtractor {
       const after = await this.withTimeout(this.requestPageIdentity(tabId), Math.max(1, deadline - Date.now()));
       if (isCancelled()) return null;
       if (!samePage(after?.url) || !samePage(response?.content?.url)) return null;
-      if (after?.url && response?.content?.url && after.url.split('#')[0] !== response.content.url.split('#')[0])
+      if (
+        after?.url &&
+        response?.content?.url &&
+        NutEggPageIdentity.capturePageKey(after.url) !== NutEggPageIdentity.capturePageKey(response.content.url)
+      )
         return null;
       const capturedVideoId = response?.content?.metadata?.requested_video_id || response?.content?.metadata?.video_id;
       if (after?.videoId && capturedVideoId && after.videoId !== capturedVideoId) return null;
@@ -375,8 +385,8 @@ class PageExtractor {
    */
   detectPageTypeFromUrl(url = '') {
     if (!url) return '🌐 Webpage';
-    if (url.includes('twitter.com') || url.includes('x.com')) return '🐦 Twitter/X';
-    if (url.includes('youtube.com/watch') || url.includes('youtube.com')) return '📺 YouTube';
+    if (['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(url, domain))) return '🐦 Twitter/X';
+    if (NutEggPageIdentity.hostMatches(url, 'youtube.com')) return '📺 YouTube';
     try {
       const host = new URL(url).hostname;
       for (const [domain, label] of [

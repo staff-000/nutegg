@@ -43,7 +43,7 @@ class EnvironmentService {
       if (version !== this.version || this.settings.connectionMode !== connectionMode) return;
       this.settings.setServerStatus();
       this.settings.chromeAiAuthMethod = ai.authMethod;
-      if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
+      if (this.settings.chromeAiAuthMethod !== 'chatgpt') this.settings.subscriptionState = null;
       this.settings.setChromeAiStatus({
         enabled: true,
         configured: !!ai.configured,
@@ -98,7 +98,7 @@ class EnvironmentService {
         });
       }
     }
-    if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
+    if (this.settings.chromeAiAuthMethod !== 'chatgpt') this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
     this.store.dispatch({
       type: 'environment',
@@ -137,7 +137,7 @@ class EnvironmentService {
         online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)
       )
         return;
-      if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
+      if (this.settings.chromeAiAuthMethod !== 'chatgpt') this.settings.subscriptionState = null;
       this.settings.aiStatusError = error.message || String(error);
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: null } });
     }

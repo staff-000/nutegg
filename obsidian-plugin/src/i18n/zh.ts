@@ -1,6 +1,11 @@
 import type { TranslationKey } from './en';
 
 export const zh: Record<TranslationKey, string> = {
+  captureTruncatedWarning: '内容超出提取上限，仅保存了部分原文。',
+  captureAccessWarning: '部分内容需要登录或订阅才能查看。',
+  captureTraversalWarning: '受提取限制影响，部分嵌入内容未能完整读取。',
+  captureRetryIncomplete: '内容可能仍在加载。请刷新以重试。',
+  captureCoverageTitle: '内容提取范围',
   chatgptLabel: 'ChatGPT 登录',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI 订阅',

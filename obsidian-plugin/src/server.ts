@@ -10,7 +10,8 @@ import type { SubscriptionProvider } from '../../shared/src/types';
 import { normalizeDiscussion } from '../../shared/src/discussion';
 import { getVideoIdentity, normalizeContentUrl } from '../../shared/src/content-url';
 import { getAIDebugInfo, normalizeAIDebugScope } from '../../shared/src/ai-diagnostics';
-import type { CapturePayload, DiscussionCapture } from '../../shared/src/types';
+import { normalizeCaptureCoverage } from '../../shared/src/capture-coverage';
+import type { CaptureCoverage, CapturePayload, DiscussionCapture } from '../../shared/src/types';
 import * as http from 'http';
 import { createHash } from 'crypto';
 import type NutEggPlugin from './main';
@@ -33,6 +34,7 @@ interface AnalyzeRequest {
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
+  captureCoverage?: CaptureCoverage;
   mediaType?: string;
   generateKnowledgeEntries?: boolean;
   /** Captured results reused when only newly selected eggs need analysis. */
@@ -70,6 +72,7 @@ interface AskRequest {
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
+  captureCoverage?: CaptureCoverage;
   mediaType?: string;
   url: string;
   title: string;
@@ -95,6 +98,7 @@ interface ConfirmRequest {
   discussion?: DiscussionCapture;
   enabledSections?: Partial<AnalysisSectionsConfig>;
   transcriptAvailable?: boolean;
+  captureCoverage?: CaptureCoverage;
   mediaType?: string;
   url: string;
   title: string;
@@ -226,8 +230,7 @@ export class NutEggServer {
     const status = this.plugin.chatgpt?.status();
     if (!status?.available || status.state !== 'ready')
       throw new AIError('auth_failed', 'Reconnect ChatGPT sign-in in NutEgg settings in Obsidian.');
-    if (!status.model)
-      throw new AIError('model_not_found', 'Choose an available ChatGPT model in NutEgg settings.');
+    if (!status.model) throw new AIError('model_not_found', 'Choose an available ChatGPT model in NutEgg settings.');
   }
   async runNative<T>(task: (processor: AIProcessor) => Promise<T>, scope?: string, allowNoAI = false): Promise<T> {
     this.requireChatGPTReady();
@@ -477,6 +480,7 @@ export class NutEggServer {
       metadata: capture.metadata,
       enabledSections: capture.enabledSections,
       transcriptAvailable: capture.transcriptAvailable,
+      captureCoverage: normalizeCaptureCoverage(capture.captureCoverage),
       mediaType: capture.mediaType,
       ...('chapters' in capture ? { chapters: capture.chapters } : {}),
       ...('outputLanguage' in capture ? { outputLanguage: capture.outputLanguage } : {}),
@@ -1549,6 +1553,7 @@ export class NutEggServer {
           enabledSections: confirm.enabledSections,
           sourceType: confirm.sourceType,
           metadata: confirm.metadata,
+          captureCoverage: normalizeCaptureCoverage(confirm.captureCoverage),
           summary,
           matchedEggs: eggNames,
           processingResult: saved,

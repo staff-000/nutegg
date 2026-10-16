@@ -1,6 +1,12 @@
 // NutEgg Background Service Worker
 
-importScripts('../../dist/ai-core.js', 'chinese-fetch.js', '../content/extractors/youtube.js', 'execution-session.js');
+importScripts(
+  '../../dist/page-identity.js',
+  '../../dist/ai-core.js',
+  'chinese-fetch.js',
+  '../content/extractors/youtube.js',
+  'execution-session.js'
+);
 
 const { PROVIDER_CATALOG, isSubscriptionProvider, checkCreditAI, analyzeContentStandalone, askFollowUpStandalone } =
   NutEggAI;
@@ -280,6 +286,19 @@ async function connectObsidian() {
 }
 
 // --- Messages ---
+
+const captureTabUrls = new Map();
+chrome.tabs?.onUpdated?.addListener((tabId, change, tab) => {
+  if (!change.url) return;
+  const key = NutEggPageIdentity.capturePageKey(change.url);
+  const previous = captureTabUrls.get(tabId);
+  captureTabUrls.set(tabId, key);
+  if (previous === key) return;
+  chrome.tabs
+    .sendMessage(tabId, { action: 'capture-navigation', previousKey: previous, key, observedAt: Date.now() })
+    .catch(() => {});
+});
+chrome.tabs?.onRemoved?.addListener(tabId => captureTabUrls.delete(tabId));
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'youtube-player-snapshot')
@@ -907,7 +926,7 @@ function normalizeCacheUrl(rawUrl, metadata = null) {
 
   try {
     const u = new URL(rawUrl);
-    u.hash = '';
+    if (!NutEggPageIdentity.isApplicationHash(u.hash)) u.hash = '';
     const twitterHosts = ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com'];
     if (twitterHosts.includes(u.hostname.toLowerCase())) {
       u.hostname = 'x.com';
@@ -949,6 +968,17 @@ function normalizeCacheUrl(rawUrl, metadata = null) {
 
 function matchesCacheEntry(entry, targetUrl) {
   if (!entry || !targetUrl) return false;
+  const route = value => {
+    try {
+      return NutEggPageIdentity.isApplicationHash(new URL(value).hash);
+    } catch {
+      return false;
+    }
+  };
+  if (route(targetUrl) || route(entry.url) || route(entry.capturePayload?.url)) {
+    const original = entry.capturePayload?.url || entry.url;
+    return !!original && normalizeCacheUrl(original) === normalizeCacheUrl(targetUrl);
+  }
   const targetNorm = normalizeCacheUrl(targetUrl);
   const targetVideo = extractVideoIdentity(targetUrl);
 
@@ -1038,10 +1068,24 @@ async function saveChromeCacheEntry(payload, result) {
         enabledSections: payload.enabledSections,
         generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
         metadata: payload.metadata,
+        captureCoverage: NutEggAI.normalizeCaptureCoverage?.(payload.captureCoverage),
+        transcriptAvailable: payload.transcriptAvailable,
+        mediaType: payload.mediaType,
       },
       timestamp: Date.now(),
     };
 
+    if (typeof payload.content === 'string' && payload.content.length > 30000) {
+      entry.capturePayload.captureCoverage = {
+        ...entry.capturePayload.captureCoverage,
+        reasons: [...new Set([...(entry.capturePayload.captureCoverage?.reasons || []), 'truncated'])],
+        originalCharacters: Math.max(
+          entry.capturePayload.captureCoverage?.originalCharacters || 0,
+          payload.content.length
+        ),
+        capturedCharacters: 30000,
+      };
+    }
     cache.unshift(entry);
     cache = trimChromeCache(cache, limit);
     await chrome.storage.local.set({ chromeTabCache: cache });

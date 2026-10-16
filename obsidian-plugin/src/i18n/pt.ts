@@ -1,4 +1,9 @@
 export const pt = {
+  captureTruncatedWarning: 'Apenas parte da fonte foi capturada porque excede o limite.',
+  captureAccessWarning: 'Parte do conteúdo exige login ou assinatura.',
+  captureTraversalWarning: 'Parte do conteúdo incorporado não pôde ser inspecionada dentro dos limites de captura.',
+  captureRetryIncomplete: 'O conteúdo pode ainda estar carregando. Atualize para tentar novamente.',
+  captureCoverageTitle: 'Cobertura da captura',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { JSDOM } = require("jsdom");
 
-const utilsCode = fs.readFileSync(
+const utilsCode = fs.readFileSync(path.resolve(__dirname, "../dist/page-identity.js"), "utf8") + fs.readFileSync(path.resolve(__dirname, "../src/content/dom-reader.js"), "utf8") + fs.readFileSync(
   path.resolve(__dirname, "../src/content/utils.js"),
   "utf8"
 );
@@ -21,6 +21,7 @@ function createMockElement(tagName, attrs = {}, text = "", children = []) {
     textContent: text,
     children: [...children],
     parentElement: null,
+    get href() { return this.attributes.href; },
     getAttribute(name) {
       return this.attributes[name] || null;
     },
@@ -38,6 +39,7 @@ function createMockElement(tagName, attrs = {}, text = "", children = []) {
     matches(selector) {
       const parts = selector.split(",").map((s) => s.trim());
       return parts.some((part) => {
+        if (part === 'a[href]') return this.tagName === "A" && !!this.attributes.href;
         if (part.startsWith(".")) {
           const cls = part.slice(1);
           return (this.attributes.class || "").split(/\s+/).includes(cls);
@@ -106,6 +108,11 @@ function createMockElement(tagName, attrs = {}, text = "", children = []) {
 
 function createTwitterContext(documentRoot, url = "https://x.com/thedankoe/status/2101361833940791607", title = "X") {
   const parsedUrl = new URL(url);
+  for (const tweet of documentRoot.querySelectorAll('article[data-testid="tweet"]')) {
+    const permalink = createMockElement('a', {href: url}, '', [createMockElement('time')]);
+    permalink.parentElement = tweet;
+    tweet.children.push(permalink);
+  }
   const context = {
     window: {
       location: {
@@ -118,6 +125,7 @@ function createTwitterContext(documentRoot, url = "https://x.com/thedankoe/statu
       querySelector: (sel) => documentRoot.querySelector(sel),
       querySelectorAll: (sel) => documentRoot.querySelectorAll(sel),
     },
+    URL,
     setTimeout,
     clearTimeout,
     Promise,
@@ -195,7 +203,7 @@ test("Twitter Extractor - extracts X Article when twitterArticleReadView is pres
   assert.ok(result.content.includes("const habit = new DailySystem({ focus: 'creation', hours: 2 });"));
 });
 
-test("Twitter Extractor - handles tweet with article card that opens reader view", async () => {
+test("Twitter Extractor - preserves article card without navigating to its reader", async () => {
   const userNameEl = createMockElement("div", { "data-testid": "User-Name" }, "Dan Koe @thedankoe");
   const tweetText = createMockElement("div", { "data-testid": "tweetText" }, "My new long-form article is live:");
   const cardHeading = createMockElement("div", { class: "heading" }, "How to Launch Yourself into a Brand New Life");
@@ -227,9 +235,10 @@ test("Twitter Extractor - handles tweet with article card that opens reader view
   const result = await ctx.extractTwitter();
 
   assert.equal(result.sourceType, "twitter");
-  assert.equal(result.metadata.isArticle, true);
-  assert.equal(result.title, "How to Launch Yourself into a Brand New Life");
-  assert.ok(result.content.includes("This is the full article content expanded after clicking the article card."));
+  assert.notEqual(result.metadata.isArticle, true);
+  assert.ok(result.content.includes("My new long-form article is live:"));
+  assert.ok(result.content.includes("https://x.com/thedankoe/article/2101361833940791607"));
+  assert.equal(root.querySelector('[data-testid="twitterArticleReadView"]'), null);
 });
 
 test("Twitter Extractor - extracts article card info when reader view cannot open", async () => {
@@ -319,9 +328,8 @@ test('Twitter Extractor - separates names and handles from timestamps in the rep
     assert.equal(result.metadata.handle, '@thedankoe');
     assert.equal(result.metadata.published, '2026-09-27T13:15:00Z');
     assert.equal(result.title, 'Tweet by DAN KOE (@thedankoe)');
-    assert.match(result.content, /1\. \*\*DAN KOE \(@thedankoe\)\*\*/);
-    assert.match(result.content, /2\. \*\*Mishka \(@iamrealmishka\)\*\*/);
-    assert.match(result.content, /3\. \*\*Sharyph \(@sharyph_\)\*\*/);
+    assert.match(result.content, /DAN KOE \(@thedankoe\)/);
+    assert.doesNotMatch(result.content, /Mishka|Sharyph/);
     assert.doesNotMatch(result.content, /Sep 27|6:15 AM|1h|Verified account/);
   } finally { dom.window.close(); }
 });

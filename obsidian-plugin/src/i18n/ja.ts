@@ -1,4 +1,9 @@
 export const ja = {
+  captureTruncatedWarning: '取得上限を超えたため、元の内容の一部のみを取得しました。',
+  captureAccessWarning: '一部の内容を読むにはログインまたは購読が必要です。',
+  captureTraversalWarning: '取得上限により、一部の埋め込みコンテンツを確認できませんでした。',
+  captureRetryIncomplete: 'コンテンツはまだ読み込み中の可能性があります。更新して再試行してください。',
+  captureCoverageTitle: '取得範囲',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

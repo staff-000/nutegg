@@ -9,7 +9,7 @@ function page(t) {
   let listener;
   win.chrome = { runtime: { sendMessage: async () => ({ success: true }), onMessage: { addListener: fn => { listener = fn; } } } };
   win.EXTRACTORS = [];
-  for (const file of ['utils', 'content-script']) win.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
+  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'content-script']) win.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
   t.after(() => dom.window.close());
   return { dom, win, send: message => new Promise(resolve => listener(message, {}, resolve)) };
 }
@@ -82,6 +82,32 @@ for (const scenario of ['replies loading', 'article loading', 'empty article']) 
     assert.equal(response.success, true);
     assert.equal(response.content.extractionStatus, scenario === 'replies loading' ? 'ready' : 'not_ready');
     if (scenario !== 'empty article') assert.match(response.content.content, /complete article body/);
+  });
+}
+
+for (const scenario of ['replies loading', 'quoted post collapsed', 'post loading', 'empty post', 'collapsed post']) {
+  test(`X post readiness ignores unrelated replies: ${scenario}`, async t => {
+    const { dom, win, send } = page(t);
+    dom.reconfigure({ url: 'https://x.com/author/status/123' });
+    const fullText = 'A complete long post with all its substantive details. '.repeat(20) + 'Final qualification.';
+    win.document.body.innerHTML = `<main><div role="link"><article data-testid="tweet">
+      <a href="/author/status/123"><time>Today</time></a>
+      <div data-testid="tweetText" ${scenario === 'post loading' ? 'aria-busy="true"' : ''}>${scenario === 'empty post' ? '' : fullText}</div>
+      ${scenario === 'quoted post collapsed' ? '<div role="link"><div data-testid="tweetText">Quoted content</div><button data-testid="tweet-text-show-more-link">Show more</button></div>' : ''}
+      ${scenario === 'collapsed post' ? '<button data-testid="tweet-text-show-more-link">Show more</button>' : ''}
+      </article></div><section aria-label="Replies"><div role="progressbar"></div>
+      <article data-testid="tweet"><a href="/reply/status/456"><time>Today</time></a>
+      <div data-testid="tweetText">Unrelated reply</div><button data-testid="tweet-text-show-more-link">Show more</button></article></section></main>`;
+    let replyClicks = 0;
+    win.document.querySelector('section button').onclick = () => replyClicks++;
+    win.eval(fs.readFileSync(require.resolve('../src/content/extractors/twitter.js'), 'utf8'));
+    win.EXTRACTORS.push({ name: 'twitter', detect: win.detectTwitter, extract: win.extractTwitter });
+    const response = await send({ action: 'extract-content', requestId: scenario });
+    assert.equal(response.success, true);
+    assert.equal(response.content.extractionStatus, ['replies loading', 'quoted post collapsed'].includes(scenario) ? 'ready' : 'not_ready');
+    assert.equal(replyClicks, 0);
+    assert.doesNotMatch(response.content.content, /Unrelated reply/);
+    if (scenario !== 'empty post') assert.ok(response.content.content.includes(fullText));
   });
 }
 
@@ -181,4 +207,13 @@ test('a late readiness lookup cannot report old caption tracks after navigation'
   assert.equal(identity.videoId, 'two');
   assert.equal(identity.captionTracksReady, false);
   assert.equal(identity.youtubeReady, false);
+});
+
+test('late browser navigation notifications cannot cancel a newer capture', async t => {
+  const {win,send}=page(t);let finish;
+  win.EXTRACTORS.push({name:'test',detect:()=>true,extract:async()=>{await new Promise(resolve=>{finish=resolve;});return {content:'Current capture'};}});
+  const pending=send({action:'extract-content',requestId:'newer'});await flush();
+  const startedAt=win.__nuteggCaptureState.active.context.startedAt;
+  await send({action:'capture-navigation',key:'https://www.youtube.com/watch?v=other',observedAt:startedAt-1});
+  finish();assert.equal((await pending).success,true);
 });

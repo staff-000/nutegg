@@ -5,7 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const { JSDOM } = require("jsdom");
 
-const utilsCode = fs.readFileSync(
+const utilsCode = fs.readFileSync(path.resolve(__dirname, "../dist/page-identity.js"), "utf8") + fs.readFileSync(path.resolve(__dirname, "../src/content/dom-reader.js"), "utf8") + fs.readFileSync(
   path.resolve(__dirname, "../src/content/utils.js"),
   "utf8"
 );
@@ -174,7 +174,7 @@ test("extractArticle extracts itemprop='articleBody' and formats Markdown paragr
   const result = ctx.extractArticle();
   assert.ok(result);
   assert.equal(result.extractionStatus, "ready");
-  assert.match(result.content, /### Subheading 1/);
+  assert.match(result.content, /## Subheading 1/);
   assert.match(result.content, /> Key quote from an expert/);
   assert.match(result.content, /- Point A/);
 });

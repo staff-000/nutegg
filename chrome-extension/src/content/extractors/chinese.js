@@ -19,10 +19,16 @@ function detectDouyin() {
   );
 }
 function detectWeibo() {
-  return chineseHost('weibo.com') || chineseHost('weibo.cn');
+  return (
+    (chineseHost('weibo.com') || chineseHost('weibo.cn')) &&
+    /^\/(?:\d+|detail|status)\/[\w]+\/?$/.test(new URL(window.location.href).pathname)
+  );
 }
 function detectZhihu() {
-  return chineseHost('zhihu.com');
+  return (
+    chineseHost('zhihu.com') &&
+    /^\/(?:question\/\d+(?:\/answer\/\d+)?|answer\/\d+|p\/\d+)\/?$/.test(new URL(window.location.href).pathname)
+  );
 }
 
 function chineseText(selector, root = document) {
@@ -186,7 +192,7 @@ function chineseVideoResult(platform, title, description, author, duration, tran
   ]
     .filter(Boolean)
     .join('\n\n');
-  return {
+  const result = {
     url: window.location.href,
     title,
     content,
@@ -201,6 +207,9 @@ function chineseVideoResult(platform, title, description, author, duration, tran
       ...extra,
     },
   };
+  if (transcript.text.length > 100000)
+    addCaptureCoverage(result, 'truncated', { originalCharacters: transcript.text.length, capturedCharacters: 100000 });
+  return result;
 }
 
 async function extractBilibili(context) {

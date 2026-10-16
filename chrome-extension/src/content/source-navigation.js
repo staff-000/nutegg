@@ -6,35 +6,17 @@
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
-  const pageKey = value => {
-    try {
-      const url = new URL(value);
-      url.hash = '';
-      url.pathname = url.pathname.replace(/\/$/, '') || '/';
-      return url.href;
-    } catch {
-      return '';
-    }
-  };
+  const pageKey = value => NutEggPageIdentity.capturePageKey(value);
   const parent = el => el.parentElement || el.getRootNode?.().host;
   function visible(el) {
     for (let node = el; node; node = parent(node)) {
-      const style = getComputedStyle(node);
+      const style = node.ownerDocument.defaultView.getComputedStyle(node);
       if (style.display === 'none' || style.visibility === 'hidden' || node.hidden) return false;
     }
     return true;
   }
   function roots() {
-    const found = [document],
-      seen = new Set(found);
-    for (let i = 0; i < found.length && found.length < 2048; i++) {
-      for (const el of found[i].querySelectorAll('*'))
-        if (el.shadowRoot && !seen.has(el.shadowRoot) && found.length < 2048) {
-          seen.add(el.shadowRoot);
-          found.push(el.shadowRoot);
-        }
-    }
-    return found;
+    return captureDOMRoots();
   }
   function plainText(el) {
     const clone = el.cloneNode(true);
@@ -103,6 +85,14 @@
       element = match.element;
     }
     if (!element?.isConnected || !visible(element)) return { success: false, reason: 'not_loaded' };
+    for (
+      let frame = element.ownerDocument.defaultView?.frameElement;
+      frame;
+      frame = frame.ownerDocument.defaultView?.frameElement
+    ) {
+      for (let node = frame; node; node = parent(node)) if (node.matches('details')) node.open = true;
+      frame.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    }
     element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     const previous = highlighted.get(element);
     if (previous) clearTimeout(previous.timer);

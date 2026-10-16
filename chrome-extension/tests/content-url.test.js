@@ -69,3 +69,14 @@ test('cached video source jumps target the current URL variant but keep the guar
   await action.scrollToSection('Discussion', '', 'bilibili:comment-a');
   assert.equal(requests[1][4], captured);
 });
+
+test('application hash routes remain distinct history keys while ordinary anchors do not', () => {
+  for (const prefix of ['#/', '#!/']) {
+    const one = `https://example.test/app${prefix}document/one`;
+    const two = `https://example.test/app${prefix}document/two`;
+    assert.notEqual(core.normalizeContentUrl(one), core.normalizeContentUrl(two));
+    assert.notEqual(core.capturePageKey(one), core.capturePageKey(two));
+  }
+  assert.equal(core.normalizeContentUrl('https://example.test/article#heading'), 'https://example.test/article');
+  assert.equal(core.capturePageKey('https://example.test/article#t=30'), 'https://example.test/article');
+});

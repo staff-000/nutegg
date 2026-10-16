@@ -1,4 +1,9 @@
 export const en = {
+  captureTruncatedWarning: 'Only part of the source was captured because it exceeds the capture limit.',
+  captureAccessWarning: 'Access to part of this content is restricted by a sign-in or subscription requirement.',
+  captureTraversalWarning: 'Some embedded content could not be inspected within the capture limits.',
+  captureRetryIncomplete: 'Content may still be loading. Refresh to try again.',
+  captureCoverageTitle: 'Capture coverage',
   chatgptLabel: 'ChatGPT sign-in',
   codexSubscription: 'Codex CLI',
   cliSubscription: 'CLI subscription',

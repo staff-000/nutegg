@@ -166,7 +166,9 @@ class CaptureViewComponent {
       : '';
     const transcriptMissing = Boolean(globalThis.NutEggHelpers?.isTranscriptBlocked?.(content));
     const warning = transcriptMissing
-      ? t('transcriptRefreshPreview')
+      ? [t('transcriptRefreshPreview'), globalThis.NutEggHelpers?.getExtractionWarning?.(content)]
+          .filter(Boolean)
+          .join(' ')
       : !content?.content?.trim() && !(content?.discussion?.kind === 'forum' && items.some(item => item.text?.trim()))
         ? t('contentRefreshPreview')
         : globalThis.NutEggHelpers?.getExtractionWarning?.(content);

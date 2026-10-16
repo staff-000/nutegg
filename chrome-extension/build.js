@@ -64,6 +64,12 @@ async function build() {
   });
 
   console.log("[NutEgg Build] Successfully generated dist/ai-core.js");
+  await esbuild.build({
+    entryPoints: [path.join(__dirname, '../shared/src/page-identity.ts')],
+    bundle: true, format: 'iife', globalName: 'NutEggPageIdentity', platform: 'browser',
+    target: ['chrome116'], outfile: path.join(outDir, 'page-identity.js'),
+    footer: { js: 'if (typeof module !== "undefined" && module.exports) module.exports = NutEggPageIdentity;' },
+  });
 }
 
 build().catch((err) => {

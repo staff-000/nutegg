@@ -10,6 +10,7 @@ function context(url, options = {}) {
     performance: { getEntriesByType: () => options.resources || [] },
     chrome: { runtime: { sendMessage: async msg => ({ success: true, text: JSON.stringify(await options.api(msg.url)) }) } },
     ...options.globals });
+  vm.runInContext(code('../dist/page-identity.js'), ctx);
   vm.runInContext(code('content/utils.js'), ctx);
   vm.runInContext(code('content/extractors/chinese.js'), ctx);
   return ctx;

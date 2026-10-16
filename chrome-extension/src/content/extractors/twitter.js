@@ -5,7 +5,7 @@
 // Detects twitter.com and x.com pages and extracts:
 // 1. Long-form X Articles (via [data-testid="twitterArticleReadView"],
 //    rich text views, headers, blockquotes, code blocks, lists)
-// 2. Tweets with embedded article cards (automatically opens or extracts card)
+// 2. Tweets with embedded article cards (preserves current post and link)
 // 3. Long-form posts with "Show more" button (automatically expands)
 // 4. Standard tweets, threads, and quote tweets
 //
@@ -13,10 +13,14 @@
 
 function detectTwitter() {
   const url = window.location.href;
-  return url.includes('twitter.com') || url.includes('x.com');
+  return (
+    ['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(url, domain)) &&
+    /^\/(?:[A-Za-z0-9_]+\/(?:status|article)\/\d+|(?:i\/)?article\/\d+)(?:\/|$)/.test(new URL(url).pathname)
+  );
 }
 
-async function extractTwitter() {
+async function extractTwitter(context) {
+  context?.check();
   const url = window.location.href;
 
   // 1. Wait briefly for X SPA to hydrate DOM if just loaded
@@ -25,7 +29,8 @@ async function extractTwitter() {
       '[data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], article[data-testid="tweet"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], a[href*="/article/"], [data-testid="primaryColumn"]'
     );
   if (!hasTwitterContent() && typeof waitFor === 'function') {
-    await waitFor(hasTwitterContent, 2500);
+    await waitFor(hasTwitterContent, 2500, context);
+    context?.check();
   }
 
   // 2. Check for X Article Reader View first (standalone or inside article route)
@@ -38,43 +43,55 @@ async function extractTwitter() {
     return extractXArticle(articleRoot, url);
   }
 
-  // 3. If on a status page and an Article card/link exists, try clicking it to open article view
-  const articleCardLink = document.querySelector(
+  // 4. Expand only the requested post; quoted posts and replies retain their state.
+  const statusId = new URL(url).pathname.match(/\/status\/(\d+)/)?.[1];
+  const requestedTweet = [...document.querySelectorAll('article[data-testid="tweet"]')].find(tweet =>
+    [...tweet.querySelectorAll('a[href]')].some(
+      link =>
+        link.querySelector('time') &&
+        !tweet.contains(link.closest('div[role="link"]')) &&
+        link.closest('article[data-testid="tweet"]') === tweet &&
+        new URL(link.href, url).pathname.match(/\/status\/(\d+)/)?.[1] === statusId
+    )
+  );
+  const target = statusId ? requestedTweet : document;
+  // Preserve only the requested post's linked article, without navigating.
+  const articleCardLink = target?.querySelector(
     'a[href*="/article/"], [data-testid="card.layoutLarge.detail"] a, [data-testid="article-cover"], [data-testid="card.wrapper"] a[href*="/article/"]'
   );
-  if (articleCardLink) {
-    try {
-      articleCardLink.click();
-      if (typeof waitFor === 'function') {
-        const openedRoot = await waitFor(
-          () =>
-            document.querySelector(
-              '[data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"]'
-            ),
-          1500
-        );
-        if (openedRoot) {
-          return extractXArticle(openedRoot, window.location.href);
-        }
-      }
-    } catch {
-      // Ignore click error and continue with tweet extraction
-    }
-  }
-
-  // 4. Expand all "Show more" buttons on truncated long-form posts
-  const showMoreButtons = document.querySelectorAll('[data-testid="tweet-text-show-more-link"]');
+  const showMoreButtons = target?.querySelectorAll('[data-testid="tweet-text-show-more-link"]') || [];
+  let expanded = false;
   for (const btn of showMoreButtons) {
     try {
+      context?.check();
+      if (btn.isConnected === false || (statusId && btn.closest('article[data-testid="tweet"]') !== target))
+        continue;
+      if (target?.contains(btn.closest('div[role="link"]'))) continue;
       btn.click();
+      expanded = true;
     } catch {}
   }
-  if (showMoreButtons.length > 0) {
-    await new Promise(r => setTimeout(r, 150));
+  if (expanded) {
+    await capturePause(150, context);
+    context?.check();
   }
 
   // 5. Author info
-  const mainTweet = document.querySelector('article[data-testid="tweet"]');
+  context?.check();
+  const mainTweet = requestedTweet || (!statusId ? document.querySelector('article[data-testid="tweet"]') : null);
+  const body = mainTweet?.querySelector('[data-testid="tweetText"]');
+  const bodyReady = Boolean(
+    body?.textContent?.trim() &&
+      mainTweet.isConnected !== false &&
+      !mainTweet.matches?.('[aria-busy="true"]') &&
+      !body.matches?.('[aria-busy="true"]') &&
+      !body.querySelector('[aria-busy="true"], [role="progressbar"]') &&
+      ![...mainTweet.querySelectorAll('[data-testid="tweet-text-show-more-link"]')].some(
+        btn =>
+          btn.closest('article[data-testid="tweet"]') === mainTweet &&
+          !mainTweet.contains(btn.closest('div[role="link"]'))
+      )
+  );
   const { authorName, authorHandle } = extractAuthorInfo(mainTweet || document);
   const timestamp = (mainTweet || document).querySelector('time')?.getAttribute('datetime') || '';
 
@@ -82,7 +99,7 @@ async function extractTwitter() {
   let tweetContent = mainTweet ? extractMainTweet(mainTweet) : '';
 
   // Fallback: collect all visible tweet texts if main tweet didn't yield text
-  if (!tweetContent) {
+  if (!tweetContent && !statusId) {
     const tweetTexts = document.querySelectorAll('[data-testid="tweetText"]');
     tweetContent = [...tweetTexts]
       .map(el => el.textContent?.trim())
@@ -91,7 +108,7 @@ async function extractTwitter() {
   }
 
   // Fallback: check primary column / main text
-  if (!tweetContent) {
+  if (!tweetContent && !statusId) {
     const primaryCol = document.querySelector('[data-testid="primaryColumn"]');
     if (primaryCol && typeof extractText === 'function') {
       tweetContent = extractText(primaryCol);
@@ -133,7 +150,7 @@ async function extractTwitter() {
 
   // Thread detection
   const threadTweets = document.querySelectorAll('article[data-testid="tweet"]');
-  if (threadTweets.length > 1 && mainTweet) {
+  if (!statusId && threadTweets.length > 1 && mainTweet) {
     const threadContent = [...threadTweets]
       .map((tweet, i) => {
         const text = tweet.querySelector('[data-testid="tweetText"]')?.textContent?.trim();
@@ -151,6 +168,8 @@ async function extractTwitter() {
     title,
     content: `# ${title}\n\n${tweetContent || 'Could not extract tweet content.'}`,
     sourceType: 'twitter',
+    // Reply loaders are unrelated to the requested post's readiness.
+    extractionStatus: bodyReady ? 'ready' : 'not_ready',
     metadata: {
       platform: 'Twitter/X',
       ...(authorName && { author: authorName }),
@@ -426,7 +445,7 @@ function extractMainTweet(tweetElement) {
 
   tweetElement.querySelectorAll('a[href*="http"]').forEach(link => {
     const href = link.getAttribute('href');
-    if (href && !href.includes('twitter.com') && !href.includes('x.com')) {
+    if (href && !['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(href, domain))) {
       parts.push(`\n🔗 ${href}`);
     }
   });

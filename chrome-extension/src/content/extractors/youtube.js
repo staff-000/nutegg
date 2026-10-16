@@ -69,7 +69,7 @@ async function extractYouTube(context) {
   const timeMinutes =
     meta.durationSeconds > 0 ? Math.ceil(meta.durationSeconds / 60) : estimateTime(parts.join(' '), 'youtube');
 
-  return {
+  const result = {
     url,
     title: meta.title,
     content: parts.join('\n'),
@@ -88,6 +88,9 @@ async function extractYouTube(context) {
       time_estimate_minutes: timeMinutes,
     },
   };
+  if (transcript.length > 100000)
+    addCaptureCoverage(result, 'truncated', { originalCharacters: transcript.length, capturedCharacters: 100000 });
+  return result;
 }
 
 /**
@@ -530,9 +533,12 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
       return snapshot;
     })
     .catch(() => null);
-  // Each request retains its normal timeout. Fractional phase deadlines could
-  // cut valid caption downloads off in under a second on the default settings.
-  let network = youtubeNetworkContext(context);
+  // Give ordinary downloads their existing ceiling while reserving fallback time.
+  // The local phase always permits a normal 1.5-second ASR download.
+  const attemptEnd = context?.deadline || Date.now() + 20000;
+  const panelReserve = Math.min(2000, Math.max(0, attemptEnd - Date.now() - 2500));
+  const networkDeadline = attemptEnd - panelReserve;
+  let network = youtubeNetworkContext(context, Math.min(networkDeadline, Date.now() + 2500));
   const tryTracks = async (tracks, route) => {
     let result;
     try {
@@ -585,7 +591,7 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
       metadata.caption_unavailable = true;
       return '';
     }
-    network = youtubeNetworkContext(context);
+    network = youtubeNetworkContext(context, networkDeadline);
     // The limiter includes discovery AND downloads. The faster route can start
     // its caption request while the other discovery request is still pending.
     try {
@@ -616,6 +622,7 @@ async function fetchYouTubeCaptions(metadata = {}, context) {
       metadata.caption_source = winner.route;
       return winner.text;
     }
+    network.dispose();
     const transcript = await readTranscriptPanel(context);
     context?.check();
     youtubeRouteLog('transcript_panel', started, transcript ? 'success' : 'transient', context);
@@ -647,6 +654,13 @@ function youtubeNetworkContext(parent, deadline = parent?.deadline) {
   const controller = new AbortController();
   const stop = () => controller.abort(parent?.signal?.reason);
   parent?.signal?.addEventListener('abort', stop, { once: true });
+  const phaseDeadline = Math.min(deadline || Infinity, parent?.deadline || Infinity);
+  const timer = Number.isFinite(phaseDeadline)
+    ? setTimeout(
+        () => controller.abort(Object.assign(new Error('Caption phase expired'), { code: 'phase_timeout' })),
+        Math.max(1, phaseDeadline - Date.now())
+      )
+    : null;
   let active = 0;
   const queue = [];
   const context = {
@@ -680,6 +694,7 @@ function youtubeNetworkContext(parent, deadline = parent?.deadline) {
   return {
     context,
     dispose() {
+      clearTimeout(timer);
       parent?.signal?.removeEventListener('abort', stop);
       controller.abort();
     },

@@ -166,3 +166,10 @@ test('failed retries retain the richest valid partial capture', async t => {
   await flush(); await advance(t, 200);
   assert.equal((await pending).content, 'Complete description with chapters');
 });
+
+test('a changed embedded document clears an obsolete partial capture and permits retries', async t => {
+  const f=fixture(t,(attempt,url)=>attempt===1?partial(url):{success:false,errorCode:'embedded_changed'});
+  const pending=f.extractor.extractPage(42,{expectedUrl:f.url,retryCount:2,retryDelayMs:100});
+  await flush();await advance(t,600);
+  assert.equal(await pending,null);assert.equal(f.calls.length,3);
+});

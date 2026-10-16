@@ -313,3 +313,8 @@ test("provenanceFromExtraction - includes accurate wordCount", () => {
   assert.equal(prov.author, "Bob");
   assert.equal(prov.wordCount, 5);
 });
+
+test('page-type labels use exact domains and subdomains', () => {
+  for (const url of ['https://youtube.com.evil.test/watch?v=1','https://not-twitter.com/a','https://fake-tiktok.com/a','https://example.test/?next=https://x.com/a/status/1']) assert.equal(detectPageTypeFromUrl(url),'webpage');
+  assert.equal(detectPageTypeFromUrl('https://mobile.twitter.com/a/status/1'),'twitter');
+});

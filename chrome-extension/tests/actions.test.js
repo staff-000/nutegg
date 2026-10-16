@@ -278,3 +278,16 @@ test('reanalyze refreshes content by default before running analysis', async t =
   await job;
   assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Refreshed analysis');
 });
+
+test('hash application routes invalidate results but section anchors keep the source generation', () => {
+  const f=actions();
+  f.store.activateTab(2);
+  f.store.dispatch({type:'pageInfo',tabId:1,url:'https://example.test/#/one'});
+  const before=f.store.getTab(1).pageGeneration;
+  f.tab.handleTabUpdated(1,{url:'https://example.test/#/two'});
+  assert.notEqual(f.store.getTab(1).pageGeneration,before);
+  f.store.dispatch({type:'pageInfo',tabId:1,url:'https://example.test/article#first'});
+  const generation=f.store.getTab(1).pageGeneration;
+  f.tab.handleTabUpdated(1,{url:'https://example.test/article#second'});
+  assert.equal(f.store.getTab(1).pageGeneration,generation);
+});

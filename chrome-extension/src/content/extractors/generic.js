@@ -7,66 +7,13 @@
 //
 // Depends on: utils.js (extractText, getMeta, truncate, estimateTime)
 
-function extractGeneric() {
+function extractGeneric(context) {
   const url = window.location.href;
   const title = document.title || getMeta('og:title') || document.querySelector('h1')?.textContent?.trim() || url;
 
-  // Try common content containers
-  const contentSelectors = [
-    'main',
-    'article',
-    '[role="main"]',
-    '[itemprop="articleBody"]',
-    '.RichTextStoryBody',
-    '.ArticleBody-articleBody',
-    '.article-body',
-    '.article__body',
-    '.article-content',
-    '#content',
-    '#main-content',
-    '.post-content',
-    '.entry-content',
-    '.content',
-    '#article',
-    '.main',
-  ];
-
-  let container = null;
-  for (const sel of contentSelectors) {
-    container = document.querySelector(sel);
-    if (container && container.textContent && container.textContent.trim().length > 100) break;
-  }
-
-  let mainContent = '';
-  if (container) {
-    const body = container.cloneNode(true);
-    body.querySelectorAll('.comments, #comments, [itemprop="comment"], [data-comment-id]').forEach(el => el.remove());
-    mainContent = extractText(body);
-  } else {
-    const body = document.body.cloneNode(true);
-    const removeSelectors = [
-      'nav',
-      'header',
-      'footer',
-      'script',
-      'style',
-      'noscript',
-      'iframe',
-      '.sidebar',
-      '.navigation',
-      '.nav',
-      '.menu',
-      '.comments',
-      '#comments',
-      '.advertisement',
-      '.ads',
-      '.social-share',
-    ];
-    removeSelectors.forEach(sel => {
-      body.querySelectorAll(sel).forEach(el => el.remove());
-    });
-    mainContent = extractText(body);
-  }
+  const container = findCaptureContainer(context);
+  const body = captureTextResult(container, context);
+  const mainContent = body.text;
 
   // Metadata
   const description = getMeta('description') || getMeta('og:description');
@@ -88,15 +35,14 @@ function extractGeneric() {
 
   metadata.time_estimate_minutes = estimateTime(mainContent, 'webpage');
 
-  const wordCount = mainContent.split(/\s+/).filter(Boolean).length;
-  const extractionStatus = wordCount >= 200 ? 'ready' : undefined;
-
-  return {
-    url,
-    title,
-    content: `# ${title}\n\n${truncate(mainContent, 60000)}`,
-    sourceType: 'webpage',
-    ...(extractionStatus && { extractionStatus }),
-    metadata,
-  };
+  return applyTextCaptureResult(
+    {
+      url,
+      title,
+      content: `# ${title}\n\n${mainContent}`,
+      sourceType: 'webpage',
+      metadata,
+    },
+    body
+  );
 }

@@ -16,6 +16,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this, function () {
   const translations = {
     en: {
+      captureTruncatedWarning: 'Only part of the source was captured because it exceeds the capture limit.',
+      captureAccessWarning: 'Access to part of this content is restricted by a sign-in or subscription requirement.',
+      captureTraversalWarning: 'Some embedded content could not be inspected within the capture limits.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -627,6 +630,9 @@
       errorHintServerError: 'The AI service may be temporarily down. Try again in a minute.',
     },
     zh_CN: {
+      captureTruncatedWarning: '内容超出提取上限，仅保存了部分原文。',
+      captureAccessWarning: '部分内容需要登录或订阅才能查看。',
+      captureTraversalWarning: '受提取限制影响，部分嵌入内容未能完整读取。',
       chatgptLabel: 'ChatGPT 订阅',
       codexSubscription: 'Codex 订阅',
       cliSubscription: 'CLI 订阅',
@@ -1200,6 +1206,10 @@
       errorHintServerError: 'AI 服务可能暂时故障。请一分钟后重试。',
     },
     es: {
+      captureTruncatedWarning: 'Se capturó solo parte de la fuente porque supera el límite de captura.',
+      captureAccessWarning: 'Parte del contenido requiere iniciar sesión o una suscripción.',
+      captureTraversalWarning:
+        'No se pudo inspeccionar parte del contenido incrustado dentro de los límites de captura.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -1799,6 +1809,9 @@
       errorHintServerError: 'El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto.',
     },
     ja: {
+      captureTruncatedWarning: '取得上限を超えたため、元の内容の一部のみを取得しました。',
+      captureAccessWarning: '一部の内容を読むにはログインまたは購読が必要です。',
+      captureTraversalWarning: '取得上限により、一部の埋め込みコンテンツを確認できませんでした。',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -2383,6 +2396,9 @@
       errorHintServerError: 'AIサービスが一時的に停止している可能性があります。1分後に再試行してください。',
     },
     ko: {
+      captureTruncatedWarning: '캡처 한도를 초과하여 원문 일부만 가져왔습니다.',
+      captureAccessWarning: '일부 콘텐츠는 로그인 또는 구독이 필요합니다.',
+      captureTraversalWarning: '캡처 한도로 인해 일부 삽입된 콘텐츠를 확인하지 못했습니다.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -2961,6 +2977,9 @@
       errorHintServerError: 'AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요.',
     },
     ar: {
+      captureTruncatedWarning: 'تم التقاط جزء من المصدر فقط لأنه يتجاوز حد الالتقاط.',
+      captureAccessWarning: 'يتطلب جزء من المحتوى تسجيل الدخول أو اشتراكًا.',
+      captureTraversalWarning: 'تعذر فحص بعض المحتوى المضمّن ضمن حدود الالتقاط.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -3542,6 +3561,9 @@
       errorHintServerError: 'قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة.',
     },
     fr: {
+      captureTruncatedWarning: 'Seule une partie de la source a été capturée car elle dépasse la limite.',
+      captureAccessWarning: 'Une partie du contenu nécessite une connexion ou un abonnement.',
+      captureTraversalWarning: 'Certains contenus intégrés n’ont pas pu être examinés dans les limites de capture.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -4150,6 +4172,10 @@
       errorHintServerError: 'Le service IA est temporairement indisponible. Réessayez dans une minute.',
     },
     de: {
+      captureTruncatedWarning: 'Die Quelle überschreitet das Erfassungslimit und wurde nur teilweise erfasst.',
+      captureAccessWarning: 'Ein Teil des Inhalts erfordert eine Anmeldung oder ein Abonnement.',
+      captureTraversalWarning:
+        'Einige eingebettete Inhalte konnten innerhalb der Erfassungsgrenzen nicht geprüft werden.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -4749,6 +4775,9 @@
       errorHintServerError: 'KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen.',
     },
     pt: {
+      captureTruncatedWarning: 'Apenas parte da fonte foi capturada porque excede o limite.',
+      captureAccessWarning: 'Parte do conteúdo exige login ou assinatura.',
+      captureTraversalWarning: 'Parte do conteúdo incorporado não pôde ser inspecionada dentro dos limites de captura.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
@@ -5349,6 +5378,9 @@
       errorHintServerError: 'O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto.',
     },
     ru: {
+      captureTruncatedWarning: 'Источник превышает лимит захвата, поэтому сохранена только его часть.',
+      captureAccessWarning: 'Часть содержимого требует входа или подписки.',
+      captureTraversalWarning: 'Часть встроенного содержимого не удалось проверить в пределах лимитов захвата.',
       chatgptLabel: 'ChatGPT subscription',
       codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',

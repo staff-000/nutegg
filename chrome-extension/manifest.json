@@ -60,7 +60,9 @@
         "<all_urls>"
       ],
       "js": [
+        "dist/page-identity.js",
         "src/content/utils.js",
+        "src/content/dom-reader.js",
         "src/content/extractors/youtube.js",
         "src/content/extractors/twitter.js",
         "src/content/extractors/chinese.js",

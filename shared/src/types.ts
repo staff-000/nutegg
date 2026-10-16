@@ -259,7 +259,15 @@ export interface ContentAnalysis {
   extractedEntries?: ExtractedKnowledgeEntry[];
 }
 
+export interface CaptureCoverage {
+  reasons: Array<'truncated' | 'loading_timeout' | 'access_restricted' | 'traversal_limit'>;
+  originalCharacters?: number;
+  capturedCharacters?: number;
+}
+
 export interface CapturePayload {
+  /** Known capture limitations; absent means coverage has not been assessed. */
+  captureCoverage?: CaptureCoverage;
   /** Opaque tab/page diagnostics ID; never included in prompts or archived content. */
   debugScope?: string;
   discussion?: DiscussionCapture;

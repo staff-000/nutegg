@@ -18,31 +18,52 @@ function fetchWithTimeout(url, opts = {}, timeoutMs = 8000) {
 
 // Capture contexts are passed explicitly, so an obsolete task never acquires
 // the signal or page identity of a newer task in the same document.
+function capturePageKey(value) {
+  return NutEggPageIdentity.capturePageKey(value);
+}
+function syncCaptureNavigation(force = false) {
+  const state = window.__nuteggNavigationState;
+  if (!state) return;
+  const key = capturePageKey(window.location.href);
+  if (force || key !== state.key) {
+    state.key = key;
+    state.generation++;
+    window.__nuteggCaptureState?.active?.context.abort('stale');
+  }
+}
 if (typeof window !== 'undefined' && !window.__nuteggNavigationState) {
   const initialUrl =
     typeof performance !== 'undefined' ? performance.getEntriesByType?.('navigation')?.[0]?.name : null;
-  window.__nuteggNavigationState = { generation: 0, initialUrl: initialUrl || window.location.href };
-  for (const event of ['yt-navigate-start', 'popstate']) {
-    window.addEventListener?.(event, () => {
-      window.__nuteggNavigationState.generation++;
-      const active = window.__nuteggCaptureState?.active?.context;
-      if (active && /(^|\.)youtube\.com$/.test(new URL(active.url).hostname)) active.abort('stale');
-    });
-  }
+  window.__nuteggNavigationState = {
+    generation: 0,
+    key: capturePageKey(window.location.href),
+    initialUrl: initialUrl || window.location.href,
+  };
+  window.addEventListener?.('yt-navigate-start', () => syncCaptureNavigation(true));
+  for (const event of ['popstate', 'hashchange', 'pageshow'])
+    window.addEventListener?.(event, () => syncCaptureNavigation());
+  window.navigation?.addEventListener('currententrychange', () => syncCaptureNavigation());
 }
 function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = Date.now() + 20000 } = {}) {
   const controller = new AbortController();
   const url = expectedUrl || window.location.href;
+  syncCaptureNavigation();
   const generation = window.__nuteggNavigationState?.generation;
   const captureDocument = document;
-  const youtube = /(^|\.)youtube\.com$/.test(new URL(url).hostname);
   const abort = (code = 'cancelled') => {
     const error = Object.assign(new Error(code), { name: 'AbortError', code });
     controller.abort(error);
   };
+  let navigationTimer;
+  const pollNavigation = () => {
+    syncCaptureNavigation();
+    if (!controller.signal.aborted) navigationTimer = setTimeout(pollNavigation, 100);
+  };
+  navigationTimer = setTimeout(pollNavigation, 100);
   const timer = setTimeout(() => abort('timeout'), Math.max(1, deadline - Date.now()));
   const context = {
     requestId,
+    startedAt: Date.now(),
     url,
     deadline,
     attempt,
@@ -51,12 +72,13 @@ function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = 
     isCurrent() {
       return (
         document === captureDocument &&
-        window.location.href.split('#')[0] === url.split('#')[0] &&
-        (!youtube || window.__nuteggNavigationState?.generation === generation)
+        capturePageKey(window.location.href) === capturePageKey(url) &&
+        window.__nuteggNavigationState?.generation === generation
       );
     },
     check() {
       if (!context.isCurrent()) abort('stale');
+      if (typeof validateCaptureFrames === 'function') validateCaptureFrames(context);
       if (Date.now() >= deadline && !controller.signal.aborted) abort('timeout');
       if (controller.signal.aborted) throw controller.signal.reason;
     },
@@ -79,6 +101,7 @@ function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = 
     },
     dispose() {
       clearTimeout(timer);
+      clearTimeout(navigationTimer);
     },
   };
   controller.signal.addEventListener(
@@ -187,18 +210,27 @@ function readingTime(text) {
 }
 
 /** Poll until `getter` returns a truthy value (or null after `timeoutMs`). */
-function waitFor(getter, timeoutMs) {
+function waitFor(getter, timeoutMs, context) {
   return new Promise(resolve => {
-    const deadline = Date.now() + timeoutMs;
+    const deadline = Math.min(Date.now() + timeoutMs, context?.deadline || Infinity);
+    let timer;
+    const finish = value => {
+      clearTimeout(timer);
+      context?.signal.removeEventListener('abort', stopped);
+      resolve(value);
+    };
+    const stopped = () => finish(null);
+    context?.signal.addEventListener('abort', stopped, { once: true });
     const tick = () => {
+      if (context?.signal.aborted || context?.isCurrent() === false) return finish(null);
       try {
         const value = getter();
-        if (value) return resolve(value);
+        if (value) return finish(value);
       } catch {
         // Ignore temporary DOM lookup errors during page loading
       }
-      if (Date.now() > deadline) return resolve(null);
-      setTimeout(tick, 200);
+      if (Date.now() >= deadline) return finish(null);
+      timer = setTimeout(tick, Math.min(100, deadline - Date.now()));
     };
     tick();
   });
@@ -264,4 +296,35 @@ function parseTimestamp(ts) {
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return -1;
+}
+
+function capturePause(ms, context) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const stop = () => {
+      clearTimeout(timer);
+      context?.signal.removeEventListener('abort', stop);
+      reject(context?.signal.reason);
+    };
+    try {
+      context?.check();
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    context?.signal.addEventListener('abort', stop, { once: true });
+    timer = setTimeout(
+      () => {
+        context?.signal.removeEventListener('abort', stop);
+        resolve();
+      },
+      Math.max(0, Math.min(ms, (context?.deadline || Infinity) - Date.now()))
+    );
+  });
+}
+function addCaptureCoverage(capture, reason, counts) {
+  capture.captureCoverage ||= { reasons: [] };
+  if (!capture.captureCoverage.reasons.includes(reason)) capture.captureCoverage.reasons.push(reason);
+  if (counts) Object.assign(capture.captureCoverage, counts);
+  return capture;
 }

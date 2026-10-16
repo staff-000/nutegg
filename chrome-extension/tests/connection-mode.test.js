@@ -51,8 +51,10 @@ function worker(initial = {}, availability = {}) {
       return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1',instanceId:'test',protocolVersion:3,capabilities:['execution-v3'] } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
     },
   });
+  vm.runInContext(fs.readFileSync(require.resolve('../dist/page-identity.js'), 'utf8'), context);
+  context.NutEggAI.normalizeCaptureCoverage = new Function(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8')+';return NutEggAI')().normalizeCaptureCoverage;
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
-  return { stored, http, ai, timeouts, change: async values => {
+  return { context, stored, http, ai, timeouts, change: async values => {
     const changes = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }]));
     Object.assign(stored, values);
     storageListener(changes, 'local');
@@ -401,4 +403,20 @@ test('standalone AI receives processing limits, including legacy token settings'
   await app.send('analyze', { payload: { content: 'Article' } });
   assert.equal(app.ai[0].settings.chunkWindowChars, 7000);
   assert.equal(app.ai[0].settings.contentAnalysisMaxTokens, 2000);
+});
+
+test('legacy cache fallbacks cannot cross hash routes and preserve coverage warnings', async () => {
+  const app=worker({chromeAiApiKey:'test'});
+  const url='https://example.test/#/one';
+  const old={url,canonicalUrl:'https://example.test/',capturePayload:{url}};
+  app.context.cacheCandidate=old;
+  assert.equal(vm.runInContext("matchesCacheEntry(cacheCandidate,'https://example.test/#/two')",app.context),false);
+  assert.equal(vm.runInContext("matchesCacheEntry(cacheCandidate,'https://example.test/#/one')",app.context),true);
+  app.context.cacheCandidate={...old,url:'https://example.test/',capturePayload:{url:'https://example.test/'}};
+  assert.equal(vm.runInContext("matchesCacheEntry(cacheCandidate,'https://example.test/#/one')",app.context),false);
+  await app.send('analyze',{payload:{url,title:'Partial',content:'A'.repeat(31000),sourceType:'article',captureCoverage:{reasons:['traversal_limit'],originalCharacters:65000}}});
+  const saved=app.stored.chromeTabCache[0];
+  assert.deepEqual([...saved.capturePayload.captureCoverage.reasons],['traversal_limit','truncated']);
+  assert.equal(saved.capturePayload.captureCoverage.capturedCharacters,30000);
+  assert.equal(saved.capturePayload.captureCoverage.originalCharacters,65000);
 });
