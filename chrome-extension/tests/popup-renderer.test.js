@@ -20,6 +20,24 @@ function setup(t) {
 }
 const response = id => ({ titleVerdict: `Result ${id}`, coreSummary: [`Summary ${id}`], matchedEggs: [] });
 
+test('signed-out ChatGPT shows authorization status without replacing content with Obsidian connection setup', context => {
+  const f = setup(context);
+  Object.assign(f.settings, {
+    environmentChecked: true,
+    serverOnline: true,
+    serverConfigurationChecked: true,
+    chromeAiAuthMethod: 'chatgpt',
+    obsidianAiConfigured: false,
+    subscriptionState: 'signed_out',
+    serverError: 'Continue with ChatGPT',
+  });
+  f.renderer.render();
+  assert.equal(f.root.getElementById('setup-hub').classList.contains('hidden'), true);
+  assert.equal(f.root.getElementById('subscription-recovery').classList.contains('hidden'), true);
+  assert.equal(f.root.getElementById('capture-state').classList.contains('not-functional'), false);
+  assert.match(f.ui.captureUI.contentPreview.textContent, /Content 1/);
+});
+
 test('a temporary configuration failure does not ask a connected vault to reconnect', context => {
   const f = setup(context);
   Object.assign(f.settings, { environmentChecked: true, serverOnline: true, serverConfigurationChecked: false,

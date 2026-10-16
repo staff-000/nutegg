@@ -43,12 +43,12 @@ function worker(initial = {}, availability = {}) {
       http.push({ url, options });
       if (availability.respond) {
         const result=await availability.respond(url,options);
-        if(url.endsWith('/health'))return {...result,json:async()=>({...await result.json(),instanceId:'test',capabilities:['execution-v2']})};
+        if(url.endsWith('/health'))return {...result,json:async()=>({...await result.json(),instanceId:'test',protocolVersion:3,capabilities:['execution-v3']})};
         return result;
       }
       if (availability.online === false || availability.offlinePaths?.some(path => url.endsWith(path))) throw new Error('Connection refused');
       if (url.endsWith('/metrics')) return { ok: availability.metricsOk !== false, json: async () => availability.metrics || { nuts: 0, eggs: 0, timeSavedMinutes: 0 } };
-      return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1',instanceId:'test',capabilities:['execution-v2'] } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
+      return { ok: !url.endsWith('/ai-config') || availability.syncOk !== false, json: async () => url.endsWith('/health') ? { version: '1',instanceId:'test',protocolVersion:3,capabilities:['execution-v3'] } : { answers: ['Obsidian answer'], coreSummary: ['Obsidian summary'] } };
     },
   });
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);

@@ -3,7 +3,7 @@
 // ============================================================
 
 import { trackAIRequest } from './ai-diagnostics';
-import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig } from './catalog';
+import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, aiConnectionLabel } from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -298,7 +298,7 @@ export async function chatAI(
   debugScope?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  if (config.authMethod === 'subscription')
+  if (config.authMethod === 'subscription' || config.authMethod === 'chatgpt')
     throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
   if (config.provider !== 'local' && !config.apiKey) {
     throw new AIError(
@@ -564,7 +564,7 @@ export class AIClient {
       const status = await this.subscription.status(config.provider as SubscriptionProvider);
       return {
         provider: config.provider,
-        providerLabel: PROVIDER_CATALOG[config.provider]?.label || config.provider,
+        providerLabel: aiConnectionLabel(config.provider, config.authMethod),
         source: 'official',
         model: config.model,
         hasBalance: false,

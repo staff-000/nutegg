@@ -43,7 +43,7 @@ class EnvironmentService {
       if (version !== this.version || this.settings.connectionMode !== connectionMode) return;
       this.settings.setServerStatus();
       this.settings.chromeAiAuthMethod = ai.authMethod;
-      this.settings.subscriptionState = null;
+      if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
       this.settings.setChromeAiStatus({
         enabled: true,
         configured: !!ai.configured,
@@ -80,7 +80,11 @@ class EnvironmentService {
     if (state) {
       this.settings.executionState = state;
       this.settings.chromeAiAuthMethod = state.mode;
-      if (state.mode === 'subscription') {
+      if (state.mode === 'chatgpt') {
+        this.settings.chromeAiProvider = 'openai';
+        this.settings.chromeAiModel = state.chatgpt?.model || '';
+        this.settings.subscriptionState = state.chatgpt?.state || 'signed_out';
+      } else if (state.mode === 'subscription') {
         this.settings.chromeAiProvider = state.subscription.provider;
         this.settings.chromeAiModel = state.subscription.model;
       } else {
@@ -94,7 +98,7 @@ class EnvironmentService {
         });
       }
     }
-    this.settings.subscriptionState = null;
+    if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
     this.settings.environmentChecked = true;
     this.store.dispatch({
       type: 'environment',
@@ -115,8 +119,9 @@ class EnvironmentService {
         online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)
       )
         return;
-      this.settings.subscriptionState =
-        this.settings.chromeAiAuthMethod === 'subscription' ? credit?.subscriptionState || null : null;
+      this.settings.subscriptionState = ['subscription', 'chatgpt'].includes(this.settings.chromeAiAuthMethod)
+        ? credit?.subscriptionState || null
+        : null;
       this.settings.aiStatusError =
         credit?.error ||
         (credit?.hasBalance && Number.isFinite(credit.remainingCredits) && credit.remainingCredits <= 0
@@ -132,7 +137,7 @@ class EnvironmentService {
         online !== (this.settings.connectionMode === 'obsidian' && this.settings.serverOnline)
       )
         return;
-      this.settings.subscriptionState = null;
+      if (state?.mode !== 'chatgpt') this.settings.subscriptionState = null;
       this.settings.aiStatusError = error.message || String(error);
       this.store.dispatch({ type: 'environment', value: { ...this.store.environment, credit: null } });
     }

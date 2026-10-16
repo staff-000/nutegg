@@ -1,6 +1,33 @@
 import type { TranslationKey } from './en';
 
 export const zh: Record<TranslationKey, string> = {
+  chatgptLabel: 'ChatGPT 登录',
+  codexSubscription: 'Codex CLI',
+  cliSubscription: 'CLI 订阅',
+  saveConnectionModel: '保存模型',
+  claudeLabel: 'Claude',
+  obsidianAIConnectionsDesc: '为 Obsidian 和已连接的 Chrome 选择 AI 连接。API 密钥请在 Chrome 设置中配置。',
+  aiConnectionChangeFailed: '无法切换 AI 连接。请刷新设置后重试。',
+  chooseAIConnection: '选择 AI 连接',
+  aiMethod: 'AI 连接',
+  chatgptContinue: '使用 ChatGPT 继续',
+  chatgptSignOut: '退出登录',
+  chatgptCancel: '取消登录',
+  chatgptRefreshModels: '刷新模型',
+  chatgptManageUsage: '管理用量',
+  chatgptModel: 'ChatGPT 模型',
+  chatgptRequiresObsidian: 'ChatGPT 登录需要连接 Obsidian。请保持 Obsidian 运行。',
+  chatgptTokenHint: 'ChatGPT 登录模式不支持 API 输出令牌上限。',
+  chatgptStorageUnavailable: 'ChatGPT 登录不可用。请检查本地凭据存储或其他正在运行的 Obsidian 实例。',
+  chatgptState_signed_out: '尚未登录',
+  chatgptState_signing_in: '正在登录…',
+  chatgptState_ready: '已连接',
+  chatgptState_permission_missing: '请允许使用 ChatGPT 订阅用量。',
+  chatgptState_reauthorization_required: '请重新登录 ChatGPT。',
+  chatgptState_error: '请检查 ChatGPT 连接。',
+  chatgptChooseModel: '请选择模型',
+  chatgptError: 'ChatGPT 无法完成此操作。请重试。',
+
   settingsCheckTimeout: '连接检查超时。请点击刷新重试。',
   settingsModelsUpdated: '模型列表已更新。',
   settingsModelsUnavailable: '无法刷新模型列表。仍可选择自动或输入自定义模型 ID。',
@@ -42,7 +69,7 @@ export const zh: Record<TranslationKey, string> = {
   settingsObsidianSyncDesc: 'Configure AI above. Keep Obsidian open to sync these settings.',
   subscriptionAccountProvider: 'Provider account',
   subscriptionAccountSetup:
-    'Choose your provider, authorize your account, and select a model here. Chrome controls whether to use an API key or this subscription.',
+    '登录此连接并选择模型。Obsidian 和已连接的 Chrome 使用所选连接。API 密钥请在 Chrome 设置中配置。',
 
   subscriptionEnableCommand: 'Enable experimental AI connections',
   subscriptionDisableCommand: '停用订阅模式',

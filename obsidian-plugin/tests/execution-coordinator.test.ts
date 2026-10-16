@@ -13,6 +13,59 @@ function setup() {
     const admit = (i: number) => c.admit(envelope(i), sessions[i].origin, sessions[i].credentialId, { aiApiKey: 'native-private' }, () => ({ chat: async () => 'subscription' }));
     return { c, sessions, messages, envelope, admit, persisted };
 }
+test('ChatGPT uses the native executor for Chrome and Obsidian, independent of CLI capability', async () => {
+  const { c, admit } = setup();
+  await c.updateChatGPT({
+    available: true,
+    state: 'ready',
+    revision: 1,
+    accountLabel: 'Test account',
+    model: 'chatgpt-model',
+  });
+  await c.change(c.state.revision, randomUUID(), { mode: 'chatgpt', subscriptionAvailable: false });
+  const job = admit(0);
+  assert.equal(job.metadata.authMethod, 'chatgpt');
+  assert.equal(job.metadata.provider, 'openai');
+  assert.equal(job.metadata.model, 'chatgpt-model');
+  assert.equal(
+    await job.executor.chat({ prompt: 'Q', maxTokens: 100 }, job.controller.signal),
+    'subscription',
+    'uses injected native executor, not Chrome API'
+  );
+  const native = c.native({ aiProvider: 'deepseek', aiApiKey: 'private' }, settings => ({
+    chat: async () => `${settings.aiAuthMethod}:${settings.aiModel}`,
+  }));
+  assert.equal(
+    await native.executor.chat({ prompt: 'Q', maxTokens: 100 }, native.controller.signal),
+    'chatgpt:chatgpt-model'
+  );
+  await c.updateChatGPT({ available: true, state: 'signed_out', revision: 2, accountLabel: '', model: '' });
+  assert.equal(job.controller.signal.aborted, true);
+  assert.equal(native.controller.signal.aborted, true);
+  assert.equal(c.state.mode, 'chatgpt', 'sign-out never enables API billing');
+  assert.equal(selectEffectiveExecution('obsidian', c.state), 'chatgpt');
+  assert.equal(selectEffectiveExecution('chrome', c.state), 'apiKey');
+  assert.equal(reduceSharedExecutionState(undefined, c.state).mode, 'chatgpt');
+  assert.equal(ExecutionCoordinator.initial(c.snapshot(), false).mode, 'chatgpt');
+  await c.dispose();
+});
+
+test('ChatGPT status changes do not cancel unrelated API jobs or overwrite a newer mode transition', async () => {
+  const { c, admit } = setup();
+  const api = admit(0);
+  const revision = c.state.revision;
+  await c.updateChatGPT({ available: true, state: 'signed_out', revision: 1, accountLabel: '', model: '' });
+  c.assertActive(api);
+  assert.equal(c.state.revision, revision);
+  await Promise.all([
+    c.change(c.state.revision, randomUUID(), { mode: 'chatgpt' }),
+    c.updateChatGPT({ available: true, state: 'ready', revision: 2, accountLabel: 'Test', model: 'model' }),
+  ]);
+  assert.equal(c.state.mode, 'chatgpt');
+  assert.equal(c.state.chatgpt?.state, 'ready');
+  assert.equal(c.state.transition, 'ready');
+  await c.dispose();
+});
 test('concurrent API calls use their own Chrome executor; cross-profile answers are rejected', async () => {
     const { c, sessions, messages, admit } = setup();
     const a = admit(0), b = admit(1);

@@ -220,7 +220,7 @@ export function renderSyncButton(plugin: NutEggPlugin, container: HTMLElement): 
  * Render an AI setup callout banner if AI provider/key is not yet configured.
  */
 export function renderSetupBanner(plugin: NutEggPlugin): HTMLElement | null {
-  if (isAIConfigured(plugin.settings)) {
+  if (isAIConfigured(plugin.getNativeSettings?.() || plugin.settings)) {
     return null;
   }
 
@@ -316,7 +316,10 @@ class IndexActionBarWidget extends WidgetType {
   }
 
   eq(other: IndexActionBarWidget): boolean {
-    return isAIConfigured(this.plugin.settings) === isAIConfigured(other.plugin.settings);
+    return (
+      isAIConfigured(this.plugin.getNativeSettings?.() || this.plugin.settings) ===
+      isAIConfigured(other.plugin.getNativeSettings?.() || other.plugin.settings)
+    );
   }
 
   toDOM(): HTMLElement {

@@ -6,6 +6,14 @@ import type { AIProviderId, ModelFamily, NutEggAISettings, ProviderInfo, Resolve
 
 export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
+/** Display identity depends on authentication; saved provider IDs remain stable. */
+export function aiConnectionLabel(provider?: string, method?: string): string {
+  if (method === 'chatgpt') return 'ChatGPT sign-in';
+  if (method === 'subscription' && provider === 'openai') return 'Codex CLI';
+  if (method === 'subscription' && provider === 'anthropic') return 'Claude';
+  return PROVIDER_CATALOG[provider as AIProviderId]?.label || provider || '';
+}
+
 // Reviewed 2026-10-05 against provider pricing and OpenRouter's live catalog.
 // Prefer economical general-purpose models; keep stronger and useful legacy
 // choices available. Direct-provider aliases and OpenRouter IDs can differ.
@@ -223,6 +231,7 @@ export function findOpenRouterFamily(modelName: string): ModelFamily | undefined
  */
 export function isAIConfigured(settings?: NutEggAISettings): boolean {
   if (!settings) return false;
+  if ((settings.chromeAiAuthMethod || settings.aiAuthMethod) === 'chatgpt') return settings.chatgptReady === true;
   const provider = (settings.chromeAiProvider || settings.aiProvider || 'gemini') as AIProviderId;
   const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || '';
 
@@ -242,6 +251,16 @@ export function resolveConfig(settings: NutEggAISettings): ResolvedConfig & {
   extraHeaders: Record<string, string>;
 } {
   const providerId = (settings.chromeAiProvider || settings.aiProvider || 'anthropic') as AIProviderId;
+  if ((settings.chromeAiAuthMethod || settings.aiAuthMethod) === 'chatgpt')
+    return {
+      provider: 'openai',
+      authMethod: 'chatgpt',
+      endpoint: '',
+      apiKey: '',
+      model: settings.chromeAiModel || settings.aiModel || '',
+      apiFormat: 'openai-compatible',
+      extraHeaders: {},
+    };
   if (isSubscriptionProvider(settings))
     return {
       provider: providerId,

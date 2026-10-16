@@ -1,6 +1,6 @@
 # AI execution architecture and multi-profile setup
 
-This guide describes execution protocol 2. Connected Chrome profiles share an
+This guide describes execution protocol 3. Connected Chrome profiles share an
 Obsidian-owned execution mode, while each profile keeps its own API configuration.
 Changing mode never transfers an API key between profiles or into Obsidian. An explicit connected Chrome **Save & continue** updates the native Obsidian account, as described below.
 
@@ -14,16 +14,16 @@ For readiness colors and credit display, see [connection status](connection-stat
 | Chrome-only | Initiating Chrome profile | That Chrome |
 | Connected Chrome, API mode | Initiating Chrome profile | That Chrome; Obsidian coordinates the workflow |
 | Obsidian action, API mode | Separate native configuration | Obsidian |
-| Subscription mode | Shared Obsidian subscription configuration | Obsidian CLI |
+| CLI subscription | Shared Obsidian CLI configuration | Obsidian CLI |
+| ChatGPT sign-in | Shared account/model; protected local OAuth credentials | Obsidian, using the public Responses API |
 
-Connected profiles share only the selected API/Subscription mode and subscription provider/model. Different API providers, models and keys are expected. Chrome-only profiles remain independent. Normal workflow requests never transmit API keys. In connected API mode, an explicit **Save & continue** also updates the native Obsidian account using the saved Chrome key/provider/model. This dedicated authenticated operation writes only to SecretStorage and replaces an existing native key on every explicit save; advanced saves and Chrome-only saves do not perform it. Native Obsidian API keys use SecretStorage; on apps without it, configure Chrome API execution or upgrade to Obsidian 1.11.4+. A legacy mirrored API configuration is an inactive migration candidate requiring explicit selection, not an automatically owned native key. On older Obsidian versions, migration renames the original settings file to an inactive `legacy-ai-settings.json`, retaining the existing key until an upgrade permits explicit secure import. It does not write a new plaintext native key.
+Connected profiles share the selected authentication method and the CLI or ChatGPT model selection. Different API providers, models and keys are expected. Chrome-only profiles remain independent. Normal workflow requests never transmit API keys. In connected API mode, an explicit **Save & continue** also updates the native Obsidian account using the saved Chrome key/provider/model. This dedicated authenticated operation writes only to SecretStorage and replaces an existing native key on every explicit save; advanced saves and Chrome-only saves do not perform it. Native Obsidian API keys use SecretStorage; on apps without it, configure Chrome API execution or upgrade to Obsidian 1.11.4+. A legacy mirrored API configuration is an inactive migration candidate requiring explicit selection, not an automatically owned native key. On older Obsidian versions, migration renames the original settings file to an inactive `legacy-ai-settings.json`, retaining the existing key until an upgrade permits explicit secure import. It does not write a new plaintext native key.
 
-Chrome settings retain API preferences while showing subscription provider/model read-only. Enable experimental connections through Obsidian's command palette; enabling availability does not select subscription. Only connected Chrome settings show the shared mode control. Obsidian owns subscription installation, authorization and models, and has no subscription switch. Disabling availability switches connected profiles to API and stops subscription work.
+Chrome settings retain API preferences while showing the shared connection. Obsidian presents four direct choices: ChatGPT sign-in, Codex CLI, Google Gemini, and Claude. Selecting a CLI connection enables it and selects its provider in one execution transition. API-key configuration and API execution selection remain in Chrome settings; Obsidian has no API-key editor. Disabling CLI availability returns to API only when CLI execution was selected. ChatGPT credentials remain in the local plugin runtime. Native actions and connected Chrome workflows use the same ChatGPT executor; standalone Chrome has no ChatGPT route. See [sign-in and CLI setup](ai-subscriptions.md).
 
 In API mode, Obsidian's main settings show live connected Chrome profiles, including
 each profile's provider, model, chunk window size, and completion token limit.
-The separate native Obsidian API editor is under Developer Mode. These values are
-not copied into the native configuration.
+API keys are edited only in Chrome. Obsidian may display the active API configuration read-only; opening its settings does not replace an existing selection.
 
 ## Three call flows
 
@@ -88,25 +88,15 @@ remain saved locally for a later return to API mode.
 2. Connect each profile to the same running Obsidian plugin. An unknown development
    extension may require approval in Obsidian; connection credentials are handled
    automatically.
-3. To expose the experimental feature, run **Enable experimental AI connections**
-   in Obsidian's command palette. API remains selected until a connected Chrome
-   explicitly selects subscription.
-4. In connected Chrome settings, select subscription. The acknowledged shared
-   change applies to every connected profile; pending changes show a checking state.
-5. In Obsidian settings, authorize the provider and select its subscription model.
-   Chrome displays that configuration read-only. An explicit connection test can
-   consume subscription quota.
-6. Select API in any connected Chrome to return every connected profile to API.
-   Each profile restores its own saved configuration, and subscription work stops.
-7. Run **Disable subscription mode** in Obsidian to remove availability entirely.
-   Connected profiles return to API and subscription controls disappear.
-
-There is no subscription switch in Obsidian settings. With availability disabled,
-neither application's settings show subscription controls or setup guidance.
+3. Select **ChatGPT sign-in** in Obsidian or connected Chrome to use direct OpenAI OAuth. Complete authorization and allow plan usage; choose the account model in either client.
+4. For CLI execution, select **Codex CLI**, **Google Gemini**, or **Claude** directly in Obsidian, then authorize and choose a model. The selection enables CLI availability automatically.
+5. Mode changes apply to every connected profile. API preferences and CLI selections remain saved separately. Selecting API restores each profile's configuration.
+6. **Disable subscription mode** disables CLI availability. It switches to API only if CLI was selected and leaves a selected ChatGPT connection intact.
+7. ChatGPT sign-out cancels ChatGPT work but keeps the method selected. Reconnect explicitly; there is no automatic API-key fallback.
 
 ## Protocol and trust
 
-Execution protocol 2 keeps HTTP analysis, follow-up, confirmation and streaming routes. An authenticated WebSocket carries state, delegated AI calls, results and cancellation. Chrome 116+ is required; messages every 20 seconds maintain its worker, and sessions expire after 60 seconds without activity. See [Chrome's WebSocket guidance](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets).
+Execution protocol 3 keeps HTTP analysis, follow-up, confirmation and streaming routes. An authenticated WebSocket carries state, delegated AI calls, results and cancellation. Chrome 116+ is required; messages every 20 seconds maintain its worker, and sessions expire after 60 seconds without activity. See [Chrome's WebSocket guidance](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets).
 
 Credentials are exchanged by the existing trusted-extension connection flow. They bind to a persistent Obsidian instance and an individual Chrome profile. Host and Origin validation precede dispatch. The socket authenticates in its first frame, never in its URL. An unknown development extension needs approval. Connection credentials authorize local vault access, not retrieval of provider keys. Ordinary websites cannot authorize themselves with an identity header. Local software that can forge headers remains outside this browser-origin boundary.
 
@@ -122,10 +112,11 @@ Mode writes require expected revision and operation ID. Repeated identical opera
 | `/execution/socket` | First-frame authentication, state notifications, delegated calls/results, cancellation, and heartbeats. |
 | Existing HTTP workflow routes | Analysis, questions, confirmation/save, egg creation, and existing streaming responses. |
 | `POST /execution/native-api/sync` | Explicit connected Save & continue; validates the authenticated session, instance, and API-mode revision, then updates the native account in SecretStorage. The response contains no key. |
+| `POST /chatgpt/{status,signin,cancel,signout,models,model}` | Authenticated connection controls; no token or arbitrary-URL forwarding. |
 | Legacy `/ai-config` and `/ai-config-status` writes | Reject with HTTP 426 and an update-required error. |
 
 The shared snapshot contains `instanceId`, `protocolVersion`, `revision`,
-`subscriptionAvailable`, `mode`, subscription provider/model, and transition state.
+`subscriptionAvailable`, `mode`, subscription provider/model, public ChatGPT connection status/revision/account label/model, and transition state.
 Client metadata identifies the profile/session and its non-secret provider/model
 and configuration revision. Neither contains provider keys or API endpoints.
 
@@ -244,3 +235,9 @@ with only one platform package recorded. npm hoisted the existing esbuild `0.20.
 to the root and recorded all 23 optional platform packages. This did not upgrade
 esbuild or add those binaries to the shipped application bundles. Keep the generated
 entries so other development and CI platforms can resolve the appropriate binary.
+
+## ChatGPT sign-in lifecycle
+
+The plugin owns a separate ChatGPT service, independent of CLI discovery. It shares rotating refresh operations, caches account models for five minutes, and validates complete SSE responses before passing generated text into the existing AI processor. Account, model, and authorization-revision changes cancel obsolete ChatGPT jobs and fence their later writes. Merely refreshing status does not cancel work or start inference.
+
+The paired Chrome connection is required for all controls and workflows. Execution handshakes require protocol 3. Update both clients together; incompatible clients receive an update error. Signed-out or revoked authorization stays selected and fails explicitly rather than falling back to API billing.

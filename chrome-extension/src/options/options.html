@@ -22,20 +22,81 @@
           <div class="card-heading ai-card-heading">
             <h2 id="setup-heading" data-i18n="settingsSetupTitle">Connect your AI</h2>
             <div id="ai-auth-row" class="use-subscription-wrap" hidden>
-              <label class="switch-toggle" for="use-subscription-toggle" data-hints="off">
+              <label hidden class="switch-toggle" for="use-subscription-toggle" data-hints="off">
                 <input type="checkbox" id="use-subscription-toggle" role="switch" />
                 <span class="switch-slider" aria-hidden="true"></span>
                 <span class="switch-text" data-i18n="useSubscriptionSwitch">Use Subscription</span>
               </label>
-              <select id="ai-auth-method" style="display: none">
+              <select id="ai-auth-method" aria-label="AI connection" data-i18n-aria-label="aiMethod">
                 <option value="apiKey" data-i18n="settingsKeyLabel">API key</option>
-                <option value="subscription" data-i18n="subscriptionLabel">Subscription</option>
+                <option value="subscription" data-i18n="cliSubscription">CLI subscription</option>
+                <option value="chatgpt" data-i18n="chatgptLabel">ChatGPT sign-in</option>
               </select>
             </div>
           </div>
           <div class="option-row">
             <label for="ai-provider-select" data-i18n="settingsProviderLabel">AI provider</label>
             <select id="ai-provider-select"></select>
+          </div>
+          <p class="hint" data-i18n="chatgptRequiresObsidian">
+            ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.
+          </p>
+          <div id="chatgpt-card" class="subscription-card" hidden>
+            <h3 data-i18n="chatgptLabel">ChatGPT sign-in</h3>
+            <p id="chatgpt-status" role="status"></p>
+            <p id="chatgpt-message" class="hint"></p>
+            <div class="option-row">
+              <label for="chatgpt-model" data-i18n="chatgptModel">ChatGPT model</label
+              ><select id="chatgpt-model" data-i18n-title="chatgptModel"></select>
+            </div>
+            <p class="hint" data-i18n="chatgptTokenHint">
+              ChatGPT sign-in does not enforce the API output-token limit.
+            </p>
+            <div class="button-group">
+              <button
+                type="button"
+                id="chatgpt-signin"
+                title="Continue with ChatGPT"
+                data-i18n-title="chatgptContinue"
+                data-i18n="chatgptContinue"
+              >
+                Continue with ChatGPT
+              </button>
+              <button
+                type="button"
+                id="chatgpt-cancel"
+                title="Cancel sign-in"
+                data-i18n-title="chatgptCancel"
+                data-i18n="chatgptCancel"
+              >
+                Cancel sign-in
+              </button>
+              <button
+                type="button"
+                id="chatgpt-refresh"
+                title="Refresh models"
+                data-i18n-title="chatgptRefreshModels"
+                data-i18n="chatgptRefreshModels"
+              >
+                Refresh models
+              </button>
+              <button
+                type="button"
+                id="chatgpt-signout"
+                title="Sign out"
+                data-i18n-title="chatgptSignOut"
+                data-i18n="chatgptSignOut"
+              >
+                Sign out
+              </button>
+              <a
+                href="https://chatgpt.com/#settings/Usage"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="chatgptManageUsage"
+                >Manage usage</a
+              >
+            </div>
           </div>
           <div id="subscription-card" class="subscription-card" hidden>
             <div class="subscription-status-row">

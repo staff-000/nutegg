@@ -14,13 +14,14 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
   const requests = [];
   const creditCalls = [];
   const messages = [];
-  const state = initial.obsidianExecutionState || {instanceId:'vault-test',protocolVersion:2,revision:1,transition:'ready',subscriptionAvailable:initial.subscriptionFeatureEnabled!==false,mode:initial.chromeAiAuthMethod==='subscription' && initial.subscriptionFeatureEnabled!==false?'subscription':'apiKey',subscription:{provider:'gemini',model:'auto'}};
+  const state = initial.obsidianExecutionState || {instanceId:'vault-test',protocolVersion:3,revision:1,transition:'ready',subscriptionAvailable:initial.subscriptionFeatureEnabled!==false,mode:initial.chromeAiAuthMethod==='subscription' && initial.subscriptionFeatureEnabled!==false?'subscription':'apiKey',subscription:{provider:'gemini',model:'auto'}};
   if(initial.connectionMode==='obsidian')values.obsidianExecutionState=state;
   win.chrome = {
     storage: { local: { get: async () => ({ ...values }), set: async data => Object.assign(values, data) } },
     runtime: { sendMessage: async message => { messages.push(message);
       if(message.action==='set-execution-mode') {state.mode=message.mode;state.revision++;values.obsidianExecutionState={...state};return {state:{...state}};}
-      if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'gemini',aiModel:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
+      if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='chatgpt'?'openai':state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'gemini',aiModel:state.mode==='chatgpt'?state.chatgpt?.model:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
+      if(message.action==='chatgpt-control') return {state:{...state}, ...(message.operation==='models'?{models:[{slug:'chatgpt-model',displayName:'ChatGPT model'}]}:{})};
       if(message.operation==='status')return {state:'unverified',model:state.subscription.model};
       return {}; }, getManifest: () => ({ version: '1.0' }) },
     tabs: { create: () => {} },
@@ -510,4 +511,79 @@ test('dialogue enhance (optimizeForConversation) checkbox saves to storage and r
   const app2 = await setup(t, { optimizeForConversation: false });
   const cb2 = app2.el('optimize-conversation');
   assert.equal(cb2.checked, false, 'Checkbox must stay unchecked when restored from storage');
+});
+
+
+test('ChatGPT is available with CLI disabled, preserves API settings, and hides API controls', async t => {
+  const state = {
+    instanceId: 'vault-test',
+    protocolVersion: 3,
+    revision: 1,
+    transition: 'ready',
+    subscriptionAvailable: false,
+    mode: 'chatgpt',
+    subscription: { provider: 'openai', model: 'codex-model' },
+    chatgpt: {
+      available: true,
+      state: 'ready',
+      revision: 1,
+      accountLabel: 'person@example.com',
+      model: 'chatgpt-model',
+    },
+  };
+  const { el, values, messages, change } = await setup(t, {
+    connectionMode: 'obsidian',
+    obsidianExecutionState: state,
+    chromeAiProvider: 'gemini',
+    chromeAiApiKey: 'saved-key',
+    chromeAiModel: 'gemini-pro',
+  });
+  await flush();
+  assert.equal(el('ai-auth-method').value, 'chatgpt');
+  assert.equal(el('ai-auth-row').hidden, false);
+  assert.equal(el('chatgpt-card').hidden, false);
+  assert.equal(el('subscription-card').hidden, true);
+  assert.equal(el('ai-key-row').hidden, true);
+  assert.equal(el('ai-save-btn').hidden, true);
+  assert.match(el('chatgpt-status').textContent, /person@example.com/);
+  assert.equal(el('chatgpt-model').value, 'chatgpt-model');
+  assert.equal(values.chromeAiApiKey, 'saved-key');
+  assert.ok(messages.some(message => message.action === 'chatgpt-control' && message.operation === 'models'));
+  el('ai-auth-method').value = 'apiKey';
+  change('ai-auth-method');
+  await flush();
+  await flush();
+  assert.equal(el('ai-key-input').value, 'saved-key');
+  assert.equal(el('ai-model-select').value, 'gemini-pro');
+});
+
+test('signed-out ChatGPT remains selected and Chrome-only mode has no ChatGPT option', async t => {
+  const state = {
+    instanceId: 'vault-test',
+    protocolVersion: 3,
+    revision: 1,
+    transition: 'ready',
+    subscriptionAvailable: false,
+    mode: 'chatgpt',
+    subscription: { provider: 'openai', model: 'auto' },
+    chatgpt: { available: true, state: 'signed_out', revision: 1, accountLabel: '', model: '' },
+  };
+  const { el, values, messages } = await setup(t, {
+    connectionMode: 'obsidian',
+    obsidianExecutionState: state,
+    chromeAiApiKey: 'saved-key',
+  });
+  assert.equal(el('ai-auth-method').value, 'chatgpt');
+  assert.equal(el('chatgpt-signin').hidden, false);
+  assert.equal(el('chatgpt-model').disabled, true);
+  assert.ok(!messages.some(message => message.action === 'set-execution-mode'));
+  assert.equal(values.chromeAiApiKey, 'saved-key');
+  const chromeOnly = await setup(t, {
+    connectionMode: 'chrome',
+    obsidianExecutionState: state,
+    chromeAiApiKey: 'saved-key',
+  });
+  assert.equal(chromeOnly.el('chatgpt-card').hidden, true);
+  assert.equal(chromeOnly.el('ai-auth-method').querySelector('option[value="chatgpt"]').hidden, true);
+  assert.equal(chromeOnly.el('ai-auth-method').value, 'apiKey');
 });

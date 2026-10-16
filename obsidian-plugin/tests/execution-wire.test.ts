@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { ChatGPTService } from '../src/chatgpt-service';
 import { webcrypto } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -41,6 +42,113 @@ async function eventually(check: () => boolean) { const until = Date.now() + 300
         throw new Error('Condition timed out');
     await new Promise(r => setTimeout(r, 10));
 } }
+test('ChatGPT routes native and connected Chrome requests without CLI or API-key fallback', async t => {
+  let record: any = {
+    clientId: 'oaiapp_test',
+    subject: 'test',
+    email: 'test@example.com',
+    accessToken: 'oauth-private',
+    refreshToken: 'refresh-private',
+    scopes: ['chatgpt.tokens.use.direct'],
+    expiresAt: Date.now() + 3600000,
+  };
+  const calls: any[] = [];
+  const service = new ChatGPTService(
+    {
+      hostId: 'urn:uuid:test',
+      load: () => record,
+      save: value => {
+        record = value;
+      },
+      clear: () => {
+        record = undefined;
+      },
+      close() {},
+    },
+    {
+      openBrowser() {},
+      fetch: (async (url: string, init: any) => {
+        calls.push({ url, body: init?.body && JSON.parse(init.body) });
+        if (url.endsWith('/models'))
+          return Response.json({
+            models: [{ slug: 'chatgpt-model', display_name: 'ChatGPT test', visibility: 'list' }],
+          });
+        if (url.endsWith('/responses'))
+          return new Response(
+            `data: ${JSON.stringify({ type: 'response.output_text.delta', delta: JSON.stringify({ answers: [{ question: 'Q', answer: 'ChatGPT answer' }] }) })}\n\ndata: {"type":"response.completed","response":{"status":"completed"}}\n\n`
+          );
+        throw new Error('Offline');
+      }) as any,
+    }
+  );
+  service.restoreModel('chatgpt-model');
+  const plugin: any = makeFakePlugin({
+    settings: { ...DEFAULT_SETTINGS, subscriptionEnabled: false, aiAuthMethod: 'chatgpt' },
+  });
+  plugin.chatgpt = service;
+  plugin.persistExecutionState = async (state: any) => {
+    plugin.settings.executionState = structuredClone(state);
+    plugin.settings.aiAuthMethod = state.mode;
+  };
+  plugin.subscriptions = {
+    cancelWork: async () => {},
+    chat: async () => {
+      throw new Error('CLI must not execute');
+    },
+  };
+  plugin.connectionAccess = new ConnectionAccess(
+    (plugin.settings.chromeConnections = {}),
+    async () => false,
+    async () => {},
+    (plugin.settings.chromeClientBindings = {})
+  );
+  const server = new NutEggServer(plugin, 0);
+  plugin.server = server;
+  const unsubscribe = service.onChange(() => {
+    void server.execution.updateChatGPT(service.status());
+  });
+  await server.start();
+  const native = (server as any).server;
+  const a = profile(native.address().port, 'http://127.0.0.1:1/unused', 'retained-api-key', 'retained-model');
+  t.after(async () => {
+    a.close();
+    unsubscribe();
+    service.dispose();
+    native.closeAllConnections();
+    await server.stop();
+  });
+  assert.equal((await a.message('connect-obsidian')).success, true);
+  const result = await a.message('ask', {
+    payload: { url: 'https://example.com', title: 'Title', content: 'Body', sourceType: 'article', questions: ['Q'] },
+  });
+  assert.equal(result.answers?.[0]?.answer, 'ChatGPT answer', JSON.stringify(result));
+  assert.equal(result.execution.authMethod, 'chatgpt');
+  assert.equal(result.execution.model, 'chatgpt-model');
+  assert.match(await server.nativeChat('Native Q', 100), /ChatGPT answer/);
+  assert.equal(calls.filter(call => call.url.endsWith('/responses')).length, 2);
+  assert.equal(a.data.chromeAiApiKey, 'retained-api-key');
+  assert.equal((await a.message('chatgpt-control', { operation: 'models' })).models[0].slug, 'chatgpt-model');
+  const stale = await a.message('chatgpt-control', { operation: 'signout', expectedConnectionRevision: -1 });
+  assert.match(stale.error, /connection changed/);
+  assert.equal(service.status().state, 'ready');
+  const control = await a.message('chatgpt-control', { operation: 'signout' });
+  assert.equal(control.state.mode, 'chatgpt');
+  assert.equal(control.state.chatgpt.state, 'signed_out');
+  const failed = await a.message('ask', { payload: { url: 'https://example.com', content: 'Body', questions: ['Q'] } });
+  assert.ok(failed.error);
+  const unavailable = await a.message('analyze', { payload: { url: 'https://example.com', title: 'Title', content: 'Body', stage: 2, eggs: [] } });
+  assert.match(unavailable.error, /Reconnect ChatGPT/);
+  await assert.rejects(server.runNative(async () => 'should not run', undefined, true), /Reconnect ChatGPT/);
+  assert.equal(calls.filter(call => call.url.endsWith('/responses')).length, 2, 'signed-out requests cannot fall back');
+  assert.doesNotMatch(
+    JSON.stringify(result) + JSON.stringify(control) + JSON.stringify(plugin.settings) + JSON.stringify(a.data),
+    /oauth-private|refresh-private/
+  );
+  await vm.runInContext("chrome.storage.local.set({connectionMode:'chrome'})", a.context);
+  const rejected = await a.message('chatgpt-control', { operation: 'signin' });
+  assert.match(rejected.error, /Obsidian-connected/);
+});
+
 test('two extension workers execute private API calls concurrently and follow shared subscription/API changes', async (t) => {
     const apiCalls: any[] = [];
     let providerGate:Promise<void>|undefined;let releaseProvider:(()=>void)|undefined;

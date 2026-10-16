@@ -17,7 +17,15 @@ export type AIProviderId =
   | 'qwen';
 
 export type AISource = 'official' | 'openrouter';
-export type AIAuthMethod = 'apiKey' | 'subscription';
+export type AIAuthMethod = 'apiKey' | 'subscription' | 'chatgpt';
+export interface ChatGPTConnection {
+  available: boolean;
+  state: 'signed_out' | 'signing_in' | 'ready' | 'permission_missing' | 'reauthorization_required' | 'error';
+  revision: number;
+  accountLabel: string;
+  model: string;
+  message?: string;
+}
 export type SubscriptionProvider = 'openai' | 'anthropic' | 'gemini';
 
 export interface SubscriptionStatus {

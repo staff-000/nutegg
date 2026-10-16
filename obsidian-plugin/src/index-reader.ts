@@ -52,7 +52,7 @@ export class IndexReader {
     if (index.length === 0) return [];
     if (index.length === 1) return index;
 
-    if (!executor && !isAIConfigured(this.plugin.settings)) {
+    if (!executor && !isAIConfigured(this.plugin.getNativeSettings?.() || this.plugin.settings)) {
       // Without AI configured, return first entry as fallback
       return [index[0]];
     }

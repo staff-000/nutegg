@@ -63,13 +63,17 @@ class PopupRenderer {
     // An unfinished connection check is not evidence that setup is needed.
     const configurationUnavailable =
       obsidianMode && settings.serverOnline && settings.serverConfigurationChecked === false;
-    const showSetupHub = settings.environmentChecked !== false && !isFunctional && !configurationUnavailable;
+    const showSetupHub =
+      settings.environmentChecked !== false &&
+      !isFunctional &&
+      !configurationUnavailable &&
+      !(obsidianMode && settings.serverOnline && settings.chromeAiAuthMethod === 'chatgpt');
     if (setupHub) setupHub.classList.toggle('hidden', !showSetupHub);
     if (captureState) captureState.classList.toggle('not-functional', showSetupHub);
     const showRecovery =
       settings.environmentChecked !== false &&
       !showSetupHub &&
-      settings.chromeAiAuthMethod === 'subscription' &&
+      ['subscription', 'chatgpt'].includes(settings.chromeAiAuthMethod) &&
       !settings.serverOnline;
     const recoveryEl = root.getElementById?.('subscription-recovery');
     if (recoveryEl) {
@@ -118,7 +122,12 @@ class PopupRenderer {
         ? t('executionMetadata', {
             provider: metadata.provider,
             model: metadata.model || 'auto',
-            method: metadata.authMethod === 'subscription' ? t('subscriptionLabel') : t('subscriptionApiKey'),
+            method:
+              metadata.authMethod === 'chatgpt'
+                ? t('chatgptLabel')
+                : metadata.authMethod === 'subscription'
+                  ? t(metadata.provider === 'openai' ? 'codexSubscription' : 'subscriptionLabel')
+                  : t('subscriptionApiKey'),
           })
         : '';
       metadataEl.title = metadata ? `${metadata.origin} · ${metadata.configurationRevision}` : '';

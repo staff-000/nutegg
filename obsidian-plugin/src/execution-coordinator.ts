@@ -81,7 +81,13 @@ export class ExecutionCoordinator {
       protocolVersion: EXECUTION_PROTOCOL,
       revision: saved?.revision || 1,
       subscriptionAvailable: available,
-      mode: available && (saved?.mode || legacyMode) === 'subscription' ? 'subscription' : 'apiKey',
+      mode:
+        (saved?.mode || legacyMode) === 'chatgpt'
+          ? 'chatgpt'
+          : available && (saved?.mode || legacyMode) === 'subscription'
+            ? 'subscription'
+            : 'apiKey',
+      chatgpt: saved?.chatgpt,
       subscription: selection || saved?.subscription || { provider: 'gemini', model: 'auto' },
       transition: saved?.transition === 'changing' || saved?.transition === 'error' ? saved.transition : 'ready',
     };
@@ -160,7 +166,7 @@ export class ExecutionCoordinator {
   change(
     expectedRevision: number,
     operationId: string,
-    patch: Partial<Pick<SharedExecutionState, 'mode' | 'subscriptionAvailable' | 'subscription'>>
+    patch: Partial<Pick<SharedExecutionState, 'mode' | 'subscriptionAvailable' | 'subscription' | 'chatgpt'>>
   ) {
     const task = async () => {
       if (this.closed) throw new ExecutionProtocolError('server_stopped', 'Obsidian stopped.', 503);
@@ -183,8 +189,8 @@ export class ExecutionCoordinator {
       };
       if (patch.mode === 'subscription' && !next.subscriptionAvailable)
         throw new ExecutionProtocolError('subscription_disabled', 'Subscription is not enabled in Obsidian.', 403);
-      if (!next.subscriptionAvailable) next.mode = 'apiKey';
-      if (next.mode !== 'apiKey' && next.mode !== 'subscription')
+      if (!next.subscriptionAvailable && next.mode === 'subscription') next.mode = 'apiKey';
+      if (next.mode !== 'apiKey' && next.mode !== 'subscription' && next.mode !== 'chatgpt')
         throw new ExecutionProtocolError('invalid_mode', 'Invalid AI mode.', 400);
       const validProviders = ['openai', 'anthropic', 'gemini'];
       const validModelPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/;
@@ -213,6 +219,25 @@ export class ExecutionCoordinator {
       () => {},
       () => {}
     );
+    return result;
+  }
+
+  updateChatGPT(connection: NonNullable<SharedExecutionState['chatgpt']>) {
+    const task = async () => {
+      if (this.closed) return;
+      if (JSON.stringify(this.state.chatgpt) === JSON.stringify(connection)) return;
+      const changed = this.state.chatgpt?.revision !== connection.revision;
+      this.state = {
+        ...this.state,
+        chatgpt: structuredClone(connection),
+        revision: this.state.revision + (changed && this.state.mode === 'chatgpt' ? 1 : 0),
+      };
+      if (changed) this.cancelJobs(job => job.metadata.authMethod === 'chatgpt');
+      await this.persist(this.snapshot());
+      this.broadcast();
+    };
+    const result = this.queue.then(task);
+    this.queue = result.catch(() => {});
     return result;
   }
 
@@ -267,6 +292,14 @@ export class ExecutionCoordinator {
         aiModel: this.state.subscription.model,
         chromeAiModel: this.state.subscription.model,
       });
+    } else if (this.state.mode === 'chatgpt') {
+      Object.assign(settings, {
+        aiProvider: 'openai',
+        chromeAiProvider: 'openai',
+        aiModel: this.state.chatgpt?.model || '',
+        chromeAiModel: this.state.chatgpt?.model || '',
+        chatgptReady: this.state.chatgpt?.state === 'ready',
+      });
     } else {
       settings.aiProvider = settings.chromeAiProvider || settings.aiProvider;
       settings.aiModel = settings.chromeAiModel || settings.aiModel;
@@ -291,7 +324,7 @@ export class ExecutionCoordinator {
       httpDone: false,
     };
     job.executor =
-      this.state.mode === 'subscription'
+      this.state.mode !== 'apiKey'
         ? nativeExecutor(settings, controller.signal)
         : { chat: (request, signal) => this.delegate(job, request, signal) };
 
@@ -316,6 +349,14 @@ export class ExecutionCoordinator {
         aiProvider: this.state.subscription.provider,
         aiModel: this.state.subscription.model,
         aiApiKey: '',
+      });
+    } else if (this.state.mode === 'chatgpt') {
+      Object.assign(captured, {
+        aiAuthMethod: 'chatgpt',
+        aiProvider: 'openai',
+        aiModel: this.state.chatgpt?.model || '',
+        aiApiKey: '',
+        chatgptReady: this.state.chatgpt?.state === 'ready',
       });
     } else {
       captured.aiAuthMethod = 'apiKey';

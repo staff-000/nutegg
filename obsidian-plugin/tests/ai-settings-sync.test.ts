@@ -6,6 +6,85 @@ import { Setting } from 'obsidian';
 import { JSDOM } from 'jsdom';
 import { NutEggServer } from '../src/server';
 import { randomUUID } from 'node:crypto';
+import { ExecutionCoordinator } from '../src/execution-coordinator';
+import { isAIConfigured, aiConnectionLabel } from '../../shared/src/catalog';
+
+test('plugin unload releases ChatGPT ownership before waiting for server shutdown', async () => {
+  const plugin = new NutEggPlugin();
+  const events: string[] = [];
+  let release!: () => void;
+  plugin.chatgpt = { dispose: () => events.push('chatgpt-disposed') } as any;
+  plugin.server = { stop: () => new Promise<void>(resolve => { release = resolve; }) } as any;
+  plugin.subscriptions = { dispose: async () => events.push('cli-disposed') } as any;
+  plugin.db = { close: () => events.push('db-closed') } as any;
+  const unloading = plugin.onunload();
+  assert.deepEqual(events, ['chatgpt-disposed']);
+  release();
+  await unloading;
+  assert.deepEqual(events, ['chatgpt-disposed', 'cli-disposed', 'db-closed']);
+});
+
+test('unavailable ChatGPT stays labeled as ChatGPT and signing in is neutral', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiAuthMethod: 'chatgpt' };
+  const classes = new Set<string>();
+  const bar: any = { text: '', attrs: {} as Record<string, string>, style: {},
+    setText(text: string) { this.text = text; },
+    setAttribute(key: string, value: string) { this.attrs[key] = value; },
+    addClass(value: string) { classes.add(value); },
+    removeClass(value: string) { classes.delete(value); },
+  };
+  plugin.creditStatusBarItem = bar;
+  plugin.aiClient = { checkCredit: async () => ({}) } as any;
+  await plugin.updateCreditStatusBar();
+  assert.match(bar.text, /ChatGPT sign-in/);
+  assert.doesNotMatch(bar.text, /Setup AI Key/);
+  assert.match(bar.attrs['aria-label'], /credential storage/i);
+  plugin.chatgpt = { status: () => ({ state: 'signing_in' }) } as any;
+  await plugin.updateCreditStatusBar();
+  assert.equal(classes.has('mod-warning'), false);
+  assert.match(bar.attrs['aria-label'], /Signing in/);
+});
+
+test('native ChatGPT selection preserves API and Codex profiles across persistence and sign-out', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = {
+    ...DEFAULT_SETTINGS,
+    subscriptionEnabled: false,
+    nativeApiConfig: { aiProvider: 'deepseek', aiModel: 'native-model', aiApiKey: '' },
+    subscriptionSelection: { provider: 'openai', model: 'saved-codex-model' },
+  };
+  let status: any = { available: true, state: 'ready', revision: 1, accountLabel: 'Test', model: 'chatgpt-model' };
+  plugin.chatgpt = { status: () => status } as any;
+  const writes: any[] = [];
+  plugin.saveData = async value => {
+    writes.push(structuredClone(value));
+  };
+  plugin.updateCreditStatusBar = async () => {};
+  const state = ExecutionCoordinator.initial(undefined, false, plugin.settings.subscriptionSelection);
+  state.mode = 'chatgpt';
+  state.chatgpt = status;
+  await plugin.persistExecutionState(state);
+  assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
+  assert.equal(plugin.getNativeSettings().aiModel, 'chatgpt-model');
+  assert.equal(isAIConfigured(plugin.getNativeSettings()), true);
+  assert.equal(plugin.settings.nativeApiConfig?.aiModel, 'native-model');
+  assert.equal(plugin.settings.subscriptionSelection?.model, 'saved-codex-model');
+  assert.equal(plugin.settings.chatgptModel, 'chatgpt-model');
+  await plugin.persistExecutionState({ ...state, chatgpt: { ...status, available: false, model: '' } });
+  assert.equal(plugin.settings.chatgptModel, 'chatgpt-model', 'storage failure must not erase the saved selection');
+  status = { ...status, state: 'signed_out', revision: 2, model: '' };
+  await plugin.persistExecutionState({ ...state, chatgpt: status });
+  assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
+  assert.equal(isAIConfigured(plugin.getNativeSettings()), false);
+  assert.equal(plugin.settings.nativeApiConfig?.aiModel, 'native-model');
+  await plugin.persistExecutionState({ ...state, mode: 'apiKey', chatgpt: status });
+  assert.equal(plugin.getNativeSettings().aiModel, 'native-model');
+  assert.doesNotMatch(JSON.stringify(writes), /accessToken|refreshToken/);
+  assert.equal(aiConnectionLabel('openai', 'subscription'), 'Codex CLI');
+  assert.equal(aiConnectionLabel('openai', 'chatgpt'), 'ChatGPT sign-in');
+  assert.equal(aiConnectionLabel('openai', 'apiKey'), 'OpenAI');
+});
 
 test('a delayed balance response from the previous provider cannot overwrite the synced provider', async () => {
   const plugin = new NutEggPlugin();
@@ -31,6 +110,53 @@ test('a delayed balance response from the previous provider cannot overwrite the
 
 import { NutEggSettingTab } from '../src/settings';
 
+test('Obsidian offers four direct connections and enables the selected CLI without an API-key editor', async t => {
+  const dom = new JSDOM('<main></main>');
+  const choices: any[] = [];
+  t.mock.method(Setting.prototype, 'addDropdown', function (configure: any) {
+    const dropdown = { options: new Map<string, string>(), value: '', change: undefined as any,
+      selectEl: dom.window.document.createElement('select'),
+      addOption(value: string, label: string) { this.options.set(value, label); return this; },
+      setValue(value: string) { this.value = value; return this; },
+      onChange(callback: any) { this.change = callback; return this; },
+    };
+    configure(dropdown); choices.push(dropdown); return this;
+  });
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: false,
+    nativeApiConfig: { aiProvider: 'deepseek', aiModel: 'saved-api-model' },
+    subscriptionSelection: { provider: 'openai', model: 'saved-codex-model' } };
+  plugin.saveData = async () => {};
+  plugin.subscriptions = { cancelWork: async () => {} } as any;
+  plugin.server = new NutEggServer(plugin, 0);
+  const tab = new NutEggSettingTab({} as any, plugin);
+  const container = dom.window.document.querySelector('main')!;
+  t.after(() => { tab.hide(); dom.window.close(); });
+  (tab as any).displayAIConnections(container);
+  const first = choices[0];
+  assert.equal(first.value, '', 'API execution must not be silently changed by rendering settings');
+  assert.deepEqual([...first.options].filter(([id]) => id), [
+    ['chatgpt', 'ChatGPT sign-in'], ['openai', 'Codex CLI'], ['gemini', 'Google Gemini'], ['anthropic', 'Claude'],
+  ]);
+  assert.equal(first.options.has('apiKey'), false);
+  assert.equal(first.options.has('subscription'), false);
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  await first.change('openai');
+  assert.equal(plugin.server.execution.state.mode, 'subscription');
+  assert.equal(plugin.settings.subscriptionEnabled, true);
+  assert.equal(plugin.settings.aiProvider, 'openai');
+  assert.equal(plugin.settings.aiModel, 'saved-codex-model');
+  ++(tab as any).chatgptView;
+  (tab as any).displayAIConnections(container);
+  assert.equal(choices[1].value, 'openai');
+  await first.change('gemini');
+  assert.equal(plugin.settings.aiProvider, 'openai', 'detached controls cannot switch the connection');
+  await choices[1].change('chatgpt');
+  assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
+  assert.equal(plugin.settings.nativeApiConfig?.aiModel, 'saved-api-model');
+  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'openai', model: 'saved-codex-model' });
+});
+
 test('provider switching cannot restart a detached settings card and strand the new status', async t => {
   const dom = new JSDOM('<main></main>');
   const proto = dom.window.HTMLElement.prototype as any;
@@ -55,14 +181,15 @@ test('provider switching cannot restart a detached settings card and strand the 
   const plugin = new NutEggPlugin();
   plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription', aiModel: 'auto' };
   const pending: Array<{provider: string; resolve: (value: any) => void}> = [];
-  plugin.subscriptions = { models: async () => ['auto'],
+  plugin.subscriptions = { cancelWork: async () => {}, models: async () => ['auto'],
     status: (provider: string) => new Promise(resolve => pending.push({provider, resolve})) } as any;
+  plugin.server = new NutEggServer(plugin, 0);
   const tab = new NutEggSettingTab({} as any, plugin);
   const container = dom.window.document.querySelector('main')!;
   t.after(() => { tab.hide(); dom.window.close(); });
-  const render = () => { container.replaceChildren(); (tab as any).displaySubscriptionSetup(container); };
+  const render = () => { container.replaceChildren(); ++(tab as any).chatgptView; (tab as any).displayAIConnections(container); (tab as any).displaySubscriptionSetup(container); };
   // Execution persistence rebuilds settings before the onChange save returns.
-  plugin.saveSettings = async () => { render(); };
+  plugin.saveSettings = async () => { if (plugin.settings.executionState?.transition === 'ready') render(); };
   render();
   pending[0].resolve({state: 'ready', message: 'Gemini ready'});
   await new Promise(resolve => setImmediate(resolve));
@@ -317,9 +444,10 @@ test('settings never offer a subscription toggle and hide subscription details w
     assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
     assert.deepEqual(toggles, ['Developer mode']);
     const container = (tab as any).containerEl as HTMLElement;
-    assert.equal(container.querySelector('.nutegg-native-ai-section > h3')?.textContent, 'AI for Obsidian actions');
+    assert.equal(container.querySelector('.nutegg-native-ai-section'), null, 'API editing belongs only in Chrome');
     assert.equal(container.querySelector('.nutegg-model-config-section > h3')?.textContent, 'AI Model Configuration');
-    assert.ok(container.querySelector('.nutegg-native-ai-account'), 'account summary belongs in its own footer');
+    assert.equal(container.querySelector('input[type="password"]'), null);
+    assert.ok(!names.includes('AI provider') && !names.includes('API Key'));
     const headings = [...container.querySelectorAll('.nutegg-settings-section > h3')].map(heading => heading.textContent);
     assert.ok(headings.includes('Vault Paths'), 'vault paths have a padded section wrapper');
     assert.equal(container.querySelectorAll(':scope > h3').length, 0, 'section headings cannot remain outside padding');
@@ -332,7 +460,7 @@ test('settings never offer a subscription toggle and hide subscription details w
   plugin.settings.aiAuthMethod = 'subscription';
   names.length = toggles.length = 0; tab.display();
   await new Promise(resolve => setImmediate(resolve));
-  assert.match((tab as any).containerEl.textContent, /Subscription mode enabled/);
+  assert.match((tab as any).containerEl.textContent, /Codex CLI/);
   assert.deepEqual(toggles, ['Developer mode']);
   const rows = (tab as any).connectionRows;
   assert.equal(rows.bridge.textContent, 'Authorize subscription in Obsidian');

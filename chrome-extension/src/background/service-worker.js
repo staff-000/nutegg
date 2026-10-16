@@ -121,9 +121,11 @@ async function fetchObsidianAiConfig() {
   const state = await NutEggExecution.latest();
   const settings = await loadChromeAiSettings();
   const aiConfig =
-    state.mode === 'subscription'
-      ? { aiProvider: state.subscription.provider, aiModel: state.subscription.model, aiAuthMethod: 'subscription' }
-      : { aiProvider: settings.chromeAiProvider, aiModel: settings.chromeAiModel, aiAuthMethod: 'apiKey' };
+    state.mode === 'chatgpt'
+      ? { aiProvider: 'openai', aiModel: state.chatgpt?.model || '', aiAuthMethod: 'chatgpt' }
+      : state.mode === 'subscription'
+        ? { aiProvider: state.subscription.provider, aiModel: state.subscription.model, aiAuthMethod: 'subscription' }
+        : { aiProvider: settings.chromeAiProvider, aiModel: settings.chromeAiModel, aiAuthMethod: 'apiKey' };
   return {
     success: true,
     aiConfig: {
@@ -230,7 +232,8 @@ async function connectObsidian() {
   connectionRequest = (async () => {
     const serverUrl = await getServerUrl();
     const health = await fetch(`${serverUrl}/health`, { signal: AbortSignal.timeout(3000) }).then(r => r.json());
-    if (!health.capabilities?.includes('execution-v2')) throw new Error('Update the NutEgg Obsidian plugin.');
+    if (!health.capabilities?.includes('execution-v3') || health.protocolVersion !== NutEggAI.EXECUTION_PROTOCOL)
+      throw new Error('Update the NutEgg Obsidian plugin.');
     const key = `obsidianConnection:${serverUrl}:${health.instanceId}`;
     const saved = await chrome.storage.local.get([key]);
     if (saved[key]) {
@@ -294,6 +297,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'connect-obsidian') {
     NutEggExecution.ensure()
       .then(() => ({ success: true }))
+      .then(sendResponse)
+      .catch(error => sendResponse({ error: error.message }));
+    return true;
+  }
+  if (message.action === 'chatgpt-control') {
+    (async () => {
+      if ((await getConnectionMode()) !== 'obsidian')
+        throw new Error('ChatGPT sign-in requires Obsidian-connected mode.');
+      if (!['status', 'signin', 'cancel', 'signout', 'models', 'model'].includes(message.operation))
+        throw new Error('Invalid ChatGPT operation.');
+      const current = await NutEggExecution.ensure();
+      if ((await getConnectionMode()) !== 'obsidian')
+        throw new Error('ChatGPT sign-in requires Obsidian-connected mode.');
+      const response = await serverFetch(`${await getServerUrl()}/chatgpt/${message.operation}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: message.model,
+          refresh: message.refresh === true,
+          expectedConnectionRevision: message.expectedConnectionRevision ?? current.state.chatgpt?.revision,
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'ChatGPT operation failed.');
+      return result;
+    })()
       .then(sendResponse)
       .catch(error => sendResponse({ error: error.message }));
     return true;
@@ -466,6 +496,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     loadChromeAiSettings().then(async settings => {
       const stored = await chrome.storage.local.get(['connectionMode', 'obsidianExecutionState']);
       const effectiveMode = NutEggAI.selectEffectiveExecution(stored.connectionMode, stored.obsidianExecutionState);
+      if (effectiveMode === 'chatgpt') {
+        const status = stored.obsidianExecutionState.chatgpt;
+        sendResponse({
+          enabled: true,
+          configured: status?.state === 'ready' && !!status?.model,
+          provider: 'openai',
+          authMethod: 'chatgpt',
+          model: status?.model || '',
+        });
+        return;
+      }
       if (effectiveMode === 'subscription') {
         const selected = stored.obsidianExecutionState.subscription;
         sendResponse({

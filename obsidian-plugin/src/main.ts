@@ -1,3 +1,5 @@
+import { ChatGPTService } from './chatgpt-service';
+import { FileChatGPTStore } from './chatgpt-store';
 import type { SharedExecutionState } from '../../shared/src/execution';
 import { SubscriptionService } from './subscription-service';
 import { ConnectionAccess } from './connection-access';
@@ -31,8 +33,24 @@ export default class NutEggPlugin extends Plugin {
       client.chat = (prompt, maxTokens, scope) =>
         this.server ? this.server.nativeChat(prompt, maxTokens, scope) : chat(prompt, maxTokens, scope);
     const check = client.checkCredit.bind(client);
-    client.checkCredit = () => check(this.getNativeSettings());
+    client.checkCredit = () =>
+      this.settings.aiAuthMethod === 'chatgpt'
+        ? Promise.resolve(this.chatgptCredit())
+        : check(this.getNativeSettings());
     this.nativeClient = client;
+  }
+  chatgpt?: ChatGPTService;
+  chatgptCredit(): any {
+    const status = this.chatgpt?.status();
+    return {
+      provider: 'openai',
+      providerLabel: 'ChatGPT sign-in',
+      source: 'official',
+      model: status?.model || '',
+      hasBalance: false,
+      subscriptionState: status?.state || 'error',
+      statusText: status?.message || t(status ? `chatgptState_${status.state}` : 'chatgptStorageUnavailable'),
+    };
   }
   subscriptions!: SubscriptionService;
   connectionAccess!: ConnectionAccess;
@@ -85,6 +103,15 @@ export default class NutEggPlugin extends Plugin {
         aiApiKey: '',
       });
     }
+    if (state?.mode === 'chatgpt')
+      Object.assign(config, {
+        aiAuthMethod: 'chatgpt',
+        aiProvider: 'openai',
+        aiModel: this.chatgpt?.status().model || state.chatgpt?.model || '',
+        aiApiKey: '',
+        chatgptReady: this.chatgpt?.status().state === 'ready' && !!this.chatgpt?.status().model,
+      });
+    for (const key of Object.keys(config)) if (key.startsWith('chromeAi')) delete (config as any)[key];
     return config;
   }
   async persistExecutionState(state: SharedExecutionState): Promise<void> {
@@ -92,6 +119,7 @@ export default class NutEggPlugin extends Plugin {
     this.settings = {
       ...previous,
       executionState: structuredClone(state),
+      chatgptModel: state.chatgpt?.available ? state.chatgpt.model : previous.chatgptModel,
       subscriptionEnabled: state.subscriptionAvailable,
       subscriptionSelection: state.subscription,
       aiAuthMethod: state.mode,
@@ -100,6 +128,13 @@ export default class NutEggPlugin extends Plugin {
       Object.assign(this.settings, {
         aiProvider: state.subscription.provider,
         aiModel: state.subscription.model,
+        aiApiKey: '',
+      });
+    } else if (state.mode === 'chatgpt') {
+      Object.assign(this.settings, {
+        aiAuthMethod: 'chatgpt',
+        aiProvider: 'openai',
+        aiModel: state.chatgpt?.model || '',
         aiApiKey: '',
       });
     } else {
@@ -142,7 +177,7 @@ export default class NutEggPlugin extends Plugin {
     this.settings.nativeApiKeyRef = ref;
     this.settings.nativeApiConfig = { ...this.settings.nativeApiConfig, ...config, aiApiKey: '' };
     this.settings.nativeConfigurationRevision = (this.settings.nativeConfigurationRevision || 1) + 1;
-    if (this.settings.aiAuthMethod !== 'subscription')
+    if (this.settings.aiAuthMethod === 'apiKey')
       Object.assign(this.settings, this.settings.nativeApiConfig, { aiApiKey: '' });
     await this.saveSettings();
   }
@@ -172,6 +207,26 @@ export default class NutEggPlugin extends Plugin {
         this.settings.aiAuthMethod === 'subscription' &&
         (!this.settings.executionState || this.settings.executionState.transition === 'ready')
     );
+    try {
+      const vaultPath = (this.app.vault.adapter as any).getBasePath?.();
+      if (!vaultPath) throw new Error('Desktop filesystem required.');
+      const store = new FileChatGPTStore(vaultPath);
+      try {
+        this.chatgpt = new ChatGPTService(store, {
+          openBrowser: url => {
+            window.open(url);
+          },
+        });
+        this.chatgpt.restoreModel(this.settings.chatgptModel ?? this.settings.executionState?.chatgpt?.model ?? '');
+        // Electron can reload the renderer without awaiting asynchronous plugin unload.
+        this.registerDomEvent(window, 'unload', () => this.chatgpt?.dispose());
+      } catch (error) {
+        store.close();
+        throw error;
+      }
+    } catch {
+      // The server exposes a public storage-unavailable status; credentials stay private.
+    }
     this.connectionAccess = new ConnectionAccess(
       (this.settings.chromeConnections ||= {}),
       origin => approveChromeConnection(this.app, origin),
@@ -196,6 +251,12 @@ export default class NutEggPlugin extends Plugin {
 
     // Start local HTTP server
     this.server = new NutEggServer(this, this.settings.serverPort);
+    if (this.chatgpt)
+      this.register(
+        this.chatgpt.onChange(() => {
+          void this.server?.execution.updateChatGPT(this.chatgpt!.status()).catch(() => {});
+        })
+      );
     try {
       await this.server.start();
       new Notice(t('serverStarted', { port: this.settings.serverPort }));
@@ -413,7 +474,7 @@ export default class NutEggPlugin extends Plugin {
     if (!this.creditStatusBarItem) return;
     const version = ++this.creditStatusVersion;
 
-    if (!isAIConfigured(this.getNativeSettings())) {
+    if (this.settings.aiAuthMethod !== 'chatgpt' && !isAIConfigured(this.getNativeSettings())) {
       this.creditStatusBarItem.setText(t('setupAiKeyStatusBar'));
       this.creditStatusBarItem.setAttribute('aria-label', t('setupAiKeyTooltip'));
       this.creditStatusBarItem.addClass('mod-warning');
@@ -440,7 +501,8 @@ export default class NutEggPlugin extends Plugin {
           'aria-label',
           `${credit.providerLabel}: ${statusDetails} · ${t('refresh')}`
         );
-        if (credit.subscriptionState !== 'ready') this.creditStatusBarItem.addClass('mod-warning');
+        if (credit.subscriptionState !== 'ready' && credit.subscriptionState !== 'signing_in')
+          this.creditStatusBarItem.addClass('mod-warning');
         if (showNotice)
           new Notice(`${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')}`);
       } else if (credit.hasBalance && credit.balanceFormatted) {
@@ -505,6 +567,7 @@ export default class NutEggPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     this.settingsTab?.hide();
+    this.chatgpt?.dispose();
     await this.server?.stop();
     await this.subscriptions?.dispose();
     this.db.close();

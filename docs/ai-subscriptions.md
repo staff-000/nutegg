@@ -1,24 +1,39 @@
 # AI subscriptions in NutEgg
 
-Obsidian owns the shared API/Subscription mode. Connected Chrome profiles can explicitly change it and all connected profiles follow. Each Chrome keeps its API settings and key; Obsidian has separate native API settings. See [execution ownership](ai-execution.md).
+Obsidian owns the shared API key, CLI subscription, or ChatGPT sign-in mode. Connected Chrome profiles can explicitly change it and all connected profiles follow. Each Chrome keeps its API settings and key; Obsidian has separate native API settings. See [execution ownership](ai-execution.md).
 
-## Guided setup
+## ChatGPT sign-in
 
-1. Initially both apps show only API configuration. No subscription switch appears in Obsidian settings, in either mode.
-2. In Obsidian's command palette (**Cmd/Ctrl+P**), run **NutEgg: Enable experimental AI connections**. This makes the feature available without switching away from the current API key. Only a command can enable or disable the feature.
-3. In Chrome settings, turn on **Obsidian connection**. NutEgg connects automatically using its trusted extension identity; an unknown development extension needs a first approval.
-4. Chrome now shows **Use subscription**. Turn it on to select subscription execution. The existing API provider, key, and model are retained separately.
-5. Obsidian now displays subscription details. Choose the provider and click **Authorize subscription**. Complete provider sign-in if requested; the connection test uses a small amount of subscription quota.
-6. Choose the model in Obsidian: **Auto — provider default**, a discovered model, or **Custom model tag**. Chrome displays the active provider and model as read-only.
-7. Turn off **Use subscription** in Chrome to restore the saved API configuration. Obsidian stops pending subscription inference, login, and model discovery, displays its separate native API settings, and hides subscription details. Its local Chrome connection stays available for authenticated workflows and delegated API calls. It still has no subscription switch.
-8. Turn **Use subscription** back on in Chrome to return to the subscription provider and model previously selected in Obsidian.
-9. Run **NutEgg: Disable subscription mode** in Obsidian to cancel subscription work, hide Chrome's switch, and restore Chrome's saved API configuration on the next successful connection check. With no saved API key, API setup is shown. An offline Obsidian connection alone never triggers this switch.
+**ChatGPT sign-in** uses OpenAI's open-source OAuth integration directly. It requires neither an API key nor Codex CLI. NutEgg's Obsidian desktop plugin owns authorization and sends requests to the public Responses API. Native Obsidian actions and connected Chrome workflows use the same account and model. Chrome-only mode continues to use its own API configuration and does not support this connection.
+
+1. Update both the extension and plugin; they use execution protocol 3.
+2. Open Obsidian Settings → NutEgg and select **ChatGPT sign-in** from the direct connection choices: **ChatGPT sign-in**, **Codex CLI**, **Google Gemini**, and **Claude**. API keys are configured in Chrome settings. Alternatively, enable Obsidian connection in Chrome settings and select **ChatGPT sign-in** there.
+3. Click **Continue with ChatGPT**, complete browser authorization, and explicitly allow ChatGPT plan usage. Identity-only login cannot run AI requests. Account and plan eligibility are determined by OpenAI.
+4. Choose an available account model. The first model is selected for a new connection; an unavailable saved model requires reselection. **Refresh models** updates the account-specific list.
+5. Keep Obsidian open while using connected Chrome. Analysis, questions, egg creation, Hatch, and subsequent merges use the selected connection. Signing out never enables API-key or CLI billing automatically.
+6. Use **Manage usage** for ChatGPT usage controls. NutEgg does not enforce the API output-token limit in this mode because the current integration does not support that parameter.
+
+The local callback listener binds only to `127.0.0.1` and expires after five minutes. Cancel closes the listener. NutEgg verifies state, PKCE, and ID-token identity before accepting credentials. One connected account is supported per local vault installation; sign out before changing accounts.
+
+Credentials live outside the vault and browser storage in a protected per-installation directory under `~/Library/Application Support/NutEgg/chatgpt` (macOS), `$XDG_DATA_HOME/NutEgg/chatgpt` or `~/.local/share/NutEgg/chatgpt` (Linux), or `%LOCALAPPDATA%/NutEgg/chatgpt` (Windows). Credential files are replaced atomically and restricted to the current OS user. An exclusive lock prevents multiple Obsidian instances from refreshing the same rotating token. Vault synchronization does not carry the connection to another computer. Tokens and authorization codes are never returned to Chrome or written into plugin settings, diagnostics, or captured nuts.
+
+Sign out cancels active ChatGPT work, clears local credentials, and attempts remote revocation. If revocation cannot be confirmed, NutEgg shows a warning; disconnect NutEgg in ChatGPT settings as well. If local storage is unavailable or another instance owns the connection, resolve that condition in Obsidian. Restarting or signing in repeatedly does not reset provider usage limits.
+
+Implementation follows OpenAI's [registration](https://developers.openai.com/siwc/token-sharing-open-source/sign-in), [session](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions), and [inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) contracts. Chrome receives only public connection metadata and generated results. The API and CLI configurations remain separately saved.
+
+## CLI subscription setup
+
+1. In Obsidian Settings → NutEgg, select **Codex CLI**, **Google Gemini**, or **Claude** directly under **AI connection**. Selecting a CLI connection enables it; no preliminary command or authentication-method selector is needed.
+2. Complete the selected connection's authorization flow and choose its model. The existing OpenAI/Codex connection is labeled **Codex CLI**; its saved identifier, paths, models, and CLI login are unchanged.
+3. Connected Chrome follows the selected connection and model. Switch directly to **ChatGPT sign-in** in Obsidian when desired.
+4. Configure API keys and select API execution in Chrome settings. Obsidian has no API-key editor, including in Developer Mode. Saved API configurations remain intact, and an existing API selection is not changed merely by opening Obsidian settings.
+5. The legacy **Disable subscription mode** command still disables CLI availability only. If CLI execution was selected, it returns to API mode; a selected ChatGPT connection remains selected. Choosing a CLI connection again enables it.
 
 Provider installation and sign-in stay in Obsidian. If a CLI is missing, open its official installation guide or copy the displayed command into your terminal. NutEgg does not install software automatically. Connections use an automatically exchanged local credential; there is no token to copy or separate bridge to start.
 
 | Provider | CLI / installation | Authentication | Models |
 | --- | --- | --- | --- |
-| OpenAI | [Codex](https://learn.chatgpt.com/docs/cli), `npm install -g @openai/codex` | `codex login`; device-code fallback uses `codex login --device-auth` | Discovered using [app-server model/list](https://learn.chatgpt.com/docs/app-server) |
+| Codex CLI | [Codex](https://learn.chatgpt.com/docs/cli), `npm install -g @openai/codex` | `codex login`; device-code fallback uses `codex login --device-auth` | Discovered using [app-server model/list](https://learn.chatgpt.com/docs/app-server) |
 | Anthropic | [Claude Code](https://code.claude.com/docs/en/quickstart) | `claude auth login --claudeai` | `sonnet`, `opus`, `haiku`, and custom IDs; choices are not verified account entitlements |
 | Google Gemini | [Antigravity](https://antigravity.google/docs/cli/install) | Open `agy` and complete its browser flow | Discovered using `agy models`; identifiers differ from Gemini API models |
 

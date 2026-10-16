@@ -145,6 +145,8 @@ Configure in Obsidian Settings → NutEgg:
 - Choose **API source** (official API or OpenRouter)
 - Add your **API key**
 
+**ChatGPT sign-in:** Select it in NutEgg’s Obsidian settings (or connected Chrome settings), then click **Continue with ChatGPT**. This uses your eligible ChatGPT plan without an API key or Codex CLI. Keep Obsidian open. The existing CLI connection is now labeled **Codex CLI**. See [setup and account management](docs/ai-subscriptions.md).
+
 ### 2. Chrome Extension
 
 1. Open Chrome → `chrome://extensions`

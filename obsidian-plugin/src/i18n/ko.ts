@@ -1,4 +1,33 @@
 export const ko = {
+  chatgptLabel: 'ChatGPT sign-in',
+  codexSubscription: 'Codex CLI',
+  cliSubscription: 'CLI subscription',
+  saveConnectionModel: 'Save model',
+  claudeLabel: 'Claude',
+  obsidianAIConnectionsDesc:
+    'Choose a connection for Obsidian and connected Chrome. Configure API keys in Chrome settings.',
+  aiConnectionChangeFailed: 'Could not change the AI connection. Refresh settings and try again.',
+  chooseAIConnection: 'Choose an AI connection',
+  aiMethod: 'AI connection',
+  chatgptContinue: 'Continue with ChatGPT',
+  chatgptSignOut: 'Sign out',
+  chatgptCancel: 'Cancel sign-in',
+  chatgptRefreshModels: 'Refresh models',
+  chatgptManageUsage: 'Manage usage',
+  chatgptModel: 'ChatGPT model',
+  chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
+  chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStorageUnavailable:
+    'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
+  chatgptState_signed_out: 'Not signed in',
+  chatgptState_signing_in: 'Signing in…',
+  chatgptState_ready: 'Connected',
+  chatgptState_permission_missing: 'Allow ChatGPT plan usage to continue.',
+  chatgptState_reauthorization_required: 'Sign in again to reconnect ChatGPT.',
+  chatgptState_error: 'ChatGPT connection needs attention.',
+  chatgptChooseModel: 'Choose a model',
+  chatgptError: 'ChatGPT could not complete this operation. Try again.',
+
   settingsCheckTimeout: '연결 확인 시간이 초과되었습니다. 새로고침을 눌러 다시 시도하세요.',
   settingsModelsUpdated: '모델 목록이 업데이트되었습니다.',
   settingsModelsUnavailable:
@@ -42,7 +71,7 @@ export const ko = {
   settingsObsidianSyncDesc: 'Configure AI above. Keep Obsidian open to sync these settings.',
   subscriptionAccountProvider: 'Provider account',
   subscriptionAccountSetup:
-    'Choose your provider, authorize your account, and select a model here. Chrome controls whether to use an API key or this subscription.',
+    'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
   subscriptionEnableCommand: 'Enable experimental AI connections',
   subscriptionDisableCommand: '구독 모드 비활성화',

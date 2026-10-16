@@ -156,7 +156,7 @@ function _renderCustomQuestions(options = {}) {
             <div class="qa-item">
               <div class="qa-question">Q: ${_qaEscapeHtml(qa.question)}${scopeBadge}</div>
               <div class="qa-answer">${linkifyTimestamps(_qaEscapeHtml(qa.answer))}</div>
-              ${qa.execution ? `<div class="qa-execution" style="font-size:11px;opacity:.7">${_qaEscapeHtml(t('executionMetadata', { provider: qa.execution.provider, model: qa.execution.model || 'auto', method: qa.execution.authMethod === 'subscription' ? t('subscriptionLabel') : t('subscriptionApiKey') }))}</div>` : ''}
+              ${qa.execution ? `<div class="qa-execution" style="font-size:11px;opacity:.7">${_qaEscapeHtml(t('executionMetadata', { provider: qa.execution.provider, model: qa.execution.model || 'auto', method: qa.execution.authMethod === 'chatgpt' ? t('chatgptLabel') : qa.execution.authMethod === 'subscription' ? t(qa.execution.provider === 'openai' ? 'codexSubscription' : 'subscriptionLabel') : t('subscriptionApiKey') }))}</div>` : ''}
               ${renderQaSources(qa.sources)}
             </div>
           </div>`;

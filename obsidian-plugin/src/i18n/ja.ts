@@ -1,4 +1,33 @@
 export const ja = {
+  chatgptLabel: 'ChatGPT sign-in',
+  codexSubscription: 'Codex CLI',
+  cliSubscription: 'CLI subscription',
+  saveConnectionModel: 'Save model',
+  claudeLabel: 'Claude',
+  obsidianAIConnectionsDesc:
+    'Choose a connection for Obsidian and connected Chrome. Configure API keys in Chrome settings.',
+  aiConnectionChangeFailed: 'Could not change the AI connection. Refresh settings and try again.',
+  chooseAIConnection: 'Choose an AI connection',
+  aiMethod: 'AI connection',
+  chatgptContinue: 'Continue with ChatGPT',
+  chatgptSignOut: 'Sign out',
+  chatgptCancel: 'Cancel sign-in',
+  chatgptRefreshModels: 'Refresh models',
+  chatgptManageUsage: 'Manage usage',
+  chatgptModel: 'ChatGPT model',
+  chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
+  chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStorageUnavailable:
+    'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
+  chatgptState_signed_out: 'Not signed in',
+  chatgptState_signing_in: 'Signing in…',
+  chatgptState_ready: 'Connected',
+  chatgptState_permission_missing: 'Allow ChatGPT plan usage to continue.',
+  chatgptState_reauthorization_required: 'Sign in again to reconnect ChatGPT.',
+  chatgptState_error: 'ChatGPT connection needs attention.',
+  chatgptChooseModel: 'Choose a model',
+  chatgptError: 'ChatGPT could not complete this operation. Try again.',
+
   settingsCheckTimeout: '接続確認がタイムアウトしました。更新を押して再試行してください。',
   settingsModelsUpdated: 'モデル一覧を更新しました。',
   settingsModelsUnavailable: 'モデル一覧を更新できませんでした。自動選択とカスタム ID は使用できます。',
@@ -41,7 +70,7 @@ export const ja = {
   settingsObsidianSyncDesc: 'Configure AI above. Keep Obsidian open to sync these settings.',
   subscriptionAccountProvider: 'Provider account',
   subscriptionAccountSetup:
-    'Choose your provider, authorize your account, and select a model here. Chrome controls whether to use an API key or this subscription.',
+    'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
   subscriptionEnableCommand: 'Enable experimental AI connections',
   subscriptionDisableCommand: 'サブスクリプションモードを無効化',

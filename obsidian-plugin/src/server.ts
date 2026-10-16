@@ -1,3 +1,4 @@
+import { trackAIRequest } from '../../shared/src/ai-diagnostics';
 import { ExecutionCoordinator, ExecutionProtocolError, type Job } from './execution-coordinator';
 import { EXECUTION_PROTOCOL, publicExecutionSettings } from '../../shared/src/execution';
 import { randomUUID } from 'node:crypto';
@@ -156,11 +157,33 @@ export class NutEggServer {
         plugin.settings.aiAuthMethod
       ),
       state => plugin.persistExecutionState(state),
-      () => plugin.subscriptions.cancelWork()
+      async () => {
+        await plugin.subscriptions.cancelWork();
+      }
     );
+    this.execution.state.chatgpt = plugin.chatgpt?.status() || {
+      available: false,
+      state: 'error',
+      revision: 1,
+      accountLabel: '',
+      model: '',
+      message: 'ChatGPT local credential storage is unavailable.',
+    };
   }
 
   private executor(settings: any, signal: AbortSignal) {
+    if (settings.aiAuthMethod === 'chatgpt')
+      return {
+        chat: (request: any) => {
+          if (!this.plugin.chatgpt)
+            throw new AIError('auth_failed', 'ChatGPT sign-in is unavailable. Open NutEgg settings in Obsidian.');
+          return trackAIRequest(
+            request.prompt,
+            () => this.plugin.chatgpt!.chat(settings.aiModel, request.prompt, signal),
+            request.debugScope
+          );
+        },
+      };
     const client = new AIClient(settings, this.plugin.subscriptions, signal);
     return { chat: (request: any) => client.chat(request.prompt, request.maxTokens, request.debugScope) };
   }
@@ -198,7 +221,16 @@ export class NutEggServer {
     };
     return new AIProcessor(host, normalizeAIDebugScope(scope));
   }
+  private requireChatGPTReady() {
+    if (this.execution.state.mode !== 'chatgpt') return;
+    const status = this.plugin.chatgpt?.status();
+    if (!status?.available || status.state !== 'ready')
+      throw new AIError('auth_failed', 'Reconnect ChatGPT sign-in in NutEgg settings in Obsidian.');
+    if (!status.model)
+      throw new AIError('model_not_found', 'Choose an available ChatGPT model in NutEgg settings.');
+  }
   async runNative<T>(task: (processor: AIProcessor) => Promise<T>, scope?: string, allowNoAI = false): Promise<T> {
+    this.requireChatGPTReady();
     if (!allowNoAI && this.execution.state.mode === 'apiKey' && !isAIConfigured(this.plugin.getNativeSettings())) {
       throw new AIError('no_api_key', 'Configure AI for Obsidian actions in NutEgg settings.');
     }
@@ -212,6 +244,7 @@ export class NutEggServer {
     }
   }
   async nativeChat(prompt: string, maxTokens: number, debugScope?: string) {
+    this.requireChatGPTReady();
     const job = this.execution.native(this.plugin.getNativeSettings(), (settings, signal) =>
       this.executor(settings, signal)
     );
@@ -226,7 +259,7 @@ export class NutEggServer {
   async changeAvailability(enabled: boolean) {
     return this.execution.change(this.execution.state.revision, randomUUID(), {
       subscriptionAvailable: enabled,
-      mode: enabled ? this.execution.state.mode : 'apiKey',
+      mode: !enabled && this.execution.state.mode === 'subscription' ? 'apiKey' : this.execution.state.mode,
     });
   }
   async changeSubscription(selection: any) {
@@ -244,6 +277,9 @@ export class NutEggServer {
       throw new ExecutionProtocolError('credential_payload', 'Credentials must stay in Chrome.', 400);
     }
     const settings = publicExecutionSettings(this.plugin.getNativeSettings());
+    // Saving existing results remains available, but unavailable managed execution
+    // must never turn an analysis into an empty successful result.
+    if (req.url !== '/confirm') this.requireChatGPTReady();
     const credentialId = this.plugin.connectionAccess.credentialId(origin, req.headers.authorization!);
     const job = this.execution.admit(payload.execution, origin, credentialId, settings, (captured, signal) =>
       this.executor(captured, signal)
@@ -296,7 +332,11 @@ export class NutEggServer {
           try {
             const message = JSON.parse(String(raw));
             if (!sessionId) {
-              if (message.type !== 'authenticate' || message.instanceId !== this.execution.state.instanceId) {
+              if (
+                message.type !== 'authenticate' ||
+                message.protocolVersion !== EXECUTION_PROTOCOL ||
+                message.instanceId !== this.execution.state.instanceId
+              ) {
                 throw new Error('Invalid session.');
               }
               const credentialId = await this.plugin.connectionAccess.bindClient(
@@ -686,6 +726,52 @@ export class NutEggServer {
         if (req.method === 'POST' && ['/analyze', '/ask', '/confirm', '/create-egg'].includes(req.url || '')) {
           await this.prepareJob(req, res, clientOrigin!);
         }
+        if (req.method === 'POST' && req.url?.startsWith('/chatgpt/')) {
+          const service = this.plugin.chatgpt;
+          if (!service)
+            throw new ExecutionProtocolError(
+              'chatgpt_unavailable',
+              'Open NutEgg settings in Obsidian to check local credential storage.',
+              503
+            );
+          const data = JSON.parse(await this.readBody(req, 4096));
+          if (
+            ['/chatgpt/signin', '/chatgpt/cancel', '/chatgpt/signout', '/chatgpt/model'].includes(req.url!) &&
+            data.expectedConnectionRevision !== service.status().revision
+          ) {
+            throw new ExecutionProtocolError(
+              'revision_conflict',
+              'ChatGPT connection changed. Refresh before trying again.'
+            );
+          }
+          let result: any;
+          switch (req.url) {
+            case '/chatgpt/status':
+              result = service.status();
+              break;
+            case '/chatgpt/signin':
+              result = await service.signIn();
+              break;
+            case '/chatgpt/cancel':
+              result = service.cancelSignIn();
+              break;
+            case '/chatgpt/signout':
+              result = await service.signOut();
+              break;
+            case '/chatgpt/models':
+              result = { models: await service.models(data.refresh === true) };
+              break;
+            case '/chatgpt/model':
+              result = service.selectModel(data.model);
+              break;
+            default:
+              throw new ExecutionProtocolError('invalid_operation', 'Invalid ChatGPT operation.', 400);
+          }
+          await this.execution.updateChatGPT(service.status());
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ ...result, state: this.execution.snapshot() }));
+          return;
+        }
         if (req.method === 'POST' && req.url?.startsWith('/subscription/')) {
           const data = JSON.parse(await this.readBody(req, 4096));
           if (!supportsSubscription(data.provider)) {
@@ -738,7 +824,13 @@ export class NutEggServer {
           res.end(
             JSON.stringify({
               status: 'ok',
-              capabilities: ['subscription-v1', 'connection-approval-v1', 'execution-v2', 'native-api-sync-v1'],
+              capabilities: [
+                'subscription-v1',
+                'connection-approval-v1',
+                'execution-v3',
+                'native-api-sync-v1',
+                'chatgpt-v1',
+              ],
               instanceId: this.execution.state.instanceId,
               protocolVersion: EXECUTION_PROTOCOL,
               subscriptionEnabled: this.plugin.settings.subscriptionEnabled === true,
@@ -851,11 +943,20 @@ export class NutEggServer {
   private async handleConfigStatus(res: http.ServerResponse): Promise<void> {
     try {
       const settings = this.plugin.getNativeSettings();
+      if (settings.aiAuthMethod === 'chatgpt')
+        settings.chatgptReady =
+          this.plugin.chatgpt?.status().state === 'ready' && !!this.plugin.chatgpt?.status().model;
       const issues: string[] = [];
       let status: 'ok' | 'warning' | 'error' = 'ok';
 
       if (!isAIConfigured(settings)) {
-        issues.push('AI is not configured. Open NutEgg settings in Chrome to choose a provider and configure AI.');
+        issues.push(
+          settings.aiAuthMethod === 'chatgpt'
+            ? this.plugin.chatgpt?.status().state === 'ready'
+              ? t('chatgptChooseModel')
+              : t(`chatgptState_${this.plugin.chatgpt?.status().state || 'error'}`)
+            : 'AI is not configured. Open NutEgg settings in Chrome to choose a provider and configure AI.'
+        );
         status = 'error';
       }
 

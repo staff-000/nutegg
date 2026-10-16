@@ -72,7 +72,7 @@ class HeaderComponent {
       return;
     }
     const obsidianMode = settings.connectionMode === 'obsidian';
-    if (!settings.serverOnline && settings.chromeAiAuthMethod === 'subscription') {
+    if (!settings.serverOnline && ['subscription', 'chatgpt'].includes(settings.chromeAiAuthMethod)) {
       this.updateServerStatus('connection-error', null, t('aiConnectionRecovery'));
       return;
     }
@@ -80,12 +80,23 @@ class HeaderComponent {
       this.updateServerStatus('connection-error', null, settings.serverError || settings.aiStatusError);
       return;
     }
-    if (settings.chromeAiAuthMethod === 'subscription') {
+    if (['subscription', 'chatgpt'].includes(settings.chromeAiAuthMethod)) {
       if (settings.subscriptionState === 'error') {
         this.updateServerStatus('connection-error', null, t('connectionFailed'));
         return;
       }
-      if (['disabled', 'missing', 'login_required', 'signing_in', 'unverified'].includes(settings.subscriptionState)) {
+      if (
+        [
+          'disabled',
+          'missing',
+          'login_required',
+          'signing_in',
+          'unverified',
+          'signed_out',
+          'permission_missing',
+          'reauthorization_required',
+        ].includes(settings.subscriptionState)
+      ) {
         this.updateServerStatus('obsidian-warning', null, t('aiConnectionSetupNeeded'));
         return;
       }

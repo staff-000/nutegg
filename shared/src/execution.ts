@@ -1,11 +1,12 @@
 import { PROMPTS } from './prompt-templates';
-import type { AIAuthMethod, NutEggAISettings, SubscriptionProvider } from './types';
-export const EXECUTION_PROTOCOL = 2;
+import type { AIAuthMethod, NutEggAISettings, SubscriptionProvider, ChatGPTConnection } from './types';
+export const EXECUTION_PROTOCOL = 3;
 export interface SharedExecutionState {
   instanceId: string;
   protocolVersion: number;
   revision: number;
   subscriptionAvailable: boolean;
+  chatgpt?: ChatGPTConnection;
   mode: AIAuthMethod;
   subscription: {
     provider: SubscriptionProvider;
@@ -87,12 +88,15 @@ export function reduceSharedExecutionState(
   next: SharedExecutionState
 ): SharedExecutionState {
   if (current?.instanceId === next.instanceId && next.revision < current.revision) return current;
-  return structuredClone({ ...next, mode: next.subscriptionAvailable ? next.mode : 'apiKey' });
+  return structuredClone({
+    ...next,
+    mode: next.mode === 'subscription' && !next.subscriptionAvailable ? 'apiKey' : next.mode,
+  });
 }
 export function selectEffectiveExecution(connectionMode: string, state?: SharedExecutionState | null) {
-  return connectionMode === 'obsidian' && state?.subscriptionAvailable && state.mode === 'subscription'
-    ? 'subscription'
-    : 'apiKey';
+  if (connectionMode !== 'obsidian') return 'apiKey';
+  if (state?.mode === 'chatgpt') return 'chatgpt';
+  return state?.subscriptionAvailable && state.mode === 'subscription' ? 'subscription' : 'apiKey';
 }
 /** Subscription selection never overwrites the independently saved API setup. */
 export function migrateChromeApiPreferences(stored: Record<string, any>): NutEggAISettings {

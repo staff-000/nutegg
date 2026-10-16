@@ -83,6 +83,7 @@ const NutEggExecution = (() => {
         }, 8000);
         const authPayload = {
           type: 'authenticate',
+          protocolVersion: NutEggAI.EXECUTION_PROTOCOL,
           clientId,
           displayName: stored.executionDisplayName || `Chrome ${clientId.slice(0, 6)}`,
           credential: connection.credential,
@@ -101,6 +102,13 @@ const NutEggExecution = (() => {
             return;
           }
           if (message.type === 'connected') {
+            if (message.state?.protocolVersion !== NutEggAI.EXECUTION_PROTOCOL) {
+              clearTimeout(timer);
+              settled = true;
+              ws.close();
+              reject(new Error('Update both NutEgg Chrome and Obsidian to use this AI connection.'));
+              return;
+            }
             session = message.session;
             await cache(message.state);
             clearTimeout(timer);
