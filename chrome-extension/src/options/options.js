@@ -64,7 +64,8 @@ const DEFAULT_SECTIONS = {
 };
 
 let savedPromptOverrides = {};
-const aiAuthMethod = document.getElementById('ai-auth-method');
+let currentAuthMethod = 'apiKey';
+let lastManagedMode = 'subscription';
 let aiProfiles = {};
 let savedApiConfig = null;
 let methodChange = null;
@@ -91,8 +92,8 @@ function probeHealth(port) {
 }
 let subscriptionRequest = 0;
 let subscriptionTimer;
-const subscriptionSelected = () => aiAuthMethod.value === 'subscription';
-const chatgptSelected = () => aiAuthMethod.value === 'chatgpt';
+const subscriptionSelected = () => currentAuthMethod === 'subscription';
+const chatgptSelected = () => currentAuthMethod === 'chatgpt';
 const managedSelected = () => subscriptionSelected() || chatgptSelected();
 function rememberProfile() {
   if (!profileKey || chatgptSelected()) return;
@@ -103,7 +104,7 @@ function rememberProfile() {
   };
 }
 function restoreProfile() {
-  profileKey = `${aiProviderSelect.value}:${aiAuthMethod.value}`;
+  profileKey = `${aiProviderSelect.value}:${currentAuthMethod}`;
   const profile = aiProfiles[profileKey] || {};
   aiKeyInput.value = subscriptionSelected() ? '' : profile.apiKey || '';
   aiLocalEndpoint.value = profile.endpoint || '';
@@ -127,12 +128,15 @@ function syncSubscriptionToggle() {
   notice.textContent = t('sharedModeNotice');
   notice.hidden =
     !obsidianModeEnabled.checked || (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available);
-  toggle.checked = aiAuthMethod.value === 'subscription';
-  toggle.disabled = !subscriptionEnabled || !!methodChange || lastSubscriptionState?.transition === 'changing';
+  toggle.checked = managedSelected();
+  toggle.disabled =
+    !obsidianModeEnabled.checked ||
+    (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available) ||
+    !!methodChange ||
+    lastSubscriptionState?.transition === 'changing';
 }
 function renderSubscriptionAccess() {
   const isSub = managedSelected();
-  aiAuthMethod.disabled = !!methodChange || acknowledgedSharedState?.transition === 'changing';
   const privacy = document.querySelector('[data-i18n="settingsKeyPrivacy"], [data-i18n="settingsConnectedKeyPrivacy"]');
   if (privacy) {
     const key = obsidianModeEnabled.checked && !isSub ? 'settingsConnectedKeyPrivacy' : 'settingsKeyPrivacy';
@@ -152,14 +156,6 @@ function renderSubscriptionAccess() {
   document.getElementById('ai-auth-row').hidden =
     !obsidianModeEnabled.checked ||
     (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available && !chatgptSelected());
-  const option = aiAuthMethod.querySelector('option[value="subscription"]');
-  option.hidden = !subscriptionEnabled;
-  option.disabled = !subscriptionEnabled;
-  const chatgptOption = aiAuthMethod.querySelector('option[value="chatgpt"]');
-  if (chatgptOption) {
-    chatgptOption.hidden = !obsidianModeEnabled.checked;
-    chatgptOption.disabled = !acknowledgedSharedState?.chatgpt?.available;
-  }
   const chatgptCard = document.getElementById('chatgpt-card');
   if (chatgptCard) chatgptCard.hidden = !chatgptSelected() || !obsidianModeEnabled.checked;
   syncSubscriptionToggle();
@@ -200,8 +196,11 @@ async function applySharedExecution(state) {
     rememberProfile();
     savedApiConfig = { ...getAiFormSettings(), chromeAiAuthMethod: 'apiKey' };
   }
-  aiAuthMethod.value = next;
+  currentAuthMethod = next;
   acknowledgedAuthMethod = next;
+  if (next !== 'apiKey') {
+    lastManagedMode = next;
+  }
   if (next === 'chatgpt') {
     renderChatGPT(state.chatgpt);
   } else if (next === 'subscription') {
@@ -243,16 +242,10 @@ async function applySharedExecution(state) {
   if (toggle) toggle.disabled = state.transition !== 'ready' || !!methodChange || !subscriptionEnabled;
   if (next === 'subscription' && previous !== next) void refreshSubscription();
 }
-let chatgptModels = [];
-let chatgptCatalogRevision;
 let chatgptRequest = 0;
 function renderChatGPT(status) {
   const card = document.getElementById('chatgpt-card');
   if (!card || !status) return;
-  if (status.state !== 'ready') {
-    chatgptModels = [];
-    chatgptCatalogRevision = undefined;
-  }
   card.dataset.state = status.state === 'ready' ? 'ready' : status.state === 'signing_in' ? 'loading' : 'waiting';
   document.getElementById('chatgpt-status').textContent = [status.accountLabel, t(`chatgptState_${status.state}`)]
     .filter(Boolean)
@@ -261,27 +254,8 @@ function renderChatGPT(status) {
   document.getElementById('chatgpt-signin').hidden = ['ready', 'signing_in'].includes(status.state);
   document.getElementById('chatgpt-cancel').hidden = status.state !== 'signing_in';
   document.getElementById('chatgpt-signout').hidden = status.state === 'signed_out';
-  document.getElementById('chatgpt-refresh').hidden = status.state !== 'ready';
-  const select = document.getElementById('chatgpt-model');
-  select.disabled = status.state !== 'ready';
-  select.replaceChildren();
-  if (!status.model) {
-    const option = document.createElement('option');
-    option.value = '';
-    option.textContent = t('chatgptChooseModel');
-    select.append(option);
-  }
-  for (const model of chatgptModels) {
-    const option = document.createElement('option');
-    option.value = model.slug;
-    option.textContent = model.displayName;
-    select.append(option);
-  }
-  select.value = status.model || '';
-  if (status.state === 'ready' && chatgptCatalogRevision !== status.revision) {
-    chatgptCatalogRevision = status.revision;
-    void chatgptControl('models').catch(() => {});
-  }
+  const badge = document.getElementById('chatgpt-model-badge');
+  if (badge) badge.textContent = status.model || '—';
 }
 async function chatgptControl(operation, extra = {}) {
   if (!chatgptSelected() || !obsidianModeEnabled.checked) return;
@@ -297,7 +271,6 @@ async function chatgptControl(operation, extra = {}) {
     document.getElementById('chatgpt-message').textContent = result.error;
     return;
   }
-  if (Array.isArray(result.models)) chatgptModels = result.models;
   if (result.state) await applySharedExecution(result.state);
 }
 function setupChatGPTControls() {
@@ -305,23 +278,19 @@ function setupChatGPTControls() {
     ['signin', 'signin'],
     ['cancel', 'cancel'],
     ['signout', 'signout'],
-    ['refresh', 'models'],
   ]) {
     document.getElementById(`chatgpt-${id}`)?.addEventListener('click', () => {
-      void chatgptControl(operation, { refresh: id === 'refresh' }).catch(() => {
+      void chatgptControl(operation).catch(() => {
         document.getElementById('chatgpt-message').textContent = t('chatgptError');
       });
     });
   }
-  document.getElementById('chatgpt-model')?.addEventListener('change', event => {
-    void chatgptControl('model', { model: event.target.value }).catch(() => {});
-  });
 }
 
 async function changeAiMethod(method) {
   if (methodChange) return;
   ++chatgptRequest;
-  aiAuthMethod.value = acknowledgedAuthMethod;
+  currentAuthMethod = acknowledgedAuthMethod;
   const toggle = document.getElementById('use-subscription-toggle');
   if (toggle) toggle.disabled = true;
   methodChange = (async () => {
@@ -330,7 +299,6 @@ async function changeAiMethod(method) {
     await applySharedExecution(result.state);
     await refreshObsidianAiConfig();
   })();
-  aiAuthMethod.disabled = true;
   try {
     await methodChange;
   } catch (error) {
@@ -632,7 +600,7 @@ function renderConnectionMode(mode) {
   chromeAdvancedSettings.classList.remove('hidden');
   document.getElementById('chrome-cache-group').classList.toggle('hidden', usesObsidian);
   if (!usesObsidian && managedSelected()) {
-    aiAuthMethod.value = 'apiKey';
+    currentAuthMethod = 'apiKey';
     aiProviderSelect.value = savedApiConfig?.chromeAiProvider || lastApiKeyProvider || 'gemini';
     aiKeyInput.value = savedApiConfig?.chromeAiApiKey || '';
     aiLocalEndpoint.value = savedApiConfig?.chromeAiEndpoint || '';
@@ -802,7 +770,7 @@ function initAiSettings(stored) {
   activeSubscriptionModel = stored.obsidianExecutionState?.subscription.model || 'auto';
   const subModelBadge = document.getElementById('subscription-model-badge');
   if (subModelBadge) subModelBadge.textContent = activeSubscriptionModel;
-  aiAuthMethod.value = 'apiKey';
+  currentAuthMethod = 'apiKey';
   const selectedProvider = stored.chromeAiProvider || 'gemini';
   aiProviderSelect.value = selectedProvider;
   if ((window.NutEggAI?.supportsSubscription || (() => false))(selectedProvider)) {
@@ -829,11 +797,11 @@ function initAiSettings(stored) {
     });
   }
 
-  profileKey = `${selectedProvider}:${aiAuthMethod.value}`;
+  profileKey = `${selectedProvider}:${currentAuthMethod}`;
   rememberProfile();
   aiProviderSelect.addEventListener('change', () => {
     rememberProfile();
-    if (aiAuthMethod.value === 'apiKey') {
+    if (currentAuthMethod === 'apiKey') {
       lastApiKeyProvider = aiProviderSelect.value;
     }
     if ((window.NutEggAI?.supportsSubscription || (() => false))(aiProviderSelect.value)) {
@@ -843,12 +811,14 @@ function initAiSettings(stored) {
     restoreProfile();
   });
   setupChatGPTControls();
-  aiAuthMethod.addEventListener('change', () => {
-    void changeAiMethod(aiAuthMethod.value);
-  });
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
   useSubscriptionToggle?.addEventListener('change', () => {
-    void changeAiMethod(useSubscriptionToggle.checked ? 'subscription' : 'apiKey');
+    const targetMode = useSubscriptionToggle.checked
+      ? (lastManagedMode === 'chatgpt' || (!subscriptionEnabled && acknowledgedSharedState?.chatgpt?.available)
+          ? 'chatgpt'
+          : 'subscription')
+      : 'apiKey';
+    void changeAiMethod(targetMode);
   });
   document.getElementById('obsidian-connect-btn')?.addEventListener('click', connectChrome);
   document.addEventListener('visibilitychange', () => {
@@ -995,7 +965,7 @@ function getAiFormSettings() {
   const endpoint = aiLocalEndpoint.value.trim();
   return {
     chromeAiProvider: aiProviderSelect.value,
-    chromeAiAuthMethod: aiAuthMethod.value,
+    chromeAiAuthMethod: currentAuthMethod,
     chromeAiModel: model,
     chromeAiApiKey: subscriptionSelected() ? '' : aiKeyInput.value.trim(),
     chromeAiEndpoint: subscriptionSelected() ? '' : endpoint,

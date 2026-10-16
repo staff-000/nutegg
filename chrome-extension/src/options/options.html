@@ -22,32 +22,33 @@
           <div class="card-heading ai-card-heading">
             <h2 id="setup-heading" data-i18n="settingsSetupTitle">Connect your AI</h2>
             <div id="ai-auth-row" class="use-subscription-wrap" hidden>
-              <label hidden class="switch-toggle" for="use-subscription-toggle" data-hints="off">
+              <label class="switch-toggle" for="use-subscription-toggle" data-hints="off">
                 <input type="checkbox" id="use-subscription-toggle" role="switch" />
                 <span class="switch-slider" aria-hidden="true"></span>
                 <span class="switch-text" data-i18n="useSubscriptionSwitch">Use Subscription</span>
               </label>
-              <select id="ai-auth-method" aria-label="AI connection" data-i18n-aria-label="aiMethod">
-                <option value="apiKey" data-i18n="settingsKeyLabel">API key</option>
-                <option value="subscription" data-i18n="cliSubscription">CLI subscription</option>
-                <option value="chatgpt" data-i18n="chatgptLabel">ChatGPT sign-in</option>
-              </select>
             </div>
           </div>
           <div class="option-row">
             <label for="ai-provider-select" data-i18n="settingsProviderLabel">AI provider</label>
             <select id="ai-provider-select"></select>
           </div>
-          <p class="hint" data-i18n="chatgptRequiresObsidian">
-            ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.
-          </p>
           <div id="chatgpt-card" class="subscription-card" hidden>
             <h3 data-i18n="chatgptLabel">ChatGPT sign-in</h3>
-            <p id="chatgpt-status" role="status"></p>
+            <p class="hint" data-i18n="chatgptRequiresObsidian">
+              ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.
+            </p>
+            <div class="subscription-status-row">
+              <span class="status-indicator-dot" aria-hidden="true"></span>
+              <span id="chatgpt-status" role="status" aria-live="polite"></span>
+            </div>
             <p id="chatgpt-message" class="hint"></p>
-            <div class="option-row">
-              <label for="chatgpt-model" data-i18n="chatgptModel">ChatGPT model</label
-              ><select id="chatgpt-model" data-i18n-title="chatgptModel"></select>
+            <div class="subscription-model-display">
+              <span data-i18n="chatgptModel">ChatGPT model</span>:
+              <code id="chatgpt-model-badge" class="subscription-model-badge">—</code>
+              <span class="subscription-obsidian-hint" data-i18n="subscriptionManagedInObsidian"
+                >Configured in Obsidian</span
+              >
             </div>
             <p class="hint" data-i18n="chatgptTokenHint">
               ChatGPT sign-in does not enforce the API output-token limit.
@@ -70,15 +71,6 @@
                 data-i18n="chatgptCancel"
               >
                 Cancel sign-in
-              </button>
-              <button
-                type="button"
-                id="chatgpt-refresh"
-                title="Refresh models"
-                data-i18n-title="chatgptRefreshModels"
-                data-i18n="chatgptRefreshModels"
-              >
-                Refresh models
               </button>
               <button
                 type="button"

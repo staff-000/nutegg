@@ -112,14 +112,16 @@
   padding: 4px 12px;
 }
 
+/* Connection status panel */
 .nutegg-connection-panel {
   margin: 10px 0 18px;
-  padding: 10px 14px;
+  padding: 14px;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--background-secondary);
   font-size: var(--font-ui-small);
 }
+
 .nutegg-connection-row {
   display: flex;
   flex-wrap: wrap;
@@ -127,22 +129,56 @@
   gap: 4px 16px;
   padding: 3px 0;
 }
+
 .nutegg-connection-label {
   min-width: 115px;
   color: var(--text-muted);
 }
+
+.nutegg-connection-value {
+  display: inline-flex;
+  align-items: center;
+}
+
 .nutegg-connection-value::before {
   content: "";
   display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin-inline-end: 7px;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 8px;
   border-radius: 50%;
   background: var(--text-muted);
+  box-shadow: 0 0 0 2px var(--background-modifier-border);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
-.nutegg-connection-value[data-state="ready"]::before { background: var(--text-success); }
-.nutegg-connection-value[data-state="waiting"]::before { background: var(--text-warning); }
-.nutegg-connection-value[data-state="error"]::before { background: var(--text-error); }
+
+.nutegg-connection-value[data-state="ready"]::before {
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.nutegg-connection-value[data-state="waiting"]::before {
+  background: var(--color-orange, #f59e0b);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+.nutegg-connection-value[data-state="error"]::before {
+  background: var(--color-red, #ef4444);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.nutegg-connection-value[data-state="loading"]::before {
+  background: var(--color-blue, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  animation: nutegg-status-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes nutegg-status-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+
 .nutegg-connection-warning {
   color: var(--text-warning);
   font-size: var(--font-ui-smaller);
@@ -151,83 +187,521 @@
 
 /* Subscription settings section */
 .nutegg-subscription-card {
-  margin: 12px 0 20px 0;
+  box-sizing: border-box;
+  margin: 20px 0;
+  padding: 18px 22px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: transparent;
+}
+.nutegg-subscription-card > h3 {
+  margin: 0 0 14px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 1.05em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+}
+.nutegg-subscription-card .setting-item {
+  margin: 0;
+  padding: 12px 0;
+  border-radius: 0;
+  background: transparent !important;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.nutegg-subscription-card .setting-item:first-of-type,
+.nutegg-subscription-card > h3 + .setting-item {
+  border-top: 0;
 }
 .nutegg-subscription-card [role="status"] {
-  font-size: var(--font-ui-smaller);
+  font-size: var(--font-ui-small);
   color: var(--text-muted);
-  line-height: var(--line-height-tight);
+  line-height: 1.5;
   margin: 6px 0 10px 0;
 }
 .nutegg-subscription-card pre {
   margin: 8px 0 12px 0;
-  padding: 8px 12px;
-  background: var(--background-primary);
+  padding: 10px 14px;
+  background: transparent;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
+  border-radius: 8px;
   overflow-x: auto;
 }
 .nutegg-subscription-links {
   display: flex;
   gap: 16px;
   margin-top: 10px;
-  font-size: 0.88em;
+  font-size: var(--font-ui-small);
+}
+.nutegg-subscription-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  color: var(--text-accent);
+  text-decoration: none;
+}
+.nutegg-subscription-links a:hover {
+  text-decoration: underline;
 }
 
-/* Settings stay within the active Obsidian theme, with a compact status overview. */
-.nutegg-settings [hidden] { display: none !important; }
-.nutegg-settings > h2 { margin: 0 0 20px; }
-.nutegg-settings > h3 { margin: 26px 0 10px; padding-top: 18px; border-top: 1px solid var(--background-modifier-border); font-size: var(--font-ui-medium); }
+/* Settings main layout */
+.nutegg-settings {
+  container-type: inline-size;
+}
+
+.nutegg-settings [hidden] {
+  display: none !important;
+}
+
+.nutegg-settings > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 1.4em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text-normal);
+}
+
+.nutegg-settings > h2::before {
+  content: "🌰";
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.nutegg-settings > h3 {
+  margin: 26px 0 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-medium);
+}
 .nutegg-settings > h3 + p { margin: 0 0 14px; line-height: 1.5; }
 .nutegg-settings .setting-item { padding: 12px 0; gap: 16px; }
 .nutegg-settings .setting-item-description { line-height: 1.5; }
 .nutegg-settings .setting-item-control { flex-wrap: wrap; }
-.nutegg-settings .nutegg-connection-panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 18px; margin: 0 0 20px; border-radius: 12px; }
-.nutegg-settings .nutegg-connection-row { flex-direction: column; align-items: flex-start; gap: 8px; padding: 0; }
-.nutegg-settings .nutegg-connection-label { min-width: 0; font-size: var(--font-ui-smaller); }
-.nutegg-settings .nutegg-connection-value { font-weight: 500; overflow-wrap: anywhere; }
-.nutegg-settings .nutegg-connection-warning { grid-column: 1 / -1; margin: 0; }
-.nutegg-profile-list { display: grid; gap: 10px; }
-.nutegg-profile-card { padding: 16px 18px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }
-.nutegg-profile-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.nutegg-profile-heading h4 { margin: 0; font-size: var(--font-ui-small); }
-.nutegg-profile-method { border: 1px solid var(--background-modifier-border); border-radius: 20px; padding: 2px 9px; color: var(--text-muted); font-size: var(--font-ui-smaller); white-space: nowrap; }
-.nutegg-profile-model { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: var(--font-ui-small); }
-.nutegg-profile-model code { padding: 3px 7px; border-radius: 5px; background: var(--background-primary); color: var(--text-normal); font-size: var(--font-ui-smaller); overflow-wrap: anywhere; }
-.nutegg-profile-params { margin: 10px 0 0; color: var(--text-muted); font-size: var(--font-ui-smaller); line-height: 1.5; }
-.nutegg-settings .nutegg-subscription-card { padding: 18px; border: 1px solid var(--background-modifier-border); border-radius: 12px; background: var(--background-secondary); }
-.nutegg-subscription-card .setting-item:last-child { border-bottom: 0; }
-.nutegg-subscription-card button { white-space: normal; }
-@container (max-width: 480px) {
-  .nutegg-settings .nutegg-connection-panel { grid-template-columns: 1fr; gap: 12px; }
-  .nutegg-settings .nutegg-connection-row { flex-direction: row; justify-content: space-between; }
-}
-.nutegg-settings { container-type: inline-size; }
 
-/* Section wrappers make the horizontal inset visible in every theme. */
-.nutegg-settings .nutegg-settings-section {
+/* Connection status dashboard grid */
+.nutegg-settings .nutegg-connection-panel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px 18px;
+  margin: 0 0 20px;
+  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  background: transparent;
+}
+
+.nutegg-settings .nutegg-connection-row {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+}
+
+.nutegg-settings .nutegg-connection-row:hover {
+  border-color: var(--color-accent-2, var(--background-modifier-border-hover, var(--background-modifier-border)));
+}
+
+.nutegg-settings .nutegg-connection-label {
+  min-width: 0;
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.nutegg-settings .nutegg-connection-value {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.nutegg-settings .nutegg-connection-warning {
+  grid-column: 1 / -1;
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: var(--text-warning, #f59e0b);
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+}
+
+/* Primary AI connection method setting */
+.nutegg-settings .nutegg-ai-connection-setting,
+.nutegg-settings .nutegg-connection-panel + .setting-item {
   box-sizing: border-box;
-  margin: 18px 0;
-  padding: 20px 24px;
+  margin: 0 0 20px;
+  padding: 18px 22px;
+  background: transparent;
   border: 1px solid var(--background-modifier-border);
   border-radius: 12px;
-  background: var(--background-primary);
 }
-.nutegg-settings .nutegg-settings-section > h3 {
-  margin: 0 0 14px;
-  padding: 0;
-  border: 0;
+
+.nutegg-settings .nutegg-ai-connection-setting .setting-item-name,
+.nutegg-settings .nutegg-connection-panel + .setting-item .setting-item-name {
+  font-size: 1.05em;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.nutegg-settings .nutegg-ai-connection-setting select,
+.nutegg-settings .nutegg-connection-panel + .setting-item select {
+  font-weight: 500;
+  min-width: 170px;
+}
+
+/* Profile cards */
+.nutegg-profile-list {
+  display: grid;
+  gap: 12px;
+}
+
+.nutegg-profile-card {
+  padding: 16px 18px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  background: transparent;
+  transition: border-color 0.15s ease;
+}
+
+.nutegg-profile-card:hover {
+  border-color: var(--color-accent-2, var(--background-modifier-border-hover, var(--background-modifier-border)));
+}
+
+.nutegg-profile-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nutegg-profile-heading h4 {
+  margin: 0;
   font-size: var(--font-ui-medium);
   font-weight: 600;
+  color: var(--text-normal);
 }
-.nutegg-settings .nutegg-settings-section > p { margin: 0 0 16px; }
-.nutegg-settings .nutegg-settings-section .setting-item {
+
+.nutegg-profile-method {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 14px;
+  padding: 2px 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.nutegg-profile-model {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+  font-size: var(--font-ui-small);
+}
+
+.nutegg-profile-model span {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.nutegg-profile-model code {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  overflow-wrap: anywhere;
+}
+
+.nutegg-profile-params {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+/* Subscription & ChatGPT settings section card */
+.nutegg-settings .nutegg-subscription-card {
+  box-sizing: border-box;
+  margin: 0 0 20px;
+  padding: 18px 22px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: transparent;
+}
+
+.nutegg-settings .nutegg-subscription-card > h3 {
+  margin: 0 0 14px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 1.05em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+}
+
+.nutegg-settings .nutegg-subscription-card > p,
+.nutegg-settings .nutegg-subscription-card .setting-item-description {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.nutegg-settings .nutegg-subscription-card .setting-item-name {
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.nutegg-subscription-card .setting-item:last-child { border-bottom: 0; }
+.nutegg-subscription-card button { white-space: normal; }
+
+/* Connection status indicators for ChatGPT and Subscriptions */
+.nutegg-connection-status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 12px;
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.nutegg-connection-status-line::before,
+.nutegg-connection-setting-item .setting-item-description::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px var(--background-modifier-border);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nutegg-connection-setting-item .setting-item-description {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-ui-small);
+}
+
+.nutegg-connection-status-line[data-status="connected"]::before,
+.nutegg-connection-setting-item[data-status="connected"] .setting-item-description::before {
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+
+.nutegg-connection-status-line[data-status="connected"],
+.nutegg-connection-setting-item[data-status="connected"] .setting-item-description {
+  color: var(--text-success, var(--color-green, #10b981));
+}
+
+.nutegg-connection-status-line[data-status="in-process"]::before,
+.nutegg-connection-setting-item[data-status="in-process"] .setting-item-description::before {
+  background: var(--color-blue, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  animation: nutegg-status-pulse 1.5s infinite ease-in-out;
+}
+
+.nutegg-connection-status-line[data-status="in-process"],
+.nutegg-connection-setting-item[data-status="in-process"] .setting-item-description {
+  color: var(--text-muted);
+}
+
+.nutegg-connection-status-line[data-status="disconnected"]::before,
+.nutegg-connection-setting-item[data-status="disconnected"] .setting-item-description::before {
+  background: var(--color-red, #ef4444);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+.nutegg-connection-status-line[data-status="disconnected"],
+.nutegg-connection-setting-item[data-status="disconnected"] .setting-item-description {
+  color: var(--text-error, var(--color-red, #ef4444));
+}
+
+.nutegg-subscription-test-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 10px;
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
+
+.nutegg-subscription-test-result[data-status]::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px var(--background-modifier-border);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nutegg-subscription-test-result[data-status="connected"]::before {
+  background: var(--color-green, #10b981);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+}
+
+.nutegg-subscription-test-result[data-status="in-process"]::before {
+  background: var(--color-blue, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  animation: nutegg-status-pulse 1.5s infinite ease-in-out;
+}
+
+.nutegg-subscription-test-result[data-status="disconnected"]::before {
+  background: var(--color-red, #ef4444);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.25);
+}
+
+/* Section wrappers */
+.nutegg-settings .nutegg-settings-section {
+  box-sizing: border-box;
+  margin: 20px 0;
+  padding: 18px 22px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: transparent;
+}
+
+.nutegg-settings .nutegg-settings-section > h3 {
+  margin: 0 0 14px;
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 1.05em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-normal);
+}
+
+.nutegg-settings .nutegg-settings-section > p.setting-item-description {
+  margin: -6px 0 14px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.nutegg-settings .nutegg-settings-section .setting-item,
+.nutegg-settings .nutegg-subscription-card .setting-item,
+.nutegg-settings .setting-item {
   margin: 0;
   padding: 12px 0;
   border-radius: 0;
-  background: transparent;
+  background: transparent !important;
 }
-/* Compact native AI form: provider/model share a row, with a full-width key. */
+
+.nutegg-settings .nutegg-settings-section .setting-item,
+.nutegg-settings .nutegg-subscription-card .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.nutegg-settings .nutegg-settings-section .setting-item:first-of-type,
+.nutegg-settings .nutegg-settings-section > h3 + .setting-item,
+.nutegg-settings .nutegg-subscription-card .setting-item:first-of-type,
+.nutegg-settings .nutegg-subscription-card > h3 + .setting-item {
+  border-top: 0;
+}
+
+/* Form controls */
+.nutegg-settings input[type="text"],
+.nutegg-settings input[type="number"],
+.nutegg-settings select,
+.nutegg-settings .dropdown {
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-modifier-form-field, var(--interactive-normal));
+  color: var(--text-normal);
+  padding: 6px 10px;
+  font-size: var(--font-ui-small);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nutegg-settings input[type="text"]:focus,
+.nutegg-settings input[type="number"]:focus,
+.nutegg-settings select:focus,
+.nutegg-settings .dropdown:focus {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.nutegg-settings select,
+.nutegg-settings .dropdown {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 12px 12px;
+  padding-right: 28px !important;
+  cursor: pointer;
+  text-align: left;
+  text-align-last: left;
+}
+
+.theme-dark .nutegg-settings select,
+.theme-dark .nutegg-settings .dropdown {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23b0b0b0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+}
+
+.theme-light .nutegg-settings select,
+.theme-light .nutegg-settings .dropdown {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23444444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+}
+
+.nutegg-settings button {
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-modifier-form-field, var(--interactive-normal));
+  color: var(--text-normal);
+  padding: 6px 14px;
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.nutegg-settings button:hover {
+  background-color: var(--interactive-hover);
+}
+
+.nutegg-settings button:active {
+  transform: translateY(1px);
+}
+
+/* Compact native AI form */
 .nutegg-settings .nutegg-native-ai-section { padding-block: 16px; }
 .nutegg-settings .nutegg-native-ai-section > h3 { margin-bottom: 6px; }
 .nutegg-settings .nutegg-native-ai-section > p { margin-bottom: 12px; font-size: var(--font-ui-smaller); }
@@ -247,25 +721,37 @@
 .nutegg-native-ai-footer .setting-item-info { display: none; }
 .nutegg-native-ai-footer .setting-item-control { padding: 0; }
 .nutegg-native-ai-account button { border-radius: 20px; font-size: var(--font-ui-smaller); }
+
 .nutegg-settings .nutegg-model-config-section > .setting-item {
-  padding: 12px 14px;
+  padding: 12px 16px;
   margin-top: 8px;
-  border: 0;
+  border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  background: var(--background-secondary);
+  background: transparent;
 }
 .nutegg-model-config-section .setting-item-name { font-size: var(--font-ui-small); font-variant-numeric: tabular-nums; }
 .nutegg-model-config-section .setting-item:last-child { border-bottom: 0; }
-@container (max-width: 480px) {
-  .nutegg-settings .nutegg-settings-section { padding: 16px; }
+
+@container (max-width: 520px) {
+  .nutegg-settings .nutegg-connection-panel { grid-template-columns: 1fr; gap: 10px; }
+  .nutegg-settings .nutegg-connection-row { flex-direction: row; justify-content: space-between; }
+  .nutegg-settings .nutegg-settings-section { padding: 14px 16px; }
   .nutegg-native-ai-fields { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Provider names should read from the left in both native and subscription forms. */
 .nutegg-settings select { text-align: left; text-align-last: left; }
-.nutegg-settings .nutegg-model-refresh-hint { margin: 8px 0 0; font-size: var(--font-ui-smaller); line-height: 1.5; }
+.nutegg-settings .nutegg-model-refresh-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--font-ui-small);
+  line-height: 1.5;
+}
 .nutegg-model-refresh-hint[data-state="waiting"] { color: var(--text-warning); }
 .nutegg-model-refresh-hint[data-state="ready"] { color: var(--text-success); }
 .nutegg-settings .nutegg-model-refresh-hint[data-state="loading"],
 .nutegg-settings .nutegg-connection-value[data-state="loading"] { color: var(--text-muted); }
 .nutegg-settings .nutegg-connection-value[data-state="waiting"] { color: var(--text-warning); }
+

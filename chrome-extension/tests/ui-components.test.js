@@ -1463,7 +1463,11 @@ describe("Modular UI Components", () => {
   it("Subscription credit pill names the connection and shows only reported usage", () => {
     const header = new HeaderComponent(createMockRoot());
     header.renderCredit({ provider: 'openai', subscriptionState: 'ready', statusText: 'Connected', usageRemaining: '75% left (5h)' }, true);
-    assert.equal(header.aiCreditText.textContent, `OpenAI · ${t('subscriptionLabel')} · 75% left (5h)`);
+    assert.equal(header.aiCreditText.textContent, `${t('codexSubscription')} · 75% left (5h)`);
+    header.renderCredit({ provider: 'openai', subscriptionState: 'ready', statusText: 'Connected' }, true);
+    assert.equal(header.aiCreditText.textContent, t('codexSubscription'));
+    header.renderCredit({ provider: 'openai', providerLabel: 'ChatGPT sign-in', subscriptionState: 'ready', statusText: 'Connected' }, true);
+    assert.equal(header.aiCreditText.textContent, t('chatgptLabel'));
     header.renderCredit({ provider: 'gemini', subscriptionState: 'unverified', statusText: 'Needs verification' }, true);
     assert.equal(header.aiCreditText.textContent, `Gemini · ${t('subscriptionLabel')}`);
     assert(header.aiCreditPill.title.includes(t('subscriptionUsageUnavailable')));

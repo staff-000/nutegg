@@ -340,7 +340,7 @@ export class NutEggSettingTab extends PluginSettingTab {
         : settings.aiAuthMethod === 'subscription' && settings.subscriptionEnabled
           ? settings.subscriptionSelection?.provider || settings.aiProvider
           : '';
-    new Setting(container)
+    const aiSetting = new Setting(container)
       .setName(t('aiMethod'))
       .setDesc(t('obsidianAIConnectionsDesc'))
       .addDropdown(dropdown => {
@@ -384,6 +384,9 @@ export class NutEggSettingTab extends PluginSettingTab {
           }
         });
       });
+    if ((aiSetting as any).settingEl) {
+      (aiSetting as any).settingEl.classList.add('nutegg-ai-connection-setting');
+    }
   }
 
   private displayConnectedProfiles(containerEl: HTMLElement): void {
@@ -502,12 +505,18 @@ export class NutEggSettingTab extends PluginSettingTab {
     card.createEl('h3', { text: t('chatgptLabel') });
     card.createEl('p', { text: t('chatgptTokenHint'), cls: 'setting-item-description' });
     if (!service) {
-      card.createEl('p', { text: t('chatgptStorageUnavailable') });
+      const statusLine = card.createEl('p', { cls: 'nutegg-connection-status-line' });
+      statusLine.dataset.status = 'disconnected';
+      statusLine.createSpan({ text: t('chatgptStorageUnavailable') });
       return;
     }
     const status = service.status();
     card.dataset.state = status.state === 'ready' ? 'ready' : status.state === 'signing_in' ? 'loading' : 'waiting';
-    card.createEl('p', { text: [status.accountLabel, t(`chatgptState_${status.state}`)].filter(Boolean).join(' · ') });
+    const statusLine = card.createEl('p', { cls: 'nutegg-connection-status-line' });
+    statusLine.dataset.status =
+      status.state === 'ready' ? 'connected' : status.state === 'signing_in' ? 'in-process' : 'disconnected';
+    const statusText = [status.accountLabel, t(`chatgptState_${status.state}`)].filter(Boolean).join(' · ');
+    statusLine.createSpan({ text: statusText });
     if (status.message) card.createEl('p', { text: status.message, cls: 'setting-item-description' });
     const action = async (task: () => Promise<unknown> | unknown) => {
       if (!current()) return;
@@ -736,7 +745,11 @@ export class NutEggSettingTab extends PluginSettingTab {
         })();
       }
 
-      controls.createEl('p', { text: t('checking'), cls: 'setting-item-description' });
+      const checkingLine = controls.createEl('p', {
+        text: t('checking'),
+        cls: 'setting-item-description nutegg-connection-status-line',
+      });
+      checkingLine.dataset.status = 'in-process';
       let status;
       try {
         status = await this.boundedSettingsCheck(this.plugin.subscriptions.status(current, force));
@@ -781,6 +794,7 @@ export class NutEggSettingTab extends PluginSettingTab {
               for (const item of buttons) item.setDisabled(true);
               const isTest = ['ready', 'unverified'].includes(status.state) || status.errorCode === 'model_not_found';
               result.setText(t(isTest ? 'subscriptionTesting' : 'checking'));
+              result.dataset.status = 'in-process';
               result.style.color = 'var(--text-muted)';
               try {
                 let outcome: { state?: string; message?: string } | undefined;
@@ -843,16 +857,28 @@ export class NutEggSettingTab extends PluginSettingTab {
       });
 
       const result = controls.createEl('p', {
-        cls: 'setting-item-description',
+        cls: 'setting-item-description nutegg-subscription-test-result',
         attr: { role: 'status', 'aria-live': 'polite' },
       });
       const showFeedback = () => {
         result.setText(feedback?.text || '');
+        if (feedback?.text) {
+          result.dataset.status = feedback.error ? 'disconnected' : 'connected';
+        } else {
+          delete result.dataset.status;
+        }
         result.style.color = feedback?.error ? 'var(--text-error)' : 'var(--text-success)';
       };
       showFeedback();
 
+      const isConnected = status.state === 'ready';
+      const isInProcess = isSigningIn || status.state === 'signing_in';
+      const statusKind = isConnected ? 'connected' : isInProcess ? 'in-process' : 'disconnected';
+
       if (isMissing) {
+        const missingLine = controls.createEl('div', { cls: 'nutegg-connection-status-line' });
+        missingLine.dataset.status = 'disconnected';
+        missingLine.createSpan({ text: status.message || t('aiConnectionUnavailable') });
         const missingNotice = controls.createDiv({ cls: 'callout nutegg-setup-callout' });
         missingNotice.setAttribute('data-callout', 'warning');
         missingNotice.style.cssText = 'margin: 10px 0 14px 0;';
@@ -871,9 +897,13 @@ export class NutEggSettingTab extends PluginSettingTab {
           );
         }
       } else {
-        new Setting(controls)
+        const connSetting = new Setting(controls)
           .setName(t('subscriptionConnection'))
           .setDesc(status.usageRemaining ? `${status.message} · ${status.usageRemaining}` : status.message);
+        if ((connSetting as any).settingEl) {
+          (connSetting as any).settingEl.classList.add('nutegg-connection-setting-item');
+          (connSetting as any).settingEl.dataset.status = statusKind;
+        }
       }
 
       if (status.installUrl) {

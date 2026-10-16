@@ -241,10 +241,6 @@ h3 {
 #ai-auth-row {
   margin-bottom: 12px;
 }
-#ai-auth-row select {
-  padding: 9px 28px 9px 11px;
-  font-size: 12.5px;
-}
 .option-row > label,
 .prompt-header-container label {
   display: block;

@@ -16,8 +16,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this, function () {
   const translations = {
     en: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -627,8 +627,8 @@
       errorHintServerError: 'The AI service may be temporarily down. Try again in a minute.',
     },
     zh_CN: {
-      chatgptLabel: 'ChatGPT 登录',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT 订阅',
+      codexSubscription: 'Codex 订阅',
       cliSubscription: 'CLI 订阅',
       aiMethod: 'AI 连接',
       chatgptContinue: '使用 ChatGPT 继续',
@@ -1200,8 +1200,8 @@
       errorHintServerError: 'AI 服务可能暂时故障。请一分钟后重试。',
     },
     es: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -1799,8 +1799,8 @@
       errorHintServerError: 'El servicio de IA puede estar caído temporalmente. Inténtalo de nuevo en un minuto.',
     },
     ja: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -2383,8 +2383,8 @@
       errorHintServerError: 'AIサービスが一時的に停止している可能性があります。1分後に再試行してください。',
     },
     ko: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -2961,8 +2961,8 @@
       errorHintServerError: 'AI 서비스가 일시적으로 중단되었을 수 있습니다. 1분 후 다시 시도하세요.',
     },
     ar: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -3542,8 +3542,8 @@
       errorHintServerError: 'قد تكون خدمة الذكاء الاصطناعي متوقفة مؤقتاً. حاول مجدداً بعد دقيقة.',
     },
     fr: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -4150,8 +4150,8 @@
       errorHintServerError: 'Le service IA est temporairement indisponible. Réessayez dans une minute.',
     },
     de: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -4749,8 +4749,8 @@
       errorHintServerError: 'KI-Dienst vorübergehend nicht erreichbar. In einer Minute erneut versuchen.',
     },
     pt: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',
@@ -5349,8 +5349,8 @@
       errorHintServerError: 'O serviço de IA pode estar temporariamente fora do ar. Tente novamente em um minuto.',
     },
     ru: {
-      chatgptLabel: 'ChatGPT sign-in',
-      codexSubscription: 'Codex CLI',
+      chatgptLabel: 'ChatGPT subscription',
+      codexSubscription: 'Codex subscription',
       cliSubscription: 'CLI subscription',
       aiMethod: 'AI connection',
       chatgptContinue: 'Continue with ChatGPT',

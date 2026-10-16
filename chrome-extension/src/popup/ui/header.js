@@ -97,7 +97,7 @@ class HeaderComponent {
           'reauthorization_required',
         ].includes(settings.subscriptionState)
       ) {
-        this.updateServerStatus('obsidian-warning', null, t('aiConnectionSetupNeeded'));
+        this.updateServerStatus('connection-error', null, t('aiConnectionSetupNeeded'));
         return;
       }
     }
@@ -132,7 +132,15 @@ class HeaderComponent {
         this.updateServerStatus('obsidian-online', settings.obsidianPluginVersion);
       }
     } else {
-      this.updateServerStatus('connection-error', null, t('obsidianOfflineStart'));
+      this.updateServerStatus(
+        settings.chromeAiConfigured && settings.aiStatusError
+          ? 'connection-error'
+          : settings.chromeAiConfigured
+            ? 'chrome-fallback'
+            : 'chrome-fallback-unavailable',
+        null,
+        settings.aiStatusError || settings.chromeAiProvider
+      );
     }
   }
 
@@ -233,27 +241,49 @@ class HeaderComponent {
 
     this.aiCreditPill.classList.remove('hidden');
 
-    const providerName =
-      credit.source === 'openrouter'
-        ? 'OpenRouter'
-        : credit.provider === 'anthropic'
-          ? 'Claude'
-          : credit.provider === 'deepseek'
-            ? 'DeepSeek'
-            : credit.provider === 'kimi'
-              ? 'Kimi'
-              : credit.provider === 'gemini'
-                ? 'Gemini'
-                : credit.provider === 'openai'
-                  ? 'OpenAI'
-                  : credit.provider === 'local'
-                    ? credit.model
-                      ? `Local (${credit.model})`
-                      : 'Local LLM'
-                    : credit.providerLabel || credit.provider || 'AI';
+    const isChatGPT =
+      credit.authMethod === 'chatgpt' ||
+      credit.provider === 'chatgpt' ||
+      credit.providerLabel === 'ChatGPT sign-in' ||
+      credit.providerLabel === 'ChatGPT subscription' ||
+      credit.providerLabel === t('chatgptLabel');
+    const isCodex =
+      !isChatGPT &&
+      (credit.provider === 'codex-cli' ||
+        credit.providerLabel === 'Codex CLI' ||
+        credit.providerLabel === 'Codex subscription' ||
+        credit.providerLabel === t('codexSubscription') ||
+        (credit.provider === 'openai' && credit.subscriptionState));
+
+    const providerName = isChatGPT
+      ? t('chatgptLabel')
+      : isCodex
+        ? t('codexSubscription')
+        : credit.source === 'openrouter'
+          ? 'OpenRouter'
+          : credit.provider === 'anthropic'
+            ? 'Claude'
+            : credit.provider === 'deepseek'
+              ? 'DeepSeek'
+              : credit.provider === 'kimi'
+                ? 'Kimi'
+                : credit.provider === 'gemini'
+                  ? 'Gemini'
+                  : credit.provider === 'openai'
+                    ? 'OpenAI'
+                    : credit.provider === 'local'
+                      ? credit.model
+                        ? `Local (${credit.model})`
+                        : 'Local LLM'
+                      : credit.providerLabel || credit.provider || 'AI';
 
     if (credit.subscriptionState) {
-      this.aiCreditText.textContent = `${providerName} · ${t('subscriptionLabel')}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`;
+      const subLabel = isChatGPT
+        ? t('chatgptLabel')
+        : isCodex
+          ? t('codexSubscription')
+          : `${providerName} · ${t('subscriptionLabel')}`;
+      this.aiCreditText.textContent = `${subLabel}${credit.usageRemaining ? ` · ${credit.usageRemaining}` : ''}`;
       this.aiCreditPill.title = `${credit.statusText} · ${credit.usageRemaining || t('subscriptionUsageUnavailable')}`;
       this.aiCreditPill.classList.toggle('has-warning', credit.subscriptionState !== 'ready');
     } else if (credit.hasBalance && credit.balanceFormatted) {
