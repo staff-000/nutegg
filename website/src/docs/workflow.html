@@ -179,7 +179,7 @@
           Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis
           does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.
         </p>
-        <h2>Execution Modes</h2>
+        <h2>Workflow Modes</h2>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
           <thead>
             <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
@@ -222,6 +222,25 @@
             </tr>
           </tbody>
         </table>
+
+        <h2>AI Execution &amp; Credential Protocol</h2>
+        <p>
+          Regardless of whether you choose Full Mode or Preview Summary, NutEgg separates <em>workflow orchestration</em> from
+          <em>credential storage and AI inference</em>:
+        </p>
+
+        <ul>
+          <li>
+            <strong>Connected API Mode (Default)</strong>: Obsidian coordinates prompt template injection and knowledge comparison,
+            but sends inference requests to Chrome over an authenticated WebSocket (<code>/execution/socket</code>). Chrome runs
+            the LLM call with its local API key and sends the authenticated result back. <strong>Your API key never leaves Chrome.</strong>
+          </li>
+          <li>
+            <strong>Shared Subscription Mode</strong>: Obsidian coordinates the workflow and directly executes AI calls locally
+            using official developer CLI tools (<code>codex</code>, <code>claude</code>, <code>agy</code>) or direct ChatGPT OAuth sign-in.
+            All connected Chrome profiles share this subscription without needing an API key.
+          </li>
+        </ul>
 
         <h2>Workflow Files in Your Vault</h2>
         <p>NutEgg seeds its prompt templates into <code>nutegg/_workflow/</code> inside your vault:</p>

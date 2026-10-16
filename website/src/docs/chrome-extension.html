@@ -225,61 +225,101 @@
 
         <h2>Chrome-Only Standalone Mode (No Obsidian Required)</h2>
         <p>
-          Don't have Obsidian installed or currently open? NutEgg can run completely standalone inside Google Chrome!
+          Don't have Obsidian installed or currently open? NutEgg works completely standalone inside Google Chrome!
         </p>
 
         <div class="callout">
           <div class="callout-title">⚡ Fast Web Reading Without Note Overhead</div>
           <p>
-            Standalone mode lets you use NutEgg as a rapid web-reading and video comprehension tool without creating or
-            managing vault files.
+            NutEgg is designed first and foremost as an ultra-fast web reading companion. You can extract, summarize, generate
+            mind maps, and ask questions about any article or YouTube video directly in Chrome without ever touching a note vault.
           </p>
         </div>
 
         <h3>Features Available in Chrome Standalone:</h3>
         <ul>
           <li>
-            <strong>🎯 Instant Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the headline's
-            question.
+            <strong>🎯 Instant Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the headline's question.
           </li>
           <li>
-            <strong>📝 Executive 3-Sentence Summary</strong>: High-density takeaways extracted from any long article or
-            video.
+            <strong>📝 Executive 3-Sentence Summary</strong>: High-density takeaways extracted from any long article or video.
           </li>
           <li>
-            <strong>⏱️ Mind Map with Clickable Timestampss &amp; Seeking</strong>: Jump to key video segments with one
-            click.
+            <strong>⏱️ Mind Map with Clickable Timestamps &amp; Seeking</strong>: Jump to key video segments with one click.
           </li>
           <li>
-            <strong>💬 Video Q&amp;A &amp; Timestamp Jumping</strong>: Ask questions and click cited timestamp pills to
-            scrub video playback directly to that segment.
+            <strong>💬 Video Q&amp;A &amp; Timestamp Jumping</strong>: Ask questions and click cited timestamp pills to scrub video playback directly to that segment.
           </li>
           <li>
-            <strong>🧠 Collapsible Mind Maps</strong>: Multi-tier interactive thought trees breaking down core ideas
-            visually.
+            <strong>🧠 Collapsible Mind Maps</strong>: Multi-tier interactive thought trees breaking down core ideas visually.
           </li>
           <li><strong>🌐 50+ Languages Support</strong>: Extract and translate foreign-language content on the fly.</li>
         </ul>
 
-        <h3>How to Enable Standalone Mode:</h3>
+        <h3>How to Configure Chrome-Only Mode:</h3>
         <ol>
           <li>
-            Right-click the <strong>NutEgg extension icon</strong> in Chrome's toolbar and select
-            <strong>Options</strong>.
+            Right-click the <strong>NutEgg extension icon</strong> in Chrome's toolbar and select <strong>Options</strong>.
           </li>
           <li>
-            Scroll to <strong>Standalone Mode (Optional)</strong> and check
-            <strong>"Use Chrome-only AI (when Obsidian is offline)"</strong>.
+            Select your preferred AI provider (e.g., Google Gemini, OpenAI, Claude, DeepSeek, or OpenRouter) and enter your API key.
           </li>
-          <li>
-            Select your preferred AI provider (e.g., Google Gemini, OpenAI, Claude, DeepSeek, or OpenRouter) and enter
-            your API key.
-          </li>
-          <li>Click <strong>Save</strong>.</li>
+          <li>Click <strong>Save</strong>. You're ready to analyze any page!</li>
         </ol>
+
+        <h2>Obsidian Connection &amp; AI Execution Modes</h2>
         <p>
-          <em>Tip:</em> Whenever you launch Obsidian, NutEgg automatically pairs with it to enable Stage 2 vault
-          knowledge matching. When Obsidian is closed, NutEgg gracefully falls back to Chrome-only mode.
+          When you connect the Chrome extension to the optional NutEgg Obsidian plugin, Chrome seamlessly adapts depending on the selected execution mode:
+        </p>
+
+        <div class="callout">
+          <div class="callout-title">🔒 API Key Security: Keys Never Leave Chrome</div>
+          <p>
+            In <strong>Connected API Mode</strong>, your API keys stay strictly inside Chrome's secure extension storage.
+            Obsidian manages knowledge templates and vault indexing, but delegates AI inference back to Chrome over an
+            authenticated local WebSocket. Chrome makes the provider API call locally and returns only the generated text.
+          </p>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
+              <th style="padding: 10px">Execution Mode</th>
+              <th style="padding: 10px">Where AI Runs</th>
+              <th style="padding: 10px">Credentials Used</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Chrome-Only</strong></td>
+              <td style="padding: 10px">Directly inside Chrome</td>
+              <td style="padding: 10px">API key configured in Chrome Options</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Connected API Mode</strong></td>
+              <td style="padding: 10px">Chrome (delegated via local WebSocket by Obsidian)</td>
+              <td style="padding: 10px">API key in Chrome (keys never sent to Obsidian)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Shared Subscription Mode</strong></td>
+              <td style="padding: 10px">Inside Obsidian (via local CLI or ChatGPT OAuth)</td>
+              <td style="padding: 10px">Zero API keys (uses Codex, Claude Code, Antigravity, or ChatGPT)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Multi-Profile Chrome Support</h3>
+        <p>
+          NutEgg supports multiple Chrome browser profiles (e.g. Personal and Work) connecting concurrently to the same Obsidian vault.
+          Each Chrome profile retains its own provider, model, and API key independently. Connecting or switching execution modes
+          never leaks or overwrites API keys between profiles.
+        </p>
+
+        <h3>Offline &amp; Disconnect Recovery</h3>
+        <p>
+          If Obsidian is closed while connected mode is enabled, NutEgg displays a clear status light and gives you a one-click
+          <strong>"Use Chrome mode instead"</strong> option. This lets you immediately continue reading and asking questions using your
+          Chrome API setup without interruption or quota risk.
         </p>
 
         <h2>Configuration &amp; Live Synchronization</h2>
@@ -294,7 +334,7 @@
             settings immediately updates all open side panels without requiring a page refresh.
           </li>
           <li>
-            <strong>Custom Server Port</strong>: If port <code>27123</code> conflicts with another service, open
+            <strong>Custom Server Port</strong>: If default port <code>27123</code> conflicts with another service, open
             extension <strong>Options</strong>, adjust the port (e.g. <code>28123</code>), and test the connection.
           </li>
         </ul>

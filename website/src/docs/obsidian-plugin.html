@@ -135,64 +135,146 @@
           <li>Enable NutEgg once installed.</li>
         </ol>
 
-        <h2>AI Provider Configuration</h2>
+        <h2>AI Execution Architecture</h2>
         <p>
-          NutEgg puts you in complete control of your AI model, local endpoints, and keys. In Obsidian, go to
-          <strong>Settings → NutEgg</strong> and toggle <strong>Developer mode</strong>:
+          NutEgg uses an intelligent dual execution architecture (Protocol 3) that gives you full flexibility between
+          bring-your-own-API-key privacy and zero-key subscription convenience:
+        </p>
+
+        <div class="callout">
+          <div class="callout-title">🔒 Core Privacy Invariant: API Keys Never Leave Chrome</div>
+          <p>
+            In <strong>Connected API Mode</strong>, Obsidian orchestrates vault operations, prompt assembly, and egg indexing,
+            but <strong>delegates all AI calls back to Chrome</strong> via an authenticated local WebSocket. Chrome executes the
+            call using its locally stored API key. Your API keys are never transmitted to Obsidian, never written to vault notes,
+            and never leave the browser.
+          </p>
+        </div>
+
+        <pre><code>┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CONNECTED API MODE (Default)                      │
+│                                                                             │
+│  Chrome Profile A ──(1) HTTP /analyze /confirm──►  Obsidian Plugin          │
+│  (Holds API Key A)                                 (127.0.0.1:27123)        │
+│                                                            │                │
+│                   ◄─(2) WebSocket AI Call /socket──────────┤ Reads _index.md│
+│  Calls Provider A                                          │ Assembles prompt│
+│  (OpenAI / Claude / Gemini / DeepSeek)                     │                │
+│                   ──(3) Authenticated Result─────────────► │                │
+│                                                            ▼                │
+│  Receives Final Result ◄──────(4) HTTP Result────── Saves to Vault          │
+│                                                     (_raw/ & &lt;egg&gt;.md)      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       SHARED SUBSCRIPTION MODE (Zero API Keys)              │
+│                                                                             │
+│  Chrome Profile A ────┐                                                     │
+│                       ├──► Obsidian Plugin (127.0.0.1:27123)                │
+│  Chrome Profile B ────┘        │                                            │
+│                                ▼                                            │
+│                       SubscriptionService (Local CLI or OAuth)              │
+│                       ├── ChatGPT Sign-In (OpenAI Responses API)            │
+│                       ├── Codex CLI (@openai/codex)                         │
+│                       ├── Claude Code CLI (claude auth login)               │
+│                       └── Google Gemini (Antigravity CLI: agy)              │
+└─────────────────────────────────────────────────────────────────────────────┘</code></pre>
+
+        <h2>Mode 1: Connected API Mode (Default)</h2>
+        <p>
+          In this mode, you configure your AI provider and API key directly in <strong>Chrome Extension Options</strong>.
+          Obsidian coordinates the knowledge workflow while Chrome acts as the secure local AI runner.
         </p>
 
         <ul>
           <li>
-            <strong>Local LLM (Ollama, LM Studio, llama.cpp, vLLM)</strong>:
-            <ul>
-              <li>
-                <strong>API Type</strong>: Select either <em>OpenAI-compatible</em> (used by LM Studio, llama.cpp, vLLM,
-                and Ollama <code>/v1</code>) or <em>Ollama Native</em> (direct <code>/api/chat</code>).
-              </li>
-              <li>
-                <strong>Zero Model Configuration</strong>: No need to select or specify a model—NutEgg communicates
-                directly with your local server's active loaded model.
-              </li>
-              <li>
-                <strong>API Key (Optional)</strong>: Only needed if your local proxy or server requires an authorization
-                bearer token.
-              </li>
-            </ul>
+            <strong>Supported Cloud Providers</strong>: Anthropic (Claude 3.5 Sonnet, Claude 3.7 Sonnet), OpenAI (GPT-4o, o-series),
+            Google Gemini (2.0 Flash, 2.5 Pro), DeepSeek (V3, R1), Kimi, Qwen, Zhipu, and OpenRouter.
           </li>
           <li>
-            <strong>Cloud Providers &amp; OpenRouter (3-Tier Setup)</strong>:
-            <ul>
-              <li>
-                <strong>1. AI Provider</strong>: Anthropic, OpenAI, Google Gemini, DeepSeek, Kimi, Qwen, Zhipu, or
-                OpenRouter.
-              </li>
-              <li>
-                <strong>2. Model Family</strong>: Choose the architecture/series (e.g.
-                <em>Claude Sonnet / Opus / Haiku</em>, <em>GPT-5 / o-Series / GPT-4o</em>, <em>Gemini 2.5 / 2.0</em>,
-                <em>DeepSeek V3 / R1</em>, <em>Kimi K3</em>, <em>GLM-5</em>, <em>Qwen3</em>).
-              </li>
-              <li><strong>3. Model Version</strong>: Select the latest model version or enter any custom model tag.</li>
-              <li>
-                <strong>API Key</strong>: Enter your provider API key. Securely stored locally in your Obsidian vault.
-              </li>
-            </ul>
+            <strong>Local LLMs (Ollama, LM Studio, llama.cpp, vLLM)</strong>: Configure local endpoints directly in Chrome.
+            NutEgg connects to your local model without sending data outside your machine.
           </li>
           <li>
-            <strong>Connection &amp; Credit Monitor</strong>: Instantly test local runner connectivity or check
-            remaining cloud credit balance with 1 click.
+            <strong>Independent Chrome Profiles</strong>: If you use multiple Chrome profiles (e.g. Work and Personal), each profile
+            can use its own provider, model, and API key. They connect to the same Obsidian vault without key collisions.
+          </li>
+          <li>
+            <strong>Obsidian-Native Actions</strong>: Vault-only maintenance tasks (such as manual egg merging in Obsidian) use
+            native settings safely stored in Obsidian's <code>SecretStorage</code>. Clicking <strong>Save &amp; continue</strong> in
+            a connected Chrome profile securely updates the native account in SecretStorage.
           </li>
         </ul>
 
+        <h2>Mode 2: Shared Subscription Mode &amp; ChatGPT Sign-In</h2>
+        <p>
+          Don't want to manage API keys or pay-per-token credits? NutEgg supports direct sign-in and local developer CLI subscriptions
+          managed inside Obsidian:
+        </p>
+
+        <h3>Option A: Direct ChatGPT Sign-In (No CLI needed)</h3>
+        <ol>
+          <li>In Obsidian, open <strong>Settings → NutEgg</strong>.</li>
+          <li>Under <strong>AI connection</strong>, select <strong>ChatGPT sign-in</strong>.</li>
+          <li>Click <strong>Continue with ChatGPT</strong>, complete the browser authorization flow, and allow plan usage.</li>
+          <li>Choose your account model (e.g. <code>gpt-4o</code>).</li>
+          <li>
+            All connected Chrome profiles immediately follow this connection with zero API key setup. Credentials live securely in
+            per-installation OS keychain storage and are never sent to Chrome or stored in vault files.
+          </li>
+        </ol>
+
+        <h3>Option B: Local CLI Subscriptions (Codex, Claude, Gemini)</h3>
+        <p>
+          NutEgg can run official developer CLI tools already installed and logged in on your machine:
+        </p>
+
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
+              <th style="padding: 10px">Provider</th>
+              <th style="padding: 10px">CLI Installation</th>
+              <th style="padding: 10px">Authentication</th>
+              <th style="padding: 10px">Model Discovery</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Codex CLI</strong></td>
+              <td style="padding: 10px"><code>npm install -g @openai/codex</code></td>
+              <td style="padding: 10px"><code>codex login</code></td>
+              <td style="padding: 10px">Automatic via app-server</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Anthropic Claude</strong></td>
+              <td style="padding: 10px"><a href="https://code.claude.com/docs/en/quickstart" target="_blank" rel="noopener">Claude Code</a></td>
+              <td style="padding: 10px"><code>claude auth login --claudeai</code></td>
+              <td style="padding: 10px">Sonnet, Opus, Haiku, or custom ID</td>
+            </tr>
+            <tr style="border-bottom: 1px solid var(--border-subtle)">
+              <td style="padding: 10px"><strong>Google Gemini</strong></td>
+              <td style="padding: 10px"><a href="https://antigravity.google/docs/cli/install" target="_blank" rel="noopener">Antigravity CLI</a></td>
+              <td style="padding: 10px"><code>agy</code> browser flow</td>
+              <td style="padding: 10px">Automatic via <code>agy models</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p>
+          In Obsidian Settings → NutEgg, simply select your CLI under <strong>AI connection</strong>. NutEgg's internal
+          <code>SubscriptionService</code> runs inference in a bounded serial queue locally. No separate bridge server or port 27124 is needed.
+        </p>
+
         <h2>Local Sync Server &amp; Security</h2>
         <p>
-          When the plugin is enabled, it automatically boots a background HTTP listener on <code>127.0.0.1:27123</code>.
+          When the plugin is enabled, it automatically boots a background HTTP and WebSocket listener on <code>127.0.0.1:27123</code>.
         </p>
         <div class="callout">
-          <div class="callout-title">🔒 Privacy &amp; Security Assurance</div>
+          <div class="callout-title">🔒 Privacy &amp; Origin Security</div>
           <p>
             The local server binds strictly to the localhost loopback address (<code>127.0.0.1</code>). It enforces
-            strict CORS origin validation to prevent arbitrary web pages from accessing your vault, and includes a 25MB
-            payload ceiling to protect system memory.
+            strict <code>X-NutEgg-Extension-Origin</code> and token validation, preventing ordinary web pages from accessing your vault.
+            WebSocket connections authenticate on their very first frame.
           </p>
         </div>
 
