@@ -351,6 +351,7 @@ export class NutEggServer {
               sessionId = randomUUID();
               clearTimeout(authTimer);
               const configuration = publicExecutionSettings(message.configuration || {});
+              this.syncOutputLanguage(configuration.outputLanguage);
               this.execution.attach({
                 chunkWindowChars: configuration.chunkWindowChars,
                 contentAnalysisMaxTokens: configuration.contentAnalysisMaxTokens,
@@ -381,6 +382,7 @@ export class NutEggServer {
                 if (typeof message.configurationRevision !== 'string' || message.configurationRevision.length > 100) {
                   throw new Error('Invalid configuration revision.');
                 }
+                this.syncOutputLanguage(configuration.outputLanguage);
                 session.provider = configuration.chromeAiProvider || configuration.aiProvider;
                 session.model = configuration.chromeAiModel || configuration.aiModel;
                 session.configurationRevision = message.configurationRevision;
@@ -427,6 +429,17 @@ export class NutEggServer {
       clients: this.execution.clients(),
       execution: this.execution.snapshot(),
     };
+  }
+
+  syncOutputLanguage(lang?: string): void {
+    if (!lang) return;
+    const trimmed = lang.trim();
+    if (!trimmed || trimmed === this.plugin.settings.outputLanguage || trimmed.length > 100) return;
+    this.plugin.settings.outputLanguage = trimmed;
+    void this.plugin.saveSettings().catch(() => {});
+    try {
+      this.plugin.settingsTab?.display();
+    } catch {}
   }
 
   // --- Dedup + metrics helpers (backed by SQLite) ---
@@ -578,7 +591,7 @@ export class NutEggServer {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, Authorization, X-NutEgg-Extension-Version, X-NutEgg-Extension-Origin'
+        'Content-Type, Authorization, X-NutEgg-Extension-Version, X-NutEgg-Extension-Origin, X-NutEgg-Output-Language'
       );
 
       if (req.method === 'OPTIONS') {
@@ -593,6 +606,12 @@ export class NutEggServer {
       }
 
       try {
+        const headerLang = req.headers['x-nutegg-output-language'];
+        if (typeof headerLang === 'string' && headerLang.trim()) {
+          try {
+            this.syncOutputLanguage(decodeURIComponent(headerLang.trim()));
+          } catch {}
+        }
         const clientOrigin = requestOrigin || (extensionOrigin as string | undefined);
         if (req.method === 'POST' && ['/connection/start', '/connection/finish'].includes(req.url || '')) {
           if (
@@ -1050,6 +1069,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const ask: AskRequest = JSON.parse(body);
+      this.syncOutputLanguage(ask.outputLanguage);
 
       if (!ask.title || !ask.content || !ask.questions?.length) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -1189,6 +1209,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const capture: AnalyzeRequest = JSON.parse(body);
+      this.syncOutputLanguage(capture.outputLanguage);
       capture.debugScope = normalizeAIDebugScope(capture.debugScope);
       const processor = this.processorForDebugScope(capture.debugScope, req);
       capture.discussion =
@@ -1479,6 +1500,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const confirm: ConfirmRequest = JSON.parse(body);
+      this.syncOutputLanguage((confirm as any).outputLanguage);
       confirm.discussion =
         confirm.enabledSections?.discussion === true ? normalizeDiscussion(confirm.discussion) : undefined;
 

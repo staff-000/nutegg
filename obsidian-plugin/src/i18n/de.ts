@@ -248,4 +248,21 @@ export const de = {
   configureAiBtn: 'KI-Einstellungen konfigurieren',
   workflowUpdateNotice:
     'Workflow-Update verfügbar ({files}). Überprüfe *.new.md in _workflow, um deinen benutzerdefinierten Workflow zu aktualisieren.',
+  cmdLocalizeWorkflows: 'Workflows und Eggs in die synchronisierte Sprache lokalisieren',
+  outputLanguageTitle: 'Ausgabesprache',
+  outputLanguageDesc:
+    'Sprache für KI-Analyse und Workflow-Prompts, synchronisiert von Chrome. Wird in den Chrome-Einstellungen verwaltet.',
+  outputLanguageSameAsContent: 'Wie Inhalt (synchronisiert von Chrome)',
+  outputLanguageEnglish: 'Englisch (synchronisiert von Chrome)',
+  syncedFromChrome: 'synchronisiert von Chrome',
+  localizeWorkflowsTitle: 'Workflow- & Egg-Lokalisierung',
+  localizeWorkflowsDesc:
+    'Übersetzen Sie Standard-Workflow-Prompts und Egg-Anweisungen in die synchronisierte Sprache. Benutzerdefinierte Dateien erzeugen .new.md-Vorlagen.',
+  localizeWorkflowsBtn: 'Auf {language} lokalisieren',
+  revertToEnglishBtn: 'Auf Englisch zurücksetzen',
+  localizingWorkflows: 'Workflows und Eggs werden auf {language} lokalisiert…',
+  revertingWorkflows: 'Workflows und Eggs werden auf Englisch zurückgesetzt…',
+  localizedSuccess: 'Workflows und Eggs auf {language} aktualisiert.',
+  revertedSuccess: 'Workflows und Eggs auf Englisch zurückgesetzt.',
+  localizationFailed: 'Lokalisierung fehlgeschlagen: {error}',
 };

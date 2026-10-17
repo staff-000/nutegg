@@ -528,6 +528,56 @@ describe("AIProcessor.localizeEggTemplate", () => {
   });
 });
 
+describe("AIProcessor.localizeWorkflowTemplate", () => {
+  it("returns content unchanged when target language is English or same-as-content", async () => {
+    const plugin = makeFakePlugin({});
+    const processor = new AIProcessor(plugin as any);
+    const content = "Analyze {{title}} and {{content}}";
+    assert.equal(await processor.localizeWorkflowTemplate(content, "English", "test.md"), content);
+    assert.equal(await processor.localizeWorkflowTemplate(content, "same-as-content", "test.md"), content);
+  });
+
+  it("returns null when AI is not configured", async () => {
+    const noKey = makeFakePlugin({ settings: { aiApiKey: "" } });
+    const processor = new AIProcessor(noKey as any);
+    assert.equal(await processor.localizeWorkflowTemplate("Hello {{content}}", "Chinese", "test.md"), null);
+  });
+
+  it("localizes workflow and succeeds when all placeholders are preserved", async () => {
+    let sentPrompt = "";
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async (prompt: string) => {
+          sentPrompt = prompt;
+          return "```markdown\n## 任务\n分析 {{title}} 中的内容 {{content}}\n```";
+        },
+      },
+    });
+    const processor = new AIProcessor(plugin as any);
+    const template = "## Task\nAnalyze {{title}} and {{content}}";
+    const out = await processor.localizeWorkflowTemplate(template, "Chinese", "content-analysis.md");
+    assert.ok(out);
+    assert.ok(out.includes("## 任务"));
+    assert.ok(out.includes("{{title}}"));
+    assert.ok(out.includes("{{content}}"));
+    assert.ok(!out.includes("```"));
+    assert.ok(sentPrompt.includes("Chinese"));
+    assert.ok(sentPrompt.includes("content-analysis.md"));
+  });
+
+  it("discards output and returns null if a placeholder is missing", async () => {
+    const plugin = makeFakePlugin({
+      aiClient: {
+        chat: async () => "## 任务\n分析内容，但是丢掉了占位符",
+      },
+    });
+    const processor = new AIProcessor(plugin as any);
+    const template = "## Task\nAnalyze {{title}} and {{content}}";
+    const out = await processor.localizeWorkflowTemplate(template, "Chinese", "test.md");
+    assert.equal(out, null);
+  });
+});
+
 describe("AIProcessor.maybeMergeEgg", () => {
   /** Egg file with `n` top-level entries in # Unprocessed. */
   function unprocessedEgg(n: number): string {

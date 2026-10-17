@@ -794,6 +794,9 @@ function initAiSettings(stored) {
       await chrome.storage.local.set({
         outputLanguage: outputLangSelect.value,
       });
+      if (obsidianModeEnabled?.checked) {
+        void chrome.runtime.sendMessage({ action: 'sync-ai-config' }).catch(() => {});
+      }
     });
   }
 

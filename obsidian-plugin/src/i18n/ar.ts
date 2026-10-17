@@ -240,4 +240,21 @@ export const ar = {
     'لا يمكن تغيير إعدادات AI إلا من إضافة NutEgg في Chrome. يقرأ Obsidian الإعدادات المتزامنة من Chrome.',
   configureAiBtn: 'تهيئة إعدادات AI',
   workflowUpdateNotice: 'يتوفر تحديث لسير العمل ({files}). راجع ملفات *.new.md في _workflow لتحديث سير العمل المخصص.',
+  cmdLocalizeWorkflows: 'تعريب سير العمل و Eggs إلى اللغة المتزامنة',
+  outputLanguageTitle: 'لغة الإخراج',
+  outputLanguageDesc:
+    'لغة تحليل الذكاء الاصطناعي ومطالبات سير العمل، متزامنة من Chrome. تُدار في إعدادات Chrome.',
+  outputLanguageSameAsContent: 'نفس المحتوى (متزامن من Chrome)',
+  outputLanguageEnglish: 'الإنجليزية (متزامنة من Chrome)',
+  syncedFromChrome: 'متزامن من Chrome',
+  localizeWorkflowsTitle: 'تعريب سير العمل و Eggs',
+  localizeWorkflowsDesc:
+    'ترجمة مطالبات سير العمل الافتراضية وتعليمات Egg لمطابقة اللغة المتزامنة. ستنشئ الملفات المخصصة قوالب .new.md.',
+  localizeWorkflowsBtn: 'التعريب إلى {language}',
+  revertToEnglishBtn: 'الرجوع إلى الإنجليزية',
+  localizingWorkflows: 'جارٍ تعريب سير العمل و Eggs إلى {language}…',
+  revertingWorkflows: 'جارٍ إرجاع سير العمل و Eggs إلى الإنجليزية…',
+  localizedSuccess: 'تم تحديث سير العمل و Eggs إلى {language}.',
+  revertedSuccess: 'تمت إعادة سير العمل و Eggs إلى الإنجليزية.',
+  localizationFailed: 'فشل التعريب: {error}',
 };

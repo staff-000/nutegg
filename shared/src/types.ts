@@ -389,6 +389,7 @@ export type WorkflowPromptKey =
   | 'aggregateContent'
   | 'aggregateEgg'
   | 'localizeEgg'
+  | 'localizeWorkflow'
   | 'sharedOutputRules'
   | 'conversationRules'
   | 'chromeKnowledge';

@@ -243,4 +243,21 @@ export const ko = {
   configureAiBtn: 'AI 설정 구성',
   workflowUpdateNotice:
     '워크플로 업데이트가 있습니다({files}). 사용자 지정 워크플로를 업데이트하려면 _workflow의 *.new.md를 확인하세요.',
+  cmdLocalizeWorkflows: '워크플로 및 Egg를 동기화된 언어로 현지화',
+  outputLanguageTitle: '출력 언어',
+  outputLanguageDesc:
+    'AI 분석 및 워크플로 프롬프트 언어(Chrome에서 동기화됨). Chrome 설정에서 관리됩니다.',
+  outputLanguageSameAsContent: '콘텐츠와 동일 (Chrome에서 동기화됨)',
+  outputLanguageEnglish: '영어 (Chrome에서 동기화됨)',
+  syncedFromChrome: 'Chrome에서 동기화됨',
+  localizeWorkflowsTitle: '워크플로 및 Egg 현지화',
+  localizeWorkflowsDesc:
+    '기본 워크플로 프롬프트와 Egg 지침을 동기화된 언어로 번역합니다. 사용자 지정 파일은 .new.md 템플릿을 생성합니다.',
+  localizeWorkflowsBtn: '{language}(으)로 현지화',
+  revertToEnglishBtn: '기본 영어로 복원',
+  localizingWorkflows: '워크플로 및 Egg를 {language}(으)로 현지화하는 중…',
+  revertingWorkflows: '워크플로 및 Egg를 영어로 복원하는 중…',
+  localizedSuccess: '워크플로 및 Egg가 {language}(으)로 업데이트되었습니다.',
+  revertedSuccess: '워크플로 및 Egg가 영어로 복원되었습니다.',
+  localizationFailed: '현지화 실패: {error}',
 };

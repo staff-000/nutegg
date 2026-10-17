@@ -245,4 +245,21 @@ export const ja = {
   configureAiBtn: 'AI 設定を構成',
   workflowUpdateNotice:
     'ワークフローの更新があります（{files}）。カスタマイズしたワークフローを更新するには _workflow の *.new.md を確認してください。',
+  cmdLocalizeWorkflows: 'ワークフローとEggを同期された言語にローカライズ',
+  outputLanguageTitle: '出力言語',
+  outputLanguageDesc:
+    'AI分析およびワークフロープロンプトの言語（Chromeから同期）。Chromeの設定で管理されます。',
+  outputLanguageSameAsContent: 'コンテンツと同じ (Chromeから同期)',
+  outputLanguageEnglish: '英語 (Chromeから同期)',
+  syncedFromChrome: 'Chromeから同期',
+  localizeWorkflowsTitle: 'ワークフローとEggのローカライズ',
+  localizeWorkflowsDesc:
+    'デフォルトのワークフロープロンプトとEggの説明を同期された言語に翻訳します。カスタマイズされたファイルには.new.mdテンプレートが生成されます。',
+  localizeWorkflowsBtn: '{language}にローカライズ',
+  revertToEnglishBtn: '英語のデフォルトに戻す',
+  localizingWorkflows: 'ワークフローとEggを{language}にローカライズ中…',
+  revertingWorkflows: 'ワークフローとEggを英語に戻しています…',
+  localizedSuccess: 'ワークフローとEggが{language}に更新されました。',
+  revertedSuccess: 'ワークフローとEggが英語に戻されました。',
+  localizationFailed: 'ローカライズに失敗しました: {error}',
 };

@@ -147,7 +147,8 @@ async function fetchObsidianAiConfig() {
 
 async function syncAiConfig() {
   if ((await getConnectionMode()) !== 'obsidian') return { success: true };
-  return fetchObsidianAiConfig(); // Compatibility action is read-only.
+  NutEggExecution.configurationChanged();
+  return fetchObsidianAiConfig();
 }
 
 const standaloneControllers = new Set();
@@ -170,6 +171,7 @@ chrome.storage.onChanged?.addListener((changes, area) => {
     'chromeAiEndpoint',
     'chromeAiLocalEndpoint',
     'chromeApiRevision',
+    'outputLanguage',
   ];
   if (configKeys.some(key => key in changes)) {
     for (const controller of standaloneControllers) controller.abort();
@@ -200,6 +202,10 @@ async function serverFetch(url, options = {}) {
   // Extension GET requests can omit Origin. The server still checks any native
   // Origin and verifies the credential against this approved extension identity.
   headers['X-NutEgg-Extension-Origin'] = chrome.runtime.getURL('/').replace(/\/$/, '');
+  const storedLang = (await chrome.storage.local.get(['outputLanguage'])).outputLanguage;
+  if (storedLang) {
+    headers['X-NutEgg-Output-Language'] = encodeURIComponent(storedLang);
+  }
   if (parsed.pathname !== '/health') {
     if (!stored[key]) {
       try {

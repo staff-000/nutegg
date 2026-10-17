@@ -252,6 +252,23 @@ export const en = {
   configureAiBtn: 'Configure AI Settings',
   workflowUpdateNotice:
     'Workflow update available ({files}). Review *.new.md in _workflow to update your customized workflow.',
+  cmdLocalizeWorkflows: 'Localize workflows and eggs to synced language',
+  outputLanguageTitle: 'Output language',
+  outputLanguageDesc:
+    'Language for AI analysis and workflow prompts, synced from Chrome. Managed in Chrome settings.',
+  outputLanguageSameAsContent: 'Same as content (synced from Chrome)',
+  outputLanguageEnglish: 'English (synced from Chrome)',
+  syncedFromChrome: 'synced from Chrome',
+  localizeWorkflowsTitle: 'Workflow & Egg Localization',
+  localizeWorkflowsDesc:
+    'Translate default workflow prompts and egg instructions to match the synced language. User-customized files will generate .new.md templates.',
+  localizeWorkflowsBtn: 'Localize to {language}',
+  revertToEnglishBtn: 'Revert to English',
+  localizingWorkflows: 'Localizing workflows and eggs to {language}…',
+  revertingWorkflows: 'Reverting workflows and eggs to English…',
+  localizedSuccess: 'Workflows and eggs updated to {language}.',
+  revertedSuccess: 'Workflows and eggs reverted to English.',
+  localizationFailed: 'Localization failed: {error}',
 };
 
 export type TranslationKey = keyof typeof en;

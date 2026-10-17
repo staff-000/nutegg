@@ -350,15 +350,27 @@ export class AIProcessor {
       const globalSourceRule =
         '- Source References: In Global Mode, source references to the content are optional. If an answer draws on external knowledge, set "sources": []. Only include sources if you are directly citing or quoting a specific passage from the provided content.';
 
-      if (/^[ \t]*- Grounding:.*(?:\r?\n|$)/m.test(rendered)) {
-        rendered = rendered.replace(/^[ \t]*- Grounding:.*(?:\r?\n|$)/m, `${globalModeRule}\n`);
+      if (/^[ \t]*- (?:Grounding\b|[^:\n]*Grounding)[^:\n]*:.*(?:\r?\n|$)/im.test(rendered)) {
+        rendered = rendered.replace(
+          /^[ \t]*- (?:Grounding\b|[^:\n]*Grounding)[^:\n]*:.*(?:\r?\n|$)/im,
+          `${globalModeRule}\n`
+        );
+      } else if (/^[ \t]*- [^:\n]+:(?=.*(?:source of truth|唯一来源|唯一の真実|유일한 진실)).*(?:\r?\n|$)/im.test(rendered)) {
+        rendered = rendered.replace(
+          /^[ \t]*- [^:\n]+:(?=.*(?:source of truth|唯一来源|唯一の真実|유일한 진실)).*(?:\r?\n|$)/im,
+          `${globalModeRule}\n`
+        );
       } else {
         rendered = `${globalModeRule}\n${rendered}`;
       }
 
-      if (/^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m.test(rendered)) {
+      if (
+        /^[ \t]*- (?:Source References\b|[^:\n]*Source)[^:\n]*:[\s\S]*?(?=\n[ \t]*- (?:Output Language\b|[^:\n]*Output)|\Z)/im.test(
+          rendered
+        )
+      ) {
         rendered = rendered.replace(
-          /^[ \t]*- Source References:[\s\S]*?(?=\n[ \t]*- Output Language:|\Z)/m,
+          /^[ \t]*- (?:Source References\b|[^:\n]*Source)[^:\n]*:[\s\S]*?(?=\n[ \t]*- (?:Output Language\b|[^:\n]*Output)|\Z)/im,
           `${globalSourceRule}\n`
         );
       }
@@ -1379,12 +1391,14 @@ export class AIProcessor {
    */
   async localizeEggTemplate(
     templateContent: string,
-    description: string
+    description: string,
+    targetLanguage?: string
   ): Promise<{ content: string; language: string } | null> {
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return null;
     try {
       const prompt = renderPrompt(this.getPrompt('localizeEgg'), {
-        description: description,
+        description: description || '',
+        target_language: targetLanguage ? `${targetLanguage}\n` : '',
         template: templateContent,
       });
       const maxTokens = Math.max(8192, this.host?.settings?.contentAnalysisMaxTokens || 8192);
@@ -1401,13 +1415,70 @@ export class AIProcessor {
         text.includes('# Knowledge') &&
         text.includes('# Unprocessed')
       ) {
-        const language = extractEggLanguage(text);
+        const language =
+          targetLanguage && targetLanguage !== 'same-as-content'
+            ? targetLanguage
+            : extractEggLanguage(text) || 'English';
         return { content: text, language };
       }
       return null;
     } catch (err) {
       if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
       console.warn('[NutEgg] AI egg template localization failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Localize a workflow markdown prompt into a target language.
+   * Strictly validates that all {{placeholder}} variables in the source template
+   * are preserved in the localized output.
+   */
+  async localizeWorkflowTemplate(
+    content: string,
+    targetLanguage: string,
+    filename: string
+  ): Promise<string | null> {
+    if (!content || !targetLanguage || targetLanguage === 'same-as-content' || targetLanguage === 'English') {
+      return content;
+    }
+    if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) return null;
+    try {
+      const prompt = renderPrompt(this.getPrompt('localizeWorkflow'), {
+        target_language: targetLanguage,
+        filename: filename,
+        content: content,
+      });
+      const maxTokens = Math.max(16384, this.host?.settings?.contentAnalysisMaxTokens || 16384);
+      const response = await this.callAI(prompt, maxTokens);
+      let text = response.trim();
+      text = text
+        .replace(/^```[a-z]*\s*\n/i, '')
+        .replace(/\n```$/g, '')
+        .trim();
+
+      if (!text) return null;
+
+      // Extract all {{placeholder}} tokens from the source template
+      const placeholderRegex = /\{\{([a-zA-Z0-9_]+)\}\}/g;
+      const expectedPlaceholders = new Set<string>();
+      let match: RegExpExecArray | null;
+      while ((match = placeholderRegex.exec(content)) !== null) {
+        expectedPlaceholders.add(match[0]);
+      }
+
+      // Verify that every placeholder from original is preserved in the localized output
+      for (const ph of expectedPlaceholders) {
+        if (!text.includes(ph)) {
+          console.warn(`[NutEgg] Localized workflow ${filename} is missing placeholder ${ph}, discarding.`);
+          return null;
+        }
+      }
+
+      return text;
+    } catch (err) {
+      if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+      console.warn(`[NutEgg] AI workflow localization failed for ${filename}:`, err);
       return null;
     }
   }

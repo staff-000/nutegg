@@ -243,4 +243,89 @@ describe("WorkflowManager", () => {
     await store.vault.delete({ path: "nutegg/_workflow/content-analysis.new.md" });
     assert.deepEqual(manager.getPendingWorkflowUpdates(), []);
   });
+
+  it("localizeAll localizes unmodified workflows in place, generates .new.md for customized workflows, and preserves egg knowledge", async () => {
+    const { manager, files, plugin } = makeManager();
+    await manager.init();
+
+    // Attach mock aiProcessor to plugin
+    plugin.aiProcessor = {
+      localizeWorkflowTemplate: async (tpl: string, lang: string) => `[${lang}] ${tpl}`,
+      localizeEggTemplate: async (tpl: string, desc: string, lang?: string) => {
+        return {
+          content: tpl.replace('language: "English"', `language: "${lang || 'Chinese'}"`),
+          language: lang || "Chinese",
+        };
+      },
+    };
+
+    // User customizes one workflow file
+    const customContent = "Custom user prompt for content-analysis";
+    files.set("nutegg/_workflow/content-analysis.md", customContent);
+
+    // Create an egg note with knowledge and unprocessed entries
+    const initialEgg = `---
+topic: "React"
+status: "active"
+last_updated: "2026-08-14"
+language: "English"
+---
+
+> [!abstract]- Instructions:
+> **Scope:** React architecture
+
+# Knowledge
+
+- [concept] **Hooks**
+  - State management primitive
+
+# Unprocessed
+
+- [fact] Released in 2013
+`;
+    files.set("nutegg/react.md", initialEgg);
+
+    // 1. Run localizeAll with 'Chinese'
+    const res = await manager.localizeAll("Chinese");
+    assert.ok(res.workflowsUpdated > 0);
+    assert.equal(res.newFilesCreated, 1); // content-analysis.new.md
+    assert.equal(res.eggsUpdated, 1);
+
+    // Verify unmodified workflow is localized in place (including shared-output-rules.md)
+    const verdictContent = files.get("nutegg/_workflow/verdict-summary.md");
+    assert.ok(verdictContent?.startsWith("[Chinese]"));
+    assert.equal(plugin.settings.workflowMeta["verdict-summary.md"].language, "Chinese");
+
+    const sharedRulesContent = files.get("nutegg/_workflow/shared-output-rules.md");
+    assert.ok(sharedRulesContent?.startsWith("[Chinese]"));
+    assert.equal(plugin.settings.workflowMeta["shared-output-rules.md"].language, "Chinese");
+
+    // Verify user customized workflow was NOT overwritten
+    assert.equal(files.get("nutegg/_workflow/content-analysis.md"), customContent);
+    // Verify .new.md was generated with localized content
+    const newMdContent = files.get("nutegg/_workflow/content-analysis.new.md");
+    assert.ok(newMdContent?.startsWith("[Chinese]"));
+    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["content-analysis.new.md"]);
+
+    // Verify egg note was localized but # Knowledge and # Unprocessed remain intact
+    const localizedEgg = files.get("nutegg/react.md");
+    assert.ok(localizedEgg?.includes('language: "Chinese"'));
+    assert.ok(localizedEgg?.includes("- [concept] **Hooks**"));
+    assert.ok(localizedEgg?.includes("State management primitive"));
+    assert.ok(localizedEgg?.includes("- [fact] Released in 2013"));
+
+    // 2. Revert to English
+    const revertRes = await manager.localizeAll("English");
+    assert.ok(revertRes.workflowsUpdated > 0);
+    const revertedVerdict = files.get("nutegg/_workflow/verdict-summary.md");
+    assert.equal(revertedVerdict, BUILTIN_WORKFLOW_FILES["verdict-summary.md"]);
+    assert.equal(plugin.settings.workflowMeta["verdict-summary.md"].language, "English");
+
+    const revertedSharedRules = files.get("nutegg/_workflow/shared-output-rules.md");
+    assert.equal(revertedSharedRules, BUILTIN_WORKFLOW_FILES["shared-output-rules.md"]);
+    assert.equal(plugin.settings.workflowMeta["shared-output-rules.md"].language, "English");
+
+    const revertedEgg = files.get("nutegg/react.md");
+    assert.ok(revertedEgg?.includes('language: "English"'));
+  });
 });

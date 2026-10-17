@@ -266,9 +266,22 @@ const NutEggExecution = (() => {
       if (!revision || job.configurationRevision !== revision) cancel(id);
     }
     void (async () => {
+      const mode = await getConnectionMode().catch(() => null);
+      if (mode !== 'obsidian') return;
       const settings = await loadChromeAiSettings();
       const saved = await chrome.storage.local.get(['chromeApiRevision']);
       if (revision && saved.chromeApiRevision !== revision) return;
+      if (!socket || socket.readyState !== 1) {
+        await ensure().catch(() => {});
+        if (socket?.readyState === 1) {
+          send({
+            type: 'configuration-changed',
+            configurationRevision: saved.chromeApiRevision || 'initial',
+            configuration: NutEggAI.publicExecutionSettings(settings),
+          });
+        }
+        return;
+      }
       send({
         type: 'configuration-changed',
         configurationRevision: saved.chromeApiRevision || 'initial',

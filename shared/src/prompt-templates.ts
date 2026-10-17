@@ -13,6 +13,7 @@ import mergeUnprocessedTpl from '../workflow/merge-unprocessed.md';
 import aggregateContentTpl from '../workflow/aggregate-content.md';
 import aggregateEggTpl from '../workflow/aggregate-egg.md';
 import localizeEggTpl from '../workflow/localize-egg.md';
+import localizeWorkflowTpl from '../workflow/localize-workflow.md';
 import sharedOutputRulesTpl from '../workflow/shared-output-rules.md';
 import chromeKnowledgeTpl from '../workflow/chrome-knowledge.md';
 import verdictSummaryTpl from '../workflow/verdict-summary.md';
@@ -45,6 +46,8 @@ export const PROMPTS = {
   aggregateEgg: aggregateEggTpl,
   /** Localize egg template matching the description language while keeping parser structure in English. */
   localizeEgg: localizeEggTpl,
+  /** Localize workflow prompt templates into target language while preserving placeholders and JSON keys. */
+  localizeWorkflow: localizeWorkflowTpl,
   /** Shared output rules (grounding + language reference) injected into prompts. */
   sharedOutputRules: sharedOutputRulesTpl.trim(),
   /** Default knowledge generation prompt for Chrome standalone mode. */

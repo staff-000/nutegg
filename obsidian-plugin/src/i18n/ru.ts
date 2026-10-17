@@ -243,4 +243,21 @@ export const ru = {
   configureAiBtn: 'Настроить параметры AI',
   workflowUpdateNotice:
     'Доступно обновление рабочего процесса ({files}). Проверьте *.new.md в _workflow, чтобы обновить пользовательский рабочий процесс.',
+  cmdLocalizeWorkflows: 'Локализовать рабочие процессы и Eggs на синхронизированный язык',
+  outputLanguageTitle: 'Язык вывода',
+  outputLanguageDesc:
+    'Язык для анализа ИИ и подсказок рабочего процесса, синхронизирован из Chrome. Управляется в настройках Chrome.',
+  outputLanguageSameAsContent: 'Как в источнике (синхронизировано из Chrome)',
+  outputLanguageEnglish: 'Английский (синхронизировано из Chrome)',
+  syncedFromChrome: 'синхронизировано из Chrome',
+  localizeWorkflowsTitle: 'Локализация рабочих процессов и Eggs',
+  localizeWorkflowsDesc:
+    'Переведите подсказки рабочих процессов по умолчанию и инструкции Egg на синхронизированный язык. Пользовательские файлы создадут шаблоны .new.md.',
+  localizeWorkflowsBtn: 'Локализовать на {language}',
+  revertToEnglishBtn: 'Вернуть на английский',
+  localizingWorkflows: 'Локализация рабочих процессов и Eggs на {language}…',
+  revertingWorkflows: 'Возвращение рабочих процессов и Eggs на английский…',
+  localizedSuccess: 'Рабочие процессы и Eggs обновлены на {language}.',
+  revertedSuccess: 'Рабочие процессы и Eggs возвращены на английский.',
+  localizationFailed: 'Сбой локализации: {error}',
 };

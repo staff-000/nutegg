@@ -668,3 +668,29 @@ test('a stalled credit check times out, enables refresh, and ignores its late re
   await new Promise(resolve => queueMicrotask(resolve));
   assert.doesNotMatch(button.text, /999/);
 });
+
+test('syncOutputLanguage updates settings, saves, and refreshes the settings tab', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, outputLanguage: 'Chinese' };
+  let saved = 0;
+  plugin.saveSettings = async () => { saved++; };
+  let displays = 0;
+  plugin.settingsTab = { display() { displays++; } } as any;
+
+  const server = new NutEggServer(plugin, 27123);
+  server.syncOutputLanguage('Japanese');
+  assert.equal(plugin.settings.outputLanguage, 'Japanese');
+  assert.equal(saved, 1);
+  assert.equal(displays, 1);
+
+  // Identical value does not re-trigger save or display
+  server.syncOutputLanguage('Japanese');
+  assert.equal(saved, 1);
+  assert.equal(displays, 1);
+
+  // Empty or whitespace-only ignored
+  server.syncOutputLanguage('   ');
+  assert.equal(plugin.settings.outputLanguage, 'Japanese');
+  assert.equal(saved, 1);
+});
+

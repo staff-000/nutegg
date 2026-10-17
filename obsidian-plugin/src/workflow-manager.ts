@@ -3,6 +3,8 @@ import type NutEggPlugin from './main';
 import { PROMPTS } from './prompt-templates';
 import { t } from './i18n';
 import workflowReadmeTpl from '../../shared/workflow/README.md';
+import { isEggPath, extractEggLanguage, insertEggLanguage } from './egg-parser';
+import type { WorkflowFileMeta } from './settings';
 
 export type WorkflowPromptKey =
   | 'discussionAnalysis'
@@ -18,6 +20,7 @@ export type WorkflowPromptKey =
   | 'aggregateContent'
   | 'aggregateEgg'
   | 'localizeEgg'
+  | 'localizeWorkflow'
   | 'sharedOutputRules'
   | 'conversationRules'
   | 'chromeKnowledge';
@@ -36,6 +39,7 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   aggregateContent: 'aggregate-content.md',
   aggregateEgg: 'aggregate-egg.md',
   localizeEgg: 'localize-egg.md',
+  localizeWorkflow: 'localize-workflow.md',
   sharedOutputRules: 'shared-output-rules.md',
   conversationRules: 'conversation-rules.md',
   chromeKnowledge: 'chrome-knowledge.md',
@@ -57,6 +61,7 @@ export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   'aggregate-content.md': PROMPTS.aggregateContent,
   'aggregate-egg.md': PROMPTS.aggregateEgg,
   'localize-egg.md': PROMPTS.localizeEgg,
+  'localize-workflow.md': PROMPTS.localizeWorkflow,
   'shared-output-rules.md': PROMPTS.sharedOutputRules,
   'conversation-rules.md': PROMPTS.conversationRules,
   'chrome-knowledge.md': PROMPTS.chromeKnowledge,
@@ -112,12 +117,41 @@ export class WorkflowManager {
    * - Unmodified files are updated cleanly.
    * - User-customized files are preserved, and new versions are written as `*.new.md`.
    */
+  /**
+   * Helper to retrieve or initialize WorkflowFileMeta for a given workflow file.
+   */
+  getWorkflowMeta(filename: string, builtinHash: string, vaultHash?: string): WorkflowFileMeta {
+    if (!this.plugin.settings.workflowMeta) {
+      this.plugin.settings.workflowMeta = {};
+    }
+    let meta = this.plugin.settings.workflowMeta[filename];
+    if (!meta) {
+      const recordedHash = this.plugin.settings.workflowHashes?.[filename];
+      meta = {
+        sourceHash: recordedHash || builtinHash,
+        vaultHash: recordedHash || vaultHash || builtinHash,
+        language: 'English',
+      };
+      this.plugin.settings.workflowMeta[filename] = meta;
+    }
+    return meta;
+  }
+
+  /**
+   * Ensure the workflow folder and all built-in files exist in the vault.
+   * Detects version updates non-destructively:
+   * - Unmodified files are updated cleanly.
+   * - User-customized files are preserved, and new versions are written as `*.new.md`.
+   */
   async ensureWorkflowFiles(): Promise<void> {
     const folder = this.workflowFolder;
     await this.ensureFolder(folder);
 
     if (!this.plugin.settings.workflowHashes) {
       this.plugin.settings.workflowHashes = {};
+    }
+    if (!this.plugin.settings.workflowMeta) {
+      this.plugin.settings.workflowMeta = {};
     }
 
     let settingsChanged = false;
@@ -134,6 +168,11 @@ export class WorkflowManager {
           await this.plugin.app.vault.create(filePath, builtinContent);
           this.cache.set(filename, builtinContent);
           this.plugin.settings.workflowHashes[filename] = builtinHash;
+          this.plugin.settings.workflowMeta[filename] = {
+            sourceHash: builtinHash,
+            vaultHash: builtinHash,
+            language: 'English',
+          };
           settingsChanged = true;
           console.log(`[NutEgg] Seeded workflow file: ${filePath}`);
         } catch (err) {
@@ -151,31 +190,36 @@ export class WorkflowManager {
           this.cache.set(filename, vaultContent);
 
           const currentVaultHash = simpleHash(vaultContent);
-          const recordedHash = this.plugin.settings.workflowHashes[filename];
+          const meta = this.getWorkflowMeta(filename, builtinHash, currentVaultHash);
+          const isUnmodified = currentVaultHash === meta.vaultHash;
+          const isBuiltinUpdated = meta.sourceHash !== builtinHash;
 
           if (currentVaultHash === builtinHash) {
-            // Vault content already matches current built-in default
-            if (recordedHash !== builtinHash) {
+            // Vault content matches current built-in default
+            if (meta.sourceHash !== builtinHash || meta.vaultHash !== builtinHash) {
+              meta.sourceHash = builtinHash;
+              meta.vaultHash = builtinHash;
+              meta.language = 'English';
               this.plugin.settings.workflowHashes[filename] = builtinHash;
               settingsChanged = true;
             }
-          } else if (recordedHash && recordedHash === currentVaultHash) {
-            // User never customized the file; vault holds the older default.
+          } else if (isUnmodified && isBuiltinUpdated) {
+            // User never customized the file; vault holds older default.
             // Safe to auto-update to latest built-in version!
-            if (file instanceof TFile) {
-              await this.plugin.app.vault.modify(file, builtinContent);
-            } else {
-              await this.plugin.app.vault.adapter.write(filePath, builtinContent);
-            }
+            await this.writeWorkflowFile(filename, builtinContent);
             this.cache.set(filename, builtinContent);
+            meta.sourceHash = builtinHash;
+            meta.vaultHash = builtinHash;
+            meta.language = 'English';
             this.plugin.settings.workflowHashes[filename] = builtinHash;
             settingsChanged = true;
             console.log(`[NutEgg] Auto-updated unmodified workflow file: ${filePath}`);
-          } else if (!recordedHash) {
-            // Legacy or initial pre-existing file — record its current hash
+          } else if (!meta.vaultHash) {
+            meta.sourceHash = builtinHash;
+            meta.vaultHash = currentVaultHash;
             this.plugin.settings.workflowHashes[filename] = currentVaultHash;
             settingsChanged = true;
-          } else {
+          } else if (!isUnmodified && isBuiltinUpdated) {
             // User HAS customized this file AND built-in version is different!
             // Do NOT clobber the user's file. Write [name].new.md instead.
             const baseName = filename.replace(/\.md$/, '');
@@ -192,6 +236,8 @@ export class WorkflowManager {
                 // Ignore if created concurrently
               }
             }
+            meta.sourceHash = builtinHash;
+            settingsChanged = true;
           }
         } catch (err) {
           console.warn(`[NutEgg] Error reading workflow file ${filePath}:`, err);
@@ -204,13 +250,17 @@ export class WorkflowManager {
     for (const file of localFiles) {
       const relName = file.path.slice(folder.length + 1);
       if (!(relName in BUILTIN_WORKFLOW_FILES) && !relName.endsWith('.new.md')) {
-        const recordedHash = this.plugin.settings.workflowHashes[relName];
+        const meta = this.plugin.settings.workflowMeta?.[relName];
+        const recordedHash = meta?.vaultHash || this.plugin.settings.workflowHashes[relName];
         if (recordedHash) {
           const content = await this.plugin.app.vault.read(file);
           if (simpleHash(content) === recordedHash) {
             // Unmodified prompt from an older version that is no longer in code — safe to auto-remove
             await this.plugin.app.vault.delete(file);
             delete this.plugin.settings.workflowHashes[relName];
+            if (this.plugin.settings.workflowMeta) {
+              delete this.plugin.settings.workflowMeta[relName];
+            }
             this.cache.delete(relName);
             settingsChanged = true;
             console.log(`[NutEgg] Auto-removed obsolete unmodified workflow file: ${file.path}`);
@@ -292,12 +342,19 @@ export class WorkflowManager {
     // 2. Copy clean default workflow prompts into workflowFolder
     this.cache.clear();
     this.plugin.settings.workflowHashes = {};
+    this.plugin.settings.workflowMeta = {};
 
     for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
       const filePath = `${folder}/${filename}`;
       await this.plugin.app.vault.create(filePath, builtinContent);
       this.cache.set(filename, builtinContent);
-      this.plugin.settings.workflowHashes[filename] = simpleHash(builtinContent);
+      const hash = simpleHash(builtinContent);
+      this.plugin.settings.workflowHashes[filename] = hash;
+      this.plugin.settings.workflowMeta[filename] = {
+        sourceHash: hash,
+        vaultHash: hash,
+        language: 'English',
+      };
     }
 
     await this.plugin.saveSettings();
@@ -307,6 +364,253 @@ export class WorkflowManager {
   /** Alias for backward compatibility */
   async syncToDefaults(): Promise<void> {
     return this.resetToDefaults();
+  }
+
+  private localizing = false;
+
+  /**
+   * Localize workflow prompts and egg files in the vault to targetLanguage,
+   * or revert them to English built-in defaults if targetLanguage is 'same-as-content' or 'English'.
+   *
+   * Rules:
+   * - Unmodified workflow files (diskHash === meta.vaultHash) are localized in place.
+   * - User-customized workflow files (diskHash !== meta.vaultHash) generate *.new.md side-by-side
+   *   and reuse the workflow update warning banner.
+   * - Egg files preserve # Knowledge and # Unprocessed byte-for-byte; only instructions are updated.
+   */
+  async localizeAll(targetLanguage?: string): Promise<{
+    workflowsUpdated: number;
+    eggsUpdated: number;
+    newFilesCreated: number;
+    errors: string[];
+  }> {
+    if (this.localizing) {
+      throw new Error('Localization is already in progress.');
+    }
+    this.localizing = true;
+    const errors: string[] = [];
+    let workflowsUpdated = 0;
+    let eggsUpdated = 0;
+    let newFilesCreated = 0;
+
+    try {
+      const folder = this.workflowFolder;
+      await this.ensureFolder(folder);
+      const effectiveLang = (targetLanguage || this.plugin.settings.outputLanguage || 'same-as-content').trim();
+      const isEnglishOrSame =
+        !effectiveLang ||
+        effectiveLang === 'same-as-content' ||
+        effectiveLang.toLowerCase() === 'english';
+
+      const nonLocalizable = new Set([
+        'README.md',
+        'localize-egg.md',
+        'localize-workflow.md',
+      ]);
+
+      if (isEnglishOrSame) {
+        // Revert unmodified workflows to built-in English defaults
+        for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
+          if (nonLocalizable.has(filename)) continue;
+          const filePath = `${folder}/${filename}`;
+          const builtinHash = simpleHash(builtinContent);
+          let currentContent = '';
+          const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+          if (file instanceof TFile) {
+            currentContent = await this.plugin.app.vault.read(file);
+          } else if (await this.plugin.app.vault.adapter.exists(filePath)) {
+            currentContent = await this.plugin.app.vault.adapter.read(filePath);
+          } else {
+            continue;
+          }
+
+          const currentHash = simpleHash(currentContent);
+          const meta = this.getWorkflowMeta(filename, builtinHash, currentHash);
+          const isUnmodified = currentHash === meta.vaultHash;
+
+          if (isUnmodified) {
+            if (currentHash !== builtinHash || meta.language !== 'English') {
+              await this.writeWorkflowFile(filename, builtinContent);
+              this.cache.set(filename, builtinContent);
+              meta.sourceHash = builtinHash;
+              meta.vaultHash = builtinHash;
+              meta.language = 'English';
+              this.plugin.settings.workflowHashes[filename] = builtinHash;
+              workflowsUpdated++;
+            }
+          } else {
+            // User customized this file! As per requirement 3:
+            // update with .new.md suffix and trigger warning
+            const baseName = filename.replace(/\.md$/, '');
+            const newPath = `${folder}/${baseName}.new.md`;
+            if (!(await this.plugin.app.vault.adapter.exists(newPath))) {
+              await this.plugin.app.vault.create(newPath, builtinContent);
+              newFilesCreated++;
+            }
+          }
+        }
+
+        // Revert eggs with non-English language tag to English
+        const eggFiles = this.getEggFiles();
+        for (const eggFile of eggFiles) {
+          try {
+            const content = await this.plugin.app.vault.read(eggFile);
+            const currentEggLang = extractEggLanguage(content);
+            if (currentEggLang && currentEggLang.toLowerCase() !== 'english') {
+              const updated = insertEggLanguage(content, 'English', { overwrite: true });
+              await this.plugin.app.vault.modify(eggFile, updated);
+              eggsUpdated++;
+            }
+          } catch (err: any) {
+            errors.push(`Egg ${eggFile.name}: ${err?.message || String(err)}`);
+          }
+        }
+      } else {
+        // Localize to effectiveLang (e.g. 'Chinese', 'Japanese', 'Spanish')
+        const processor = this.plugin.aiProcessor;
+        if (!processor) {
+          throw new Error('AI Processor not available.');
+        }
+
+        for (const [filename, builtinContent] of Object.entries(BUILTIN_WORKFLOW_FILES)) {
+          if (nonLocalizable.has(filename)) continue;
+          const filePath = `${folder}/${filename}`;
+          const builtinHash = simpleHash(builtinContent);
+          let currentContent = '';
+          const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+          if (file instanceof TFile) {
+            currentContent = await this.plugin.app.vault.read(file);
+          } else if (await this.plugin.app.vault.adapter.exists(filePath)) {
+            currentContent = await this.plugin.app.vault.adapter.read(filePath);
+          } else {
+            continue;
+          }
+
+          const currentHash = simpleHash(currentContent);
+          const meta = this.getWorkflowMeta(filename, builtinHash, currentHash);
+          const isUnmodified = currentHash === meta.vaultHash;
+
+          if (isUnmodified) {
+            if (meta.language === effectiveLang && meta.sourceHash === builtinHash) {
+              // Already localized to target language
+              continue;
+            }
+            const localized = await processor.localizeWorkflowTemplate(
+              builtinContent,
+              effectiveLang,
+              filename
+            );
+            if (localized) {
+              await this.writeWorkflowFile(filename, localized);
+              this.cache.set(filename, localized);
+              const locHash = simpleHash(localized);
+              meta.sourceHash = builtinHash;
+              meta.vaultHash = locHash;
+              meta.language = effectiveLang;
+              this.plugin.settings.workflowHashes[filename] = locHash;
+              workflowsUpdated++;
+            } else {
+              errors.push(`Failed to localize ${filename}`);
+            }
+          } else {
+            // User customized this file! As per requirement 3:
+            // update with .new.md suffix and trigger warning
+            const localized = await processor.localizeWorkflowTemplate(
+              builtinContent,
+              effectiveLang,
+              filename
+            );
+            if (localized) {
+              const baseName = filename.replace(/\.md$/, '');
+              const newPath = `${folder}/${baseName}.new.md`;
+              if (await this.plugin.app.vault.adapter.exists(newPath)) {
+                await this.plugin.app.vault.adapter.write(newPath, localized);
+              } else {
+                await this.plugin.app.vault.create(newPath, localized);
+              }
+              newFilesCreated++;
+            }
+          }
+        }
+
+        // Localize egg instructions in vault
+        const eggFiles = this.getEggFiles();
+        for (const eggFile of eggFiles) {
+          try {
+            const content = await this.plugin.app.vault.read(eggFile);
+            const currentEggLang = extractEggLanguage(content);
+            if (currentEggLang && currentEggLang.toLowerCase() === effectiveLang.toLowerCase()) {
+              continue;
+            }
+
+            const knowledgeIdx = content.indexOf('\n# Knowledge');
+            const topPart = knowledgeIdx !== -1 ? content.slice(0, knowledgeIdx) : content;
+            const bottomPart = knowledgeIdx !== -1 ? content.slice(knowledgeIdx) : '';
+
+            // Run localization on template header only
+            const templateToLocalize = `${topPart}\n\n# Knowledge\n\n# Unprocessed\n`;
+            const localizedResult = await processor.localizeEggTemplate(
+              templateToLocalize,
+              `Target language: ${effectiveLang}`,
+              effectiveLang
+            );
+
+            if (localizedResult?.content) {
+              let localizedTop = localizedResult.content;
+              const locKnowledgeIdx = localizedTop.indexOf('\n# Knowledge');
+              if (locKnowledgeIdx !== -1) {
+                localizedTop = localizedTop.slice(0, locKnowledgeIdx);
+              }
+              localizedTop = insertEggLanguage(localizedTop, effectiveLang, { overwrite: true });
+              const finalContent = bottomPart ? `${localizedTop}${bottomPart}` : localizedTop;
+              await this.plugin.app.vault.modify(eggFile, finalContent);
+              eggsUpdated++;
+            }
+          } catch (err: any) {
+            errors.push(`Egg ${eggFile.name}: ${err?.message || String(err)}`);
+          }
+        }
+      }
+
+      await this.plugin.saveSettings();
+
+      if (newFilesCreated > 0) {
+        const pending = this.getPendingWorkflowUpdates();
+        if (pending.length > 0) {
+          new Notice(`[NutEgg] ${t('workflowUpdateNotice', { files: pending.join(', ') })}`, 10000);
+        }
+      }
+
+      return { workflowsUpdated, eggsUpdated, newFilesCreated, errors };
+    } finally {
+      this.localizing = false;
+    }
+  }
+
+  /** Retrieve all egg files in vaultFolder */
+  getEggFiles(): TFile[] {
+    const folder = this.plugin.vaultFolder || 'nutegg';
+    const vault = this.plugin.app.vault;
+    let allFiles: TFile[] = [];
+    if (typeof vault.getMarkdownFiles === 'function') {
+      allFiles = vault.getMarkdownFiles();
+    } else if (typeof vault.getFiles === 'function') {
+      allFiles = vault.getFiles();
+    }
+    return allFiles.filter((f: TFile) => isEggPath(f.path, folder));
+  }
+
+  /** Helper to write or modify a workflow file */
+  async writeWorkflowFile(filename: string, content: string): Promise<void> {
+    const filePath = `${this.workflowFolder}/${filename}`;
+    const file = this.plugin.app.vault.getAbstractFileByPath(filePath);
+    if (file instanceof TFile) {
+      await this.plugin.app.vault.modify(file, content);
+    } else if (await this.plugin.app.vault.adapter.exists(filePath)) {
+      await this.plugin.app.vault.adapter.write(filePath, content);
+    } else {
+      await this.plugin.app.vault.create(filePath, content);
+    }
   }
 
   private async onFileChanged(file: TAbstractFile): Promise<void> {

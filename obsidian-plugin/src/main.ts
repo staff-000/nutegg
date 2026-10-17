@@ -188,7 +188,7 @@ export default class NutEggPlugin extends Plugin {
   workflowManager!: WorkflowManager;
   db!: NutEggDatabase;
   creditStatusBarItem: HTMLElement | null = null;
-  private settingsTab: NutEggSettingTab | null = null;
+  settingsTab: NutEggSettingTab | null = null;
   private creditStatusVersion = 0;
 
   get vaultFolder(): string {
@@ -381,6 +381,41 @@ export default class NutEggPlugin extends Plugin {
       name: t('cmdUseDefaultWorkflowPrompts'),
       callback: async () => {
         await this.workflowManager.resetToDefaults();
+      },
+    });
+
+    // Command: Localize workflows and eggs to synced language
+    this.addCommand({
+      id: 'nutegg-localize-workflows-and-eggs',
+      name: t('cmdLocalizeWorkflows'),
+      callback: async () => {
+        const lang = this.settings.outputLanguage || 'same-as-content';
+        const isEnglishOrSame =
+          !lang || lang === 'same-as-content' || lang.toLowerCase() === 'english';
+        new Notice(
+          `[NutEgg] ${
+            isEnglishOrSame
+              ? t('revertingWorkflows')
+              : t('localizingWorkflows', { language: lang })
+          }`
+        );
+        try {
+          const res = await this.workflowManager.localizeAll(lang);
+          if (isEnglishOrSame) {
+            new Notice(`[NutEgg] ${t('revertedSuccess')}`);
+          } else {
+            new Notice(
+              `[NutEgg] ${t('localizedSuccess', { language: lang })}${
+                res.newFilesCreated > 0 ? ` (${res.newFilesCreated} .new.md)` : ''
+              }`
+            );
+          }
+        } catch (err: any) {
+          console.error('[NutEgg] Localization error:', err);
+          new Notice(
+            `[NutEgg] ${t('localizationFailed', { error: err?.message || String(err) })}`
+          );
+        }
       },
     });
 

@@ -244,4 +244,21 @@ export const es = {
   configureAiBtn: 'Configurar ajustes de IA',
   workflowUpdateNotice:
     'Actualización de flujo de trabajo disponible ({files}). Revisa *.new.md en _workflow para actualizar tu flujo de trabajo personalizado.',
+  cmdLocalizeWorkflows: 'Localizar flujos de trabajo y Eggs al idioma sincronizado',
+  outputLanguageTitle: 'Idioma de salida',
+  outputLanguageDesc:
+    'Idioma para el análisis de IA y flujos de trabajo, sincronizado desde Chrome. Administrado en la configuración de Chrome.',
+  outputLanguageSameAsContent: 'Igual al contenido (sincronizado desde Chrome)',
+  outputLanguageEnglish: 'Inglés (sincronizado desde Chrome)',
+  syncedFromChrome: 'sincronizado desde Chrome',
+  localizeWorkflowsTitle: 'Localización de flujos de trabajo y Eggs',
+  localizeWorkflowsDesc:
+    'Traduzca las instrucciones predeterminadas del flujo de trabajo y las notas Egg al idioma sincronizado. Los archivos personalizados generarán plantillas .new.md.',
+  localizeWorkflowsBtn: 'Localizar a {language}',
+  revertToEnglishBtn: 'Revertir a inglés',
+  localizingWorkflows: 'Localizando flujos de trabajo y Eggs a {language}…',
+  revertingWorkflows: 'Revirtiendo flujos de trabajo y Eggs a inglés…',
+  localizedSuccess: 'Flujos de trabajo y Eggs actualizados a {language}.',
+  revertedSuccess: 'Flujos de trabajo y Eggs revertidos a inglés.',
+  localizationFailed: 'Error de localización: {error}',
 };

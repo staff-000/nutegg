@@ -8,6 +8,15 @@ import type { SubscriptionStatus } from '../../shared/src/types';
 
 export type LocalApiType = 'openai' | 'ollama';
 
+export interface WorkflowFileMeta {
+  /** Hash of the built-in English code template in BUILTIN_WORKFLOW_FILES */
+  sourceHash: string;
+  /** Hash of the file content NutEgg wrote to the vault (English or localized) */
+  vaultHash: string;
+  /** Language the file was localized to ('English' or specific language name) */
+  language: string;
+}
+
 export interface NutEggSettings {
   /** Show advanced server configuration */
   developerMode: boolean;
@@ -51,6 +60,10 @@ export interface NutEggSettings {
   workflowFolder: string;
   /** Hashes of default workflow files when last synced (for update conflict detection) */
   workflowHashes: Record<string, string>;
+  /** Metadata of workflow files when last synced/localized (sourceHash, vaultHash, language) */
+  workflowMeta?: Record<string, WorkflowFileMeta>;
+  /** Synced output language from Chrome extension (read-only in Obsidian) */
+  outputLanguage?: string;
   /** General chunk window size in characters for splitting long content (default: 30000) */
   chunkWindowChars: number;
   /** Max completion tokens for Stage 1 content analysis and mind map (default: 16384) */
@@ -72,6 +85,8 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   indexFile: 'nutegg/_index.md',
   workflowFolder: 'nutegg/_workflow',
   workflowHashes: {},
+  workflowMeta: {},
+  outputLanguage: 'same-as-content',
   chunkWindowChars: 30000,
   contentAnalysisMaxTokens: 16384,
 };
@@ -178,6 +193,67 @@ export class NutEggSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    const currentLang = (settings.outputLanguage || 'same-as-content').trim();
+    const isEnglishOrSame =
+      !currentLang ||
+      currentLang === 'same-as-content' ||
+      currentLang.toLowerCase() === 'english';
+    const displayLang =
+      currentLang === 'same-as-content'
+        ? t('outputLanguageSameAsContent')
+        : currentLang.toLowerCase() === 'english'
+          ? t('outputLanguageEnglish')
+          : `${currentLang} (${t('syncedFromChrome')})`;
+
+    new Setting(containerEl)
+      .setName(t('outputLanguageTitle'))
+      .setDesc(t('outputLanguageDesc'))
+      .addText(text => {
+        text.setValue(displayLang);
+        text.setDisabled(true);
+        text.inputEl?.classList?.add?.('nutegg-readonly-input');
+      });
+
+    new Setting(containerEl)
+      .setName(t('localizeWorkflowsTitle'))
+      .setDesc(t('localizeWorkflowsDesc'))
+      .addButton(btn => {
+        const btnText = isEnglishOrSame
+          ? t('revertToEnglishBtn')
+          : t('localizeWorkflowsBtn', { language: currentLang });
+        btn.setButtonText(btnText);
+        if (!isEnglishOrSame) {
+          btn.setCta();
+        }
+        btn.onClick(async () => {
+          btn.setDisabled(true);
+          const origText = btn.buttonEl.textContent;
+          btn.setButtonText(
+            isEnglishOrSame
+              ? t('revertingWorkflows')
+              : t('localizingWorkflows', { language: currentLang })
+          );
+          try {
+            const res = await this.plugin.workflowManager.localizeAll(currentLang);
+            if (isEnglishOrSame) {
+              new Notice(`[NutEgg] ${t('revertedSuccess')}`);
+            } else {
+              new Notice(
+                `[NutEgg] ${t('localizedSuccess', { language: currentLang })}${
+                  res.newFilesCreated > 0 ? ` (${res.newFilesCreated} .new.md)` : ''
+                }`
+              );
+            }
+          } catch (err: any) {
+            console.error('[NutEgg] Localization error:', err);
+            new Notice(`[NutEgg] ${t('localizationFailed', { error: err?.message || String(err) })}`);
+          } finally {
+            btn.setDisabled(false);
+            btn.setButtonText(origText || btnText);
+          }
+        });
+      });
 
     new Setting(containerEl)
       .setName(t('useDefaultWorkflows'))

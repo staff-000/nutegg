@@ -53,8 +53,8 @@ describe("PROMPTS", () => {
       "part_note", "chunk_summaries", "chunk_findings", "sections",
       // multi-lingual output language (from _index.md entry description or settings)
       "egg_description", "output_language",
-      // localize-egg.md
-      "description", "template",
+      // localize-egg.md & localize-workflow.md
+      "description", "template", "target_language", "filename",
       // discussion analysis and topic aggregation
       "kind", "body", "parents", "items", "drafts",
       // progressive rendering verdict & summary
