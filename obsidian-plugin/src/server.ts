@@ -542,7 +542,41 @@ export class NutEggServer {
     );
   }
 
-  /** Strip trailing slashes, fragment, and common tracking/session params. */
+  private syncCaptureLanguage(req: http.IncomingMessage, language?: string): void {
+    const header = req.headers?.['x-nutegg-output-language'];
+    if (language) this.syncOutputLanguage(language);
+    else if (typeof header === 'string') {
+      try {
+        this.syncOutputLanguage(decodeURIComponent(header));
+      } catch {}
+    }
+  }
+
+  private captureRecord(capture: { nutId?: number }) {
+    return Number.isSafeInteger(capture.nutId) && capture.nutId! > 0
+      ? this.plugin.db?.getNutById(capture.nutId!)
+      : undefined;
+  }
+
+  /** Never trust a capture row ID without checking the originating page. */
+  private captureRecordMatches(capture: { url: string; metadata?: Record<string, string> }, row: any): boolean {
+    if (!row?.url || this.normalizeUrl(row.url) !== this.normalizeUrl(capture.url)) return false;
+    const oldCid = row.capturePayload?.metadata?.cid;
+    const newCid = capture.metadata?.cid;
+    return oldCid == null || newCid == null || String(oldCid) === String(newCid);
+  }
+
+  private rejectCaptureIdentity(res: http.ServerResponse): void {
+    res.writeHead(409, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        error: t('captureIdentityMismatch'),
+        errorCode: 'capture_identity_mismatch',
+      })
+    );
+  }
+
+  /** Canonical content identity, preserving application routes and video parts. */
   normalizeUrl(url: string): string {
     return normalizeContentUrl(url);
   }
@@ -607,7 +641,7 @@ export class NutEggServer {
 
       try {
         const headerLang = req.headers['x-nutegg-output-language'];
-        if (typeof headerLang === 'string' && headerLang.trim()) {
+        if (!['/analyze', '/confirm'].includes(req.url || '') && typeof headerLang === 'string' && headerLang.trim()) {
           try {
             this.syncOutputLanguage(decodeURIComponent(headerLang.trim()));
           } catch {}
@@ -1209,9 +1243,7 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const capture: AnalyzeRequest = JSON.parse(body);
-      this.syncOutputLanguage(capture.outputLanguage);
       capture.debugScope = normalizeAIDebugScope(capture.debugScope);
-      const processor = this.processorForDebugScope(capture.debugScope, req);
       capture.discussion =
         capture.enabledSections?.discussion === true ? normalizeDiscussion(capture.discussion) : undefined;
 
@@ -1220,6 +1252,17 @@ export class NutEggServer {
         res.end(JSON.stringify({ error: 'Missing required fields: url, title' }));
         return;
       }
+
+      if (
+        (capture.stage === 2 || capture.stage === '2') &&
+        capture.nutId != null &&
+        !this.captureRecordMatches(capture, this.captureRecord(capture))
+      ) {
+        this.rejectCaptureIdentity(res);
+        return;
+      }
+      this.syncCaptureLanguage(req, capture.outputLanguage);
+      const processor = this.processorForDebugScope(capture.debugScope, req);
 
       // If this URL has cached captures (and no fresh analysis was forced,
       // no custom questions asked, no manual egg selection), return the
@@ -1271,7 +1314,12 @@ export class NutEggServer {
         }
 
         let nutId = capture.nutId;
-        if (nutId && this.plugin.db?.getNutById(nutId)) {
+        if (nutId != null) {
+          // Recheck after asynchronous generation, before accepting a late result.
+          if (!this.captureRecordMatches(capture, this.captureRecord(capture))) {
+            this.rejectCaptureIdentity(res);
+            return;
+          }
           this.plugin.db.updateNut(nutId, {
             summary: [result.titleVerdict, ...(result.coreSummary || [])].filter(Boolean).join('\n'),
             matchedEggs: result.matchedEggs || [],
@@ -1500,7 +1548,6 @@ export class NutEggServer {
     try {
       const body = await this.readBody(req);
       const confirm: ConfirmRequest = JSON.parse(body);
-      this.syncOutputLanguage((confirm as any).outputLanguage);
       confirm.discussion =
         confirm.enabledSections?.discussion === true ? normalizeDiscussion(confirm.discussion) : undefined;
 
@@ -1519,13 +1566,16 @@ export class NutEggServer {
 
       const normalizedUrl = this.normalizeUrl(confirm.url);
       releaseConfirmation = await this.lockConfirmation(
-        confirm.nutId ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`
+        confirm.nutId != null ? `nut:${confirm.nutId}` : `url:${normalizedUrl}`
       );
       const job = this.requestJobs.get(req);
       if (job) this.execution.assertActive(job);
-      const prior = confirm.nutId
-        ? this.plugin.db?.getNutById?.(confirm.nutId)
-        : this.plugin.db?.getNutByUrl?.(normalizedUrl);
+      const prior = confirm.nutId != null ? this.captureRecord(confirm) : this.plugin.db?.getNutByUrl?.(normalizedUrl);
+      if (confirm.nutId != null && !this.captureRecordMatches(confirm, prior)) {
+        this.rejectCaptureIdentity(res);
+        return;
+      }
+      this.syncCaptureLanguage(req, (confirm as any).outputLanguage);
       let confirmed = prior?.confirmedKnowledge;
       if (confirmed == null && prior?.processingResult === 'saved') {
         // Legacy rows have no ledger. The archive still holds the last Hatch,

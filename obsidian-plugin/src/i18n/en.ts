@@ -1,4 +1,6 @@
 export const en = {
+  captureIdentityMismatch:
+    'This saved capture belongs to a different page or is no longer available. Refresh the content and analyze again.',
   captureTruncatedWarning: 'Only part of the source was captured because it exceeds the capture limit.',
   captureAccessWarning: 'Access to part of this content is restricted by a sign-in or subscription requirement.',
   captureTraversalWarning: 'Some embedded content could not be inspected within the capture limits.',
@@ -254,8 +256,7 @@ export const en = {
     'Workflow update available ({files}). Review *.new.md in _workflow to update your customized workflow.',
   cmdLocalizeWorkflows: 'Localize workflows and eggs to synced language',
   outputLanguageTitle: 'Output language',
-  outputLanguageDesc:
-    'Language for AI analysis and workflow prompts, synced from Chrome. Managed in Chrome settings.',
+  outputLanguageDesc: 'Language for AI analysis and workflow prompts, synced from Chrome. Managed in Chrome settings.',
   outputLanguageSameAsContent: 'Same as content (synced from Chrome)',
   outputLanguageEnglish: 'English (synced from Chrome)',
   syncedFromChrome: 'synced from Chrome',

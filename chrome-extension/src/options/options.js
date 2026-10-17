@@ -437,7 +437,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     'captureRetryCount',
     'captureRetryDelayMs',
     'chromeCacheTabLimit',
-    'chromeTabCache',
   ]);
   const migrated = (window.NutEggAI?.migrateAISettings || (value => value))(stored);
   if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
@@ -817,9 +816,9 @@ function initAiSettings(stored) {
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
   useSubscriptionToggle?.addEventListener('change', () => {
     const targetMode = useSubscriptionToggle.checked
-      ? (lastManagedMode === 'chatgpt' || (!subscriptionEnabled && acknowledgedSharedState?.chatgpt?.available)
-          ? 'chatgpt'
-          : 'subscription')
+      ? lastManagedMode === 'chatgpt' || (!subscriptionEnabled && acknowledgedSharedState?.chatgpt?.available)
+        ? 'chatgpt'
+        : 'subscription'
       : 'apiKey';
     void changeAiMethod(targetMode);
   });
@@ -1246,53 +1245,40 @@ function initChromeCacheSettings(stored) {
       : 100;
   limitInput.value = initialLimit;
 
-  const updateCountDisplay = cache => {
-    if (countDisplay) {
-      const count = Array.isArray(cache) ? cache.length : 0;
-      countDisplay.textContent = t('cachedTabsCount', { count });
-    }
+  const updateCountDisplay = count => {
+    if (countDisplay) countDisplay.textContent = t('cachedTabsCount', { count });
   };
-
-  updateCountDisplay(stored?.chromeTabCache);
-
-  const saveLimit = async () => {
-    const val = Math.min(1000, Math.max(0, Math.round(Number(limitInput.value) || 0)));
-    limitInput.value = val;
-    const current = await chrome.storage.local.get(['chromeTabCache']);
-    let cache = Array.isArray(current.chromeTabCache) ? current.chromeTabCache : [];
-    if (cache.length > val) {
-      cache = cache.slice(0, val);
-      await chrome.storage.local.set({ chromeCacheTabLimit: val, chromeTabCache: cache });
-    } else {
-      await chrome.storage.local.set({ chromeCacheTabLimit: val });
-    }
-    updateCountDisplay(cache);
-    if (statusDisplay) {
-      statusDisplay.textContent = t('saved');
-      statusDisplay.className = 'test-result ok';
-      statusDisplay.classList.remove('hidden');
-      setTimeout(() => {
-        statusDisplay.classList.add('hidden');
-      }, 2000);
-    }
-  };
-
-  if (saveBtn) {
-    saveBtn.addEventListener('click', saveLimit);
-  }
-
-  if (clearBtn) {
-    clearBtn.addEventListener('click', async () => {
-      await chrome.storage.local.set({ chromeTabCache: [] });
-      updateCountDisplay([]);
-      if (statusDisplay) {
-        statusDisplay.textContent = t('cacheCleared');
+  let generation = 0;
+  let statusTimer;
+  const runCacheAction = async (message, successKey) => {
+    const request = ++generation;
+    try {
+      const info = await chrome.runtime.sendMessage(message);
+      if (request !== generation) return;
+      if (!info || info.error) throw new Error(info?.error || t('failedToSave'));
+      updateCountDisplay(info.count || 0);
+      if (statusDisplay && successKey) {
+        clearTimeout(statusTimer);
+        statusDisplay.textContent = t(successKey);
         statusDisplay.className = 'test-result ok';
         statusDisplay.classList.remove('hidden');
-        setTimeout(() => {
-          statusDisplay.classList.add('hidden');
-        }, 2000);
+        statusTimer = setTimeout(() => statusDisplay.classList.add('hidden'), 2000);
       }
-    });
-  }
+    } catch {
+      if (request !== generation || !statusDisplay) return;
+      clearTimeout(statusTimer);
+      statusDisplay.textContent = t('failedToSave');
+      statusDisplay.className = 'test-result error';
+      statusDisplay.classList.remove('hidden');
+    }
+  };
+  void runCacheAction({ action: 'get-chrome-cache-info' });
+  saveBtn?.addEventListener('click', () => {
+    const limit = Math.min(1000, Math.max(0, Math.round(Number(limitInput.value) || 0)));
+    limitInput.value = limit;
+    void runCacheAction({ action: 'set-chrome-cache-limit', limit }, 'saved');
+  });
+  clearBtn?.addEventListener('click', () => {
+    void runCacheAction({ action: 'clear-chrome-cache' }, 'cacheCleared');
+  });
 }

@@ -17,8 +17,11 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
   const state = initial.obsidianExecutionState || {instanceId:'vault-test',protocolVersion:3,revision:1,transition:'ready',subscriptionAvailable:initial.subscriptionFeatureEnabled!==false,mode:initial.chromeAiAuthMethod==='subscription' && initial.subscriptionFeatureEnabled!==false?'subscription':'apiKey',subscription:{provider:'gemini',model:'auto'}};
   if(initial.connectionMode==='obsidian')values.obsidianExecutionState=state;
   win.chrome = {
-    storage: { local: { get: async () => ({ ...values }), set: async data => Object.assign(values, data) } },
+    storage: { local: { get: async keys => keys == null ? ({ ...values }) : Object.fromEntries(keys.map(key => [key, values[key]])), set: async data => Object.assign(values, data) } },
     runtime: { sendMessage: async message => { messages.push(message);
+      if(message.action==='get-chrome-cache-info')return {count:values.chromeTabCache?.length||0,limit:values.chromeCacheTabLimit??100};
+      if(message.action==='set-chrome-cache-limit'){values.chromeCacheTabLimit=message.limit;values.chromeTabCache=(values.chromeTabCache||[]).slice(0,message.limit);return {success:true,count:values.chromeTabCache.length,limit:message.limit};}
+      if(message.action==='clear-chrome-cache'){values.chromeTabCache=[];return {success:true,count:0,limit:values.chromeCacheTabLimit??100};}
       if(message.action==='set-execution-mode') {state.mode=message.mode;state.revision++;values.obsidianExecutionState={...state};return {state:{...state}};}
       if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='chatgpt'?'openai':state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'gemini',aiModel:state.mode==='chatgpt'?state.chatgpt?.model:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
       if(message.action==='chatgpt-control') return {state:{...state}, ...(message.operation==='models'?{models:[{slug:'chatgpt-model',displayName:'ChatGPT model'}]}:{})};
@@ -409,7 +412,10 @@ test('Chrome refreshes AI readiness after Obsidian setup completes without overl
       checks++;
       return new Promise(resolve => { finishStatus = resolve; });
     }
-    if(message.action==='set-execution-mode')return {state:{...win.chromeSharedState,mode:'subscription',subscriptionAvailable:true,subscription:{provider:'gemini',model:'auto'},transition:'ready'}};
+    if(message.action==='get-chrome-cache-info')return {count:values.chromeTabCache?.length||0,limit:values.chromeCacheTabLimit??100};
+      if(message.action==='set-chrome-cache-limit'){values.chromeCacheTabLimit=message.limit;values.chromeTabCache=(values.chromeTabCache||[]).slice(0,message.limit);return {success:true,count:values.chromeTabCache.length,limit:message.limit};}
+      if(message.action==='clear-chrome-cache'){values.chromeTabCache=[];return {success:true,count:0,limit:values.chromeCacheTabLimit??100};}
+      if(message.action==='set-execution-mode')return {state:{...win.chromeSharedState,mode:'subscription',subscriptionAvailable:true,subscription:{provider:'gemini',model:'auto'},transition:'ready'}};
     return {};
   };
   el('use-subscription-toggle').checked = true; change('use-subscription-toggle'); await flush();
@@ -589,4 +595,25 @@ test('signed-out ChatGPT remains selected and Chrome-only mode has no ChatGPT op
   assert.equal(chromeOnly.el('chatgpt-card').hidden, true);
   assert.equal(chromeOnly.el('ai-auth-row').hidden, true);
   assert.equal(chromeOnly.el('use-subscription-toggle').checked, false);
+});
+
+test('cache settings use worker commands and ignore an obsolete settings response', async t => {
+  const { win, el, values } = await setup(t, { chromeTabCache: [{ url: 'https://example.test/old' }] });
+  const pending = [];
+  win.chrome.runtime.sendMessage = message => new Promise(resolve => pending.push({ message, resolve }));
+  win.chrome.storage.local.set = async data => { assert.equal('chromeTabCache' in data, false, 'only the worker may write the cache'); Object.assign(values, data); };
+  el('chrome-cache-limit-input').value = '1'; el('chrome-cache-save-btn').click();
+  el('chrome-cache-clear-btn').click();
+  assert.deepEqual(pending.map(p => p.message.action), ['set-chrome-cache-limit', 'clear-chrome-cache']);
+  pending[1].resolve({ success: true, count: 0, limit: 1 }); await flush();
+  pending[0].resolve({ success: true, count: 1, limit: 1 }); await flush();
+  assert.match(el('chrome-cache-count').textContent, /0/);
+});
+
+test('cache settings show a failure instead of claiming a failed clear succeeded', async t => {
+  const { win, el } = await setup(t, { chromeTabCache: [{ url: 'https://example.test/old' }] });
+  win.chrome.runtime.sendMessage = async () => ({ error: 'Storage unavailable' });
+  el('chrome-cache-clear-btn').click(); await flush();
+  assert.equal(el('chrome-cache-status').classList.contains('error'), true);
+  assert.match(el('chrome-cache-count').textContent, /1/);
 });

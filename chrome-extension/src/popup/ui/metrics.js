@@ -136,6 +136,46 @@ class MetricsComponent {
         );
       }
 
+      if (content?.sourceType === 'bilibili') {
+        try {
+          const provenance = JSON.parse(content.metadata?.subtitle_provenance || 'null');
+          if (provenance?.version !== 1) lines.push('🎬 Bilibili caption identity: not assessed');
+          else {
+            const id = value => (/^(?:BV[A-Za-z0-9]{10}|[0-9]{1,30})$/.test(String(value)) ? String(value) : '-');
+            const outcome = ['verified', 'rejected', 'unavailable'].includes(provenance.outcome)
+              ? provenance.outcome
+              : 'unavailable';
+            const route = ['signed_player', 'wbi_player', 'legacy_player'].includes(provenance.route)
+              ? provenance.route
+              : '-';
+            lines.push(
+              `🎬 Bilibili caption identity: ${outcome} · ${route} · requested ${id(provenance.requestedVideoId)}/${id(provenance.requestedCid)} · returned ${id(provenance.validatedBvid || provenance.validatedAid)}/${id(provenance.validatedCid)} · track ${id(provenance.trackId)}`
+            );
+            const routes = Array.isArray(provenance.routes) ? provenance.routes.slice(0, 3) : [];
+            const trace = routes
+              .filter(
+                item =>
+                  ['signed_player', 'wbi_player', 'legacy_player'].includes(item?.route) &&
+                  [
+                    'verified',
+                    'video_mismatch',
+                    'cid_mismatch',
+                    'missing_identity',
+                    'provider_error',
+                    'request_failed',
+                  ].includes(item.outcome)
+              )
+              .map(
+                item =>
+                  `${item.route}:${item.outcome}/${Number.isSafeInteger(item.tracks) && item.tracks >= 0 ? item.tracks : 0}`
+              );
+            if (trace.length) lines.push(`🎬 Caption discovery: ${trace.join(' · ')}`);
+          }
+        } catch {
+          lines.push('🎬 Bilibili caption identity: not assessed');
+        }
+      }
+
       if (view.analysisResult?.conversation?.format) {
         stParts.push(`Format: ${view.analysisResult.conversation.format}`);
       }

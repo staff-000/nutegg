@@ -390,3 +390,20 @@ test('hash application routes invalidate results but section anchors keep the so
   f.tab.handleTabUpdated(1,{url:'https://example.test/article#second'});
   assert.equal(f.store.getTab(1).pageGeneration,generation);
 });
+
+test('reanalyze keeps the originating questions and preferences while extraction overlaps a tab switch', async () => {
+  const f = actions(), extracted = deferred();
+  let questions = ['Question A'];
+  f.deps.ui.captureUI.getParsedQuestions = () => questions;
+  f.settings.outputLanguage = 'Chinese';
+  f.operations.extract = async () => extracted.promise;
+  const job = f.analyze.handleAnalyze(true, null, true);
+  f.store.activateTab(2); questions = ['Question B']; f.settings.outputLanguage = 'English';
+  extracted.resolve({ content: 'Content 1' }); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.calls[0].payload.url, 'https://tab1.test');
+  assert.deepEqual(f.calls[0].payload.questions, ['Question A']);
+  assert.equal(f.calls[0].payload.outputLanguage, 'Chinese');
+  f.calls[0].resolve({ titleVerdict: 'Result A' }); await job;
+  assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Result A');
+  assert.equal(f.store.getTab(2).analysisResult, null);
+});

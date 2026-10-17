@@ -37,7 +37,7 @@ function biliApi(calls, failManual = false) {
     if (url.pathname === '/x/web-interface/view') return { code: 0, data: {
       bvid: 'BV1eVgA64EbW', aid: 123, title: '中文视频', desc: '简介', owner: { name: '作者' },
       pages: [{ page: 1, cid: 111, duration: 90 }, { page: 2, cid: 222, duration: 120 }] } };
-    if (url.hostname === 'api.bilibili.com') return { code: 0, data: { subtitle: { subtitles: [
+    if (url.hostname === 'api.bilibili.com') return { code: 0, data: { bvid: 'BV1eVgA64EbW', aid: 123, cid: Number(url.searchParams.get('cid')), subtitle: { subtitles: [
       { ai_type: 1, lan: 'ai-zh', subtitle_url: '//aisubtitle.hdslb.com/bfs/ai_subtitle/ai.json' },
       { ai_type: 0, lan: 'zh-CN', subtitle_url: '//subtitle.hdslb.com/bfs/subtitle/manual.json' },
     ] }, view_points: [{ from: 60, content: '第二章' }] } };
@@ -76,8 +76,8 @@ test('failed manual track falls back to AI', async () => {
   assert.match(capture.content, /AI字幕/);
 });
 
-test('Bilibili retries legacy player metadata when WBI succeeds without subtitle tracks', async () => {
-  for (const wbi of [{ code: 0, data: {} }, { code: 0, data: { subtitle: { subtitles: [] } } }, { code: -352 }]) {
+test('Bilibili does not trust legacy-only tracks when WBI has no usable captions', async () => {
+  for (const wbi of [{ code: 0, data: {} }, { code: 0, data: { bvid: 'BV1wqpi6PE19', aid: 117414893257199, cid: 42616031534, subtitle: { subtitles: [] } } }, { code: -352 }]) {
     const calls = [];
     const ctx = context('https://www.bilibili.com/video/BV1wqpi6PE19/', { api: async raw => {
       const url = new URL(raw); calls.push(url.pathname);
@@ -85,16 +85,16 @@ test('Bilibili retries legacy player metadata when WBI succeeds without subtitle
         bvid: 'BV1wqpi6PE19', aid: 117414893257199, cid: 42616031534, title: 'Video',
       } };
       if (url.pathname === '/x/player/wbi/v2') return wbi;
-      if (url.pathname === '/x/player/v2') return { code: 0, data: { subtitle: { subtitles: [
+      if (url.pathname === '/x/player/v2') return { code: 0, data: { bvid: 'BV1wqpi6PE19', aid: 117414893257199, cid: 42616031534, subtitle: { subtitles: [
         { lan: 'ai-zh', ai_type: 1, subtitle_url: '//aisubtitle.hdslb.com/bfs/ai_subtitle/test.json' },
       ] } } };
       return { body: [{ from: 0, content: 'Recovered Chinese captions' }] };
     } });
     const capture = await ctx.extractBilibili();
-    assert.equal(capture.transcriptAvailable, true);
-    assert.match(capture.content, /Recovered Chinese captions/);
+    assert.equal(capture.transcriptAvailable, false);
+    assert.doesNotMatch(capture.content, /Recovered Chinese captions/);
     assert.equal(capture.metadata.cid, 42616031534);
-    assert(calls.includes('/x/player/v2'));
+    assert(!calls.includes('/x/player/v2'));
   }
 });
 
@@ -168,7 +168,7 @@ test('Bilibili downloads extensionless signed captions through the page before a
   ctx.captureFetchText = async (raw, options) => {
     const url = new URL(raw); requests.push({ url, options });
     if (url.pathname === '/x/web-interface/view') return { ok: true, text: JSON.stringify(await api(raw)) };
-    if (url.hostname === 'api.bilibili.com') return { ok: true, text: JSON.stringify({ code: 0, data: { subtitle: { subtitles: [
+    if (url.hostname === 'api.bilibili.com') return { ok: true, text: JSON.stringify({ code: 0, data: { bvid: 'BV1eVgA64EbW', aid: 123, cid: 111, subtitle: { subtitles: [
       { subtitle_url: captionUrl, lan: 'ai-zh', ai_type: 0 },
     ] } } }) };
     return { ok: true, text: JSON.stringify({ body: [{ from: 11, content: '实际的中文字幕内容' }] }) };
@@ -198,8 +198,8 @@ function biliCaptionFixture(tracks, { failed = [], empty = [] } = {}) {
   const fetched = [];
   const ctx = context(regular, { api: async raw => {
     const url = new URL(raw);
-    if (url.pathname === '/x/web-interface/view') return { code: 0, data: { title: 'Video', cid: 111 } };
-    if (url.hostname === 'api.bilibili.com') return { code: 0, data: { subtitle: { subtitles: tracks } } };
+    if (url.pathname === '/x/web-interface/view') return { code: 0, data: { bvid: 'BV1eVgA64EbW', title: 'Video', cid: 111 } };
+    if (url.hostname === 'api.bilibili.com') return { code: 0, data: { bvid: 'BV1eVgA64EbW', cid: 111, subtitle: { subtitles: tracks } } };
     const name = url.pathname.split('/').pop();
     fetched.push(name);
     if (failed.includes(name)) throw new Error('Unavailable');
@@ -275,7 +275,7 @@ test('other platform captions retain manual-first selection', async () => {
 });
 test('missing video transcript is explicitly blocked, not inferred from description', async () => {
   const ctx = context(later, { api: async raw => raw.includes('web-interface') ? {
-    code: 0, data: { title: 'Video', desc: 'Description', cid: 111 },
+    code: 0, data: { bvid: 'BV1eVgA64EbW', title: 'Video', desc: 'Description', cid: 111 },
   } : { code: 0, data: {} } });
   const capture = await ctx.extractBilibili();
   assert.equal(capture.transcriptAvailable, false);
@@ -389,4 +389,128 @@ test('Douyin image posts can be analyzed as text while video posts require capti
   assert.equal(detectPageTypeFromUrl('https://www.douyin.com/video/123'), 'douyin');
   assert.equal(detectPageTypeFromUrl('https://weibo.com/2014741911/R2KWzqf3A'), 'weibo');
   assert.equal(detectPageTypeFromUrl('https://www.zhihu.com/question/123'), 'zhihu');
+});
+
+// Regression: correct request URLs must not lend their identity to a foreign response.
+function ownedBiliFixture({ player, view, url = regular, globals = {}, resources = [] } = {}) {
+  const calls = [];
+  const info = { bvid: 'BV1eVgA64EbW', aid: 123, cid: 111, title: 'Investment video', desc: 'Original description', pages: [{ page: 1, cid: 111 }] };
+  const track = { id: 77, lan: 'zh-CN', subtitle_url: '//subtitle.hdslb.com/bfs/subtitle/ownership.json?auth_key=secret' };
+  const valid = { bvid: info.bvid, aid: 123, cid: 111, subtitle: { subtitles: [track] } };
+  const ctx = context(url, { resources, globals, api: async raw => {
+    const u = new URL(raw); calls.push(u);
+    if (u.pathname === '/x/web-interface/view') return { code: 0, data: view === undefined ? info : view };
+    if (u.hostname === 'api.bilibili.com') return { code: 0, data: typeof player === 'function' ? await player(u, valid) : player === undefined ? valid : player };
+    return { body: [{ from: 0, content: 'Downloaded transcript' }] };
+  } });
+  return { ctx, calls, info, valid };
+}
+
+test('Bilibili rejects conflicting or unverifiable player identities before any subtitle download', async () => {
+  for (const patch of [{ bvid: 'BV13fg56xE21' }, { aid: 999 }, { cid: 999 },
+    { cid: null }, { bvid: null, aid: null }, { bvid: null, aid: 999 }]) {
+    const { ctx, calls } = ownedBiliFixture({ player: (_url, valid) => ({ ...valid, ...patch }) });
+    const capture = await ctx.extractBilibili();
+    assert.equal(capture.transcriptAvailable, false, JSON.stringify(patch));
+    assert.match(capture.content, /Original description/);
+    assert.equal(calls.filter(u => u.hostname.endsWith('hdslb.com')).length, 0);
+    assert.equal(JSON.parse(capture.metadata.subtitle_provenance).outcome, 'rejected');
+  }
+});
+
+test('Bilibili rejects foreign view metadata and an explicit CID from another video or part', async () => {
+  const foreign = ownedBiliFixture({ view: { bvid: 'BV13fg56xE21', aid: 999, cid: 999, title: 'Foreign title' } });
+  const capture = await foreign.ctx.extractBilibili();
+  assert.doesNotMatch(capture.content, /Foreign title/);
+  assert.equal(capture.transcriptAvailable, false);
+  assert.equal(foreign.calls.length, 1);
+  for (const url of [regular + '&cid=999', regular + '&p=1&cid=222']) {
+    const { ctx, calls } = ownedBiliFixture({ url });
+    assert.equal((await ctx.extractBilibili()).transcriptAvailable, false);
+    assert.equal(calls.length, 1);
+  }
+});
+
+test('Bilibili validates AV identity and permits either matching BVID or resolved AID', async () => {
+  for (const patch of [{ bvid: null }, { aid: null }]) {
+    const { ctx } = ownedBiliFixture({ url: 'https://www.bilibili.com/video/av123', player: (_url, valid) => ({ ...valid, ...patch }) });
+    assert.equal((await ctx.extractBilibili()).transcriptAvailable, true);
+  }
+  const { ctx } = ownedBiliFixture({ url: 'https://www.bilibili.com/video/av999' });
+  assert.equal((await ctx.extractBilibili()).transcriptAvailable, false);
+});
+
+test('Bilibili rejects a stale signed response then accepts an independently validated fallback', async () => {
+  const signed = 'https://api.bilibili.com/x/player/wbi/v2?bvid=BV1eVgA64EbW&cid=111&w_rid=secret';
+  const { ctx, calls } = ownedBiliFixture({ resources: [{ name: signed }], player: (url, valid) =>
+    url.searchParams.has('w_rid') ? { ...valid, cid: 999 } : valid });
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.transcriptAvailable, true);
+  const provenance = JSON.parse(capture.metadata.subtitle_provenance);
+  assert.equal(provenance.route, 'wbi_player');
+  assert.equal(provenance.validatedCid, '111');
+  assert.equal(provenance.trackId, '77');
+  assert.equal(provenance.language, 'zh-CN');
+  assert.equal(provenance.classification, 'manual');
+  assert.equal(provenance.rejected[0].reason, 'cid_mismatch');
+  assert.doesNotMatch(JSON.stringify(provenance), /secret|auth_key|http|Downloaded transcript/);
+  assert.equal(calls.filter(u => u.hostname.endsWith('hdslb.com')).length, 1);
+});
+
+test('Bilibili cannot merge a verified empty response with unidentified legacy captions', async () => {
+  const { ctx, calls } = ownedBiliFixture({ player: (url, valid) => url.pathname.includes('wbi')
+    ? { bvid: valid.bvid, aid: valid.aid, cid: valid.cid, subtitle: { subtitles: [] } }
+    : { subtitle: valid.subtitle } });
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.transcriptAvailable, false);
+  assert.equal(calls.filter(u => u.hostname.endsWith('hdslb.com')).length, 0);
+  assert.equal(calls.some(u => u.pathname === '/x/player/v2'), false);
+});
+
+test('Bilibili empty subtitle responses keep the description without a transcript', async () => {
+  const { ctx, calls } = ownedBiliFixture({ player: (_url, valid) => ({ ...valid, subtitle: { subtitles: [] } }) });
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.transcriptAvailable, false);
+  assert.match(capture.content, /Original description/);
+  assert.doesNotMatch(capture.content, /## Transcript/);
+  assert.equal(calls.filter(u => u.hostname.endsWith('hdslb.com')).length, 0);
+});
+
+test('Bilibili discards a caption that finishes after cancellation or navigation', async () => {
+  for (const code of ['cancelled', 'stale', 'timeout']) {
+    const { ctx } = ownedBiliFixture(); let stopped = false;
+    const original = ctx.chineseFetch;
+    ctx.chineseFetch = async (...args) => { const value = await original(...args); if (args[0].includes('hdslb.com')) stopped = true; return value; };
+    const captureContext = { wait: promise => promise, check() { if (stopped) throw Object.assign(new Error(code), { code }); } };
+    await assert.rejects(ctx.extractBilibili(captureContext), error => error.code === code);
+  }
+});
+
+test('Bilibili also rejects a foreign player response returned directly by the page-session fetch', async () => {
+  const { ctx, calls } = ownedBiliFixture({ globals: { fetch() {} }, player: (_url, valid) => ({ ...valid, cid: 999 }) });
+  ctx.captureFetchText = async raw => {
+    const response = await ctx.chrome.runtime.sendMessage({ url: raw });
+    return { ok: true, text: response.text };
+  };
+  const capture = await ctx.extractBilibili();
+  assert.equal(capture.transcriptAvailable, false);
+  assert.equal(calls.filter(u => u.hostname.endsWith('hdslb.com')).length, 0);
+  assert.equal(JSON.parse(capture.metadata.subtitle_provenance).outcome, 'rejected');
+});
+
+test('reported no-caption regression: legacy tracks with matching IDs cannot override verified empty WBI', async () => {
+  for (const signedPath of ['/x/player/wbi/v2', '/x/player/v2']) {
+    const signed = `https://api.bilibili.com${signedPath}?bvid=BV1eVgA64EbW&cid=111&w_rid=secret`;
+    const { ctx, calls } = ownedBiliFixture({ resources: [{ name: signed }], player: (url, valid) =>
+      url.pathname === '/x/player/v2' ? valid : { ...valid, subtitle: { subtitles: [] } } });
+    const capture = await ctx.extractBilibili();
+    assert.equal(capture.transcriptAvailable, false);
+    assert.match(capture.content, /Original description/);
+    assert.doesNotMatch(capture.content, /Downloaded transcript|## Transcript/);
+    assert.equal(calls.some(u => u.pathname === '/x/player/v2'), false, 'legacy discovery and replay are both excluded');
+    assert.equal(calls.some(u => u.hostname.endsWith('hdslb.com')), false);
+    const provenance = JSON.parse(capture.metadata.subtitle_provenance);
+    assert.equal(provenance.policy, 'wbi_only');
+    assert.equal(provenance.routes.every(route => route.tracks === 0), true);
+  }
 });

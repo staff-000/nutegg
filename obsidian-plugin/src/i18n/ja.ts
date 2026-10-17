@@ -1,4 +1,6 @@
 export const ja = {
+  captureIdentityMismatch:
+    '保存された内容は別のページのものか、利用できなくなっています。内容を更新して再分析してください。',
   captureTruncatedWarning: '取得上限を超えたため、元の内容の一部のみを取得しました。',
   captureAccessWarning: '一部の内容を読むにはログインまたは購読が必要です。',
   captureTraversalWarning: '取得上限により、一部の埋め込みコンテンツを確認できませんでした。',
@@ -247,8 +249,7 @@ export const ja = {
     'ワークフローの更新があります（{files}）。カスタマイズしたワークフローを更新するには _workflow の *.new.md を確認してください。',
   cmdLocalizeWorkflows: 'ワークフローとEggを同期された言語にローカライズ',
   outputLanguageTitle: '出力言語',
-  outputLanguageDesc:
-    'AI分析およびワークフロープロンプトの言語（Chromeから同期）。Chromeの設定で管理されます。',
+  outputLanguageDesc: 'AI分析およびワークフロープロンプトの言語（Chromeから同期）。Chromeの設定で管理されます。',
   outputLanguageSameAsContent: 'コンテンツと同じ (Chromeから同期)',
   outputLanguageEnglish: '英語 (Chromeから同期)',
   syncedFromChrome: 'Chromeから同期',

@@ -1,4 +1,5 @@
 export const ar = {
+  captureIdentityMismatch: 'هذا المحتوى المحفوظ يخص صفحة أخرى أو لم يعد متاحًا. حدّث المحتوى وحلّله مجددًا.',
   captureTruncatedWarning: 'تم التقاط جزء من المصدر فقط لأنه يتجاوز حد الالتقاط.',
   captureAccessWarning: 'يتطلب جزء من المحتوى تسجيل الدخول أو اشتراكًا.',
   captureTraversalWarning: 'تعذر فحص بعض المحتوى المضمّن ضمن حدود الالتقاط.',
@@ -242,8 +243,7 @@ export const ar = {
   workflowUpdateNotice: 'يتوفر تحديث لسير العمل ({files}). راجع ملفات *.new.md في _workflow لتحديث سير العمل المخصص.',
   cmdLocalizeWorkflows: 'تعريب سير العمل و Eggs إلى اللغة المتزامنة',
   outputLanguageTitle: 'لغة الإخراج',
-  outputLanguageDesc:
-    'لغة تحليل الذكاء الاصطناعي ومطالبات سير العمل، متزامنة من Chrome. تُدار في إعدادات Chrome.',
+  outputLanguageDesc: 'لغة تحليل الذكاء الاصطناعي ومطالبات سير العمل، متزامنة من Chrome. تُدار في إعدادات Chrome.',
   outputLanguageSameAsContent: 'نفس المحتوى (متزامن من Chrome)',
   outputLanguageEnglish: 'الإنجليزية (متزامنة من Chrome)',
   syncedFromChrome: 'متزامن من Chrome',

@@ -170,16 +170,17 @@ async function chineseSubtitles(tracks, { preferChineseAI = false, context } = {
   // Prefer manual captions in any language, then Chinese AI, then other AI.
   // Stable sorting retains platform order among tracks with equal priority.
   const rank = track => (!chineseIsAI(track) ? 0 : preferChineseAI && !chineseCaptionLanguage(track) ? 2 : 1);
-  for (const track of [...tracks].sort((a, b) => rank(a) - rank(b))) {
+  for (const track of tracks.filter(track => track && typeof track === 'object').sort((a, b) => rank(a) - rank(b))) {
     context?.check();
     const url = track.subtitle_url || track.Url || track.url?.url_list?.[0] || track.url;
     if (typeof url !== 'string') continue;
     try {
       const text = chineseSubtitleText(await chineseFetch(url.startsWith('//') ? `https:${url}` : url, false, context));
-      if (text) return { text, source: chineseIsAI(track) ? 'ai' : 'manual' };
+      context?.check();
+      if (text) return { text, source: chineseIsAI(track) ? 'ai' : 'manual', track };
     } catch (error) {
       context?.check();
-      console.warn('[NutEgg] Subtitle download failed:', error.message);
+      console.warn('[NutEgg] Subtitle download failed');
     }
   }
   return { text: '', source: '' };
@@ -212,52 +213,99 @@ function chineseVideoResult(platform, title, description, author, duration, tran
   return result;
 }
 
+// All supplied identifiers must agree. An outgoing URL alone does not prove
+// ownership of the returned player data (including legacy API responses).
+function bilibiliInfoMatches(info, id) {
+  if (!info || typeof info !== 'object') return false;
+  return id.toLowerCase().startsWith('av') ? String(info.aid) === id.slice(2) : info.bvid === id;
+}
+function bilibiliPlayerOwnership(player, id, info, cid) {
+  if (!player || typeof player !== 'object') return 'missing_identity';
+  const bvid = info?.bvid || (!id.toLowerCase().startsWith('av') ? id : null);
+  const aid = info?.aid || (id.toLowerCase().startsWith('av') ? id.slice(2) : null);
+  if (player.bvid != null && bvid && player.bvid !== bvid) return 'video_mismatch';
+  if (player.aid != null && aid && String(player.aid) !== String(aid)) return 'video_mismatch';
+  if (player.cid == null || !((bvid && player.bvid === bvid) || (aid && String(player.aid) === String(aid))))
+    return 'missing_identity';
+  return String(player.cid) === String(cid) ? 'verified' : 'cid_mismatch';
+}
 async function extractBilibili(context) {
+  context?.check();
   const id = bilibiliVideoId();
   const url = new URL(window.location.href);
+  const part = Math.max(1, Number(url.searchParams.get('p')) || 1);
   const params = id.toLowerCase().startsWith('av') ? `aid=${id.slice(2)}` : `bvid=${id}`;
+  const provenance = {
+    version: 1,
+    policy: 'wbi_only',
+    requestedVideoId: id,
+    part,
+    outcome: 'unavailable',
+    rejected: [],
+    routes: [],
+  };
   let info = null;
   try {
-    info = (await chineseFetch(`https://api.bilibili.com/x/web-interface/view?${params}`, true, context)).data;
+    const response = await chineseFetch(`https://api.bilibili.com/x/web-interface/view?${params}`, true, context);
+    if (response.code === 0 && bilibiliInfoMatches(response.data, id)) info = response.data;
+    else provenance.rejected.push({ route: 'view', reason: 'video_mismatch' });
   } catch {}
   context?.check();
   if (!info) {
     for (const state of chinesePageStates()) {
-      info = chineseFind(state, item => (item.bvid === id || `av${item.aid}` === id) && item.title && item.pages);
+      info = chineseFind(state, item => bilibiliInfoMatches(item, id) && item.title && Array.isArray(item.pages));
       if (info) break;
     }
   }
-  // Explicit cid wins; otherwise p selects the current multipart video.
-  const part = Math.max(1, Number(url.searchParams.get('p')) || 1);
-  const page = info?.pages?.find(p => p.page === part);
+  const pages = Array.isArray(info?.pages) ? info.pages : [];
+  const page = pages.find(p => p.page === part);
+  const requestMatches = u => {
+    if (u?.hostname !== 'api.bilibili.com' || !/^\/x\/player\/(?:wbi\/)?v2$/.test(u.pathname)) return false;
+    const bvid = u.searchParams.get('bvid'),
+      aid = u.searchParams.get('aid');
+    if (bvid && bvid !== (info?.bvid || id)) return false;
+    if (aid && aid !== String(info?.aid || (id.toLowerCase().startsWith('av') ? id.slice(2) : ''))) return false;
+    return (
+      !!(bvid || aid) &&
+      /^\d+$/.test(u.searchParams.get('cid') || '') &&
+      (!pages.length || pages.some(p => String(p.cid) === u.searchParams.get('cid')))
+    );
+  };
   const requests = performance
     .getEntriesByType('resource')
-    .map(entry => entry.name)
-    .reverse();
-  const currentPlayer = requests
-    .map(name => {
+    .map(entry => {
       try {
-        return new URL(name);
+        return new URL(entry.name);
       } catch {
         return null;
       }
     })
-    .find(
-      u =>
-        u?.hostname === 'api.bilibili.com' &&
-        /^\/x\/player\/(?:wbi\/)?v2$/.test(u.pathname) &&
-        (u.searchParams.get('bvid') === (info?.bvid || id) ||
-          `av${u.searchParams.get('aid')}` === id ||
-          (info?.aid && u.searchParams.get('aid') === String(info.aid))) &&
-        /^\d+$/.test(u.searchParams.get('cid') || '') &&
-        (!info?.pages?.length || info.pages.some(p => String(p.cid) === u.searchParams.get('cid')))
-    );
-  const cid =
-    url.searchParams.get('cid') ||
-    (!url.searchParams.has('p') && currentPlayer ? currentPlayer.searchParams.get('cid') : null) ||
-    page?.cid ||
-    (part === 1 ? info?.cid : null);
-  const selectedPage = info?.pages?.find(p => String(p.cid) === String(cid)) || page;
+    .reverse()
+    .filter(requestMatches);
+  const explicitCid = url.searchParams.get('cid');
+  const invalidCid =
+    explicitCid &&
+    (!/^\d+$/.test(explicitCid) ||
+      (pages.length && !pages.some(p => String(p.cid) === explicitCid)) ||
+      (url.searchParams.has('p') && page && String(page.cid) !== explicitCid));
+  const cid = invalidCid
+    ? null
+    : explicitCid ||
+      (!url.searchParams.has('p') ? requests[0]?.searchParams.get('cid') : null) ||
+      page?.cid ||
+      (part === 1 ? info?.cid : null);
+  if (invalidCid) provenance.rejected.push({ route: 'selection', reason: 'cid_mismatch' });
+  provenance.requestedCid = cid == null ? null : String(cid);
+  const selectedPage = pages.find(p => String(p.cid) === String(cid)) || page;
+  const metadata = () => ({
+    video_id: info?.bvid || id,
+    requested_video_id: id,
+    cid,
+    part: selectedPage?.page || part,
+    published: info?.pubdate ? new Date(info.pubdate * 1000).toISOString() : '',
+    // JSON keeps metadata compatible with existing string-valued consumers.
+    subtitle_provenance: JSON.stringify(provenance),
+  });
   if (context)
     context.partial = chineseVideoResult(
       'bilibili',
@@ -266,63 +314,93 @@ async function extractBilibili(context) {
       info?.owner?.name || '',
       selectedPage?.duration,
       { text: '', source: '' },
-      { video_id: info?.bvid || id, requested_video_id: id, cid }
+      metadata()
     );
-  let player = null;
+  let player = null,
+    route = null;
   if (cid) {
-    // Replay the site's signed request when available, only for this video/part.
-    const signed = requests.find(name => {
-      try {
-        const u = new URL(name);
-        return (
-          u.hostname === 'api.bilibili.com' &&
-          /^\/x\/player\/(?:wbi\/)?v2$/.test(u.pathname) &&
-          u.searchParams.get('cid') === String(cid) &&
-          (u.searchParams.get('bvid') === (info?.bvid || id) ||
-            `av${u.searchParams.get('aid')}` === id ||
-            (info?.aid && u.searchParams.get('aid') === String(info.aid)))
-        );
-      } catch {
-        return false;
-      }
-    });
+    // The legacy /x/player/v2 endpoint can echo correct IDs while returning
+    // unrelated tracks when WBI reports none. Never use it as a caption source,
+    // even if a matching legacy URL appears in the resource history.
+    const signed = requests.find(u => u.pathname === '/x/player/wbi/v2' && u.searchParams.get('cid') === String(cid));
     const endpoints = [
-      signed,
-      `https://api.bilibili.com/x/player/wbi/v2?${params}&cid=${cid}`,
-      `https://api.bilibili.com/x/player/v2?${params}&cid=${cid}`,
+      ...(signed ? [{ url: signed.href, route: 'signed_player' }] : []),
+      { url: `https://api.bilibili.com/x/player/wbi/v2?${params}&cid=${cid}`, route: 'wbi_player' },
     ];
-    for (const endpoint of [...new Set(endpoints.filter(Boolean))]) {
+    const attempted = new Set();
+    for (const endpoint of endpoints) {
+      if (attempted.has(endpoint.url)) continue;
+      attempted.add(endpoint.url);
       context?.check();
       try {
-        const result = await chineseFetch(endpoint, true, context);
-        if (result.code === 0 && result.data) {
-          // A successful WBI response can omit subtitle metadata entirely.
-          // Try the remaining routes before treating an empty list as final.
-          player = { ...player, ...result.data };
-          if (player.subtitle?.subtitles?.some(track => track.subtitle_url)) break;
+        const result = await chineseFetch(endpoint.url, true, context);
+        context?.check();
+        if (result.code !== 0) {
+          provenance.routes.push({ route: endpoint.route, outcome: 'provider_error' });
+          continue;
         }
-      } catch {}
+        const ownership = bilibiliPlayerOwnership(result.data, id, info, cid);
+        provenance.routes.push({
+          route: endpoint.route,
+          outcome: ownership,
+          tracks: Array.isArray(result.data?.subtitle?.subtitles) ? result.data.subtitle.subtitles.length : 0,
+        });
+        if (ownership !== 'verified') {
+          provenance.rejected.push({
+            route: endpoint.route,
+            reason: ownership,
+            returnedBvid: /^BV[A-Za-z0-9]{10}$/.test(result.data?.bvid || '') ? result.data.bvid : null,
+            returnedAid: /^\d{1,20}$/.test(String(result.data?.aid)) ? String(result.data.aid) : null,
+            returnedCid: /^\d{1,20}$/.test(String(result.data?.cid)) ? String(result.data.cid) : null,
+          });
+          continue;
+        }
+        // Never merge identities or subtitle lists from separate responses.
+        player = result.data;
+        route = endpoint.route;
+        if (Array.isArray(player.subtitle?.subtitles) && player.subtitle.subtitles.some(track => track?.subtitle_url))
+          break;
+      } catch {
+        context?.check();
+        provenance.routes.push({ route: endpoint.route, outcome: 'request_failed' });
+      }
     }
   }
   context?.check();
-  const transcript = await chineseSubtitles(player?.subtitle?.subtitles || [], { preferChineseAI: true, context });
-  const title = info?.title || chineseText('h1.video-title, .video-title') || getMeta('og:title') || document.title;
+  const transcript = await chineseSubtitles(
+    Array.isArray(player?.subtitle?.subtitles) ? player.subtitle.subtitles : [],
+    { preferChineseAI: true, context }
+  );
+  context?.check();
+  provenance.outcome = player ? 'verified' : provenance.rejected.length ? 'rejected' : 'unavailable';
+  if (player)
+    Object.assign(provenance, {
+      route,
+      validatedBvid: player.bvid || null,
+      validatedAid: player.aid == null ? null : String(player.aid),
+      validatedCid: String(player.cid),
+    });
+  if (transcript.track)
+    Object.assign(provenance, {
+      trackId: /^\d{1,30}$/.test(String(transcript.track.id_str || transcript.track.id))
+        ? String(transcript.track.id_str || transcript.track.id)
+        : '',
+      language: /^[a-zA-Z_-]{1,30}$/.test(transcript.track.lan || '') ? transcript.track.lan : '',
+      classification: transcript.source,
+    });
   const capture = chineseVideoResult(
     'bilibili',
-    title,
+    info?.title || chineseText('h1.video-title, .video-title') || getMeta('og:title') || document.title,
     info?.desc || chineseText('#v_desc, .basic-desc-info'),
     info?.owner?.name || chineseText('.up-name'),
     selectedPage?.duration || info?.duration,
     transcript,
-    {
-      video_id: info?.bvid || id,
-      requested_video_id: id,
-      cid,
-      part: selectedPage?.page || part,
-      published: info?.pubdate ? new Date(info.pubdate * 1000).toISOString() : '',
-    }
+    metadata()
   );
-  capture.chapters = (player?.view_points || []).map(point => ({ time: formatTime(point.from), title: point.content }));
+  capture.chapters = (Array.isArray(player?.view_points) ? player.view_points : []).map(point => ({
+    time: formatTime(point.from),
+    title: point.content,
+  }));
   capture.extractionStatus = transcript.text ? 'ready' : !info || !cid || !player ? 'not_ready' : 'transient';
   return capture;
 }

@@ -517,7 +517,7 @@ describe("NutEggServer.handleConfirm", () => {
     const events: string[] = [];
     const analysis = { schemaVersion: 3, readAction: "skip", eggResults: [{ egg: "egg.md", language: "English" }] };
     const s = makeServer({
-      db: { getNutById: () => ({ id: 42, fileName: "nutegg/_raw/original.md", processingResult: "unprocessed" }), updateNut: () => events.push("db") },
+      db: { getNutById: () => ({ id: 42, url: baseConfirm.url, fileName: "nutegg/_raw/original.md", processingResult: "unprocessed" }), updateNut: () => events.push("db") },
       knowledgeBase: {
         updateRawAnalysis: async (path: string, value: any) => { assert.equal(path, "nutegg/_raw/original.md"); assert.deepEqual(value, analysis); events.push("archive"); },
         appendKnowledge: async () => { events.push("append"); },
@@ -534,7 +534,7 @@ describe("NutEggServer.handleConfirm", () => {
   });
 
   it("does not append a second Hatch for a saved result", async () => {
-    const s = makeServer({ db: { getNutById: () => ({ processingResult: "saved", fileName: "original.md", analysisResult: { newKnowledge: [{ egg: 'egg.md', content: 'one' }] } }) },
+    const s = makeServer({ db: { getNutById: () => ({ url: baseConfirm.url, processingResult: "saved", fileName: "original.md", analysisResult: { newKnowledge: [{ egg: 'egg.md', content: 'one' }] } }) },
       knowledgeBase: { appendKnowledge: async () => { assert.fail("duplicate append"); } } });
     const res = makeRes();
     await s.handleConfirm(makeReq(JSON.stringify({ ...baseConfirm, nutId: 42, newKnowledge: [{ egg: "egg.md", content: "one" }] })), res);
@@ -543,7 +543,7 @@ describe("NutEggServer.handleConfirm", () => {
   });
 
   it('hatches additional eggs without replaying confirmed entries, even after analysis changes and a restart', async () => {
-    const row: any = { id: 42, processingResult: 'analyzed', fileName: '', confirmedKnowledge: null };
+    const row: any = { id: 42, url: baseConfirm.url, processingResult: 'analyzed', fileName: '', confirmedKnowledge: null };
     const appended: any[] = []; let archives = 0;
     const plugin = makeFakePlugin({
       db: { getNutById: () => structuredClone(row), updateNut: (_id: number, patch: any) => Object.assign(row, patch) },
@@ -575,7 +575,7 @@ describe("NutEggServer.handleConfirm", () => {
 
   it('legacy saved nuts use archived Hatch entries rather than their newer Stage 2 analysis', async () => {
     const first = { egg: 'first.md', content: 'First insight' }, second = { egg: 'second.md', content: 'Second insight' };
-    const row: any = { id: 42, processingResult: 'saved', fileName: 'original.md', analysisResult: { newKnowledge: [first, second] } };
+    const row: any = { id: 42, url: baseConfirm.url, processingResult: 'saved', fileName: 'original.md', analysisResult: { newKnowledge: [first, second] } };
     let appended: any;
     const s = makeServer({
       db: { getNutById: () => row, updateNut: (_id: number, patch: any) => Object.assign(row, patch) },
@@ -591,7 +591,7 @@ describe("NutEggServer.handleConfirm", () => {
   });
 
   it('concurrent confirmations for one nut append once and release the queue', async () => {
-    const row: any = { id: 42, processingResult: 'analyzed', fileName: 'original.md', confirmedKnowledge: [] };
+    const row: any = { id: 42, url: baseConfirm.url, processingResult: 'analyzed', fileName: 'original.md', confirmedKnowledge: [] };
     let release!: () => void, started!: () => void, appends = 0;
     const waiting = new Promise<void>(resolve => { release = resolve; });
     const began = new Promise<void>(resolve => { started = resolve; });
@@ -783,7 +783,7 @@ describe("NutEggServer.handleAnalyze stages & summary routing", () => {
         processedEggs = eggs;
         return { ...contentAnalysis, eggResults: [eggResult("B.md", "summary")], newKnowledge: [] };
       } },
-      db: { getNutById: () => ({ id: 42 }), updateNut: (_id: number, changes: any) => { stored = changes.analysisResult; } },
+      db: { getNutById: () => ({ id: 42, url: baseCapture.url }), updateNut: (_id: number, changes: any) => { stored = changes.analysisResult; } },
     });
     const req = makeReq(JSON.stringify({ ...baseCapture, stage: 2, nutId: 42,
       eggs: ["B.md"], selectedEggs: ["A.md", "B.md"], cachedEggResults: [cachedA, cachedC],
@@ -1007,3 +1007,98 @@ it('capture snapshots preserve validated coverage without treating it as source 
   assert.equal(snapshot.content,'Body');
   assert.equal(s.captureSnapshot({...payload,captureCoverage:undefined}).captureCoverage,undefined);
 });
+
+describe('capture record ownership', () => {
+  const video = 'https://www.bilibili.com/video/BV1eVgA64EbW';
+  const capture = { url: video, title: 'Video', content: 'Original content', sourceType: 'bilibili', metadata: { cid: '111' }, nutId: 42 };
+  it('rejects missing, foreign, different-part, application-route and conflicting-CID records before side effects', async () => {
+    const cases = [
+      { row: null, request: capture },
+      { row: { url: video }, request: { ...capture, nutId: 0 } },
+      { row: { url: video }, request: { ...capture, nutId: 'wrong-id' } },
+      { row: { url: 'https://www.bilibili.com/video/BV13fg56xE21' }, request: capture },
+      { row: { url: video + '?p=2' }, request: capture },
+      { row: { url: video, capturePayload: { metadata: { cid: '222' } } }, request: capture },
+      { row: { url: 'https://example.test/#/old' }, request: { ...capture, url: 'https://example.test/#/new' } },
+    ];
+    for (const { row, request } of cases) {
+      const effects: string[] = [];
+      const s = makeServer({
+        saveSettings: async () => { effects.push('settings'); },
+        db: { getNutById: () => row, updateNut: () => effects.push('update'), insertNut: () => effects.push('insert') },
+        aiProcessor: { analyzeEggs: async () => { effects.push('AI'); return {}; } },
+        indexReader: { getIndexContent: async () => { effects.push('index'); return ''; } },
+        knowledgeBase: { saveRaw: async () => { effects.push('archive'); return 'raw.md'; }, appendKnowledge: async () => effects.push('append') },
+      });
+      for (const method of ['analyze', 'confirm']) {
+        const res = makeRes();
+        const req = makeReq(JSON.stringify({ ...request, outputLanguage: 'Japanese', stage: 2, skipRaw: false, newKnowledge: [{ egg: 'egg.md', content: 'Insight' }] }));
+        await (method === 'analyze' ? s.handleAnalyze(req, res) : s.handleConfirm(req, res));
+        assert.equal(res.statusCode, 409, res.body);
+        assert.equal(JSON.parse(res.body).errorCode, 'capture_identity_mismatch');
+      }
+      assert.deepEqual(effects, []);
+    }
+  });
+
+  it('accepts equivalent watch-later URLs, string/numeric CIDs and older records without a CID', async () => {
+    for (const metadata of [{ cid: 111 }, undefined]) {
+      const row: any = { id: 42, url: video, capturePayload: { metadata }, confirmedKnowledge: [] };
+      const updates: any[] = [];
+      const s = makeServer({ db: { getNutById: () => row, updateNut: (_id: number, patch: any) => updates.push(patch) } });
+      const res = makeRes();
+      await s.handleConfirm(makeReq(JSON.stringify({ ...capture, url: 'https://www.bilibili.com/list/watchlater/?bvid=BV1eVgA64EbW', skipRaw: true, newKnowledge: [] })), res);
+      assert.equal(res.statusCode, 200, res.body);
+      assert.equal(updates.length, 1);
+    }
+  });
+
+  it('rechecks record ownership after asynchronous second-stage generation', async () => {
+    let row: any = { id: 42, url: video }; let writes = 0;
+    const s = makeServer({
+      db: { getNutById: () => row, updateNut: () => writes++, insertNut: () => writes++ },
+      indexReader: { getIndexContent: async () => '', parseIndexContent: () => [] },
+      eggParser: { readEggs: async () => [] },
+      aiProcessor: { analyzeEggs: async () => { row = { ...row, url: 'https://example.test/other' }; return { eggResults: [], coreSummary: [], newKnowledge: [] }; } },
+    });
+    const res = makeRes();
+    await s.handleAnalyze(makeReq(JSON.stringify({ ...capture, stage: 2 })), res);
+    assert.equal(res.statusCode, 409); assert.equal(writes, 0);
+  });
+
+  it('preserves subtitle provenance in the persisted capture', () => {
+    const provenance = JSON.stringify({ version: 1, outcome: 'verified', validatedCid: '111' }); let inserted: any;
+    const s = makeServer({ db: { available: true, insertNut: (row: any) => { inserted = row; return 7; } } });
+    s.recordNut({ ...capture, metadata: { ...capture.metadata, subtitle_provenance: provenance } }, { schemaVersion: 3 });
+    assert.equal(inserted.capturePayload.metadata.subtitle_provenance, provenance);
+  });
+});
+
+for (const order of [[0, 1], [1, 0]]) {
+  it(`concurrent analyses persist their own input/result pairs in completion order ${order}`, async () => {
+    const pending = new Map<string, (value: any) => void>(); const rows: any[] = [];
+    let started!: () => void;
+    const bothStarted = new Promise<void>(resolve => { started = resolve; });
+    const s = makeServer({
+      aiProcessor: { analyzeContent: (capture: any) => new Promise(resolve => { pending.set(capture.title, resolve); if (pending.size === 2) started(); }) },
+      indexReader: { getIndexContent: async () => '', parseIndexContent: () => [], matchEggs: async () => [] },
+      db: { available: true, insertNut: (row: any) => { rows.push(row); return rows.length; } },
+    });
+    const labels = ['A', 'B']; const responses = labels.map(() => makeRes());
+    const jobs = labels.map((label, index) => s.handleAnalyze(makeReq(JSON.stringify({
+      url: `https://example.test/${label}`, title: label, content: `Body ${label}`, sourceType: 'article', stage: 1,
+    })), responses[index]));
+    await bothStarted;
+    for (const index of order) {
+      const label = labels[index];
+      pending.get(label)!({ titleVerdict: `Verdict ${label}`, coreSummary: [`Summary ${label}`], mindMap: [] });
+      await jobs[index];
+    }
+    for (let index = 0; index < labels.length; index++) {
+      const label = labels[index]; const row = rows.find(row => row.url.endsWith(`/${label}`));
+      assert.equal(row.content, `Body ${label}`);
+      assert.equal(row.analysisResult.titleVerdict, `Verdict ${label}`);
+      assert.equal(JSON.parse(responses[index].body).titleVerdict, `Verdict ${label}`);
+    }
+  });
+}

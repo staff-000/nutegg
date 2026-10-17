@@ -498,7 +498,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.action === 'clear-chrome-cache') {
     clearChromeCache()
-      .then(() => sendResponse({ success: true }))
+      .then(() => getChromeCacheInfo())
+      .then(info => sendResponse({ success: true, ...info }))
+      .catch(err => sendResponse({ error: err.message }));
+    return true;
+  }
+
+  if (message.action === 'set-chrome-cache-limit') {
+    setChromeCacheLimit(message.limit)
+      .then(info => sendResponse({ success: true, ...info }))
       .catch(err => sendResponse({ error: err.message }));
     return true;
   }
@@ -678,6 +686,7 @@ function isKnowledgeSelectedAndGenerated(payload, result) {
 }
 
 async function handleAnalyze(payload, onProgress) {
+  const cacheGeneration = chromeCacheGeneration;
   if ((await getConnectionMode()) === 'obsidian') {
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
@@ -757,10 +766,10 @@ async function handleAnalyze(payload, onProgress) {
     }
   }
 
-  return handleAnalyzeChrome(payload, onProgress);
+  return handleAnalyzeChrome(payload, onProgress, cacheGeneration);
 }
 
-async function handleAnalyzeChrome(payload, onProgress) {
+async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chromeCacheGeneration) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
@@ -817,7 +826,7 @@ async function handleAnalyzeChrome(payload, onProgress) {
       }));
     }
     await recordChromeAnalysisMetrics(payload, finalResult);
-    await saveChromeCacheEntry(payload, finalResult);
+    await saveChromeCacheEntry(payload, finalResult, cacheGeneration);
     return finalResult;
   } catch (err) {
     return {
@@ -848,7 +857,19 @@ function trimChromeCache(cache, limit) {
   return kept;
 }
 
-async function loadChromeCache() {
+// Storage updates are read-modify-write transactions within this worker.
+// Keep the tail fulfilled so one storage failure cannot poison later work.
+let chromeCacheQueue = Promise.resolve();
+let chromeCacheGeneration = 0;
+function withChromeCacheLock(operation) {
+  const result = chromeCacheQueue.then(operation);
+  chromeCacheQueue = result.catch(() => {});
+  return result;
+}
+function loadChromeCache() {
+  return withChromeCacheLock(loadChromeCacheUnlocked);
+}
+async function loadChromeCacheUnlocked() {
   const stored = await chrome.storage.local.get(['chromeTabCache']);
   const existing = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
   const cache = trimChromeCache(existing, await getChromeCacheLimit());
@@ -1038,78 +1059,94 @@ async function getChromeCacheHistory(url) {
   return { history: [entry], latest: entry };
 }
 
-async function saveChromeCacheEntry(payload, result) {
+async function saveChromeCacheEntry(payload, result, generation = chromeCacheGeneration) {
   try {
-    const limit = await getChromeCacheLimit();
-    if (limit <= 0) return;
-    const url = payload?.url;
-    if (!url) return;
+    return await withChromeCacheLock(async () => {
+      if (generation !== chromeCacheGeneration) return;
+      const limit = await getChromeCacheLimit();
+      if (limit <= 0) return;
+      const url = payload?.url;
+      if (!url) return;
 
-    const norm = normalizeCacheUrl(url, payload?.metadata);
-    const video = extractVideoIdentity(url, payload?.metadata);
+      const norm = normalizeCacheUrl(url, payload?.metadata);
+      const video = extractVideoIdentity(url, payload?.metadata);
 
-    const stored = await chrome.storage.local.get(['chromeTabCache']);
-    let cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+      const stored = await chrome.storage.local.get(['chromeTabCache']);
+      let cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
 
-    // Remove existing entry for the same video or URL
-    cache = cache.filter(item => !matchesCacheEntry(item, url));
+      // Remove existing entry for the same video or URL
+      cache = cache.filter(item => !matchesCacheEntry(item, url));
 
-    const entry = {
-      nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      url,
-      canonicalUrl: norm,
-      videoId: video?.id || null,
-      videoPlatform: video?.platform || null,
-      title: payload.title || result.titleVerdict?.title || '',
-      result,
-      saved: null,
-      sourceType: payload.sourceType || video?.platform || 'generic',
-      author: payload.author || payload.metadata?.author || '',
-      publishedAt: payload.publishedAt || payload.metadata?.published || '',
-      content: typeof payload.content === 'string' ? payload.content.slice(0, 30000) : '',
-      capturePayload: {
+      const entry = {
+        nutId: result.nutId || `chrome_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         url,
-        title: payload.title,
-        sourceType: payload.sourceType,
-        enabledSections: payload.enabledSections,
-        generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
-        metadata: payload.metadata,
-        captureCoverage: NutEggAI.normalizeCaptureCoverage?.(payload.captureCoverage),
-        transcriptAvailable: payload.transcriptAvailable,
-        mediaType: payload.mediaType,
-      },
-      timestamp: Date.now(),
-    };
-
-    if (typeof payload.content === 'string' && payload.content.length > 30000) {
-      entry.capturePayload.captureCoverage = {
-        ...entry.capturePayload.captureCoverage,
-        reasons: [...new Set([...(entry.capturePayload.captureCoverage?.reasons || []), 'truncated'])],
-        originalCharacters: Math.max(
-          entry.capturePayload.captureCoverage?.originalCharacters || 0,
-          payload.content.length
-        ),
-        capturedCharacters: 30000,
+        canonicalUrl: norm,
+        videoId: video?.id || null,
+        videoPlatform: video?.platform || null,
+        title: payload.title || result.titleVerdict?.title || '',
+        result,
+        saved: null,
+        sourceType: payload.sourceType || video?.platform || 'generic',
+        author: payload.author || payload.metadata?.author || '',
+        publishedAt: payload.publishedAt || payload.metadata?.published || '',
+        content: typeof payload.content === 'string' ? payload.content.slice(0, 30000) : '',
+        capturePayload: {
+          url,
+          title: payload.title,
+          sourceType: payload.sourceType,
+          enabledSections: payload.enabledSections,
+          generateKnowledgeEntries: payload.generateKnowledgeEntries === true,
+          metadata: payload.metadata,
+          captureCoverage: NutEggAI.normalizeCaptureCoverage?.(payload.captureCoverage),
+          transcriptAvailable: payload.transcriptAvailable,
+          mediaType: payload.mediaType,
+        },
+        timestamp: Date.now(),
       };
-    }
-    cache.unshift(entry);
-    cache = trimChromeCache(cache, limit);
-    await chrome.storage.local.set({ chromeTabCache: cache });
+
+      if (typeof payload.content === 'string' && payload.content.length > 30000) {
+        entry.capturePayload.captureCoverage = {
+          ...entry.capturePayload.captureCoverage,
+          reasons: [...new Set([...(entry.capturePayload.captureCoverage?.reasons || []), 'truncated'])],
+          originalCharacters: Math.max(
+            entry.capturePayload.captureCoverage?.originalCharacters || 0,
+            payload.content.length
+          ),
+          capturedCharacters: 30000,
+        };
+      }
+      cache.unshift(entry);
+      cache = trimChromeCache(cache, limit);
+      if (generation !== chromeCacheGeneration) return;
+      await chrome.storage.local.set({ chromeTabCache: cache });
+    });
   } catch (err) {
     console.warn?.('[NutEgg] Failed to save Chrome cache entry:', err);
   }
 }
 
-async function clearChromeCache() {
-  await chrome.storage.local.set({ chromeTabCache: [] });
+function clearChromeCache() {
+  chromeCacheGeneration++;
+  return withChromeCacheLock(() => chrome.storage.local.set({ chromeTabCache: [] }));
+}
+
+function setChromeCacheLimit(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return Promise.reject(new Error('Invalid cache limit'));
+  const limit = Math.min(1000, Math.max(0, Math.round(value)));
+  if (limit === 0) chromeCacheGeneration++;
+  return withChromeCacheLock(async () => {
+    const stored = await chrome.storage.local.get(['chromeTabCache']);
+    const cache = trimChromeCache(Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [], limit);
+    await chrome.storage.local.set({ chromeCacheTabLimit: limit, chromeTabCache: cache });
+    return { count: cache.length, limit };
+  });
 }
 
 async function getChromeCacheInfo() {
-  const cache = await loadChromeCache();
-  const stored = await chrome.storage.local.get(['chromeTabCache', 'chromeCacheTabLimit']);
-  const limit =
-    typeof stored.chromeCacheTabLimit === 'number' ? stored.chromeCacheTabLimit : DEFAULT_CHROME_CACHE_LIMIT;
-  return { count: cache.length, limit };
+  return withChromeCacheLock(async () => {
+    const cache = await loadChromeCacheUnlocked();
+    return { count: cache.length, limit: await getChromeCacheLimit() };
+  });
 }
 
 async function handleConfirm(payload) {
@@ -1124,7 +1161,7 @@ async function handleConfirm(payload) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    return { error: data.error || `Server error (${response.status})` };
+    return { error: data.error || `Server error (${response.status})`, errorCode: data.errorCode };
   }
 
   return data;
@@ -1360,7 +1397,7 @@ function getChromeMetrics() {
 }
 
 async function readChromeMetrics() {
-  const stored = await chrome.storage.local.get(['chromeMetrics', 'chromeTabCache']);
+  const stored = await withChromeCacheLock(() => chrome.storage.local.get(['chromeMetrics', 'chromeTabCache']));
   if (stored.chromeMetrics && typeof stored.chromeMetrics.nuts === 'number') {
     const m = stored.chromeMetrics;
     const totalMinutes = Math.round(m.timeSavedMinutes || 0);

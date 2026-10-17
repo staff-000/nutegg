@@ -217,3 +217,17 @@ test('background debug messages return Chrome counters or bounded Obsidian snaps
   context.fetch = async () => ({ ok: false });
   assert.equal((await send('obsidian')).unavailable, true);
 });
+
+test('Bilibili debug provenance distinguishes legacy captures and never prints URLs or account fields', () => {
+  const root = createMockRoot(), ui = new MetricsComponent(root), panel = root.getElementById('debug-info');
+  const view = { extractedContent: { sourceType: 'bilibili', content: 'Caption', metadata: {} } };
+  ui.renderDebug(null, true, { view });
+  assert.match(panel.textContent, /caption identity: not assessed/);
+  view.extractedContent.metadata.subtitle_provenance = JSON.stringify({ version: 1, outcome: 'verified', route: 'legacy_player', requestedVideoId: 'BV13fg56xE21', requestedCid: '40842559501', validatedBvid: 'BV13fg56xE21', validatedCid: '40842559501', trackId: '77', account: 'private', url: 'https://example.test/?signature=secret' });
+  ui.renderDebug(null, true, { view });
+  assert.match(panel.textContent, /verified.*legacy_player.*track 77/);
+  assert.doesNotMatch(panel.textContent, /private|signature|secret|https/);
+  view.extractedContent.metadata.subtitle_provenance = '{invalid';
+  ui.renderDebug(null, true, { view });
+  assert.match(panel.textContent, /caption identity: not assessed/);
+});

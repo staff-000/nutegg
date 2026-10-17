@@ -1,4 +1,6 @@
 export const de = {
+  captureIdentityMismatch:
+    'Diese Aufnahme gehört zu einer anderen Seite oder ist nicht mehr verfügbar. Aktualisiere den Inhalt und analysiere ihn erneut.',
   captureTruncatedWarning: 'Die Quelle überschreitet das Erfassungslimit und wurde nur teilweise erfasst.',
   captureAccessWarning: 'Ein Teil des Inhalts erfordert eine Anmeldung oder ein Abonnement.',
   captureTraversalWarning: 'Einige eingebettete Inhalte konnten innerhalb der Erfassungsgrenzen nicht geprüft werden.',

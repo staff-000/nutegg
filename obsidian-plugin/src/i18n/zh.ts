@@ -1,6 +1,7 @@
 import type { TranslationKey } from './en';
 
 export const zh: Record<TranslationKey, string> = {
+  captureIdentityMismatch: '此已保存的内容属于其他页面或已不可用。请刷新内容后重新分析。',
   captureTruncatedWarning: '内容超出提取上限，仅保存了部分原文。',
   captureAccessWarning: '部分内容需要登录或订阅才能查看。',
   captureTraversalWarning: '受提取限制影响，部分嵌入内容未能完整读取。',
@@ -251,8 +252,7 @@ export const zh: Record<TranslationKey, string> = {
   outputLanguageEnglish: '英文 (从 Chrome 同步)',
   syncedFromChrome: '从 Chrome 同步',
   localizeWorkflowsTitle: '工作流与 Egg 本地化',
-  localizeWorkflowsDesc:
-    '将默认工作流提示词和 Egg 说明翻译为同步的语言。用户自定义的文件将生成 .new.md 模板以供参考。',
+  localizeWorkflowsDesc: '将默认工作流提示词和 Egg 说明翻译为同步的语言。用户自定义的文件将生成 .new.md 模板以供参考。',
   localizeWorkflowsBtn: '本地化为 {language}',
   revertToEnglishBtn: '还原为英文默认',
   localizingWorkflows: '正在将工作流和 Egg 本地化为 {language}…',

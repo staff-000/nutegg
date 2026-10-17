@@ -53,6 +53,7 @@ class AnalyzeAction {
       return Promise.resolve({ error: reason });
     }
     if (isReanalyze) {
+      const requestOptions = this.requestOptions();
       return (async () => {
         if (this.operations?.extract) {
           const extracted = await this.operations.extract(tabId);
@@ -63,7 +64,7 @@ class AnalyzeAction {
           eggsOverride ||
           currentTab.selectedEggs ||
           (currentTab.preSelectedEggs?.length ? currentTab.preSelectedEggs : undefined);
-        return this.operations.analyze(tabId, { ...this.requestOptions(eggs), reanalyze: true });
+        return this.operations.analyze(tabId, { ...requestOptions, eggs, reanalyze: true });
       })();
     }
     const eggs = eggsOverride || (tab.preSelectedEggs?.length ? tab.preSelectedEggs : undefined);

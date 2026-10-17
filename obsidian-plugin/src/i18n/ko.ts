@@ -1,4 +1,6 @@
 export const ko = {
+  captureIdentityMismatch:
+    '저장된 내용이 다른 페이지의 것이거나 더 이상 사용할 수 없습니다. 내용을 새로고침하고 다시 분석하세요.',
   captureTruncatedWarning: '캡처 한도를 초과하여 원문 일부만 가져왔습니다.',
   captureAccessWarning: '일부 콘텐츠는 로그인 또는 구독이 필요합니다.',
   captureTraversalWarning: '캡처 한도로 인해 일부 삽입된 콘텐츠를 확인하지 못했습니다.',
@@ -245,8 +247,7 @@ export const ko = {
     '워크플로 업데이트가 있습니다({files}). 사용자 지정 워크플로를 업데이트하려면 _workflow의 *.new.md를 확인하세요.',
   cmdLocalizeWorkflows: '워크플로 및 Egg를 동기화된 언어로 현지화',
   outputLanguageTitle: '출력 언어',
-  outputLanguageDesc:
-    'AI 분석 및 워크플로 프롬프트 언어(Chrome에서 동기화됨). Chrome 설정에서 관리됩니다.',
+  outputLanguageDesc: 'AI 분석 및 워크플로 프롬프트 언어(Chrome에서 동기화됨). Chrome 설정에서 관리됩니다.',
   outputLanguageSameAsContent: '콘텐츠와 동일 (Chrome에서 동기화됨)',
   outputLanguageEnglish: '영어 (Chrome에서 동기화됨)',
   syncedFromChrome: 'Chrome에서 동기화됨',

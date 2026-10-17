@@ -1,4 +1,6 @@
 export const fr = {
+  captureIdentityMismatch:
+    'Cette capture appartient à une autre page ou est indisponible. Actualisez le contenu et relancez l’analyse.',
   captureTruncatedWarning: 'Seule une partie de la source a été capturée car elle dépasse la limite.',
   captureAccessWarning: 'Une partie du contenu nécessite une connexion ou un abonnement.',
   captureTraversalWarning: 'Certains contenus intégrés n’ont pas pu être examinés dans les limites de capture.',

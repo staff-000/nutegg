@@ -16,6 +16,7 @@ function worker(initial = {}, availability = {}) {
       checkCreditAI: async settings => { ai.push({ action: 'credit', settings }); return { hasBalance: true }; },
       analyzeContentStandalone: async (payload, settings) => {
         ai.push({ action: 'analyze', payload, settings });
+        if (availability.analyze) return availability.analyze(payload);
         return payload.generateKnowledgeEntries
           ? { coreSummary: ['Summary'], extractedEntries: [{ content: 'Knowledge 1' }] }
           : { coreSummary: ['Summary'] };
@@ -419,4 +420,122 @@ test('legacy cache fallbacks cannot cross hash routes and preserve coverage warn
   assert.deepEqual([...saved.capturePayload.captureCoverage.reasons],['traversal_limit','truncated']);
   assert.equal(saved.capturePayload.captureCoverage.capturedCharacters,30000);
   assert.equal(saved.capturePayload.captureCoverage.originalCharacters,65000);
+});
+
+const cachePayload = id => ({ url: `https://example.test/${id}`, title: id, content: `body-${id}` });
+const cacheResult = id => ({ coreSummary: [`summary-${id}`] });
+const cacheTick = () => new Promise(resolve => setImmediate(resolve));
+
+test('concurrent cache saves keep both original payload/result pairs', async () => {
+  const app = worker(); await cacheTick();
+  const get = app.context.chrome.storage.local.get;
+  let release, started, reads = 0;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const began = new Promise(resolve => { started = resolve; });
+  app.context.chrome.storage.local.get = async keys => {
+    const value = structuredClone(await get(keys));
+    if (keys?.includes('chromeTabCache') && ++reads === 1) { started(); await waiting; }
+    return value;
+  };
+  const a = app.context.saveChromeCacheEntry(cachePayload('a'), cacheResult('a')); await began;
+  const b = app.context.saveChromeCacheEntry(cachePayload('b'), cacheResult('b'));
+  await cacheTick(); assert.equal(reads, 1, 'second transaction waits rather than reading an obsolete snapshot');
+  release(); await Promise.all([a, b]);
+  assert.equal(app.stored.chromeTabCache.length, 2);
+  for (const entry of app.stored.chromeTabCache) {
+    assert.equal(entry.content, `body-${entry.title}`);
+    assert.equal(entry.result.coreSummary[0], `summary-${entry.title}`);
+    assert.equal(entry.url, `https://example.test/${entry.title}`);
+  }
+});
+
+test('cache reads and trimming wait for preceding saves', async () => {
+  const app = worker({ chromeCacheTabLimit: 1 }); await cacheTick();
+  const save = app.context.chrome.storage.local.set;
+  let release, started;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const began = new Promise(resolve => { started = resolve; });
+  app.context.chrome.storage.local.set = async values => {
+    if (values.chromeTabCache) { started(); await waiting; }
+    return save(values);
+  };
+  const write = app.context.saveChromeCacheEntry(cachePayload('a'), cacheResult('a')); await began;
+  let readFinished = false;
+  const read = app.context.loadChromeCache().then(value => { readFinished = true; return value; });
+  await cacheTick(); assert.equal(readFinished, false);
+  release(); await write;
+  assert.equal((await read)[0].title, 'a');
+  await app.context.saveChromeCacheEntry(cachePayload('b'), cacheResult('b'));
+  assert.deepEqual(Array.from(app.stored.chromeTabCache, entry => entry.title), ['b']);
+});
+
+test('clearing cache prevents an already admitted analysis from restoring its result', async () => {
+  let finish, started;
+  const waiting = new Promise(resolve => { finish = resolve; });
+  const began = new Promise(resolve => { started = resolve; });
+  const app = worker({ chromeAiApiKey: 'test' }, { analyze: async () => { started(); await waiting; return cacheResult('old'); } });
+  await cacheTick();
+  const analysis = app.context.handleAnalyze(cachePayload('old')); await began;
+  await app.context.clearChromeCache();
+  finish(); const result = await analysis;
+  assert.equal(result.coreSummary[0], 'summary-old', 'the originating caller still receives its own result');
+  assert.equal(app.stored.chromeTabCache.length, 0);
+  await app.context.saveChromeCacheEntry(cachePayload('new'), cacheResult('new'));
+  assert.equal(app.stored.chromeTabCache[0].title, 'new');
+});
+
+test('clear follows an in-flight save and a failed storage write releases the cache queue', async () => {
+  const app = worker(); await cacheTick();
+  const save = app.context.chrome.storage.local.set; let fail = true;
+  app.context.chrome.storage.local.set = async values => {
+    if (values.chromeTabCache && fail) { fail = false; throw new Error('quota failure'); }
+    return save(values);
+  };
+  await app.context.saveChromeCacheEntry(cachePayload('failed'), cacheResult('failed'));
+  await app.context.saveChromeCacheEntry(cachePayload('kept'), cacheResult('kept'));
+  assert.equal(app.stored.chromeTabCache[0].title, 'kept');
+  const writes = ['a', 'b'].map(id => app.context.saveChromeCacheEntry(cachePayload(id), cacheResult(id)));
+  const clear = app.context.clearChromeCache();
+  await Promise.all([...writes, clear]);
+  assert.equal((await app.context.loadChromeCache()).length, 0);
+});
+
+test('caption provenance survives cache history and legacy entries remain readable', async () => {
+  const app = worker(); await cacheTick();
+  const provenance = JSON.stringify({ version: 1, outcome: 'verified', requestedVideoId: 'BV1eVgA64EbW', validatedCid: '111' });
+  await app.context.saveChromeCacheEntry({ ...cachePayload('caption'), metadata: { subtitle_provenance: provenance } }, cacheResult('caption'));
+  const history = await app.context.getChromeCacheHistory(cachePayload('caption').url);
+  assert.equal(history.latest.capturePayload.metadata.subtitle_provenance, provenance);
+  app.stored.chromeTabCache = [{ url: cachePayload('legacy').url, content: 'Legacy body', result: cacheResult('legacy') }];
+  assert.equal((await app.context.getChromeCacheHistory(cachePayload('legacy').url)).latest.content, 'Legacy body');
+});
+
+test('Obsidian capture ownership errors retain their code through analysis and Hatch transport', async () => {
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async url => url.endsWith('/health')
+    ? { ok: true, json: async () => ({ version: '1' }) }
+    : { ok: false, status: 409, json: async () => ({ error: 'Refresh the capture.', errorCode: 'capture_identity_mismatch' }) } });
+  const result = await app.send('analyze', { payload: cachePayload('wrong') });
+  assert.equal(result.errorCode, 'capture_identity_mismatch');
+  const hatch = await app.context.handleConfirm(cachePayload('wrong'));
+  assert.equal(hatch.errorCode, 'capture_identity_mismatch');
+});
+
+test('settings cache-limit changes share the worker transaction queue with analysis saves', async () => {
+  const app = worker(); await cacheTick();
+  await app.context.saveChromeCacheEntry(cachePayload('old'), cacheResult('old'));
+  const operations = [
+    app.context.saveChromeCacheEntry(cachePayload('a'), cacheResult('a')),
+    app.send('set-chrome-cache-limit', { limit: 1 }),
+    app.context.saveChromeCacheEntry(cachePayload('b'), cacheResult('b')),
+  ];
+  await Promise.all(operations);
+  assert.equal(app.stored.chromeCacheTabLimit, 1);
+  assert.deepEqual(Array.from(app.stored.chromeTabCache, entry => entry.title), ['b']);
+  const clear = await app.send('clear-chrome-cache');
+  assert.equal(clear.count, 0); assert.equal(clear.limit, 1);
+  const invalid = await app.send('set-chrome-cache-limit', { limit: 'not a number' });
+  assert.match(invalid.error, /Invalid cache limit/);
+  await app.send('set-chrome-cache-limit', { limit: 0 });
+  await app.context.saveChromeCacheEntry(cachePayload('disabled'), cacheResult('disabled'));
+  assert.equal(app.stored.chromeTabCache.length, 0);
 });

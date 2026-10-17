@@ -1,4 +1,6 @@
 export const es = {
+  captureIdentityMismatch:
+    'Esta captura guardada pertenece a otra página o ya no está disponible. Actualiza el contenido y vuelve a analizarlo.',
   captureTruncatedWarning: 'Se capturó solo parte de la fuente porque supera el límite de captura.',
   captureAccessWarning: 'Parte del contenido requiere iniciar sesión o una suscripción.',
   captureTraversalWarning: 'No se pudo inspeccionar parte del contenido incrustado dentro de los límites de captura.',
