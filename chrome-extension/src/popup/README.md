@@ -71,7 +71,10 @@ typing, selection and focus survive unrelated renders. Scroll, section expansion
 and input drafts belong to each tab. The egg-analysis dropdown closes on tab
 switch, selection, outside click or Escape.
 
-Running and unread counts derive from the same records. Only displaying the latest
+Running, waiting and unread counts derive from the same records and always include
+zero values. Running means an analysis owns a worker request slot; waiting means
+its current Stage 1 or Stage 2 request is queued. Follow-ups, creation and Hatch do
+not count as tab analyses. Only displaying the latest
 results in the active, visible panel marks them read. These counts cover the current
 Chrome window and reset when the panel closes. There is no browser-wide job
 persistence, toolbar badge or additional Chrome permission. Navigation and panel
@@ -82,6 +85,18 @@ remain outside that queue. Queued work expires after 30 minutes; analysis execut
 expires after 10 minutes (egg creation retains its 190-second limit).
 
 ## Save receipts and diagnostics
+
+The debug display separates actual AI calls from tab analyses. It shows running,
+waiting, successful, failed and cancelled calls for this panel session, followed by
+current-page details. CLI calls wait until their serialized provider slot starts;
+queued tabs and hypothetical future calls are not counted as waiting AI calls.
+The existing debug request returns both snapshots. Chrome and Obsidian execution
+owners are summed once, using the panel UUID already present in debug scopes.
+Panel totals survive per-page counter eviction, navigation and tab closure. Idle
+diagnostic caches are bounded; backend restart or panel-counter eviction changes
+the epoch and shows a reset notice. Missing or older telemetry shows unavailable
+counts rather than inferred successes. No prompt text, answers or credentials are
+included in these snapshots, and no extra model or model-discovery calls occur.
 
 A save targets the captured result. Navigation prevents its UI commit, but an
 accepted backend write can still finish. The store keeps the latest 50 save

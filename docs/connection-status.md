@@ -73,6 +73,33 @@ analysis-service, popup-operations, startup, ui-components, popup-renderer, tab-
 server, execution-wire and execution-coordinator files. Both extension and plugin
 builds passed. The running live plugin was not replaced during this verification.
 
+## Tab activity and AI request counts
+
+The activity strip shows **Running · Waiting · Unread** for analyses in the current
+Chrome window, including zero counts. Waiting means the current analysis request
+is in the extension worker queue; running means it acquired a slot. A running tab
+can have several AI requests, including requests waiting in the CLI queue. Only
+successful unseen analysis results count as unread. The dropdown groups the same
+tabs by these states, and Stage 2 can return a tab to waiting.
+
+With debug info enabled, **Panel AI requests** shows running, waiting, completed,
+failed and cancelled provider attempts. Completed means successful; retries count
+as separate attempts. Calls are counted at their execution owner, with no second
+count for the Chrome-to-Obsidian transport. The panel UUID in existing scope IDs
+isolates these totals from other panels and unrelated Obsidian activity. Current-tab
+details remain below the aggregate. The same debug request returns both snapshots;
+there is no new polling loop or endpoint. Older or unavailable telemetry is marked
+unavailable, and a backend/counter epoch change shows a reset notice.
+If a panel leaves connected mode after using Obsidian execution, its earlier
+Obsidian-owned totals are unavailable until it reconnects; Chrome does not pass
+off a local subtotal as the complete session or start polling a disconnected host.
+
+Activity verification: 316 focused tests passed across the individual activity,
+diagnostics, connection, popup, localization, AI client, subscription, server and
+execution transport test files. Controlled providers verified API, CLI and ChatGPT
+ownership without additional model calls. The extension and plugin built successfully;
+the live vault was not deployed or modified.
+
 ## Consistent metrics across modes
 
 The Chrome side panel uses the same combined totals in both modes:

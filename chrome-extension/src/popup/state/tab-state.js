@@ -41,6 +41,9 @@ class TabStateManager {
   get debugInfo() {
     return this.getTab(this.activeTabId)?.debugInfo;
   }
+  get debugSessionId() {
+    return this.#debugSessionId;
+  }
   fresh(tabId, url = '') {
     return {
       tabId,
@@ -302,6 +305,7 @@ class TabStateManager {
           phase: event.phase || (kind === 'analysis' ? 'stage1' : kind),
           dependencies: event.token.dependencies,
           startedAt: Date.now(),
+          ...(kind === 'analysis' ? { queueState: 'waiting' } : {}),
         };
         if (['analysis', 'saving', 'followup', 'creation'].includes(kind)) next.intentRevision++;
         delete next.errors[kind];
@@ -311,6 +315,9 @@ class TabStateManager {
         break;
       case 'phase':
         next.operations[kind].phase = event.phase;
+        break;
+      case 'analysisQueueState':
+        if (['waiting', 'running'].includes(event.state)) next.operations.analysis.queueState = event.state;
         break;
       case 'captureProgress':
         next.operations[kind].progress = popupCopy(event.progress);
@@ -636,6 +643,7 @@ class TabStateManager {
           title: tab.extractedContent?.title,
           url: tab.url,
           running: !!job?.running,
+          waiting: !!job?.running && job.queueState === 'waiting',
           revision: job?.running ? job.requestId : tab.completion.revision,
           startedAt: job?.startedAt,
           completedAt: tab.completion?.completedAt,

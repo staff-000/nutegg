@@ -450,3 +450,23 @@ test('navigation cancels its analysis transport while switching tabs preserves o
   await Promise.all([first, second]);
   assert.equal(store.getTab(1).errors.analysis, undefined);
 });
+
+test('analysis queue progress is guarded by its originating operation and reaches Stage 2', async () => {
+  const { store, service, operations } = fixture();
+  const calls = [];
+  service.sendAnalyzeViaPort = (payload, progress) => { const d = deferred(); calls.push({ payload, progress, ...d }); return d.promise; };
+  const analysis = operations.analyze(1, { analysisMode: 'full' });
+  calls[0].progress({ type: 'partial', section: 'executionQueue', data: { state: 'running' } });
+  assert.equal(store.getTab(1).operations.analysis.queueState, 'running');
+  store.activateTab(2);
+  calls[0].resolve({ stage: 'stage1', matchedEggs: ['egg.md'], mode: 'obsidian' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 2);
+  calls[1].progress({ type: 'partial', section: 'executionQueue', data: { state: 'waiting' } });
+  assert.equal(store.getTab(1).operations.analysis.queueState, 'waiting');
+  assert.equal(store.getTab(2).operations.analysis, undefined);
+  store.invalidateTab(1, 'https://replacement.test');
+  calls[1].progress({ type: 'partial', section: 'executionQueue', data: { state: 'running' } });
+  assert.equal(store.getTab(1).operations.analysis, undefined);
+  calls[1].resolve({ stage: 'stage2', eggResults: [] }); await analysis;
+});

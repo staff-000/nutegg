@@ -330,7 +330,8 @@ export async function chatAI(
           throw error;
         }
       },
-      debugScope
+      debugScope,
+      { signal: controller.signal }
     );
     if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
     return result;
@@ -583,8 +584,16 @@ export class AIClient {
     if (config.authMethod === 'subscription' && this.subscription)
       return trackAIRequest(
         prompt,
-        () => this.subscription!.chat(config.provider as SubscriptionProvider, config.model, prompt, this.signal),
-        debugScope
+        markRunning =>
+          this.subscription!.chat(
+            config.provider as SubscriptionProvider,
+            config.model,
+            prompt,
+            this.signal,
+            markRunning
+          ),
+        debugScope,
+        { queued: true, signal: this.signal }
       );
     return chatAI(prompt, maxTokens, config, debugScope, this.signal);
   }

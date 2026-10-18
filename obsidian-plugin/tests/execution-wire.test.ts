@@ -118,13 +118,17 @@ test('ChatGPT routes native and connected Chrome requests without CLI or API-key
     await server.stop();
   });
   assert.equal((await a.message('connect-obsidian')).success, true);
+  const chatgptScope = `${webcrypto.randomUUID()}:1:1`;
   const result = await a.message('ask', {
-    payload: { url: 'https://example.com', title: 'Title', content: 'Body', sourceType: 'article', questions: ['Q'] },
+    payload: { url: 'https://example.com', title: 'Title', content: 'Body', sourceType: 'article', questions: ['Q'], debugScope: chatgptScope },
   });
   assert.equal(result.answers?.[0]?.answer, 'ChatGPT answer', JSON.stringify(result));
   assert.equal(result.execution.authMethod, 'chatgpt');
   assert.equal(result.execution.model, 'chatgpt-model');
   assert.match(await server.nativeChat('Native Q', 100), /ChatGPT answer/);
+  const chatgptDebug = await a.message('get-debug-info', { mode: 'obsidian', debugScope: chatgptScope });
+  assert.equal(chatgptDebug.panel.completedCalls, 1, 'the panel excludes unrelated native ChatGPT work');
+  assert.equal(chatgptDebug.panel.totalCalls, 1);
   assert.equal(calls.filter(call => call.url.endsWith('/responses')).length, 2);
   assert.equal(a.data.chromeAiApiKey, 'retained-api-key');
   assert.equal((await a.message('chatgpt-control', { operation: 'models' })).models[0].slug, 'chatgpt-model');
@@ -161,7 +165,7 @@ test('two extension workers execute private API calls concurrently and follow sh
     plugin.persistExecutionState = async (state: any) => { plugin.settings.executionState = structuredClone(state); plugin.settings.subscriptionEnabled = state.subscriptionAvailable; plugin.settings.aiAuthMethod = state.mode; plugin.settings.subscriptionSelection = state.subscription; };
     const subscriptionCalls: any[] = [];
     let cleanups = 0;
-    plugin.subscriptions = { cancelWork: async () => { cleanups++; }, chat: async (provider: string, model: string) => { subscriptionCalls.push({ provider, model }); return JSON.stringify({ answers: [{ question: 'Q', answer: model }] }); }, status: async () => ({ state: 'ready', message: 'Connected' }) };
+    plugin.subscriptions = { cancelWork: async () => { cleanups++; }, chat: async (provider: string, model: string, _prompt: string, _signal: AbortSignal, onStart?: () => void) => { onStart?.(); subscriptionCalls.push({ provider, model }); return JSON.stringify({ answers: [{ question: 'Q', answer: model }] }); }, status: async () => ({ state: 'ready', message: 'Connected' }) };
     plugin.connectionAccess = new ConnectionAccess(plugin.settings.chromeConnections = {}, async () => false, async () => { }, plugin.settings.chromeClientBindings = {});
     const server = new NutEggServer(plugin, 0);
     plugin.server = server;
@@ -174,20 +178,29 @@ test('two extension workers execute private API calls concurrently and follow sh
     assert.equal(connectedB.success, true, JSON.stringify(connectedB));
     assert.equal(server.execution.sessions.size, 2);
     const payload = { url: 'https://example.com', title: 'Title', content: 'Body', sourceType: 'article', questions: ['Q'] };
-    const [ra, rb] = await Promise.all([a.message('ask', { payload }), b.message('ask', { payload })]);
+    const scopeA = `${webcrypto.randomUUID()}:1:1`, scopeB = `${webcrypto.randomUUID()}:2:1`;
+    const [ra, rb] = await Promise.all([a.message('ask', { payload: { ...payload, debugScope: scopeA } }), b.message('ask', { payload: { ...payload, debugScope: scopeB } })]);
     assert.equal(ra.answers?.[0]?.answer, 'model-A', JSON.stringify(ra));
     assert.equal(rb.answers?.[0]?.answer, 'model-B', JSON.stringify(rb));
     assert.deepEqual(apiCalls.map(c => [c.key, c.model]).sort(), [['Bearer key-A', 'model-A'], ['Bearer key-B', 'model-B']]);
     assert.notEqual(ra.execution.origin, rb.execution.origin);
     assert.ok(!JSON.stringify(plugin.settings).includes('key-A'));
     assert.ok(!JSON.stringify(plugin.settings).includes('key-B'));
+    const debugA = await a.message('get-debug-info', { mode: 'obsidian', debugScope: scopeA });
+    const debugB = await b.message('get-debug-info', { mode: 'obsidian', debugScope: scopeB });
+    assert.equal(debugA.panel.available, true); assert.equal(debugA.panel.completedCalls, 1);
+    assert.equal(debugB.panel.completedCalls, 1);
+    assert.notEqual(debugA.panel.sessionId, debugB.panel.sessionId);
     const switched = await a.message('set-execution-mode', { mode: 'subscription' });
     assert.equal(switched.state.mode, 'subscription', JSON.stringify(switched));
     await eventually(() => b.data.obsidianExecutionState?.mode === 'subscription');
-    const sub = await b.message('ask', { payload });
+    const sub = await b.message('ask', { payload: { ...payload, debugScope: scopeB } });
     assert.equal(sub.execution.authMethod, 'subscription');
     assert.equal(subscriptionCalls.length, 1);
     assert.equal(apiCalls.length, 2);
+    const mixed = await b.message('get-debug-info', { mode: 'obsidian', debugScope: scopeB });
+    assert.equal(mixed.panel.completedCalls, 2, 'API and CLI execution owners each count their own attempt once');
+    assert.equal(mixed.panel.activeCalls, 0); assert.equal(mixed.panel.waitingCalls, 0);
     await b.message('set-execution-mode', { mode: 'apiKey' });
     await eventually(() => a.data.obsidianExecutionState?.mode === 'apiKey');
     const again = await a.message('ask', { payload });

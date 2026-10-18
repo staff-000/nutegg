@@ -384,3 +384,43 @@ test('an explicit test rejects an unavailable selected model without trying Auto
  service.chat=async(_provider,model)=>{requested.push(model);throw Object.assign(new Error('Choose another model.'),{code:'model_not_found'});};
  await assert.rejects(service.test('openai','rejected-custom'),{code:'model_not_found'});assert.deepEqual(requested,['rejected-custom']);await service.dispose();
 });
+
+test('AI diagnostics follow actual CLI queue start and queued cancellation without duplicate calls', async t => {
+  const { AIClient } = await import('../src/ai-client');
+  const { getAIDebugInfo } = await import('../../shared/src/ai-diagnostics');
+  const panel = crypto.randomUUID(), scope = `${panel}:1:1`;
+  const marker = join(tmpdir(), `nutegg-ai-start-${process.pid}-${Date.now()}`);
+  const gate = marker + '-gate';
+  t.after(async () => { await rm(marker, { force: true }); await rm(gate, { force: true }); });
+  const { service } = await fixture(t, `
+const fs = require('node:fs');
+if (process.argv.includes('status')) { console.error('Logged in using ChatGPT'); process.exit(0); }
+fs.writeFileSync(${JSON.stringify(marker)}, 'started');
+process.stdin.resume(); process.stdin.on('end', () => {
+  const timer = setInterval(() => {
+    if (!fs.existsSync(${JSON.stringify(gate)})) return;
+    clearInterval(timer);
+    console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'OK'}}));
+    console.log(JSON.stringify({type:'turn.completed'}));
+  }, 10);
+});`);
+  const settings = { aiProvider: 'openai' as const, aiAuthMethod: 'subscription' as const, aiModel: 'auto' };
+  const controller = new AbortController();
+  const client = new AIClient(settings, service);
+  const cancelledClient = new AIClient(settings, service, controller.signal);
+  const jobs = [client.chat('First', 100, scope), client.chat('Second', 100, `${panel}:2:2`), cancelledClient.chat('Third', 100, `${panel}:3:3`)];
+  const results = Promise.allSettled(jobs);
+  for (let n = 0; n < 100; n++) { try { await readFile(marker); break; } catch { await new Promise(resolve => setTimeout(resolve, 10)); } }
+  let stats = getAIDebugInfo(scope).panel!;
+  assert.equal(stats.activeCalls, 1); assert.equal(stats.waitingCalls, 2); assert.equal(stats.totalCalls, 3);
+  controller.abort();
+  await flush();
+  stats = getAIDebugInfo(scope).panel!;
+  assert.equal(stats.waitingCalls, 1); assert.equal(stats.cancelledCalls, 1);
+  await writeFile(gate, 'release');
+  const settled = await results;
+  assert.deepEqual(settled.map(result => result.status), ['fulfilled', 'fulfilled', 'rejected']);
+  stats = getAIDebugInfo(scope).panel!;
+  assert.equal(stats.activeCalls, 0); assert.equal(stats.waitingCalls, 0);
+  assert.equal(stats.completedCalls, 2); assert.equal(stats.failedCalls, 0); assert.equal(stats.cancelledCalls, 1);
+});

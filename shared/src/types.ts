@@ -41,7 +41,13 @@ export interface SubscriptionStatus {
 }
 
 export interface SubscriptionExecutor {
-  chat(provider: SubscriptionProvider, model: string, prompt: string, signal?: AbortSignal): Promise<string>;
+  chat(
+    provider: SubscriptionProvider,
+    model: string,
+    prompt: string,
+    signal?: AbortSignal,
+    onStart?: () => void
+  ): Promise<string>;
   status(provider: SubscriptionProvider): Promise<SubscriptionStatus>;
 }
 

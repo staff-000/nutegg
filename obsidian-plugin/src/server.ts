@@ -184,7 +184,8 @@ export class NutEggServer {
           return trackAIRequest(
             request.prompt,
             () => this.plugin.chatgpt!.chat(settings.aiModel, request.prompt, signal),
-            request.debugScope
+            request.debugScope,
+            { signal }
           );
         },
       };

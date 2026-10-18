@@ -48,7 +48,19 @@ class MetricsComponent {
             last: info.lastPromptWords?.toLocaleString(),
           });
 
-    const lines = [statsText];
+    const counts = value => ({
+      running: value.activeCalls,
+      waiting: value.waitingCalls,
+      completed: value.completedCalls,
+      failed: value.failedCalls,
+      cancelled: value.cancelledCalls,
+    });
+    const lines = [
+      info?.panel?.available ? t('debugPanelAIStats', counts(info.panel)) : t('debugPanelAIUnavailable'),
+      ...(info?.panel?.reset ? [t('debugAICountersReset')] : []),
+      statsText,
+      ...(info?.diagnosticsVersion === 2 ? [t('debugTabAIStats', counts(info))] : []),
+    ];
 
     if (settings) {
       // Connection details

@@ -54,7 +54,7 @@ describe("Chrome Extension i18n", () => {
       "hatchEgg",
       "hatchEggSelectEgg",
       "chipVerdictSummary", "toggleVerdictSummaryTooltip",
-      "activityRunningCount", "activityUnreadCount", "activityUnread", "activityRunning", "activityUntitled",
+      "activityWaitingCount", "activityWaiting", "debugPanelAIStats", "debugTabAIStats", "debugPanelAIUnavailable", "debugAICountersReset", "activityRunningCount", "activityUnreadCount", "activityUnread", "activityRunning", "activityUntitled",
       "collectNutOnly",
       "collectNut",
       "nutCollected",

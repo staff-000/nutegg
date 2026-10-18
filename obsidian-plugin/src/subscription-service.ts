@@ -176,7 +176,13 @@ export class SubscriptionService implements SubscriptionExecutor {
     };
   }
 
-  async chat(provider: SubscriptionProvider, model: string, prompt: string, signal?: AbortSignal): Promise<string> {
+  async chat(
+    provider: SubscriptionProvider,
+    model: string,
+    prompt: string,
+    signal?: AbortSignal,
+    onStart?: () => void
+  ): Promise<string> {
     this.requireEnabled();
     if (this.closed) throw new AIError('server_error', 'Obsidian subscription service stopped.');
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(model))
@@ -209,6 +215,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       });
       this.requireEnabled();
       if (controller.signal.aborted) throw new Error('Subscription request cancelled.');
+      onStart?.();
       const options = { command: this.paths[provider], signal: controller.signal };
       const result =
         provider === 'gemini'

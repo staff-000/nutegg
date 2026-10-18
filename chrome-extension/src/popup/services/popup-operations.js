@@ -8,22 +8,44 @@ class PopupOperations {
     this.catalogTask = null;
     this.extractionTasks = new Map();
     this.debugPending = new Set();
+    this.debugEpochs = new Map();
+    this.debugCountersReset = false;
+    this.debugVersion = 0;
   }
   async refreshDebugInfo() {
     const tab = this.store.getTab(this.store.activeTabId);
     if (!this.store.settings?.debugInfo || !tab) return;
     const { tabId, debugScope } = tab;
     const mode = this.store.settings.isChromeMode() ? 'chrome' : 'obsidian';
-    const key = `${mode}:${debugScope}`;
+    const key = `${mode}:${this.store.debugSessionId}`;
     if (this.debugPending.has(key)) return;
     this.debugPending.add(key);
+    const version = ++this.debugVersion;
     try {
       const value = await this.service.sendMessage({ action: 'get-debug-info', mode, debugScope });
-      if (!this.store.settings.debugInfo || mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian'))
+      if (
+        version !== this.debugVersion ||
+        !this.store.settings.debugInfo ||
+        mode !== (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')
+      )
         return;
+      if (value?.panel?.sessionId && value.panel.sessionId !== this.store.debugSessionId) return;
+      for (const [owner, epoch] of Object.entries(value?.panel?.epochs || {})) {
+        if (!epoch) continue;
+        if (this.debugEpochs.has(owner) && this.debugEpochs.get(owner) !== epoch) this.debugCountersReset = true;
+        this.debugEpochs.set(owner, epoch);
+      }
+      if (value?.panel) value.panel.reset = this.debugCountersReset;
+      // After leaving connected mode, earlier Obsidian-owned counts are unknown.
+      // Do not silently present the local-only subtotal as the entire session.
+      if (value?.panel && mode === 'chrome' && this.debugEpochs.has('obsidian')) value.panel.available = false;
       this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value });
     } catch {
-      if (this.store.settings.debugInfo && mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian'))
+      if (
+        version === this.debugVersion &&
+        this.store.settings.debugInfo &&
+        mode === (this.store.settings.isChromeMode() ? 'chrome' : 'obsidian')
+      )
         this.store.dispatch({ type: 'debugInfo', tabId, debugScope, value: { unavailable: true, mode } });
     } finally {
       this.debugPending.delete(key);
@@ -170,7 +192,15 @@ class PopupOperations {
     const unsubscribe = this.store.subscribe(check);
     check();
     try {
-      return await this.service.sendAnalyzeViaPort(payload, onProgress, { signal: controller.signal });
+      return await this.service.sendAnalyzeViaPort(
+        payload,
+        event => {
+          if (event?.section === 'executionQueue') {
+            this.store.commitOperation(ctx.token, { type: 'analysisQueueState', state: event.data?.state });
+          } else onProgress?.(event);
+        },
+        { signal: controller.signal }
+      );
     } finally {
       unsubscribe();
     }

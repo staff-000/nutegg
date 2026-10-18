@@ -184,7 +184,7 @@ function acquireObsidianSlot(signal) {
     obsidianWaiters.push(waiter);
   });
 }
-async function runObsidianRequest(task, signal, timeoutMs = 10 * 60 * 1000) {
+async function runObsidianRequest(task, signal, timeoutMs = 10 * 60 * 1000, onState) {
   const controller = new AbortController();
   const abort = () => controller.abort(signal.reason);
   signal?.addEventListener('abort', abort, { once: true });
@@ -197,10 +197,12 @@ async function runObsidianRequest(task, signal, timeoutMs = 10 * 60 * 1000) {
   );
   let release;
   try {
+    if (!controller.signal.aborted) onState?.('waiting');
     release = await acquireObsidianSlot(controller.signal);
     clearTimeout(timer);
     timer = setTimeout(() => controller.abort(new DOMException('AI request timed out', 'TimeoutError')), timeoutMs);
     controller.signal.throwIfAborted();
+    onState?.('running');
     const result = await task(controller);
     controller.signal.throwIfAborted();
     return result;
@@ -503,7 +505,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return false;
     }
     if (message.mode === 'chrome') {
-      sendResponse({ ...NutEggAI.getAIDebugInfo(scope), mode: 'chrome' });
+      sendResponse({ ...NutEggAI.combineAIDebugInfo(NutEggAI.getAIDebugInfo(scope)), mode: 'chrome' });
       return false;
     }
     (async () => {
@@ -514,7 +516,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('Debug info unavailable');
-      return { ...(await response.json()), mode: 'obsidian' };
+      return {
+        ...NutEggAI.combineAIDebugInfo(NutEggAI.getAIDebugInfo(scope), await response.json()),
+        mode: 'obsidian',
+      };
     })()
       .then(sendResponse)
       .catch(() => sendResponse({ unavailable: true, mode: 'obsidian' }));
@@ -762,7 +767,9 @@ async function handleAnalyze(payload, onProgress, signal, requestController) {
       try {
         return await runObsidianRequest(
           controller => handleAnalyze(payload, onProgress, controller.signal, controller),
-          signal
+          signal,
+          undefined,
+          state => onProgress?.({ type: 'partial', section: 'executionQueue', data: { state } })
         );
       } catch (error) {
         return {
@@ -868,6 +875,7 @@ async function handleAnalyze(payload, onProgress, signal, requestController) {
     }
   }
 
+  onProgress?.({ type: 'partial', section: 'executionQueue', data: { state: 'running' } });
   return handleAnalyzeChrome(payload, onProgress, cacheGeneration, signal);
 }
 

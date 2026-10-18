@@ -73,9 +73,14 @@ test('twenty connected analyses reserve HTTP capacity and preserve every result'
     await new Promise(resolve => pending.push(resolve));
     return { ok: true, json: async () => { active--; return { title }; } };
   } });
-  const jobs = Array.from({ length: 20 }, (_, n) => app.send('analyze', { payload: { title: String(n) } }));
+  const states = [], started = [];
+  const jobs = Array.from({ length: 20 }, (_, n) => app.context.handleAnalyze({ title: String(n) }, event => {
+    if (event.section === 'executionQueue') { states[n] = event.data.state; if (event.data.state === 'running') started.push(n); }
+  }));
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(active, 3);
+  assert.equal(states.filter(value => value === 'running').length, 3);
+  assert.equal(states.filter(value => value === 'waiting').length, 17);
   assert.equal((await app.send('check-server')).online, true);
   let completed = 0;
   while (completed < 20) {
@@ -84,6 +89,7 @@ test('twenty connected analyses reserve HTTP capacity and preserve every result'
     await new Promise(resolve => setImmediate(resolve));
   }
   assert.equal(peak, 3);
+  assert.deepEqual(started, Array.from({ length: 20 }, (_, n) => n));
   assert.deepEqual((await Promise.all(jobs)).map(r => r.title), Array.from({ length: 20 }, (_, n) => String(n)));
   assert.equal(active, 0);
 });
@@ -186,7 +192,7 @@ test('disconnecting an analysis port aborts its stream', async () => {
   disconnectListener();
   await job;
   assert.equal(requestSignal.aborted, true);
-  assert.deepEqual(posted, []);
+  assert.deepEqual(posted.map(event => event.data?.state), ['waiting', 'running']);
 });
 
 test('a cancelled Chrome-only analysis cannot cache a provider result that arrives late', async () => {
