@@ -64,16 +64,17 @@ class AnalysisActivityComponent {
     const waiting = entries
       .filter(entry => entry.waiting)
       .sort((a, b) => a.startedAt - b.startedAt || a.revision - b.revision);
-    this.container?.classList.remove('hidden');
-    if (!entries.length) this.toggle(false);
-    if (this.button)
-      this.button.textContent = [
-        `⏳ ${t('activityRunningCount', { count: running.length })}`,
-        `⌛ ${t('activityWaitingCount', { count: waiting.length })}`,
-        `✅ ${t('activityUnreadCount', { count: unread.length })}`,
-      ]
-        .filter(Boolean)
-        .join(' · ');
+    const parts = [];
+    if (running.length) parts.push(`⏳ ${t('activityRunningCount', { count: running.length })}`);
+    if (waiting.length) parts.push(`⌛ ${t('activityWaitingCount', { count: waiting.length })}`);
+    if (unread.length) parts.push(`✅ ${t('activityUnreadCount', { count: unread.length })}`);
+    if (parts.length) {
+      this.container?.classList.remove('hidden');
+    } else {
+      this.container?.classList.add('hidden');
+      this.toggle(false);
+    }
+    if (this.button) this.button.textContent = parts.join(' · ');
     if (!this.list) return;
     this.list.replaceChildren();
     for (const [items, label] of [
