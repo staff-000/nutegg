@@ -300,6 +300,9 @@ describe("Modular UI Components", () => {
     assert.equal(header.serverStatus.className, 'status-dot checking');
     settings.environmentChecked = true;
     settings.setConnectionMode('obsidian', false);
+    settings.setServerStatus({ online: true, checking: true });
+    header.render({}, settings);
+    assert.equal(header.serverStatus.className, 'status-dot checking');
     settings.setServerStatus({ online: true, error: 'Sync failed' });
     header.render({}, settings);
     assert.equal(header.serverStatus.className, 'status-dot offline');

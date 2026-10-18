@@ -147,16 +147,76 @@ async function fetchObsidianAiConfig() {
 
 async function syncAiConfig() {
   if ((await getConnectionMode()) !== 'obsidian') return { success: true };
-  NutEggExecution.configurationChanged();
   return fetchObsidianAiConfig();
 }
 
 const standaloneControllers = new Set();
+// HTTP/1 analysis streams must leave capacity for health, settings and cancellation.
+const obsidianRequests = new Set();
+const obsidianWaiters = [];
+let obsidianActiveRequests = 0;
+function cancelObsidianRequests() {
+  for (const controller of obsidianRequests) controller.abort();
+}
+function acquireObsidianSlot(signal) {
+  return new Promise((resolve, reject) => {
+    const waiter = {
+      start() {
+        signal.removeEventListener('abort', abort);
+        obsidianActiveRequests++;
+        let released = false;
+        resolve(() => {
+          if (released) return;
+          released = true;
+          obsidianActiveRequests--;
+          obsidianWaiters.shift()?.start();
+        });
+      },
+    };
+    const abort = () => {
+      const index = obsidianWaiters.indexOf(waiter);
+      if (index >= 0) obsidianWaiters.splice(index, 1);
+      reject(signal.reason || new DOMException('Request cancelled', 'AbortError'));
+    };
+    if (signal.aborted) return abort();
+    if (obsidianActiveRequests < 3) return waiter.start();
+    signal.addEventListener('abort', abort, { once: true });
+    obsidianWaiters.push(waiter);
+  });
+}
+async function runObsidianRequest(task, signal, timeoutMs = 10 * 60 * 1000) {
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason);
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  obsidianRequests.add(controller);
+  // Queued jobs do not consume their execution budget, but cannot wait forever.
+  let timer = setTimeout(
+    () => controller.abort(new DOMException('Analysis queue timed out', 'TimeoutError')),
+    30 * 60 * 1000
+  );
+  let release;
+  try {
+    release = await acquireObsidianSlot(controller.signal);
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(new DOMException('AI request timed out', 'TimeoutError')), timeoutMs);
+    controller.signal.throwIfAborted();
+    const result = await task(controller);
+    controller.signal.throwIfAborted();
+    return result;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+    obsidianRequests.delete(controller);
+    release?.();
+  }
+}
 let configurationUpdate = Promise.resolve();
 chrome.storage.onChanged?.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.serverPort) serverPort = changes.serverPort.newValue || DEFAULT_PORT;
   if (changes.connectionMode || changes.serverPort) {
+    cancelObsidianRequests();
     NutEggExecution.close();
     if (changes.connectionMode?.newValue === 'obsidian') {
       void NutEggExecution.ensure().catch(() => {});
@@ -174,6 +234,7 @@ chrome.storage.onChanged?.addListener((changes, area) => {
     'outputLanguage',
   ];
   if (configKeys.some(key => key in changes)) {
+    cancelObsidianRequests();
     for (const controller of standaloneControllers) controller.abort();
     const revision = changes.chromeApiRevision?.newValue || crypto.randomUUID();
     if (!changes.chromeApiRevision) {
@@ -192,6 +253,9 @@ function subscriptionModeError() {
 }
 
 async function serverFetch(url, options = {}) {
+  const { executionController, ...fetchOptions } = options;
+  options = fetchOptions;
+  options.signal?.throwIfAborted();
   const parsed = new URL(url);
   if (parsed.hostname !== '127.0.0.1') throw new Error('Invalid Obsidian endpoint');
   if (parsed.pathname === '/health') return fetch(url, options);
@@ -221,14 +285,16 @@ async function serverFetch(url, options = {}) {
     const payload = JSON.parse(options.body || '{}');
     payload.execution = await NutEggExecution.register(await loadChromeAiSettings());
     executionJobId = payload.execution.jobId;
+    NutEggExecution.bindTransport?.(executionJobId, executionController);
     options = { ...options, body: JSON.stringify(payload) };
   }
   let response;
   try {
+    options.signal?.throwIfAborted();
     response = await fetch(url, { ...options, headers });
-    if (!response.ok && executionJobId) NutEggExecution.cancel?.(executionJobId);
+    if (!response.ok && executionJobId) NutEggExecution.cancel?.(executionJobId, true);
   } catch (error) {
-    if (executionJobId) NutEggExecution.cancel?.(executionJobId);
+    if (executionJobId) NutEggExecution.cancel?.(executionJobId, true);
     throw error;
   }
   if (response.status === 401 && parsed.pathname !== '/health') {
@@ -626,8 +692,10 @@ chrome.runtime.onConnect.addListener(port => {
   }
 
   let isConnected = true;
+  let controller;
   port.onDisconnect.addListener(() => {
     isConnected = false;
+    controller?.abort();
   });
 
   port.onMessage.addListener(async message => {
@@ -636,6 +704,8 @@ chrome.runtime.onConnect.addListener(port => {
       return;
     }
     if (message.action === 'analyze') {
+      if (controller || !isConnected) return;
+      controller = new AbortController();
       try {
         const onProgress = event => {
           if (isConnected) {
@@ -644,7 +714,7 @@ chrome.runtime.onConnect.addListener(port => {
             } catch {}
           }
         };
-        const result = await handleAnalyze(message.payload, onProgress);
+        const result = await handleAnalyze(message.payload, onProgress, controller.signal);
         if (isConnected) {
           port.postMessage(result);
         }
@@ -685,9 +755,25 @@ function isKnowledgeSelectedAndGenerated(payload, result) {
   return hasKnowledgeSelected(payload) && hasKnowledgeGenerated(result);
 }
 
-async function handleAnalyze(payload, onProgress) {
+async function handleAnalyze(payload, onProgress, signal, requestController) {
   const cacheGeneration = chromeCacheGeneration;
   if ((await getConnectionMode()) === 'obsidian') {
+    if (!requestController) {
+      try {
+        return await runObsidianRequest(
+          controller => handleAnalyze(payload, onProgress, controller.signal, controller),
+          signal
+        );
+      } catch (error) {
+        return {
+          error: error.message || 'Analysis cancelled',
+          errorCode:
+            error.name === 'TimeoutError' ? 'timeout' : error.name === 'AbortError' ? 'cancelled' : 'network_error',
+          mode: 'obsidian',
+        };
+      }
+    }
+    signal.throwIfAborted();
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
     if (server.error) return { ...server, mode: 'obsidian' };
@@ -700,6 +786,8 @@ async function handleAnalyze(payload, onProgress) {
           Accept: 'application/x-ndjson, application/json',
         },
         body: JSON.stringify({ ...payload, stream: true }),
+        signal,
+        executionController: requestController,
       });
 
       if (!response.ok) {
@@ -718,37 +806,47 @@ async function handleAnalyze(payload, onProgress) {
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let finalResult = null;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const event = JSON.parse(trimmed);
+                if (event.type === 'partial') {
+                  onProgress?.(event);
+                } else if (event.type === 'error') {
+                  finalResult = { error: event.error, errorCode: event.errorCode || 'server_error' };
+                } else if (event.type === 'complete') {
+                  finalResult = event.result;
+                }
+              } catch {}
+            }
+          }
+          if (buffer.trim()) {
             try {
-              const event = JSON.parse(trimmed);
-              if (event.type === 'partial') {
-                onProgress?.(event);
-              } else if (event.type === 'complete') {
-                finalResult = event.result;
-              }
+              const event = JSON.parse(buffer.trim());
+              if (event.type === 'complete') finalResult = event.result;
+              else if (event.type === 'error')
+                finalResult = { error: event.error, errorCode: event.errorCode || 'server_error' };
             } catch {}
           }
+          if (!finalResult) throw new Error('AI execution interrupted. Retry explicitly.');
+          signal.throwIfAborted();
+          const result = { ...finalResult, mode: 'obsidian' };
+          if (isKnowledgeSelectedAndGenerated(payload, result)) {
+            await recordChromeEggMetric();
+          }
+          return result;
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
         }
-        if (buffer.trim()) {
-          try {
-            const event = JSON.parse(buffer.trim());
-            if (event.type === 'complete') finalResult = event.result;
-          } catch {}
-        }
-        if (!finalResult) throw new Error('AI execution interrupted. Retry explicitly.');
-        const result = { ...finalResult, mode: 'obsidian' };
-        if (isKnowledgeSelectedAndGenerated(payload, result)) {
-          await recordChromeEggMetric();
-        }
-        return result;
       }
 
       const data = await response.json();
@@ -759,17 +857,21 @@ async function handleAnalyze(payload, onProgress) {
       return result;
     } catch (err) {
       return {
-        error: `Failed to connect to Obsidian: ${err.message}`,
-        errorCode: 'network_error',
+        error: signal.aborted ? signal.reason?.message || 'Analysis cancelled' : err.message,
+        errorCode: signal.aborted
+          ? signal.reason?.name === 'TimeoutError'
+            ? 'timeout'
+            : 'cancelled'
+          : 'network_error',
         mode: 'obsidian',
       };
     }
   }
 
-  return handleAnalyzeChrome(payload, onProgress, cacheGeneration);
+  return handleAnalyzeChrome(payload, onProgress, cacheGeneration, signal);
 }
 
-async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chromeCacheGeneration) {
+async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chromeCacheGeneration, signal) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
@@ -786,9 +888,13 @@ async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chrome
   }
 
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
   standaloneControllers.add(controller);
   try {
     const result = await analyzeContentStandalone(payload, aiSettings, onProgress, controller.signal);
+    controller.signal.throwIfAborted();
     const finalResult = {
       ...result,
       execution: {
@@ -836,6 +942,7 @@ async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chrome
       mode: 'chrome',
     };
   } finally {
+    signal?.removeEventListener('abort', abort);
     standaloneControllers.delete(controller);
   }
 }
@@ -1149,13 +1256,16 @@ async function getChromeCacheInfo() {
   });
 }
 
-async function handleConfirm(payload) {
+async function handleConfirm(payload, controller) {
   if ((await getConnectionMode()) !== 'obsidian') return obsidianModeRequiredError();
+  if (!controller) return runObsidianRequest(controller => handleConfirm(payload, controller));
   const serverUrl = await getServerUrl();
   const response = await serverFetch(`${serverUrl}/confirm`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal: controller.signal,
+    executionController: controller,
   });
 
   const data = await response.json().catch(() => ({}));
@@ -1187,10 +1297,10 @@ async function fetchHistory(url) {
   }
 }
 
-async function handleCreateEgg({ name, description }) {
+async function handleCreateEgg({ name, description }, controller) {
   if ((await getConnectionMode()) !== 'obsidian') return obsidianModeRequiredError();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 190000);
+  if (!controller)
+    return runObsidianRequest(controller => handleCreateEgg({ name, description }, controller), undefined, 190000);
   try {
     const serverUrl = await getServerUrl();
     const response = await serverFetch(`${serverUrl}/create-egg`, {
@@ -1198,8 +1308,8 @@ async function handleCreateEgg({ name, description }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, description }),
       signal: controller.signal,
+      executionController: controller,
     });
-    clearTimeout(timeout);
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -1208,7 +1318,6 @@ async function handleCreateEgg({ name, description }) {
 
     return data;
   } catch (err) {
-    clearTimeout(timeout);
     return { error: err.name === 'AbortError' ? 'Request timed out' : err.message || 'Failed to connect to Obsidian' };
   }
 }
@@ -1230,8 +1339,25 @@ async function fetchEggs() {
   }
 }
 
-async function handleAsk(payload) {
+async function handleAsk(payload, controller) {
   if ((await getConnectionMode()) === 'obsidian') {
+    if (!controller) {
+      try {
+        return await runObsidianRequest(controller => handleAsk(payload, controller));
+      } catch (error) {
+        return {
+          error: error.message,
+          errorCode:
+            error.name === 'TimeoutError'
+              ? 'timeout'
+              : error.name === 'AbortError'
+                ? 'cancelled'
+                : 'execution_interrupted',
+          mode: 'obsidian',
+          answers: [],
+        };
+      }
+    }
     const server = await checkServer();
     if (!server.online) return obsidianOfflineError();
     if (server.error) return { ...server, mode: 'obsidian', answers: [] };
@@ -1241,6 +1367,8 @@ async function handleAsk(payload) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
+        executionController: controller,
       });
 
       const data = await response.json();
@@ -1554,6 +1682,11 @@ async function checkServer() {
     return { online: response.ok, port: data.port, version: data.version, state: NutEggExecution.state };
   } catch {
     clearTimeout(timeout);
+    // A live authenticated WebSocket is evidence of a connected vault. A delayed
+    // HTTP health probe must not turn that into a request to pair the vault again.
+    if (NutEggExecution.session) {
+      return { online: true, degraded: true, state: NutEggExecution.state };
+    }
     return { online: false };
   }
 }

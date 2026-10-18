@@ -70,3 +70,19 @@ describe("AnalysisService", () => {
   });
 
 });
+
+it('aborting a request disconnects only its port and ignores late messages', async () => {
+  let onMessage, onDisconnect, disconnected = 0;
+  const controller = new AbortController();
+  const service = new AnalysisService({ chrome: { runtime: { connect: () => ({
+    postMessage() {}, disconnect() { disconnected++; onDisconnect?.(); },
+    onMessage: { addListener(fn) { onMessage = fn; } },
+    onDisconnect: { addListener(fn) { onDisconnect = fn; } },
+  }) } } });
+  const job = service.sendAnalyzeViaPort({}, null, { signal: controller.signal });
+  const rejected = assert.rejects(job, error => error.code === 'cancelled');
+  controller.abort();
+  await rejected;
+  onMessage({ type: 'complete', result: { title: 'Obsolete' } });
+  assert.equal(disconnected, 1);
+});

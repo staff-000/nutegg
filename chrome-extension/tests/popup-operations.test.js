@@ -430,3 +430,23 @@ test('passive collection failures with discussion off leave body analysis usable
   assert.equal(f.store.getTab(1).errors.discussion, undefined);
   assert.equal(f.store.getTab(1).operations.discussion.running, false);
 });
+
+test('navigation cancels its analysis transport while switching tabs preserves other jobs', async () => {
+  const { store, operations, service } = fixture();
+  const signals = [];
+  service.sendAnalyzeViaPort = (_payload, _progress, { signal }) => {
+    signals.push(signal);
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('Cancelled')), { once: true }));
+  };
+  const first = operations.analyze(1, {});
+  store.activateTab(2);
+  const second = operations.analyze(2, {});
+  assert.equal(signals[0].aborted, false);
+  store.invalidateTab(1, 'https://replacement.test');
+  assert.equal(signals[0].aborted, true);
+  assert.equal(signals[1].aborted, false);
+  store.dispatch({ type: 'executionChanged' });
+  assert.equal(signals[1].aborted, true);
+  await Promise.all([first, second]);
+  assert.equal(store.getTab(1).errors.analysis, undefined);
+});

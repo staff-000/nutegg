@@ -44,6 +44,35 @@ returns, the selected Obsidian mode resumes automatically. Existing results reta
 the backend that produced them. Saving to the vault and egg comparison require
 Obsidian; an explicit switch to Chrome-only permits local reading and questions.
 
+Connection checks read the current execution state without announcing configuration
+changes or cancelling jobs. If an HTTP probe fails while the authenticated execution
+WebSocket remains connected, Chrome keeps the vault connected and shows a neutral
+checking state until the next successful check. It does not request vault setup or
+start another provider's execution.
+
+Connected long-running requests share a three-slot FIFO queue per extension worker,
+leaving HTTP capacity for health and settings. Failures, timeouts, panel closure,
+navigation and execution changes close affected transports and release their slots.
+Ordinary tab switching keeps each tab's analysis running. Server errors after a
+partial NDJSON response end with an error event; they never rewrite HTTP headers.
+Execution cancellation closes its HTTP response even if a provider does not settle.
+Successful completion allows the remaining response bytes to arrive.
+
+### Verification (2026-10-18)
+
+Targeted tests cover 20 queued successful analyses, 20 failing streamed responses
+through a real six-socket HTTP pool, retained HTTP error bodies, stalled response
+timeouts, cancellation on navigation/panel closure/execution changes, and normal
+completion racing its WebSocket notification. They also check that routine health
+checks never announce a configuration change, degraded probes show neutral checking,
+and tab switching preserves unrelated work. Tests use fake providers and vaults;
+they do not run inference or write to the live vault.
+
+263 tests passed across the individual connection-mode, execution-session,
+analysis-service, popup-operations, startup, ui-components, popup-renderer, tab-state,
+server, execution-wire and execution-coordinator files. Both extension and plugin
+builds passed. The running live plugin was not replaced during this verification.
+
 ## Consistent metrics across modes
 
 The Chrome side panel uses the same combined totals in both modes:

@@ -32,6 +32,7 @@ class SettingsState {
 
     // Obsidian server status
     this.serverOnline = false;
+    this.serverCheckPending = false;
     this.obsidianPluginVersion = null;
     this.obsidianAiConfigured = false;
 
@@ -224,8 +225,16 @@ class SettingsState {
     return true;
   }
 
-  setServerStatus({ online = false, version = null, aiConfigured = false, error = null, warning = null } = {}) {
+  setServerStatus({
+    online = false,
+    version = null,
+    aiConfigured = false,
+    error = null,
+    warning = null,
+    checking = false,
+  } = {}) {
     this.serverOnline = !!online;
+    this.serverCheckPending = checking;
     this.obsidianPluginVersion = version;
     this.obsidianAiConfigured = !!aiConfigured;
     this.serverError = error;

@@ -92,3 +92,36 @@ test('configurationChanged connects when disconnected and sends updated configur
   assert.equal(changedMsg?.configuration?.outputLanguage, 'Japanese');
 });
 
+
+for (const event of ['cancel-job', 'job-finished', 'revision', 'disconnect']) {
+  test(`HTTP transport cancellation follows execution ${event}`, async () => {
+    let socket, cancelledQueues = 0;
+    const stored = {};
+    const state = { instanceId: 'vault', protocolVersion: 3, revision: 1, mode: 'subscription', transition: 'ready' };
+    const context = vm.createContext({
+      crypto: require('node:crypto').webcrypto, AbortController, structuredClone,
+      getConnectionMode: async () => 'obsidian', getServerUrl: async () => 'http://127.0.0.1:27123',
+      connectObsidian: async () => ({ instanceId: 'vault', credential: 'test' }),
+      loadChromeAiSettings: async () => ({}), cancelObsidianRequests: () => cancelledQueues++,
+      NutEggAI: { EXECUTION_PROTOCOL: 3, publicExecutionSettings: value => value, reduceSharedExecutionState: (_, value) => value },
+      chrome: { storage: { local: { get: async () => stored, set: async value => Object.assign(stored, value) } } },
+      setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+      WebSocket: class { constructor() { socket = this; this.readyState = 1; } send() {} close() {} },
+    });
+    vm.runInContext(fs.readFileSync(require.resolve('../src/background/execution-session.js'), 'utf8'), context);
+    const api = vm.runInContext('NutEggExecution', context);
+    const opening = api.ensure();
+    await new Promise(resolve => setImmediate(resolve));
+    await socket.onmessage({ data: JSON.stringify({ type: 'connected', session: { sessionId: 's', clientId: 'c' }, state }) });
+    await opening;
+    const job = await api.register({});
+    const transport = new AbortController();
+    api.bindTransport(job.jobId, transport);
+    if (event === 'revision') await socket.onmessage({ data: JSON.stringify({ type: 'state', state: { ...state, revision: 2 } }) });
+    else if (event === 'disconnect') socket.onclose();
+    else await socket.onmessage({ data: JSON.stringify({ type: event, jobId: job.jobId }) });
+    assert.equal(transport.signal.aborted, event !== 'job-finished', 'normal completion must allow final HTTP bytes to arrive');
+    if (['revision', 'disconnect'].includes(event)) assert.equal(cancelledQueues, 1);
+    api.close();
+  });
+}

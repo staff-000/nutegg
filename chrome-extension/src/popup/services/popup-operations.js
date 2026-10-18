@@ -162,6 +162,19 @@ class PopupOperations {
     this.catalogTask = task;
     return task;
   }
+  async sendAnalysis(ctx, payload, onProgress) {
+    const controller = new AbortController();
+    const check = () => {
+      if (!this.store.isOperationCurrent(ctx.token)) controller.abort();
+    };
+    const unsubscribe = this.store.subscribe(check);
+    check();
+    try {
+      return await this.service.sendAnalyzeViaPort(payload, onProgress, { signal: controller.signal });
+    } finally {
+      unsubscribe();
+    }
+  }
   async analyze(tabId, options) {
     const ctx = this.store.beginOperation(tabId, 'analysis', options, ['sourceVersion']);
     if (!ctx) return { busy: true };
@@ -183,7 +196,7 @@ class PopupOperations {
         outputLanguage: inputs.outputLanguage,
         ...(inputs.eggs ? { eggs: inputs.eggs } : {}),
       };
-      const response = await this.service.sendAnalyzeViaPort(payload, event => {
+      const response = await this.sendAnalysis(ctx, payload, event => {
         if (!this.store.isOperationCurrent(token)) return;
         this.store.commitOperation(token, { type: 'analysisPartial', partial: event });
       });
@@ -311,7 +324,7 @@ class PopupOperations {
       outputLanguage: inputs.outputLanguage,
       nutId: source.nutId || analysis.nutId || tab.currentNutId,
     };
-    const response = await this.service.sendAnalyzeViaPort(payload);
+    const response = await this.sendAnalysis(ctx, payload);
     if (!this.store.isOperationCurrent(token)) return { stale: true };
     if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
     const cache = new Map(cached.map(r => [r.egg, r]));

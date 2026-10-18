@@ -1102,3 +1102,104 @@ for (const order of [[0, 1], [1, 0]]) {
     }
   });
 }
+
+describe('streaming analysis transport cleanup', () => {
+  for (const failure of ['provider', 'cancelled']) {
+    it(`ends a partially written stream on ${failure} without rewriting headers`, async () => {
+      const s = makeServer({ aiProcessor: { analyzeContent: async (_capture: any, progress: any) => {
+        progress({ type: 'partial', section: 'mindmap', data: {} });
+        throw new Error(failure);
+      } } });
+      let headersSent = false, ended = false, writes = 0;
+      const chunks: string[] = [];
+      const res: any = {
+        get headersSent() { return headersSent; },
+        get writableEnded() { return ended; },
+        writeHead(status: number) {
+          if (headersSent) throw Object.assign(new Error('Headers already sent'), { code: 'ERR_HTTP_HEADERS_SENT' });
+          assert.equal(status, 200); writes++;
+        },
+        write(chunk: string) { headersSent = true; chunks.push(chunk); },
+        end(chunk?: string) { ended = true; if (chunk) chunks.push(chunk); },
+      };
+      await s.handleAnalyze(makeReq(JSON.stringify({ url: 'https://example.com/stream', title: 'Stream', content: 'Body', stream: true, force: true })), res);
+      assert.equal(writes, 1);
+      assert.equal(ended, true);
+      const events = chunks.join('').trim().split('\n').map(value => JSON.parse(value));
+      assert.equal(events.at(-1).type, 'error');
+      assert.equal(events.some(event => event.type === 'complete'), false);
+    });
+  }
+
+  it('provider errors preserve their code after streaming has started', async () => {
+    const { AIError } = require('../src/ai-client');
+    const s = makeServer({ aiProcessor: { analyzeContent: async (_capture: any, progress: any) => {
+      progress({ type: 'partial', section: 'mindmap', data: {} });
+      throw new AIError('quota_exceeded', 'Quota exhausted');
+    } } });
+    const chunks: string[] = [];
+    const res: any = { headersSent: false, writeHead() {}, write(chunk: string) { this.headersSent = true; chunks.push(chunk); }, end(chunk?: string) { if (chunk) chunks.push(chunk); } };
+    await s.handleAnalyze(makeReq(JSON.stringify({ url: 'https://example.com/stream', title: 'Stream', content: 'Body', stream: true, force: true })), res);
+    const last = JSON.parse(chunks.join('').trim().split('\n').at(-1)!);
+    assert.equal(last.errorCode, 'quota_exceeded');
+    assert.equal(last.error, 'Quota exhausted');
+  });
+
+  it('execution cancellation closes the HTTP response even if the provider never settles', async () => {
+    const { EventEmitter } = require('node:events');
+    const s = makeServer();
+    const job = { controller: new AbortController(), metadata: {} };
+    s.plugin.getNativeSettings = () => ({});
+    s.plugin.connectionAccess = { credentialId: () => 'credential' };
+    s.requireChatGPTReady = () => {};
+    s.execution.admit = () => job;
+    s.execution.cancelJobs = () => {};
+    s.processor = () => {};
+    s.readBody = async () => JSON.stringify({ execution: {} });
+    const res = new EventEmitter();
+    res.writableEnded = false;
+    res.writeHead = () => {};
+    res.getHeader = () => '';
+    res.end = () => { res.writableEnded = true; };
+    res.destroy = () => { res.destroyed = true; res.emit('close'); };
+    await s.prepareJob({ url: '/analyze', headers: { authorization: 'test' } }, res, 'test');
+    job.controller.abort();
+    assert.equal(res.destroyed, true);
+  });
+});
+
+it('twenty failed streaming analyses release a six-socket HTTP pool for health checks', { timeout: 5000 }, async t => {
+  const http = require('node:http');
+  const s = makeServer({ aiProcessor: { analyzeContent: async (_capture: any, progress: any) => {
+    progress({ type: 'partial', section: 'mindmap', data: {} });
+    throw new Error('Simulated provider failure');
+  } } });
+  const server = http.createServer((req: any, res: any) => {
+    if (req.url === '/health') { res.end('{"status":"ok"}'); return; }
+    void s.handleAnalyze(req, res).catch(() => res.destroy());
+  });
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 6 });
+  t.after(() => { agent.destroy(); server.closeAllConnections(); server.close(); });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const port = server.address().port;
+  const request = (path: string, body?: string) => new Promise<string>((resolve, reject) => {
+    const req = http.request({ hostname: '127.0.0.1', port, path, agent, method: body ? 'POST' : 'GET' }, (res: any) => {
+      let received = '';
+      res.setEncoding('utf8'); res.on('data', (value: string) => { received += value; });
+      res.on('end', () => resolve(received)); res.on('error', reject);
+    });
+    req.on('error', reject); req.end(body);
+  });
+  const analyses = Array.from({ length: 20 }, (_, n) => request('/analyze', JSON.stringify({
+    url: `https://example.com/${n}`, title: `Page ${n}`, content: 'Body', force: true, stream: true,
+  })));
+  const health = request('/health');
+  for (const result of await Promise.all(analyses)) {
+    const events = result.trim().split('\n').map(value => JSON.parse(value));
+    assert.equal(events.at(-1).type, 'error');
+  }
+  assert.equal(JSON.parse(await health).status, 'ok');
+});

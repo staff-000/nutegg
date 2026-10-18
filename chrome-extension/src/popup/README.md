@@ -74,7 +74,12 @@ switch, selection, outside click or Escape.
 Running and unread counts derive from the same records. Only displaying the latest
 results in the active, visible panel marks them read. These counts cover the current
 Chrome window and reset when the panel closes. There is no browser-wide job
-persistence, toolbar badge, backend cancellation or additional Chrome permission.
+persistence, toolbar badge or additional Chrome permission. Navigation and panel
+closure cancel their analysis transports; switching tabs keeps analyses running.
+Connected analysis, follow-up, egg creation and Hatch requests share a FIFO queue
+with at most three active HTTP requests per extension worker. Control requests
+remain outside that queue. Queued work expires after 30 minutes; analysis execution
+expires after 10 minutes (egg creation retains its 190-second limit).
 
 ## Save receipts and diagnostics
 

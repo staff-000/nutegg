@@ -13,60 +13,49 @@ class AnalysisService {
    * The open port prevents Chrome from terminating the service worker
    * during extended LLM calls (>30s).
    */
-  sendAnalyzeViaPort(payload, onProgress) {
+  sendAnalyzeViaPort(payload, onProgress, { signal } = {}) {
     const api = this.chromeApi;
-    if (!api || !api.runtime || !api.runtime.connect) {
-      return Promise.reject(new Error('Chrome runtime.connect unavailable'));
-    }
-
+    if (!api?.runtime?.connect) return Promise.reject(new Error('Chrome runtime.connect unavailable'));
     return new Promise((resolve, reject) => {
+      let port,
+        heartbeat,
+        settled = false;
+      const finish = (error, result) => {
+        if (settled) return;
+        settled = true;
+        clearInterval(heartbeat);
+        signal?.removeEventListener('abort', abort);
+        try {
+          port?.disconnect();
+        } catch {}
+        error ? reject(error) : resolve(result);
+      };
+      const abort = () => finish(Object.assign(new Error('Analysis cancelled'), { code: 'cancelled' }));
+      if (signal?.aborted) return abort();
       try {
-        let settled = false;
-        const port = api.runtime.connect({ name: 'nutegg-analyze' });
-        const heartbeat = setInterval(() => {
-          if (!settled && port) {
-            try {
-              port.postMessage({ action: 'ping' });
-            } catch {
-              clearInterval(heartbeat);
-            }
-          } else {
-            clearInterval(heartbeat);
+        port = api.runtime.connect({ name: 'nutegg-analyze' });
+        signal?.addEventListener('abort', abort, { once: true });
+        heartbeat = setInterval(() => {
+          try {
+            port.postMessage({ action: 'ping' });
+          } catch (error) {
+            finish(error);
           }
         }, 10000);
-
         port.onMessage.addListener(message => {
+          if (settled) return;
           if (message?.type === 'partial') {
             onProgress?.(message);
             return;
           }
-          if (settled) return;
-          settled = true;
-          clearInterval(heartbeat);
-          try {
-            port.disconnect();
-          } catch {}
-          if (message?.type === 'complete') {
-            resolve(message.result);
-          } else {
-            resolve(message);
-          }
+          finish(null, message?.type === 'complete' ? message.result : message);
         });
-
-        port.onDisconnect.addListener(() => {
-          if (settled) return;
-          settled = true;
-          clearInterval(heartbeat);
-          if (api.runtime.lastError) {
-            reject(new Error(api.runtime.lastError.message));
-          } else {
-            reject(new Error('Connection closed before response received'));
-          }
-        });
-
+        port.onDisconnect.addListener(() =>
+          finish(new Error(api.runtime.lastError?.message || 'Connection closed before response received'))
+        );
         port.postMessage({ action: 'analyze', payload });
-      } catch (err) {
-        reject(err);
+      } catch (error) {
+        finish(error);
       }
     });
   }

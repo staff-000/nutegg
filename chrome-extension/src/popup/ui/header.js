@@ -38,7 +38,7 @@ class HeaderComponent {
 
   render(session, settings) {
     if (!settings) return;
-    if (settings.environmentChecked === false) {
+    if (settings.environmentChecked === false || settings.serverCheckPending) {
       this.updateServerStatus('checking');
       return;
     }

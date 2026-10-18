@@ -229,7 +229,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
       onActivated: { addListener() {} }, onUpdated: { addListener() {} }, onRemoved: { addListener() {} }, onAttached: { addListener() {} }, onDetached: { addListener() {} } },
     storage: { local: { get: (keys, callback) => callback({ connectionMode: 'obsidian' }), set() {} }, onChanged: { addListener() {} } } };
   const intervals = new Set(); t.after(() => { for (const timer of intervals) clearInterval(timer); });
-  const context = vm.createContext({ console, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
+  const context = vm.createContext({ console, AbortController, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
     setInterval: (...args) => { const timer = setInterval(...args); intervals.add(timer); return timer; }, clearInterval, document: root,
     chrome: api, navigator: { language: 'en' }, window: { addEventListener() {}, scrollTo() {}, scrollY: 0 }, module: { exports: {} } });
   vm.runInContext('Object.assign(globalThis, window); window = globalThis;', context);
@@ -304,4 +304,22 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   root.getElementById('confirm-btn').click();
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(saved.newKnowledge.some(entry => entry.egg === 'nutegg/new.md'));
+});
+
+test('a delayed HTTP probe keeps an authenticated vault in a neutral checking state', async () => {
+  const settings = new SettingsState(), store = new TabStateManager();
+  settings.setConnectionMode('obsidian', false);
+  const calls = [];
+  const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
+    calls.push(action);
+    if (action === 'check-server') return { online: true, degraded: true, state: {
+      mode: 'subscription', transition: 'ready', subscription: { provider: 'gemini', model: 'auto' },
+    } };
+    return {};
+  } } } });
+  await env.checkServerStatus();
+  assert.equal(settings.serverOnline, true);
+  assert.equal(settings.serverError, null);
+  assert.equal(settings.serverConfigurationChecked, false);
+  assert.deepEqual(calls, ['check-server']);
 });

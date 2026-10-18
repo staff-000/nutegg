@@ -58,7 +58,8 @@ class EnvironmentService {
     }
     let config = {};
     try {
-      if (status.online) config = await this.chromeApi.runtime.sendMessage({ action: 'config-status' });
+      if (status.degraded) config = { status: 'checking', unavailable: true, state: status.state };
+      else if (status.online) config = await this.chromeApi.runtime.sendMessage({ action: 'config-status' });
     } catch (error) {
       config = { status: 'error', unavailable: true, issues: [error.message || 'Cannot reach server'] };
     }
@@ -70,10 +71,11 @@ class EnvironmentService {
     this.settings.serverConfigurationChecked = !!config && config.unavailable !== true && !status.error;
     this.settings.setServerStatus({
       online: !!status.online,
+      checking: !!status.degraded,
       version: status.version,
       error,
-      warning: issues.join('\n'),
-      aiConfigured: !error && !issues.some(i => /no api key|not configured/i.test(i)),
+      warning: status.degraded ? globalThis.t('checking') : issues.join('\n'),
+      aiConfigured: !error && config.unavailable !== true && !issues.some(i => /no api key|not configured/i.test(i)),
     });
     this.settings.setChromeAiStatus();
     const state = config?.state || status.state;
@@ -104,7 +106,7 @@ class EnvironmentService {
       type: 'environment',
       value: { issues, credit: config?.credit || null, workflowUpdates: config?.workflowUpdates || [] },
     });
-    if (status.online) {
+    if (status.online && !status.degraded) {
       void this.fetchMetrics();
       void this.fetchCredit(version, true);
     }

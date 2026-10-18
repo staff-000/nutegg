@@ -5,10 +5,10 @@ const vm = require('node:vm');
 
 function worker(initial = {}, availability = {}) {
   const stored = { executionSchemaVersion:2, [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}:test`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
-  let listener, storageListener;
+  let listener, storageListener, connectListener;
   const context = vm.createContext({
-    importScripts() {}, structuredClone, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
-    setTimeout: (callback, delay) => { timeouts.push(delay); return setTimeout(callback, delay); }, clearTimeout,
+    importScripts() {}, structuredClone, DOMException, Response, TextDecoder, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
+    setTimeout: (callback, delay) => { timeouts.push(delay); return availability.timer ? availability.timer(callback, delay) : setTimeout(callback, delay); }, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
       normalizeAIDebugScope: value => value,
@@ -38,7 +38,7 @@ function worker(initial = {}, availability = {}) {
         remove: async key => { delete stored[key]; },
       } },
       action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
-      runtime: {id:'a'.repeat(32), getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } },
+      runtime: {id:'a'.repeat(32), getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener(fn) { connectListener = fn; } } },
     },
     fetch: async (url, options) => {
       http.push({ url, options });
@@ -55,13 +55,157 @@ function worker(initial = {}, availability = {}) {
   vm.runInContext(fs.readFileSync(require.resolve('../dist/page-identity.js'), 'utf8'), context);
   context.NutEggAI.normalizeCaptureCoverage = new Function(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8')+';return NutEggAI')().normalizeCaptureCoverage;
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
-  return { context, stored, http, ai, timeouts, change: async values => {
+  return { context, stored, http, ai, timeouts, connect: port => connectListener(port), change: async values => {
     const changes = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }]));
     Object.assign(stored, values);
     storageListener(changes, 'local');
     await new Promise(resolve => setImmediate(resolve));
   }, send: (action, values = {}) => new Promise(resolve => listener({ action, ...values }, {id:'a'.repeat(32),url:`chrome-extension://${'a'.repeat(32)}/src/popup/popup.html`}, resolve)) };
 }
+
+test('twenty connected analyses reserve HTTP capacity and preserve every result', async () => {
+  const pending = [];
+  let active = 0, peak = 0;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    active++; peak = Math.max(peak, active);
+    const title = JSON.parse(options.body).title;
+    await new Promise(resolve => pending.push(resolve));
+    return { ok: true, json: async () => { active--; return { title }; } };
+  } });
+  const jobs = Array.from({ length: 20 }, (_, n) => app.send('analyze', { payload: { title: String(n) } }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(active, 3);
+  assert.equal((await app.send('check-server')).online, true);
+  let completed = 0;
+  while (completed < 20) {
+    const batch = pending.splice(0);
+    for (const release of batch) { release(); completed++; }
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.equal(peak, 3);
+  assert.deepEqual((await Promise.all(jobs)).map(r => r.title), Array.from({ length: 20 }, (_, n) => String(n)));
+  assert.equal(active, 0);
+});
+
+test('failed streams release slots and preserve terminal provider errors', async () => {
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async url => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    return new Response('{"type":"partial","section":"summary"}\n{"type":"error","error":"Quota exhausted","errorCode":"quota_exceeded"}\n', {
+      headers: { 'content-type': 'application/x-ndjson' },
+    });
+  } });
+  const results = await Promise.all(Array.from({ length: 8 }, () => app.send('analyze', { payload: {} })));
+  assert(results.every(r => r.errorCode === 'quota_exceeded' && r.error === 'Quota exhausted'));
+  assert.equal((await app.send('check-server')).online, true);
+});
+
+test('HTTP error cleanup leaves the response body readable and preserves its error code', async () => {
+  let controller;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async url => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    return { ok: false, status: 409, json: async () => {
+      assert.equal(controller.signal.aborted, false);
+      return { error: 'Refresh capture', errorCode: 'capture_identity_mismatch' };
+    } };
+  } });
+  app.context.NutEggExecution.bindTransport = (_id, value) => { controller = value; };
+  app.context.NutEggExecution.cancel = (_id, finished) => { if (!finished) controller.abort(); };
+  const result = await app.send('analyze', { payload: {} });
+  assert.equal(result.errorCode, 'capture_identity_mismatch');
+  assert.equal(result.error, 'Refresh capture');
+});
+
+test('analysis deadline aborts body reading and the next request still runs', async () => {
+  let expire, cancelled = false, first = true;
+  const app = worker({ connectionMode: 'obsidian' }, {
+    timer(callback, delay) { if (delay === 600000) expire = callback; return setTimeout(() => {}, 60000); },
+    respond: async (url, options) => {
+      if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+      if (!first) return { ok: true, json: async () => ({ title: 'Next' }) };
+      first = false;
+      return { ok: true, headers: { get: () => 'application/x-ndjson' }, body: { getReader: () => ({
+        read: () => new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })),
+        cancel: async () => { cancelled = true; }, releaseLock() {},
+      }) } };
+    },
+  });
+  const job = app.send('analyze', { payload: {} });
+  await new Promise(resolve => setImmediate(resolve));
+  expire();
+  assert.equal((await job).errorCode, 'timeout');
+  assert.equal(cancelled, true);
+  assert.equal((await app.send('analyze', { payload: {} })).title, 'Next');
+});
+
+test('configuration changes cancel active and queued requests before newer settings can execute them', async () => {
+  let started = 0;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    started++;
+    await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true }));
+  } });
+  const jobs = Array.from({ length: 8 }, () => app.send('analyze', { payload: {} }));
+  await new Promise(resolve => setImmediate(resolve));
+  await app.change({ chromeAiProvider: 'openai' });
+  assert((await Promise.all(jobs)).every(r => r.errorCode === 'cancelled'));
+  assert.equal(started, 3);
+});
+
+test('routine connection checks never announce a configuration change', async () => {
+  const app = worker({ connectionMode: 'obsidian' });
+  let changes = 0;
+  app.context.NutEggExecution.configurationChanged = () => changes++;
+  await app.send('check-server');
+  await app.send('config-status');
+  assert.equal(changes, 0);
+});
+
+test('a delayed health check with an authenticated session remains connected', async () => {
+  const app = worker({ connectionMode: 'obsidian' }, { online: false });
+  app.context.NutEggExecution.session = { sessionId: 'live-session' };
+  const result = await app.send('check-server');
+  assert.equal(result.online, true);
+  assert.equal(result.degraded, true);
+});
+
+test('disconnecting an analysis port aborts its stream', async () => {
+  let messageListener, disconnectListener, requestSignal;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    requestSignal = options.signal;
+    await new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true }));
+  } });
+  const posted = [];
+  app.connect({ name: 'nutegg-analyze', sender: { id: 'a'.repeat(32), url: `chrome-extension://${'a'.repeat(32)}/src/popup/popup.html` },
+    onDisconnect: { addListener(fn) { disconnectListener = fn; } },
+    onMessage: { addListener(fn) { messageListener = fn; } }, postMessage: value => posted.push(value),
+  });
+  const job = messageListener({ action: 'analyze', payload: {} });
+  await new Promise(resolve => setImmediate(resolve));
+  disconnectListener();
+  await job;
+  assert.equal(requestSignal.aborted, true);
+  assert.deepEqual(posted, []);
+});
+
+test('a cancelled Chrome-only analysis cannot cache a provider result that arrives late', async () => {
+  let finish, messageListener, disconnectListener;
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test' }, {
+    analyze: () => new Promise(resolve => { finish = resolve; }),
+  });
+  app.connect({ name: 'nutegg-analyze', sender: { id: 'a'.repeat(32), url: `chrome-extension://${'a'.repeat(32)}/src/popup/popup.html` },
+    onDisconnect: { addListener(fn) { disconnectListener = fn; } },
+    onMessage: { addListener(fn) { messageListener = fn; } }, postMessage() {},
+  });
+  const job = messageListener({ action: 'analyze', payload: { title: 'Old', url: 'https://example.com/old', content: 'Body' } });
+  await new Promise(resolve => setImmediate(resolve));
+  disconnectListener();
+  finish({ coreSummary: ['Late result'] });
+  await job;
+  assert.equal(app.stored.chromeTabCache, undefined);
+  assert.equal(app.stored.chromeMetrics, undefined);
+});
 
 test('a saved Chrome key works immediately and Chrome-only mode never writes shared configuration', async () => {
   const app = worker({ chromeAiEnabled: false });
@@ -538,4 +682,26 @@ test('settings cache-limit changes share the worker transaction queue with analy
   await app.send('set-chrome-cache-limit', { limit: 0 });
   await app.context.saveChromeCacheEntry(cachePayload('disabled'), cacheResult('disabled'));
   assert.equal(app.stored.chromeTabCache.length, 0);
+});
+
+test('followups, creation and Hatch share the bounded pool with analyses', async () => {
+  const waiting = [];
+  let active = 0, peak = 0;
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+    if (options?.method !== 'POST') return { ok: true, json: async () => ({}) };
+    active++; peak = Math.max(peak, active);
+    await new Promise(resolve => waiting.push(resolve));
+    return { ok: true, json: async () => { active--; return { success: true }; } };
+  } });
+  const jobs = ['analyze', 'ask', 'create-egg', 'confirm', 'analyze', 'ask', 'confirm'].map(action => app.send(action, { payload: {}, name: 'Egg' }));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(active, 3);
+  let released = 0;
+  while (released < jobs.length) {
+    for (const release of waiting.splice(0)) { release(); released++; }
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert((await Promise.all(jobs)).every(result => result.success));
+  assert.equal(peak, 3);
+  assert.equal(active, 0);
 });

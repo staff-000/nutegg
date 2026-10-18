@@ -21,11 +21,12 @@ const NutEggExecution = (() => {
     return id;
   }
 
-  function cancel(jobId) {
+  function cancel(jobId, finished = false) {
     const job = jobs.get(jobId);
     if (!job) return;
     clearTimeout(job.timer);
     job.controller.abort();
+    if (!finished) job.transport?.abort();
     jobs.delete(jobId);
     for (const [id, call] of calls) {
       if (call.jobId === jobId) calls.delete(id);
@@ -33,6 +34,7 @@ const NutEggExecution = (() => {
   }
 
   function close() {
+    if (typeof cancelObsidianRequests === 'function') cancelObsidianRequests();
     clearInterval(heartbeat);
     clearTimeout(retry);
     heartbeat = null;
@@ -47,6 +49,7 @@ const NutEggExecution = (() => {
   async function cache(next) {
     if (state?.instanceId === next.instanceId && next.revision < state.revision) return;
     if (state && (next.instanceId !== state.instanceId || next.revision !== state.revision)) {
+      if (typeof cancelObsidianRequests === 'function') cancelObsidianRequests();
       for (const id of jobs.keys()) cancel(id);
     }
     state = NutEggAI.reduceSharedExecutionState(state, next);
@@ -122,7 +125,7 @@ const NutEggExecution = (() => {
           } else if (message.type === 'heartbeat') {
             // Acknowledge our timed heartbeat without creating a ping loop.
           } else if (message.type === 'cancel-job' || message.type === 'job-finished') {
-            cancel(message.jobId);
+            cancel(message.jobId, message.type === 'job-finished');
           } else if (message.type === 'ai-call') {
             void execute(message);
           } else if (message.type === 'server-stopped' || message.type === 'superseded') {
@@ -133,6 +136,7 @@ const NutEggExecution = (() => {
         ws.onclose = () => {
           clearTimeout(timer);
           if (socket !== ws) return;
+          if (typeof cancelObsidianRequests === 'function') cancelObsidianRequests();
           clearInterval(heartbeat);
           socket = null;
           session = null;
@@ -298,6 +302,12 @@ const NutEggExecution = (() => {
   return {
     ensure,
     register,
+    bindTransport(jobId, controller) {
+      if (!controller) return;
+      const job = jobs.get(jobId);
+      if (job) job.transport = controller;
+      else controller.abort();
+    },
     cancel,
     changeMode,
     configurationChanged,

@@ -289,7 +289,12 @@ export class NutEggServer {
     );
     this.requestJobs.set(req, job);
     this.requestBodies.set(req, body);
-    this.processor(job, payload.debugScope);
+    const aborted = () => {
+      // Closing the transport releases browser HTTP capacity even if a provider
+      // does not settle promptly after cancellation. Never rewrite sent headers.
+      if (!res.writableEnded) res.destroy();
+    };
+    job.controller.signal.addEventListener('abort', aborted, { once: true });
     const end = res.end.bind(res);
     const writeHead = res.writeHead.bind(res);
     let contentType = '';
@@ -309,10 +314,15 @@ export class NutEggServer {
       }
       return (end as any)(chunk, ...args);
     };
-    res.on('finish', () => this.execution.complete(job));
+    res.on('finish', () => {
+      job.controller.signal.removeEventListener('abort', aborted);
+      this.execution.complete(job);
+    });
     res.on('close', () => {
+      job.controller.signal.removeEventListener('abort', aborted);
       if (!res.writableFinished) this.execution.cancelJobs(candidate => candidate === job);
     });
+    this.processor(job, payload.debugScope);
   }
   private attachWebSocket() {
     const { WebSocketServer } = require('ws');
@@ -977,6 +987,8 @@ export class NutEggServer {
               state: this.execution.snapshot(),
             })
           );
+        } else if (!res.writableEnded) {
+          res.destroy();
         }
       }
     });
@@ -1418,6 +1430,8 @@ export class NutEggServer {
           newKnowledge: [],
         };
 
+        const job = this.requestJobs.get(req);
+        if (job) this.execution.assertActive(job);
         const nutId = this.recordNut(capture, stage1Result as any);
         console.log(
           `[NutEgg] Analyzed (Stage 1 streamed): ${capture.title} — matchedEggs=${matchedEggs.length}, nutId=${nutId}`
@@ -1469,6 +1483,8 @@ export class NutEggServer {
         newKnowledge: [],
       };
 
+      const job = this.requestJobs.get(req);
+      if (job) this.execution.assertActive(job);
       const nutId = this.recordNut(capture, stage1Result as any);
 
       console.log(`[NutEgg] Analyzed (Stage 1): ${capture.title} — matchedEggs=${matchedEggs.length}, nutId=${nutId}`);
@@ -1481,6 +1497,19 @@ export class NutEggServer {
       );
     } catch (err) {
       console.error('[NutEgg] Analyze error:', err);
+
+      if (res.destroyed || res.writableEnded) return;
+      if (res.headersSent) {
+        // A stream is already HTTP 200; report a terminal NDJSON error and end it.
+        res.end(
+          JSON.stringify({
+            type: 'error',
+            error: err instanceof AIError ? err.message : 'Analysis failed. Please try again.',
+            errorCode: err instanceof AIError ? err.code : 'server_error',
+          }) + '\n'
+        );
+        return;
+      }
 
       if (err instanceof AIError) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
