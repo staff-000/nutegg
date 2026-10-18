@@ -15,11 +15,13 @@ test('indicator derives window-filtered unread/running rows and handles selectio
   store.beginOperation(2, 'analysis'); store.ensure(3); store.beginOperation(3, 'analysis');
   const ui = new AnalysisActivityComponent(root()); let selected;
   await ui.init({ manager: store, onSelect: id => { selected = id; }, tabs: { query: async () => [{ id: 1, windowId: 7 }, { id: 2, windowId: 7 }] } });
-  assert.equal(ui.button.textContent, '⌛ 1 waiting · ✅ 1 unread');
+  assert.equal(ui.label.textContent, '⌛ 1 waiting · ✅ 1 unread');
+  assert.equal(ui.arrow.textContent, '▾');
+  assert.equal(ui.arrow.classList.contains('expanded'), false);
   const rows = ui.list.children.filter(e => e.dataset.activityTab); assert.deepEqual(rows.map(e => e.dataset.activityTab), ['2', '1']);
   ui.list.listeners.click({ target: { closest: () => rows[1] } }); assert.equal(selected, 1);
   store.dispatch({ type: 'viewed', tabId: 1, revision: store.getTab(1).resultRevision }); await ui.refresh();
-  assert.equal(ui.button.textContent, '⌛ 1 waiting');
+  assert.equal(ui.label.textContent, '⌛ 1 waiting');
 });
 test('activity navigation activates cached results without AI; closed tabs stay closed', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
@@ -38,20 +40,25 @@ test('twenty tabs show exclusive running/waiting/unread counts excluding zero an
   for (const job of jobs.slice(0, 3)) store.commitOperation(job.token, { type: 'analysisQueueState', state: 'running' });
   const ui = new AnalysisActivityComponent(root());
   await ui.init({ manager: store, onSelect() {}, tabs: { query: async () => jobs.map(job => ({ id: job.token.tabId, windowId: 7 })) } });
-  assert.equal(ui.button.textContent, '⏳ 3 running · ⌛ 17 waiting');
+  assert.equal(ui.label.textContent, '⏳ 3 running · ⌛ 17 waiting');
+  assert.equal(ui.arrow.textContent, '▾');
+  ui.toggle(true);
+  assert.equal(ui.arrow.classList.contains('expanded'), true);
+  ui.toggle(false);
+  assert.equal(ui.arrow.classList.contains('expanded'), false);
   store.activateTab(10); await ui.refresh();
-  assert.equal(ui.button.textContent, '⏳ 3 running · ⌛ 17 waiting');
+  assert.equal(ui.label.textContent, '⏳ 3 running · ⌛ 17 waiting');
   store.commitOperation(jobs[0].token, { type: 'analysisComplete', result: { titleVerdict: 'Done' } });
   store.commitOperation(jobs[3].token, { type: 'analysisQueueState', state: 'running' });
   await ui.refresh();
-  assert.equal(ui.button.textContent, '⏳ 3 running · ⌛ 16 waiting · ✅ 1 unread');
+  assert.equal(ui.label.textContent, '⏳ 3 running · ⌛ 16 waiting · ✅ 1 unread');
   store.activateTab(1);
   store.dispatch({ type: 'viewed', tabId: 1, revision: store.getTab(1).resultRevision });
   store.invalidateTab(2, 'https://replacement.test');
   assert.equal(store.commitOperation(jobs[1].token, { type: 'analysisQueueState', state: 'running' }), false);
   for (const job of jobs.slice(2)) store.commitOperation(job.token, { type: 'operationFailed', error: 'Cancelled' });
   await ui.refresh();
-  assert.equal(ui.button.textContent, '');
+  assert.equal(ui.label.textContent, '');
   assert.equal(ui.container.classList.contains('hidden'), true);
 });
 

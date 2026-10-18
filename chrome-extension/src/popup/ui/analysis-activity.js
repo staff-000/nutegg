@@ -4,6 +4,8 @@ class AnalysisActivityComponent {
     this.root = root;
     this.container = root.getElementById('analysis-activity');
     this.button = root.getElementById('analysis-activity-toggle');
+    this.label = root.getElementById('analysis-activity-label');
+    this.arrow = root.getElementById('analysis-activity-arrow');
     this.list = root.getElementById('analysis-activity-list');
     this.refreshRevision = 0;
   }
@@ -35,8 +37,13 @@ class AnalysisActivityComponent {
   }
 
   toggle(open = this.list?.classList.contains('hidden')) {
-    if (open) this.list?.classList.remove('hidden');
-    else this.list?.classList.add('hidden');
+    if (open) {
+      this.list?.classList.remove('hidden');
+      this.arrow?.classList.add('expanded');
+    } else {
+      this.list?.classList.add('hidden');
+      this.arrow?.classList.remove('expanded');
+    }
     this.button?.setAttribute('aria-expanded', String(!!open));
   }
 
@@ -74,7 +81,10 @@ class AnalysisActivityComponent {
       this.container?.classList.add('hidden');
       this.toggle(false);
     }
-    if (this.button) this.button.textContent = parts.join(' · ');
+    const text = parts.join(' · ');
+    if (this.label) this.label.textContent = text;
+    else if (this.button) this.button.textContent = text;
+    if (this.arrow && !this.arrow.textContent) this.arrow.textContent = '▾';
     if (!this.list) return;
     this.list.replaceChildren();
     for (const [items, label] of [

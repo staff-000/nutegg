@@ -3327,6 +3327,10 @@ body {
   margin: 0 0 10px;
 }
 #analysis-activity-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   padding: 6px 10px;
   border: 1px solid #e5e7eb;
@@ -3336,6 +3340,29 @@ body {
   font-size: 12px;
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
+}
+#analysis-activity-toggle:hover {
+  background: #fef3c7;
+}
+.analysis-activity-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-activity-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  color: #9a3412;
+  transition: transform 0.2s ease;
+}
+.analysis-activity-arrow.expanded {
+  transform: rotate(180deg);
 }
 .analysis-activity-list {
   position: absolute;
