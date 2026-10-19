@@ -82,7 +82,7 @@ Obsidian is optional. To connect your vault:
 3. **Enable Obsidian Mode**: In NutEgg Settings, expand **Connect Obsidian** and enable **Use Obsidian mode**. Configure your AI key in Obsidian → Settings → NutEgg.
 4. **Check Connection**: Keep the default port `27123` unless you changed it in Obsidian, then click **Test Connection**.
 
-Use **Use Chrome instead** to return to browser analysis. Chrome mode does not contact Obsidian, even if it is running. Obsidian mode requires the plugin to remain running and does not silently switch to another AI configuration when it disconnects. Existing Obsidian users upgrading to this version should enable **Use Obsidian mode** once.
+Turn off **Connect Obsidian** or choose **Use Chrome instead** to return to browser analysis. This explicit switch also selects API-key mode in the connected Obsidian before disconnecting. If Obsidian cannot acknowledge the change, Chrome still switches and shows a warning. Chrome-only analysis uses its saved API configuration; merely opening Chrome-only settings does not change Obsidian. Obsidian mode requires the plugin to remain running and does not silently switch to another AI configuration when its connection fails. Existing Obsidian users upgrading to this version should enable **Use Obsidian mode** once.
 
 ---
 

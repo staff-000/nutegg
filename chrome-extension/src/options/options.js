@@ -70,6 +70,8 @@ let lastManagedMode = 'subscription';
 let aiProfiles = {};
 let savedApiConfig = null;
 let methodChange = null;
+let connectionModeChange = false;
+let renderedConnectionMode = 'chrome';
 let acknowledgedAuthMethod = 'apiKey';
 let acknowledgedSharedState;
 let profileKey = '';
@@ -136,6 +138,7 @@ function syncSubscriptionToggle() {
     !obsidianModeEnabled.checked ||
     (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available) ||
     !!methodChange ||
+    connectionModeChange ||
     (!!acknowledgedSharedState?.transition && acknowledgedSharedState.transition !== 'ready');
   const wrapper = document.getElementById('ai-auth-row');
   wrapper.setAttribute('aria-label', t('useSubscriptionSwitch'));
@@ -300,7 +303,7 @@ function setupChatGPTControls() {
 }
 
 async function changeAiMethod(method) {
-  if (methodChange) return;
+  if (methodChange || connectionModeChange) return;
   ++chatgptRequest;
   currentAuthMethod = acknowledgedAuthMethod;
   const toggle = document.getElementById('use-subscription-toggle');
@@ -603,6 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function renderConnectionMode(mode) {
   const usesObsidian = mode === 'obsidian';
+  renderedConnectionMode = usesObsidian ? 'obsidian' : 'chrome';
   obsidianModeEnabled.checked = usesObsidian;
   obsidianModeEnabled.setAttribute('aria-expanded', String(usesObsidian));
   obsidianConfig.classList.toggle('hidden', !usesObsidian);
@@ -628,12 +632,48 @@ function renderConnectionMode(mode) {
 }
 
 async function setConnectionMode(mode) {
-  await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
-  renderConnectionMode(mode);
-  void refreshSubscriptionAccess();
-  connectionModeStatus.textContent = t(mode === 'obsidian' ? 'settingsObsidianSelected' : 'settingsChromeSelected');
-  connectionModeStatus.className = 'test-result ok';
-  if (mode === 'obsidian') checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+  const previous = renderedConnectionMode;
+  if (connectionModeChange) { renderConnectionMode(previous); return false; }
+  connectionModeChange = true;
+  renderConnectionMode(previous);
+  obsidianModeEnabled.disabled = true;
+  const useChrome = document.getElementById('use-chrome-btn');
+  useChrome.disabled = true;
+  let sharedModeError;
+  try {
+    if (previous === 'obsidian' && mode === 'chrome') {
+      try {
+        if (methodChange) await methodChange;
+        // Change the shared mode while the authenticated Obsidian session is
+        // still connected. Merely opening Chrome-only settings never does this.
+        if (acknowledgedSharedState?.mode !== 'apiKey') {
+          const result = await chrome.runtime.sendMessage({ action: 'set-execution-mode', mode: 'apiKey' });
+          if (result?.error || result?.state?.mode !== 'apiKey')
+            throw new Error(result?.error || t('aiConnectionUnavailable'));
+          await applySharedExecution(result.state);
+        }
+      } catch (error) { sharedModeError = error.message; }
+    }
+    await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
+    renderConnectionMode(mode);
+    void refreshSubscriptionAccess();
+    connectionModeStatus.textContent = sharedModeError
+      ? t('settingsChromeObsidianSwitchFailed', { error: sharedModeError })
+      : t(mode === 'obsidian' ? 'settingsObsidianSelected' : 'settingsChromeSelected');
+    connectionModeStatus.className = `test-result ${sharedModeError ? 'warning' : 'ok'}`;
+    if (mode === 'obsidian') checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
+    return true;
+  } catch (error) {
+    renderConnectionMode(previous);
+    connectionModeStatus.textContent = t('aiError', { error: error.message });
+    connectionModeStatus.className = 'test-result error';
+    return false;
+  } finally {
+    connectionModeChange = false;
+    obsidianModeEnabled.disabled = false;
+    useChrome.disabled = false;
+    syncSubscriptionToggle();
+  }
 }
 
 function initConnectionMode(stored) {
@@ -655,8 +695,7 @@ function initConnectionMode(stored) {
     });
   }
   document.getElementById('use-chrome-btn').addEventListener('click', async () => {
-    await setConnectionMode('chrome');
-    aiProviderSelect.focus();
+    if (await setConnectionMode('chrome')) aiProviderSelect.focus();
   });
   if (obsidianModeEnabled.checked) checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
   else void chrome.runtime.sendMessage({ action: 'sync-ai-config' }).catch(() => {});

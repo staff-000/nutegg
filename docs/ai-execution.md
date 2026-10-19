@@ -162,7 +162,7 @@ reporting ready. A disconnected profile cannot block that transition indefinitel
 
 ## Offline recovery and status
 
-Connected execution stops when Obsidian is unavailable, including API mode's vault workflows. Choose **Use Chrome mode instead** to explicitly use this profile's saved API setup. This is a local connection choice, clears connection-scoped errors and queues no shared mode mutation. Reconnecting follows authoritative shared state.
+Connected execution stops when Obsidian is unavailable, including API mode's vault workflows. Turning off **Connect Obsidian** or choosing **Use Chrome mode instead** first selects shared API-key mode through the existing authenticated connection, then disconnects Chrome and restores this profile's saved API setup. Obsidian uses its existing native API configuration; this mode change does not transfer credentials or overwrite saved CLI/ChatGPT selections. If the shared mode change cannot be acknowledged, Chrome-only mode remains available and a warning explicitly reports that Obsidian could not be switched. No deferred mode change is queued. Opening Chrome-only settings or following an old standalone setup link does not mutate Obsidian's mode. Reconnecting follows authoritative shared state.
 
 Connection, configuration, account readiness, quota and activity are separate. Unknown usage is not zero. Subscription credit displays Subscription and only provider-reported usage. Save and refresh are non-generating; explicit tests consume quota. Model discovery retains selections on failure, and rejected models never trigger automatic substitution. See [the signal matrix](connection-status.md) and [subscription setup](ai-subscriptions.md).
 

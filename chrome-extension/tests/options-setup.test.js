@@ -239,6 +239,99 @@ test('Obsidian is an explicit opt-in and switching back restores the saved Chrom
   assert.equal(requests.length, 1);
 });
 
+for (const mode of ['subscription', 'chatgpt']) {
+  for (const control of ['checkbox', 'button']) {
+    test(`leaving ${mode} with the ${control} switches shared Obsidian mode to API key first`, async t => {
+      const state = { instanceId: 'vault-test', protocolVersion: 3, revision: 1, transition: 'ready',
+        subscriptionAvailable: true, mode, subscription: { provider: 'google', model: 'saved-cli-model' },
+        chatgpt: { available: true, state: 'ready', model: 'saved-chatgpt-model', revision: 1 } };
+      const app = await setup(t, { connectionMode: 'obsidian', obsidianExecutionState: state,
+        chromeAiProvider: 'google', chromeAiApiKey: 'saved-key', chromeAiModel: 'gemini-pro' });
+      const send = app.win.chrome.runtime.sendMessage; let modeAtRequest;
+      app.win.chrome.runtime.sendMessage = async message => {
+        if (message.action === 'set-execution-mode') modeAtRequest = app.values.connectionMode;
+        return send(message);
+      };
+      if (control === 'checkbox') { app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); }
+      else app.el('use-chrome-btn').click();
+      await flush();
+      assert.equal(modeAtRequest, 'obsidian');
+      assert.equal(app.values.obsidianExecutionState.mode, 'apiKey');
+      assert.equal(app.values.connectionMode, 'chrome');
+      assert.equal(app.el('obsidian-mode-enabled').checked, false);
+      assert.equal(app.el('ai-key-input').value, 'saved-key');
+      assert.equal(app.values.chromeAiApiKey, 'saved-key');
+      assert.equal(app.values.chromeAiModel, 'gemini-pro');
+      assert.equal(app.values.obsidianExecutionState.subscription.model, 'saved-cli-model');
+      assert.equal(app.values.obsidianExecutionState.chatgpt.model, 'saved-chatgpt-model');
+      assert.deepEqual(structuredClone(app.messages.filter(m => m.action === 'set-execution-mode')), [{ action: 'set-execution-mode', mode: 'apiKey' }]);
+    });
+  }
+}
+
+test('turning off a connection already in API mode does not change shared execution again', async t => {
+  const app = await setup(t, { connectionMode: 'obsidian', chromeAiApiKey: 'saved-key' });
+  app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); await flush();
+  assert.equal(app.values.connectionMode, 'chrome');
+  assert.equal(app.messages.some(m => m.action === 'set-execution-mode'), false);
+});
+
+test('duplicate disconnect clicks share one acknowledged Obsidian mode change', async t => {
+  const app = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiApiKey: 'saved-key' });
+  const send = app.win.chrome.runtime.sendMessage; let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  app.win.chrome.runtime.sendMessage = async message => {
+    const result = await send(message);
+    if (message.action === 'set-execution-mode') await gate;
+    return result;
+  };
+  app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); await flush();
+  assert.equal(app.values.connectionMode, 'obsidian');
+  assert.equal(app.el('obsidian-mode-enabled').disabled, true);
+  assert.equal(app.el('use-subscription-toggle').disabled, true);
+  app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); await flush();
+  assert.equal(app.messages.filter(m => m.action === 'set-execution-mode').length, 1);
+  release(); await flush();
+  assert.equal(app.values.connectionMode, 'chrome');
+  assert.equal(app.el('obsidian-mode-enabled').disabled, false);
+});
+
+test('a local settings write failure does not claim Chrome disconnected successfully', async t => {
+  const app = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription' });
+  const set = app.win.chrome.storage.local.set;
+  app.win.chrome.storage.local.set = async data => {
+    if (data.connectionMode === 'chrome') throw new Error('Storage unavailable');
+    return set(data);
+  };
+  app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); await flush();
+  assert.equal(app.values.connectionMode, 'obsidian');
+  assert.equal(app.values.obsidianExecutionState.mode, 'apiKey');
+  assert.equal(app.el('obsidian-mode-enabled').checked, true);
+  assert.equal(app.el('obsidian-mode-enabled').disabled, false);
+  assert.equal(app.el('connection-mode-status').classList.contains('error'), true);
+});
+
+for (const failure of ['response error', 'transport error', 'missing acknowledgment']) {
+  test(`Chrome-only remains available with an explicit warning on Obsidian ${failure}`, async t => {
+    const app = await setup(t, { connectionMode: 'obsidian', chromeAiApiKey: 'saved-key',
+      obsidianExecutionState: { instanceId: 'vault-test', protocolVersion: 3, revision: 1, transition: 'ready',
+        mode: 'subscription', subscriptionAvailable: true, subscription: { provider: 'google', model: 'auto' } } });
+    const send = app.win.chrome.runtime.sendMessage;
+    app.win.chrome.runtime.sendMessage = async message => {
+      if (message.action !== 'set-execution-mode') return send(message);
+      if (failure === 'transport error') throw new Error('Offline');
+      return failure === 'response error' ? { error: 'Offline' } : {};
+    };
+    app.el('obsidian-mode-enabled').checked = false; app.change('obsidian-mode-enabled'); await flush();
+    assert.equal(app.values.connectionMode, 'chrome');
+    assert.equal(app.values.obsidianExecutionState.mode, 'subscription');
+    assert.equal(app.values.chromeAiApiKey, 'saved-key');
+    assert.equal(app.el('connection-mode-status').classList.contains('warning'), true);
+    assert.match(app.el('connection-mode-status').textContent, /Obsidian could not be switched to API key mode/);
+    assert.equal(app.el('obsidian-mode-enabled').disabled, false);
+  });
+}
+
 test('saved Obsidian mode exposes its connection settings on reload', async t => {
   const { requests, el } = await setup(t, { connectionMode: 'obsidian', serverPort: 28001 });
   assert.equal(el('obsidian-mode-enabled').checked, true);
@@ -539,7 +632,9 @@ test('API edits survive leaving subscription, standalone edits, and rejoining ei
       el('chunk-window-chars').value = '24000';
       el('max-completion-tokens').value = '2048';
       if (saveDraft) { el('ai-save-btn').click(); await flush(); }
-      if (sharedMode === 'apiKey') await win.chrome.runtime.sendMessage({ action: 'set-execution-mode', mode: 'apiKey' });
+      // Leaving connected mode now selects shared API mode. A different profile
+      // can explicitly select subscription before this one reconnects.
+      await win.chrome.runtime.sendMessage({ action: 'set-execution-mode', mode: sharedMode });
       el('obsidian-mode-enabled').checked = true; change('obsidian-mode-enabled'); await flush();
       if (sharedMode === 'subscription') {
         el('use-subscription-toggle').checked = false; change('use-subscription-toggle'); await flush();

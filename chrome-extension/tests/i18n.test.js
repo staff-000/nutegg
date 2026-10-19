@@ -175,3 +175,10 @@ it('background recovery copy exists in every supported language', () => {
     for (const key of ['continueEggAnalysis', 'jobSaveFailed', 'jobInterrupted', 'jobStorageUnavailable', 'jobUpdateRequired', 'jobConnectionLost'])
       assert.ok(dictionary[key], `${locale}: ${key}`);
 });
+
+it('disconnect mode-switch warning exists in every supported language', () => {
+  for (const [locale, dictionary] of Object.entries(translations)) {
+    assert.ok(dictionary.settingsChromeObsidianSwitchFailed, locale);
+    assert.match(dictionary.settingsChromeObsidianSwitchFailed, /\{error\}/, locale);
+  }
+});
