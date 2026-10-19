@@ -8,6 +8,7 @@
     "website"
   ],
   "scripts": {
+    "models:update": "node scripts/update-models.mjs",
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "lint": "node scripts/lint.js",
@@ -25,5 +26,8 @@
     "deploy:remote": "./deploy.sh --remote",
     "release": "./release.sh",
     "update:version": "node scripts/update-download-version.js"
+  },
+  "devDependencies": {
+    "byokit": "latest"
   }
 }

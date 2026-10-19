@@ -1,0 +1,15 @@
+{
+  "byokitVersion": "0.2.0",
+  "asOf": "2026-10-19T00:00:00Z",
+  "configHash": "e05f3812534d4758c154ef7714e40496d96812239a724828246809aadcba7b49",
+  "direct": {
+    "schemaVersion": 1,
+    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
+    "configHash": "e05f3812534d4758c154ef7714e40496d96812239a724828246809aadcba7b49"
+  },
+  "openrouter": {
+    "schemaVersion": 1,
+    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
+    "configHash": "4d6ab94bb0927e9b536e6b4b13d56f73c2dc8bb68e98d79529ae6d5b2826fce6"
+  }
+}

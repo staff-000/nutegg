@@ -1,0 +1,12 @@
+{
+  "asOf": "2026-10-19T00:00:00Z",
+  "providerIds": { "mode": "any", "values": ["anthropic", "google", "openai", "deepseek"] },
+  "local": false,
+  "filters": {
+    "tier": { "mode": "any", "values": ["flash", "workhorse"] },
+    "speciality": { "mode": "exact", "values": ["general"] },
+    "output": { "mode": "exact", "values": ["text"] },
+    "releasedWithin": "1y"
+  },
+  "dedupe": 2
+}

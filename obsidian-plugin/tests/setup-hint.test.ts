@@ -69,7 +69,7 @@ describe("AI Setup Hints", () => {
       });
       assert.strictEqual(isAIConfigured(configuredPlugin.settings), true);
 
-      // Local provider without key is considered configured if default/custom endpoint is valid
+      // Local setup needs an exact served model ID, but no API key.
       const localPlugin = makeFakePlugin({
         settings: {
           aiApiKey: "",
@@ -77,7 +77,8 @@ describe("AI Setup Hints", () => {
           localEndpoint: "http://127.0.0.1:11434/api/chat",
         },
       });
-      assert.strictEqual(isAIConfigured(localPlugin.settings), true);
+      assert.strictEqual(isAIConfigured(localPlugin.settings), false);
+      assert.strictEqual(isAIConfigured({ ...localPlugin.settings, aiModel: 'installed-model' }), true);
     });
   });
 });

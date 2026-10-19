@@ -28,7 +28,7 @@ describe("isAIConfigured", () => {
     assert.equal(isAIConfigured(settings), false);
   });
 
-  it("returns true for local provider without apiKey and even without model as long as endpoint exists", () => {
+  it("requires the exact local model ID, but does not require an API key", () => {
     const settings: NutEggSettings = {
       ...DEFAULT_SETTINGS,
       aiProvider: "local",
@@ -36,7 +36,8 @@ describe("isAIConfigured", () => {
       localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
       aiModel: "",
     };
-    assert.equal(isAIConfigured(settings), true);
+    assert.equal(isAIConfigured(settings), false);
+    assert.equal(isAIConfigured({ ...settings, aiModel: 'installed-model' }), true);
   });
 });
 
@@ -98,7 +99,7 @@ describe("AIClient settings changes", () => {
 });
 
 describe("AIClient Local LLM execution", () => {
-  it("executes chat against local OpenAI-compatible endpoint without requiring an API key or explicit model", async () => {
+  it("executes chat against local OpenAI-compatible endpoint using the exact model without an API key", async () => {
     let capturedUrl = "";
     let capturedHeaders: Record<string, string> = {};
     let capturedBody: any = null;
@@ -123,7 +124,7 @@ describe("AIClient Local LLM execution", () => {
         localApiType: "openai",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:1234/v1/chat/completions",
-        aiModel: "",
+        aiModel: "installed-local-model",
       };
 
       const client = new AIClient(settings);
@@ -131,7 +132,7 @@ describe("AIClient Local LLM execution", () => {
 
       assert.equal(res, "Response from local model");
       assert.equal(capturedUrl, "http://127.0.0.1:1234/v1/chat/completions");
-      assert.equal(capturedBody.model, "default");
+      assert.equal(capturedBody.model, "installed-local-model");
       assert.equal(capturedBody.max_tokens, 500);
       assert.equal(capturedBody.max_completion_tokens, undefined);
       assert.equal(capturedHeaders["Authorization"], undefined);
@@ -163,7 +164,7 @@ describe("AIClient Local LLM execution", () => {
         localApiType: "ollama",
         aiApiKey: "",
         localEndpoint: "http://127.0.0.1:11434/api/chat",
-        aiModel: "",
+        aiModel: "installed-ollama-model",
       };
 
       const client = new AIClient(settings);
@@ -171,7 +172,7 @@ describe("AIClient Local LLM execution", () => {
 
       assert.equal(res, "Response from Ollama native");
       assert.equal(capturedUrl, "http://127.0.0.1:11434/api/chat");
-      assert.equal(capturedBody.model, "default");
+      assert.equal(capturedBody.model, "installed-ollama-model");
       assert.equal(capturedBody.stream, false);
       assert.equal(capturedBody.options?.num_predict, 400);
     } finally {
@@ -297,7 +298,7 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     }
   });
 
-  it("findOpenRouterFamily resolves matching family or defaults to first family", () => {
+  it("findOpenRouterFamily resolves matching families and preserves custom model selection", () => {
     // OpenAI family
     const openaiFam = findOpenRouterFamily("openai/gpt-6-astra");
     assert.equal(openaiFam?.id, "openai");
@@ -314,17 +315,17 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     const googleFam = findOpenRouterFamily("google/gemini-2.5-flash");
     assert.equal(googleFam?.id, "google");
 
-    // Meta family
+    // Vendors outside the selected four remain usable as custom model IDs.
     const metaFam = findOpenRouterFamily("meta-llama/llama-3.3-70b-instruct");
-    assert.equal(metaFam?.id, "meta");
+    assert.equal(metaFam?.id, "custom");
 
     // Qwen family
     const qwenFam = findOpenRouterFamily("qwen/qwen-2.5-72b-instruct");
-    assert.equal(qwenFam?.id, "qwen");
+    assert.equal(qwenFam?.id, "custom");
 
-    // Unknown model defaults to first family (openai)
+    // Unknown models belong to the custom family.
     const fallbackFam = findOpenRouterFamily("unknown-model");
-    assert.equal(fallbackFam?.id, "openai");
+    assert.equal(fallbackFam?.id, "custom");
   });
 });
 

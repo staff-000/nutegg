@@ -11,10 +11,7 @@ export type AIProviderId =
   | 'gemini-cli'
   | 'codex-cli'
   | 'claude-cli'
-  | 'openai'
-  | 'kimi'
-  | 'zhipu'
-  | 'qwen';
+  | 'openai';
 
 export type AISource = 'official' | 'openrouter';
 export type AIAuthMethod = 'apiKey' | 'subscription' | 'chatgpt';

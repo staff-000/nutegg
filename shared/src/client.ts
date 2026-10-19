@@ -3,7 +3,7 @@
 // ============================================================
 
 import { trackAIRequest } from './ai-diagnostics';
-import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, aiConnectionLabel } from './catalog';
+import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, aiConnectionLabel } from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -384,9 +384,8 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === 'local') {
-    const isOllama = settings.localApiType === 'ollama';
-    const defaultEndpoint = isOllama ? 'http://127.0.0.1:11434/api/chat' : 'http://127.0.0.1:11434/v1/chat/completions';
-    const endpoint = settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint || defaultEndpoint;
+    const { endpoint, apiFormat } = resolveLocalEndpoint(settings);
+    const isOllama = apiFormat === 'ollama';
     const pingEndpoint = isOllama
       ? endpoint.replace(/\/api\/chat\/?$/, '/api/tags')
       : endpoint.replace(/\/chat\/completions\/?$/, '/models');
@@ -513,34 +512,7 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
     return { ...baseInfo, statusText: 'DeepSeek (Active)' };
   }
 
-  // 3. Official Kimi (Moonshot)
-  if (providerId === 'kimi') {
-    try {
-      const resp = await fetch('https://api.moonshot.cn/v1/users/me/balance', {
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
-      });
-      if (resp.ok) {
-        const json = await resp.json();
-        const balance = json?.data?.available_balance ?? 0;
-        const balanceFormatted = `¥${Number(balance).toFixed(2)}`;
-        return {
-          ...baseInfo,
-          hasBalance: true,
-          balanceFormatted,
-          currency: 'CNY',
-          remainingCredits: Number(balance),
-          statusText: `${balanceFormatted} available`,
-        };
-      } else if (resp.status === 401) {
-        return { ...baseInfo, statusText: 'Invalid API key', error: 'Auth failed' };
-      }
-    } catch {}
-    return { ...baseInfo, statusText: 'Kimi (Active)' };
-  }
-
-  // 4. Anthropic / OpenAI / Gemini / Zhipu / Qwen
+  // Anthropic / OpenAI / Gemini
   return {
     ...baseInfo,
     hasBalance: false,

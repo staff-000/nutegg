@@ -17,7 +17,6 @@ test('credit providers report unrounded remaining balances and local HTTP failur
     for (const [provider, body, expected] of [
       ['openrouter', { data: { total_credits: 1, total_usage: 1 } }, 0],
       ['deepseek', { balance_infos: [{ currency: 'USD', total_balance: '0.001' }] }, 0.001],
-      ['kimi', { data: { available_balance: -1 } }, -1],
     ]) {
       globalThis.fetch = async () => new Response(JSON.stringify(body), { status: 200 });
       const credit = await NutEggAI.checkCreditAI({ chromeAiProvider: provider, chromeAiApiKey: 'key' });
@@ -110,7 +109,8 @@ test("AI Processor - chunkContent splits timestamped transcripts", () => {
 });
 
 test("AI Client - PROVIDER_CATALOG completeness", () => {
-  const expected = ["gemini", "openai", "anthropic", "deepseek", "openrouter", "kimi", "zhipu", "qwen", "local"];
+  const expected = ["gemini", "openai", "anthropic", "deepseek", "openrouter", "local"];
+  assert.deepEqual(Object.keys(PROVIDER_CATALOG).sort(), [...expected].sort());
   for (const id of expected) {
     assert.ok(PROVIDER_CATALOG[id], `Missing provider ${id}`);
     assert.ok(PROVIDER_CATALOG[id].officialEndpoint, `Missing endpoint for ${id}`);
@@ -142,7 +142,7 @@ test("AI Client - catalog defaults apply only when no model is saved", () => {
   }
   assert.equal(resolveConfig({ aiProvider: "openrouter", openrouterModel: "deepseek/deepseek-chat" }).model,
     "deepseek/deepseek-chat");
-  assert.equal(resolveConfig({ aiProvider: "deepseek" }).model, "deepseek-chat");
+  assert.equal(resolveConfig({ aiProvider: "deepseek" }).model, PROVIDER_CATALOG.deepseek.defaultModel);
 });
 
 test("AI Processor - AIProcessor class available in Chrome bundle", () => {
