@@ -141,13 +141,12 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.displayConnectionStatus(containerEl);
     ++this.chatgptView;
     this.chatgptCard = undefined;
-    this.displayAIConnections(containerEl);
-    if (settings.aiAuthMethod === 'chatgpt') {
-      this.displayChatGPT(containerEl);
-    } else if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
-      this.displaySubscriptionSetup(containerEl);
-    } else {
-      this.displayConnectedProfiles(containerEl);
+    const connectionBox = this.displayAIConnections(containerEl);
+    const mode = this.aiConnectionMode();
+    if (mode === 'chatgpt') {
+      this.displayChatGPT(connectionBox);
+    } else if (settings.subscriptionEnabled && mode === 'subscription') {
+      this.displaySubscriptionSetup(connectionBox);
     }
 
     // ==========================================
@@ -406,18 +405,31 @@ export class NutEggSettingTab extends PluginSettingTab {
         : PROVIDER_CATALOG.gemini.label;
   }
 
-  private displayAIConnections(container: HTMLElement): void {
+  private aiConnectionMode() {
+    return this.plugin.server?.execution?.state?.mode || this.plugin.settings.executionState?.mode ||
+      this.plugin.settings.aiAuthMethod || 'apiKey';
+  }
+
+  private displayAIConnections(container: HTMLElement): HTMLElement {
     const settings = this.plugin.settings;
+    const mode = this.aiConnectionMode();
+    const box = container.createDiv({ cls: 'nutegg-ai-connection-setting nutegg-ai-connection-box' });
+    box.dataset.mode = mode;
+    if (mode === 'apiKey') {
+      new Setting(box)
+        .setName(`${t('aiMethod')} · ${t('subscriptionApiKey')}`)
+        .setDesc(t('connectedApiProfilesDescription'));
+      this.displayConnectedProfiles(box);
+      return box;
+    }
     const view = this.chatgptView;
-    const current = () => view === this.chatgptView;
+    const current = () => view === this.chatgptView && this.aiConnectionMode() !== 'apiKey';
     const selected =
-      settings.aiAuthMethod === 'chatgpt'
+      mode === 'chatgpt'
         ? 'chatgpt'
-        : settings.aiAuthMethod === 'subscription' && settings.subscriptionEnabled
-          ? settings.subscriptionSelection?.provider || settings.aiProvider
-          : '';
-    const aiSetting = new Setting(container)
-      .setName(t('aiMethod'))
+        : this.plugin.server?.execution?.state?.subscription.provider || settings.subscriptionSelection?.provider || settings.aiProvider;
+    new Setting(box)
+      .setName(`${t('aiMethod')} · ${t('subscriptionLabel')}`)
       .setDesc(t('obsidianAIConnectionsDesc'))
       .addDropdown(dropdown => {
         if (!selected) dropdown.addOption('', t('chooseAIConnection'));
@@ -460,14 +472,10 @@ export class NutEggSettingTab extends PluginSettingTab {
           }
         });
       });
-    if ((aiSetting as any).settingEl) {
-      (aiSetting as any).settingEl.classList.add('nutegg-ai-connection-setting');
-    }
+    return box;
   }
 
   private displayConnectedProfiles(containerEl: HTMLElement): void {
-    containerEl.createEl('h3', { text: t('connectedApiProfiles') });
-    containerEl.createEl('p', { text: t('connectedApiProfilesDescription'), cls: 'setting-item-description' });
     const clients = containerEl.createDiv({ cls: 'nutegg-profile-list' });
     const paint = () => {
       clients.empty();
@@ -478,14 +486,9 @@ export class NutEggSettingTab extends PluginSettingTab {
         const card = clients.createDiv({ cls: 'nutegg-profile-card' });
         const heading = card.createDiv({ cls: 'nutegg-profile-heading' });
         heading.createEl('h4', { text: client.displayName });
-        heading.createEl('span', { text: t('subscriptionApiKey'), cls: 'nutegg-profile-method' });
         const model = card.createDiv({ cls: 'nutegg-profile-model' });
         model.createEl('span', { text: provider?.label || client.provider || '—' });
         model.createEl('code', { text: client.model || '—' });
-        const windowParam = `${t('chunkWindowChars')}: ${client.chunkWindowChars ?? '—'}`;
-        const tokenParam = `${t('maxTokens')}: ${client.contentAnalysisMaxTokens ?? '—'}`;
-        const paramsText = `${windowParam} · ${tokenParam}`;
-        card.createEl('p', { text: paramsText, cls: 'nutegg-profile-params' });
       }
     };
     paint();
@@ -577,7 +580,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     const card = containerEl.createDiv({ cls: 'nutegg-subscription-card' });
     this.chatgptCard = card;
     const view = this.chatgptView;
-    const current = () => this.chatgptCard === card && view === this.chatgptView;
+    const current = () => this.chatgptCard === card && view === this.chatgptView && this.aiConnectionMode() === 'chatgpt';
     card.createEl('h3', { text: t('chatgptLabel') });
     card.createEl('p', { text: t('chatgptTokenHint'), cls: 'setting-item-description' });
     if (!service) {
@@ -682,10 +685,11 @@ export class NutEggSettingTab extends PluginSettingTab {
     const refresh = async () => {
       // Saving a provider can rebuild the whole tab. A detached view must never
       // invalidate the replacement view's in-flight checks.
-      if (this.subscriptionCard !== card) return;
+      if (this.subscriptionCard !== card || this.aiConnectionMode() !== 'subscription') return;
       clearTimeout(this.setupTimer);
       const request = ++this.setupRequest;
-      const isCurrent = () => this.subscriptionCard === card && request === this.setupRequest;
+      const isCurrent = () => this.subscriptionCard === card && request === this.setupRequest &&
+        this.aiConnectionMode() === 'subscription';
       const current = provider;
       const force = forceRefresh;
       forceRefresh = false;
@@ -1004,7 +1008,9 @@ export class NutEggSettingTab extends PluginSettingTab {
     const modelSection = containerEl.createDiv({ cls: 'nutegg-settings-section nutegg-model-config-section' });
     modelSection.createEl('h3', { text: t('aiModelConfig') });
     if (!this.aiConfigSummary) {
-      this.aiConfigSummary = new Setting(modelSection).setDesc(t('obsidianAIConnectionsDesc')).addButton(button => {
+      this.aiConfigSummary = new Setting(modelSection).setDesc(t(
+        this.aiConnectionMode() === 'apiKey' ? 'connectedApiProfilesDescription' : 'obsidianAIConnectionsDesc'
+      )).addButton(button => {
         this.aiCreditButton = button;
         button
           .setButtonText(t('checking'))

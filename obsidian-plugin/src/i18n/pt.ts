@@ -11,8 +11,7 @@ export const pt = {
   cliSubscription: 'CLI subscription',
   saveConnectionModel: 'Save model',
   claudeLabel: 'Claude',
-  obsidianAIConnectionsDesc:
-    'Choose a connection for Obsidian and connected Chrome. Configure API keys in Chrome settings.',
+  obsidianAIConnectionsDesc: 'Escolha uma conexão de assinatura e um modelo. O Chrome controla o uso de chaves API ou assinaturas.',
   aiConnectionChangeFailed: 'Could not change the AI connection. Refresh settings and try again.',
   chooseAIConnection: 'Choose an AI connection',
   aiMethod: 'AI connection',
@@ -46,8 +45,7 @@ export const pt = {
   nativeApiLegacy: 'A previous API configuration was preserved. Select it explicitly to use it for Obsidian actions.',
   nativeApiAdopt: 'Use previous configuration',
   connectedApiProfiles: 'Connected Chrome API profiles',
-  connectedApiProfilesDescription:
-    'Each profile executes its own API calls. Different providers and models are expected.',
+  connectedApiProfilesDescription: 'O provedor e o modelo são escolhidos no Chrome. Edite as configurações de API no Chrome.',
   sharedModeChanging: 'AI mode is changing for all connected Chrome profiles.',
   executionDetails: 'AI execution',
 

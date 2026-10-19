@@ -12,7 +12,7 @@ export const zh: Record<TranslationKey, string> = {
   cliSubscription: 'CLI 订阅',
   saveConnectionModel: '保存模型',
   claudeLabel: 'Claude',
-  obsidianAIConnectionsDesc: '为 Obsidian 和已连接的 Chrome 选择 AI 连接。API 密钥请在 Chrome 设置中配置。',
+  obsidianAIConnectionsDesc: '选择订阅连接和模型。请在 Chrome 设置中切换 API 密钥或订阅模式。',
   aiConnectionChangeFailed: '无法切换 AI 连接。请刷新设置后重试。',
   chooseAIConnection: '选择 AI 连接',
   aiMethod: 'AI 连接',
@@ -45,7 +45,7 @@ export const zh: Record<TranslationKey, string> = {
   nativeApiLegacy: '已保留先前的 API 配置。请明确选择是否用于 Obsidian 操作。',
   nativeApiAdopt: '使用先前配置',
   connectedApiProfiles: '已连接的 Chrome API 配置文件',
-  connectedApiProfilesDescription: '各配置文件分别执行自己的 API 调用。供应商和模型不同属于正常情况。',
+  connectedApiProfilesDescription: '供应商和模型由 Chrome 选择。请在 Chrome 中修改 API 设置。',
   sharedModeChanging: '正在为所有已连接的 Chrome 配置文件更改 AI 模式。',
   executionDetails: 'AI 执行',
 

@@ -353,17 +353,28 @@
   border-radius: 12px;
 }
 
-.nutegg-settings .nutegg-ai-connection-setting .setting-item-name,
+.nutegg-settings .nutegg-ai-connection-setting > .setting-item .setting-item-name,
 .nutegg-settings .nutegg-connection-panel + .setting-item .setting-item-name {
   font-size: 1.05em;
   font-weight: 600;
   color: var(--text-normal);
 }
 
-.nutegg-settings .nutegg-ai-connection-setting select,
+.nutegg-settings .nutegg-ai-connection-setting > .setting-item select,
 .nutegg-settings .nutegg-connection-panel + .setting-item select {
   font-weight: 500;
   min-width: 170px;
+}
+
+.nutegg-ai-connection-box > .setting-item {
+  padding: 0 0 16px;
+  border-top: 0;
+}
+
+.nutegg-ai-connection-box > .nutegg-subscription-card {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 /* Profile cards */

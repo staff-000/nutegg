@@ -110,8 +110,64 @@ test('a delayed balance response from the previous provider cannot overwrite the
 
 import { NutEggSettingTab } from '../src/settings';
 
-test('Obsidian offers four direct connections and enables the selected CLI without an API-key editor', async t => {
+function connectionTestDom(t: any) {
   const dom = new JSDOM('<main></main>');
+  const proto = dom.window.HTMLElement.prototype as any;
+  proto.empty = function () { this.replaceChildren(); };
+  proto.setText = function (value: string) { this.textContent = value; };
+  proto.createEl = function (tag: string, options: any = {}) {
+    const element = dom.window.document.createElement(tag);
+    element.textContent = options.text || '';
+    if (options.cls) element.className = options.cls;
+    for (const [key, value] of Object.entries(options.attr || {})) element.setAttribute(key, String(value));
+    this.appendChild(element);
+    return element;
+  };
+  proto.createDiv = function (options: any) { return this.createEl('div', options); };
+  t.after(() => dom.window.close());
+  return dom;
+}
+
+test('API connection box only displays live Chrome providers and models without editable controls', t => {
+  const dom = connectionTestDom(t);
+  let editableControls = 0, refresh!: () => void;
+  for (const method of ['addDropdown', 'addText', 'addButton', 'addToggle'] as const) {
+    t.mock.method(Setting.prototype, method, function () { editableControls++; return this; });
+  }
+  t.mock.method(globalThis, 'setInterval', (callback: () => void) => {
+    refresh = callback;
+    return { unref() {} } as any;
+  });
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiProvider: 'anthropic', aiModel: 'native-only-model' };
+  let profiles: any[] = [
+    { displayName: 'Work Chrome', provider: 'openai', model: 'chrome-openai-model' },
+    { displayName: 'Personal Chrome', provider: 'gemini', model: 'chrome-gemini-model' },
+  ];
+  plugin.server = { execution: { state: { mode: 'apiKey' }, clients: () => profiles } } as any;
+  const tab = new NutEggSettingTab({} as any, plugin);
+  t.after(() => tab.hide());
+  const container = dom.window.document.querySelector('main')!;
+  const before = structuredClone(plugin.settings);
+  const box = (tab as any).displayAIConnections(container);
+  assert.equal(box.dataset.mode, 'apiKey');
+  assert.match(box.textContent, /OpenAI.*chrome-openai-model/);
+  assert.match(box.textContent, /Google Gemini.*chrome-gemini-model/);
+  assert.doesNotMatch(box.textContent, /native-only-model/);
+  assert.equal(editableControls, 0);
+  assert.deepEqual(plugin.settings, before);
+  profiles = [{ displayName: 'Work Chrome', provider: 'deepseek', model: 'new-chrome-model' }];
+  refresh();
+  assert.match(box.textContent, /DeepSeek.*new-chrome-model/);
+  assert.doesNotMatch(box.textContent, /chrome-openai-model|chrome-gemini-model/);
+  profiles = [];
+  refresh();
+  assert.match(box.textContent, /Waiting for Chrome/);
+  assert.doesNotMatch(box.textContent, /native-only-model|new-chrome-model/);
+});
+
+test('only subscription mode offers account choices and stale selectors cannot leave API mode', async t => {
+  const dom = connectionTestDom(t);
   const choices: any[] = [];
   t.mock.method(Setting.prototype, 'addDropdown', function (configure: any) {
     const dropdown = { options: new Map<string, string>(), value: '', change: undefined as any,
@@ -123,7 +179,7 @@ test('Obsidian offers four direct connections and enables the selected CLI witho
     configure(dropdown); choices.push(dropdown); return this;
   });
   const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: false,
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiAuthMethod: 'subscription',
     nativeApiConfig: { aiProvider: 'deepseek', aiModel: 'saved-api-model' },
     subscriptionSelection: { provider: 'openai', model: 'saved-codex-model' } };
   plugin.saveData = async () => {};
@@ -131,30 +187,34 @@ test('Obsidian offers four direct connections and enables the selected CLI witho
   plugin.server = new NutEggServer(plugin, 0);
   const tab = new NutEggSettingTab({} as any, plugin);
   const container = dom.window.document.querySelector('main')!;
-  t.after(() => { tab.hide(); dom.window.close(); });
-  (tab as any).displayAIConnections(container);
+  t.after(() => tab.hide());
+  const box = (tab as any).displayAIConnections(container);
   const first = choices[0];
-  assert.equal(first.value, '', 'API execution must not be silently changed by rendering settings');
-  assert.deepEqual([...first.options].filter(([id]) => id), [
+  assert.equal(box.dataset.mode, 'subscription');
+  assert.equal(first.value, 'openai');
+  assert.deepEqual([...first.options], [
     ['chatgpt', 'ChatGPT sign-in'], ['openai', 'Codex CLI'], ['gemini', 'Google Gemini'], ['anthropic', 'Claude'],
   ]);
-  assert.equal(first.options.has('apiKey'), false);
-  assert.equal(first.options.has('subscription'), false);
-  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
-  await first.change('openai');
+  await first.change('anthropic');
   assert.equal(plugin.server.execution.state.mode, 'subscription');
-  assert.equal(plugin.settings.subscriptionEnabled, true);
-  assert.equal(plugin.settings.aiProvider, 'openai');
-  assert.equal(plugin.settings.aiModel, 'saved-codex-model');
+  assert.equal(plugin.settings.aiProvider, 'anthropic');
+  assert.equal(plugin.settings.aiModel, 'auto');
   ++(tab as any).chatgptView;
   (tab as any).displayAIConnections(container);
-  assert.equal(choices[1].value, 'openai');
+  assert.equal(choices[1].value, 'anthropic');
   await first.change('gemini');
-  assert.equal(plugin.settings.aiProvider, 'openai', 'detached controls cannot switch the connection');
+  assert.equal(plugin.settings.aiProvider, 'anthropic', 'detached controls cannot switch the connection');
   await choices[1].change('chatgpt');
   assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
   assert.equal(plugin.settings.nativeApiConfig?.aiModel, 'saved-api-model');
-  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'openai', model: 'saved-codex-model' });
+  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'anthropic', model: 'auto' });
+  await plugin.server.execution.change(plugin.server.execution.state.revision, randomUUID(), { mode: 'apiKey' });
+  await choices[1].change('openai');
+  assert.equal(plugin.server.execution.state.mode, 'apiKey', 'a Chrome mode switch invalidates subscription controls immediately');
+  container.replaceChildren();
+  (tab as any).displayAIConnections(container);
+  assert.equal(choices.length, 2, 'API mode renders no new selector');
+  assert.equal(container.querySelector('[data-mode="apiKey"]')?.textContent, 'Waiting for Chrome');
 });
 
 test('provider switching cannot restart a detached settings card and strand the new status', async t => {
@@ -204,6 +264,12 @@ test('provider switching cannot restart a detached settings card and strand the 
   // Old controls cannot switch the current provider again.
   await provider.change('gemini');
   assert.equal(plugin.settings.aiProvider, 'openai');
+  const model = dropdowns.filter(item => item.options.includes('__custom__')).at(-1);
+  plugin.server.execution.state.mode = 'apiKey';
+  plugin.settings.aiAuthMethod = 'apiKey';
+  await model.change('stale-subscription-model');
+  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
+  assert.notEqual(plugin.settings.aiModel, 'stale-subscription-model');
 });
 
 test('execution persistence starts settings probes only after provider cleanup completes', async () => {
@@ -444,6 +510,8 @@ test('settings never offer a subscription toggle and hide subscription details w
     assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
     assert.deepEqual(toggles, ['Developer mode']);
     const container = (tab as any).containerEl as HTMLElement;
+    assert.ok(container.querySelector('.nutegg-ai-connection-box[data-mode="apiKey"]'));
+    assert.equal(container.querySelector('.nutegg-subscription-card'), null);
     assert.equal(container.querySelector('.nutegg-native-ai-section'), null, 'API editing belongs only in Chrome');
     assert.equal(container.querySelector('.nutegg-model-config-section > h3')?.textContent, 'AI Model Configuration');
     assert.equal(container.querySelector('input[type="password"]'), null);
@@ -461,6 +529,7 @@ test('settings never offer a subscription toggle and hide subscription details w
   names.length = toggles.length = 0; tab.display();
   await new Promise(resolve => setImmediate(resolve));
   assert.match((tab as any).containerEl.textContent, /Codex CLI/);
+  assert.ok((tab as any).containerEl.querySelector('.nutegg-ai-connection-box[data-mode="subscription"] > .nutegg-subscription-card'));
   assert.deepEqual(toggles, ['Developer mode']);
   const rows = (tab as any).connectionRows;
   assert.equal(rows.bridge.textContent, 'Authorize subscription in Obsidian');
@@ -602,14 +671,13 @@ test('connected profile settings show Chrome values independently of native sett
   t.after(() => { tab.hide(); dom.window.close(); });
   const container = dom.window.document.querySelector('main')!;
   (tab as any).displayConnectedProfiles(container);
-  assert.match(container.textContent!, /Chrome AAPI keyDeepSeekdeepseek-chat/);
-  assert.match(container.textContent!, /24000.*8192/);
-  assert.match(container.textContent!, /Chrome BAPI keyGoogle Geminigemini-profile-b/);
+  assert.match(container.textContent!, /Chrome ADeepSeekdeepseek-chat/);
+  assert.match(container.textContent!, /Chrome BGoogle Geminigemini-profile-b/);
+  assert.doesNotMatch(container.textContent!, /24000|8192|12000|4096/);
   assert.doesNotMatch(container.textContent!, /native-model|subscription/i);
   profiles[0].model = 'updated-chrome-model'; profiles[0].chunkWindowChars = 32000;
   repaint();
   assert.match(container.textContent!, /updated-chrome-model/);
-  assert.match(container.textContent!, /32000/);
   assert.doesNotMatch(container.textContent!, /deepseek-chat/);
   profiles.length = 0; repaint();
   assert.match(container.textContent!, /Waiting for Chrome/);

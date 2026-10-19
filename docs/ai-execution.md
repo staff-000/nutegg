@@ -19,11 +19,12 @@ For readiness colors and credit display, see [connection status](connection-stat
 
 Connected profiles share the selected authentication method and the CLI or ChatGPT model selection. Different API providers, models and keys are expected. Chrome-only profiles remain independent. Normal workflow requests never transmit API keys. In connected API mode, an explicit **Save & continue** also updates the native Obsidian account using the saved Chrome key/provider/model. This dedicated authenticated operation writes only to SecretStorage and replaces an existing native key on every explicit save; advanced saves and Chrome-only saves do not perform it. Native Obsidian API keys use SecretStorage; on apps without it, configure Chrome API execution or upgrade to Obsidian 1.11.4+. A legacy mirrored API configuration is an inactive migration candidate requiring explicit selection, not an automatically owned native key. On older Obsidian versions, migration renames the original settings file to an inactive `legacy-ai-settings.json`, retaining the existing key until an upgrade permits explicit secure import. It does not write a new plaintext native key.
 
-Chrome settings retain API preferences while showing the shared connection. Obsidian presents four direct choices: ChatGPT sign-in, Codex CLI, Google Gemini, and Claude. Selecting a CLI connection enables it and selects its provider in one execution transition. API-key configuration and API execution selection remain in Chrome settings; Obsidian has no API-key editor. Disabling CLI availability returns to API only when CLI execution was selected. ChatGPT credentials remain in the local plugin runtime. Native actions and connected Chrome workflows use the same ChatGPT executor; standalone Chrome has no ChatGPT route. See [sign-in and CLI setup](ai-subscriptions.md).
+Chrome settings retain API preferences while showing the shared connection. Chrome chooses API-key or subscription execution. In subscription mode, Obsidian offers ChatGPT sign-in, Codex CLI, Google Gemini, and Claude. Selecting a CLI connection selects its provider in one execution transition. In API mode, Obsidian's connection box is read-only, with no connection selector or API-key editor. Disabling CLI availability returns to API only when CLI execution was selected. ChatGPT credentials remain in the local plugin runtime. Native actions and connected Chrome workflows use the same ChatGPT executor; standalone Chrome has no ChatGPT route. See [sign-in and CLI setup](ai-subscriptions.md).
 
 In API mode, Obsidian's main settings show live connected Chrome profiles, including
-each profile's provider, model, chunk window size, and completion token limit.
-API keys are edited only in Chrome. Obsidian may display the active API configuration read-only; opening its settings does not replace an existing selection.
+each profile's provider and model. These values refresh as Chrome settings change;
+no native Obsidian configuration is substituted when no Chrome is connected.
+API keys are edited only in Chrome. Opening Obsidian settings does not replace an existing selection.
 
 ## Three call flows
 
