@@ -50,7 +50,7 @@ function createMockChrome({ portResponse, lastError, sendResponses = {} } = {}) 
 }
 
 describe("AnalysisService", () => {
-  it("sendAnalyzeViaPort connects, heartbeats, and receives response", async () => {
+  it("sendAnalyzeViaPort submits a versioned job and receives its response", async () => {
     const mockChrome = createMockChrome({ portResponse: { titleVerdict: "Great article" } });
     const service = new AnalysisService({ chrome: mockChrome });
 
@@ -85,4 +85,34 @@ it('aborting a request disconnects only its port and ignores late messages', asy
   await rejected;
   onMessage({ type: 'complete', result: { title: 'Obsolete' } });
   assert.equal(disconnected, 1);
+});
+
+it('abort sends an explicit cancellation, while disconnect alone sends none', async () => {
+  const sent = []; let disconnect;
+  const service = new AnalysisService({ chrome: { runtime: { connect: () => ({
+    postMessage: message => sent.push(message), disconnect() {},
+    onMessage: { addListener() {} }, onDisconnect: { addListener: fn => { disconnect = fn; } },
+  }) } } });
+  const controller = new AbortController();
+  const first = service.sendAnalyzeViaPort({}, null, { signal: controller.signal, jobId: 'explicit', tabId: 1 });
+  controller.abort(); await assert.rejects(first, error => error.code === 'cancelled');
+  assert.equal(sent.filter(message => message.action === 'cancel').length, 1);
+  const second = service.sendAnalyzeViaPort({}, null, { jobId: 'detach', tabId: 2 });
+  disconnect(); await assert.rejects(second, /Connection closed/);
+  assert.equal(sent.filter(message => message.action === 'cancel').length, 1);
+});
+
+it('completed jobs request stored details instead of resubmitting analysis', async () => {
+  const sent = []; let receive;
+  const service = new AnalysisService({ chrome: { runtime: { connect: () => ({
+    postMessage: message => sent.push(message), disconnect() {},
+    onMessage: { addListener: fn => { receive = fn; } }, onDisconnect: { addListener() {} },
+  }) } } });
+  const promise = service.sendAnalyzeViaPort({ content: 'Source' }, null, { jobId: 'original', tabId: 1 });
+  receive({ type: 'accepted', jobId: 'deduplicated', revision: 2 });
+  receive({ type: 'job', job: { id: 'deduplicated', status: 'completed', revision: 3 } });
+  receive({ type: 'detail', job: { id: 'deduplicated', result: { coreSummary: ['Saved'] } } });
+  assert.deepStrictEqual(await promise, { coreSummary: ['Saved'] });
+  assert.equal(sent.filter(message => message.action === 'analyze').length, 1);
+  assert.equal(sent.find(message => message.action === 'detail').jobId, 'deduplicated');
 });

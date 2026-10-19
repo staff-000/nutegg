@@ -5,7 +5,9 @@ importScripts(
   '../../dist/ai-core.js',
   'chinese-fetch.js',
   '../content/extractors/youtube.js',
-  'execution-session.js'
+  'execution-session.js',
+  'analysis-job-store.js',
+  'analysis-jobs.js'
 );
 
 const { PROVIDER_CATALOG, isSubscriptionProvider, checkCreditAI, analyzeContentStandalone, askFollowUpStandalone } =
@@ -196,6 +198,9 @@ async function runObsidianRequest(task, signal, timeoutMs = 10 * 60 * 1000, onSt
 let configurationUpdate = Promise.resolve();
 chrome.storage.onChanged?.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (changes.chromeCacheTabLimit?.newValue === 0) void analysisJobs().clearChrome().catch(() => {});
+  if (changes.obsidianExecutionState || changes.connectionMode || changes.serverPort || changes.chromeApiRevision)
+    void analysisJobsInstance?.configurationChanged().catch(() => {});
   if (changes.serverPort) serverPort = changes.serverPort.newValue || DEFAULT_PORT;
   if (changes.connectionMode || changes.serverPort) {
     cancelObsidianRequests();
@@ -342,7 +347,26 @@ async function connectObsidian() {
 // --- Messages ---
 
 const captureTabUrls = new Map();
+let captureNavigationUpdate = Promise.resolve();
+function invalidateAnalysisPage(tabId, url, reload = false) {
+  if (analysisJobsInstance) return analysisJobsInstance.invalidate(tabId, url, reload);
+  // A worker can wake for navigation before a panel opens. Persist only the
+  // small generation map here; loading the recovery ledger remains lazy.
+  const update = captureNavigationUpdate.catch(() => {}).then(async () => {
+    const saved = await chrome.storage.session.get(['analysisPageEpochs']);
+    const epochs = saved.analysisPageEpochs || {}, previous = epochs[tabId];
+    const key = url ? NutEggPageIdentity.capturePageKey(url) : previous?.key;
+    if (reload || !url || previous?.key !== key) {
+      epochs[tabId] = { key, generation: (previous?.generation || 0) + 1 };
+      await chrome.storage.session.set({ analysisPageEpochs: epochs });
+    }
+  });
+  captureNavigationUpdate = update;
+  return update;
+}
 chrome.tabs?.onUpdated?.addListener((tabId, change, tab) => {
+  if (change.url || change.status === 'loading')
+    void invalidateAnalysisPage(tabId, change.url || tab?.url, change.status === 'loading').catch(() => {});
   if (!change.url) return;
   const key = NutEggPageIdentity.capturePageKey(change.url);
   const previous = captureTabUrls.get(tabId);
@@ -352,7 +376,14 @@ chrome.tabs?.onUpdated?.addListener((tabId, change, tab) => {
     .sendMessage(tabId, { action: 'capture-navigation', previousKey: previous, key, observedAt: Date.now() })
     .catch(() => {});
 });
-chrome.tabs?.onRemoved?.addListener(tabId => captureTabUrls.delete(tabId));
+chrome.tabs?.onRemoved?.addListener(tabId => {
+  captureTabUrls.delete(tabId);
+  void invalidateAnalysisPage(tabId).catch(() => {});
+});
+
+chrome.tabs?.onAttached?.addListener((tabId, info) => {
+  void analysisJobsInstance?.move(tabId, info.newWindowId).catch(() => {});
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'youtube-player-snapshot')
@@ -668,53 +699,37 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 });
 
-// --- Long-lived port for analyze ---
-// The popup/side-panel opens a port for the analyze action. An open port keeps
-// the service worker alive during long LLM calls (Chrome kills idle workers
-// after ~30s). The port receives { action, payload } and posts back the result.
+// --- Background-owned analysis jobs ---
+// Ports subscribe to durable jobs; disconnecting a view never cancels its work.
+// The manager owns finite-work keep-alive, cancellation, and panel restoration.
+let analysisJobsInstance;
+async function getAnalysisConfiguration() {
+  const saved = await chrome.storage.local.get(['connectionMode', 'chromeApiRevision', 'serverPort']);
+  const mode = saved.connectionMode === 'obsidian' ? 'obsidian' : 'chrome';
+  const execution = mode === 'obsidian' ? await NutEggExecution.latest() : null;
+  return {
+    mode, cacheGeneration: chromeCacheGeneration, revision: mode === 'obsidian' ? `${execution.instanceId}:${execution.revision}:${saved.chromeApiRevision || 'initial'}` : saved.chromeApiRevision || 'initial',
+    serverPort: mode === 'obsidian' ? saved.serverPort || DEFAULT_PORT : null,
+    cacheAllowed: mode !== 'chrome' || await getChromeCacheLimit() > 0,
+  };
+}
+function analysisJobs() {
+  if (!analysisJobsInstance) analysisJobsInstance = new AnalysisJobManager({
+    store: new AnalysisJobStore(), chromeApi: chrome,
+    beforeInitialize: () => captureNavigationUpdate,
+    pageKey: value => NutEggPageIdentity.capturePageKey(value),
+    sourceKey: value => normalizeCacheUrl(value),
+    getConfiguration: getAnalysisConfiguration,
+    execute: (payload, progress, signal, configuration) => handleAnalyze(payload, progress, signal, undefined, configuration.cacheGeneration),
+  });
+  return analysisJobsInstance;
+}
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'nutegg-analyze') return;
   if (port.sender?.id !== chrome.runtime.id || !port.sender?.url?.startsWith(chrome.runtime.getURL('/'))) {
-    port.disconnect();
-    return;
+    port.disconnect(); return;
   }
-
-  let isConnected = true;
-  let controller;
-  port.onDisconnect.addListener(() => {
-    isConnected = false;
-    controller?.abort();
-  });
-
-  port.onMessage.addListener(async message => {
-    if (message.action === 'ping') {
-      // Heartbeat to keep service worker alive during long LLM calls (prevents MV3 30s idle termination)
-      return;
-    }
-    if (message.action === 'analyze') {
-      if (controller || !isConnected) return;
-      controller = new AbortController();
-      try {
-        const onProgress = event => {
-          if (isConnected) {
-            try {
-              port.postMessage(event);
-            } catch {}
-          }
-        };
-        const result = await handleAnalyze(message.payload, onProgress, controller.signal);
-        if (isConnected) {
-          port.postMessage(result);
-        }
-      } catch (err) {
-        if (isConnected) {
-          try {
-            port.postMessage({ error: err.message });
-          } catch {}
-        }
-      }
-    }
-  });
+  analysisJobs().attach(port);
 });
 // --- Server communication ---
 
@@ -743,13 +758,13 @@ function isKnowledgeSelectedAndGenerated(payload, result) {
   return hasKnowledgeSelected(payload) && hasKnowledgeGenerated(result);
 }
 
-async function handleAnalyze(payload, onProgress, signal, requestController) {
-  const cacheGeneration = chromeCacheGeneration;
+async function handleAnalyze(payload, onProgress, signal, requestController, admittedCacheGeneration = chromeCacheGeneration) {
+  const cacheGeneration = admittedCacheGeneration;
   if ((await getConnectionMode()) === 'obsidian') {
     if (!requestController) {
       try {
         return await runObsidianRequest(
-          controller => handleAnalyze(payload, onProgress, controller.signal, controller),
+          controller => handleAnalyze(payload, onProgress, controller.signal, controller, cacheGeneration),
           signal,
           undefined,
           state => onProgress?.({ type: 'partial', section: 'executionQueue', data: { state } })
@@ -922,7 +937,7 @@ async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chrome
       }));
     }
     await recordChromeAnalysisMetrics(payload, finalResult);
-    await saveChromeCacheEntry(payload, finalResult, cacheGeneration);
+    await saveChromeCacheEntry(payload, finalResult, cacheGeneration, controller.signal);
     return finalResult;
   } catch (err) {
     return {
@@ -1156,10 +1171,10 @@ async function getChromeCacheHistory(url) {
   return { history: [entry], latest: entry };
 }
 
-async function saveChromeCacheEntry(payload, result, generation = chromeCacheGeneration) {
+async function saveChromeCacheEntry(payload, result, generation = chromeCacheGeneration, signal) {
   try {
     return await withChromeCacheLock(async () => {
-      if (generation !== chromeCacheGeneration) return;
+      if (generation !== chromeCacheGeneration || signal?.aborted) return;
       const limit = await getChromeCacheLimit();
       if (limit <= 0) return;
       const url = payload?.url;
@@ -1214,7 +1229,7 @@ async function saveChromeCacheEntry(payload, result, generation = chromeCacheGen
       }
       cache.unshift(entry);
       cache = trimChromeCache(cache, limit);
-      if (generation !== chromeCacheGeneration) return;
+      if (generation !== chromeCacheGeneration || signal?.aborted) return;
       await chrome.storage.local.set({ chromeTabCache: cache });
     });
   } catch (err) {
@@ -1224,10 +1239,11 @@ async function saveChromeCacheEntry(payload, result, generation = chromeCacheGen
 
 function clearChromeCache() {
   chromeCacheGeneration++;
-  return withChromeCacheLock(() => chrome.storage.local.set({ chromeTabCache: [] }));
+  const recovery = analysisJobs().clearChrome();
+  return Promise.all([recovery, withChromeCacheLock(() => chrome.storage.local.set({ chromeTabCache: [] }))]);
 }
 
-function setChromeCacheLimit(value) {
+async function setChromeCacheLimit(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return Promise.reject(new Error('Invalid cache limit'));
   const limit = Math.min(1000, Math.max(0, Math.round(value)));
   if (limit === 0) chromeCacheGeneration++;
@@ -1235,6 +1251,7 @@ function setChromeCacheLimit(value) {
     const stored = await chrome.storage.local.get(['chromeTabCache']);
     const cache = trimChromeCache(Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [], limit);
     await chrome.storage.local.set({ chromeCacheTabLimit: limit, chromeTabCache: cache });
+    if (limit === 0) await analysisJobs().clearChrome();
     return { count: cache.length, limit };
   });
 }

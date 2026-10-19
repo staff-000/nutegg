@@ -11,6 +11,119 @@ class PopupOperations {
     this.debugEpochs = new Map();
     this.debugCountersReset = false;
     this.debugVersion = 0;
+    this.recoveryJobs = new Map();
+    this.originalJobs = new Set();
+    this.localAnalysisTabs = new Set();
+    this.recoveryLoads = new Map();
+    this.recoveryReady = service.watchJobs && chromeApi.tabs?.query
+      ? new Promise(resolve => { this.finishRecovery = resolve; }) : Promise.resolve();
+  }
+  async initializeRecovery() {
+    if (!this.service.watchJobs || !this.chromeApi.tabs?.query) return;
+    try {
+      const tabs = await this.chromeApi.tabs.query({ currentWindow: true });
+      const windowId = tabs[0]?.windowId;
+      if (windowId == null) return;
+      const snapshot = await this.service.watchJobs(windowId, event => this.handleBackgroundJob(event));
+      this.store.setDebugSessionId(snapshot.sessionId);
+      for (const job of snapshot.jobs) await this.handleBackgroundJob({ type: 'job', job });
+      this.store.subscribe(event => {
+        if (event.type === 'viewed') {
+          const tab = this.store.getTab(event.tabId);
+          if (tab?.backgroundJob?.status === 'completed') this.service.markJobViewed(tab.backgroundJob.id);
+        }
+      });
+    } catch (error) {
+      // Recovery is independent of Obsidian connectivity and never starts AI work.
+      this.recoveryError = error.message;
+    } finally { this.finishRecovery?.(); }
+  }
+  async handleBackgroundJob(event) {
+    if (event.type === 'disconnected') {
+      for (const summary of this.recoveryJobs.values()) {
+        const tab = this.store.getTab(summary.owner.tabId), operation = tab?.operations.analysis;
+        if (!operation?.running || this.localAnalysisTabs.has(tab.tabId)) continue;
+        this.store.commitOperation({ tabId: tab.tabId, pageGeneration: tab.pageGeneration,
+          kind: 'analysis', requestId: operation.requestId, dependencies: operation.dependencies || {},
+        }, { type: 'operationFailed', code: 'job_connection_lost', error: t('jobConnectionLost') });
+      }
+      return;
+    }
+    if (event.type === 'partial') {
+      if (event.section === 'executionQueue') return;
+      const summary = [...this.recoveryJobs.values()].find(job => job.id === event.jobId);
+      if (!summary || this.localAnalysisTabs.has(summary.owner.tabId)) return;
+      const tab = this.store.getTab(summary.owner.tabId), operation = tab?.operations.analysis;
+      if (tab?.backgroundJob?.id === event.jobId && operation?.running) this.store.commitOperation({
+        tabId: tab.tabId, pageGeneration: tab.pageGeneration, kind: 'analysis',
+        requestId: operation.requestId, dependencies: operation.dependencies || {},
+      }, { type: 'analysisPartial', partial: event });
+      return;
+    }
+    if (event.type !== 'job') return;
+    const job = event.job;
+    if (!job || job.errorCode === 'stale') return;
+    const liveTab = await this.chromeApi.tabs.get(job.owner.tabId).catch(() => null);
+    if (!liveTab || globalThis.NutEggAI.capturePageKey(liveTab.url) !== job.owner.key) return;
+    const previous = this.recoveryJobs.get(job.owner.tabId);
+    if (previous && (previous.createdAt > job.createdAt ||
+      previous.id === job.id && previous.revision >= job.revision)) return;
+    this.recoveryJobs.set(job.owner.tabId, job);
+    if (this.originalJobs.has(job.id) || this.localAnalysisTabs.has(job.owner.tabId)) return;
+    const tab = this.store.ensure(job.owner.tabId, job.owner.key);
+    if (tab.backgroundDismissedJobId === job.id || globalThis.NutEggAI.capturePageKey(tab.url) !== job.owner.key) return;
+    // Viewed/save metadata can advance a terminal job's revision. Its result has
+    // already been applied; replaying it would erase subsequent local actions.
+    if (tab.backgroundAppliedJobId === job.id && !['waiting', 'running'].includes(job.status)) {
+      this.store.dispatch({ type: 'backgroundJobInfo', tabId: job.owner.tabId, job });
+      return;
+    }
+    if (!tab.operations.analysis?.running) this.store.beginOperation(job.owner.tabId, 'analysis', {}, []);
+    this.store.dispatch({ type: 'backgroundJobSummary', tabId: job.owner.tabId,
+      pageGeneration: tab.pageGeneration, job });
+    if (this.store.activeTabId === job.owner.tabId) void this.restoreForTab(job.owner.tabId);
+  }
+  async restoreForTab(tabId) {
+    const summary = this.recoveryJobs.get(tabId), tab = this.store.getTab(tabId);
+    if (!summary || !tab || tab.backgroundDismissedJobId === summary.id || this.localAnalysisTabs.has(tabId) || this.originalJobs.has(summary.id) ||
+      globalThis.NutEggAI.capturePageKey(tab.url) !== summary.owner.key) return false;
+    if (tab.backgroundAppliedJobId === summary.id && !['waiting', 'running'].includes(summary.status)) return true;
+    if (tab.backgroundRestoredRevision === summary.revision && tab.backgroundJob?.id === summary.id) return true;
+    const key = `${summary.id}:${summary.revision}`;
+    if (this.recoveryLoads.has(key)) return this.recoveryLoads.get(key);
+    const task = (async () => {
+      const job = await this.service.getJob(summary.id);
+      const current = this.store.getTab(tabId);
+      if (!job || this.localAnalysisTabs.has(tabId) || current?.backgroundDismissedJobId === summary.id || current?.pageGeneration !== tab.pageGeneration ||
+        this.recoveryJobs.get(tabId)?.id !== job.id || current.backgroundJob?.revision > job.revision) return false;
+      if (current.backgroundAppliedJobId === job.id && !['waiting', 'running'].includes(job.status)) return true;
+      let result = job.result;
+      const stoppedStage2 = job.stage === 2 && ['failed', 'cancelled', 'interrupted'].includes(job.status);
+      if (job.stage === 2 && (result || stoppedStage2 && job.payload.cachedEggResults?.length)) {
+        result ||= {};
+        const byEgg = new Map([...(job.payload.cachedEggResults || []), ...(result.eggResults || []),
+          ...(result.eggAnalysisCache || [])].map(value => [value.egg, value]));
+        const eggs = job.payload.selectedEggs || job.payload.eggs || [];
+        result = { ...globalThis.NutEggAI.composeEggResults(job.payload.contentAnalysis,
+          eggs.map(egg => byEgg.get(egg)).filter(Boolean), [...byEgg.values()]), stage: 'stage2',
+          mode: result.mode || job.payload.contentAnalysis?.mode, nutId: result.nutId || job.payload.nutId,
+          generateKnowledgeEntries: job.payload.generateKnowledgeEntries };
+      } else if (result) {
+        result = { ...result, stage: 'stage1', generateKnowledgeEntries: job.payload.generateKnowledgeEntries };
+        if (result.mode !== 'chrome') for (const key of ['eggResults', 'shouldRead', 'shouldReadReason', 'newKnowledge']) delete result[key];
+      }
+      const { payload, context, result: rawResult, signature, progress, ...metadata } = job;
+      this.recoveryJobs.set(tabId, metadata);
+      this.store.dispatch({ type: 'backgroundJobRestored', tabId, pageGeneration: tab.pageGeneration, job, result });
+      for (const event of job.progress || []) this.handleBackgroundJob(event);
+      return true;
+    })().catch(error => {
+      if (this.store.getTab(tabId)?.pageGeneration === tab.pageGeneration)
+        this.store.dispatch({ type: 'notice', tabId, message: error.message });
+      return false;
+    }).finally(() => this.recoveryLoads.delete(key));
+    this.recoveryLoads.set(key, task);
+    return task;
   }
   async refreshDebugInfo() {
     const tab = this.store.getTab(this.store.activeTabId);
@@ -54,7 +167,8 @@ class PopupOperations {
   fail(context, error) {
     this.store.commitOperation(context.token, {
       type: 'operationFailed',
-      error: error?.message || String(error),
+      error: ['job_storage_full', 'job_storage_failed', 'job_storage_unavailable'].includes(error?.code)
+        ? t('jobStorageUnavailable') : error?.code === 'job_protocol_mismatch' ? t('jobUpdateRequired') : error?.message || String(error),
       code: error?.code,
     });
     return { error: error?.message || String(error) };
@@ -191,6 +305,11 @@ class PopupOperations {
     };
     const unsubscribe = this.store.subscribe(check);
     check();
+    const jobId = crypto.randomUUID();
+    this.originalJobs.add(jobId);
+    this.localAnalysisTabs.add(ctx.token.tabId);
+    let acceptedId = jobId;
+    const parentJob = this.store.getTab(ctx.token.tabId)?.backgroundJob;
     try {
       return await this.service.sendAnalyzeViaPort(
         payload,
@@ -199,9 +318,19 @@ class PopupOperations {
             this.store.commitOperation(ctx.token, { type: 'analysisQueueState', state: event.data?.state });
           } else onProgress?.(event);
         },
-        { signal: controller.signal }
+        { signal: controller.signal, tabId: ctx.token.tabId, jobId,
+          context: { inputs: ctx.inputs, parentJobId: Number(payload.stage) === 2 && parentJob?.stage === 1
+            ? parentJob.id : Number(payload.stage) === 2 ? parentJob?.parentJobId : undefined },
+          onJob: job => {
+            acceptedId = job.id; this.originalJobs.add(job.id);
+            const { payload, context, result, signature, progress, ...metadata } = job;
+            this.store.commitOperation(ctx.token, { type: 'backgroundJobInfo', job: metadata });
+          },
+        }
       );
     } finally {
+      this.originalJobs.delete(jobId); this.originalJobs.delete(acceptedId);
+      this.localAnalysisTabs.delete(ctx.token.tabId);
       unsubscribe();
     }
   }
@@ -351,7 +480,7 @@ class PopupOperations {
       selectedEggs: eggs,
       cachedEggResults: cached,
       generateKnowledgeEntries: tab.generateKnowledgeEntries,
-      outputLanguage: inputs.outputLanguage,
+      outputLanguage: tab.backgroundJob?.detached ? source.outputLanguage ?? inputs.outputLanguage : inputs.outputLanguage,
       nutId: source.nutId || analysis.nutId || tab.currentNutId,
     };
     const response = await this.sendAnalysis(ctx, payload);
@@ -413,6 +542,7 @@ class PopupOperations {
       received = true;
       receipt({ success: !!response?.success, outcome: response?.success ? 'saved' : 'failed' });
       if (!response?.success) throw new Error(response?.error || t('failedToSave'));
+      this.service.markJobSaved?.(tab.backgroundJob?.id, tab.currentNutId, hatch);
       this.store.commitOperation(token, {
         type: 'saved',
         hatch,

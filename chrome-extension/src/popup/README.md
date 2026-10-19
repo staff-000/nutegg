@@ -76,9 +76,12 @@ zero values. Running means an analysis owns a worker request slot; waiting means
 its current Stage 1 or Stage 2 request is queued. Follow-ups, creation and Hatch do
 not count as tab analyses. Only displaying the latest
 results in the active, visible panel marks them read. These counts cover the current
-Chrome window and reset when the panel closes. There is no browser-wide job
-persistence, toolbar badge or additional Chrome permission. Navigation and panel
-closure cancel their analysis transports; switching tabs keeps analyses running.
+Chrome window and survive closing/reopening the panel. Submitted Stage 1/Stage 2
+requests belong to the worker; ports only subscribe. Navigation and tab closure
+cancel jobs; switching tabs or closing the panel only detaches its view. Reopened
+Stage 1 results require explicit continuation. See [background analysis recovery](../../../../docs/background-analysis.md)
+for persistence, protocol, identity and interruption behavior. No additional Chrome
+permission or toolbar badge is added.
 Connected analysis, follow-up, egg creation and Hatch requests share a FIFO queue
 with at most three active HTTP requests per extension worker. Control requests
 remain outside that queue. Queued work expires after 30 minutes; analysis execution

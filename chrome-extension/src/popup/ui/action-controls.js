@@ -550,7 +550,8 @@ class ActionControlsComponent {
           ? t('analyzing')
           : !view.selectedEggs?.size
             ? t('eggAnalysisSelectEgg')
-            : this.getEggAnalysisLabelText(view.generateKnowledgeEntries);
+            : view.backgroundJob?.stage === 1 && view.backgroundJob?.status === 'completed' && view.backgroundJob?.detached
+              ? t('continueEggAnalysis') : this.getEggAnalysisLabelText(view.generateKnowledgeEntries);
     }
     set(this.eggAnalysisOnlyBtn, busy, `${view.generateKnowledgeEntries ? '' : '✓ '}${t('eggAnalysisOnly')}`);
     set(

@@ -222,7 +222,8 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   const requests = [], ports = [];
   const api = { runtime: { getManifest: () => ({ ...require('../manifest.json'), version: '1' }), sendMessage: async ({ action }) => action === 'history' ? { history: [] } : action === 'config-status' ? { issues: [] } : { online: true }, connect: () => {
     const port = { onMessage: { addListener: fn => { port.respond = fn; } }, onDisconnect: { addListener() {} },
-      postMessage: message => { if (message.action === 'analyze') requests.push(message); }, disconnect() {} };
+      postMessage: message => { if (message.action === 'analyze') requests.push(message);
+        if (message.action === 'subscribe') queueMicrotask(() => port.respond({ type: 'snapshot', jobs: [], sessionId: 'recovery-test' })); }, disconnect() {} };
     ports.push(port); return port;
   } },
     tabs: { query: async () => [{ id: 1, windowId: 7 }], get: async id => ({ id, title: 'Page', url: 'https://one.test', status: 'complete' }),
@@ -255,7 +256,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   assert.equal(requests[0].payload.stage, 2);
   assert.equal(button.disabled, true);
   assert.equal(root.getElementById('egg-analysis-label').textContent, context.t('analyzingEggs'));
-  ports[0].respond({ stage: 'stage2', mode: 'obsidian', eggResults: [{ egg: 'a.md', extractedEntries: [{ content: 'Click result' }], keyQuestionAnswers: [] }] });
+  ports.at(-1).respond({ stage: 'stage2', mode: 'obsidian', eggResults: [{ egg: 'a.md', extractedEntries: [{ content: 'Click result' }], keyQuestionAnswers: [] }] });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(button.disabled, false);
   assert.equal(root.getElementById('egg-knowledge-section').classList.contains('hidden'), false);
@@ -268,7 +269,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   store.dispatch({ type: 'draft', tabId: 1, values: { selectedEggs: ['b.md'] } });
   button.click();
   assert.equal(requests.length, 2); assert.equal(button.disabled, true);
-  ports[1].respond({ error: 'Cannot reach Obsidian', errorCode: 'network_error' });
+  ports.at(-1).respond({ error: 'Cannot reach Obsidian', errorCode: 'network_error' });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(button.disabled, false);
   assert.equal(root.getElementById('error-banner').classList.contains('hidden'), false);
@@ -298,7 +299,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   button.click();
   assert.equal(requests.length, 3);
   assert.deepEqual([...requests[2].payload.eggs], ['nutegg/new.md']);
-  ports[2].respond({ stage: 'stage2', mode: 'obsidian', eggResults: [{ egg: 'nutegg/new.md', extractedEntries: [{ content: 'New egg insight' }], keyQuestionAnswers: [] }] });
+  ports.at(-1).respond({ stage: 'stage2', mode: 'obsidian', eggResults: [{ egg: 'nutegg/new.md', extractedEntries: [{ content: 'New egg insight' }], keyQuestionAnswers: [] }] });
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(root.getElementById('confirm-btn').disabled, false);
   root.getElementById('confirm-btn').click();

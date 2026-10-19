@@ -299,6 +299,7 @@ async function initPopup() {
   chrome.tabs.onDetached?.addListener(() => activityUI.refresh());
   document.addEventListener('visibilitychange', () => tabAction.handleVisibilityChange());
   globalThis.NutEggStartup?.finish();
+  await operations.initializeRecovery();
   await tabAction.refreshForCurrentTab();
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { initPopup, tabStateManager, renderer };

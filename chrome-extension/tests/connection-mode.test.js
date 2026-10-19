@@ -2,12 +2,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const { MemoryAnalysisStore } = require('./helpers/memory-analysis-store');
+const settle = async check => { for (let i = 0; i < 1000; i++) { if (check()) return; await new Promise(resolve => setImmediate(resolve)); } throw new Error('Job did not settle'); };
 
 function worker(initial = {}, availability = {}) {
   const stored = { executionSchemaVersion:2, [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}:test`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
-  let listener, storageListener, connectListener;
+  let listener, storageListener, connectListener, tabUpdated, tabRemoved;
+  const session = availability.session || {};
   const context = vm.createContext({
-    importScripts() {}, structuredClone, DOMException, Response, TextDecoder, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
+    importScripts() {}, queueMicrotask, setInterval, clearInterval, MemoryAnalysisStore, structuredClone, DOMException, Response, TextDecoder, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
     setTimeout: (callback, delay) => { timeouts.push(delay); return availability.timer ? availability.timer(callback, delay) : setTimeout(callback, delay); }, clearTimeout,
     NutEggAI: {
       PROVIDER_CATALOG: { google: { defaultModel: 'default-model' } },
@@ -32,13 +35,16 @@ function worker(initial = {}, availability = {}) {
       isAIConfigured: settings=>settings.chromeAiProvider==='local'||!!settings.chromeAiApiKey,
     },
     chrome: {
-      storage: { onChanged: { addListener(fn) { storageListener = fn; } }, local: {
+      tabs: { get: async id => ({ id, windowId: 1, url: 'https://example.com/old' }),
+        onUpdated: { addListener(fn) { tabUpdated = fn; } }, onRemoved: { addListener(fn) { tabRemoved = fn; } },
+        sendMessage: async () => {} },
+      storage: { session: { get: async () => structuredClone(session), set: async values => Object.assign(session, structuredClone(values)) }, onChanged: { addListener(fn) { storageListener = fn; } }, local: {
         get: async keys => keys==null?structuredClone(stored):Object.fromEntries(keys.map(key => [key, stored[key]])),
         set: async values => Object.assign(stored, values),
         remove: async key => { delete stored[key]; },
       } },
       action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
-      runtime: {id:'a'.repeat(32), getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener(fn) { connectListener = fn; } } },
+      runtime: { getPlatformInfo: async () => ({}), id:'a'.repeat(32), getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener(fn) { connectListener = fn; } } },
     },
     fetch: async (url, options) => {
       http.push({ url, options });
@@ -54,8 +60,15 @@ function worker(initial = {}, availability = {}) {
   });
   vm.runInContext(fs.readFileSync(require.resolve('../dist/page-identity.js'), 'utf8'), context);
   context.NutEggAI.normalizeCaptureCoverage = new Function(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8')+';return NutEggAI')().normalizeCaptureCoverage;
+  vm.runInContext(fs.readFileSync(require.resolve('../src/background/analysis-jobs.js'), 'utf8'), context);
+  vm.runInContext('var AnalysisJobStore = MemoryAnalysisStore;', context);
+  if (availability.jobStore) {
+    context.savedJobStore = availability.jobStore;
+    vm.runInContext('AnalysisJobStore = function () { return savedJobStore; };', context);
+  }
   vm.runInContext(fs.readFileSync(require.resolve('../src/background/service-worker.js'), 'utf8'), context);
-  return { context, stored, http, ai, timeouts, connect: port => connectListener(port), change: async values => {
+  return { context, stored, http, ai, timeouts, updated: (...args) => tabUpdated(...args), removed: id => tabRemoved(id),
+    connect: port => connectListener(port), change: async values => {
     const changes = Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }]));
     Object.assign(stored, values);
     storageListener(changes, 'local');
@@ -175,7 +188,7 @@ test('a delayed health check with an authenticated session remains connected', a
   assert.equal(result.degraded, true);
 });
 
-test('disconnecting an analysis port aborts its stream', async () => {
+test('disconnecting an analysis port preserves its stream until explicitly cancelled', async () => {
   let messageListener, disconnectListener, requestSignal;
   const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
     if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
@@ -187,12 +200,13 @@ test('disconnecting an analysis port aborts its stream', async () => {
     onDisconnect: { addListener(fn) { disconnectListener = fn; } },
     onMessage: { addListener(fn) { messageListener = fn; } }, postMessage: value => posted.push(value),
   });
-  const job = messageListener({ action: 'analyze', payload: {} });
-  await new Promise(resolve => setImmediate(resolve));
+  messageListener({ protocol: 2, action: 'analyze', jobId: 'detached', tabId: 1, payload: { title: 'Old', url: 'https://example.com/old', content: 'Body' } });
+  await settle(() => requestSignal);
   disconnectListener();
-  await job;
+  assert.equal(requestSignal.aborted, false);
+  await app.context.analysisJobs().cancel('detached');
+  await settle(() => !app.context.analysisJobs().live.size);
   assert.equal(requestSignal.aborted, true);
-  assert.deepEqual(posted.map(event => event.data?.state), ['waiting', 'running']);
 });
 
 test('a cancelled Chrome-only analysis cannot cache a provider result that arrives late', async () => {
@@ -204,11 +218,12 @@ test('a cancelled Chrome-only analysis cannot cache a provider result that arriv
     onDisconnect: { addListener(fn) { disconnectListener = fn; } },
     onMessage: { addListener(fn) { messageListener = fn; } }, postMessage() {},
   });
-  const job = messageListener({ action: 'analyze', payload: { title: 'Old', url: 'https://example.com/old', content: 'Body' } });
-  await new Promise(resolve => setImmediate(resolve));
+  messageListener({ protocol: 2, action: 'analyze', jobId: 'late', tabId: 1, payload: { title: 'Old', url: 'https://example.com/old', content: 'Body' } });
+  await settle(() => finish);
+  await app.context.analysisJobs().cancel('late');
   disconnectListener();
   finish({ coreSummary: ['Late result'] });
-  await job;
+  await settle(() => !app.context.analysisJobs().live.size);
   assert.equal(app.stored.chromeTabCache, undefined);
   assert.equal(app.stored.chromeMetrics, undefined);
 });
@@ -711,3 +726,76 @@ test('followups, creation and Hatch share the bounded pool with analyses', async
   assert.equal(peak, 3);
   assert.equal(active, 0);
 });
+
+test('twenty submitted port jobs keep the three-slot FIFO queue after every panel disconnects', async () => {
+  const pending = [], started = [];
+  const app = worker({ connectionMode: 'obsidian' }, { respond: async (url, options) => {
+    if (!url.endsWith('/analyze')) return { ok: true, json: async () => ({}) };
+    const payload = JSON.parse(options.body); started.push(payload.title);
+    await new Promise(resolve => pending.push(resolve));
+    return { ok: true, json: async () => ({ coreSummary: [payload.title], nutId: Number(payload.title) + 1 }) };
+  } });
+  const close = [];
+  for (let n = 0; n < 20; n++) {
+    let receive;
+    app.connect({ name: 'nutegg-analyze', sender: { id: 'a'.repeat(32), url: `chrome-extension://${'a'.repeat(32)}/src/popup/popup.html` },
+      onMessage: { addListener: fn => { receive = fn; } }, onDisconnect: { addListener: fn => close.push(fn) }, postMessage() {} });
+    receive({ protocol: 2, action: 'analyze', jobId: `batch-${n}`, tabId: n + 1,
+      payload: { title: String(n), content: 'Submitted source', url: 'https://example.com/old' } });
+  }
+  await settle(() => app.context.analysisJobs().jobs.size === 20 && pending.length === 3);
+  assert.deepEqual(started, ['0', '1', '2']);
+  assert.equal([...app.context.analysisJobs().jobs.values()].filter(job => job.status === 'waiting').length, 17);
+  close.forEach(disconnect => disconnect());
+  for (let n = 0; n < 20; n++) {
+    await settle(() => pending.length > n); pending[n]();
+  }
+  await settle(() => !app.context.analysisJobs().live.size);
+  assert.equal(app.http.filter(request => request.url.endsWith('/analyze')).length, 20);
+  assert.equal([...app.context.analysisJobs().jobs.values()].every(job => job.status === 'completed'), true);
+  assert.equal((await app.context.analysisJobs().snapshot(1)).jobs.length, 20);
+});
+
+test('cache clear after job admission but before provider dispatch also blocks the ordinary Chrome cache', async () => {
+  const app = worker({ connectionMode: 'chrome', chromeAiApiKey: 'test' });
+  const manager = app.context.analysisJobs();
+  let allow, close, receive;
+  const gate = new Promise(resolve => { allow = resolve; });
+  const execute = manager.execute;
+  manager.execute = async (...args) => { await gate; return execute(...args); };
+  app.connect({ name: 'nutegg-analyze', sender: { id: 'a'.repeat(32), url: `chrome-extension://${'a'.repeat(32)}/src/popup/popup.html` },
+    onMessage: { addListener: fn => { receive = fn; } }, onDisconnect: { addListener: fn => { close = fn; } }, postMessage() {} });
+  receive({ protocol: 2, action: 'analyze', jobId: 'before-clear', tabId: 1,
+    payload: { title: 'Before clear', url: 'https://example.com/old', content: 'Source' } });
+  await settle(() => manager.live.size === 1);
+  await app.send('clear-chrome-cache');
+  allow(); await settle(() => !manager.live.size);
+  assert.equal(app.stored.chromeTabCache.length, 0);
+  assert.equal((await manager.store.list()).length, 0);
+  close();
+});
+
+for (const navigation of ['away/back', 'hash route away/back', 'reload', 'closed', 'section anchor']) {
+  test(`fresh worker records ${navigation} before recovery initializes`, async () => {
+    const initial = { connectionMode: 'chrome', chromeAiProvider: 'google', chromeAiApiKey: 'test-key' }, session = {};
+    const first = worker(initial, { session });
+    const manager = vm.runInContext('analysisJobs()', first.context);
+    await manager.submit({ jobId: 'previous-document', tabId: 1,
+      payload: { url: 'https://example.com/old', title: 'Previous document', content: 'Source' } });
+    await settle(() => !manager.live.size);
+    const next = worker(initial, { session, jobStore: manager.store });
+    if (navigation === 'away/back') {
+      next.updated(1, { url: 'https://example.com/away', status: 'loading' }, { url: 'https://example.com/away' });
+      next.updated(1, { url: 'https://example.com/old', status: 'loading' }, { url: 'https://example.com/old' });
+    } else if (navigation === 'hash route away/back') {
+      next.updated(1, { url: 'https://example.com/old#/away' }, { url: 'https://example.com/old#/away' });
+      next.updated(1, { url: 'https://example.com/old' }, { url: 'https://example.com/old' });
+    } else if (navigation === 'reload') next.updated(1, { status: 'loading' }, { url: 'https://example.com/old' });
+    else if (navigation === 'closed') next.removed(1);
+    else next.updated(1, { url: 'https://example.com/old#section' }, { url: 'https://example.com/old#section' });
+    assert.equal(vm.runInContext('analysisJobsInstance', next.context), undefined, 'navigation must not load the full recovery ledger');
+    const snapshot = await vm.runInContext('analysisJobs().snapshot(1)', next.context);
+    assert.equal(snapshot.jobs.length, navigation === 'section anchor' ? 1 : 0);
+    assert.equal(next.ai.filter(call => call.action === 'analyze').length, 0);
+  });
+}

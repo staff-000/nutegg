@@ -41,6 +41,12 @@ class TabStateManager {
   get debugInfo() {
     return this.getTab(this.activeTabId)?.debugInfo;
   }
+  setDebugSessionId(id) {
+    if (!id) return;
+    this.#debugSessionId = id;
+    for (const [tabId, tab] of this.#tabs) this.#tabs.set(tabId, popupFreeze({ ...tab,
+      debugScope: `${id}:${tabId}:${tab.pageGeneration}` }));
+  }
   get debugSessionId() {
     return this.#debugSessionId;
   }
@@ -295,6 +301,70 @@ class TabStateManager {
       }
     };
     switch (event.type) {
+      case 'backgroundJobInfo':
+        next.backgroundJob = popupCopy(event.job);
+        if (next.backgroundAppliedJobId === event.job.id && event.job.saved) {
+          next.nutCollected = true;
+          next.eggHatched ||= event.job.saved === 'saved';
+        }
+        if (event.job.persistenceError && !next.warning?.includes(t('jobSaveFailed')))
+          next.warning = [next.warning, t('jobSaveFailed')].filter(Boolean).join('\n');
+        break;
+      case 'backgroundJobSummary': {
+        if (event.pageGeneration !== prev.pageGeneration) return;
+        const job = event.job;
+        if (prev.backgroundJob?.id === job.id && prev.backgroundJob.revision > job.revision) return;
+        next.backgroundJob = popupCopy(job);
+        next.backgroundRecoveryPending = job.status === 'completed';
+        next.debugScope = job.debugScope || next.debugScope;
+        next.operations.analysis = { ...next.operations.analysis,
+          running: ['waiting', 'running'].includes(job.status), queueState: job.status,
+          phase: job.stage === 2 ? 'stage2' : 'stage1', startedAt: job.createdAt };
+        if (job.status === 'completed' && prev.backgroundJob?.status !== 'completed')
+          next.completion = { revision: next.resultRevision + 1, completedAt: job.updatedAt, startedAt: job.createdAt };
+        if (job.viewed) next.completion = null;
+        break;
+      }
+      case 'backgroundJobRestored': {
+        if (event.pageGeneration !== prev.pageGeneration || prev.backgroundJob?.id !== event.job.id ||
+          prev.backgroundJob.revision > event.job.revision) return;
+        const job = event.job, source = job.payload;
+        const { payload, context, result: rawResult, signature, progress, ...metadata } = job;
+        next.backgroundJob = { ...popupCopy(metadata), detached: true };
+        next.backgroundRestoredRevision = job.revision;
+        if (!['waiting', 'running'].includes(job.status)) next.backgroundAppliedJobId = job.id;
+        next.backgroundRecoveryPending = false;
+        next.extractedContent = popupCopy(source);
+        next.sourceVersion++;
+        next.debugScope = source.debugScope || next.debugScope;
+        next.stage1Payload = { ...popupCopy(source), nutId: event.result?.nutId || source.nutId };
+        next.enabledSections = { ...next.enabledSections, ...source.enabledSections };
+        next.generateKnowledgeEntries = source.generateKnowledgeEntries === true;
+        next.optimizeForConversation = source.optimizeForConversation !== false;
+        next.customQuestions = (source.questions || []).join('\n');
+        next.customQuestionsScope = source.questionsScope || 'within';
+        next.selectedEggs = popupCopy(source.selectedEggs || job.context?.inputs?.eggs || job.result?.matchedEggs || source.eggs || []);
+        next.warning = globalThis.NutEggHelpers?.getExtractionWarning?.(source) || null;
+        if (job.persistenceError) next.warning = [next.warning, t('jobSaveFailed')].filter(Boolean).join('\n');
+        if (event.result) {
+          result(event.result, job.stage === 1);
+          if (job.stage === 2) next.stage1ContentAnalysis = popupCopy(source.contentAnalysis);
+          next.nutCollected = job.saved === 'saved' || job.saved === 'skip';
+          next.eggHatched = job.saved === 'saved';
+          next.completion = job.status !== 'completed' || job.viewed ? null : { revision: next.resultRevision, completedAt: job.updatedAt, startedAt: job.createdAt };
+          if (job.viewed) next.viewedRevision = next.resultRevision;
+          if (job.status === 'completed') delete next.errors.analysis;
+          if (next.currentNutId != null) next.captureHistory = [{
+            ...popupCopy(source), capturePayload: popupCopy(source), result: popupCopy(event.result),
+            nutId: next.currentNutId, saved: job.saved || 'analyzed', capturedAt: new Date(job.updatedAt).toISOString(),
+          }, ...next.captureHistory.filter(entry => entry.nutId !== next.currentNutId)];
+        }
+        if (['failed', 'cancelled', 'interrupted'].includes(job.status)) {
+          next.errors.analysis = { message: job.errorCode === 'job_interrupted' ? t('jobInterrupted') : job.error || t('jobInterrupted'), code: job.errorCode };
+          if (!event.result && job.stage === 2 && source.contentAnalysis) result(source.contentAnalysis, true);
+        }
+        break;
+      }
       case 'debugInfo':
         next.debugInfo = popupCopy(event.value);
         break;
@@ -368,11 +438,17 @@ class TabStateManager {
       }
       case 'analysisInterim':
         result(event.result, true);
+        if (next.backgroundJob?.status === 'completed') next.backgroundAppliedJobId = next.backgroundJob.id;
         next.stage1Payload = popupCopy(event.payload);
         next.selectedEggs = popupCopy(event.eggs || event.result.matchedEggs || []);
         break;
       case 'analysisComplete':
         result(event.result, event.stage1);
+        if (next.backgroundJob?.status === 'completed') {
+          next.backgroundAppliedJobId = next.backgroundJob.id;
+          next.nutCollected = ['saved', 'skip'].includes(next.backgroundJob.saved);
+          next.eggHatched = next.backgroundJob.saved === 'saved';
+        }
         if (event.payload) next.stage1Payload = popupCopy(event.payload);
         if (event.eggs) next.selectedEggs = popupCopy(event.eggs);
         if (event.history) next.captureHistory = popupCopy(event.history);
@@ -383,7 +459,7 @@ class TabStateManager {
             capturePayload: popupCopy(content),
             nutId: next.currentNutId,
             result: popupCopy(event.result),
-            saved: 'analyzed',
+            saved: next.backgroundJob?.saved || 'analyzed',
             capturedAt: new Date().toISOString(),
           };
           next.captureHistory = [entry, ...next.captureHistory.filter(h => h.nutId !== next.currentNutId)];
@@ -463,6 +539,9 @@ class TabStateManager {
         break;
       case 'historySelected':
         if (this.isBusy(tabId)) return;
+        next.backgroundDismissedJobId = next.backgroundJob?.id;
+        next.backgroundJob = null;
+        next.backgroundRecoveryPending = false;
         this.applyHistory(next, event.entry);
         break;
       case 'saved':
@@ -517,6 +596,8 @@ class TabStateManager {
         break;
       case 'operationFailed':
         finish();
+        if (kind === 'analysis' && next.backgroundJob && !['waiting', 'running'].includes(next.backgroundJob.status))
+          next.backgroundAppliedJobId = next.backgroundJob.id;
         next.errors[kind] = { message: event.error, code: event.code || null };
         if (kind === 'followup')
           next.followUpQa = next.followUpQa.map(q => (q.pending ? { ...q, pending: false, answer: event.error } : q));
@@ -570,6 +651,7 @@ class TabStateManager {
       case 'viewed':
         if (
           tabId !== this.activeTabId ||
+          next.backgroundRecoveryPending ||
           !this.panelVisible ||
           next.currentView !== 'results' ||
           !next.analysisResult ||
@@ -640,7 +722,7 @@ class TabStateManager {
       return [
         {
           tabId: tab.tabId,
-          title: tab.extractedContent?.title,
+          title: tab.extractedContent?.title || tab.backgroundJob?.title,
           url: tab.url,
           running: !!job?.running,
           waiting: !!job?.running && job.queueState === 'waiting',

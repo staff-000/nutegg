@@ -74,6 +74,9 @@ class TabAction {
     }
   }
   async restoreOrExtract(lease, record, options) {
+    await this.operations.recoveryReady;
+    if (!this.store.isActivationCurrent(lease)) return;
+    if (!options.forceExtract && await this.operations.restoreForTab?.(lease.tabId)) return;
     const current = this.store.getTab(lease.tabId);
     if (
       !options.forceExtract &&

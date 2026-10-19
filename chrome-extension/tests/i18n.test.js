@@ -169,3 +169,9 @@ it('popup and settings buttons have localized hints unless explicitly disabled',
     }
   }
 });
+
+it('background recovery copy exists in every supported language', () => {
+  for (const [locale, dictionary] of Object.entries(translations))
+    for (const key of ['continueEggAnalysis', 'jobSaveFailed', 'jobInterrupted', 'jobStorageUnavailable', 'jobUpdateRequired', 'jobConnectionLost'])
+      assert.ok(dictionary[key], `${locale}: ${key}`);
+});
