@@ -5,7 +5,7 @@
 // Catches all pages that no other extractor matched. Extracts
 // the main content area, metadata, and a reading time estimate.
 //
-// Depends on: utils.js (extractText, getMeta, truncate, estimateTime)
+// Depends on: utils.js and dom-reader.js (selection, serialization, readiness, coverage)
 
 function extractGeneric(context) {
   const url = window.location.href;

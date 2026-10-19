@@ -7,7 +7,7 @@ test.afterEach(() => { windows.forEach(window => window.close()); windows = []; 
 function page(url, body) {
   const dom = new JSDOM(body, { url, runScripts: 'outside-only' });
   windows.push(dom.window);
-  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'extractors/discussion', 'extractors/forum', 'extractors/tiktok', 'extractors/chinese']) dom.window.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
+  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'extractors/discussion', 'extractors/forum', 'extractors/tiktok', 'extractors/chinese-common', 'extractors/bilibili', 'extractors/douyin', 'extractors/weibo', 'extractors/zhihu']) dom.window.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
   return { dom, win: dom.window, collector: dom.window.NutEggDiscussion };
 }
 const platforms = [

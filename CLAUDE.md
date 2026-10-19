@@ -3,6 +3,8 @@
 > Single source of truth for AI coding agents & developers working on NutEgg.
 > Optimized for token efficiency: concise rules, direct file navigation, and targeted test commands.
 
+For content capture changes, read the [extractor contributor guide](docs/content-extractor-contributing.md) for the runtime contract, registration, and targeted fixtures.
+
 ---
 
 ## ⚡ Fast Reference: Where Does Code Live? (Token-Saving File Map)
@@ -21,7 +23,7 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
 | **Popup UI Components** | `chrome-extension/src/popup/ui/` | `banners.js`, `capture-view.js`, `verdict.js`, `mindmap.js`, `qa.js`, `eggs.js`, `actions.js`, `results-view.js`, `metrics.js`, `sections.js` |
 | **Popup Entry & Event Wiring** | `chrome-extension/src/popup/popup.js` | Slim coordinator wiring UI, Actions, and State |
 | **Chrome i18n & Helpers** | `chrome-extension/src/i18n.js`, `src/helpers.js` | `t(key, params)` in 10 languages; date/time formatting |
-| **Content Extractors** | `chrome-extension/src/content/extractors/` | `youtube.js` (transcripts/chapters), `twitter.js`, `article.js`, `generic.js` |
+| **Content Extractors** | `chrome-extension/src/content/extractors/` | `youtube.js` (transcripts/chapters), `twitter.js`, `bilibili.js`, `douyin.js`, `weibo.js`, `zhihu.js`, `article.js`, `generic.js`; shared helpers in `chinese-common.js` |
 | **Extension Background Worker** | `chrome-extension/src/background/service-worker.js` | Standalone AI handling, long-lived ports, keep-alive |
 | **Obsidian Local Server** | `obsidian-plugin/src/server.ts` | Local HTTP API (`127.0.0.1:27123`) for `/analyze`, `/confirm`, `/ask` |
 | **Obsidian SQLite & Search** | `obsidian-plugin/src/db.ts` | `node:sqlite` DB, BM25 keyword search, schema definitions |

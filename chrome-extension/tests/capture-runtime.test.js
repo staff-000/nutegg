@@ -1,17 +1,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const { JSDOM } = require('jsdom');
-const flush = () => new Promise(resolve => setImmediate(resolve));
+const { createExtractorPage, flush } = require('./helpers/extractor-harness');
 function page(t) {
-  const dom = new JSDOM('<main></main>', { url: 'https://www.youtube.com/watch?v=one', runScripts: 'outside-only' });
-  const win = dom.window;
-  let listener;
-  win.chrome = { runtime: { sendMessage: async () => ({ success: true }), onMessage: { addListener: fn => { listener = fn; } } } };
-  win.EXTRACTORS = [];
-  for (const file of ['../../dist/page-identity', 'utils', 'dom-reader', 'content-script']) win.eval(fs.readFileSync(require.resolve(`../src/content/${file}.js`), 'utf8'));
-  t.after(() => dom.window.close());
-  return { dom, win, send: message => new Promise(resolve => listener(message, {}, resolve)) };
+  return createExtractorPage(t, {
+    url: 'https://www.youtube.com/watch?v=one', registry: [],
+    scripts: ['dist/page-identity.js', 'src/content/utils.js', 'src/content/dom-reader.js', 'src/content/content-script.js'],
+  });
 }
 
 test('superseded captures cannot perform late DOM work or cancel a newer request', async t => {

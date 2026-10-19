@@ -88,6 +88,8 @@ Use **Use Chrome instead** to return to browser analysis. Chrome mode does not c
 
 ## 🔗 Related Repositories
 
+Extractor contributors: follow the [content extractor guide](../docs/content-extractor-contributing.md) for registration, capture ownership, fixtures, and validation.
+
 Popup developers: see [tab state, async operations and diagnostics](src/popup/README.md)
 for ownership rules, race-condition tests and the concurrent-tab verification steps.
 

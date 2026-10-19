@@ -282,3 +282,32 @@ describe('source jump responses', () => {
     assert.equal(message.expectedUrl, 'https://www.zhihu.com/question/123');
   });
 });
+
+const { captureScriptFiles, CONTENT_SCRIPT_FILES } = require('../src/popup/services/page-extractor.js');
+const manifest = require('../manifest.json');
+describe('authoritative capture script declaration', () => {
+  it('finds the capture entrypoint even when another declaration precedes it', () => {
+    const reordered = { content_scripts: [{ js: ['unrelated.js'] }, ...manifest.content_scripts] };
+    assert.deepEqual(captureScriptFiles(reordered), CONTENT_SCRIPT_FILES);
+  });
+  it('reports missing and ambiguous capture configuration', () => {
+    for (const value of [{}, { content_scripts: [] }, { content_scripts: [...manifest.content_scripts, ...manifest.content_scripts] }])
+      assert.throws(() => captureScriptFiles(value), /capture configuration.*exactly one/);
+  });
+  it('uses the runtime manifest for injection and preserves explicit fixture injection', async () => {
+    const before = globalThis.chrome;
+    const files = ['fixture-utils.js', 'src/content/content-script.js'];
+    let injected;
+    try {
+      globalThis.chrome = { runtime: { getManifest: () => ({ content_scripts: [{ js: files }] }) },
+        scripting: { executeScript: async input => { injected = input; return []; } } };
+      const extractor = new PageExtractor();
+      assert.equal(await extractor.injectContentScript(42), true);
+      assert.deepEqual(injected, { target: { tabId: 42 }, files });
+      assert.deepEqual(new PageExtractor({ contentScriptFiles: ['custom.js'] }).contentScriptFiles, ['custom.js']);
+      globalThis.chrome.runtime.getManifest = () => ({});
+      assert.throws(() => new PageExtractor(), /capture configuration/);
+      assert.deepEqual(new PageExtractor({ contentScriptFiles: [] }).contentScriptFiles, []);
+    } finally { globalThis.chrome = before; }
+  });
+});

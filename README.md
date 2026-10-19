@@ -170,15 +170,7 @@ No build step required — all plain JavaScript.
 | **Weibo** | Current post, full long-post text when accessible, author, repost context |
 | **Zhihu** | Question and loaded answers, individual answer permalinks, articles |
 
-To add a new site extractor:
-
-1. Create a new file in `chrome-extension/src/content/extractors/` (e.g. `reddit.js`)
-2. Define a `detect` function (returns `true` if this page should use your extractor)
-3. Define an `extract` function (returns `{url, title, content, sourceType, metadata?}`)
-4. Register both in the `EXTRACTORS` array in `content-script.js`
-5. Add your file to `manifest.json` `content_scripts.js` (before `content-script.js`) and to the `executeScript` calls in `popup.js`
-
-Shared utilities (`extractText`, `getMeta`, `truncate`, etc.) live in `utils.js` and are available as globals.
+To add or fix a website, follow the [content extractor contributor guide](docs/content-extractor-contributing.md). It documents the runtime contract, registration and manifest order, reusable test harness, executable example, and targeted validation commands.
 
 ## Privacy
 

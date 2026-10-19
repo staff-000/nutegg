@@ -220,7 +220,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   root.getElementById('analyze-btn').classList.add('inactive'); // Initial popup.html styling.
   const oldGet = root.getElementById.bind(root); root.getElementById = id => id === 'popup-styles' ? null : oldGet(id);
   const requests = [], ports = [];
-  const api = { runtime: { getManifest: () => ({ version: '1' }), sendMessage: async ({ action }) => action === 'history' ? { history: [] } : action === 'config-status' ? { issues: [] } : { online: true }, connect: () => {
+  const api = { runtime: { getManifest: () => ({ ...require('../manifest.json'), version: '1' }), sendMessage: async ({ action }) => action === 'history' ? { history: [] } : action === 'config-status' ? { issues: [] } : { online: true }, connect: () => {
     const port = { onMessage: { addListener: fn => { port.respond = fn; } }, onDisconnect: { addListener() {} },
       postMessage: message => { if (message.action === 'analyze') requests.push(message); }, disconnect() {} };
     ports.push(port); return port;

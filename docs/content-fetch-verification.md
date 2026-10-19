@@ -14,7 +14,7 @@ The content reader now uses exact platform host/path detection, application-rout
 
 ## Automated checks
 
-Run individual files with `NODE_PATH=../obsidian-plugin/node_modules node --test tests/<file>.test.js` from `chrome-extension`. Affected files include dom-reader, article, twitter, youtube, capture-runtime, capture-retries, page-extractor, source-navigation, chinese-extractors, discussion-extraction, content-url, connection-mode, actions, popup-renderer, helpers, ui-components, tab-state, startup, and i18n.
+Run individual files with `NODE_PATH=../obsidian-plugin/node_modules node --test tests/<file>.test.js` from `chrome-extension`. Affected files include dom-reader, article, twitter, youtube, capture-runtime, capture-retries, page-extractor, source-navigation, chinese-common, bilibili, douyin, weibo, zhihu, discussion-extraction, content-url, connection-mode, actions, popup-renderer, helpers, ui-components, tab-state, startup, and i18n.
 
 For Obsidian, run `node esbuild.test.mjs` and then each of server, knowledge-base, and i18n under `tests-dist` individually. Both extension and plugin builds are required because shared URL/types changed. The focused checks passed 382 Chrome tests across 19 files and 61 plugin tests across three files (443 total). After live testing exposed another X readiness issue, twitter and capture-runtime were rerun individually with five added cases. Both builds and whitespace checks passed. Startup verification also exposed an existing out-of-scope `state` reference in environment initialization/error handling; those guards now use the current settings authentication method.
 
@@ -40,3 +40,13 @@ Live X testing on `2104198133928390984` exposed a false loading warning and repe
 After the follow-up extension reload and page refresh, the live X capture showed 101 words / 587 characters with no loading warning, correct author attribution, and zero AI calls. Visual comparison confirmed the complete post, including its final sentence, in the fetched-content box. The apparent 500-character cutoff in earlier accessibility observations was the accessibility text representation being shortened; the visible content box retained the ending. This verifies the requested post without expanding or capturing unrelated replies.
 
 Obsidian persistence is covered by snapshot and archive-path tests; no plugin was deployed into the live vault. Cross-origin frames, closed shadow roots, PDF/OCR, additional YouTube routes, and new video-transcription providers remain out of scope.
+
+For current architecture and contribution steps, see the [content extractor contributor guide](content-extractor-contributing.md). Shared helper, Douyin, Weibo, and Zhihu regressions now have individual test files.
+
+## Extractor contribution refactor — 2026-10-19
+
+- Bilibili, Douyin, Weibo, and Zhihu now have separate implementation and test files. All 22 functions moved from the former `chinese.js` were compared against the previous revision and retain identical function bodies.
+- The manifest supplies both automatic injection and popup reinjection order. Registry policies now control body readiness and ordinary-error fallback. Contract fixtures cover legacy reinjection, in-flight request preservation, cancellation, navigation, generic fallback, loading shells, hydration, and coverage notices.
+- The executable article example is checked against the contributor guide. No shared capture schema, provider calls, permissions, settings, caption routes, or Obsidian files were changed.
+- **Automated:** 248 tests passed across 16 files, each run individually: extractor-contract (20), capture-runtime (19), page-extractor (28), chinese-common (9), bilibili (23), douyin (2), weibo (2), zhihu (2), article (6), dom-reader (18), youtube (43), twitter (9), discussion-extraction (28), source-navigation (9), capture-retries (15), and startup (15). Changed/new JavaScript files passed syntax checks. The extension build passed.
+- **Browser:** Chrome's native extension details confirmed the unpacked extension source is this checkout and displayed “Reloaded” after reload. A technical article loaded successfully, but capture-preview verification could not be completed: native automation repeatedly changed its target window/profile while interacting with the toolbar. Live article, YouTube, Bilibili, and X capture checks remain pending; automated DOM/platform fixtures are not a substitute for these checks. No analysis, Hatch, or live-vault deployment was performed.

@@ -2,6 +2,8 @@
 
 > AI coding agent reference for NutEgg. See [CLAUDE.md](CLAUDE.md) for the complete token-saving guide.
 
+For content capture changes, read the [extractor contributor guide](docs/content-extractor-contributing.md) for the runtime contract, registration, and targeted fixtures.
+
 ## Quick File Map (Do Not Read Large Files Blindly)
 
 - **AI Engine & Prompts**: `shared/src/ai-processor.ts`, `shared/workflow/*.md`
@@ -10,7 +12,7 @@
 - **Chrome Extension UI**: `chrome-extension/src/popup/ui/` (`banners.js`, `capture-view.js`, `qa.js`, `eggs.js`, `actions.js`, `verdict.js`)
 - **Chrome Extension Actions**: `chrome-extension/src/popup/action/` (`analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js`)
 - **Chrome Extension State**: `chrome-extension/src/popup/state/` (`session-state.js`, `tab-state.js`, `settings-state.js`)
-- **Chrome Extension Extractors**: `chrome-extension/src/content/extractors/` (`youtube.js`, `twitter.js`, `article.js`, `generic.js`)
+- **Chrome Extension Extractors**: `chrome-extension/src/content/extractors/` (`youtube.js`, `twitter.js`, `bilibili.js`, `douyin.js`, `weibo.js`, `zhihu.js`, `article.js`, `generic.js`; shared platform helpers in `chinese-common.js`)
 - **Obsidian Local Server**: `obsidian-plugin/src/server.ts`
 - **Obsidian SQLite & Search**: `obsidian-plugin/src/db.ts`
 - **Obsidian Knowledge & Workflows**: `obsidian-plugin/src/knowledge-base.ts`, `workflow-manager.ts`

@@ -44,6 +44,12 @@ if (typeof window !== 'undefined' && !window.__nuteggNavigationState) {
     window.addEventListener?.(event, () => syncCaptureNavigation());
   window.navigation?.addEventListener('currententrychange', () => syncCaptureNavigation());
 }
+/**
+ * Owns one attempt's document, canonical URL, navigation generation and deadline.
+ * Pass explicitly to every async helper; check after awaits and before DOM changes.
+ * wait() races cancellation but does not cancel underlying work. Call dispose() in finally.
+ * Full contract: docs/content-extractor-contributing.md
+ */
 function createCaptureContext({ requestId, expectedUrl, attempt = 0, deadline = Date.now() + 20000 } = {}) {
   const controller = new AbortController();
   const url = expectedUrl || window.location.href;

@@ -1,24 +1,21 @@
-if (typeof module !== 'undefined' && module.exports)
+if (typeof module !== 'undefined' && module.exports && typeof require === 'function')
   globalThis.NutEggPageIdentity ||= require('../../../dist/page-identity.js');
 // ============================================================
 // NutEgg Popup Services — Page Extractor & Tab Driver
 // ============================================================
 
-const CONTENT_SCRIPT_FILES = [
-  'dist/page-identity.js',
-  'src/content/utils.js',
-  'src/content/dom-reader.js',
-  'src/content/extractors/youtube.js',
-  'src/content/extractors/twitter.js',
-  'src/content/extractors/chinese.js',
-  'src/content/extractors/discussion.js',
-  'src/content/extractors/forum.js',
-  'src/content/extractors/tiktok.js',
-  'src/content/extractors/article.js',
-  'src/content/extractors/generic.js',
-  'src/content/source-navigation.js',
-  'src/content/content-script.js',
-];
+/** The manifest is the sole ordered script list for automatic and on-demand injection. */
+function captureScriptFiles(manifest) {
+  const declarations = (manifest?.content_scripts || []).filter(entry =>
+    entry.js?.includes('src/content/content-script.js')
+  );
+  if (declarations.length !== 1)
+    throw new Error('NutEgg capture configuration: expected exactly one content-script.js declaration in manifest.json');
+  return [...declarations[0].js];
+}
+const CONTENT_SCRIPT_FILES = captureScriptFiles(
+  typeof module !== 'undefined' && module.exports && typeof require === 'function' ? require('../../../manifest.json') : chrome.runtime.getManifest()
+);
 
 /**
  * Handles communication with the active or target tab's content script,
@@ -27,7 +24,11 @@ const CONTENT_SCRIPT_FILES = [
  */
 class PageExtractor {
   constructor(options = {}) {
-    this.contentScriptFiles = options.contentScriptFiles || CONTENT_SCRIPT_FILES;
+    this.contentScriptFiles = options.contentScriptFiles ?? (
+      typeof chrome !== 'undefined' && chrome.runtime?.getManifest
+        ? captureScriptFiles(chrome.runtime.getManifest())
+        : [...CONTENT_SCRIPT_FILES]
+    );
   }
 
   async collectDiscussion(tabId, { sessionId, load = false, onUpdate, isCancelled = () => false }) {
@@ -514,9 +515,10 @@ _servicesScope.NutEggServices = _servicesScope.NutEggServices || {};
 _servicesScope.NutEggServices.PageExtractor = PageExtractor;
 _servicesScope.PageExtractor = PageExtractor;
 
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== 'undefined' && module.exports && typeof require === 'function') {
   module.exports = {
     PageExtractor,
     CONTENT_SCRIPT_FILES,
+    captureScriptFiles,
   };
 }
