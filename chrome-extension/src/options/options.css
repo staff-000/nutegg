@@ -1001,6 +1001,13 @@ textarea {
   border-radius: 8px;
   background: var(--wash);
 }
+.use-subscription-wrap[aria-disabled="true"] .switch-toggle {
+  cursor: not-allowed;
+}
+.use-subscription-wrap:focus-visible {
+  outline: 3px solid #bc8e56;
+  outline-offset: 3px;
+}
 .switch-toggle input:focus-visible + .switch-slider {
   outline: 3px solid #bc8e56;
   outline-offset: 3px;

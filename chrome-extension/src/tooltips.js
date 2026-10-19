@@ -99,6 +99,10 @@
   doc.addEventListener('focusin', event => show(target(event.target)));
   doc.addEventListener('focusout', hide);
   doc.addEventListener('pointerdown', hide);
+  doc.addEventListener('click', event => {
+    const element = target(event.target);
+    if (element?.getAttribute('aria-disabled') === 'true') show(element);
+  });
   doc.addEventListener('keydown', event => {
     if (event.key === 'Escape') hide();
   });

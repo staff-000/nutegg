@@ -51,7 +51,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
       return { providerLabel: 'Local', statusText: 'Ready', ...credit };
     },
   };
-  for (const file of ['i18n', 'popup/state/settings-state', 'options/options']) {
+  for (const file of ['i18n', 'popup/state/settings-state', 'options/options', 'tooltips']) {
     win.eval(fs.readFileSync(require.resolve(`../src/${file}.js`), 'utf8'));
   }
   await flush();
@@ -112,6 +112,52 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.equal(el('section-discussion').checked, false);
   assert.deepEqual(requests, []);
   assert.deepEqual(values, {});
+});
+
+test('subscription stays visible with hover, click, and keyboard hints until Using Obsidian is selected', async t => {
+  const { win, el, change, messages, values } = await setup(t);
+  const row = el('ai-auth-row');
+  const toggle = el('use-subscription-toggle');
+  const label = row.querySelector('label');
+  const hint = el('nutegg-tooltip');
+  assert.equal(row.hidden, false);
+  assert.equal(toggle.disabled, true);
+  assert.equal(row.getAttribute('aria-disabled'), 'true');
+  assert.equal(row.tabIndex, 0);
+  label.dispatchEvent(new win.MouseEvent('pointerover', { bubbles: true }));
+  assert.equal(hint.hidden, false);
+  assert.match(hint.textContent, /Turn on “Connect Obsidian” to use subscriptions/);
+  label.dispatchEvent(new win.MouseEvent('pointerdown', { bubbles: true }));
+  assert.equal(hint.hidden, true);
+  label.click();
+  assert.equal(hint.hidden, false, 'attempting to click the disabled switch shows its hint');
+  assert.equal(toggle.checked, false);
+  row.focus();
+  assert.equal(hint.hidden, false);
+  assert.equal(row.getAttribute('aria-describedby'), 'nutegg-tooltip');
+  toggle.checked = true;
+  change('use-subscription-toggle');
+  await flush();
+  assert.equal(toggle.checked, false, 'a disabled change cannot select subscription');
+  assert.equal(messages.some(message => message.action === 'set-execution-mode'), false);
+  assert.deepEqual(values, {});
+
+  el('obsidian-mode-enabled').checked = true;
+  change('obsidian-mode-enabled');
+  await flush();
+  assert.equal(row.hidden, false);
+  assert.equal(toggle.disabled, false);
+  assert.equal(row.getAttribute('aria-disabled'), 'false');
+  assert.equal(row.hasAttribute('data-tooltip'), false);
+  assert.equal(hint.hidden, true);
+
+  el('obsidian-mode-enabled').checked = false;
+  change('obsidian-mode-enabled');
+  await flush();
+  assert.equal(row.hidden, false);
+  assert.equal(toggle.disabled, true);
+  label.click();
+  assert.match(hint.textContent, /Turn on “Connect Obsidian”/);
 });
 
 test('subscription shares its provider and preserves API credentials while hiding Chrome model edits', async t => {
@@ -280,13 +326,13 @@ test('chrome cache options load defaults, display cached count, save custom limi
   assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
 });
 
-test('legacy subscriptions migrate without exposing bridge tokens and the method is hidden in Chrome mode', async t => {
+test('legacy subscriptions migrate without exposing bridge tokens and the switch is disabled in Chrome mode', async t => {
   const { values, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token', chromeAiModel: 'custom-model' });
   assert.equal(el('ai-provider-select').value, 'openai'); assert.equal(values.chromeAiProvider, 'openai');
   assert.equal(el('use-subscription-toggle').checked, false); assert.equal(el('ai-key-input').value, '');
   assert.equal([...el('ai-provider-select').options].some(o => o.value.endsWith('-cli')), false);
   el('use-chrome-btn').click(); await flush();
-  assert.equal(el('ai-auth-row').hidden, true); assert.equal(el('use-subscription-toggle').checked, false);
+  assert.equal(el('ai-auth-row').hidden, false); assert.equal(el('use-subscription-toggle').checked, false);
   assert.equal(values.chromeAiApiKey, '');
 });
 
@@ -340,10 +386,10 @@ test('Obsidian AI card displays the actual configuration and colors matching and
 });
 
 
-test('Chrome hides every subscription control when Obsidian has not enabled the feature', async t => {
+test('Chrome keeps the subscription switch visible but disabled when Obsidian has not enabled the feature', async t => {
   const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiApiKey: 'api-key' });
   assert.equal(el('use-subscription-toggle').disabled, true);
-  assert.equal(el('ai-auth-row').hidden, true);
+  assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('subscription-card').hidden, true);
   assert.equal(el('subscription-guide'), null);
   assert.equal(el('subscription-login'), null);
@@ -361,9 +407,9 @@ test('Obsidian opt-in exposes the Chrome connection selector with no account set
 });
 
 
-test('disabling the feature restores the saved API configuration and hides the switch', async t => {
+test('disabling the feature restores the saved API configuration and disables the switch', async t => {
   const { el, values } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiAuthMethod: 'subscription', chromeAiModel: 'cli-custom', aiProfiles: { 'gemini:apiKey': { apiKey: 'retained-key', model: 'gemini-pro' } } });
-  assert.equal(el('ai-auth-row').hidden, true);
+  assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('ai-key-row').hidden, false);
   assert.equal(el('ai-key-input').value, 'retained-key');
   assert.equal(values.obsidianExecutionState.mode, 'apiKey');
@@ -593,7 +639,7 @@ test('signed-out ChatGPT remains selected and Chrome-only mode has no ChatGPT op
     chromeAiApiKey: 'saved-key',
   });
   assert.equal(chromeOnly.el('chatgpt-card').hidden, true);
-  assert.equal(chromeOnly.el('ai-auth-row').hidden, true);
+  assert.equal(chromeOnly.el('ai-auth-row').hidden, false);
   assert.equal(chromeOnly.el('use-subscription-toggle').checked, false);
 });
 

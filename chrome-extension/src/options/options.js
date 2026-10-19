@@ -133,7 +133,19 @@ function syncSubscriptionToggle() {
     !obsidianModeEnabled.checked ||
     (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available) ||
     !!methodChange ||
-    lastSubscriptionState?.transition === 'changing';
+    (!!acknowledgedSharedState?.transition && acknowledgedSharedState.transition !== 'ready');
+  const wrapper = document.getElementById('ai-auth-row');
+  wrapper.setAttribute('aria-label', t('useSubscriptionSwitch'));
+  wrapper.setAttribute('aria-disabled', String(toggle.disabled));
+  wrapper.tabIndex = toggle.disabled ? 0 : -1;
+  if (toggle.disabled) {
+    wrapper.setAttribute('data-tooltip', t(
+      obsidianModeEnabled.checked ? 'aiConnectionUnavailable' : 'subscriptionRequiresObsidian',
+      { setting: t('settingsObsidianTitle') }
+    ));
+  } else {
+    wrapper.removeAttribute('data-tooltip');
+  }
 }
 function renderSubscriptionAccess() {
   const isSub = managedSelected();
@@ -153,9 +165,6 @@ function renderSubscriptionAccess() {
       aiAdvancedStatus.className = 'test-result hidden';
     }
   }
-  document.getElementById('ai-auth-row').hidden =
-    !obsidianModeEnabled.checked ||
-    (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available && !chatgptSelected());
   const chatgptCard = document.getElementById('chatgpt-card');
   if (chatgptCard) chatgptCard.hidden = !chatgptSelected() || !obsidianModeEnabled.checked;
   syncSubscriptionToggle();
@@ -238,8 +247,6 @@ async function applySharedExecution(state) {
   }
   syncSubscriptionToggle();
   renderSubscriptionAccess();
-  const toggle = document.getElementById('use-subscription-toggle');
-  if (toggle) toggle.disabled = state.transition !== 'ready' || !!methodChange || !subscriptionEnabled;
   if (next === 'subscription' && previous !== next) void refreshSubscription();
 }
 let chatgptRequest = 0;
@@ -815,6 +822,10 @@ function initAiSettings(stored) {
   setupChatGPTControls();
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
   useSubscriptionToggle?.addEventListener('change', () => {
+    if (useSubscriptionToggle.disabled || !obsidianModeEnabled.checked) {
+      syncSubscriptionToggle();
+      return;
+    }
     const targetMode = useSubscriptionToggle.checked
       ? lastManagedMode === 'chatgpt' || (!subscriptionEnabled && acknowledgedSharedState?.chatgpt?.available)
         ? 'chatgpt'

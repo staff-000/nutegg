@@ -51,6 +51,22 @@ test('dynamic and disabled controls use the latest localized hint and clear on r
   assert.equal(bubble.hidden, true);
 });
 
+test('clicking a disabled control wrapper displays its hint after pointerdown', t => {
+  const { dom, doc, bubble } = setup(t, '<div aria-disabled="true" data-tooltip="Turn on Using Obsidian" tabindex="0"><label><input disabled type="checkbox"><span>Use Subscription</span></label></div>');
+  const wrapper = doc.querySelector('[aria-disabled]');
+  const label = doc.querySelector('label');
+  label.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
+  label.click();
+  assert.equal(bubble.hidden, false);
+  assert.equal(bubble.textContent, 'Turn on Using Obsidian');
+  assert.equal(doc.querySelector('input').checked, false);
+  assert.equal(wrapper.getAttribute('aria-describedby'), 'nutegg-tooltip');
+  doc.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true }));
+  wrapper.setAttribute('aria-disabled', 'false');
+  label.click();
+  assert.equal(bubble.hidden, true, 'enabled controls retain the normal click dismissal behavior');
+});
+
 test('hints fit the viewport and dismiss on scrolling or hiding their control', async t => {
   const { dom, doc, bubble, hover } = setup(t, '<button title="Refresh">Refresh</button>');
   const button = doc.querySelector('button');
