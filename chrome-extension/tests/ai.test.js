@@ -38,22 +38,22 @@ const {
   AIProcessor,
 } = NutEggAI;
 
-test('subscription migration strips bridge credentials and is idempotent', async () => {
-  for (const [old, provider] of [['gemini-cli', 'gemini'], ['codex-cli', 'openai'], ['claude-cli', 'anthropic']]) {
+test('subscription auth normalization strips API credentials and is idempotent', async () => {
+  for (const provider of ['google', 'openai', 'anthropic']) {
     for (const prefix of ['ai', 'chromeAi']) {
-      const settings = NutEggAI.migrateAISettings({ [prefix + 'Provider']: old, [prefix + 'ApiKey']: 'bridge-secret', [prefix + 'Model']: 'custom-model' });
+      const settings = NutEggAI.normalizeAISettings({ [prefix + 'Provider']: provider, [prefix + 'AuthMethod']: 'subscription', [prefix + 'ApiKey']: 'api-secret', [prefix + 'Model']: 'custom-model' });
       assert.equal(settings[prefix + 'Provider'], provider);
       assert.equal(settings[prefix + 'AuthMethod'], 'subscription');
       assert.equal(settings[prefix + 'ApiKey'], '');
       assert.equal(settings[prefix + 'Model'], 'custom-model');
-      assert.deepEqual(NutEggAI.migrateAISettings(settings), settings);
+      assert.deepEqual(NutEggAI.normalizeAISettings(settings), settings);
       const config = resolveConfig(settings);
-      assert.equal(config.endpoint, ''); assert.equal(config.apiKey, '');
+      assert.equal(config.client.baseURL, undefined); assert.equal(config.client.apiKey, '');
       assert.equal(NutEggAI.isAIConfigured(settings), true);
       await assert.rejects(NutEggAI.chatAI('test', 100, config), error => error.code === 'subscription_requires_obsidian');
     }
   }
-  const api = NutEggAI.migrateAISettings({ aiProvider: 'openai', aiApiKey: 'api-secret' });
+  const api = NutEggAI.normalizeAISettings({ aiProvider: 'openai', aiApiKey: 'api-secret' });
   assert.equal(api.aiAuthMethod, 'apiKey'); assert.equal(api.aiApiKey, 'api-secret');
 });
 
@@ -109,25 +109,25 @@ test("AI Processor - chunkContent splits timestamped transcripts", () => {
 });
 
 test("AI Client - PROVIDER_CATALOG completeness", () => {
-  const expected = ["gemini", "openai", "anthropic", "deepseek", "openrouter", "local"];
+  const expected = ["google", "openai", "anthropic", "deepseek", "openrouter", "local"];
   assert.deepEqual(Object.keys(PROVIDER_CATALOG).sort(), [...expected].sort());
   for (const id of expected) {
     assert.ok(PROVIDER_CATALOG[id], `Missing provider ${id}`);
-    assert.ok(PROVIDER_CATALOG[id].officialEndpoint, `Missing endpoint for ${id}`);
+    assert.ok(PROVIDER_CATALOG[id].connection, `Missing endpoint for ${id}`);
   }
 });
 
 test("AI Client - resolveConfig default to Gemini / Anthropic", () => {
   const conf = resolveConfig({});
   assert.ok(conf.provider);
-  assert.ok(conf.endpoint);
+  assert.ok(conf.client.baseURL);
 });
 
 test("AI Client - resolveConfig OpenRouter", () => {
   const conf = resolveConfig({ chromeAiProvider: "openrouter", chromeAiApiKey: "sk-or-test" });
   assert.equal(conf.provider, "openrouter");
-  assert.equal(conf.apiKey, "sk-or-test");
-  assert.ok(conf.extraHeaders["HTTP-Referer"]);
+  assert.equal(conf.client.apiKey, "sk-or-test");
+  assert.ok(conf.client.defaultHeaders["HTTP-Referer"]);
 });
 
 test("AI Client - catalog defaults apply only when no model is saved", () => {
@@ -140,7 +140,7 @@ test("AI Client - catalog defaults apply only when no model is saved", () => {
       assert.equal(resolveConfig({ aiProvider: provider, aiModel: savedModel }).model, savedModel);
     }
   }
-  assert.equal(resolveConfig({ aiProvider: "openrouter", openrouterModel: "deepseek/deepseek-chat" }).model,
+  assert.equal(resolveConfig({ aiProvider: "openrouter", aiModel: "deepseek/deepseek-chat" }).model,
     "deepseek/deepseek-chat");
   assert.equal(resolveConfig({ aiProvider: "deepseek" }).model, PROVIDER_CATALOG.deepseek.defaultModel);
 });

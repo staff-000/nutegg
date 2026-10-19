@@ -4,7 +4,6 @@
 
 export {
   PROVIDER_CATALOG,
-  OPENROUTER_ENDPOINT,
   findOpenRouterFamily,
   isAIConfigured,
   isSubscriptionProvider,
@@ -13,7 +12,6 @@ export {
 
 export {
   AIError,
-  classifyError,
   chatAI,
   checkCreditAI,
   AIClient,

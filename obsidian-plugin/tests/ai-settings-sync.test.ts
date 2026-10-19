@@ -98,7 +98,7 @@ test('a delayed balance response from the previous provider cannot overwrite the
   const pending: Array<(credit: any) => void> = [];
   plugin.aiClient = { checkCredit: () => new Promise(resolve => pending.push(resolve)) } as any;
   const old = plugin.updateCreditStatusBar();
-  Object.assign(plugin.settings, { aiProvider: 'gemini', aiAuthMethod: 'subscription', subscriptionEnabled: true });
+  Object.assign(plugin.settings, { aiProvider: 'google', aiAuthMethod: 'subscription', subscriptionEnabled: true });
   const current = plugin.updateCreditStatusBar();
   pending[1]({ hasBalance: false, subscriptionState: 'ready', providerLabel: 'Google Gemini', statusText: 'Connected' });
   await current;
@@ -142,7 +142,7 @@ test('API connection box only displays live Chrome providers and models without 
   plugin.settings = { ...DEFAULT_SETTINGS, aiProvider: 'anthropic', aiModel: 'native-only-model' };
   let profiles: any[] = [
     { displayName: 'Work Chrome', provider: 'openai', model: 'chrome-openai-model' },
-    { displayName: 'Personal Chrome', provider: 'gemini', model: 'chrome-gemini-model' },
+    { displayName: 'Personal Chrome', provider: 'google', model: 'chrome-gemini-model' },
   ];
   plugin.server = { execution: { state: { mode: 'apiKey' }, clients: () => profiles } } as any;
   const tab = new NutEggSettingTab({} as any, plugin);
@@ -152,7 +152,7 @@ test('API connection box only displays live Chrome providers and models without 
   const box = (tab as any).displayAIConnections(container);
   assert.equal(box.dataset.mode, 'apiKey');
   assert.match(box.textContent, /OpenAI.*chrome-openai-model/);
-  assert.match(box.textContent, /Google Gemini.*chrome-gemini-model/);
+  assert.match(box.textContent, /Google.*chrome-gemini-model/);
   assert.doesNotMatch(box.textContent, /native-only-model/);
   assert.equal(editableControls, 0);
   assert.deepEqual(plugin.settings, before);
@@ -193,7 +193,7 @@ test('only subscription mode offers account choices and stale selectors cannot l
   assert.equal(box.dataset.mode, 'subscription');
   assert.equal(first.value, 'openai');
   assert.deepEqual([...first.options], [
-    ['chatgpt', 'ChatGPT sign-in'], ['openai', 'Codex CLI'], ['gemini', 'Google Gemini'], ['anthropic', 'Claude'],
+    ['chatgpt', 'ChatGPT sign-in'], ['openai', 'Codex CLI'], ['google', 'Google'], ['anthropic', 'Claude'],
   ]);
   await first.change('anthropic');
   assert.equal(plugin.server.execution.state.mode, 'subscription');
@@ -202,7 +202,7 @@ test('only subscription mode offers account choices and stale selectors cannot l
   ++(tab as any).chatgptView;
   (tab as any).displayAIConnections(container);
   assert.equal(choices[1].value, 'anthropic');
-  await first.change('gemini');
+  await first.change('google');
   assert.equal(plugin.settings.aiProvider, 'anthropic', 'detached controls cannot switch the connection');
   await choices[1].change('chatgpt');
   assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
@@ -239,7 +239,7 @@ test('provider switching cannot restart a detached settings card and strand the 
     configure(component); dropdowns.push(component); return this;
   });
   const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription', aiModel: 'auto' };
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'google', aiAuthMethod: 'subscription', aiModel: 'auto' };
   const pending: Array<{provider: string; resolve: (value: any) => void}> = [];
   plugin.subscriptions = { cancelWork: async () => {}, models: async () => ['auto'],
     status: (provider: string) => new Promise(resolve => pending.push({provider, resolve})) } as any;
@@ -253,7 +253,7 @@ test('provider switching cannot restart a detached settings card and strand the 
   render();
   pending[0].resolve({state: 'ready', message: 'Gemini ready'});
   await new Promise(resolve => setImmediate(resolve));
-  const provider = dropdowns.find(item => item.options.includes('gemini'));
+  const provider = dropdowns.find(item => item.options.includes('google'));
   await provider.change('openai');
   assert.equal(pending.length, 2, 'only the replacement view starts the Codex check');
   assert.equal(pending[1].provider, 'openai');
@@ -262,7 +262,7 @@ test('provider switching cannot restart a detached settings card and strand the 
   assert.doesNotMatch(container.textContent!, /Checking/);
   assert.equal((tab as any).accountState, 'ready');
   // Old controls cannot switch the current provider again.
-  await provider.change('gemini');
+  await provider.change('google');
   assert.equal(plugin.settings.aiProvider, 'openai');
   const model = dropdowns.filter(item => item.options.includes('__custom__')).at(-1);
   plugin.server.execution.state.mode = 'apiKey';
@@ -305,7 +305,7 @@ test('read-only AI settings display received Chrome values and update after sync
   assert.equal(chunk.desc, '');
   assert.equal(tokens.desc, '');
   Object.assign(plugin.settings, { aiProvider: 'local', aiModel: 'local-model',
-    chunkWindowChars: 12000, contentAnalysisMaxTokens: 4096, localEndpoint: 'http://localhost:1234/v1/chat/completions' });
+    chunkWindowChars: 12000, contentAnalysisMaxTokens: 4096, localEndpoint: 'http://localhost:1234/v1' });
   tab.refreshAISettings();
   assert.match(summary.name, /local-model/);
   assert.equal(chunk.name, 'General chunk window size: 12000');
@@ -331,7 +331,7 @@ test('model settings show credit, refresh it, and ignore results for the previou
   assert.equal(button.text, '🪙 ¥8.33');
   assert.equal(button.disabled, false);
   const old = tab.refreshAICredit();
-  Object.assign(plugin.settings, { aiProvider: 'gemini', aiAuthMethod: 'subscription', subscriptionEnabled: true });
+  Object.assign(plugin.settings, { aiProvider: 'google', aiAuthMethod: 'subscription', subscriptionEnabled: true });
   const latest = tab.refreshAICredit();
   pending[2]({ subscriptionState: 'ready', providerLabel: 'Google Gemini', statusText: 'Connected · Quota managed by CLI' });
   await latest;
@@ -384,24 +384,14 @@ test('commands control availability without selecting subscription; disabling sa
   assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
   assert.equal(plugin.settings.aiApiKey, '');
   assert.equal(commands[1].checkCallback(true), true);
-  await plugin.server.execution.change(plugin.server.execution.state.revision,randomUUID(),{mode:'subscription',subscription:{provider:'gemini',model:'cli-custom'}});
+  await plugin.server.execution.change(plugin.server.execution.state.revision,randomUUID(),{mode:'subscription',subscription:{provider:'google',model:'cli-custom'}});
   const beforeDisable=cancellations;
   commands[1].checkCallback(false);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(plugin.settings.subscriptionEnabled, false);
   assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
-  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'gemini', model: 'cli-custom' });
+  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'google', model: 'cli-custom' });
   assert.equal(cancellations, beforeDisable + 1);
-});
-
-test('legacy subscription settings remain inactive until Chrome selects them after command enable', async () => {
-  const plugin = new NutEggPlugin();
-  plugin.loadData = async () => ({ aiProvider: 'claude-cli', aiModel: 'legacy-custom', aiApiKey: 'old-bridge-token' });
-  await plugin.loadSettings();
-  assert.equal(plugin.settings.subscriptionEnabled, false);
-  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
-  assert.equal(plugin.settings.aiApiKey, '');
-  assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'anthropic', model: 'legacy-custom' });
 });
 
 test('subscription tests show progress and preserve success or failure after status refresh', async t => {
@@ -433,7 +423,7 @@ test('subscription tests show progress and preserve success or failure after sta
     configure(button); buttons.push(button); return this;
   });
   const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription', aiModel: '' };
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'google', aiAuthMethod: 'subscription', aiModel: '' };
   let resolveTest: (value: any) => void, rejectTest: (error: Error) => void;
   let model = '';
   plugin.subscriptions = { status: async () => ({ state: 'unverified', message: 'Needs verification' }),
@@ -590,7 +580,7 @@ test('subscription models render Auto/custom before status resolves, including a
   });
 
   const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'gemini', aiAuthMethod: 'subscription' };
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiProvider: 'google', aiAuthMethod: 'subscription' };
   let resolveStatus!: (value: any) => void;
   const statusPromise = new Promise<any>(resolve => { resolveStatus = resolve; });
   let resolveModels: (val: string[]) => void;
@@ -620,7 +610,7 @@ test('subscription models render Auto/custom before status resolves, including a
   await modelsPromise;
   await new Promise(resolve => setImmediate(resolve));
 
-  assert.deepEqual(plugin.settings.subscriptionModels?.gemini, ['auto', 'gemini-custom-model']);
+  assert.deepEqual(plugin.settings.subscriptionModels?.google, ['auto', 'gemini-custom-model']);
   assert.equal(container.querySelector('.nutegg-model-refresh-hint')?.getAttribute('data-state'), 'ready');
   resolveStatus({state: 'unverified', message: 'Sign-in needs verification'});
   await statusPromise;
@@ -664,7 +654,7 @@ test('connected profile settings show Chrome values independently of native sett
   plugin.settings = { ...DEFAULT_SETTINGS, nativeApiConfig: { aiProvider: 'anthropic', aiModel: 'native-model' } };
   const profiles = [
     { displayName: 'Chrome A', provider: 'deepseek', model: 'deepseek-chat', chunkWindowChars: 24000, contentAnalysisMaxTokens: 8192 },
-    { displayName: 'Chrome B', provider: 'gemini', model: 'gemini-profile-b', chunkWindowChars: 12000, contentAnalysisMaxTokens: 4096 },
+    { displayName: 'Chrome B', provider: 'google', model: 'gemini-profile-b', chunkWindowChars: 12000, contentAnalysisMaxTokens: 4096 },
   ];
   plugin.server = { execution: { clients: () => profiles } } as any;
   const tab = new NutEggSettingTab({} as any, plugin);
@@ -672,7 +662,7 @@ test('connected profile settings show Chrome values independently of native sett
   const container = dom.window.document.querySelector('main')!;
   (tab as any).displayConnectedProfiles(container);
   assert.match(container.textContent!, /Chrome ADeepSeekdeepseek-chat/);
-  assert.match(container.textContent!, /Chrome BGoogle Geminigemini-profile-b/);
+  assert.match(container.textContent!, /Chrome BGooglegemini-profile-b/);
   assert.doesNotMatch(container.textContent!, /24000|8192|12000|4096/);
   assert.doesNotMatch(container.textContent!, /native-model|subscription/i);
   profiles[0].model = 'updated-chrome-model'; profiles[0].chunkWindowChars = 32000;
@@ -692,11 +682,11 @@ test('explicit Chrome saves replace the native SecretStorage account in order', 
   plugin.saveData = async data => { saved.push(structuredClone(data)); };
   const results = await Promise.all([
     plugin.syncNativeApi({aiProvider: 'deepseek', aiModel: 'deepseek-chat', chunkWindowChars: 24000}, 'chrome-A-secret'),
-    plugin.syncNativeApi({aiProvider: 'gemini', aiModel: 'profile-B'}, 'chrome-B-secret'),
+    plugin.syncNativeApi({aiProvider: 'google', aiModel: 'profile-B'}, 'chrome-B-secret'),
   ]);
   assert.deepEqual(results, [true, true]);
   assert.equal(plugin.getNativeSettings().aiApiKey, 'chrome-B-secret');
-  assert.equal(plugin.settings.nativeApiConfig!.aiProvider, 'gemini');
+  assert.equal(plugin.settings.nativeApiConfig!.aiProvider, 'google');
   assert.equal(plugin.settings.nativeApiConfig!.chunkWindowChars, 24000);
   assert.doesNotMatch(JSON.stringify(saved), /chrome-A-secret|chrome-B-secret/);
   assert.equal(await plugin.syncNativeApi({aiProvider: 'openai', aiModel: 'other'}, 'replacement-secret'), true);
@@ -719,7 +709,7 @@ test('keyless local sync replaces the active cloud account without needing Secre
     nativeApiConfig: { aiProvider: 'openai', aiModel: 'cloud-model' } };
   let persisted: any;
   plugin.saveData = async data => { persisted = structuredClone(data); };
-  assert.equal(await plugin.syncNativeApi({ aiProvider: 'local', aiModel: 'installed-model', localEndpoint: 'http://localhost:11434/api/chat' }, ''), true);
+  assert.equal(await plugin.syncNativeApi({ aiProvider: 'local', aiModel: 'installed-model', localEndpoint: 'http://localhost:11434', localApiType: 'ollama' }, ''), true);
   assert.equal(plugin.getNativeSettings().aiProvider, 'local');
   assert.equal(plugin.getNativeSettings().aiModel, 'installed-model');
   assert.equal(plugin.getNativeSettings().aiApiKey, '');

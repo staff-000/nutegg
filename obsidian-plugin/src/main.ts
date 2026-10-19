@@ -4,7 +4,7 @@ import type { SharedExecutionState } from '../../shared/src/execution';
 import { SubscriptionService } from './subscription-service';
 import { ConnectionAccess } from './connection-access';
 import { approveChromeConnection } from './connection-modal';
-import { migrateAISettings } from '../../shared/src/catalog';
+import { normalizeAISettings } from '../../shared/src/catalog';
 import { MarkdownView, Notice, Plugin } from 'obsidian';
 import { NutEggSettings, DEFAULT_SETTINGS, NutEggSettingTab } from './settings';
 import { AIClient, isAIConfigured } from './ai-client';
@@ -618,7 +618,7 @@ export default class NutEggPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const data = (await this.loadData()) || {};
-    this.settings = migrateAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
+    this.settings = normalizeAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
     const legacyKey = this.settings.aiApiKey;
     let movedLegacyFile: { original: string; legacy: string } | undefined;
     if (legacyKey) {
@@ -656,9 +656,9 @@ export default class NutEggPlugin extends Plugin {
       aiApiKey: '',
     };
     if (!this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription') {
-      if (['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
+      if (['openai', 'anthropic', 'google'].includes(this.settings.aiProvider)) {
         this.settings.subscriptionSelection = {
-          provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini',
+          provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'google',
           model: this.settings.aiModel || 'auto',
         };
       }
@@ -685,7 +685,7 @@ export default class NutEggPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     if (!this.persistingExecution && this.server && this.settings.aiAuthMethod === 'subscription') {
       const selection = {
-        provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini',
+        provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'google',
         model: this.settings.aiModel || 'auto',
       };
       const currentSelection = this.server.execution.state.subscription;
@@ -695,9 +695,9 @@ export default class NutEggPlugin extends Plugin {
       }
     }
     const isSubscription = this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription';
-    if (isSubscription && ['openai', 'anthropic', 'gemini'].includes(this.settings.aiProvider)) {
+    if (isSubscription && ['openai', 'anthropic', 'google'].includes(this.settings.aiProvider)) {
       this.settings.subscriptionSelection = {
-        provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'gemini',
+        provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'google',
         model: this.settings.aiModel || 'auto',
       };
     }

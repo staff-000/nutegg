@@ -41,13 +41,15 @@ Codex and Claude readiness is verified through their authentication-status comma
 
 Completed installation/sign-in controls hide automatically. One pending login per provider is reused; reopening settings resumes checks. Cancel stops NutEgg's login operation. Native terminal handoff supports macOS Terminal, Windows PowerShell, and Linux x-terminal-emulator, GNOME Terminal, Konsole, or xterm. An exact command remains available when handoff fails.
 
-## Configuration and migration
+## Configuration
 
 Obsidian settings show live authenticated Chrome sessions, non-secret provider/model details, local server status and subscription runtime activity. Different API configurations are expected; there is no last-sync-wins conflict. API mode hides subscription guidance and stops owned subscription inference, login and discovery processes.
 
 API key and subscription preferences are retained separately across switching and restarts. Chrome sends non-secret execution metadata and its explicit shared mode choice. For inference, API keys and endpoints stay inside the initiating Chrome executor. An explicit connected API **Save & continue** also updates the native Obsidian account in SecretStorage with the saved Chrome account; each explicit save replaces the native key, while other profiles retain their own keys. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. The feature availability command is separate from Chrome's active connection switch.
 
-Legacy `codex-cli`, `claude-cli`, and `gemini-cli` settings migrate to OpenAI, Anthropic, and Gemini. When the feature is disabled, their subscription selections stay inactive until the Obsidian command enables availability and Chrome selects Subscription. Custom models survive migration; bridge endpoints and pairing tokens are cleared from active settings. Existing API configurations default to API key. Migration is repeatable. Legacy files and CLI credentials in your home directory are untouched; the separate bridge scripts and port 27124 are retired.
+Provider IDs follow BYOKit directly: `openai`, `anthropic`, and `google`.
+Gemini model names and CLI integration names are unchanged. Legacy provider-ID
+aliases are not translated.
 
 Model discovery refreshes after login and on demand. Obsidian retains cached choices and the selected model if discovery fails; Auto and Custom remain available. A rejected model reports **Choose another model**, with no automatic substitution.
 

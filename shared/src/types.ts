@@ -2,16 +2,10 @@
 // NutEgg Unified AI Engine — Type Definitions
 // ============================================================
 
-export type AIProviderId =
-  | 'local'
-  | 'openrouter'
-  | 'anthropic'
-  | 'deepseek'
-  | 'gemini'
-  | 'gemini-cli'
-  | 'codex-cli'
-  | 'claude-cli'
-  | 'openai';
+import type { Connection, StandardClientOptions } from 'byokit/client';
+import type { GENERATED_PROVIDERS } from './generated-models';
+
+export type AIProviderId = (typeof GENERATED_PROVIDERS)[number]['id'];
 
 export type AISource = 'official' | 'openrouter';
 export type AIAuthMethod = 'apiKey' | 'subscription' | 'chatgpt';
@@ -23,7 +17,7 @@ export interface ChatGPTConnection {
   model: string;
   message?: string;
 }
-export type SubscriptionProvider = 'openai' | 'anthropic' | 'gemini';
+export type SubscriptionProvider = 'openai' | 'anthropic' | 'google';
 
 export interface SubscriptionStatus {
   state: 'disabled' | 'missing' | 'login_required' | 'signing_in' | 'unverified' | 'ready' | 'error';
@@ -58,24 +52,17 @@ export interface ModelFamily {
 export interface ProviderInfo {
   id: AIProviderId;
   label: string;
-  officialEndpoint: string;
-  apiFormat: 'anthropic' | 'openai-compatible';
+  connection: Connection;
   defaultModel?: string;
   models?: string[];
   families?: ModelFamily[];
-  keyPlaceholder: string;
-  openrouterPrefix: string;
-  subscription?: { cli: string; login: string };
 }
 
 export interface ResolvedConfig {
-  authMethod?: AIAuthMethod;
-  endpoint: string;
-  apiKey: string;
-  model: string;
-  apiFormat: 'anthropic' | 'openai-compatible' | 'ollama';
+  authMethod: AIAuthMethod;
   provider: AIProviderId;
-  isLocal?: boolean;
+  model: string;
+  client: StandardClientOptions;
 }
 
 export interface NutEggAISettings {
@@ -87,8 +74,6 @@ export interface NutEggAISettings {
   aiApiKey?: string;
   aiModel?: string;
   aiModelFamily?: string;
-  openrouterApiKey?: string;
-  openrouterModel?: string;
   contentAnalysisMaxTokens?: number;
   outputLanguage?: string;
   chunkWindowChars?: number;

@@ -161,7 +161,7 @@ test('two extension workers execute private API calls concurrently and follow sh
     const provider = http.createServer(async (req, res) => { let text = ''; for await (const part of req)
         text += part; const body = JSON.parse(text); apiCalls.push({ key: req.headers.authorization, model: body.model }); if(providerGate)await providerGate;else await new Promise(r => setTimeout(r, 20)); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(body.messages[0].content.includes('MERGE_TEST')?{knowledge:`- model-A-new\n- ${body.model}`,unprocessed:''}:{answers:[{question:'Q',answer:body.model}]}) } }] })); });
     await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve));
-    const apiUrl = `http://127.0.0.1:${(provider.address() as any).port}/v1/chat/completions`;
+    const apiUrl = `http://127.0.0.1:${(provider.address() as any).port}/v1`;
     const plugin: any = makeFakePlugin({ settings: { ...DEFAULT_SETTINGS, subscriptionEnabled: true, aiApiKey: '', nativeApiConfig: { aiProvider: 'local', aiModel: 'native', localEndpoint: apiUrl } } });
     plugin.getNativeSettings = () => ({ ...plugin.settings, ...plugin.settings.nativeApiConfig, aiApiKey: 'native-private' });
     plugin.persistExecutionState = async (state: any) => { plugin.settings.executionState = structuredClone(state); plugin.settings.subscriptionEnabled = state.subscriptionAvailable; plugin.settings.aiAuthMethod = state.mode; plugin.settings.subscriptionSelection = state.subscription; };
@@ -279,9 +279,10 @@ test('explicit native synchronization replaces existing keys only through its au
     plugin.connectionAccess = new ConnectionAccess(plugin.settings.chromeConnections = {}, async () => false, async () => {}, plugin.settings.chromeClientBindings = {});
     const server = new NutEggServer(plugin, 0); plugin.server = server; await server.start();
     const native = (server as any).server, port = native.address().port;
-    const a = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-A', 'model-A');
-    const b = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-B', 'model-B');
-    const local = profile(port, 'http://127.0.0.1:11434/api/chat', '', 'installed-model');
+    const a = profile(port, 'http://127.0.0.1:1/v1', 'private-A', 'model-A');
+    const b = profile(port, 'http://127.0.0.1:1/v1', 'private-B', 'model-B');
+    const local = profile(port, 'http://127.0.0.1:11434', '', 'installed-model');
+    local.data.localApiType = 'ollama';
     t.after(async () => {a.close(); b.close(); local.close(); native.closeAllConnections(); await server.stop();});
     const url = `http://127.0.0.1:${port}/execution/native-api/sync`;
     const unauthorized = await fetch(url, {method: 'POST', headers: {Origin: NUTEGG_CHROME_ORIGIN, 'Content-Type': 'application/json'}, body: '{}'});
@@ -318,15 +319,15 @@ test('explicit native synchronization replaces existing keys only through its au
     const config = resolveConfig(plugin.getNativeSettings());
     assert.equal(config.provider, 'local');
     assert.equal(config.model, 'installed-model');
-    assert.equal(config.apiFormat, 'ollama');
-    assert.equal(config.apiKey, '');
+    assert.equal(config.client.protocol, 'ollama');
+    assert.equal(config.client.apiKey, '');
 });
 
 test('provider redirects cannot forward an authenticated request to another endpoint', async t => {
     const paths: string[] = [];
     const api = http.createServer((req, res) => {
         paths.push(req.url!);
-        if (req.url === '/start') {
+        if (req.url === '/start/chat/completions') {
             res.writeHead(307, {Location: '/credential-sink'}); res.end();
         } else {
             res.writeHead(200, {'Content-Type': 'application/json'});
@@ -337,7 +338,8 @@ test('provider redirects cannot forward an authenticated request to another endp
     t.after(async () => {api.closeAllConnections(); await new Promise<void>(resolve => api.close(() => resolve()));});
     const port = (api.address() as any).port;
     await assert.rejects(chatAI('Hello', 10, {
-        provider: 'local', endpoint: `http://127.0.0.1:${port}/start`, apiKey: 'test-key', model: 'served-model', apiFormat: 'openai-compatible',
-    }), /Cannot reach the AI API/);
-    assert.deepEqual(paths, ['/start']);
+        provider: 'local', authMethod: 'apiKey', model: 'served-model',
+        client: { baseURL: `http://127.0.0.1:${port}/start`, apiKey: 'test-key' },
+    }), /Could not reach the provider/);
+    assert.deepEqual(paths, ['/start/chat/completions']);
 });

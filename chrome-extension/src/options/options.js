@@ -1,6 +1,6 @@
 // NutEgg Options Page
 
-const { PROVIDER_CATALOG = {}, checkCreditAI, isSubscriptionProvider = () => false } = window.NutEggAI || {};
+const { PROVIDER_CATALOG = {}, checkCreditAI } = window.NutEggAI || {};
 
 const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params) : key);
 
@@ -32,6 +32,7 @@ const aiModelSelect = document.getElementById('ai-model-select');
 const aiModelCustom = document.getElementById('ai-model-custom');
 const aiLocalEndpointRow = document.getElementById('ai-local-endpoint-row');
 const aiLocalEndpoint = document.getElementById('ai-local-endpoint');
+const aiLocalApi = document.getElementById('ai-local-api');
 const aiKeyInput = document.getElementById('ai-key-input');
 const aiKeyToggle = document.getElementById('ai-key-toggle');
 const chunkWindowInput = document.getElementById('chunk-window-chars');
@@ -101,6 +102,7 @@ function rememberProfile() {
     model: aiModelSelect.value === '__custom__' ? aiModelCustom.value.trim() : aiModelSelect.value,
     apiKey: subscriptionSelected() ? '' : aiKeyInput.value,
     endpoint: aiLocalEndpoint.value,
+    localApiType: aiLocalApi.value,
   };
 }
 function restoreProfile() {
@@ -108,11 +110,12 @@ function restoreProfile() {
   const profile = aiProfiles[profileKey] || {};
   aiKeyInput.value = subscriptionSelected() ? '' : profile.apiKey || '';
   aiLocalEndpoint.value = profile.endpoint || '';
+  aiLocalApi.value = profile.localApiType || 'openai';
   updateModelOptions(aiProviderSelect.value, profile.model);
   updateProviderHints(aiProviderSelect.value);
   void refreshSubscription();
 }
-let lastKnownSubscriptionProvider = 'gemini';
+let lastKnownSubscriptionProvider = 'google';
 let lastApiKeyProvider = null;
 let lastSubscriptionState = null;
 function syncSubscriptionToggle() {
@@ -231,13 +234,15 @@ async function applySharedExecution(state) {
         'chromeAiModel',
         'chromeAiApiKey',
         'chromeAiEndpoint',
+        'localApiType',
         'chunkWindowChars',
         'contentAnalysisMaxTokens',
       ]));
-    aiProviderSelect.value = api.chromeAiProvider || lastApiKeyProvider || 'gemini';
+    aiProviderSelect.value = api.chromeAiProvider || lastApiKeyProvider || 'google';
     profileKey = `${aiProviderSelect.value}:apiKey`;
     aiKeyInput.value = api.chromeAiApiKey || '';
-    aiLocalEndpoint.value = api.chromeAiEndpoint || api.chromeAiLocalEndpoint || '';
+    aiLocalEndpoint.value = api.chromeAiEndpoint || '';
+    aiLocalApi.value = api.localApiType || 'openai';
     updateModelOptions(aiProviderSelect.value, api.chromeAiModel);
     chunkWindowInput.value = api.chunkWindowChars || 30000;
     maxTokensInput.value = api.contentAnalysisMaxTokens || 16384;
@@ -337,7 +342,7 @@ async function refreshSubscriptionAccess() {
 async function subscriptionControl(operation, extra = {}) {
   let provider = aiProviderSelect.value;
   if (!window.NutEggAI?.supportsSubscription?.(provider)) {
-    provider = lastKnownSubscriptionProvider || 'gemini';
+    provider = lastKnownSubscriptionProvider || 'google';
   }
   return chrome.runtime.sendMessage({
     action: 'subscription-control',
@@ -433,8 +438,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'subscriptionModels',
     'chromeAiApiKey',
     'chromeAiModel',
-    'chromeAiLocalEndpoint',
     'chromeAiEndpoint',
+    'localApiType',
     'outputLanguage',
     'chromeAiPromptOverrides',
     'chunkWindowChars',
@@ -445,9 +450,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     'captureRetryDelayMs',
     'chromeCacheTabLimit',
   ]);
-  const migrated = (window.NutEggAI?.migrateAISettings || (value => value))(stored);
+  const migrated = (window.NutEggAI?.normalizeAISettings || (value => value))(stored);
   if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
-  stored = window.NutEggAI?.migrateChromeApiPreferences?.(migrated) || migrated;
+  stored = window.NutEggAI?.restoreChromeApiPreferences?.(migrated) || migrated;
   const captureSettings = new window.SettingsState();
   captureSettings.setCaptureRetries(stored);
   const retryCount = document.getElementById('capture-retry-count');
@@ -535,7 +540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 3. AI Settings initialization
-  initAiSettings(window.NutEggAI?.migrateChromeApiPreferences?.(stored) || stored);
+  initAiSettings(window.NutEggAI?.restoreChromeApiPreferences?.(stored) || stored);
   initChromeCacheSettings(stored);
 
   // Chrome is ready to configure without probing for another application.
@@ -607,9 +612,10 @@ function renderConnectionMode(mode) {
   document.getElementById('chrome-cache-group').classList.toggle('hidden', usesObsidian);
   if (!usesObsidian && managedSelected()) {
     currentAuthMethod = 'apiKey';
-    aiProviderSelect.value = savedApiConfig?.chromeAiProvider || lastApiKeyProvider || 'gemini';
+    aiProviderSelect.value = savedApiConfig?.chromeAiProvider || lastApiKeyProvider || 'google';
     aiKeyInput.value = savedApiConfig?.chromeAiApiKey || '';
     aiLocalEndpoint.value = savedApiConfig?.chromeAiEndpoint || '';
+    aiLocalApi.value = savedApiConfig?.localApiType || 'openai';
     profileKey = `${aiProviderSelect.value}:apiKey`;
     updateModelOptions(aiProviderSelect.value, savedApiConfig?.chromeAiModel);
   }
@@ -778,7 +784,7 @@ function initAiSettings(stored) {
   const subModelBadge = document.getElementById('subscription-model-badge');
   if (subModelBadge) subModelBadge.textContent = activeSubscriptionModel;
   currentAuthMethod = 'apiKey';
-  const selectedProvider = stored.chromeAiProvider || 'gemini';
+  const selectedProvider = stored.chromeAiProvider || 'google';
   aiProviderSelect.value = selectedProvider;
   if ((window.NutEggAI?.supportsSubscription || (() => false))(selectedProvider)) {
     lastKnownSubscriptionProvider = selectedProvider;
@@ -793,7 +799,8 @@ function initAiSettings(stored) {
     aiKeyInput.value = stored.chromeAiApiKey;
   }
 
-  aiLocalEndpoint.value = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint || '';
+  aiLocalEndpoint.value = stored.chromeAiEndpoint || '';
+  aiLocalApi.value = stored.localApiType || 'openai';
 
   if (outputLangSelect) {
     outputLangSelect.value = stored.outputLanguage || 'same-as-content';
@@ -971,7 +978,7 @@ function updateProviderHints(providerId) {
   document.getElementById('ai-setup-help').open = false;
   aiKeyHint.textContent =
     providerId === 'local' ? t('aiKeyHintLocal') : t('aiKeyHintProvider', { provider: provider.label });
-  aiKeyInput.placeholder = provider.keyPlaceholder || t('settingsKeyLabel');
+  aiKeyInput.placeholder = t('settingsKeyLabel');
 }
 
 function getAiFormSettings() {
@@ -983,7 +990,7 @@ function getAiFormSettings() {
     chromeAiModel: model,
     chromeAiApiKey: subscriptionSelected() ? '' : aiKeyInput.value.trim(),
     chromeAiEndpoint: subscriptionSelected() ? '' : endpoint,
-    chromeAiLocalEndpoint: subscriptionSelected() ? '' : endpoint,
+    localApiType: aiLocalApi.value,
     chunkWindowChars: Number(chunkWindowInput.value),
     contentAnalysisMaxTokens: Number(maxTokensInput.value),
   };

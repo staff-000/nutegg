@@ -32,7 +32,7 @@ test('real AI transport is instrumented, while missing credentials do not count 
   waiting.resolve({ ok: true, json: async () => ({ choices: [{ message: { content: 'Answer' } }] }) });
   assert.equal(await pending, 'Answer'); assert.equal(core.getAIDebugInfo().activeCalls, before.activeCalls);
   const after = core.getAIDebugInfo();
-  await assert.rejects(core.chatAI('Unused', 100, { ...config, apiKey: '' }, scope), /No AI API key/);
+  await assert.rejects(core.chatAI('Unused', 100, { ...config, client: { ...config.client, apiKey: '' } }, scope), /No AI API key/);
   assert.equal(core.getAIDebugInfo().totalCalls, after.totalCalls);
   assert.equal(core.getAIDebugInfo(scope).totalCalls, 1);
 });
@@ -112,14 +112,14 @@ test('debug info displays settings and status when enabled', () => {
   };
   const settings = {
     isChromeMode: () => true,
-    chromeAiProvider: 'gemini',
+    chromeAiProvider: 'google',
     chromeAiModel: 'gemini-2.5-flash',
     analysisMode: 'full',
   };
   ui.renderDebug({ mode: 'chrome', activeCalls: 0, totalCalls: 5, promptWords: 24000, lastPromptWords: 8000 }, true, { view, settings });
   assert.match(panel.textContent, /Chrome.*5 calls total/);
-  assert.match(panel.textContent, /Connection.*Mode: Chrome.*Obsidian: Offline.*Chrome AI: Ready \(gemini \/ gemini-2\.5-flash\)/);
-  assert.match(panel.textContent, /Settings.*Backend: Chrome \(gemini \/ gemini-2\.5-flash\).*Analysis: full.*Dialogue enhance: ON/);
+  assert.match(panel.textContent, /Connection.*Mode: Chrome.*Obsidian: Offline.*Chrome AI: Ready \(google \/ gemini-2\.5-flash\)/);
+  assert.match(panel.textContent, /Settings.*Backend: Chrome \(google \/ gemini-2\.5-flash\).*Analysis: full.*Dialogue enhance: ON/);
   assert.match(panel.textContent, /Status.*Pipeline: complete \(stage1\).*35,000 chars \(2 chunks\).*Video.*Format: interview.*Eggs: 2 matched/);
 });
 
@@ -141,11 +141,11 @@ test('debug info shows Obsidian connection status and AI readiness', () => {
     obsidianPluginVersion: '0.3.0',
     obsidianAiConfigured: true,
     chromeAiConfigured: true,
-    chromeAiProvider: 'gemini',
+    chromeAiProvider: 'google',
     chromeAiModel: 'gemini-2.5-flash',
   };
   ui.renderDebug({ mode: 'obsidian', activeCalls: 0, totalCalls: 4 }, true, { view, settings });
-  assert.match(panel.textContent, /Connection.*Mode: Obsidian.*Obsidian: Connected \(v0\.3\.0\) \[AI ready\].*Chrome AI: Ready \(gemini \/ gemini-2\.5-flash\)/);
+  assert.match(panel.textContent, /Connection.*Mode: Obsidian.*Obsidian: Connected \(v0\.3\.0\) \[AI ready\].*Chrome AI: Ready \(google \/ gemini-2\.5-flash\)/);
   assert.match(panel.textContent, /Pipeline: complete \(stage2\) \[obsidian mode\]/);
 });
 
@@ -204,7 +204,7 @@ test('background debug messages return Chrome counters or bounded Obsidian snaps
   const vm = require('node:vm'); let listener, requests = 0;
   const stats = { activeCalls: 2, totalCalls: 4, promptWords: 100, lastPromptWords: 30 };
   const context = vm.createContext({
-    NutEggAI: { combineAIDebugInfo: core.combineAIDebugInfo, getAIDebugInfo: scope => { assert.equal(scope, 'tab:1'); return stats; }, normalizeAIDebugScope: core.normalizeAIDebugScope, migrateChromeApiPreferences: core.migrateChromeApiPreferences }, importScripts() {}, console: { log() {} }, AbortSignal, URL,
+    NutEggAI: { combineAIDebugInfo: core.combineAIDebugInfo, getAIDebugInfo: scope => { assert.equal(scope, 'tab:1'); return stats; }, normalizeAIDebugScope: core.normalizeAIDebugScope, restoreChromeApiPreferences: core.restoreChromeApiPreferences }, importScripts() {}, console: { log() {} }, AbortSignal, URL,
     chrome: { storage: { local: { get: async () => ({ executionSchemaVersion: 2, serverPort: 12345, connectionMode: 'obsidian', 'obsidianConnection:http://127.0.0.1:12345:test': 'approved-test-credential' }), set: async () => {} } }, action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
       runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } } },
     fetch: async url => {

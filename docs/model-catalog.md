@@ -1,10 +1,15 @@
 # Model catalog
 
 NutEgg uses BYOKit's `latest` tag as a **development dependency**. The lockfile
-records the installed version. The app imports only
-`shared/src/generated-models.ts`, a compact static projection of BYOKit's CLI
-output. No full catalog, query engine, SDK, or provider requests run at startup.
-Chrome and Obsidian consume the same generated selection through `catalog.ts`.
+records the installed version. Build-time selection generates
+`shared/src/generated-models.ts` with native BYOKit offering objects. Chrome and
+Obsidian use `byokit/client` for runtime execution; neither imports the bundled
+catalog or runs model discovery at startup. Provider IDs, display names, base
+URLs, and protocols come from BYOKit. There are no separate NutEgg provider IDs,
+provider aliases, protocol transports, or full-request-URL catalog.
+The generated provider view supplies display choices, and settings resolve to
+native BYOKit client options. Only the default local server address is supplied
+by NutEgg.
 This controls API-key model choices; subscription and ChatGPT models still come
 from their respective signed-in connections.
 
@@ -46,14 +51,12 @@ this small build-time join; neither is required to ship the change.
 
 ## Local servers
 
-Following BYOKit's Local setup contract, configuration is offline and requires
-the exact model ID served by the user's server. NutEgg keeps its existing
-transport rather than adding an SDK for a model-list change. It accepts:
-
-- OpenAI-compatible base URLs such as `http://localhost:8000/v1` or full
-  `/v1/chat/completions` URLs.
-- Ollama base URLs with `localApiType: 'ollama'`, or an explicit `/api/chat`
-  URL (also usable from Chrome's endpoint field).
+Local setup is offline and requires the exact served model ID, a base URL,
+and an explicit protocol. Chrome exposes an OpenAI-compatible/Ollama selector.
+Use `http://localhost:8000/v1` for an OpenAI-compatible server or
+`http://localhost:11434` for Ollama. Full `/chat/completions` or `/api/chat`
+request URLs are rejected; BYOKit constructs request paths. Protocol selection
+is saved independently for each provider profile and synced to Obsidian.
 
 The model ID is sent unchanged. No model is guessed, installed, or discovered.
 An empty key means unauthenticated access; a supplied server key is preserved.
@@ -66,6 +69,9 @@ Saving still runs NutEgg's existing connection check; it does not scan ports.
 In connected mode, Save & continue also syncs keyless local configurations to
 Obsidian and removes the previous active key. Keyless local setups do not
 require SecretStorage.
+
+See [verified BYOKit product gaps](byokit-product-gaps.md), including the Gemini
+thought-only response bug that needs an upstream fix before production.
 
 References: [BYOKit README](https://github.com/staff-000/byokit#readme),
 [build-time generation](https://github.com/staff-000/byokit#build-a-smaller-model-list),

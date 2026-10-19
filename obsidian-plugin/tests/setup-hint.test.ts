@@ -60,12 +60,12 @@ describe("AI Setup Hints", () => {
   describe("Status Bar unconfigured behavior", () => {
     it("recognizes unconfigured settings via isAIConfigured", () => {
       const unconfiguredPlugin = makeFakePlugin({
-        settings: { aiApiKey: "", aiProvider: "gemini" },
+        settings: { aiApiKey: "", aiProvider: "google" },
       });
       assert.strictEqual(isAIConfigured(unconfiguredPlugin.settings), false);
 
       const configuredPlugin = makeFakePlugin({
-        settings: { aiApiKey: "valid-key", aiProvider: "gemini" },
+        settings: { aiApiKey: "valid-key", aiProvider: "google" },
       });
       assert.strictEqual(isAIConfigured(configuredPlugin.settings), true);
 
@@ -74,7 +74,7 @@ describe("AI Setup Hints", () => {
         settings: {
           aiApiKey: "",
           aiProvider: "local",
-          localEndpoint: "http://127.0.0.1:11434/api/chat",
+          localEndpoint: "http://127.0.0.1:11434", localApiType: "ollama",
         },
       });
       assert.strictEqual(isAIConfigured(localPlugin.settings), false);

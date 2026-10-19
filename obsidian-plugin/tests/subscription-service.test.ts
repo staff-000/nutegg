@@ -182,7 +182,7 @@ async function fixture(t, body: string) {
   t.after(() => rm(directory, { recursive: true, force: true }));
   const command = join(directory, 'cli');
   await writeFile(command, `#!${process.execPath}\n${body}`); await chmod(command, 0o700);
-  const service = new SubscriptionService({ openai: command, gemini: command }, () => true);
+  const service = new SubscriptionService({ openai: command, google: command }, () => true);
   service['codexUsage'] = async () => ({ exhausted: false });
   t.after(() => service.dispose());
   return { service, command, directory };
@@ -190,7 +190,7 @@ async function fixture(t, body: string) {
 
 test('Gemini status never generates inference or claims a verified login', async t => {
   const { service } = await fixture(t, 'throw new Error("Must not run inference")');
-  assert.equal((await service.status('gemini')).state, 'unverified');
+  assert.equal((await service.status('google')).state, 'unverified');
 });
 
 test('Codex models settle on the protocol response even when the CLI ignores SIGTERM', { timeout: 3000 }, async t => {
@@ -208,33 +208,33 @@ require('node:readline').createInterface({input:process.stdin}).on('line', line 
 
 test('cancelling a stalled discovery settles it and allows a fresh provider check', { timeout: 3000 }, async t => {
   const { service, command } = await fixture(t, `process.on('SIGTERM', () => {}); setInterval(() => {}, 1000);`);
-  const pending = service.models('gemini');
+  const pending = service.models('google');
   while (!service['discovery'].size) await flush();
   await service.cancelWork();
   await pending;
   assert.equal(service.getRuntimeStatus().models, 0);
-  assert.equal(service['modelTimes'].has('gemini'), false, 'cancelled probes do not create a fresh cache');
+  assert.equal(service['modelTimes'].has('google'), false, 'cancelled probes do not create a fresh cache');
   await writeFile(command, `#!${process.execPath}\nconsole.log('gemini-current');`);
-  assert.deepEqual(await service.models('gemini'), ['auto', 'gemini-current']);
+  assert.deepEqual(await service.models('google'), ['auto', 'gemini-current']);
 });
 
 test('model cache avoids repeated discovery on settings refresh but explicit refresh bypasses it', async t => {
   const { service } = await fixture(t, '');
   let discoveries = 0;
   service['discoverModels'] = async () => { discoveries++; return ['auto']; };
-  await service.models('gemini');
+  await service.models('google');
   // Model lists are much less volatile than account status.
-  service['modelTimes'].set('gemini', Date.now() - 120000);
-  await service.models('gemini');
+  service['modelTimes'].set('google', Date.now() - 120000);
+  await service.models('google');
   assert.equal(discoveries, 1);
-  await service.models('gemini', true);
+  await service.models('google', true);
   assert.equal(discoveries, 2);
 });
 
 test('a model discovery timeout settles without waiting for child close', async t => {
   const { service } = await fixture(t, 'setInterval(() => {}, 1000);');
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const pending = service.models('gemini');
+  const pending = service.models('google');
   while (!service['discovery'].size) await flush();
   t.mock.timers.tick(10000);
   assert.deepEqual(await pending, ['auto']);

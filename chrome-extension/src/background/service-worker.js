@@ -17,25 +17,6 @@ let serverPort = DEFAULT_PORT;
 let initPromise = null;
 async function init() {
   await chrome.storage.local.setAccessLevel?.({ accessLevel: 'TRUSTED_CONTEXTS' });
-  const legacy = await chrome.storage.local.get(null);
-  if (legacy.executionSchemaVersion !== 2) {
-    const normalized = NutEggAI.migrateChromeApiPreferences(legacy);
-    const keys = [
-      'chromeAiProvider',
-      'chromeAiAuthMethod',
-      'chromeAiApiKey',
-      'chromeAiModel',
-      'chromeAiEndpoint',
-      'chromeAiLocalEndpoint',
-      'chunkWindowChars',
-      'contentAnalysisMaxTokens',
-    ];
-    const updates = { executionSchemaVersion: 2, legacyApiCandidates: legacy.aiProfiles || {} };
-    for (const key of keys) {
-      if (normalized[key] !== undefined) updates[key] = normalized[key];
-    }
-    await chrome.storage.local.set(updates);
-  }
   const stored = await chrome.storage.local.get(['serverPort']);
   if (stored.serverPort) serverPort = stored.serverPort;
 
@@ -89,7 +70,7 @@ async function loadChromeAiSettings() {
     'chromeAiModel',
     'chromeAiModelFamily',
     'chromeAiEndpoint',
-    'chromeAiLocalEndpoint',
+    'localApiType',
     'outputLanguage',
     'contentOutputLanguage',
     'chromeAiOutputLanguage',
@@ -99,15 +80,14 @@ async function loadChromeAiSettings() {
     'chromeAiPromptOverrides',
     'optimizeForConversation',
   ]);
-  stored.chromeAiProvider ||= 'gemini';
+  stored.chromeAiProvider ||= 'google';
   stored.chromeAiModel ||= PROVIDER_CATALOG[stored.chromeAiProvider]?.defaultModel || 'default';
   const validChunkWindow = Number.isSafeInteger(stored.chunkWindowChars) && stored.chunkWindowChars >= 1000;
   stored.chunkWindowChars = validChunkWindow ? stored.chunkWindowChars : 30000;
   const maxTokens = stored.contentAnalysisMaxTokens ?? stored.chromeAiMaxTokens;
   stored.contentAnalysisMaxTokens = Number.isSafeInteger(maxTokens) && maxTokens >= 500 ? maxTokens : 16384;
-  // Chrome AI is available by default; the legacy enable toggle is no longer required.
+  // Chrome AI is available by default.
   stored.chromeAiEnabled = true;
-  stored.chromeAiEndpoint = stored.chromeAiEndpoint || stored.chromeAiLocalEndpoint;
   stored.optimizeForConversation = stored.optimizeForConversation !== false;
   const lang =
     stored.outputLanguage || stored.contentOutputLanguage || stored.chromeAiOutputLanguage || 'same-as-content';
@@ -118,7 +98,7 @@ async function loadChromeAiSettings() {
     stored.promptOverrides = stored.chromeAiPromptOverrides;
   }
   stored.chromeAiAuthMethod = 'apiKey';
-  const migrated = NutEggAI.migrateAISettings(stored);
+  const migrated = NutEggAI.normalizeAISettings(stored);
   if (JSON.stringify(migrated) !== JSON.stringify(stored)) await chrome.storage.local.set(migrated);
   return migrated;
 }
@@ -231,7 +211,7 @@ chrome.storage.onChanged?.addListener((changes, area) => {
     'chromeAiModelFamily',
     'chromeAiSource',
     'chromeAiEndpoint',
-    'chromeAiLocalEndpoint',
+    'localApiType',
     'chromeApiRevision',
     'outputLanguage',
   ];
@@ -480,6 +460,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             aiModel: settings.chromeAiModel,
             aiSource: settings.chromeAiSource,
             aiModelFamily: settings.chromeAiModelFamily,
+            localApiType: settings.localApiType,
             ...(settings.chromeAiEndpoint ? { localEndpoint: settings.chromeAiEndpoint } : {}),
             chunkWindowChars: settings.chunkWindowChars,
             contentAnalysisMaxTokens: settings.contentAnalysisMaxTokens,
@@ -624,7 +605,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         return;
       }
-      const provider = settings.chromeAiProvider || 'gemini';
+      const provider = settings.chromeAiProvider || 'google';
       const isLocal = provider === 'local';
       const hasKey = isLocal ? true : Boolean(settings.chromeAiApiKey && settings.chromeAiApiKey.trim());
       const defaultModel = typeof PROVIDER_CATALOG !== 'undefined' ? PROVIDER_CATALOG[provider]?.defaultModel : '';
@@ -885,14 +866,13 @@ async function handleAnalyzeChrome(payload, onProgress, cacheGeneration = chrome
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
-  const provider = aiSettings.chromeAiProvider || 'gemini';
+  const provider = aiSettings.chromeAiProvider || 'google';
   const isLocal = provider === 'local';
-  if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
       error: 'Add your AI API key in Settings to start analyzing.',
-      errorCode: isSubscriptionProvider(provider) ? 'pairing_token_missing' : 'no_api_key',
+      errorCode: 'no_api_key',
       mode: 'chrome',
     };
   }
@@ -1403,14 +1383,13 @@ async function handleAskChrome(payload) {
   const aiSettings = await loadChromeAiSettings();
 
   if (isSubscriptionProvider(aiSettings)) return subscriptionModeError();
-  const provider = aiSettings.chromeAiProvider || 'gemini';
+  const provider = aiSettings.chromeAiProvider || 'google';
   const isLocal = provider === 'local';
-  if (isSubscriptionProvider(provider)) return subscriptionModeError();
 
   if (!isLocal && (!aiSettings.chromeAiApiKey || !aiSettings.chromeAiApiKey.trim())) {
     return {
       error: 'Add your AI API key in Settings to ask a question.',
-      errorCode: isSubscriptionProvider(provider) ? 'pairing_token_missing' : 'no_api_key',
+      errorCode: 'no_api_key',
       answers: [],
     };
   }

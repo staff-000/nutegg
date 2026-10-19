@@ -99,10 +99,10 @@ export function selectEffectiveExecution(connectionMode: string, state?: SharedE
   return state?.subscriptionAvailable && state.mode === 'subscription' ? 'subscription' : 'apiKey';
 }
 /** Subscription selection never overwrites the independently saved API setup. */
-export function migrateChromeApiPreferences(stored: Record<string, any>): NutEggAISettings {
+export function restoreChromeApiPreferences(stored: Record<string, any>): NutEggAISettings {
   const candidates = [stored.chromeApiConfig, stored.aiProfiles?.[`${stored.lastApiKeyProvider}:apiKey`]];
   const backup = candidates.find(value => value && typeof value === 'object') || {};
-  const provider = backup.chromeAiProvider || stored.lastApiKeyProvider || stored.chromeAiProvider || 'gemini';
+  const provider = backup.chromeAiProvider || stored.lastApiKeyProvider || stored.chromeAiProvider || 'google';
   const profile = stored.aiProfiles?.[`${provider}:apiKey`] || {};
   if (stored.chromeAiAuthMethod !== 'subscription') return { ...stored, chromeAiAuthMethod: 'apiKey' };
   return {
@@ -113,6 +113,6 @@ export function migrateChromeApiPreferences(stored: Record<string, any>): NutEgg
     chromeAiApiKey: backup.chromeAiApiKey ?? profile.apiKey ?? '',
     chromeAiModel: backup.chromeAiModel ?? profile.model ?? '',
     chromeAiEndpoint: backup.chromeAiEndpoint ?? profile.endpoint ?? '',
-    chromeAiLocalEndpoint: backup.chromeAiLocalEndpoint ?? profile.endpoint ?? '',
+    localApiType: backup.localApiType ?? profile.localApiType ?? 'openai',
   };
 }

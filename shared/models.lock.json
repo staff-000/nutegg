@@ -11,5 +11,10 @@
     "schemaVersion": 1,
     "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
     "configHash": "4d6ab94bb0927e9b536e6b4b13d56f73c2dc8bb68e98d79529ae6d5b2826fce6"
+  },
+  "local": {
+    "schemaVersion": 1,
+    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
+    "configHash": "b3afa38f51c47776eb7d986d6532dae5ca779d6a78b46c1d8c092391ba89bbd1"
   }
 }

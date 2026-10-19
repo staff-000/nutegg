@@ -57,7 +57,6 @@ class HeaderComponent {
     const providerError = [session?.errors?.analysis, session?.errors?.followup].find(error =>
       [
         'auth_failed',
-        'bridge_auth_failed',
         'forbidden',
         'model_not_found',
         'rate_limited',
@@ -249,8 +248,7 @@ class HeaderComponent {
       credit.providerLabel === t('chatgptLabel');
     const isCodex =
       !isChatGPT &&
-      (credit.provider === 'codex-cli' ||
-        credit.providerLabel === 'Codex CLI' ||
+      (credit.providerLabel === 'Codex CLI' ||
         credit.providerLabel === 'Codex subscription' ||
         credit.providerLabel === t('codexSubscription') ||
         (credit.provider === 'openai' && credit.subscriptionState));
@@ -265,17 +263,15 @@ class HeaderComponent {
             ? 'Claude'
             : credit.provider === 'deepseek'
               ? 'DeepSeek'
-              : credit.provider === 'kimi'
-                ? 'Kimi'
-                : credit.provider === 'gemini'
-                  ? 'Gemini'
-                  : credit.provider === 'openai'
-                    ? 'OpenAI'
-                    : credit.provider === 'local'
-                      ? credit.model
-                        ? `Local (${credit.model})`
-                        : 'Local LLM'
-                      : credit.providerLabel || credit.provider || 'AI';
+              : credit.provider === 'google'
+                ? 'Gemini'
+                : credit.provider === 'openai'
+                  ? 'OpenAI'
+                  : credit.provider === 'local'
+                    ? credit.model
+                      ? `Local (${credit.model})`
+                      : 'Local LLM'
+                    : credit.providerLabel || credit.provider || 'AI';
 
     if (credit.subscriptionState) {
       const subLabel = isChatGPT

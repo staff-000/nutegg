@@ -32,7 +32,7 @@ export interface NutEggSettings {
   /** Non-secret selection retained even while the credential store is unavailable. */
   chatgptModel?: string;
   chromeConnections?: Record<string, string | string[]>;
-  subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'gemini', string>>;
+  subscriptionPaths?: Partial<Record<'openai' | 'anthropic' | 'google', string>>;
   subscriptionModels?: Partial<Record<SubscriptionProvider, string[]>>;
   /** Retained while Chrome uses an API key. */
   subscriptionSelection?: { provider: SubscriptionProvider; model: string };
@@ -78,7 +78,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
   aiProvider: 'anthropic',
   aiApiKey: '',
   aiModel: PROVIDER_CATALOG.anthropic.defaultModel!,
-  localEndpoint: 'http://127.0.0.1:11434/v1/chat/completions',
+  localEndpoint: 'http://127.0.0.1:11434/v1',
   localApiType: 'openai',
   serverPort: 27123,
   rawFolder: 'nutegg/_raw',
@@ -92,7 +92,7 @@ export const DEFAULT_SETTINGS: NutEggSettings = {
 };
 
 const DEFAULT_SUBSCRIPTION_MODELS: Record<SubscriptionProvider, string[]> = {
-  gemini: ['auto'],
+  google: ['auto'],
   openai: ['auto'],
   anthropic: ['auto', 'sonnet', 'opus', 'haiku'],
 };
@@ -402,7 +402,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       ? t('codexSubscription')
       : provider === 'anthropic'
         ? t('claudeLabel')
-        : PROVIDER_CATALOG.gemini.label;
+        : PROVIDER_CATALOG.google.label;
   }
 
   private aiConnectionMode() {
@@ -434,14 +434,14 @@ export class NutEggSettingTab extends PluginSettingTab {
       .addDropdown(dropdown => {
         if (!selected) dropdown.addOption('', t('chooseAIConnection'));
         dropdown.addOption('chatgpt', t('chatgptLabel'));
-        for (const provider of ['openai', 'gemini', 'anthropic'] as const)
+        for (const provider of ['openai', 'google', 'anthropic'] as const)
           dropdown.addOption(provider, this.subscriptionLabel(provider));
         dropdown.setValue(selected);
         const placeholder = dropdown.selectEl?.querySelector('option[value=""]');
         if (placeholder) (placeholder as HTMLOptionElement).disabled = true;
         let changing = false;
         dropdown.onChange(async value => {
-          if (!current() || changing || !['chatgpt', 'openai', 'gemini', 'anthropic'].includes(value)) return;
+          if (!current() || changing || !['chatgpt', 'openai', 'google', 'anthropic'].includes(value)) return;
           changing = true;
           if (dropdown.selectEl) dropdown.selectEl.disabled = true;
           try {
@@ -655,10 +655,10 @@ export class NutEggSettingTab extends PluginSettingTab {
     card.createEl('h3', { text: this.subscriptionLabel(this.plugin.settings.aiProvider as SubscriptionProvider) });
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
 
-    let provider: SubscriptionProvider = ['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)
+    let provider: SubscriptionProvider = ['openai', 'anthropic', 'google'].includes(this.plugin.settings.aiProvider)
       ? (this.plugin.settings.aiProvider as SubscriptionProvider)
-      : 'gemini';
-    if (!['openai', 'anthropic', 'gemini'].includes(this.plugin.settings.aiProvider)) {
+      : 'google';
+    if (!['openai', 'anthropic', 'google'].includes(this.plugin.settings.aiProvider)) {
       this.plugin.settings.aiProvider = provider;
       this.plugin.settings.aiAuthMethod = 'subscription';
       this.plugin.settings.aiModel = 'auto';
@@ -1025,7 +1025,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.refreshAISettings();
 
     if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
-      for (const provider of ['openai', 'anthropic', 'gemini'] as const) {
+      for (const provider of ['openai', 'anthropic', 'google'] as const) {
         new Setting(modelSection)
           .setName(`${this.subscriptionLabel(provider)} · ${t('subscriptionPath')}`)
           .setDesc(t('subscriptionPathHint'))

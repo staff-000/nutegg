@@ -173,9 +173,8 @@ Chrome storage is restricted to trusted extension contexts and privileged messag
 Update both applications before using connected execution. Chrome-only API mode
 remains available independently of the new connected protocol.
 
-Migration retains Chrome API backups and per-provider preferences. Legacy standalone
-subscription provider IDs are migrated to their canonical provider/connection
-method, preserving custom model selections. A formerly Chrome-mirrored Obsidian API
+Chrome API backups and per-provider preferences remain separate from subscription
+selection. Provider IDs use BYOKit directly, with no legacy provider-ID aliases. A formerly Chrome-mirrored Obsidian API
 key is an inactive candidate: explicitly select it as a native key after secure
 storage is available. Do not infer native ownership from the last profile that synced.
 

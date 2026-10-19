@@ -373,11 +373,11 @@ describe("Modular UI Components", () => {
     assert.strictEqual(banners.getError(), "Failed to fetch");
     assert.strictEqual(banners.getErrorCode(), "network_error");
 
-    banners.showError("Invalid bridge pairing token.", "bridge_auth_failed");
-    assert.strictEqual(banners.errorMessage.textContent, "Invalid bridge pairing token.");
+    banners.showError("Unknown error.", "unknown_error");
+    assert.strictEqual(banners.errorMessage.textContent, "Unknown error.");
     assert.strictEqual(banners.errorHint.classList.contains("hidden"), true);
-    banners.showError("Pairing token missing.", "pairing_token_missing");
-    assert.strictEqual(banners.errorHint.innerHTML, t("subscriptionBridgeTokenRequired"));
+    banners.showError("API key missing.", "no_api_key");
+    assert.strictEqual(banners.errorHint.innerHTML, t(banners.connectionMode === 'obsidian' ? 'errorHintNoApiKey' : 'readerChromeKeyHint'));
     assert.strictEqual(banners.errorHint.classList.contains("hidden"), false);
 
     banners.showWarning("Low memory");
@@ -1471,7 +1471,7 @@ describe("Modular UI Components", () => {
     assert.equal(header.aiCreditText.textContent, t('codexSubscription'));
     header.renderCredit({ provider: 'openai', providerLabel: 'ChatGPT sign-in', subscriptionState: 'ready', statusText: 'Connected' }, true);
     assert.equal(header.aiCreditText.textContent, t('chatgptLabel'));
-    header.renderCredit({ provider: 'gemini', subscriptionState: 'unverified', statusText: 'Needs verification' }, true);
+    header.renderCredit({ provider: 'google', subscriptionState: 'unverified', statusText: 'Needs verification' }, true);
     assert.equal(header.aiCreditText.textContent, `Gemini · ${t('subscriptionLabel')}`);
     assert(header.aiCreditPill.title.includes(t('subscriptionUsageUnavailable')));
     header.renderCredit({ provider: 'openai', subscriptionState: 'disabled', statusText: 'AI connection unavailable' }, true);
@@ -1497,7 +1497,7 @@ describe("Modular UI Components", () => {
 
     // 2. Obsidian online with pay-as-you-go / direct (e.g. OpenAI, Gemini)
     header.renderCredit({
-      provider: "gemini",
+      provider: "google",
       hasBalance: false,
       statusText: "Gemini (Pay-as-you-go / Direct)",
     }, true);
@@ -1522,7 +1522,7 @@ describe("Modular UI Components", () => {
 
     // 5. Shows model in hover message when model is present
     header.renderCredit({
-      provider: "gemini",
+      provider: "google",
       model: "gemini-2.5-flash",
       hasBalance: true,
       balanceFormatted: "$10.00",

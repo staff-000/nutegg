@@ -13,11 +13,11 @@ import {
 } from './subscription-cli.mjs';
 import { resolveAgyCommand, runGemini } from './subscription-gemini.mjs';
 
-const cli = { openai: 'codex', anthropic: 'claude', gemini: 'agy' };
+const cli = { openai: 'codex', anthropic: 'claude', google: 'agy' };
 const docs: Record<SubscriptionProvider, string> = {
   openai: 'https://learn.chatgpt.com/docs/cli',
   anthropic: 'https://code.claude.com/docs/en/quickstart',
-  gemini: 'https://antigravity.google/docs/cli/install',
+  google: 'https://antigravity.google/docs/cli/install',
 };
 
 type Login = {
@@ -63,7 +63,7 @@ export class SubscriptionService implements SubscriptionExecutor {
   }
 
   resolve(provider: SubscriptionProvider) {
-    return provider === 'gemini'
+    return provider === 'google'
       ? resolveAgyCommand(this.paths[provider])
       : resolveSubscriptionCommand(cli[provider], this.paths[provider]);
   }
@@ -122,7 +122,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (epoch !== this.statusEpoch || this.stopping)
       return { state: 'error', message: 'AI provider changed. Retry shortly.' };
     const login = this.logins.get(provider);
-    if (provider !== 'gemini') {
+    if (provider !== 'google') {
       try {
         const controller = new AbortController();
         this.controllers.add(controller);
@@ -147,7 +147,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     }
     const failure = this.failures.get(provider);
     if (failure) return { state: 'error', ...failure };
-    if (provider === 'gemini' && !this.verified.has(provider)) {
+    if (provider === 'google' && !this.verified.has(provider)) {
       return {
         state: login?.state || 'unverified',
         message: login
@@ -218,7 +218,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       onStart?.();
       const options = { command: this.paths[provider], signal: controller.signal };
       const result =
-        provider === 'gemini'
+        provider === 'google'
           ? await runGemini(prompt, model, options)
           : await runSubscription(cli[provider], prompt, model, options);
       this.verified.add(provider);
@@ -283,7 +283,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     try {
       let models: string[];
       if (provider === 'anthropic') models = ['sonnet', 'opus', 'haiku'];
-      else if (provider === 'gemini') {
+      else if (provider === 'google') {
         const executable = await this.resolve(provider);
         this.requireEnabled();
         if (epoch !== this.statusEpoch) throw new Error('AI provider changed');
@@ -485,7 +485,7 @@ export class SubscriptionService implements SubscriptionExecutor {
   }
 
   private environment(provider: SubscriptionProvider) {
-    if (provider !== 'gemini') return subscriptionEnvironment(cli[provider]);
+    if (provider !== 'google') return subscriptionEnvironment(cli[provider]);
     const env = { ...process.env };
     for (const key of [
       'GEMINI_API_KEY',

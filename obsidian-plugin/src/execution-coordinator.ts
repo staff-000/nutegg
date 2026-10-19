@@ -88,7 +88,7 @@ export class ExecutionCoordinator {
             ? 'subscription'
             : 'apiKey',
       chatgpt: saved?.chatgpt,
-      subscription: selection || saved?.subscription || { provider: 'gemini', model: 'auto' },
+      subscription: selection || saved?.subscription || { provider: 'google', model: 'auto' },
       transition: saved?.transition === 'changing' || saved?.transition === 'error' ? saved.transition : 'ready',
     };
   }
@@ -192,7 +192,7 @@ export class ExecutionCoordinator {
       if (!next.subscriptionAvailable && next.mode === 'subscription') next.mode = 'apiKey';
       if (next.mode !== 'apiKey' && next.mode !== 'subscription' && next.mode !== 'chatgpt')
         throw new ExecutionProtocolError('invalid_mode', 'Invalid AI mode.', 400);
-      const validProviders = ['openai', 'anthropic', 'gemini'];
+      const validProviders = ['openai', 'anthropic', 'google'];
       const validModelPattern = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/;
       if (!validProviders.includes(next.subscription.provider) || !validModelPattern.test(next.subscription.model))
         throw new ExecutionProtocolError('invalid_model', 'Invalid subscription selection.', 400);
@@ -313,7 +313,7 @@ export class ExecutionCoordinator {
         revision: this.state.revision,
         configurationRevision: envelope.configurationRevision,
         authMethod: this.state.mode,
-        provider: settings.aiProvider || 'gemini',
+        provider: settings.aiProvider || 'google',
         model: settings.aiModel || '',
       },
       settings,
@@ -369,7 +369,7 @@ export class ExecutionCoordinator {
         revision: this.state.revision,
         configurationRevision: String(settings.nativeConfigurationRevision || 1),
         authMethod: this.state.mode,
-        provider: captured.aiProvider || 'gemini',
+        provider: captured.aiProvider || 'google',
         model: captured.aiModel || '',
       },
       settings: captured,

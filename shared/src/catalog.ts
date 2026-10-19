@@ -2,10 +2,10 @@
 // NutEgg Provider Catalog & Configuration Resolver
 // ============================================================
 
-import { GENERATED_MODELS } from './generated-models';
+import { ApiProtocol } from 'byokit/client';
+import type { Connection } from 'byokit/client';
+import { GENERATED_MODELS, GENERATED_PROVIDERS } from './generated-models';
 import type { AIProviderId, ModelFamily, NutEggAISettings, ProviderInfo, ResolvedConfig } from './types';
-
-export const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 
 /** Display identity depends on authentication; saved provider IDs remain stable. */
 export function aiConnectionLabel(provider?: string, method?: string): string {
@@ -15,19 +15,7 @@ export function aiConnectionLabel(provider?: string, method?: string): string {
   return PROVIDER_CATALOG[provider as AIProviderId]?.label || provider || '';
 }
 
-// Only precompiled BYOKit selections enter the browser/plugin bundles.
-const CLOUD_PROVIDERS = [
-  { id: 'anthropic', byokitId: 'anthropic', label: 'Anthropic (Claude)',
-    officialEndpoint: 'https://api.anthropic.com/v1/messages', apiFormat: 'anthropic', keyPlaceholder: 'sk-ant-...' },
-  { id: 'openai', byokitId: 'openai', label: 'OpenAI',
-    officialEndpoint: 'https://api.openai.com/v1/chat/completions', apiFormat: 'openai-compatible', keyPlaceholder: 'sk-...' },
-  { id: 'gemini', byokitId: 'google', label: 'Google Gemini',
-    officialEndpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-    apiFormat: 'openai-compatible', keyPlaceholder: 'AIza...' },
-  { id: 'deepseek', byokitId: 'deepseek', label: 'DeepSeek',
-    officialEndpoint: 'https://api.deepseek.com/v1/chat/completions', apiFormat: 'openai-compatible', keyPlaceholder: 'sk-...' },
-] as const;
-
+// Provider identities, labels, and connections all come from BYOKit at build time.
 function modelChoices(models: typeof GENERATED_MODELS) {
   return {
     models: models.map(model => model.apiModelId),
@@ -35,30 +23,26 @@ function modelChoices(models: typeof GENERATED_MODELS) {
   };
 }
 
+// Display choices only. Requests consume BYOKit's native connections and models.
+const providers: ProviderInfo[] = GENERATED_PROVIDERS.map(provider => ({
+  id: provider.id,
+  label: provider.label,
+  connection: provider.connection as Connection,
+  ...(provider.id === 'local' ? {} : modelChoices(GENERATED_MODELS.filter(model => model.providerId === provider.id))),
+}));
+
 const routerModels = GENERATED_MODELS.filter(model => model.providerId === 'openrouter');
-const OPENROUTER_FAMILIES: ModelFamily[] = CLOUD_PROVIDERS.flatMap(provider => {
-  const choices = modelChoices(routerModels.filter(model => model.modelId.startsWith(provider.byokitId + '/')));
-  return choices.defaultModel ? [{ id: provider.byokitId, label: provider.label, ...choices, defaultModel: choices.defaultModel }] : [];
+const OPENROUTER_FAMILIES: ModelFamily[] = providers.flatMap(provider => {
+  if (provider.id === 'local' || provider.id === 'openrouter') return [];
+  const choices = modelChoices(routerModels.filter(model => model.modelId.startsWith(provider.id + '/')));
+  return choices.defaultModel ? [{ id: provider.id, label: provider.label, ...choices, defaultModel: choices.defaultModel }] : [];
 });
 const routerChoices = modelChoices(routerModels);
 OPENROUTER_FAMILIES.push({ id: 'custom', label: 'Custom OpenRouter Model', models: [], defaultModel: routerChoices.defaultModel! });
 
-export const PROVIDER_CATALOG = {
-  local: {
-    id: 'local', label: 'Local LLM (Ollama, LM Studio, etc.)',
-    officialEndpoint: 'http://127.0.0.1:11434/v1/chat/completions',
-    apiFormat: 'openai-compatible', keyPlaceholder: 'Optional for local LLMs', openrouterPrefix: '',
-  },
-  openrouter: {
-    id: 'openrouter', label: 'OpenRouter (Multi-Provider)', officialEndpoint: OPENROUTER_ENDPOINT,
-    apiFormat: 'openai-compatible', ...routerChoices, families: OPENROUTER_FAMILIES,
-    keyPlaceholder: 'sk-or-...', openrouterPrefix: '',
-  },
-  ...Object.fromEntries(CLOUD_PROVIDERS.map(({ byokitId, ...provider }) => [provider.id, {
-    ...provider, ...modelChoices(GENERATED_MODELS.filter(model => model.providerId === byokitId)),
-    openrouterPrefix: byokitId + '/',
-  }])),
-} as Record<AIProviderId, ProviderInfo>;
+export const PROVIDER_CATALOG = Object.fromEntries(providers.map(provider => [provider.id,
+  provider.id === 'openrouter' ? { ...provider, families: OPENROUTER_FAMILIES } : provider,
+])) as Record<AIProviderId, ProviderInfo>;
 
 /** Keys may use HTTP only over loopback; never permit a network plaintext hop. */
 export function validateAIEndpoint(endpoint: string, apiKey = ''): URL {
@@ -71,48 +55,32 @@ export function validateAIEndpoint(endpoint: string, apiKey = ''): URL {
   return url;
 }
 
-/** Accept BYOKit-style base URLs and existing NutEgg full request URLs. Offline only. */
-export function resolveLocalEndpoint(settings: NutEggAISettings): { endpoint: string; apiFormat: 'ollama' | 'openai-compatible' } {
+/** Local settings use base URLs and BYOKit's native protocol names. No requests. */
+export function resolveLocalEndpoint(settings: NutEggAISettings): Connection {
   const raw = (settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint ||
-    PROVIDER_CATALOG.local.officialEndpoint).trim();
+    'http://127.0.0.1:11434/v1').trim();
   const url = validateAIEndpoint(raw, settings.chromeAiApiKey ?? settings.aiApiKey ?? '');
-  const native = settings.localApiType === 'ollama' || /\/api\/chat\/?$/.test(url.pathname);
-  let endpoint = raw.replace(/\/+$/, '');
-  if (native) endpoint = endpoint.replace(/\/v1(?:\/chat\/completions)?$/, '').replace(/\/api\/chat$/, '') + '/api/chat';
-  else if (!endpoint.endsWith('/chat/completions')) {
-    if (!endpoint.endsWith('/v1')) endpoint += '/v1';
-    endpoint += '/chat/completions';
-  }
-  return { endpoint, apiFormat: native ? 'ollama' : 'openai-compatible' };
+  if (/\/(?:chat\/completions|api\/chat)\/?$/.test(url.pathname))
+    throw new Error('Use the server base URL, without /chat/completions or /api/chat.');
+  return {
+    baseUrl: raw.replace(/\/+$/, ''),
+    protocol: settings.localApiType === 'ollama' ? ApiProtocol.Ollama : ApiProtocol.OpenAI,
+  };
 }
 
-export function isSubscriptionProvider(provider?: string | NutEggAISettings): boolean {
-  if (typeof provider === 'object')
-    return (
-      (provider.chromeAiAuthMethod || provider.aiAuthMethod) === 'subscription' ||
-      ['codex-cli', 'claude-cli', 'gemini-cli'].includes(provider.chromeAiProvider || provider.aiProvider || '')
-    );
-  return ['codex-cli', 'claude-cli', 'gemini-cli'].includes(provider || '');
+export function isSubscriptionProvider(settings?: NutEggAISettings): boolean {
+  return (settings?.chromeAiAuthMethod || settings?.aiAuthMethod) === 'subscription';
 }
 
 export function supportsSubscription(provider?: string): boolean {
-  return ['openai', 'anthropic', 'gemini'].includes(provider || '');
+  return ['openai', 'anthropic', 'google'].includes(provider || '');
 }
 
-/** Idempotent migration; bridge tokens must never become provider API keys. */
-export function migrateAISettings<T extends NutEggAISettings>(settings: T): T {
+/** Normalize authentication settings without translating provider IDs. */
+export function normalizeAISettings<T extends NutEggAISettings>(settings: T): T {
   const next: NutEggAISettings = { ...settings };
-  const aliases: Record<string, string> = { 'codex-cli': 'openai', 'claude-cli': 'anthropic', 'gemini-cli': 'gemini' };
   for (const prefix of ['ai', 'chromeAi']) {
     if (!next[prefix + 'Provider'] && !next[prefix + 'AuthMethod']) continue;
-    const old = next[prefix + 'Provider'];
-    if (aliases[old]) {
-      next[prefix + 'Provider'] = aliases[old];
-      next[prefix + 'AuthMethod'] = 'subscription';
-      next[prefix + 'ApiKey'] = '';
-      next[prefix + 'Endpoint'] = '';
-      if (prefix === 'chromeAi') next.chromeAiLocalEndpoint = '';
-    }
     next[prefix + 'AuthMethod'] ||= 'apiKey';
     if (next[prefix + 'AuthMethod'] === 'subscription') next[prefix + 'ApiKey'] = '';
   }
@@ -139,7 +107,7 @@ export function findOpenRouterFamily(modelName: string): ModelFamily | undefined
 export function isAIConfigured(settings?: NutEggAISettings): boolean {
   if (!settings) return false;
   if ((settings.chromeAiAuthMethod || settings.aiAuthMethod) === 'chatgpt') return settings.chatgptReady === true;
-  const provider = (settings.chromeAiProvider || settings.aiProvider || 'gemini') as AIProviderId;
+  const provider = (settings.chromeAiProvider || settings.aiProvider || 'google') as AIProviderId;
   const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || '';
 
   if (isSubscriptionProvider(settings)) return supportsSubscription(provider);
@@ -154,82 +122,30 @@ export function isAIConfigured(settings?: NutEggAISettings): boolean {
  * Resolve settings into actionable API call parameters.
  * Normalizes both Obsidian settings format and Chrome settings format.
  */
-export function resolveConfig(settings: NutEggAISettings): ResolvedConfig & {
-  extraHeaders: Record<string, string>;
-} {
-  const providerId = (settings.chromeAiProvider || settings.aiProvider || 'anthropic') as AIProviderId;
-  if ((settings.chromeAiAuthMethod || settings.aiAuthMethod) === 'chatgpt')
-    return {
-      provider: 'openai',
-      authMethod: 'chatgpt',
-      endpoint: '',
-      apiKey: '',
-      model: settings.chromeAiModel || settings.aiModel || '',
-      apiFormat: 'openai-compatible',
-      extraHeaders: {},
-    };
-  if (isSubscriptionProvider(settings))
-    return {
-      provider: providerId,
-      authMethod: 'subscription',
-      endpoint: '',
-      apiKey: '',
-      model: settings.chromeAiModel || settings.aiModel || 'auto',
-      apiFormat: 'openai-compatible',
-      extraHeaders: {},
-    };
-  const isLocal = providerId === 'local';
-  const isOpenRouter = providerId === 'openrouter';
-
-  const rawKey = settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey;
-  const apiKey = (rawKey || '').trim();
-
-  if (isLocal) {
-    const { endpoint, apiFormat } = resolveLocalEndpoint(settings);
-    const model = (settings.chromeAiModel || settings.aiModel || '').trim();
-    if (!model) throw new Error('Configure the exact model ID served by your local server.');
-
-    return {
-      provider: 'local',
-      endpoint,
-      apiKey,
-      model,
-      apiFormat,
-      isLocal: true,
-      extraHeaders: {},
-    };
-  }
-
-  if (isOpenRouter) {
-    return {
-      provider: 'openrouter',
-      endpoint: OPENROUTER_ENDPOINT,
-      apiKey,
-      model:
-        settings.chromeAiModel ||
-        settings.openrouterModel ||
-        settings.aiModel ||
-        PROVIDER_CATALOG.openrouter!.defaultModel!,
-      apiFormat: 'openai-compatible',
-      isLocal: false,
-      extraHeaders: {
-        'HTTP-Referer': 'https://github.com/nutegg',
-        'X-Title': 'NutEgg',
-      },
-    };
-  }
-
-  const catalog = PROVIDER_CATALOG[providerId];
-  if (!catalog) throw new Error(`Unknown AI provider: ${providerId}`);
-  const model = (settings.chromeAiModel || settings.aiModel || catalog.defaultModel || '').trim();
-
+export function resolveConfig(settings: NutEggAISettings): ResolvedConfig {
+  const provider = (settings.chromeAiProvider || settings.aiProvider || 'anthropic') as AIProviderId;
+  const authMethod = settings.chromeAiAuthMethod || settings.aiAuthMethod || 'apiKey';
+  const apiKey = (settings.chromeAiApiKey ?? settings.aiApiKey ?? '').trim();
+  const catalog = PROVIDER_CATALOG[provider];
+  if (!catalog) throw new Error(`Unknown AI provider: ${provider}`);
+  const model = (settings.chromeAiModel || settings.aiModel ||
+    (authMethod === 'apiKey' ? catalog.defaultModel : 'auto') || '').trim();
+  if (authMethod !== 'apiKey')
+    return { provider, authMethod, model, client: { apiKey: '' } };
+  if (provider === 'local' && !model) throw new Error('Configure the exact model ID served by your local server.');
+  const connection = provider === 'local' ? resolveLocalEndpoint(settings) : catalog.connection;
   return {
-    provider: providerId,
-    endpoint: catalog.officialEndpoint,
-    apiKey,
+    provider,
+    authMethod,
     model,
-    apiFormat: catalog.apiFormat,
-    isLocal: false,
-    extraHeaders: catalog.apiFormat === 'anthropic' ? { 'anthropic-version': '2023-06-01' } : {},
+    client: {
+      apiKey,
+      baseURL: connection.baseUrl,
+      protocol: connection.protocol,
+      models: GENERATED_MODELS.filter(offering => offering.providerId === provider && offering.apiModelId === model),
+      ...(provider === 'openrouter' ? { defaultHeaders: {
+        'HTTP-Referer': 'https://github.com/nutegg', 'X-Title': 'NutEgg',
+      } } : {}),
+    },
   };
 }

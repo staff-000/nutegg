@@ -710,7 +710,7 @@ export class AIProcessor {
       capture.content.slice(0, 4000),
       config.provider,
       config.model,
-      config.endpoint,
+      config.client.baseURL,
       this.getPrompt('discussionAnalysis'),
       this.getPrompt('aggregateDiscussion'),
       this.getContentOutputRules(capture, 'within'),

@@ -33,7 +33,7 @@ describe("isAIConfigured", () => {
       ...DEFAULT_SETTINGS,
       aiProvider: "local",
       aiApiKey: "",
-      localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+      localEndpoint: "http://127.0.0.1:11434/v1",
       aiModel: "",
     };
     assert.equal(isAIConfigured(settings), false);
@@ -54,7 +54,7 @@ describe("AIClient settings changes", () => {
         if (url === "https://openrouter.ai/api/v1/credits") {
           return new Response(JSON.stringify({ data: { total_credits: 10, total_usage: 2 } }), { status: 200 });
         }
-        assert.equal(url, PROVIDER_CATALOG.openrouter.officialEndpoint);
+        assert.equal(url, "https://openrouter.ai/api/v1/chat/completions");
         return new Response(JSON.stringify({ choices: [{ message: { content: "Summary" } }] }), { status: 200 });
       }) as any;
 
@@ -80,7 +80,7 @@ describe("AIClient settings changes", () => {
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (url: string, init?: any) => {
-        assert.equal(url, PROVIDER_CATALOG.openai.officialEndpoint);
+        assert.equal(url, "https://api.openai.com/v1/chat/completions");
         assert.equal(init.headers.Authorization, "Bearer old-key");
         const body = JSON.parse(init.body);
         assert.equal(body.model, "captured-model");
@@ -123,7 +123,7 @@ describe("AIClient Local LLM execution", () => {
         aiProvider: "local",
         localApiType: "openai",
         aiApiKey: "",
-        localEndpoint: "http://127.0.0.1:1234/v1/chat/completions",
+        localEndpoint: "http://127.0.0.1:1234/v1",
         aiModel: "installed-local-model",
       };
 
@@ -163,7 +163,7 @@ describe("AIClient Local LLM execution", () => {
         aiProvider: "local",
         localApiType: "ollama",
         aiApiKey: "",
-        localEndpoint: "http://127.0.0.1:11434/api/chat",
+        localEndpoint: "http://127.0.0.1:11434",
         aiModel: "installed-ollama-model",
       };
 
@@ -195,7 +195,7 @@ describe("AIClient Local LLM execution", () => {
         aiProvider: "local",
         localApiType: "openai",
         aiApiKey: "",
-        localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+        localEndpoint: "http://127.0.0.1:11434/v1",
         aiModel: "",
       };
 
@@ -221,7 +221,7 @@ describe("AIClient Local LLM execution", () => {
         ...DEFAULT_SETTINGS,
         aiProvider: "local",
         aiApiKey: "",
-        localEndpoint: "http://127.0.0.1:11434/v1/chat/completions",
+        localEndpoint: "http://127.0.0.1:11434/v1",
         aiModel: "",
       };
 
@@ -251,12 +251,22 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
         const provider = PROVIDER_CATALOG[providerId];
         globalThis.fetch = (async (url: string, init?: any) => {
           const body = JSON.parse(init.body);
-          assert.equal(url, provider.officialEndpoint);
-          assert.equal(body.model, provider.defaultModel);
-          assert.equal(body.messages[0].content, "Summarize this article");
-          assert.equal(providerId === "openai" ? body.max_completion_tokens : body.max_tokens, 500);
-          const response = provider.apiFormat === "anthropic"
+          const protocol = provider.connection.protocol;
+          const path = protocol === 'gemini' ? `/models/${provider.defaultModel}:generateContent` :
+            protocol === 'claude' ? '/messages' : '/chat/completions';
+          assert.equal(url, provider.connection.baseUrl + path);
+          if (protocol === 'gemini') {
+            assert.equal(body.contents[0].parts[0].text, 'Summarize this article');
+            assert.equal(body.generationConfig.maxOutputTokens, 500);
+            assert.equal(init.headers['x-goog-api-key'], 'test-key');
+          } else {
+            assert.equal(body.model, provider.defaultModel);
+            assert.equal(protocol === 'claude' ? body.messages[0].content[0].text : body.messages[0].content, 'Summarize this article');
+            assert.equal(providerId === 'openai' ? body.max_completion_tokens : body.max_tokens, 500);
+          }
+          const response = protocol === "claude"
             ? { content: [{ type: "text", text: "Summary" }] }
+            : protocol === 'gemini' ? { candidates: [{ content: { parts: [{ text: 'Summary' }] }, finishReason: 'STOP' }] }
             : { choices: [{ message: { content: "Summary" } }] };
           return new Response(JSON.stringify(response), { status: 200 });
         }) as any;
@@ -342,9 +352,27 @@ describe('job cancellation and credential redaction',()=>{
   const original=globalThis.fetch;const client=new AIClient({...DEFAULT_SETTINGS,aiProvider:'openrouter',aiApiKey:'sensitive-key'});
   try {
    globalThis.fetch=async()=>new Response(JSON.stringify({error:{message:'invalid sensitive-key request'}}),{status:400});
-   await assert.rejects(client.chat('Q',100),(error:any)=>!error.message.includes('sensitive-key')&&error.message.includes('[redacted]'));
+   await assert.rejects(client.chat('Q',100),(error:any)=>!JSON.stringify(error).includes('sensitive-key'));
    globalThis.fetch=async()=>{throw new Error('network sensitive-key');};
    const credit=await client.checkCredit({...DEFAULT_SETTINGS,aiProvider:'openrouter',aiApiKey:'sensitive-key'});assert.ok(!JSON.stringify(credit).includes('sensitive-key'));
   }finally{globalThis.fetch=original;}
  });
+});
+
+describe('BYOKit structured provider failures', () => {
+  it('distinguishes exhausted quota from retryable rate limits without parsing raw provider messages', async () => {
+    const original = globalThis.fetch;
+    const client = new AIClient({ ...DEFAULT_SETTINGS, aiProvider: 'openai', aiApiKey: 'private-key' });
+    try {
+      for (const [providerCode, expected] of [['insufficient_quota', 'quota_exceeded'], ['rate_limit_exceeded', 'rate_limited']]) {
+        globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: providerCode, message: 'private-key' } }), { status: 429 });
+        await assert.rejects(client.chat('Hi', 100), (error: any) => {
+          assert.equal(error.code, expected);
+          assert.equal(error.statusCode, 429);
+          assert.ok(!JSON.stringify(error).includes('private-key'));
+          return true;
+        });
+      }
+    } finally { globalThis.fetch = original; }
+  });
 });

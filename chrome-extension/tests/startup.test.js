@@ -313,7 +313,7 @@ test('a delayed HTTP probe keeps an authenticated vault in a neutral checking st
   const env = new EnvironmentService({ settings, store, chromeApi: { runtime: { sendMessage: async ({ action }) => {
     calls.push(action);
     if (action === 'check-server') return { online: true, degraded: true, state: {
-      mode: 'subscription', transition: 'ready', subscription: { provider: 'gemini', model: 'auto' },
+      mode: 'subscription', transition: 'ready', subscription: { provider: 'google', model: 'auto' },
     } };
     return {};
   } } } });

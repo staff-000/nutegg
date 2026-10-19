@@ -2,8 +2,9 @@
 // NutEgg Unified AI Client & Transport
 // ============================================================
 
+import { OpenAI, CallError, Role } from 'byokit/client';
 import { trackAIRequest } from './ai-diagnostics';
-import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, validateAIEndpoint, aiConnectionLabel } from './catalog';
+import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, aiConnectionLabel } from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -19,8 +20,6 @@ export type AIErrorCode =
   | 'subscription_requires_obsidian'
   | 'no_api_key'
   | 'auth_failed'
-  | 'bridge_auth_failed'
-  | 'pairing_token_missing'
   | 'forbidden'
   | 'model_not_found'
   | 'rate_limited'
@@ -41,60 +40,6 @@ export class AIError extends Error {
   }
 }
 
-/**
- * Classify an HTTP error response into a structured AIError.
- */
-export function classifyError(statusCode: number, body: string): AIError {
-  const lower = body.toLowerCase();
-
-  if (statusCode === 401) {
-    return new AIError(
-      'auth_failed',
-      'API key is invalid or missing. Check your API key in NutEgg settings.',
-      statusCode
-    );
-  }
-  if (statusCode === 403) {
-    return new AIError(
-      'forbidden',
-      'Access denied. Your API key may not have permission for this model, or your account needs a funded billing plan.',
-      statusCode
-    );
-  }
-  if (statusCode === 404 || lower.includes('model not found') || lower.includes('model_not_found')) {
-    return new AIError(
-      'model_not_found',
-      'The selected model was not found. The model name may be incorrect or not available on this endpoint.',
-      statusCode
-    );
-  }
-  if (statusCode === 429) {
-    return new AIError('rate_limited', 'Rate limit exceeded. Wait a moment and try again.', statusCode);
-  }
-  if (statusCode >= 500) {
-    return new AIError(
-      'server_error',
-      `The AI service returned a server error (${statusCode}). It may be temporarily down — try again shortly.`,
-      statusCode
-    );
-  }
-  if (
-    lower.includes('quota') ||
-    lower.includes('insufficient') ||
-    lower.includes('balance') ||
-    lower.includes('billing')
-  ) {
-    return new AIError(
-      'quota_exceeded',
-      'API quota exceeded or insufficient funds. Check your account balance or billing settings.',
-      statusCode
-    );
-  }
-
-  const snippet = body.slice(0, 300);
-  return new AIError('unknown', `API error (${statusCode}): ${snippet}`, statusCode);
-}
-
 export interface AICreditInfo {
   subscriptionState?: string;
   usageRemaining?: string;
@@ -113,245 +58,41 @@ export interface AICreditInfo {
   error?: string;
 }
 
-/**
- * Execute chat completion with Anthropic API format.
- */
-async function chatAnthropic(
-  prompt: string,
-  maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
-): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetch(config.endpoint, {
-      redirect: 'error',
-      signal: config.signal,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': config.apiKey,
-        ...(config.extraHeaders || {}),
-      },
-      body: JSON.stringify({
-        model: config.model,
-        max_tokens: maxTokens,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-  } catch {
-    throw new AIError(
-      'network_error',
-      'Cannot reach the AI API. Check your internet connection. If using a custom endpoint, verify the URL is correct.'
-    );
-  }
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw classifyError(response.status, err);
-  }
-
-  const data = await response.json();
-  return data?.content?.[0]?.text || '';
-}
-
-/**
- * Execute chat completion with Ollama API format (/api/chat).
- */
-async function chatOllama(
-  prompt: string,
-  maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
-): Promise<string> {
-  let response: Response;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(config.extraHeaders || {}),
-  };
-  if (config.apiKey && config.apiKey.trim().length > 0) {
-    headers['Authorization'] = `Bearer ${config.apiKey}`;
-  }
-
-  const bodyPayload: Record<string, any> = {
-    model: config.model || 'default',
-    messages: [{ role: 'user', content: prompt }],
-    stream: false,
-    options: {
-      num_predict: maxTokens,
-      temperature: 0.3,
-    },
-  };
-
-  try {
-    response = await fetch(config.endpoint, {
-      redirect: 'error',
-      signal: config.signal,
-      method: 'POST',
-      headers,
-      body: JSON.stringify(bodyPayload),
-    });
-  } catch {
-    throw new AIError(
-      'network_error',
-      'Cannot reach Ollama server. Ensure Ollama is running and the endpoint is accessible.'
-    );
-  }
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw classifyError(response.status, err);
-  }
-
-  const data = await response.json();
-  return data?.message?.content || '';
-}
-
-/**
- * Execute chat completion with OpenAI-compatible API format.
- */
-async function chatOpenAICompatible(
-  prompt: string,
-  maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal }
-): Promise<string> {
-  let response: Response;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(config.extraHeaders || {}),
-  };
-  if (config.apiKey && config.apiKey.trim().length > 0) {
-    headers['Authorization'] = `Bearer ${config.apiKey}`;
-  }
-
-  const bodyPayload: Record<string, any> = {
-    model: config.model,
-    messages: [{ role: 'user', content: prompt }],
-  };
-  if (config.provider === 'openai') {
-    bodyPayload.max_completion_tokens = maxTokens;
-  } else {
-    bodyPayload.max_tokens = maxTokens;
-  }
-
-  try {
-    response = await fetch(config.endpoint, {
-      redirect: 'error',
-      signal: config.signal,
-      method: 'POST',
-      headers,
-      body: JSON.stringify(bodyPayload),
-    });
-  } catch {
-    throw new AIError(
-      'network_error',
-      'Cannot reach the AI API. Check your network or local LLM server status. If using a custom endpoint, verify the URL is correct.'
-    );
-  }
-
-  if (!response.ok) {
-    const err = await response.text();
-    if (isSubscriptionProvider(config.provider)) {
-      const classified = classifyError(response.status, err);
-      const code = response.status === 401 || response.status === 403 ? 'bridge_auth_failed' : classified.code;
-      try {
-        const message = JSON.parse(err)?.error?.message;
-        if (typeof message === 'string' && message.trim()) throw new AIError(code, message, response.status);
-      } catch (error) {
-        if (error instanceof AIError) throw error;
-      }
-      throw new AIError(
-        code,
-        'AI bridge request failed. Check the local pairing token in NutEgg settings and the CLI sign-in in the bridge terminal.',
-        response.status
-      );
-    }
-    throw classifyError(response.status, err);
-  }
-
-  const data = await response.json();
-  const choice = data?.choices?.[0];
-  const content = choice?.message?.content || '';
-  const reasoning = choice?.message?.reasoning_content || '';
-  const finishReason = choice?.finish_reason;
-
-  if (finishReason === 'length') {
-    const reasoningTokens = data?.usage?.completion_tokens_details?.reasoning_tokens || 0;
-    const completionTokens = data?.usage?.completion_tokens || 0;
-    console.warn(
-      `[NutEgg] AI response was cut off by max_tokens limit (finish_reason: "length"). ` +
-        `Reasoning tokens: ${reasoningTokens}, Completion tokens: ${completionTokens}, Content length: ${content.length}`
-    );
-    if (!content.trim() && reasoning) {
-      throw new AIError(
-        'rate_limited',
-        `The AI model (${config.model}) spent all its tokens on internal reasoning before writing the answer. Try increasing Max Tokens in settings.`
-      );
-    }
-  }
-
-  return content;
-}
-
-/**
- * Chat with configured AI backend.
- */
+/** Execute directly through BYOKit; NutEgg owns diagnostics and UI error codes. */
 export async function chatAI(
   prompt: string,
   maxTokens: number,
-  config: ResolvedConfig & { extraHeaders?: Record<string, string>; signal?: AbortSignal },
+  config: ResolvedConfig,
   debugScope?: string,
   signal?: AbortSignal
 ): Promise<string> {
-  if (config.authMethod === 'subscription' || config.authMethod === 'chatgpt')
+  if (config.authMethod !== 'apiKey')
     throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
-  validateAIEndpoint(config.endpoint, config.apiKey);
-  if (config.provider !== 'local' && !config.apiKey) {
-    throw new AIError(
-      isSubscriptionProvider(config.provider) ? 'pairing_token_missing' : 'no_api_key',
-      isSubscriptionProvider(config.provider)
-        ? 'No bridge pairing token configured. Start the NutEgg AI bridge and paste its token in settings.'
-        : 'No AI API key configured. Open settings and enter your API key.'
-    );
-  }
-
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  if (signal?.aborted) controller.abort();
-  signal?.addEventListener('abort', abort, { once: true });
-  const timer = setTimeout(() => controller.abort('timeout'), 180000);
-  const requestConfig = { ...config, signal: controller.signal };
-  try {
-    if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
-    const result = await trackAIRequest(
-      prompt,
-      async () => {
-        try {
-          if (config.apiFormat === 'anthropic') return await chatAnthropic(prompt, maxTokens, requestConfig);
-          if (config.apiFormat === 'ollama') return await chatOllama(prompt, maxTokens, requestConfig);
-          return await chatOpenAICompatible(prompt, maxTokens, requestConfig);
-        } catch (error: any) {
-          if (config.apiKey && typeof error?.message === 'string')
-            error.message = error.message.split(config.apiKey).join('[redacted]');
-          throw error;
-        }
-      },
-      debugScope,
-      { signal: controller.signal }
-    );
-    if (controller.signal.aborted) throw new AIError('cancelled', 'AI request cancelled.');
-    return result;
-  } catch (error: any) {
-    if (controller.signal.aborted)
-      throw new AIError(
-        controller.signal.reason === 'timeout' ? 'timeout' : 'cancelled',
-        controller.signal.reason === 'timeout' ? 'AI request timed out. Retry explicitly.' : 'AI request cancelled.'
-      );
-    if (config.apiKey && typeof error?.message === 'string')
-      error.message = error.message.split(config.apiKey).join('[redacted]');
-    throw error;
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', abort);
-  }
+  if (config.provider !== 'local' && !config.client.apiKey)
+    throw new AIError('no_api_key', 'No AI API key configured. Open settings and enter your API key.');
+  return trackAIRequest(prompt, async () => {
+    try {
+      const response = await new OpenAI(config.client).chat.completions.create({
+        model: config.model,
+        messages: [{ role: Role.User, content: prompt }],
+        max_tokens: maxTokens,
+      }, { signal, timeoutMs: 180000 });
+      return response.choices[0].message.content || '';
+    } catch (error) {
+      // Presentation translation only; BYOKit owns transport, safety, and retries.
+      if (error instanceof CallError) {
+        const codes: Record<string, AIErrorCode> = {
+          invalid_credentials: 'auth_failed', access_denied: 'forbidden',
+          model_not_found_or_inaccessible: 'model_not_found', quota_exhausted: 'quota_exceeded',
+          rate_limited: 'rate_limited', provider_unavailable: 'server_error',
+          network_error: 'network_error', timeout: 'timeout',
+        };
+        throw new AIError(error.code === 'CANCELED' ? 'cancelled' :
+          codes[error.attempt?.reason || 'unknown'] || 'unknown', error.message, error.status);
+      }
+      throw error;
+    }
+  }, debugScope, { signal });
 }
 
 /**
@@ -368,7 +109,7 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
 }
 
 async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditInfo> {
-  const providerId = (settings.chromeAiProvider || settings.aiProvider || 'gemini') as AIProviderId;
+  const providerId = (settings.chromeAiProvider || settings.aiProvider || 'google') as AIProviderId;
   const provider = PROVIDER_CATALOG[providerId];
   const source: AISource = providerId === 'openrouter' ? 'openrouter' : 'official';
   const apiKey = (settings.chromeAiApiKey !== undefined ? settings.chromeAiApiKey : settings.aiApiKey) || '';
@@ -388,11 +129,9 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === 'local') {
-    const { endpoint, apiFormat } = resolveLocalEndpoint(settings);
-    const isOllama = apiFormat === 'ollama';
-    const pingEndpoint = isOllama
-      ? endpoint.replace(/\/api\/chat\/?$/, '/api/tags')
-      : endpoint.replace(/\/chat\/completions\/?$/, '/models');
+    const { baseUrl, protocol } = resolveLocalEndpoint(settings);
+    const isOllama = protocol === 'ollama';
+    const pingEndpoint = baseUrl + (isOllama ? '/api/tags' : '/models');
     try {
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;

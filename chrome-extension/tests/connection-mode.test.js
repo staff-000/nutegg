@@ -7,10 +7,10 @@ function worker(initial = {}, availability = {}) {
   const stored = { executionSchemaVersion:2, [`obsidianConnection:http://127.0.0.1:${initial.serverPort || 27123}:test`]: 'approved-test-credential', ...initial }, http = [], ai = [], timeouts = [];
   let listener, storageListener, connectListener;
   const context = vm.createContext({
-    importScripts() {}, structuredClone, DOMException, Response, TextDecoder, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"gemini",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
+    importScripts() {}, structuredClone, DOMException, Response, TextDecoder, NutEggExecution:{state:{instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"},ensure:async()=>({}),latest:async()=>{if(availability.online===false)throw new Error("Offline");return {instanceId:"test",revision:1,mode:availability.mode||"apiKey",subscriptionAvailable:availability.subscriptionEnabled===true,subscription:{provider:"google",model:"auto"},transition:"ready"};},register:async()=>({jobId:"test-job",revision:1}),close(){},configurationChanged(){}}, console: { log() {} }, TextEncoder, URL, crypto: require('node:crypto').webcrypto, AbortController, AbortSignal,
     setTimeout: (callback, delay) => { timeouts.push(delay); return availability.timer ? availability.timer(callback, delay) : setTimeout(callback, delay); }, clearTimeout,
     NutEggAI: {
-      PROVIDER_CATALOG: { gemini: { defaultModel: 'default-model' } },
+      PROVIDER_CATALOG: { google: { defaultModel: 'default-model' } },
       normalizeAIDebugScope: value => value,
       getAIDebugInfo: () => ({ totalCalls: 1 }),
       checkCreditAI: async settings => { ai.push({ action: 'credit', settings }); return { hasBalance: true }; },
@@ -24,11 +24,11 @@ function worker(initial = {}, availability = {}) {
       askFollowUpStandalone: async (payload, question, priorQa, settings, scope) => {
         ai.push({ action: 'ask', payload, question, priorQa, settings, scope }); return 'Answer';
       },
-      isSubscriptionProvider: value => typeof value === 'object' ? value.chromeAiAuthMethod === 'subscription' || ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value.chromeAiProvider) : ['gemini-cli', 'codex-cli', 'claude-cli'].includes(value),
+      isSubscriptionProvider: value => value?.chromeAiAuthMethod === 'subscription',
       supportsSubscription: () => true,
       selectEffectiveExecution:(mode,state)=>mode==='obsidian'&&state?.subscriptionAvailable&&state.mode==='subscription'?'subscription':'apiKey',
-      migrateAISettings: value => value,
-      migrateChromeApiPreferences: value => ({...value,chromeAiAuthMethod:'apiKey'}),
+      normalizeAISettings: value => value,
+      restoreChromeApiPreferences: value => ({...value,chromeAiAuthMethod:'apiKey'}),
       isAIConfigured: settings=>settings.chromeAiProvider==='local'||!!settings.chromeAiApiKey,
     },
     chrome: {
@@ -281,7 +281,7 @@ test('Obsidian mode routes both analysis and questions to the chosen server', as
 });
 
 test('local AI uses the saved endpoint and needs no API key', async () => {
-  const app = worker({ chromeAiProvider: 'local', chromeAiLocalEndpoint: 'http://localhost:11434/v1' });
+  const app = worker({ chromeAiProvider: 'local', chromeAiEndpoint: 'http://localhost:11434/v1' });
   assert.equal((await app.send('check-chrome-ai')).configured, true);
   assert.equal((await app.send('analyze', { payload: { content: 'Article' } })).mode, 'chrome');
   assert.equal(app.ai[0].settings.chromeAiEndpoint, 'http://localhost:11434/v1');

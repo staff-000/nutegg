@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { ExecutionCoordinator, type Session } from '../src/execution-coordinator';
-import { publicExecutionSettings, migrateChromeApiPreferences, reduceSharedExecutionState, selectEffectiveExecution } from '../../shared/src/execution';
+import { publicExecutionSettings, restoreChromeApiPreferences, reduceSharedExecutionState, selectEffectiveExecution } from '../../shared/src/execution';
 function setup() {
     const persisted: any[] = [];
     const c = new ExecutionCoordinator(ExecutionCoordinator.initial(undefined, true), async (s) => { persisted.push(s); }, async () => { });
@@ -184,14 +184,14 @@ test('capability defaults off; enable does not select subscription and disable p
     assert.equal(c.state.subscription.model, 'custom');
     await c.dispose();
 });
-test('public configuration strips secrets/endpoints; API migration preserves backups and is idempotent', () => {
+test('public configuration strips secrets/endpoints; API selection restores backups and is idempotent', () => {
     assert.deepEqual(publicExecutionSettings({ chromeAiApiKey: 'private', aiApiKey: 'native', chromeAiEndpoint: 'url', bridgePairToken: 'token', chromeAiProvider: 'openai', chromeAiModel: 'custom' }), { chromeAiProvider: 'openai', chromeAiModel: 'custom' });
-    const old = { chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeApiConfig: { chromeAiProvider: 'deepseek', chromeAiApiKey: 'saved', chromeAiModel: 'api-model' }, aiProfiles: { 'openai:apiKey': { apiKey: 'other' } } };
-    const migrated = migrateChromeApiPreferences(old);
+    const old = { chromeAiAuthMethod: 'subscription', chromeAiProvider: 'google', chromeApiConfig: { chromeAiProvider: 'deepseek', chromeAiApiKey: 'saved', chromeAiModel: 'api-model' }, aiProfiles: { 'openai:apiKey': { apiKey: 'other' } } };
+    const migrated = restoreChromeApiPreferences(old);
     assert.equal(migrated.chromeAiApiKey, 'saved');
     assert.equal(migrated.chromeAiModel, 'api-model');
     assert.deepEqual(migrated.aiProfiles, old.aiProfiles);
-    assert.deepEqual(migrateChromeApiPreferences(migrated), migrated);
+    assert.deepEqual(restoreChromeApiPreferences(migrated), migrated);
 });
 test('late results after cancellation cannot resurrect a job or executor', async () => {
     const { c, admit, messages, sessions } = setup();

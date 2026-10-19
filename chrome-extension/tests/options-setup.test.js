@@ -14,7 +14,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
   const requests = [];
   const creditCalls = [];
   const messages = [];
-  const state = initial.obsidianExecutionState || {instanceId:'vault-test',protocolVersion:3,revision:1,transition:'ready',subscriptionAvailable:initial.subscriptionFeatureEnabled!==false,mode:initial.chromeAiAuthMethod==='subscription' && initial.subscriptionFeatureEnabled!==false?'subscription':'apiKey',subscription:{provider:'gemini',model:'auto'}};
+  const state = initial.obsidianExecutionState || {instanceId:'vault-test',protocolVersion:3,revision:1,transition:'ready',subscriptionAvailable:initial.subscriptionFeatureEnabled!==false,mode:initial.chromeAiAuthMethod==='subscription' && initial.subscriptionFeatureEnabled!==false?'subscription':'apiKey',subscription:{provider:'google',model:'auto'}};
   if(initial.connectionMode==='obsidian')values.obsidianExecutionState=state;
   win.chrome = {
     storage: { local: { get: async keys => keys == null ? ({ ...values }) : Object.fromEntries(keys.map(key => [key, values[key]])), set: async data => Object.assign(values, data) } },
@@ -24,7 +24,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
       if(message.action==='clear-chrome-cache'){values.chromeTabCache=[];return {success:true,count:0,limit:values.chromeCacheTabLimit??100};}
       if(message.action==='set-execution-mode') {state.mode=message.mode;state.revision++;values.obsidianExecutionState={...state};return {state:{...state}};}
       if(message.action==='sync-obsidian-api')return {synced:true};
-      if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='chatgpt'?'openai':state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'gemini',aiModel:state.mode==='chatgpt'?state.chatgpt?.model:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
+      if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='chatgpt'?'openai':state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'google',aiModel:state.mode==='chatgpt'?state.chatgpt?.model:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
       if(message.action==='chatgpt-control') return {state:{...state}, ...(message.operation==='models'?{models:[{slug:'chatgpt-model',displayName:'ChatGPT model'}]}:{})};
       if(message.operation==='status')return {state:'unverified',model:state.subscription.model};
       return {}; }, getManifest: () => ({ version: '1.0' }) },
@@ -34,14 +34,13 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
   win.eval(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8'));
   const core = win.NutEggAI;
   win.NutEggAI = {
-    migrateAISettings: core.migrateAISettings,
-    migrateChromeApiPreferences:core.migrateChromeApiPreferences,
+    normalizeAISettings: core.normalizeAISettings,
+    restoreChromeApiPreferences:core.restoreChromeApiPreferences,
     reduceSharedExecutionState:core.reduceSharedExecutionState,
     selectEffectiveExecution:core.selectEffectiveExecution,
     supportsSubscription: core.supportsSubscription,
-    isSubscriptionProvider: provider => ['gemini-cli', 'codex-cli', 'claude-cli'].includes(provider),
     PROVIDER_CATALOG: {
-      gemini: { label: 'Google Gemini', models: ['gemini-default', 'gemini-pro'], defaultModel: 'gemini-default', keyPlaceholder: 'AIza...' },
+      google: { label: 'Google Gemini', models: ['gemini-default', 'gemini-pro'], defaultModel: 'gemini-default', keyPlaceholder: 'AIza...' },
       openai: { label: 'OpenAI', models: ['openai-default'], defaultModel: 'openai-default' },
       local: { label: 'Local', models: ['local-model'], defaultModel: 'local-model' },
     },
@@ -106,7 +105,7 @@ test('a fresh install shows Chrome setup and sensible defaults without contactin
   assert.equal(el('obsidian-config').classList.contains('hidden'), true);
   assert.equal(el('obsidian-active-card').classList.contains('hidden'), true);
   for (const id of ['reading-preferences', 'advanced-settings', 'obsidian-settings']) assert.equal(el(id).open, false);
-  assert.equal(el('ai-provider-select').value, 'gemini');
+  assert.equal(el('ai-provider-select').value, 'google');
   assert.equal(el('ai-model-select').value, 'gemini-default');
   assert.equal(el('section-mindmap').checked, true);
   assert.equal(el('section-knowledge').checked, false);
@@ -162,7 +161,7 @@ test('subscription stays visible with hover, click, and keyboard hints until Usi
 });
 
 test('subscription shares its provider and preserves API credentials while hiding Chrome model edits', async t => {
-  const { values, el, change, creditCalls, messages } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiApiKey: 'cloud-key', chromeAiModel: 'gemini-pro' });
+  const { values, el, change, creditCalls, messages } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'google', chromeAiApiKey: 'cloud-key', chromeAiModel: 'gemini-pro' });
   el('use-subscription-toggle').checked = true; change('use-subscription-toggle'); await flush();
   assert.equal(el('ai-key-input').value, 'cloud-key');
   assert.equal(el('ai-key-row').hidden, true);
@@ -180,7 +179,7 @@ test('subscription shares its provider and preserves API credentials while hidin
 });
 
 test('switching to non-subscription provider in apiKey mode keeps use-subscription enabled and toggling switches to subscription', async t => {
-  const { values, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'gemini-key' });
+  const { values, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'google', chromeAiApiKey: 'gemini-key' });
   el('ai-provider-select').value = 'local'; change('ai-provider-select');
   assert.equal(el('use-subscription-toggle').disabled, false);
   assert.equal(el('use-subscription-toggle').checked, false);
@@ -209,7 +208,7 @@ test('saving setup rejects an empty key, then persists an immediately usable Chr
   el('ai-save-btn').click();
   await flush();
   assert.equal(values.chromeAiApiKey, 'test-key');
-  assert.equal(values.chromeAiProvider, 'gemini');
+  assert.equal(values.chromeAiProvider, 'google');
   assert.equal(values.chromeAiModel, 'gemini-default');
   assert.equal(values.chromeAiEnabled, true);
   assert.equal(values.connectionMode, 'chrome');
@@ -274,19 +273,6 @@ test('a provider change chooses its default model and custom models require a va
   assert.equal(el('ai-test-result').classList.contains('ok'), true);
 });
 
-test('local endpoint settings migrate from the previous storage name and use the canonical field for connection checks', async t => {
-  const { values, creditCalls, el } = await setup(t, { chromeAiProvider: 'local', chromeAiLocalEndpoint: 'http://localhost:11434/v1/chat/completions' });
-  assert.equal(el('ai-local-endpoint').value, 'http://localhost:11434/v1/chat/completions');
-  el('ai-save-btn').click();
-  await flush();
-  assert.equal(values.chromeAiEndpoint, 'http://localhost:11434/v1/chat/completions');
-  assert.equal(values.chromeAiApiKey, '');
-  el('ai-test-btn').click();
-  await flush();
-  assert.equal(creditCalls[0].chromeAiEndpoint, values.chromeAiEndpoint);
-  assert.equal(el('ai-advanced-status').classList.contains('ok'), true);
-});
-
 test('reading preferences preserve the last content section and save independently of vault preferences', async t => {
   const { values, el, change } = await setup(t, { generateKnowledgeEntries: false });
   el('section-mindmap').checked = false;
@@ -327,16 +313,6 @@ test('chrome cache options load defaults, display cached count, save custom limi
   assert.equal(el('chrome-cache-status').classList.contains('ok'), true);
 });
 
-test('legacy subscriptions migrate without exposing bridge tokens and the switch is disabled in Chrome mode', async t => {
-  const { values, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'codex-cli', chromeAiApiKey: 'pairing-token', chromeAiModel: 'custom-model' });
-  assert.equal(el('ai-provider-select').value, 'openai'); assert.equal(values.chromeAiProvider, 'openai');
-  assert.equal(el('use-subscription-toggle').checked, false); assert.equal(el('ai-key-input').value, '');
-  assert.equal([...el('ai-provider-select').options].some(o => o.value.endsWith('-cli')), false);
-  el('use-chrome-btn').click(); await flush();
-  assert.equal(el('ai-auth-row').hidden, false); assert.equal(el('use-subscription-toggle').checked, false);
-  assert.equal(values.chromeAiApiKey, '');
-});
-
 test('processing limits load and save in Chrome for both modes and reject invalid values', async t => {
   const { values, el, change } = await setup(t, { chromeAiApiKey: 'key', chunkWindowChars: 20000, contentAnalysisMaxTokens: 8000 });
   assert.equal(el('chunk-window-chars').value, '20000');
@@ -369,7 +345,7 @@ test('opening or saving Chrome settings performs read-only refreshes without cha
 
 test('Obsidian AI card displays the actual configuration and colors matching and mismatching settings', async t => {
   const { win, el, change } = await setup(t, { connectionMode: 'obsidian', chromeAiApiKey: 'key' });
-  const aiConfig = { aiProvider: 'gemini', aiModel: 'gemini-default', chunkWindowChars: 30000, contentAnalysisMaxTokens: 16384 };
+  const aiConfig = { aiProvider: 'google', aiModel: 'gemini-default', chunkWindowChars: 30000, contentAnalysisMaxTokens: 16384 };
   win.chrome.runtime.sendMessage = async message => ({ aiConfig, matches: message.settings.chromeAiModel === aiConfig.aiModel });
   await win.refreshObsidianAiConfig();
   assert.match(el('obsidian-ai-config-text').textContent, /Google Gemini.*gemini-default.*30000.*16384/);
@@ -388,7 +364,7 @@ test('Obsidian AI card displays the actual configuration and colors matching and
 
 
 test('Chrome keeps the subscription switch visible but disabled when Obsidian has not enabled the feature', async t => {
-  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiApiKey: 'api-key' });
+  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'google', chromeAiApiKey: 'api-key' });
   assert.equal(el('use-subscription-toggle').disabled, true);
   assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('subscription-card').hidden, true);
@@ -398,7 +374,7 @@ test('Chrome keeps the subscription switch visible but disabled when Obsidian ha
 
 
 test('Obsidian opt-in exposes the Chrome connection selector with no account setup instructions', async t => {
-  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'key' });
+  const { el } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'google', chromeAiApiKey: 'key' });
   assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('use-subscription-toggle').disabled, false);
   assert.equal(el('subscription-guide'), null);
@@ -409,7 +385,7 @@ test('Obsidian opt-in exposes the Chrome connection selector with no account set
 
 
 test('disabling the feature restores the saved API configuration and disables the switch', async t => {
-  const { el, values } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'gemini', chromeAiAuthMethod: 'subscription', chromeAiModel: 'cli-custom', aiProfiles: { 'gemini:apiKey': { apiKey: 'retained-key', model: 'gemini-pro' } } });
+  const { el, values } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: false, chromeAiProvider: 'google', chromeAiAuthMethod: 'subscription', chromeAiModel: 'cli-custom', aiProfiles: { 'google:apiKey': { apiKey: 'retained-key', model: 'gemini-pro' } } });
   assert.equal(el('ai-auth-row').hidden, false);
   assert.equal(el('ai-key-row').hidden, false);
   assert.equal(el('ai-key-input').value, 'retained-key');
@@ -421,7 +397,7 @@ test('disabling the feature restores the saved API configuration and disables th
 test('API settings survive a different subscription provider and reopening settings', async t => {
   const first = await setup(t, { connectionMode: 'obsidian', chromeAiProvider: 'openai', chromeAiApiKey: 'original-key', chromeAiModel: 'custom-api-model', chromeAiEndpoint: 'https://api.example/v1' });
   first.win.chrome.runtime.sendMessage = async message => message.action === 'get-obsidian-ai-config'
-    ? {state:{...first.values.obsidianExecutionState,mode:'subscription',subscription:{provider:'gemini',model:'custom-cli-model'}},aiConfig:{aiProvider:'gemini',aiAuthMethod:'subscription',aiModel:'custom-cli-model'},matches:true} : message.action==='set-execution-mode'? {state:{...first.values.obsidianExecutionState,mode:message.mode,subscription:{provider:'gemini',model:'custom-cli-model'}}}:{};
+    ? {state:{...first.values.obsidianExecutionState,mode:'subscription',subscription:{provider:'google',model:'custom-cli-model'}},aiConfig:{aiProvider:'google',aiAuthMethod:'subscription',aiModel:'custom-cli-model'},matches:true} : message.action==='set-execution-mode'? {state:{...first.values.obsidianExecutionState,mode:message.mode,subscription:{provider:'google',model:'custom-cli-model'}}}:{};
   first.el('use-subscription-toggle').checked = true; first.change('use-subscription-toggle');
   await flush(); await flush();
   assert.equal(first.values.chromeAiProvider, 'openai');
@@ -438,7 +414,7 @@ test('API settings survive a different subscription provider and reopening setti
 });
 
 test('an offline or failed health check never restores API billing', async t => {
-  const app = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'gemini', chromeAiModel: 'cli-custom' });
+  const app = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: 'subscription', chromeAiProvider: 'google', chromeAiModel: 'cli-custom' });
   for (const response of [() => { throw new Error('offline'); }, () => ({ error:'Offline' })]) {
     app.win.chrome.runtime.sendMessage = async () => response();
     await app.win.eval('refreshSubscriptionAccess()');
@@ -448,7 +424,7 @@ test('an offline or failed health check never restores API billing', async t => 
 });
 
 test('Chrome refreshes AI readiness after Obsidian setup completes without overlapping slow checks', async t => {
-  const { win, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'gemini', chromeAiApiKey: 'key' });
+  const { win, el, change } = await setup(t, { connectionMode: 'obsidian', subscriptionFeatureEnabled: true, chromeAiProvider: 'google', chromeAiApiKey: 'key' });
   Object.defineProperty(win.document, 'hidden', { value: false });
   const timers = new Map(); let timerId = 0;
   win.setTimeout = (callback, delay) => { timers.set(++timerId, { callback, delay }); return timerId; };
@@ -462,7 +438,7 @@ test('Chrome refreshes AI readiness after Obsidian setup completes without overl
     if(message.action==='get-chrome-cache-info')return {count:values.chromeTabCache?.length||0,limit:values.chromeCacheTabLimit??100};
       if(message.action==='set-chrome-cache-limit'){values.chromeCacheTabLimit=message.limit;values.chromeTabCache=(values.chromeTabCache||[]).slice(0,message.limit);return {success:true,count:values.chromeTabCache.length,limit:message.limit};}
       if(message.action==='clear-chrome-cache'){values.chromeTabCache=[];return {success:true,count:0,limit:values.chromeCacheTabLimit??100};}
-      if(message.action==='set-execution-mode')return {state:{...win.chromeSharedState,mode:'subscription',subscriptionAvailable:true,subscription:{provider:'gemini',model:'auto'},transition:'ready'}};
+      if(message.action==='set-execution-mode')return {state:{...win.chromeSharedState,mode:'subscription',subscriptionAvailable:true,subscription:{provider:'google',model:'auto'},transition:'ready'}};
     return {};
   };
   el('use-subscription-toggle').checked = true; change('use-subscription-toggle'); await flush();
@@ -532,7 +508,7 @@ test('chromeKnowledge prompt option is selectable, editable, and resets to defau
 
 
 test('Save and continue explicitly syncs Obsidian AI in connected mode; advanced save stays local', async t => {
-  const app = await setup(t, {connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiModel: 'gemini-pro', chromeAiApiKey: 'profile-private'});
+  const app = await setup(t, {connectionMode: 'obsidian', chromeAiProvider: 'google', chromeAiModel: 'gemini-pro', chromeAiApiKey: 'profile-private'});
   app.messages.length = 0;
   app.el('ai-config-section').dispatchEvent(new app.win.Event('submit', {bubbles: true, cancelable: true}));
   await flush();
@@ -551,7 +527,7 @@ test('API edits survive leaving subscription, standalone edits, and rejoining ei
   for (const saveDraft of [false, true]) {
     for (const sharedMode of ['apiKey', 'subscription']) {
       const { win, el, change, values } = await setup(t, {
-        connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiModel: 'gemini-pro', chromeAiApiKey: 'old-key',
+        connectionMode: 'obsidian', chromeAiProvider: 'google', chromeAiModel: 'gemini-pro', chromeAiApiKey: 'old-key',
       });
       el('use-subscription-toggle').checked = true;
       change('use-subscription-toggle'); await flush();
@@ -630,7 +606,7 @@ test('ChatGPT is available with CLI disabled, preserves API settings, and hides 
   const { el, values, messages, change } = await setup(t, {
     connectionMode: 'obsidian',
     obsidianExecutionState: state,
-    chromeAiProvider: 'gemini',
+    chromeAiProvider: 'google',
     chromeAiApiKey: 'saved-key',
     chromeAiModel: 'gemini-pro',
   });
@@ -707,4 +683,23 @@ test('cache settings show a failure instead of claiming a failed clear succeeded
   el('chrome-cache-clear-btn').click(); await flush();
   assert.equal(el('chrome-cache-status').classList.contains('error'), true);
   assert.match(el('chrome-cache-count').textContent, /1/);
+});
+
+test('local base URL and protocol survive provider changes and are saved together', async t => {
+  const { el, change, values, creditCalls } = await setup(t, {
+    chromeAiProvider: 'local', chromeAiModel: 'installed-model',
+    chromeAiEndpoint: 'http://localhost:11434', localApiType: 'ollama',
+  });
+  assert.equal(el('ai-local-api').value, 'ollama');
+  el('ai-provider-select').value = 'openai';
+  change('ai-provider-select');
+  el('ai-provider-select').value = 'local';
+  change('ai-provider-select');
+  assert.equal(el('ai-local-api').value, 'ollama');
+  assert.equal(el('ai-local-endpoint').value, 'http://localhost:11434');
+  el('ai-save-btn').click();
+  await flush();
+  assert.equal(values.localApiType, 'ollama');
+  assert.equal(values.chromeApiConfig.localApiType, 'ollama');
+  assert.equal(creditCalls[0].localApiType, 'ollama');
 });

@@ -6,19 +6,27 @@ const path = require('node:path');
 const code = fs.readFileSync(path.join(__dirname, '../dist/ai-core.js'), 'utf8');
 const core = new Function(code + '\nreturn NutEggAI;')();
 const config = require('../../shared/byok.config.json');
-const providerIds = { anthropic: 'anthropic', google: 'gemini', openai: 'openai', deepseek: 'deepseek' };
 
 test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter offering IDs', async () => {
   const byokit = await import('byokit');
   const models = byokit.getModels(config);
-  for (const [byokitId, nuteggId] of Object.entries(providerIds)) {
-    const selected = models.filter(model => model.providerId === byokitId);
-    const catalog = core.PROVIDER_CATALOG[nuteggId];
+  for (const providerId of config.providerIds.values) {
+    const selected = models.filter(model => model.providerId === providerId);
+    const catalog = core.PROVIDER_CATALOG[providerId];
     assert.deepEqual(catalog.models, selected.map(model => model.apiModelId));
     assert.equal(catalog.defaultModel, (selected.find(model => model.tier === 'flash') || selected[0]).apiModelId);
     for (const model of selected) {
-      assert.equal(core.resolveConfig({ aiProvider: nuteggId, aiModel: model.apiModelId }).model, model.apiModelId);
+      const resolved = core.resolveConfig({ aiProvider: providerId, aiModel: model.apiModelId });
+      assert.equal(resolved.model, model.apiModelId);
+      assert.deepEqual(resolved.client.models[0], JSON.parse(JSON.stringify(model)));
     }
+  }
+  assert.deepEqual(Object.keys(core.PROVIDER_CATALOG).sort(), [...config.providerIds.values, 'local', 'openrouter'].sort());
+  for (const model of models) {
+    const provider = core.PROVIDER_CATALOG[model.providerId];
+    assert.equal(provider.id, model.providerId);
+    assert.equal(provider.label, model.provider.name);
+    assert.equal(new URL(provider.connection.baseUrl).origin, new URL(model.connection.baseUrl).origin);
   }
   const routerOfferings = byokit.getModels({ ...config, providerIds: ['openrouter'], dedupe: false });
   const seen = new Set();
@@ -29,11 +37,11 @@ test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter o
   });
   assert.deepEqual(core.PROVIDER_CATALOG.openrouter.models, expected.map(offering => offering.apiModelId));
   assert.equal(new Set(expected.map(model => model.modelId)).size, expected.length);
-  assert.doesNotMatch(code, /node_modules\/byokit\//, 'runtime must not bundle BYOKit discovery or catalog');
+  assert.doesNotMatch(code, /node_modules\/byokit\/catalog\.js|class Catalog|function localGroups/, 'runtime must not bundle BYOKit discovery or catalog');
 });
 
 test('removed providers are rejected and custom models remain available for supported providers', () => {
-  for (const provider of ['kimi', 'zhipu', 'qwen', 'unknown']) {
+  for (const provider of ['gemini', 'kimi', 'zhipu', 'qwen', 'unknown']) {
     assert.equal(core.PROVIDER_CATALOG[provider], undefined);
     const settings = { aiProvider: provider, aiModel: 'saved-working-model', aiApiKey: 'own-key' };
     assert.equal(core.isAIConfigured(settings), false);
@@ -41,30 +49,27 @@ test('removed providers are rejected and custom models remain available for supp
   }
   const selected = core.resolveConfig({ aiProvider: 'openai', aiModel: 'custom-working-model', aiApiKey: 'own-key' });
   assert.equal(selected.model, 'custom-working-model');
-  assert.equal(selected.apiKey, 'own-key');
+  assert.equal(selected.client.apiKey, 'own-key');
   assert.equal(core.findOpenRouterFamily('some-vendor/custom-model').id, 'custom');
 });
 
-test('local setup accepts base and full endpoints offline and requires the exact served model', () => {
-  for (const [endpoint, localApiType, expected, apiFormat] of [
-    ['http://localhost:8000/v1', undefined, 'http://localhost:8000/v1/chat/completions', 'openai-compatible'],
-    ['http://localhost:1234/', undefined, 'http://localhost:1234/v1/chat/completions', 'openai-compatible'],
-    ['http://localhost:8000/v1/chat/completions/', undefined, 'http://localhost:8000/v1/chat/completions', 'openai-compatible'],
-    ['http://localhost:11434', 'ollama', 'http://localhost:11434/api/chat', 'ollama'],
-    ['http://localhost:11434/api/chat', undefined, 'http://localhost:11434/api/chat', 'ollama'],
-    ['http://localhost:11434/v1/chat/completions', 'ollama', 'http://localhost:11434/api/chat', 'ollama'],
+test('local setup uses explicit base URLs and protocols offline and requires the exact served model', () => {
+  for (const [endpoint, localApiType, protocol] of [
+    ['http://localhost:8000/v1', 'openai', 'openai-compatible'],
+    ['http://localhost:1234/v1/', 'openai', 'openai-compatible'],
+    ['http://localhost:11434', 'ollama', 'ollama'],
   ]) {
     const settings = { chromeAiProvider: 'local', chromeAiEndpoint: endpoint, localApiType, chromeAiModel: 'served:model', chromeAiApiKey: 'server-key' };
     const config = core.resolveConfig(settings);
-    assert.equal(config.endpoint, expected);
-    assert.equal(config.apiFormat, apiFormat);
+    assert.equal(config.client.baseURL, endpoint.replace(/\/$/, ''));
+    assert.equal(config.client.protocol, protocol);
     assert.equal(config.model, 'served:model');
-    assert.equal(config.apiKey, 'server-key');
+    assert.equal(config.client.apiKey, 'server-key');
     assert.equal(core.isAIConfigured(settings), true);
   }
   assert.equal(core.isAIConfigured({ aiProvider: 'local' }), false);
   assert.throws(() => core.resolveConfig({ aiProvider: 'local' }), /exact model ID/);
-  for (const endpoint of ['ftp://localhost', 'http://user:secret@localhost', 'http://localhost?key=secret']) {
+  for (const endpoint of ['ftp://localhost', 'http://user:secret@localhost', 'http://localhost?key=secret', 'http://localhost/v1/chat/completions', 'http://localhost/api/chat']) {
     assert.equal(core.isAIConfigured({ aiProvider: 'local', localEndpoint: endpoint, aiModel: 'served' }), false);
   }
 });
@@ -78,7 +83,7 @@ test('explicit local connection checks use the normalized endpoint and native pr
       return new Response('{}', { status: 200 });
     };
     await core.checkCreditAI({ chromeAiProvider: 'local', chromeAiEndpoint: 'http://localhost:8000/v1', chromeAiApiKey: 'server-key' });
-    await core.checkCreditAI({ chromeAiProvider: 'local', chromeAiEndpoint: 'http://localhost:11434/api/chat' });
+    await core.checkCreditAI({ chromeAiProvider: 'local', chromeAiEndpoint: 'http://localhost:11434', localApiType: 'ollama' });
     assert.deepEqual(requests.map(request => request.url), ['http://localhost:8000/v1/models', 'http://localhost:11434/api/tags']);
     assert.equal(requests[0].headers.Authorization, 'Bearer server-key');
     assert.equal(requests[1].headers.Authorization, undefined);
@@ -100,7 +105,7 @@ test('authenticated requests reject non-loopback HTTP before either chat or conn
       await assert.rejects(core.checkCreditAI(settings), /HTTPS/);
       // Validate callers that bypass the settings resolver as well.
       await assert.rejects(core.chatAI('Hello', 10, {
-        provider: 'local', endpoint: endpoint + '/chat/completions', apiKey: 'test-key', model: 'served-model', apiFormat: 'openai-compatible',
+        provider: 'local', authMethod: 'apiKey', model: 'served-model', client: { baseURL: endpoint, apiKey: 'test-key' },
       }), /HTTPS/);
     }
     assert.equal(requests, 0);

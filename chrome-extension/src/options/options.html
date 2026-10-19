@@ -118,8 +118,13 @@
             />
           </div>
           <div class="option-row" id="ai-local-endpoint-row" style="display: none">
+            <label for="ai-local-api" data-i18n="localApiLabel">Local API</label>
+            <select id="ai-local-api">
+              <option value="openai">OpenAI-compatible</option>
+              <option value="ollama">Ollama</option>
+            </select>
             <label for="ai-local-endpoint" data-i18n="localEndpointLabel">Local Server Endpoint</label>
-            <input id="ai-local-endpoint" type="url" placeholder="http://127.0.0.1:11434/v1/chat/completions" />
+            <input id="ai-local-endpoint" type="url" placeholder="http://127.0.0.1:11434/v1" />
           </div>
           <div class="option-row" id="ai-key-row">
             <label for="ai-key-input" data-i18n="settingsKeyLabel">API key</label>
