@@ -159,7 +159,6 @@ export default class NutEggPlugin extends Plugin {
   private nativeApiSyncQueue: Promise<unknown> = Promise.resolve();
   async syncNativeApi(config: Partial<NutEggSettings>, key: string): Promise<boolean> {
     const task = this.nativeApiSyncQueue.then(async () => {
-      if (!(this.app as any).secretStorage) throw new Error(t('nativeApiUpgradeRequired'));
       await this.saveNativeConfig(config, key);
       this.settingsTab?.display();
       return true;
@@ -170,11 +169,19 @@ export default class NutEggPlugin extends Plugin {
     return task;
   }
   async saveNativeConfig(config: Partial<NutEggSettings>, key?: string): Promise<void> {
-    if (!(this.app as any).secretStorage) throw new Error(t('nativeApiUpgradeRequired'));
+    const storage = (this.app as any).secretStorage;
+    const keylessLocal = (config.aiProvider || this.settings.nativeApiConfig?.aiProvider) === 'local' && key === '';
+    if (!storage && !keylessLocal) throw new Error(t('nativeApiUpgradeRequired'));
     this.server?.cancelNative();
     const ref = this.settings.nativeApiKeyRef || `nutegg-native-${this.settings.executionState?.instanceId || 'api'}`;
-    if (key !== undefined) (this.app as any).secretStorage.setSecret(ref, key);
-    this.settings.nativeApiKeyRef = ref;
+    if (keylessLocal) {
+      if (storage && this.settings.nativeApiKeyRef) storage.setSecret(ref, '');
+      this.settings.nativeApiKeyRef = undefined;
+      this.settings.aiApiKey = '';
+    } else {
+      if (key !== undefined) storage.setSecret(ref, key);
+      this.settings.nativeApiKeyRef = ref;
+    }
     this.settings.nativeApiConfig = { ...this.settings.nativeApiConfig, ...config, aiApiKey: '' };
     this.settings.nativeConfigurationRevision = (this.settings.nativeConfigurationRevision || 1) + 1;
     if (this.settings.aiAuthMethod === 'apiKey')

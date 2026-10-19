@@ -613,6 +613,7 @@ function renderConnectionMode(mode) {
     profileKey = `${aiProviderSelect.value}:apiKey`;
     updateModelOptions(aiProviderSelect.value, savedApiConfig?.chromeAiModel);
   }
+  if (!usesObsidian) acknowledgedAuthMethod = 'apiKey';
   renderSubscriptionAccess();
   connectionModeBadge.textContent = t(usesObsidian ? 'settingsObsidianMode' : 'settingsChromeMode');
   connectionModeBadge.classList.toggle('obsidian', usesObsidian);
@@ -1029,16 +1030,21 @@ async function handleAiSave(advanced = false) {
       chromeAiEnabled: true,
       chromeAiPromptOverrides: savedPromptOverrides,
     });
+    savedApiConfig = { ...settings };
 
     if (new URLSearchParams(window.location.search).has('setupApi') && !subscriptionSelected())
       obsidianModeEnabled.checked = false;
     renderConnectionMode(obsidianModeEnabled.checked ? 'obsidian' : 'chrome');
     const result = await chrome.runtime.sendMessage({ action: 'sync-ai-config' });
     let nativeSetupMessage = '';
+    let nativeSetupFailed = false;
     if (!advanced && obsidianModeEnabled.checked) {
       const native = await chrome.runtime.sendMessage({ action: 'sync-obsidian-api' });
       if (native?.synced) nativeSetupMessage = ` ${t('settingsObsidianApiSynced')}`;
-      else if (native?.error) nativeSetupMessage = ` ${t('aiError', { error: native.error })}`;
+      else {
+        nativeSetupFailed = true;
+        nativeSetupMessage = ` ${t('aiError', { error: native?.error || t('aiConnectionUnavailable') })}`;
+      }
     }
     await refreshObsidianAiConfig();
     // API drafts are profile-local and remain saved even while Obsidian is offline.
@@ -1048,7 +1054,7 @@ async function handleAiSave(advanced = false) {
       const info = subscriptionSelected() ? await subscriptionControl('status') : await checkCreditAI(settings);
       showAiResult(
         `${savedMessage} ${subscriptionSelected() ? subscriptionStatusText(info) : formatAiCreditResult(info)}`,
-        info.error || info.state === 'error' ? 'error' : 'ok',
+        nativeSetupFailed || info.error || info.state === 'error' ? 'error' : 'ok',
         advanced
       );
     } catch (error) {

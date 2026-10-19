@@ -712,6 +712,21 @@ test('initializing a native account without SecretStorage does not persist a pla
   assert.equal(plugin.settings.aiApiKey, '');
 });
 
+test('keyless local sync replaces the active cloud account without needing SecretStorage', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.app = {} as any;
+  plugin.settings = { ...DEFAULT_SETTINGS, aiApiKey: '', nativeApiKeyRef: 'previous-secret',
+    nativeApiConfig: { aiProvider: 'openai', aiModel: 'cloud-model' } };
+  let persisted: any;
+  plugin.saveData = async data => { persisted = structuredClone(data); };
+  assert.equal(await plugin.syncNativeApi({ aiProvider: 'local', aiModel: 'installed-model', localEndpoint: 'http://localhost:11434/api/chat' }, ''), true);
+  assert.equal(plugin.getNativeSettings().aiProvider, 'local');
+  assert.equal(plugin.getNativeSettings().aiModel, 'installed-model');
+  assert.equal(plugin.getNativeSettings().aiApiKey, '');
+  assert.equal(plugin.settings.nativeApiKeyRef, undefined);
+  assert.equal(persisted.nativeApiKeyRef, undefined);
+});
+
 
 test('a stalled credit check times out, enables refresh, and ignores its late result', async t => {
   t.mock.timers.enable({apis: ['setTimeout']});

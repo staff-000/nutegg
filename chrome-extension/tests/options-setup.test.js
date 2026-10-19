@@ -23,6 +23,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
       if(message.action==='set-chrome-cache-limit'){values.chromeCacheTabLimit=message.limit;values.chromeTabCache=(values.chromeTabCache||[]).slice(0,message.limit);return {success:true,count:values.chromeTabCache.length,limit:message.limit};}
       if(message.action==='clear-chrome-cache'){values.chromeTabCache=[];return {success:true,count:0,limit:values.chromeCacheTabLimit??100};}
       if(message.action==='set-execution-mode') {state.mode=message.mode;state.revision++;values.obsidianExecutionState={...state};return {state:{...state}};}
+      if(message.action==='sync-obsidian-api')return {synced:true};
       if(message.action==='get-obsidian-ai-config')return {state:{...state},matches:true,aiConfig:{aiAuthMethod:state.mode,aiProvider:state.mode==='chatgpt'?'openai':state.mode==='subscription'?state.subscription.provider:values.chromeAiProvider||'gemini',aiModel:state.mode==='chatgpt'?state.chatgpt?.model:state.mode==='subscription'?state.subscription.model:values.chromeAiModel||'gemini-default',chunkWindowChars:values.chunkWindowChars||30000,contentAnalysisMaxTokens:values.contentAnalysisMaxTokens||16384}};
       if(message.action==='chatgpt-control') return {state:{...state}, ...(message.operation==='models'?{models:[{slug:'chatgpt-model',displayName:'ChatGPT model'}]}:{})};
       if(message.operation==='status')return {state:'unverified',model:state.subscription.model};
@@ -544,6 +545,50 @@ test('Save and continue explicitly syncs Obsidian AI in connected mode; advanced
   app.el('use-chrome-btn').click(); await flush(); app.messages.length = 0;
   app.el('ai-config-section').dispatchEvent(new app.win.Event('submit', {bubbles: true, cancelable: true})); await flush();
   assert.equal(app.messages.some(message => message.action === 'sync-obsidian-api'), false);
+});
+
+test('API edits survive leaving subscription, standalone edits, and rejoining either shared mode', async t => {
+  for (const saveDraft of [false, true]) {
+    for (const sharedMode of ['apiKey', 'subscription']) {
+      const { win, el, change, values } = await setup(t, {
+        connectionMode: 'obsidian', chromeAiProvider: 'gemini', chromeAiModel: 'gemini-pro', chromeAiApiKey: 'old-key',
+      });
+      el('use-subscription-toggle').checked = true;
+      change('use-subscription-toggle'); await flush();
+      el('use-chrome-btn').click(); await flush();
+      el('ai-provider-select').value = 'openai'; change('ai-provider-select');
+      el('ai-key-input').value = 'new-key';
+      el('ai-model-select').value = '__custom__'; change('ai-model-select');
+      el('ai-model-custom').value = 'new-custom-model';
+      el('chunk-window-chars').value = '24000';
+      el('max-completion-tokens').value = '2048';
+      if (saveDraft) { el('ai-save-btn').click(); await flush(); }
+      if (sharedMode === 'apiKey') await win.chrome.runtime.sendMessage({ action: 'set-execution-mode', mode: 'apiKey' });
+      el('obsidian-mode-enabled').checked = true; change('obsidian-mode-enabled'); await flush();
+      if (sharedMode === 'subscription') {
+        el('use-subscription-toggle').checked = false; change('use-subscription-toggle'); await flush();
+      }
+      assert.equal(el('ai-provider-select').value, 'openai');
+      assert.equal(el('ai-key-input').value, 'new-key');
+      assert.equal(el('ai-model-custom').value, 'new-custom-model');
+      assert.equal(el('chunk-window-chars').value, '24000');
+      assert.equal(el('max-completion-tokens').value, '2048');
+      el('ai-save-btn').click(); await flush();
+      assert.equal(values.chromeAiProvider, 'openai');
+      assert.equal(values.chromeAiApiKey, 'new-key');
+      assert.equal(values.chromeAiModel, 'new-custom-model');
+    }
+  }
+});
+
+test('Save and continue reports a failed Obsidian sync even when the Chrome connection check succeeds', async t => {
+  const { win, el, values } = await setup(t, { connectionMode: 'obsidian', chromeAiApiKey: 'profile-key' });
+  const send = win.chrome.runtime.sendMessage;
+  win.chrome.runtime.sendMessage = async message => message.action === 'sync-obsidian-api' ? { synced: false } : send(message);
+  el('ai-save-btn').click(); await flush();
+  assert.equal(values.chromeAiApiKey, 'profile-key');
+  assert.match(el('ai-test-result').textContent, /AI connection unavailable/);
+  assert.equal(el('ai-test-result').classList.contains('error'), true);
 });
 
 test('dialogue enhance (optimizeForConversation) checkbox saves to storage and restores on reload', async t => {

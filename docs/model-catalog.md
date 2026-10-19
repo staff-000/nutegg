@@ -57,8 +57,15 @@ transport rather than adding an SDK for a model-list change. It accepts:
 
 The model ID is sent unchanged. No model is guessed, installed, or discovered.
 An empty key means unauthenticated access; a supplied server key is preserved.
+Authenticated endpoints require HTTPS, except for `localhost`, IPv4 loopback,
+and `::1`. Provider calls and connection checks reject redirects so keys cannot
+be forwarded to another endpoint. Unauthenticated local-network HTTP remains
+available.
 The explicit connection check uses `/models` or `/api/tags` at that endpoint.
 Saving still runs NutEgg's existing connection check; it does not scan ports.
+In connected mode, Save & continue also syncs keyless local configurations to
+Obsidian and removes the previous active key. Keyless local setups do not
+require SecretStorage.
 
 References: [BYOKit README](https://github.com/staff-000/byokit#readme),
 [build-time generation](https://github.com/staff-000/byokit#build-a-smaller-model-list),

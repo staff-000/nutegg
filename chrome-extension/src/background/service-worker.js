@@ -461,7 +461,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if ((await getConnectionMode()) !== 'obsidian') return { synced: false };
       const current = await NutEggExecution.ensure();
       const settings = await loadChromeAiSettings();
-      if (!settings.chromeAiApiKey || current.state.mode !== 'apiKey') return { synced: false };
+      if (current.state.mode !== 'apiKey') return { synced: false };
+      if (settings.chromeAiProvider !== 'local' && !settings.chromeAiApiKey?.trim())
+        throw new Error('An API key is required for this provider.');
       const serverUrl = await getServerUrl();
       const response = await serverFetch(`${serverUrl}/execution/native-api/sync`, {
         method: 'POST',
@@ -472,7 +474,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           sessionId: current.session.sessionId,
           instanceId: current.state.instanceId,
           expectedRevision: current.state.revision,
-          key: settings.chromeAiApiKey,
+          key: settings.chromeAiApiKey || '',
           config: {
             aiProvider: settings.chromeAiProvider,
             aiModel: settings.chromeAiModel,

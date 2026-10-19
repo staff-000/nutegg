@@ -12,6 +12,8 @@ import { makeFakePlugin } from './helpers';
 import { EggParser } from '../src/egg-parser';
 import { KnowledgeBase } from '../src/knowledge-base';
 import { DEFAULT_SETTINGS } from '../src/settings';
+import { chatAI } from '../../shared/src/client';
+import { resolveConfig } from '../../shared/src/catalog';
 const WebSocket = require('ws');
 const root = path.resolve(process.cwd(), '..');
 function profile(port: number, apiUrl: string, key: string, model: string) {
@@ -279,7 +281,8 @@ test('explicit native synchronization replaces existing keys only through its au
     const native = (server as any).server, port = native.address().port;
     const a = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-A', 'model-A');
     const b = profile(port, 'http://127.0.0.1:1/v1/chat/completions', 'private-B', 'model-B');
-    t.after(async () => {a.close(); b.close(); native.closeAllConnections(); await server.stop();});
+    const local = profile(port, 'http://127.0.0.1:11434/api/chat', '', 'installed-model');
+    t.after(async () => {a.close(); b.close(); local.close(); native.closeAllConnections(); await server.stop();});
     const url = `http://127.0.0.1:${port}/execution/native-api/sync`;
     const unauthorized = await fetch(url, {method: 'POST', headers: {Origin: NUTEGG_CHROME_ORIGIN, 'Content-Type': 'application/json'}, body: '{}'});
     assert.equal(unauthorized.status, 401);
@@ -302,4 +305,39 @@ test('explicit native synchronization replaces existing keys only through its au
     const stale = await fetch(url, {method: 'POST', headers, body: JSON.stringify({...body, expectedRevision: 0})});
     assert.equal(stale.status, 409);
     assert.equal(secrets.get(plugin.settings.nativeApiKeyRef), 'private-A');
+    const emptyCloudKey = await fetch(url, {method: 'POST', headers, body: JSON.stringify({...body, key: ''})});
+    assert.equal(emptyCloudKey.status, 400, 'cloud sync still requires a key');
+    const insecureLocal = await fetch(url, {method: 'POST', headers, body: JSON.stringify({...body,
+      config: {aiProvider: 'local', aiModel: 'installed-model', localEndpoint: 'http://server.example/v1'}})});
+    assert.equal(insecureLocal.status, 400, 'reject insecure local credentials before persisting them');
+    assert.equal(secrets.get(plugin.settings.nativeApiKeyRef), 'private-A');
+    const previousRef = plugin.settings.nativeApiKeyRef;
+    await local.message('connect-obsidian');
+    assert.equal((await local.message('sync-obsidian-api')).synced, true);
+    assert.equal(secrets.get(previousRef), '', 'keyless local sync clears the previous active secret');
+    const config = resolveConfig(plugin.getNativeSettings());
+    assert.equal(config.provider, 'local');
+    assert.equal(config.model, 'installed-model');
+    assert.equal(config.apiFormat, 'ollama');
+    assert.equal(config.apiKey, '');
+});
+
+test('provider redirects cannot forward an authenticated request to another endpoint', async t => {
+    const paths: string[] = [];
+    const api = http.createServer((req, res) => {
+        paths.push(req.url!);
+        if (req.url === '/start') {
+            res.writeHead(307, {Location: '/credential-sink'}); res.end();
+        } else {
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({choices: [{message: {content: 'Should not be reached'}}]}));
+        }
+    });
+    await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
+    t.after(async () => {api.closeAllConnections(); await new Promise<void>(resolve => api.close(() => resolve()));});
+    const port = (api.address() as any).port;
+    await assert.rejects(chatAI('Hello', 10, {
+        provider: 'local', endpoint: `http://127.0.0.1:${port}/start`, apiKey: 'test-key', model: 'served-model', apiFormat: 'openai-compatible',
+    }), /Cannot reach the AI API/);
+    assert.deepEqual(paths, ['/start']);
 });

@@ -60,13 +60,22 @@ export const PROVIDER_CATALOG = {
   }])),
 } as Record<AIProviderId, ProviderInfo>;
 
+/** Keys may use HTTP only over loopback; never permit a network plaintext hop. */
+export function validateAIEndpoint(endpoint: string, apiKey = ''): URL {
+  const url = new URL(endpoint);
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash)
+    throw new Error('Use an HTTP(S) endpoint without credentials, query, or fragment.');
+  const loopback = url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(url.hostname);
+  if (apiKey.trim() && url.protocol !== 'https:' && !loopback)
+    throw new Error('API keys require HTTPS except on localhost or loopback endpoints.');
+  return url;
+}
+
 /** Accept BYOKit-style base URLs and existing NutEgg full request URLs. Offline only. */
 export function resolveLocalEndpoint(settings: NutEggAISettings): { endpoint: string; apiFormat: 'ollama' | 'openai-compatible' } {
   const raw = (settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint ||
     PROVIDER_CATALOG.local.officialEndpoint).trim();
-  const url = new URL(raw);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash)
-    throw new Error('Use an HTTP(S) local endpoint without credentials, query, or fragment.');
+  const url = validateAIEndpoint(raw, settings.chromeAiApiKey ?? settings.aiApiKey ?? '');
   const native = settings.localApiType === 'ollama' || /\/api\/chat\/?$/.test(url.pathname);
   let endpoint = raw.replace(/\/+$/, '');
   if (native) endpoint = endpoint.replace(/\/v1(?:\/chat\/completions)?$/, '').replace(/\/api\/chat$/, '') + '/api/chat';

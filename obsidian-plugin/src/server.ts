@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { PROMPTS } from './prompt-templates';
 import { t } from './i18n';
 import { ConnectionAccess } from './connection-access';
-import { supportsSubscription } from '../../shared/src/catalog';
+import { supportsSubscription, resolveLocalEndpoint } from '../../shared/src/catalog';
 import type { SubscriptionProvider } from '../../shared/src/types';
 import { normalizeDiscussion } from '../../shared/src/discussion';
 import { getVideoIdentity, normalizeContentUrl } from '../../shared/src/content-url';
@@ -725,7 +725,7 @@ export class NutEggServer {
             !config.aiModel.trim() ||
             config.aiModel.length > 512 ||
             typeof data.key !== 'string' ||
-            !data.key.trim() ||
+            (config.aiProvider !== 'local' && !data.key.trim()) ||
             data.key.length > 8192
           ) {
             throw new ExecutionProtocolError('invalid_configuration', 'Invalid API configuration.', 400);
@@ -750,6 +750,13 @@ export class NutEggServer {
               contentAnalysisMaxTokens: config.contentAnalysisMaxTokens,
             }),
           };
+          if (safe.aiProvider === 'local') {
+            try {
+              resolveLocalEndpoint({ ...safe, aiApiKey: data.key });
+            } catch {
+              throw new ExecutionProtocolError('invalid_configuration', 'Invalid or insecure local API endpoint.', 400);
+            }
+          }
           try {
             const synced = await this.plugin.syncNativeApi(safe, data.key.trim());
             res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });

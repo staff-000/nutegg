@@ -3,7 +3,7 @@
 // ============================================================
 
 import { trackAIRequest } from './ai-diagnostics';
-import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, aiConnectionLabel } from './catalog';
+import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, validateAIEndpoint, aiConnectionLabel } from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -124,6 +124,7 @@ async function chatAnthropic(
   let response: Response;
   try {
     response = await fetch(config.endpoint, {
+      redirect: 'error',
       signal: config.signal,
       method: 'POST',
       headers: {
@@ -182,6 +183,7 @@ async function chatOllama(
 
   try {
     response = await fetch(config.endpoint, {
+      redirect: 'error',
       signal: config.signal,
       method: 'POST',
       headers,
@@ -232,6 +234,7 @@ async function chatOpenAICompatible(
 
   try {
     response = await fetch(config.endpoint, {
+      redirect: 'error',
       signal: config.signal,
       method: 'POST',
       headers,
@@ -300,6 +303,7 @@ export async function chatAI(
 ): Promise<string> {
   if (config.authMethod === 'subscription' || config.authMethod === 'chatgpt')
     throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
+  validateAIEndpoint(config.endpoint, config.apiKey);
   if (config.provider !== 'local' && !config.apiKey) {
     throw new AIError(
       isSubscriptionProvider(config.provider) ? 'pairing_token_missing' : 'no_api_key',
@@ -396,6 +400,7 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2500);
       const resp = await fetch(pingEndpoint, {
+        redirect: 'error',
         method: 'GET',
         headers,
         signal: controller.signal,
@@ -439,6 +444,7 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
   if (providerId === 'openrouter') {
     try {
       const resp = await fetch('https://openrouter.ai/api/v1/credits', {
+        redirect: 'error',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
@@ -485,6 +491,7 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
   if (providerId === 'deepseek') {
     try {
       const resp = await fetch('https://api.deepseek.com/user/balance', {
+        redirect: 'error',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           Accept: 'application/json',

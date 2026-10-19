@@ -86,3 +86,46 @@ test('explicit local connection checks use the normalized endpoint and native pr
     globalThis.fetch = original;
   }
 });
+
+test('authenticated requests reject non-loopback HTTP before either chat or connection checks can send a key', async () => {
+  const original = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; throw new Error('Must not send a key'); };
+  try {
+    for (const host of ['server.example', '192.168.1.20', 'localhost.example', '127.0.0.1.example', '0.0.0.0', '[::]']) {
+      const endpoint = `http://${host}:8000/v1`;
+      const settings = { aiProvider: 'local', localEndpoint: endpoint, aiModel: 'served-model', aiApiKey: 'test-key' };
+      assert.equal(core.isAIConfigured(settings), false);
+      assert.throws(() => core.resolveConfig(settings), /HTTPS/);
+      await assert.rejects(core.checkCreditAI(settings), /HTTPS/);
+      // Validate callers that bypass the settings resolver as well.
+      await assert.rejects(core.chatAI('Hello', 10, {
+        provider: 'local', endpoint: endpoint + '/chat/completions', apiKey: 'test-key', model: 'served-model', apiFormat: 'openai-compatible',
+      }), /HTTPS/);
+    }
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = original; }
+});
+
+test('loopback HTTP and remote HTTPS keep working with keys and never follow provider redirects', async () => {
+  const original = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, init });
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'Hello' } }] }), { status: 200 });
+  };
+  try {
+    for (const endpoint of ['http://localhost:8000/v1', 'http://127.0.0.2:8000/v1', 'http://[::1]:8000/v1', 'https://server.example/v1']) {
+      const settings = { aiProvider: 'local', localEndpoint: endpoint, aiModel: 'served-model', aiApiKey: 'test-key' };
+      assert.equal(core.isAIConfigured(settings), true);
+      assert.equal(await core.chatAI('Hello', 10, core.resolveConfig(settings)), 'Hello');
+      await core.checkCreditAI(settings);
+    }
+    assert.equal(requests.length, 8);
+    for (const { init } of requests) {
+      assert.equal(init.headers.Authorization, 'Bearer test-key');
+      assert.equal(init.redirect, 'error');
+    }
+    assert.equal(core.isAIConfigured({ aiProvider: 'local', localEndpoint: 'http://192.168.1.20/v1', aiModel: 'served-model' }), true);
+  } finally { globalThis.fetch = original; }
+});

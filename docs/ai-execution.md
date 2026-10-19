@@ -17,7 +17,7 @@ For readiness colors and credit display, see [connection status](connection-stat
 | CLI subscription | Shared Obsidian CLI configuration | Obsidian CLI |
 | ChatGPT sign-in | Shared account/model; protected local OAuth credentials | Obsidian, using the public Responses API |
 
-Connected profiles share the selected authentication method and the CLI or ChatGPT model selection. Different API providers, models and keys are expected. Chrome-only profiles remain independent. Normal workflow requests never transmit API keys. In connected API mode, an explicit **Save & continue** also updates the native Obsidian account using the saved Chrome key/provider/model. This dedicated authenticated operation writes only to SecretStorage and replaces an existing native key on every explicit save; advanced saves and Chrome-only saves do not perform it. Native Obsidian API keys use SecretStorage; on apps without it, configure Chrome API execution or upgrade to Obsidian 1.11.4+. A legacy mirrored API configuration is an inactive migration candidate requiring explicit selection, not an automatically owned native key. On older Obsidian versions, migration renames the original settings file to an inactive `legacy-ai-settings.json`, retaining the existing key until an upgrade permits explicit secure import. It does not write a new plaintext native key.
+Connected profiles share the selected authentication method and the CLI or ChatGPT model selection. Different API providers, models and keys are expected. Chrome-only profiles remain independent. Normal workflow requests never transmit API keys. In connected API mode, an explicit **Save & continue** also updates the native Obsidian account using the saved Chrome key/provider/model. This dedicated authenticated operation writes only to SecretStorage and replaces an existing native key on every explicit save; advanced saves and Chrome-only saves do not perform it. Native Obsidian API keys use SecretStorage; on apps without it, use a keyless local model, configure Chrome API execution, or upgrade to Obsidian 1.11.4+. A legacy mirrored API configuration is an inactive migration candidate requiring explicit selection, not an automatically owned native key. On older Obsidian versions, migration renames the original settings file to an inactive `legacy-ai-settings.json`, retaining the existing key until an upgrade permits explicit secure import. It does not write a new plaintext native key.
 
 Chrome settings retain API preferences while showing the shared connection. Chrome chooses API-key or subscription execution. In subscription mode, Obsidian offers ChatGPT sign-in, Codex CLI, Google Gemini, and Claude. Selecting a CLI connection selects its provider in one execution transition. In API mode, Obsidian's connection box is read-only, with no connection selector or API-key editor. Disabling CLI availability returns to API only when CLI execution was selected. ChatGPT credentials remain in the local plugin runtime. Native actions and connected Chrome workflows use the same ChatGPT executor; standalone Chrome has no ChatGPT route. See [sign-in and CLI setup](ai-subscriptions.md).
 
@@ -25,6 +25,17 @@ In API mode, Obsidian's main settings show live connected Chrome profiles, inclu
 each profile's provider and model. These values refresh as Chrome settings change;
 no native Obsidian configuration is substituted when no Chrome is connected.
 API keys are edited only in Chrome. Opening Obsidian settings does not replace an existing selection.
+
+An explicit connected Save & continue also supports local servers with no API
+key: Obsidian replaces the previous provider/model and removes its active key.
+This keyless setup works without SecretStorage; configurations with a key still
+require it. A failed native sync is shown as an error even if the Chrome API
+connection check succeeds. Standalone API edits remain available after leaving
+and rejoining shared subscription execution.
+
+Authenticated model endpoints require HTTPS except on localhost or loopback.
+Provider calls and connection checks do not follow redirects. Local-network
+HTTP is supported without authentication.
 
 ## Three call flows
 
@@ -112,7 +123,7 @@ Mode writes require expected revision and operation ID. Repeated identical opera
 | `POST /execution/mode` | Authenticated shared-mode mutation bound to the client session and instance, with `expectedRevision` and `operationId`. |
 | `/execution/socket` | First-frame authentication, state notifications, delegated calls/results, cancellation, and heartbeats. |
 | Existing HTTP workflow routes | Analysis, questions, confirmation/save, egg creation, and existing streaming responses. |
-| `POST /execution/native-api/sync` | Explicit connected Save & continue; validates the authenticated session, instance, and API-mode revision, then updates the native account in SecretStorage. The response contains no key. |
+| `POST /execution/native-api/sync` | Explicit connected Save & continue; validates the authenticated session, instance, and API-mode revision, then updates the native account, storing a supplied key in SecretStorage or clearing it for a keyless local server. The response contains no key. |
 | `POST /chatgpt/{status,signin,cancel,signout,models,model}` | Authenticated connection controls; no token or arbitrary-URL forwarding. |
 | Legacy `/ai-config` and `/ai-config-status` writes | Reject with HTTP 426 and an update-required error. |
 
