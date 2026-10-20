@@ -134,7 +134,7 @@ a:hover {
 .docs-sidebar {
   width: 260px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border-subtle);
+  border-inline-end: 1px solid var(--border-subtle);
   padding: 32px 20px;
   background: var(--bg-sidebar);
   position: sticky;
@@ -184,7 +184,7 @@ a:hover {
   background: #fef3c7;
   color: #92400e;
   font-weight: 600;
-  border-left: 2px solid var(--egg-accent);
+  border-inline-start: 2px solid var(--egg-accent);
 }
 
 /* Main Content Area */
@@ -236,11 +236,17 @@ a:hover {
 
 .docs-content ul,
 .docs-content ol {
-  padding-left: 24px;
+  padding-inline-start: 24px;
 }
 
 .docs-content li {
   margin-bottom: 8px;
+}
+
+.docs-content pre,
+.docs-content code {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .docs-content code {
@@ -254,6 +260,7 @@ a:hover {
 }
 
 .docs-content pre {
+  text-align: left;
   background: var(--code-bg);
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -282,7 +289,7 @@ a:hover {
 .docs-content th,
 .docs-content td {
   padding: 10px 14px;
-  text-align: left;
+  text-align: start;
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
 }
@@ -332,7 +339,7 @@ a:hover {
     width: 100%;
     height: auto;
     position: static;
-    border-right: none;
+    border-inline-end: none;
     border-bottom: 1px solid var(--border-subtle);
     padding: 20px 24px;
   }

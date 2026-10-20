@@ -114,7 +114,7 @@ export class CreateEggModal extends Modal {
         }
       } catch (err) {
         console.error('[NutEgg] Failed to create egg from modal:', err);
-        new Notice(`NutEgg: Failed to create egg: ${err instanceof Error ? err.message : String(err)}`);
+        new Notice(t('createEggFailed', { error: err instanceof Error ? err.message : String(err) }));
         submitBtn.disabled = false;
         cancelBtn.disabled = false;
         submitBtn.textContent = originalText;
@@ -138,7 +138,7 @@ export class CreateEggModal extends Modal {
 export function renderSyncButton(plugin: NutEggPlugin, container: HTMLElement): HTMLElement {
   const btn = container.createEl('button', {
     cls: 'nutegg-sync-btn',
-    text: 'Checking...',
+    text: t('checking'),
   });
   btn.style.cssText =
     'display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; padding: 4px 10px; cursor: pointer;';
@@ -147,23 +147,23 @@ export function renderSyncButton(plugin: NutEggPlugin, container: HTMLElement): 
     try {
       const status = await plugin.indexSync.getDiffStatus();
       if (status.totalDiffs === 0) {
-        btn.textContent = '✓ In Sync';
+        btn.textContent = `✓ ${t('indexInSync')}`;
         btn.className = 'nutegg-sync-btn mod-muted';
-        btn.title = 'Everything is in sync. Click to re-check.';
+        btn.title = t('indexInSyncHint');
       } else {
         const details: string[] = [];
         if (status.missingEggs.length) {
-          details.push(`${status.missingEggs.length} missing egg file(s)`);
+          details.push(t('indexMissingEggs', { count: status.missingEggs.length }));
         }
         if (status.unindexedEggs.length) {
-          details.push(`${status.unindexedEggs.length} unindexed egg note(s)`);
+          details.push(t('indexUnindexedEggs', { count: status.unindexedEggs.length }));
         }
         if (status.invalidEntries.length) {
-          details.push(`${status.invalidEntries.length} invalid entry(ies)`);
+          details.push(t('indexInvalidEntries', { count: status.invalidEntries.length }));
         }
-        btn.textContent = `🔄 Sync (${status.totalDiffs} diff${status.totalDiffs > 1 ? 's' : ''})`;
+        btn.textContent = `🔄 ${t('indexSyncDiffs', { count: status.totalDiffs })}`;
         btn.className = 'nutegg-sync-btn mod-warning';
-        btn.title = `${details.join(', ')}. Click to sync.`;
+        btn.title = t('indexSyncHint', { details: details.join(', ') });
       }
     } catch (err) {
       console.warn('[NutEgg] Failed to get index diff status:', err);
@@ -180,16 +180,16 @@ export function renderSyncButton(plugin: NutEggPlugin, container: HTMLElement): 
       const res = await plugin.indexSync.sync();
       const parts: string[] = [];
       if (res.createdEggs.length) {
-        parts.push(`+${res.createdEggs.length} egg(s) created`);
+        parts.push(t('indexEggsCreated', { count: res.createdEggs.length }));
       }
       if (res.addedIndexEntries.length) {
-        parts.push(`+${res.addedIndexEntries.length} entry(ies) added`);
+        parts.push(t('indexEntriesAdded', { count: res.addedIndexEntries.length }));
       }
       if (res.prunedIndexEntries.length) {
-        parts.push(`-${res.prunedIndexEntries.length} invalid pruned`);
+        parts.push(t('indexEntriesPruned', { count: res.prunedIndexEntries.length }));
       }
       if (res.fixedIndexPaths.length) {
-        parts.push(`${res.fixedIndexPaths.length} path(s) normalized`);
+        parts.push(t('indexPathsNormalized', { count: res.fixedIndexPaths.length }));
       }
 
       if (parts.length > 0) {

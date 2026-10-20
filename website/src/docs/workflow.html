@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Workflow & Prompt Engine — NutEgg</title>
+    <title data-i18n="docs_workflow_001">AI Workflow & Prompt Engine — NutEgg</title>
     <link rel="icon" type="image/png" href="../icons/icon32.png" />
     <link rel="stylesheet" href="docs.css" />
   </head>
@@ -17,7 +17,7 @@
         <div class="header-nav">
           <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
           <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
-          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+          <select id="lang-select" class="nav-lang-select" aria-label="Language" data-i18n-aria-label="languageLabel">
             <option value="en">English</option>
             <option value="zh">简体中文</option>
             <option value="es">Español</option>
@@ -54,17 +54,34 @@
                 href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
                 target="_blank"
                 rel="noopener"
+                data-i18n-html="docs_workflow_002"
                 >Chrome Web Store ↗</a
               >
             </li>
             <li>
-              <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
+              <a
+                href="https://community.obsidian.md/plugins/nutegg"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_workflow_003"
                 >Obsidian Plugin ↗</a
               >
             </li>
-            <li><a href="https://github.com/staff-000/nutegg/releases" target="_blank" rel="noopener">Releases</a></li>
             <li>
-              <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener"
+              <a
+                href="https://github.com/staff-000/nutegg/releases"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_workflow_004"
+                >Releases</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_workflow_005"
                 >Privacy Policy</a
               >
             </li>
@@ -73,19 +90,19 @@
       </aside>
 
       <main class="docs-content">
-        <h1>AI Workflow &amp; Prompt Engine</h1>
-        <p class="lead">
+        <h1 data-i18n-html="docs_workflow_006">AI Workflow &amp; Prompt Engine</h1>
+        <p class="lead" data-i18n-html="docs_workflow_007">
           Learn how NutEgg's modular workflow engine orchestrates content extraction, summary-based egg routing,
           instruction-driven analysis, and user-customizable prompts.
         </p>
 
-        <h2>The Two-Stage Architecture</h2>
-        <p>
+        <h2 data-i18n-html="docs_workflow_008">The Two-Stage Architecture</h2>
+        <p data-i18n-html="docs_workflow_009">
           Rather than running a single monolithic prompt, NutEgg uses a <strong>Two-Stage Architecture</strong> designed
           for token efficiency, high extraction precision, and complete user control:
         </p>
 
-        <pre><code>                    ┌───────────────────────────────┐
+        <pre data-i18n-html="docs_workflow_010"><code>                    ┌───────────────────────────────┐
                     │      Captured Web Content     │
                     │   (Article / YouTube / Tweet) │
                     └───────────────┬───────────────┘
@@ -147,26 +164,26 @@
                                      (Ready to Save Nut & Eggs)</code></pre>
 
         <div class="callout">
-          <div class="callout-title">💡 Why Summary-Based Routing?</div>
-          <p>
+          <div class="callout-title" data-i18n-html="docs_workflow_011">💡 Why Summary-Based Routing?</div>
+          <p data-i18n-html="docs_workflow_012">
             Routing eggs using the Stage 1 summary instead of full raw articles or multi-hour video transcripts saves
             tens of thousands of tokens per run and improves routing accuracy by focusing on distilled, high-signal
             semantic themes.
           </p>
         </div>
 
-        <p>
+        <p data-i18n-html="docs_workflow_013">
           The side panel’s cross-tab indicator shows running analyses and unread completed results in the current Chrome
           window. Click it to list tabs and switch directly to their results or progress. Results become read when their
           analysis is visible in the active tab. Tracking lasts while the panel stays open and resets when it closes.
         </p>
-        <p>
+        <p data-i18n-html="docs_workflow_014">
           Hatch archives the original analysis and appends approved entries to <code># Unprocessed</code>. Merge runs at
           20 pending entries or on demand to assemble fragments and deduplicate claims while preserving sources,
           caveats, examples, and disagreements. Stage 2 never receives the Knowledge tree, so the recommendation
           assesses relevance and substance rather than novelty.
         </p>
-        <p>
+        <p data-i18n-html="docs_workflow_015">
           The <strong>🍃 Knowledge</strong> section option and the Egg Analysis dropdown share one setting for the
           current browser tab: <strong>🥚 Analysis only</strong> switches Knowledge off, and
           <strong>🍃 Include knowledge</strong> switches it on. Switching dropdown choices updates the setting and
@@ -179,43 +196,45 @@
           Action Guide takes priority. Key answers and reading recommendations remain available either way. Analysis
           does not save entries; <strong>🐣 Hatch Egg</strong> saves generated entries to egg files.
         </p>
-        <h2>Workflow Modes</h2>
+        <h2 data-i18n-html="docs_workflow_016">Workflow Modes</h2>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
           <thead>
             <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
-              <th style="padding: 10px">Mode</th>
-              <th style="padding: 10px">Behavior</th>
-              <th style="padding: 10px">Best Used For</th>
+              <th style="padding: 10px" data-i18n-html="docs_workflow_017">Mode</th>
+              <th style="padding: 10px" data-i18n-html="docs_workflow_018">Behavior</th>
+              <th style="padding: 10px" data-i18n-html="docs_workflow_019">Best Used For</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>📱 Standalone Mode</strong></td>
-              <td style="padding: 10px">
+              <td style="padding: 10px" data-i18n-html="docs_workflow_020"><strong>📱 Standalone Mode</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_workflow_021">
                 Runs Stage 1 content analysis directly in Chrome (when Obsidian is offline or closed). Produces
                 verdicts, 3-sentence summaries, mind maps with clickable timestamps, and interactive video Q&amp;A with
                 timestamp jumping. Skips Stage 2 egg analysis.
               </td>
-              <td style="padding: 10px">
+              <td style="padding: 10px" data-i18n-html="docs_workflow_022">
                 Fast web and video reading, quick comprehension, or when you don't need note archiving.
               </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>🌞 Full Mode</strong></td>
-              <td style="padding: 10px">
+              <td style="padding: 10px" data-i18n-html="docs_workflow_023"><strong>🌞 Full Mode</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_workflow_024">
                 Runs Stage 1 content analysis, routes eggs automatically via <code>_index.md</code>, and immediately
                 executes Stage 2 egg analysis in one uninterrupted pass.
               </td>
-              <td style="padding: 10px">Everyday reading and quick captures when you trust automatic egg matching.</td>
+              <td style="padding: 10px" data-i18n-html="docs_workflow_025">
+                Everyday reading and quick captures when you trust automatic egg matching.
+              </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>🌛 Preview Summary</strong></td>
-              <td style="padding: 10px">
+              <td style="padding: 10px" data-i18n-html="docs_workflow_026"><strong>🌛 Preview Summary</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_workflow_027">
                 Runs Stage 1 content analysis, then pauses in the popup. Shows matched eggs alongside your vault's full
                 egg list. You can add/remove eggs, proceed with knowledge comparison, or click
                 <strong>Collect Nut Only</strong>.
               </td>
-              <td style="padding: 10px">
+              <td style="padding: 10px" data-i18n-html="docs_workflow_028">
                 Deep research, ambiguous topics, or when you only want a quick summary without updating egg knowledge
                 trees.
               </td>
@@ -223,135 +242,143 @@
           </tbody>
         </table>
 
-        <h2>AI Execution &amp; Credential Protocol</h2>
-        <p>
-          Regardless of whether you choose Full Mode or Preview Summary, NutEgg separates <em>workflow orchestration</em> from
-          <em>credential storage and AI inference</em>:
+        <h2 data-i18n-html="docs_workflow_029">AI Execution &amp; Credential Protocol</h2>
+        <p data-i18n-html="docs_workflow_030">
+          Regardless of whether you choose Full Mode or Preview Summary, NutEgg separates
+          <em>workflow orchestration</em> from <em>credential storage and AI inference</em>:
         </p>
 
         <ul>
-          <li>
-            <strong>Connected API Mode (Default)</strong>: Obsidian coordinates prompt template injection and knowledge comparison,
-            but sends inference requests to Chrome over an authenticated WebSocket (<code>/execution/socket</code>). Chrome runs
-            the LLM call with its local API key and sends the authenticated result back. <strong>Your API key never leaves Chrome.</strong>
+          <li data-i18n-html="docs_workflow_031">
+            <strong>Connected API Mode (Default)</strong>: Obsidian coordinates prompt template injection and knowledge
+            comparison, but sends inference requests to Chrome over an authenticated WebSocket
+            (<code>/execution/socket</code>). Chrome runs the LLM call with its local API key and sends the
+            authenticated result back. <strong>Your API key never leaves Chrome.</strong>
           </li>
-          <li>
-            <strong>Shared Subscription Mode</strong>: Obsidian coordinates the workflow and directly executes AI calls locally
-            using official developer CLI tools (<code>codex</code>, <code>claude</code>, <code>agy</code>) or direct ChatGPT OAuth sign-in.
-            All connected Chrome profiles share this subscription without needing an API key.
+          <li data-i18n-html="docs_workflow_032">
+            <strong>Shared Subscription Mode</strong>: Obsidian coordinates the workflow and directly executes AI calls
+            locally using official developer CLI tools (<code>codex</code>, <code>claude</code>, <code>agy</code>) or
+            direct ChatGPT OAuth sign-in. All connected Chrome profiles share this subscription without needing an API
+            key.
           </li>
         </ul>
 
-        <h2>Workflow Files in Your Vault</h2>
-        <p>NutEgg seeds its prompt templates into <code>nutegg/_workflow/</code> inside your vault:</p>
+        <h2 data-i18n-html="docs_workflow_033">Workflow Files in Your Vault</h2>
+        <p data-i18n-html="docs_workflow_034">
+          NutEgg seeds its prompt templates into <code>nutegg/_workflow/</code> inside your vault:
+        </p>
 
-        <h3>1. Shared Fragments (Injected into other prompts)</h3>
+        <h3 data-i18n-html="docs_workflow_035">1. Shared Fragments (Injected into other prompts)</h3>
         <ul>
-          <li>
+          <li data-i18n-html="docs_workflow_036">
             <code>shared-output-rules.md</code>: Grounding directive (source content as sole truth) and multi-lingual
             output language reference rules. Injected as <code>{{shared_output_rules}}</code>.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_037">
             <code>content-task-default.md</code>: Core task instructions for title verdicts, 3-bullet summaries, and
             mind maps with clickable timestamps. Injected as <code>{{content_task_default}}</code>.
           </li>
         </ul>
 
-        <h3>2. Content Capture &amp; Comparison Pipeline</h3>
+        <h3 data-i18n-html="docs_workflow_038">2. Content Capture &amp; Comparison Pipeline</h3>
         <ul>
-          <li>
+          <li data-i18n-html="docs_workflow_039">
             <code>content-analysis.md</code>: Stage 1 content summary, anti-clickbait verdict, interactive mind map with
             clickable timestamps, and custom question answers with timestamp citations.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_040">
             <code>egg-routing.md</code>: Matches Stage 1 summaries against egg descriptions in <code>_index.md</code> to
             select candidate eggs.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_041">
             <code>egg-analysis.md</code>: Stage 2 per-egg extraction of candidate knowledge entries and key question
             answers scoped to one egg's instructions.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_042">
             Worth Reading If and Skip If guide full reading, highlights, summary sufficient, skip, or uncertain. Useful
             answers remain saveable regardless of the recommendation.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_043">
             <code>aggregate-content.md</code> &amp; <code>aggregate-egg.md</code>: Long-content (>30k characters)
             aggregation. Stage 2 combines only answer drafts, recommendation notes, and coverage; extracted entries
             remain in source order until merge.
           </li>
         </ul>
 
-        <h3>3. Discussion Analysis (Stage 1)</h3>
-        <p>
+        <h3 data-i18n-html="docs_workflow_044">3. Discussion Analysis (Stage 1)</h3>
+        <p data-i18n-html="docs_workflow_045">
           Discussion analysis executes as part of <strong>Stage 1</strong> content analysis when the
           <strong>💬 Discussion</strong> section is enabled in Extension Options or popup Analysis Sections, and the
           page extractor captures reader comments or social replies (e.g. YouTube comments, Twitter replies,
           Reddit/forum threads, Bilibili comments, or Zhihu answers).
         </p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_workflow_046">
             <code>discussion-analysis.md</code>: Analyzes comments in batches to extract 3–5 core debating topics,
             classify commenter stances (<code>agree</code>, <code>disagree</code>, <code>mixed</code>,
             <code>neutral</code>, <code>unclear</code>), and highlight valuable firsthand experience supplements or
             corrections (<code>supplement: true</code>).
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_047">
             <code>aggregate-discussion.md</code>: Merges and synthesizes topics and stance distributions across
             multi-batch comment threads for large forums or video comment sections.
           </li>
         </ul>
-        <p>
+        <p data-i18n-html="docs_workflow_048">
           <strong>Context Flow:</strong> Analyzed discussion summaries and evidence items are returned in the Stage 1
           result and feed directly into custom Q&amp;A or forum body analysis (crucial for discussion-centric pages or
           videos without transcripts). They are also forwarded as context signals into Stage 2
           <code>egg-analysis.md</code> so eggs can evaluate community feedback alongside the source content.
         </p>
 
-        <h3>4. Interactive &amp; Maintenance Workflows</h3>
+        <h3 data-i18n-html="docs_workflow_049">4. Interactive &amp; Maintenance Workflows</h3>
         <ul>
-          <li>
+          <li data-i18n-html="docs_workflow_050">
             <code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel with prior conversation
             history and clickable video timestamp jumping.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_051">
             <code>merge-unprocessed.md</code>: Triggered manually or automatically at 20+ pending entries to organize
             and nest raw items into <code># Knowledge</code>.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_052">
             <code>localize-egg.md</code>: Translates new egg templates into foreign languages while preserving English
             structural headings.
           </li>
         </ul>
 
-        <h2>Safe Customization Guidelines</h2>
+        <h2 data-i18n-html="docs_workflow_053">Safe Customization Guidelines</h2>
         <div class="callout">
-          <div class="callout-title">⚠️ What to Preserve</div>
-          <p>
+          <div class="callout-title" data-i18n-html="docs_workflow_054">⚠️ What to Preserve</div>
+          <p data-i18n-html="docs_workflow_055">
             You are free to customize prompt tone, perspective, and depth. However, you <strong>must preserve</strong>:
           </p>
           <ul style="margin-top: 8px; margin-bottom: 0">
-            <li>
+            <li data-i18n-html="docs_workflow_056">
               All <code>{{placeholder}}</code> tags (e.g. <code>{{content}}</code>, <code>{{knowledge_tree}}</code>,
               <code>{{title}}</code>).
             </li>
-            <li>
+            <li data-i18n-html="docs_workflow_057">
               Exact JSON output keys (e.g. <code>titleVerdict</code>, <code>extractedEntries</code>,
               <code>mindMap</code>) so the parser can deserialize the response.
             </li>
-            <li>Structural headings (<code># Knowledge</code>, <code># Unprocessed</code>) in markdown outputs.</li>
+            <li data-i18n-html="docs_workflow_058">
+              Structural headings (<code># Knowledge</code>, <code># Unprocessed</code>) in markdown outputs.
+            </li>
           </ul>
         </div>
 
-        <h2>Conflict-Free Updates &amp; Reset</h2>
-        <p>When NutEgg updates to a newer version:</p>
+        <h2 data-i18n-html="docs_workflow_059">Conflict-Free Updates &amp; Reset</h2>
+        <p data-i18n-html="docs_workflow_060">When NutEgg updates to a newer version:</p>
         <ul>
-          <li><strong>Unedited Prompts</strong>: Automatically updated to the latest built-in version.</li>
-          <li>
+          <li data-i18n-html="docs_workflow_061">
+            <strong>Unedited Prompts</strong>: Automatically updated to the latest built-in version.
+          </li>
+          <li data-i18n-html="docs_workflow_062">
             <strong>Customized Prompts</strong>: Your edits are never overwritten. NutEgg writes
             <code>[filename].new.md</code> alongside your file so you can review new additions at your own pace.
           </li>
-          <li>
+          <li data-i18n-html="docs_workflow_063">
             <strong>Factory Reset ("Use Defaults")</strong>: Need a fresh start? In
             <strong>Obsidian Settings → NutEgg</strong>, click <strong>Use Defaults</strong>. All existing prompts are
             safely backed up to <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> and pristine factory defaults
@@ -361,6 +388,7 @@
       </main>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="../i18n.js"></script>
   </body>
 </html>

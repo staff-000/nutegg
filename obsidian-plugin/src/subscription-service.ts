@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, writeFile, chmod, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -68,8 +69,8 @@ export class SubscriptionService implements SubscriptionExecutor {
     };
   }
   private requireEnabled() {
-    if (!this.enabled()) throw new AIError('forbidden', 'AI connection unavailable.');
-    if (this.stopping) throw new AIError('cancelled', 'AI provider is changing. Retry shortly.');
+    if (!this.enabled()) throw new AIError('forbidden', t('aiConnectionUnavailable'));
+    if (this.stopping) throw new AIError('cancelled', t('subscriptionProviderChanging'));
   }
 
   resolve(provider: SubscriptionProvider) {
@@ -82,7 +83,7 @@ export class SubscriptionService implements SubscriptionExecutor {
   private statusCache = new Map<SubscriptionProvider, { at: number; value: SubscriptionStatus }>();
   private statusPending = new Map<SubscriptionProvider, Promise<SubscriptionStatus>>();
   async status(provider: SubscriptionProvider, force = false): Promise<SubscriptionStatus> {
-    if (this.stopping) return { state: 'error', message: 'AI provider is changing. Retry shortly.' };
+    if (this.stopping) return { state: 'error', message: t('subscriptionProviderChanging') };
     const cached = this.statusCache.get(provider);
     if (!force && cached && Date.now() - cached.at < (cached.value.state === 'ready' ? 30000 : 5000))
       return cached.value;
@@ -102,8 +103,8 @@ export class SubscriptionService implements SubscriptionExecutor {
   }
   private async queryStatus(provider: SubscriptionProvider): Promise<SubscriptionStatus> {
     const epoch = this.statusEpoch;
-    if (!this.enabled()) return { state: 'disabled', message: 'AI connection unavailable.' };
-    if (this.closed) return { state: 'error', message: 'Obsidian subscription service stopped.' };
+    if (!this.enabled()) return { state: 'disabled', message: t('aiConnectionUnavailable') };
+    if (this.closed) return { state: 'error', message: t('subscriptionStopped') };
     try {
       await this.resolve(provider);
     } catch {
@@ -123,14 +124,14 @@ export class SubscriptionService implements SubscriptionExecutor {
       }
       return {
         state: 'missing',
-        message: `Install ${cli[provider]} to continue.`,
+        message: t('subscriptionInstallCli', { cli: cli[provider] }),
         installUrl: docs[provider],
         installCommand: installCmd,
       };
     }
-    if (!this.enabled()) return { state: 'disabled', message: 'AI connection unavailable.' };
+    if (!this.enabled()) return { state: 'disabled', message: t('aiConnectionUnavailable') };
     if (epoch !== this.statusEpoch || this.stopping)
-      return { state: 'error', message: 'AI provider changed. Retry shortly.' };
+      return { state: 'error', message: t('subscriptionProviderChanging') };
     const login = this.logins.get(provider);
     if (provider !== 'google') {
       try {
@@ -141,14 +142,14 @@ export class SubscriptionService implements SubscriptionExecutor {
         } finally {
           this.controllers.delete(controller);
         }
-        if (epoch !== this.statusEpoch) return { state: 'error', message: 'AI provider changed. Retry shortly.' };
+        if (epoch !== this.statusEpoch) return { state: 'error', message: t('subscriptionProviderChanging') };
         this.verified.add(provider);
         if (login) await this.cancelLogin(provider);
       } catch (error: any) {
         const isAuth401 = error.status === 401 && !this.verified.has(provider) && !this.failures.has(provider);
         return {
           state: login ? 'signing_in' : isAuth401 ? 'login_required' : 'error',
-          message: login ? 'Finish signing in in your browser or terminal.' : error.message,
+          message: login ? t('subscriptionFinishLogin') : error.message,
           errorCode: error.status === 401 ? 'auth_failed' : 'server_error',
           loginId: login?.id,
           command: login?.command,
@@ -160,29 +161,27 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (provider === 'google' && !this.verified.has(provider)) {
       return {
         state: login?.state || 'unverified',
-        message: login
-          ? 'Finish signing in, then test connection.'
-          : 'Sign-in needs verification. Test connection uses a small amount of subscription quota.',
+        message: login ? t('subscriptionFinishAndTest') : t('subscriptionVerifyQuota'),
         loginId: login?.id,
         command: login?.command,
       };
     }
     if (epoch !== this.statusEpoch || this.stopping)
-      return { state: 'error', message: 'AI provider changed. Retry shortly.' };
+      return { state: 'error', message: t('subscriptionProviderChanging') };
     const usage = provider === 'openai' ? await this.codexUsage() : undefined;
-    if (!this.enabled()) return { state: 'disabled', message: 'AI connection unavailable.' };
+    if (!this.enabled()) return { state: 'disabled', message: t('aiConnectionUnavailable') };
     if (usage?.exhausted) {
       return {
         state: 'error',
         errorCode: 'quota_exceeded',
-        message: 'Subscription usage limit reached. Retry after the provider resets your limit.',
+        message: t('subscriptionQuotaReached'),
         usageRemaining: usage.value,
       };
     }
     return {
       state: 'ready',
       usageRemaining: usage?.value,
-      message: `Connected through ${cli[provider]} · quota managed by your subscription`,
+      message: t('subscriptionConnectedVia', { cli: cli[provider] }),
     };
   }
 
@@ -194,10 +193,10 @@ export class SubscriptionService implements SubscriptionExecutor {
     onStart?: () => void
   ): Promise<string> {
     this.requireEnabled();
-    if (this.closed) throw new AIError('server_error', 'Obsidian subscription service stopped.');
+    if (this.closed) throw new AIError('server_error', t('subscriptionStopped'));
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/.test(model))
-      throw new AIError('model_not_found', 'Invalid model ID. Choose another model.');
-    if (this.pending >= 32) throw new AIError('rate_limited', 'Subscription queue is full. Retry shortly.');
+      throw new AIError('model_not_found', t('subscriptionInvalidModel'));
+    if (this.pending >= 32) throw new AIError('rate_limited', t('subscriptionQueueFull'));
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) controller.abort();
@@ -214,7 +213,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       await new Promise<void>((resolve, reject) => {
         const cancelled = () => {
           signal?.removeEventListener('abort', cancelled);
-          reject(new AIError('cancelled', 'Subscription job cancelled.'));
+          reject(new AIError('cancelled', t('subscriptionJobCancelled')));
         };
         signal?.addEventListener('abort', cancelled, { once: true });
         previous.then(() => {
@@ -224,7 +223,7 @@ export class SubscriptionService implements SubscriptionExecutor {
         if (signal?.aborted) cancelled();
       });
       this.requireEnabled();
-      if (controller.signal.aborted) throw new Error('Subscription request cancelled.');
+      if (controller.signal.aborted) throw new Error(t('subscriptionRequestCancelled'));
       onStart?.();
       const options = { command: this.paths[provider], signal: controller.signal };
       const result =
@@ -237,7 +236,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       this.statusCache.delete(provider);
       return result;
     } catch (error: any) {
-      if (controller.signal.aborted) throw new AIError('cancelled', 'Subscription job cancelled.');
+      if (controller.signal.aborted) throw new AIError('cancelled', t('subscriptionJobCancelled'));
       const code = subscriptionErrorCode(error);
       const message = error.status === 400 ? `${error.message} Choose another model.` : error.message;
       this.failures.set(provider, { message, errorCode: code });
@@ -289,7 +288,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       else if (provider === 'google') {
         const executable = await this.resolve(provider);
         this.requireEnabled();
-        if (epoch !== this.statusEpoch) throw new Error('AI provider changed');
+        if (epoch !== this.statusEpoch) throw new Error(t('subscriptionProviderChanging'));
         if (this.closed) return this.modelCache.get(provider) || ['auto'];
         const output = await this.runDiscovery<string>(provider, executable, ['models'], 10000, (child, finish) => {
           child.stdin!.end();
@@ -363,7 +362,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     const epoch = this.statusEpoch;
     const executable = await this.resolve('openai');
     this.requireEnabled();
-    if (this.closed || epoch !== this.statusEpoch) throw new Error('Obsidian subscription service stopped.');
+    if (this.closed || epoch !== this.statusEpoch) throw new Error(t('subscriptionStopped'));
     return this.runDiscovery<string[]>('openai', executable, ['app-server'], 10000, (child, finish) => {
       let buffer = '',
         models: string[] = [],
@@ -464,11 +463,11 @@ export class SubscriptionService implements SubscriptionExecutor {
               const pct = Math.max(0, Math.min(100, 100 - window.usedPercent));
               const dur =
                 window.windowDurationMins >= 1440
-                  ? `${Math.round(window.windowDurationMins / 1440)}d`
+                  ? t('durationDays', { count: Math.round(window.windowDurationMins / 1440) })
                   : window.windowDurationMins >= 60
-                    ? `${window.windowDurationMins / 60}h`
-                    : `${window.windowDurationMins || '?'}m`;
-              return `${pct}% left (${dur})`;
+                    ? t('durationHours', { count: window.windowDurationMins / 60 })
+                    : t('durationMinutes', { count: window.windowDurationMins || '?' });
+              return t('subscriptionUsageLeft', { percent: pct, window: dur });
             })
             .join(' · ') || undefined;
         const usage = {
@@ -528,19 +527,19 @@ export class SubscriptionService implements SubscriptionExecutor {
     device: boolean,
     generation: number
   ): Promise<SubscriptionStatus> {
-    if (this.closed) throw new Error('Obsidian subscription service stopped.');
+    if (this.closed) throw new Error(t('subscriptionStopped'));
     const existing = this.logins.get(provider);
     if (existing) {
       return {
         state: existing.state,
-        message: 'Finish signing in in your browser or terminal.',
+        message: t('subscriptionFinishLogin'),
         loginId: existing.id,
         command: existing.command,
       };
     }
     const executable = await this.resolve(provider);
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) {
-      throw new Error('Login cancelled.');
+      throw new Error(t('subscriptionLoginCancelled'));
     }
     const args =
       provider === 'openai'
@@ -560,7 +559,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     login.directory = directory;
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) {
       await rm(directory, { recursive: true, force: true });
-      throw new Error('Login cancelled.');
+      throw new Error(t('subscriptionLoginCancelled'));
     }
     const script = join(directory, process.platform === 'win32' ? 'login.ps1' : `nutegg-login-${login.id}.command`);
     const unset = Object.keys(process.env).filter(
@@ -600,7 +599,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     await chmod(script, 0o700);
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) {
       await this.cancelLogin(provider);
-      throw new Error('Login cancelled.');
+      throw new Error(t('subscriptionLoginCancelled'));
     }
     let child: ChildProcess;
     if (process.platform === 'darwin') {
@@ -617,7 +616,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       }
       if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) {
         await this.cancelLogin(provider);
-        throw new Error('Login cancelled.');
+        throw new Error(t('subscriptionLoginCancelled'));
       }
       child = spawn(terminal, terminal.endsWith('gnome-terminal') ? ['--', script] : ['-e', script], { shell: false });
     }
@@ -636,7 +635,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     );
     return {
       state: 'signing_in',
-      message: 'Finish signing in in your browser or terminal, then check again.',
+      message: t('subscriptionCheckAgain'),
       loginId: login.id,
       command,
     };

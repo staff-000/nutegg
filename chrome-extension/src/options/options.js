@@ -145,10 +145,12 @@ function syncSubscriptionToggle() {
   wrapper.setAttribute('aria-disabled', String(toggle.disabled));
   wrapper.tabIndex = toggle.disabled ? 0 : -1;
   if (toggle.disabled) {
-    wrapper.setAttribute('data-tooltip', t(
-      obsidianModeEnabled.checked ? 'aiConnectionUnavailable' : 'subscriptionRequiresObsidian',
-      { setting: t('settingsObsidianTitle') }
-    ));
+    wrapper.setAttribute(
+      'data-tooltip',
+      t(obsidianModeEnabled.checked ? 'aiConnectionUnavailable' : 'subscriptionRequiresObsidian', {
+        setting: t('settingsObsidianTitle'),
+      })
+    );
   } else {
     wrapper.removeAttribute('data-tooltip');
   }
@@ -188,7 +190,8 @@ function renderSubscriptionAccess() {
     control.disabled = isSub;
   chromeAdvancedSettings.classList.toggle('hidden', isSub);
   const badge = document.getElementById('subscription-model-badge');
-  if (badge && activeSubscriptionModel) badge.textContent = activeSubscriptionModel;
+  if (badge && activeSubscriptionModel)
+    badge.textContent = activeSubscriptionModel === 'auto' ? t('subscriptionAuto') : activeSubscriptionModel;
 }
 function subscriptionStatusText(info) {
   return t(
@@ -228,7 +231,8 @@ async function applySharedExecution(state) {
       state.subscription.provider === 'openai'
         ? t('codexSubscription')
         : PROVIDER_CATALOG[state.subscription.provider]?.label || state.subscription.provider;
-    document.getElementById('subscription-model-badge').textContent = state.subscription.model;
+    document.getElementById('subscription-model-badge').textContent =
+      state.subscription.model === 'auto' ? t('subscriptionAuto') : state.subscription.model;
   } else if (previous !== 'apiKey') {
     const api =
       savedApiConfig ||
@@ -377,7 +381,11 @@ async function refreshSubscription() {
     document.getElementById('subscription-status').textContent = subscriptionStatusText(status);
     if (status?.model) activeSubscriptionModel = status.model;
     const badge = document.getElementById('subscription-model-badge');
-    if (badge) badge.textContent = activeSubscriptionModel || 'auto';
+    if (badge)
+      badge.textContent =
+        !activeSubscriptionModel || activeSubscriptionModel === 'auto'
+          ? t('subscriptionAuto')
+          : activeSubscriptionModel;
     if (previousState !== lastSubscriptionState && obsidianModeEnabled.checked) {
       void checkObsidianForAiBanner(Number(portInput.value) || DEFAULT_PORT);
     }
@@ -633,7 +641,10 @@ function renderConnectionMode(mode) {
 
 async function setConnectionMode(mode) {
   const previous = renderedConnectionMode;
-  if (connectionModeChange) { renderConnectionMode(previous); return false; }
+  if (connectionModeChange) {
+    renderConnectionMode(previous);
+    return false;
+  }
   connectionModeChange = true;
   renderConnectionMode(previous);
   obsidianModeEnabled.disabled = true;
@@ -652,7 +663,9 @@ async function setConnectionMode(mode) {
             throw new Error(result?.error || t('aiConnectionUnavailable'));
           await applySharedExecution(result.state);
         }
-      } catch (error) { sharedModeError = error.message; }
+      } catch (error) {
+        sharedModeError = error.message;
+      }
     }
     await chrome.storage.local.set({ connectionMode: mode, chromeAiEnabled: true });
     renderConnectionMode(mode);
@@ -821,7 +834,8 @@ function initAiSettings(stored) {
   subscriptionModels = stored.subscriptionModels || {};
   activeSubscriptionModel = stored.obsidianExecutionState?.subscription.model || 'auto';
   const subModelBadge = document.getElementById('subscription-model-badge');
-  if (subModelBadge) subModelBadge.textContent = activeSubscriptionModel;
+  if (subModelBadge)
+    subModelBadge.textContent = activeSubscriptionModel === 'auto' ? t('subscriptionAuto') : activeSubscriptionModel;
   currentAuthMethod = 'apiKey';
   const selectedProvider = stored.chromeAiProvider || 'google';
   aiProviderSelect.value = selectedProvider;
@@ -1135,6 +1149,7 @@ async function handleAiTest() {
 }
 
 function formatAiCreditResult(info) {
+  info = window.NutEggAI.localizeCreditInfo(info, t);
   if (info.error) return t('aiConnectionFailed', { error: info.error, status: info.statusText });
   if (info.hasBalance) return t('aiConnectedBalance', { provider: info.providerLabel, balance: info.balanceFormatted });
   return t('aiConnectedStatus', { provider: info.providerLabel, status: info.statusText });
@@ -1198,7 +1213,10 @@ async function handleTest() {
       }
       let creditInfo = '';
       try {
-        const credit = await chrome.runtime.sendMessage({ action: 'get-credit' });
+        const credit = window.NutEggAI.localizeCreditInfo(
+          await chrome.runtime.sendMessage({ action: 'get-credit' }),
+          t
+        );
         if (!credit.error) {
           if (credit.hasBalance && credit.balanceFormatted) {
             creditInfo = ` | 🪙 ${credit.providerLabel}: ${credit.balanceFormatted}`;

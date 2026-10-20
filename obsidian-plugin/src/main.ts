@@ -1,3 +1,4 @@
+import { localizeCreditInfo } from '../../shared/src/client';
 import { ChatGPTService } from './chatgpt-service';
 import { FileChatGPTStore } from './chatgpt-store';
 import type { SharedExecutionState } from '../../shared/src/execution';
@@ -36,7 +37,7 @@ export default class NutEggPlugin extends Plugin {
     client.checkCredit = () =>
       this.settings.aiAuthMethod === 'chatgpt'
         ? Promise.resolve(this.chatgptCredit())
-        : check(this.getNativeSettings());
+        : check(this.getNativeSettings()).then(credit => localizeCreditInfo(credit, t));
     this.nativeClient = client;
   }
   chatgpt?: ChatGPTService;
@@ -44,7 +45,8 @@ export default class NutEggPlugin extends Plugin {
     const status = this.chatgpt?.status();
     return {
       provider: 'openai',
-      providerLabel: 'ChatGPT sign-in',
+      authMethod: 'chatgpt',
+      providerLabel: t('chatgptLabel'),
       source: 'official',
       model: status?.model || '',
       hasBalance: false,
@@ -397,14 +399,9 @@ export default class NutEggPlugin extends Plugin {
       name: t('cmdLocalizeWorkflows'),
       callback: async () => {
         const lang = this.settings.outputLanguage || 'same-as-content';
-        const isEnglishOrSame =
-          !lang || lang === 'same-as-content' || lang.toLowerCase() === 'english';
+        const isEnglishOrSame = !lang || lang === 'same-as-content' || lang.toLowerCase() === 'english';
         new Notice(
-          `[NutEgg] ${
-            isEnglishOrSame
-              ? t('revertingWorkflows')
-              : t('localizingWorkflows', { language: lang })
-          }`
+          `[NutEgg] ${isEnglishOrSame ? t('revertingWorkflows') : t('localizingWorkflows', { language: lang })}`
         );
         try {
           const res = await this.workflowManager.localizeAll(lang);
@@ -419,9 +416,7 @@ export default class NutEggPlugin extends Plugin {
           }
         } catch (err: any) {
           console.error('[NutEgg] Localization error:', err);
-          new Notice(
-            `[NutEgg] ${t('localizationFailed', { error: err?.message || String(err) })}`
-          );
+          new Notice(`[NutEgg] ${t('localizationFailed', { error: err?.message || String(err) })}`);
         }
       },
     });
@@ -551,7 +546,7 @@ export default class NutEggPlugin extends Plugin {
         this.creditStatusBarItem.setText(`🪙 ${credit.balanceFormatted}`);
         this.creditStatusBarItem.setAttribute(
           'aria-label',
-          `NutEgg AI (${credit.providerLabel}): ${credit.statusText} (Click to refresh)`
+          t('creditRefreshHint', { details: `NutEgg AI (${credit.providerLabel}): ${credit.statusText}` })
         );
         if (showNotice) {
           new Notice(`[NutEgg] ${credit.providerLabel}: ${credit.statusText}`);
@@ -559,9 +554,12 @@ export default class NutEggPlugin extends Plugin {
       } else {
         const label = this.settings.aiProvider === 'openrouter' ? 'OpenRouter' : credit.providerLabel;
         this.creditStatusBarItem.setText(`🪙 ${label}`);
-        this.creditStatusBarItem.setAttribute('aria-label', `NutEgg AI: ${credit.statusText} (Click to refresh)`);
+        this.creditStatusBarItem.setAttribute(
+          'aria-label',
+          t('creditRefreshHint', { details: `NutEgg AI: ${credit.statusText}` })
+        );
         if (showNotice) {
-          new Notice(`[NutEgg] AI Provider: ${credit.statusText}`);
+          new Notice(`[NutEgg] ${t('providerStatus', { provider: credit.providerLabel, status: credit.statusText })}`);
         }
       }
     } catch {

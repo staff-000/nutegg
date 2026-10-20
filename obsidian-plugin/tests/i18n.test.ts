@@ -50,3 +50,13 @@ describe("Obsidian Plugin i18n", () => {
   });
 });
 
+
+it('localized status and sync messages retain every interpolation parameter', () => {
+  const parameters = (value: string) => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
+  for (const [lang, dictionary] of Object.entries({ en, zh, es, ja, ko, ar, fr, de, pt, ru })) {
+    for (const key of Object.keys(en) as (keyof typeof en)[]) {
+      if (!/^(credit|index|chatgpt|subscription|duration|createEggFailed|openWorkflowHint)/.test(key)) continue;
+      assert.deepStrictEqual(parameters(dictionary[key]), parameters(en[key]), `${lang}: ${key}`);
+    }
+  }
+});

@@ -127,7 +127,7 @@ class PopupRenderer {
       metadataEl.textContent = metadata
         ? t('executionMetadata', {
             provider: metadata.provider,
-            model: metadata.model || 'auto',
+            model: !metadata.model || metadata.model === 'auto' ? t('subscriptionAuto') : metadata.model,
             method:
               metadata.authMethod === 'chatgpt'
                 ? t('chatgptLabel')
@@ -237,7 +237,8 @@ class PopupRenderer {
         )
     );
     keyed('mindmapPosition', [view.analysisResult?.mindMap, view.playbackPosition], () =>
-      ui.mindmapUI.updateProgress?.(view.playbackPosition));
+      ui.mindmapUI.updateProgress?.(view.playbackPosition)
+    );
     keyed('qa', [view.resultRevision, view.followUpQa], () =>
       ui.qaUI.render(view.analysisResult || {}, view.followUpQa)
     );

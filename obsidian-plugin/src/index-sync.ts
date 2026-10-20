@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { Notice, TAbstractFile } from 'obsidian';
 import type NutEggPlugin from './main';
 import type { IndexEntry } from './index-reader';
@@ -148,7 +149,7 @@ export class IndexSync {
         modified = modified || mod2;
       }
       if (modified) {
-        new Notice(`[NutEgg] Removed ${filePath} from egg index`);
+        new Notice(t('indexEggRemoved', { path: filePath }));
       }
       this.notifyDiffChanged();
     } finally {
@@ -174,7 +175,7 @@ export class IndexSync {
         if (oldBase) {
           await this.rewriteIndexPath(indexFile, oldBase, newPath);
         }
-        new Notice(`[NutEgg] Renamed index path: ${oldPath} -> ${newPath}`);
+        new Notice(t('indexPathRenamed', { oldPath, newPath }));
       } else if (wasEgg && !isEgg) {
         await this.removeIndexEntry(indexFile, oldPath);
       } else {

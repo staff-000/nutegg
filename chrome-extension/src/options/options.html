@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NutEgg Settings</title>
+    <title data-i18n="optionsTitle">NutEgg Settings</title>
     <link rel="stylesheet" href="options.css" />
     <link rel="stylesheet" href="../tooltips.css" />
   </head>
@@ -98,7 +98,9 @@
             <div id="subscription-model-display" class="subscription-model-display">
               <strong id="subscription-provider-badge"></strong> ·
               <span class="subscription-model-label" data-i18n="settingsModelLabel">AI model</span>:
-              <strong id="subscription-model-badge" class="subscription-model-badge">auto</strong>
+              <strong id="subscription-model-badge" class="subscription-model-badge" data-i18n="subscriptionAuto"
+                >auto</strong
+              >
               <span class="subscription-obsidian-hint" data-i18n="subscriptionManagedInObsidian"
                 >Managed in Obsidian</span
               >
@@ -120,7 +122,7 @@
           <div class="option-row" id="ai-local-endpoint-row" style="display: none">
             <label for="ai-local-api" data-i18n="localApiLabel">Local API</label>
             <select id="ai-local-api">
-              <option value="openai">OpenAI-compatible</option>
+              <option value="openai" data-i18n="localProtocolOpenai">OpenAI-compatible</option>
               <option value="ollama">Ollama</option>
             </select>
             <label for="ai-local-endpoint" data-i18n="localEndpointLabel">Local Server Endpoint</label>
@@ -245,16 +247,16 @@
             >
             <select id="output-lang-select">
               <option value="same-as-content" data-i18n="sameAsContent">Same as content (follow captured text)</option>
-              <option value="English">English</option>
-              <option value="Chinese">Chinese (中文)</option>
-              <option value="Spanish">Spanish (Español)</option>
-              <option value="Japanese">Japanese (日本語)</option>
-              <option value="Korean">Korean (한국어)</option>
-              <option value="Arabic">Arabic (العربية)</option>
-              <option value="French">French (Français)</option>
-              <option value="German">German (Deutsch)</option>
-              <option value="Portuguese">Portuguese (Português)</option>
-              <option value="Russian">Russian (Русский)</option>
+              <option value="English" data-i18n="uiLangEn">English</option>
+              <option value="Chinese" data-i18n="uiLangZh">Chinese (中文)</option>
+              <option value="Spanish" data-i18n="uiLangEs">Spanish (Español)</option>
+              <option value="Japanese" data-i18n="uiLangJa">Japanese (日本語)</option>
+              <option value="Korean" data-i18n="uiLangKo">Korean (한국어)</option>
+              <option value="Arabic" data-i18n="uiLangAr">Arabic (العربية)</option>
+              <option value="French" data-i18n="uiLangFr">French (Français)</option>
+              <option value="German" data-i18n="uiLangDe">German (Deutsch)</option>
+              <option value="Portuguese" data-i18n="uiLangPt">Portuguese (Português)</option>
+              <option value="Russian" data-i18n="uiLangRu">Russian (Русский)</option>
             </select>
           </div>
           <fieldset id="sections-config-group">

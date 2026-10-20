@@ -35,6 +35,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
   const core = win.NutEggAI;
   win.NutEggAI = {
     normalizeAISettings: core.normalizeAISettings,
+    localizeCreditInfo: core.localizeCreditInfo,
     restoreChromeApiPreferences:core.restoreChromeApiPreferences,
     reduceSharedExecutionState:core.reduceSharedExecutionState,
     selectEffectiveExecution:core.selectEffectiveExecution,
@@ -190,7 +191,7 @@ test('subscription shares its provider and preserves API credentials while hidin
   assert.equal(el('ai-model-row').hidden, true);
   assert.equal(el('ai-save-btn').hidden, true);
   assert.equal(el('ai-provider-select').disabled, true);
-  assert.equal(el('subscription-model-badge').textContent, 'auto');
+  assert.equal(el('subscription-model-badge').textContent, 'Auto — provider default');
   el('use-subscription-toggle').checked = false; change('use-subscription-toggle'); await flush();
   assert.equal(el('ai-key-row').hidden, false);
   assert.equal(el('ai-model-row').hidden, false);
@@ -819,4 +820,15 @@ test('local base URL and protocol survive provider changes and are saved togethe
   assert.equal(values.localApiType, 'ollama');
   assert.equal(values.chromeApiConfig.localApiType, 'ollama');
   assert.equal(creditCalls[0].localApiType, 'ollama');
+});
+
+test('credit status descriptors use the settings UI locale rather than transport English', async t => {
+  const { win, el } = await setup(t, { chromeAiProvider: 'google', chromeAiApiKey: 'saved-key' }, undefined, {
+    statusKey: 'creditAvailable', statusParams: { balance: '$12.34' }, statusText: '$12.34 available',
+  });
+  win.NutEggI18n.initI18n('zh_CN');
+  el('ai-test-btn').click();
+  await flush(); await flush();
+  assert.ok(el('ai-advanced-status').textContent.includes('可用 $12.34'));
+  assert.ok(!el('ai-advanced-status').textContent.includes('$12.34 available'));
 });

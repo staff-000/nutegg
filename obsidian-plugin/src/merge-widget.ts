@@ -135,7 +135,7 @@ export function appendWorkflowUpdateNotice(plugin: NutEggPlugin, container: HTML
   notice.className = 'nutegg-workflow-update-banner';
   const fileNames = pending.join(', ');
   notice.textContent = `⚠️ ${t('workflowUpdateNotice', { files: fileNames })}`;
-  notice.title = 'Click to open workflow file in Obsidian';
+  notice.title = t('openWorkflowHint');
   notice.style.cursor = 'pointer';
   notice.addEventListener('click', e => {
     e.preventDefault();

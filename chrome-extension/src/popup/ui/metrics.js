@@ -68,60 +68,69 @@ class MetricsComponent {
       const isChrome = settings.isChromeMode
         ? settings.isChromeMode(view?.analysisResult)
         : settings.connectionMode !== 'obsidian';
-      cParts.push(`Mode: ${isChrome ? 'Chrome' : 'Obsidian'}`);
+      cParts.push(t('debugMode', { value: isChrome ? 'Chrome' : 'Obsidian' }));
 
       if (settings.serverOnline) {
         const ver = settings.obsidianPluginVersion ? ` (v${settings.obsidianPluginVersion})` : '';
-        const ai = settings.obsidianAiConfigured ? 'AI ready' : 'AI unconfigured';
-        cParts.push(`Obsidian: Connected${ver} [${ai}]`);
+        const ai = t(settings.obsidianAiConfigured ? 'debugAiReady' : 'debugAiUnconfigured');
+        cParts.push(`Obsidian: ${t('debugConnected')}${ver} [${ai}]`);
       } else {
-        const obsStatus = settings.connectionMode === 'obsidian' ? 'Disconnected (offline)' : 'Offline';
+        const obsStatus = t(settings.connectionMode === 'obsidian' ? 'debugDisconnected' : 'debugOffline');
         cParts.push(`Obsidian: ${obsStatus}`);
       }
 
       if (settings.chromeAiConfigured !== false) {
         const provider = settings.chromeAiProvider || 'Gemini';
         const model = settings.chromeAiModel ? ` / ${settings.chromeAiModel}` : '';
-        const auth = settings.chromeAiAuthMethod === 'subscription' ? ' [sub]' : '';
-        cParts.push(`Chrome AI: Ready (${provider}${model}${auth})`);
+        const auth = settings.chromeAiAuthMethod === 'subscription' ? ` [${t('subscriptionLabel')}]` : '';
+        cParts.push(t('debugChromeReady', { details: `${provider}${model}${auth}` }));
       } else {
-        cParts.push('Chrome AI: Not configured');
+        cParts.push(t('debugChromeUnconfigured'));
       }
 
-      lines.push(`🔌 Connection: ${cParts.join(' · ')}`);
+      lines.push(`🔌 ${t('debugConnection', { details: cParts.join(' · ') })}`);
 
       // Settings details
       const sParts = [];
       if (isChrome) {
         const provider = settings.chromeAiProvider || 'Gemini';
         const model = settings.chromeAiModel ? ` / ${settings.chromeAiModel}` : '';
-        sParts.push(`Backend: Chrome (${provider}${model})`);
+        sParts.push(t('debugBackend', { details: `Chrome (${provider}${model})` }));
       } else {
-        const status = settings.serverOnline ? 'online' : 'offline';
-        sParts.push(`Backend: Obsidian (${status})`);
+        const status = t(settings.serverOnline ? 'debugOnline' : 'debugOffline');
+        sParts.push(t('debugBackend', { details: `Obsidian (${status})` }));
       }
       if (settings.analysisMode) {
-        sParts.push(`Analysis: ${settings.analysisMode}`);
+        sParts.push(
+          t('debugAnalysis', {
+            value:
+              settings.analysisMode === 'fast'
+                ? t('modeFast')
+                : settings.analysisMode === 'confirm'
+                  ? t('modeConfirm')
+                  : settings.analysisMode,
+          })
+        );
       }
       const optConv = view?.optimizeForConversation ?? settings.optimizeForConversation;
       if (optConv != null) {
-        sParts.push(`Dialogue enhance: ${optConv !== false ? 'ON' : 'OFF'}`);
+        sParts.push(t('debugDialogue', { value: t(optConv !== false ? 'debugOn' : 'debugOff') }));
       }
       const sections = view?.enabledSections || settings.enabledSections || {};
       const activeSecs = [];
-      if (sections.titleVerdict !== false) activeSecs.push('Verdict');
-      if (sections.coreSummary !== false) activeSecs.push('Summary');
-      if (sections.mindMap !== false) activeSecs.push('MindMap');
-      if (sections.discussion === true) activeSecs.push('Discussion');
-      if (view?.generateKnowledgeEntries || settings.generateKnowledgeEntries) activeSecs.push('Knowledge');
+      if (sections.titleVerdict !== false) activeSecs.push(t('chipVerdict'));
+      if (sections.coreSummary !== false) activeSecs.push(t('chipSummary'));
+      if (sections.mindMap !== false) activeSecs.push(t('chipMindmap'));
+      if (sections.discussion === true) activeSecs.push(t('discussionSection'));
+      if (view?.generateKnowledgeEntries || settings.generateKnowledgeEntries) activeSecs.push(t('knowledgePanel'));
       if (activeSecs.length) {
-        sParts.push(`Sections: ${activeSecs.join(', ')}`);
+        sParts.push(t('debugSections', { value: activeSecs.join(', ') }));
       }
       if (settings.outputLanguage && settings.outputLanguage !== 'same-as-content') {
-        sParts.push(`Lang: ${settings.outputLanguage}`);
+        sParts.push(t('debugLanguage', { value: settings.outputLanguage }));
       }
       if (sParts.length) {
-        lines.push(`⚙️ Settings: ${sParts.join(' · ')}`);
+        lines.push(`⚙️ ${t('debugSettings', { details: sParts.join(' · ') })}`);
       }
     }
 
@@ -129,29 +138,28 @@ class MetricsComponent {
       const stParts = [];
       if (view.operations?.analysis?.running) {
         const phase = view.operations.analysis.phase ? ` (${view.operations.analysis.phase})` : '';
-        stParts.push(`Pipeline: running${phase}`);
+        stParts.push(t('debugPipeline', { state: t('debugRunning'), details: phase }));
       } else if (view.analysisResult) {
         const stage = view.analysisResult.stage ? ` (${view.analysisResult.stage})` : '';
-        const resMode = view.analysisResult.mode ? ` [${view.analysisResult.mode} mode]` : '';
-        stParts.push(`Pipeline: complete${stage}${resMode}`);
+        const resMode = view.analysisResult.mode ? ` [${view.analysisResult.mode}]` : '';
+        stParts.push(t('debugPipeline', { state: t('debugComplete'), details: `${stage}${resMode}` }));
       } else {
-        stParts.push('Pipeline: idle');
+        stParts.push(t('debugPipeline', { state: t('debugIdle'), details: '' }));
       }
 
       const content = view.extractedContent;
       if (content?.content) {
         const len = content.content.length;
         const chunkCount = len <= 30000 ? 1 : Math.ceil(len / 30000);
-        const type = content.isVideo ? 'Video' : content.sourceType || 'Content';
-        stParts.push(
-          `Content: ${len.toLocaleString()} chars (${chunkCount} ${chunkCount === 1 ? 'chunk' : 'chunks'}) · ${type}`
-        );
+        const type = content.isVideo ? t('debugVideo') : content.sourceType || t('debugPageContent');
+        stParts.push(t('debugContent', { chars: len.toLocaleString(), chunks: chunkCount, type }));
       }
 
       if (content?.sourceType === 'bilibili') {
         try {
           const provenance = JSON.parse(content.metadata?.subtitle_provenance || 'null');
-          if (provenance?.version !== 1) lines.push('🎬 Bilibili caption identity: not assessed');
+          if (provenance?.version !== 1)
+            lines.push(`🎬 ${t('debugCaptionIdentity', { details: t('debugNotAssessed') })}`);
           else {
             const id = value => (/^(?:BV[A-Za-z0-9]{10}|[0-9]{1,30})$/.test(String(value)) ? String(value) : '-');
             const outcome = ['verified', 'rejected', 'unavailable'].includes(provenance.outcome)
@@ -161,7 +169,7 @@ class MetricsComponent {
               ? provenance.route
               : '-';
             lines.push(
-              `🎬 Bilibili caption identity: ${outcome} · ${route} · requested ${id(provenance.requestedVideoId)}/${id(provenance.requestedCid)} · returned ${id(provenance.validatedBvid || provenance.validatedAid)}/${id(provenance.validatedCid)} · track ${id(provenance.trackId)}`
+              `🎬 ${t('debugCaptionIdentity', { details: t('debugCaptionDetails', { outcome, route, requested: `${id(provenance.requestedVideoId)}/${id(provenance.requestedCid)}`, returned: `${id(provenance.validatedBvid || provenance.validatedAid)}/${id(provenance.validatedCid)}`, track: id(provenance.trackId) }) })}`
             );
             const routes = Array.isArray(provenance.routes) ? provenance.routes.slice(0, 3) : [];
             const trace = routes
@@ -181,25 +189,25 @@ class MetricsComponent {
                 item =>
                   `${item.route}:${item.outcome}/${Number.isSafeInteger(item.tracks) && item.tracks >= 0 ? item.tracks : 0}`
               );
-            if (trace.length) lines.push(`🎬 Caption discovery: ${trace.join(' · ')}`);
+            if (trace.length) lines.push(`🎬 ${t('debugCaptionDiscovery', { details: trace.join(' · ') })}`);
           }
         } catch {
-          lines.push('🎬 Bilibili caption identity: not assessed');
+          lines.push(`🎬 ${t('debugCaptionIdentity', { details: t('debugNotAssessed') })}`);
         }
       }
 
       if (view.analysisResult?.conversation?.format) {
-        stParts.push(`Format: ${view.analysisResult.conversation.format}`);
+        stParts.push(t('debugFormat', { value: t(`conversationFormat_${view.analysisResult.conversation.format}`) }));
       }
 
       const eggs = view.analysisResult?.matchedEggs || (view.selectedEggs?.length ? view.selectedEggs : null);
       if (eggs?.length) {
         const eggList = Array.isArray(eggs) ? eggs : [...eggs];
-        stParts.push(`Eggs: ${eggList.length} matched (${eggList.join(', ')})`);
+        stParts.push(t('debugEggs', { count: eggList.length, names: eggList.join(', ') }));
       }
 
       if (stParts.length) {
-        lines.push(`📊 Status: ${stParts.join(' · ')}`);
+        lines.push(`📊 ${t('debugStatus', { details: stParts.join(' · ') })}`);
       }
     }
 

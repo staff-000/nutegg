@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import * as http from 'node:http';
 import { createHash, randomBytes, createPublicKey, verify } from 'node:crypto';
 import { AIError } from '../../shared/src/client';
@@ -86,7 +87,7 @@ export class ChatGPTService {
   }
   private assert(epoch: number, signal?: AbortSignal) {
     if (this.disposed || this.epoch !== epoch || signal?.aborted)
-      throw new AIError('cancelled', 'ChatGPT request cancelled.');
+      throw new AIError('cancelled', t('chatgptRequestCancelled'));
   }
   private async request(
     url: string,
@@ -94,7 +95,7 @@ export class ChatGPTService {
     signal?: AbortSignal,
     timeoutMs = this.options.requestTimeoutMs || 15000
   ) {
-    if (this.disposed || signal?.aborted) throw new AIError('cancelled', 'ChatGPT request cancelled.');
+    if (this.disposed || signal?.aborted) throw new AIError('cancelled', t('chatgptRequestCancelled'));
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
@@ -113,19 +114,16 @@ export class ChatGPTService {
     } catch {
       const wasAborted = controller.signal.aborted;
       cleanup();
-      if (signal?.aborted || this.disposed) throw new AIError('cancelled', 'ChatGPT request cancelled.');
-      if (wasAborted) throw new AIError('timeout', 'ChatGPT request timed out.');
-      throw new AIError('network_error', 'Could not reach OpenAI.');
+      if (signal?.aborted || this.disposed) throw new AIError('cancelled', t('chatgptRequestCancelled'));
+      if (wasAborted) throw new AIError('timeout', t('chatgptRequestTimeout'));
+      throw new AIError('network_error', t('chatgptNetworkFailed'));
     }
   }
   private error(status: number) {
-    if (status === 401 || status === 403)
-      return new AIError('auth_failed', 'Reconnect ChatGPT sign-in or grant ChatGPT plan permission.');
-    if (status === 429)
-      return new AIError('rate_limited', 'ChatGPT usage limit reached. Check ChatGPT usage settings.');
-    if (status === 404)
-      return new AIError('model_not_found', 'This ChatGPT model is unavailable. Refresh models and choose another.');
-    return new AIError('server_error', 'OpenAI could not complete the request.');
+    if (status === 401 || status === 403) return new AIError('auth_failed', t('chatgptReconnectPermission'));
+    if (status === 429) return new AIError('rate_limited', t('chatgptUsageLimit'));
+    if (status === 404) return new AIError('model_not_found', t('chatgptModelUnavailable'));
+    return new AIError('server_error', t('chatgptOpenaiRequestFailed'));
   }
   private async json(url: string, init: RequestInit = {}, signal?: AbortSignal) {
     const call = await this.request(url, init, signal);
@@ -133,7 +131,7 @@ export class ChatGPTService {
       if (!call.response.ok) throw this.error(call.response.status);
       const value = await call.response.json();
       if (!value || typeof value !== 'object' || Array.isArray(value))
-        throw new AIError('server_error', 'Invalid OpenAI response.');
+        throw new AIError('server_error', t('chatgptInvalidOpenaiResponse'));
       return value as any;
     } finally {
       call.cleanup();
@@ -154,9 +152,9 @@ export class ChatGPTService {
       data.expires_in <= 0 ||
       data.token_type?.toLowerCase() !== 'bearer'
     )
-      throw new AIError('auth_failed', 'Invalid ChatGPT authorization response.');
+      throw new AIError('auth_failed', t('chatgptInvalidAuthorization'));
     if (!previous.refreshToken && (typeof data.refresh_token !== 'string' || !data.refresh_token))
-      throw new AIError('auth_failed', 'ChatGPT did not grant offline access.');
+      throw new AIError('auth_failed', t('chatgptOfflineAccessMissing'));
     return {
       ...previous,
       accessToken: data.access_token,
@@ -210,8 +208,8 @@ export class ChatGPTService {
         throw new Error();
       return { subject: claims.sub, email: typeof claims.email === 'string' ? claims.email : '' };
     } catch (error) {
-      if (signal.aborted) throw new AIError('cancelled', 'ChatGPT sign-in cancelled.');
-      throw new AIError('auth_failed', 'Could not verify ChatGPT identity. Please sign in again.');
+      if (signal.aborted) throw new AIError('cancelled', t('chatgptSignInCancelled'));
+      throw new AIError('auth_failed', t('chatgptIdentityVerificationFailed'));
     }
   }
   async signIn(): Promise<ChatGPTConnection> {
@@ -220,7 +218,7 @@ export class ChatGPTService {
       return this.signIn();
     }
     if (this.login) return this.status();
-    if (this.disposed) throw new AIError('cancelled', 'ChatGPT service stopped.');
+    if (this.disposed) throw new AIError('cancelled', t('chatgptServiceStopped'));
     if (this.credentials?.accessToken && this.connectionState === 'ready') return this.status();
     ++this.epoch;
     this.cancelWork();
@@ -280,7 +278,7 @@ export class ChatGPTService {
       await this.options.openBrowser(`${AUTH}/api/accounts/authorize?${params}`);
       return this.status();
     } catch {
-      this.finishLogin(login, 'error', 'Could not open ChatGPT sign-in. Try again.');
+      this.finishLogin(login, 'error', t('chatgptOpenFailed'));
       return this.status();
     }
   }
@@ -291,7 +289,7 @@ export class ChatGPTService {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     if (!login || !login.redirect || req.method !== 'GET' || req.headers.host !== new URL(login.redirect).host) {
       res.writeHead(400);
-      res.end('Invalid sign-in callback.');
+      res.end(t('chatgptInvalidSignInCallback'));
       return;
     }
     let url: URL;
@@ -299,7 +297,7 @@ export class ChatGPTService {
       url = new URL(req.url || '/', login.redirect);
     } catch {
       res.writeHead(400);
-      res.end('Invalid callback.');
+      res.end(t('chatgptInvalidCallback'));
       return;
     }
     if (
@@ -309,17 +307,17 @@ export class ChatGPTService {
       login.accepted
     ) {
       res.writeHead(400);
-      res.end('Invalid or expired sign-in callback.');
+      res.end(t('chatgptExpiredCallback'));
       return;
     }
     login.accepted = true;
-    res.end('Return to NutEgg to check your ChatGPT connection.');
+    res.end(t('chatgptReturnToApp'));
     const epoch = this.epoch;
     try {
-      if (url.searchParams.has('error')) throw new AIError('auth_failed', 'ChatGPT sign-in was declined.');
+      if (url.searchParams.has('error')) throw new AIError('auth_failed', t('chatgptSignInDeclined'));
       const issued = url.searchParams.get('client_id');
       if (login.clientId && issued && issued !== login.clientId)
-        throw new AIError('auth_failed', 'ChatGPT registration did not match.');
+        throw new AIError('auth_failed', t('chatgptRegistrationMismatch'));
       const clientId = issued || login.clientId;
       const code = url.searchParams.get('code');
       if (
@@ -329,7 +327,7 @@ export class ChatGPTService {
         !code ||
         code.length > 8192
       )
-        throw new AIError('auth_failed', 'ChatGPT registration was incomplete.');
+        throw new AIError('auth_failed', t('chatgptRegistrationIncomplete'));
       this.assert(epoch, login.controller.signal);
       // Retain issued registration even if this authorization code later expires.
       const registration: ChatGPTCredentials = this.credentials || { clientId, scopes: [], expiresAt: 0 };
@@ -347,10 +345,10 @@ export class ChatGPTService {
         login.controller.signal
       );
       this.assert(epoch, login.controller.signal);
-      if (typeof data.id_token !== 'string') throw new AIError('auth_failed', 'ChatGPT identity was missing.');
+      if (typeof data.id_token !== 'string') throw new AIError('auth_failed', t('chatgptIdentityMissing'));
       const identity = await this.identity(data.id_token, clientId, login.nonce, login.controller.signal);
       if (registration.subject && registration.subject !== identity.subject)
-        throw new AIError('auth_failed', 'Sign out before connecting another ChatGPT account.');
+        throw new AIError('auth_failed', t('chatgptSignOutFirst'));
       const record = this.tokenRecord(data, { ...registration, ...identity, scopes: [] });
       this.assert(epoch, login.controller.signal);
       if (this.login !== login) return;
@@ -364,11 +362,7 @@ export class ChatGPTService {
       if (state === 'ready') await this.models();
     } catch (error) {
       if (this.login === login)
-        this.finishLogin(
-          login,
-          'error',
-          error instanceof AIError ? error.message : 'Could not save ChatGPT connection.'
-        );
+        this.finishLogin(login, 'error', error instanceof AIError ? error.message : t('chatgptSaveFailed'));
       else if (this.epoch === epoch && !this.disposed && error instanceof AIError && error.code !== 'cancelled') {
         this.message = error.message;
         this.emit();
@@ -404,11 +398,10 @@ export class ChatGPTService {
     return this.status();
   }
   private async access(signal?: AbortSignal) {
-    if (this.connectionState !== 'ready')
-      throw new AIError('auth_failed', 'Continue with ChatGPT and allow ChatGPT plan usage.');
+    if (this.connectionState !== 'ready') throw new AIError('auth_failed', t('chatgptAllowPlanUsage'));
     const record = this.credentials;
     if (!record?.refreshToken || !record.scopes.includes(PERMISSION))
-      throw new AIError('auth_failed', 'Continue with ChatGPT and allow ChatGPT plan usage.');
+      throw new AIError('auth_failed', t('chatgptAllowPlanUsage'));
     if (record.accessToken && record.expiresAt > this.now() + 60000) return record;
     if (!this.refresh) {
       const epoch = this.epoch;
@@ -416,7 +409,7 @@ export class ChatGPTService {
         try {
           if (record.earliestRefreshAt && record.earliestRefreshAt > this.now()) {
             if (record.accessToken && record.expiresAt > this.now()) return record;
-            throw new AIError('auth_failed', 'ChatGPT authorization cannot refresh yet. Reconnect ChatGPT.');
+            throw new AIError('auth_failed', t('chatgptRefreshUnavailable'));
           }
           const data = await this.token(
             new URLSearchParams({
@@ -433,7 +426,7 @@ export class ChatGPTService {
           this.connectionState = next.scopes.includes(PERMISSION) ? 'ready' : 'permission_missing';
           if (this.connectionState !== 'ready') {
             this.emit(true);
-            throw new AIError('auth_failed', 'ChatGPT plan permission is missing.');
+            throw new AIError('auth_failed', t('chatgptPlanPermissionMissing'));
           }
           this.emit();
           return next;
@@ -460,7 +453,7 @@ export class ChatGPTService {
     }
     if (!signal) return this.refresh;
     return new Promise<ChatGPTCredentials>((resolve, reject) => {
-      const abort = () => reject(new AIError('cancelled', 'ChatGPT request cancelled.'));
+      const abort = () => reject(new AIError('cancelled', t('chatgptRequestCancelled')));
       if (signal.aborted) {
         abort();
         return;
@@ -480,18 +473,18 @@ export class ChatGPTService {
         headers: { Authorization: `Bearer ${record.accessToken}` },
       });
       this.assert(epoch);
-      if (!Array.isArray(data.models)) throw new AIError('server_error', 'Invalid ChatGPT model catalog.');
+      if (!Array.isArray(data.models)) throw new AIError('server_error', t('chatgptInvalidModelCatalog'));
       this.catalog = data.models
         .filter(
           (m: any) => m?.visibility === 'list' && typeof m.slug === 'string' && /^[\w][\w.:/-]{0,127}$/.test(m.slug)
         )
         .map((m: any) => ({ slug: m.slug, displayName: typeof m.display_name === 'string' ? m.display_name : m.slug }));
       this.catalogAt = this.now();
-      if (!this.catalog.length) this.message = 'No ChatGPT models are available for this account.';
+      if (!this.catalog.length) this.message = t('chatgptNoModels');
       if (this.model && !this.catalog.some(m => m.slug === this.model)) {
         this.model = '';
         this.selectionInvalid = true;
-        this.message = 'Choose an available ChatGPT model.';
+        this.message = t('chatgptSelectAvailable');
         this.emit(true);
       } else if (!this.model && !this.selectionInvalid && this.catalog.length) {
         this.model = this.catalog[0].slug;
@@ -510,8 +503,7 @@ export class ChatGPTService {
     if (typeof model === 'string' && /^[\w][\w.:/-]{0,127}$/.test(model)) this.model = model;
   }
   selectModel(model: string) {
-    if (!this.catalog.some(m => m.slug === model))
-      throw new AIError('model_not_found', 'Choose an available ChatGPT model.');
+    if (!this.catalog.some(m => m.slug === model)) throw new AIError('model_not_found', t('chatgptSelectAvailable'));
     if (this.model !== model) {
       this.model = model;
       this.selectionInvalid = false;
@@ -525,7 +517,7 @@ export class ChatGPTService {
     const record = await this.access(signal);
     this.assert(epoch, signal);
     if (!model || !/^[\w][\w.:/-]{0,127}$/.test(model))
-      throw new AIError('model_not_found', 'Choose a ChatGPT model in NutEgg settings.');
+      throw new AIError('model_not_found', t('chatgptChooseModelSettings'));
     const call = await this.request(
       `${RESOURCE}/responses`,
       {
@@ -544,7 +536,7 @@ export class ChatGPTService {
         }
         throw this.error(call.response.status);
       }
-      if (!call.response.body) throw new AIError('server_error', 'ChatGPT returned an empty stream.');
+      if (!call.response.body) throw new AIError('server_error', t('chatgptEmptyStream'));
       const reader = call.response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -561,12 +553,11 @@ export class ChatGPTService {
         try {
           value = JSON.parse(data);
         } catch {
-          throw new AIError('server_error', 'Invalid ChatGPT stream.');
+          throw new AIError('server_error', t('chatgptInvalidStream'));
         }
         if (value.type === 'response.output_text.delta' && typeof value.delta === 'string') result += value.delta;
         if (value.type === 'response.completed') {
-          if (value.response?.status !== 'completed')
-            throw new AIError('server_error', 'ChatGPT response was incomplete.');
+          if (value.response?.status !== 'completed') throw new AIError('server_error', t('chatgptIncompleteResponse'));
           completed = true;
           if (!result && Array.isArray(value.response.output))
             result = value.response.output
@@ -580,7 +571,7 @@ export class ChatGPTService {
               .join('');
         }
         if (['error', 'response.failed', 'response.incomplete'].includes(value.type))
-          throw new AIError('server_error', 'ChatGPT could not complete the response.');
+          throw new AIError('server_error', t('chatgptResponseFailed'));
       };
       try {
         while (!completed) {
@@ -595,15 +586,14 @@ export class ChatGPTService {
             buffer = buffer.slice(boundary + 2);
           }
           if (buffer.length > 8 * 1024 * 1024 || result.length > 16 * 1024 * 1024)
-            throw new AIError('server_error', 'ChatGPT response exceeded the supported size.');
+            throw new AIError('server_error', t('chatgptResponseTooLarge'));
           if (done) {
             if (buffer.trim()) event(buffer);
             break;
           }
         }
         this.assert(epoch, signal);
-        if (!completed || !result.trim())
-          throw new AIError('server_error', 'ChatGPT response was empty or interrupted. Try again.');
+        if (!completed || !result.trim()) throw new AIError('server_error', t('chatgptEmptyOrInterrupted'));
         return result;
       } finally {
         await reader.cancel().catch(() => {});
@@ -611,9 +601,9 @@ export class ChatGPTService {
       }
     } catch (error) {
       this.assert(epoch, signal);
-      if (call.signal.aborted) throw new AIError('timeout', 'ChatGPT request timed out.');
+      if (call.signal.aborted) throw new AIError('timeout', t('chatgptRequestTimeout'));
       if (error instanceof AIError) throw error;
-      throw new AIError('network_error', 'ChatGPT response was interrupted.');
+      throw new AIError('network_error', t('chatgptResponseInterrupted'));
     } finally {
       call.cleanup();
     }
@@ -675,8 +665,7 @@ export class ChatGPTService {
         }
       } catch {
         if (this.epoch === epoch && !this.credentials && !this.disposed) {
-          this.message =
-            'Signed out locally. Remote revocation was not confirmed; disconnect NutEgg in ChatGPT settings.';
+          this.message = t('chatgptRevocationUnconfirmed');
           this.emit();
         }
       }

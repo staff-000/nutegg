@@ -239,6 +239,7 @@ class HeaderComponent {
         credit.providerLabel === t('codexSubscription') ||
         (credit.provider === 'openai' && credit.subscriptionState));
 
+    credit = globalThis.NutEggAI?.localizeCreditInfo?.(credit, t) || credit;
     const providerName = isChatGPT
       ? t('chatgptLabel')
       : isCodex
@@ -285,7 +286,7 @@ class HeaderComponent {
     const modelName = (credit.model || model || '').trim();
     if (modelName) {
       const baseTitle = this.aiCreditPill.title || t('aiCreditTooltip');
-      this.aiCreditPill.title = `Model: ${modelName} · ${baseTitle}`;
+      this.aiCreditPill.title = t('modelTooltip', { model: modelName, details: baseTitle });
     }
   }
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Obsidian Plugin Guide — NutEgg</title>
+    <title data-i18n="docs_obsidianPlugin_001">Obsidian Plugin Guide — NutEgg</title>
     <link rel="icon" type="image/png" href="../icons/icon32.png" />
     <link rel="stylesheet" href="docs.css" />
   </head>
@@ -17,7 +17,7 @@
         <div class="header-nav">
           <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
           <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
-          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+          <select id="lang-select" class="nav-lang-select" aria-label="Language" data-i18n-aria-label="languageLabel">
             <option value="en">English</option>
             <option value="zh">简体中文</option>
             <option value="es">Español</option>
@@ -50,7 +50,11 @@
           <div class="sidebar-title" data-i18n="sidebarResources">Resources</div>
           <ul class="sidebar-links">
             <li>
-              <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
+              <a
+                href="https://community.obsidian.md/plugins/nutegg"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_obsidianPlugin_002"
                 >Obsidian Community Plugin ↗</a
               >
             </li>
@@ -59,16 +63,25 @@
                 href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
                 target="_blank"
                 rel="noopener"
+                data-i18n-html="docs_obsidianPlugin_003"
                 >Chrome Web Store ↗</a
               >
             </li>
             <li>
-              <a href="https://github.com/staff-000/nutegg-obsidian-release/releases" target="_blank" rel="noopener"
+              <a
+                href="https://github.com/staff-000/nutegg-obsidian-release/releases"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_obsidianPlugin_004"
                 >Plugin Releases</a
               >
             </li>
             <li>
-              <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener"
+              <a
+                href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_obsidianPlugin_005"
                 >Privacy Policy</a
               >
             </li>
@@ -77,81 +90,95 @@
       </aside>
 
       <main class="docs-content">
-        <h1>Obsidian Plugin Setup & Configuration</h1>
-        <p class="lead">
+        <h1 data-i18n-html="docs_obsidianPlugin_006">Obsidian Plugin Setup & Configuration</h1>
+        <p class="lead" data-i18n-html="docs_obsidianPlugin_007">
           The NutEgg Obsidian plugin hosts the local sync server, manages AI communication, matches incoming content to
           your knowledge trees, and maintains your vault files.
         </p>
 
-        <h2>Installation</h2>
+        <h2 data-i18n-html="docs_obsidianPlugin_008">Installation</h2>
 
-        <h3>Option 1: Obsidian Community Plugins (Recommended)</h3>
-        <p>NutEgg is officially listed in the Obsidian Community Plugins directory:</p>
+        <h3 data-i18n-html="docs_obsidianPlugin_009">Option 1: Obsidian Community Plugins (Recommended)</h3>
+        <p data-i18n-html="docs_obsidianPlugin_010">
+          NutEgg is officially listed in the Obsidian Community Plugins directory:
+        </p>
         <ol>
-          <li>In Obsidian, open <strong>Settings → Community plugins</strong>.</li>
-          <li>Ensure <strong>Restricted mode</strong> is turned off, then click <strong>Browse</strong>.</li>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_011">
+            In Obsidian, open <strong>Settings → Community plugins</strong>.
+          </li>
+          <li data-i18n-html="docs_obsidianPlugin_012">
+            Ensure <strong>Restricted mode</strong> is turned off, then click <strong>Browse</strong>.
+          </li>
+          <li data-i18n-html="docs_obsidianPlugin_013">
             Search for <strong>NutEgg</strong> (or visit
             <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
               >NutEgg on Obsidian Community Plugins</a
             >).
           </li>
-          <li>Click <strong>Install</strong>, then click <strong>Enable</strong>.</li>
+          <li data-i18n-html="docs_obsidianPlugin_014">
+            Click <strong>Install</strong>, then click <strong>Enable</strong>.
+          </li>
         </ol>
 
-        <h3>Option 2: Manual Installation</h3>
+        <h3 data-i18n-html="docs_obsidianPlugin_015">Option 2: Manual Installation</h3>
         <ol>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_016">
             Download <code>main.js</code>, <code>manifest.json</code>, and <code>styles.css</code> from the
             <a href="https://github.com/staff-000/nutegg-obsidian-release/releases" target="_blank" rel="noopener"
               >NutEgg Obsidian Plugin Releases</a
             >.
           </li>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_017">
             In your Obsidian vault, open <code>.obsidian/plugins/</code> (show hidden folders in your OS if needed).
           </li>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_018">
             Create a new directory named <code>nutegg</code> and place the three files inside:
             <pre><code>your-vault/.obsidian/plugins/nutegg/
 ├── main.js
 ├── manifest.json
 └── styles.css</code></pre>
           </li>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_019">
             In Obsidian, open <strong>Settings → Community plugins</strong>, click <strong>Reload</strong>, and toggle
             <strong>NutEgg</strong> on.
           </li>
         </ol>
 
-        <h3>Option 3: Using BRAT</h3>
+        <h3 data-i18n-html="docs_obsidianPlugin_020">Option 3: Using BRAT</h3>
         <ol>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_021">
             Install the
             <a href="https://github.com/tfthacker/obsidian42-brat" target="_blank" rel="noopener">BRAT</a> community
             plugin in Obsidian.
           </li>
-          <li>Go to <strong>Settings → BRAT → Add Beta plugin</strong>.</li>
-          <li>Enter <code>staff-000/nutegg-obsidian-release</code> and click <strong>Add Plugin</strong>.</li>
-          <li>Enable NutEgg once installed.</li>
+          <li data-i18n-html="docs_obsidianPlugin_022">Go to <strong>Settings → BRAT → Add Beta plugin</strong>.</li>
+          <li data-i18n-html="docs_obsidianPlugin_023">
+            Enter <code>staff-000/nutegg-obsidian-release</code> and click <strong>Add Plugin</strong>.
+          </li>
+          <li data-i18n-html="docs_obsidianPlugin_024">Enable NutEgg once installed.</li>
         </ol>
 
-        <h2>AI Execution Architecture</h2>
-        <p>
+        <h2 data-i18n-html="docs_obsidianPlugin_025">AI Execution Architecture</h2>
+        <p data-i18n-html="docs_obsidianPlugin_026">
           NutEgg uses an intelligent dual execution architecture (Protocol 3) that gives you full flexibility between
           bring-your-own-API-key privacy and zero-key subscription convenience:
         </p>
 
         <div class="callout">
-          <div class="callout-title">🔒 Core Privacy Invariant: API Keys Never Leave Chrome</div>
-          <p>
-            In <strong>Connected API Mode</strong>, Obsidian orchestrates vault operations, prompt assembly, and egg indexing,
-            but <strong>delegates all AI calls back to Chrome</strong> via an authenticated local WebSocket. Chrome executes the
-            call using its locally stored API key. Your API keys are never transmitted to Obsidian, never written to vault notes,
-            and never leave the browser.
+          <div class="callout-title" data-i18n-html="docs_obsidianPlugin_027">
+            🔒 Core Privacy Invariant: API Keys Never Leave Chrome
+          </div>
+          <p data-i18n-html="docs_obsidianPlugin_028">
+            In <strong>Connected API Mode</strong>, Obsidian orchestrates vault operations, prompt assembly, and egg
+            indexing, but <strong>delegates all AI calls back to Chrome</strong> via an authenticated local WebSocket.
+            Chrome executes the call using its locally stored API key. Your API keys are never transmitted to Obsidian,
+            never written to vault notes, and never leave the browser.
           </p>
         </div>
 
-        <pre><code>┌─────────────────────────────────────────────────────────────────────────────┐
+        <pre
+          data-i18n-html="docs_obsidianPlugin_029"
+        ><code>┌─────────────────────────────────────────────────────────────────────────────┐
 │                           CONNECTED API MODE (Default)                      │
 │                                                                             │
 │  Chrome Profile A ──(1) HTTP /analyze /confirm──►  Obsidian Plugin          │
@@ -180,115 +207,135 @@
 │                       └── Google Gemini (Antigravity CLI: agy)              │
 └─────────────────────────────────────────────────────────────────────────────┘</code></pre>
 
-        <h2>Mode 1: Connected API Mode (Default)</h2>
-        <p>
-          In this mode, you configure your AI provider and API key directly in <strong>Chrome Extension Options</strong>.
-          Obsidian coordinates the knowledge workflow while Chrome acts as the secure local AI runner.
+        <h2 data-i18n-html="docs_obsidianPlugin_030">Mode 1: Connected API Mode (Default)</h2>
+        <p data-i18n-html="docs_obsidianPlugin_031">
+          In this mode, you configure your AI provider and API key directly in
+          <strong>Chrome Extension Options</strong>. Obsidian coordinates the knowledge workflow while Chrome acts as
+          the secure local AI runner.
         </p>
 
         <ul>
-          <li>
-            <strong>Supported Cloud Providers</strong>: Anthropic (Claude 3.5 Sonnet, Claude 3.7 Sonnet), OpenAI (GPT-4o, o-series),
-            Google Gemini (2.0 Flash, 2.5 Pro), DeepSeek (V3, R1), Kimi, Qwen, Zhipu, and OpenRouter.
+          <li data-i18n-html="docs_obsidianPlugin_032">
+            <strong>Supported Cloud Providers</strong>: Anthropic (Claude 3.5 Sonnet, Claude 3.7 Sonnet), OpenAI
+            (GPT-4o, o-series), Google Gemini (2.0 Flash, 2.5 Pro), DeepSeek (V3, R1), Kimi, Qwen, Zhipu, and
+            OpenRouter.
           </li>
-          <li>
-            <strong>Local LLMs (Ollama, LM Studio, llama.cpp, vLLM)</strong>: Configure local endpoints directly in Chrome.
-            NutEgg connects to your local model without sending data outside your machine.
+          <li data-i18n-html="docs_obsidianPlugin_033">
+            <strong>Local LLMs (Ollama, LM Studio, llama.cpp, vLLM)</strong>: Configure local endpoints directly in
+            Chrome. NutEgg connects to your local model without sending data outside your machine.
           </li>
-          <li>
-            <strong>Independent Chrome Profiles</strong>: If you use multiple Chrome profiles (e.g. Work and Personal), each profile
-            can use its own provider, model, and API key. They connect to the same Obsidian vault without key collisions.
+          <li data-i18n-html="docs_obsidianPlugin_034">
+            <strong>Independent Chrome Profiles</strong>: If you use multiple Chrome profiles (e.g. Work and Personal),
+            each profile can use its own provider, model, and API key. They connect to the same Obsidian vault without
+            key collisions.
           </li>
-          <li>
-            <strong>Obsidian-Native Actions</strong>: Vault-only maintenance tasks (such as manual egg merging in Obsidian) use
-            native settings safely stored in Obsidian's <code>SecretStorage</code>. Clicking <strong>Save &amp; continue</strong> in
-            a connected Chrome profile securely updates the native account in SecretStorage.
+          <li data-i18n-html="docs_obsidianPlugin_035">
+            <strong>Obsidian-Native Actions</strong>: Vault-only maintenance tasks (such as manual egg merging in
+            Obsidian) use native settings safely stored in Obsidian's <code>SecretStorage</code>. Clicking
+            <strong>Save &amp; continue</strong> in a connected Chrome profile securely updates the native account in
+            SecretStorage.
           </li>
         </ul>
 
-        <h2>Mode 2: Shared Subscription Mode &amp; ChatGPT Sign-In</h2>
-        <p>
-          Don't want to manage API keys or pay-per-token credits? NutEgg supports direct sign-in and local developer CLI subscriptions
-          managed inside Obsidian:
+        <h2 data-i18n-html="docs_obsidianPlugin_036">Mode 2: Shared Subscription Mode &amp; ChatGPT Sign-In</h2>
+        <p data-i18n-html="docs_obsidianPlugin_037">
+          Don't want to manage API keys or pay-per-token credits? NutEgg supports direct sign-in and local developer CLI
+          subscriptions managed inside Obsidian:
         </p>
 
-        <h3>Option A: Direct ChatGPT Sign-In (No CLI needed)</h3>
+        <h3 data-i18n-html="docs_obsidianPlugin_038">Option A: Direct ChatGPT Sign-In (No CLI needed)</h3>
         <ol>
-          <li>In Obsidian, open <strong>Settings → NutEgg</strong>.</li>
-          <li>Under <strong>AI connection</strong>, select <strong>ChatGPT sign-in</strong>.</li>
-          <li>Click <strong>Continue with ChatGPT</strong>, complete the browser authorization flow, and allow plan usage.</li>
-          <li>Choose your account model (e.g. <code>gpt-4o</code>).</li>
-          <li>
-            All connected Chrome profiles immediately follow this connection with zero API key setup. Credentials live securely in
-            per-installation OS keychain storage and are never sent to Chrome or stored in vault files.
+          <li data-i18n-html="docs_obsidianPlugin_039">In Obsidian, open <strong>Settings → NutEgg</strong>.</li>
+          <li data-i18n-html="docs_obsidianPlugin_040">
+            Under <strong>AI connection</strong>, select <strong>ChatGPT sign-in</strong>.
+          </li>
+          <li data-i18n-html="docs_obsidianPlugin_041">
+            Click <strong>Continue with ChatGPT</strong>, complete the browser authorization flow, and allow plan usage.
+          </li>
+          <li data-i18n-html="docs_obsidianPlugin_042">Choose your account model (e.g. <code>gpt-4o</code>).</li>
+          <li data-i18n-html="docs_obsidianPlugin_043">
+            All connected Chrome profiles immediately follow this connection with zero API key setup. Credentials live
+            securely in per-installation OS keychain storage and are never sent to Chrome or stored in vault files.
           </li>
         </ol>
 
-        <h3>Option B: Local CLI Subscriptions (Codex, Claude, Gemini)</h3>
-        <p>
+        <h3 data-i18n-html="docs_obsidianPlugin_044">Option B: Local CLI Subscriptions (Codex, Claude, Gemini)</h3>
+        <p data-i18n-html="docs_obsidianPlugin_045">
           NutEgg can run official developer CLI tools already installed and logged in on your machine:
         </p>
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px">
           <thead>
             <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
-              <th style="padding: 10px">Provider</th>
-              <th style="padding: 10px">CLI Installation</th>
-              <th style="padding: 10px">Authentication</th>
-              <th style="padding: 10px">Model Discovery</th>
+              <th style="padding: 10px" data-i18n-html="docs_obsidianPlugin_046">Provider</th>
+              <th style="padding: 10px" data-i18n-html="docs_obsidianPlugin_047">CLI Installation</th>
+              <th style="padding: 10px" data-i18n-html="docs_obsidianPlugin_048">Authentication</th>
+              <th style="padding: 10px" data-i18n-html="docs_obsidianPlugin_049">Model Discovery</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Codex CLI</strong></td>
-              <td style="padding: 10px"><code>npm install -g @openai/codex</code></td>
-              <td style="padding: 10px"><code>codex login</code></td>
-              <td style="padding: 10px">Automatic via app-server</td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_050"><strong>Codex CLI</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_051">
+                <code>npm install -g @openai/codex</code>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_052"><code>codex login</code></td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_053">Automatic via app-server</td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Anthropic Claude</strong></td>
-              <td style="padding: 10px"><a href="https://code.claude.com/docs/en/quickstart" target="_blank" rel="noopener">Claude Code</a></td>
-              <td style="padding: 10px"><code>claude auth login --claudeai</code></td>
-              <td style="padding: 10px">Sonnet, Opus, Haiku, or custom ID</td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_054"><strong>Anthropic Claude</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_055">
+                <a href="https://code.claude.com/docs/en/quickstart" target="_blank" rel="noopener">Claude Code</a>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_056">
+                <code>claude auth login --claudeai</code>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_057">Sonnet, Opus, Haiku, or custom ID</td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Google Gemini</strong></td>
-              <td style="padding: 10px"><a href="https://antigravity.google/docs/cli/install" target="_blank" rel="noopener">Antigravity CLI</a></td>
-              <td style="padding: 10px"><code>agy</code> browser flow</td>
-              <td style="padding: 10px">Automatic via <code>agy models</code></td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_058"><strong>Google Gemini</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_059">
+                <a href="https://antigravity.google/docs/cli/install" target="_blank" rel="noopener">Antigravity CLI</a>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_060"><code>agy</code> browser flow</td>
+              <td style="padding: 10px" data-i18n-html="docs_obsidianPlugin_061">
+                Automatic via <code>agy models</code>
+              </td>
             </tr>
           </tbody>
         </table>
 
-        <p>
+        <p data-i18n-html="docs_obsidianPlugin_062">
           In Obsidian Settings → NutEgg, simply select your CLI under <strong>AI connection</strong>. NutEgg's internal
-          <code>SubscriptionService</code> runs inference in a bounded serial queue locally. No separate bridge server or port 27124 is needed.
+          <code>SubscriptionService</code> runs inference in a bounded serial queue locally. No separate bridge server
+          or port 27124 is needed.
         </p>
 
-        <h2>Local Sync Server &amp; Security</h2>
-        <p>
-          When the plugin is enabled, it automatically boots a background HTTP and WebSocket listener on <code>127.0.0.1:27123</code>.
+        <h2 data-i18n-html="docs_obsidianPlugin_063">Local Sync Server &amp; Security</h2>
+        <p data-i18n-html="docs_obsidianPlugin_064">
+          When the plugin is enabled, it automatically boots a background HTTP and WebSocket listener on
+          <code>127.0.0.1:27123</code>.
         </p>
         <div class="callout">
-          <div class="callout-title">🔒 Privacy &amp; Origin Security</div>
-          <p>
+          <div class="callout-title" data-i18n-html="docs_obsidianPlugin_065">🔒 Privacy &amp; Origin Security</div>
+          <p data-i18n-html="docs_obsidianPlugin_066">
             The local server binds strictly to the localhost loopback address (<code>127.0.0.1</code>). It enforces
-            strict <code>X-NutEgg-Extension-Origin</code> and token validation, preventing ordinary web pages from accessing your vault.
-            WebSocket connections authenticate on their very first frame.
+            strict <code>X-NutEgg-Extension-Origin</code> and token validation, preventing ordinary web pages from
+            accessing your vault. WebSocket connections authenticate on their very first frame.
           </p>
         </div>
 
-        <h2>Workflow &amp; Prompt Customization</h2>
-        <p>
+        <h2 data-i18n-html="docs_obsidianPlugin_067">Workflow &amp; Prompt Customization</h2>
+        <p data-i18n-html="docs_obsidianPlugin_068">
           NutEgg powers its AI analysis through modular, editable Markdown prompts stored directly in your vault under
           <code>nutegg/_workflow/</code>:
         </p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_069">
             <strong>Editable Templates</strong>: Customize prompts for content analysis, egg comparison, routing, and
             follow-ups.
           </li>
-          <li>
+          <li data-i18n-html="docs_obsidianPlugin_070">
             <strong>Non-Destructive Updates</strong>: When NutEgg releases updated prompt templates, your customized
             workflows are automatically preserved without being overwritten.
           </li>
@@ -296,6 +343,7 @@
       </main>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="../i18n.js"></script>
   </body>
 </html>

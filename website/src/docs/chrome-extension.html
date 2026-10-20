@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chrome Extension Guide — NutEgg</title>
+    <title data-i18n="docs_chromeExtension_001">Chrome Extension Guide — NutEgg</title>
     <link rel="icon" type="image/png" href="../icons/icon32.png" />
     <link rel="stylesheet" href="docs.css" />
   </head>
@@ -17,7 +17,7 @@
         <div class="header-nav">
           <a href="../index.html" data-i18n="backToWebsite">← Back to Website</a>
           <a href="https://github.com/staff-000/nutegg" target="_blank" rel="noopener">GitHub</a>
-          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+          <select id="lang-select" class="nav-lang-select" aria-label="Language" data-i18n-aria-label="languageLabel">
             <option value="en">English</option>
             <option value="zh">简体中文</option>
             <option value="es">Español</option>
@@ -54,27 +54,43 @@
                 href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
                 target="_blank"
                 rel="noopener"
+                data-i18n-html="docs_chromeExtension_002"
                 >Chrome Web Store ↗</a
               >
             </li>
             <li>
-              <a href="https://community.obsidian.md/plugins/nutegg" target="_blank" rel="noopener"
+              <a
+                href="https://community.obsidian.md/plugins/nutegg"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_chromeExtension_003"
                 >Obsidian Plugin ↗</a
               >
             </li>
             <li>
-              <a href="https://www.youtube.com/watch?v=_u6mDoHZSAo" target="_blank" rel="noopener">🎬 Promo Video ↗</a>
+              <a
+                href="https://www.youtube.com/watch?v=_u6mDoHZSAo"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_chromeExtension_004"
+                >🎬 Promo Video ↗</a
+              >
             </li>
             <li>
               <a
                 href="https://github.com/staff-000/nutegg-chrome-extension-release/releases"
                 target="_blank"
                 rel="noopener"
+                data-i18n-html="docs_chromeExtension_005"
                 >Extension Releases</a
               >
             </li>
             <li>
-              <a href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md" target="_blank" rel="noopener"
+              <a
+                href="https://github.com/staff-000/nutegg/blob/main/PRIVACY.md"
+                target="_blank"
+                rel="noopener"
+                data-i18n-html="docs_chromeExtension_006"
                 >Privacy Policy</a
               >
             </li>
@@ -83,16 +99,16 @@
       </aside>
 
       <main class="docs-content">
-        <h1>Chrome Extension Setup & Usage</h1>
-        <p class="lead">
+        <h1 data-i18n-html="docs_chromeExtension_007">Chrome Extension Setup & Usage</h1>
+        <p class="lead" data-i18n-html="docs_chromeExtension_008">
           The NutEgg Chrome extension lives in your browser's side panel, providing on-demand content extraction,
           YouTube mind maps with clickable timestamps, and one-click capture to Obsidian.
         </p>
 
-        <h2>Installation</h2>
+        <h2 data-i18n-html="docs_chromeExtension_009">Installation</h2>
 
-        <h3>Option 1: Chrome Web Store (Recommended)</h3>
-        <p>
+        <h3 data-i18n-html="docs_chromeExtension_010">Option 1: Chrome Web Store (Recommended)</h3>
+        <p data-i18n-html="docs_chromeExtension_011">
           Install NutEgg with one click directly from the official
           <a
             href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
@@ -102,7 +118,7 @@
           >:
         </p>
         <ol>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_012">
             Visit the
             <a
               href="https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol"
@@ -111,16 +127,16 @@
               >NutEgg Chrome Web Store page</a
             >.
           </li>
-          <li>Click <strong>Add to Chrome</strong>.</li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_013">Click <strong>Add to Chrome</strong>.</li>
+          <li data-i18n-html="docs_chromeExtension_014">
             Click the puzzle piece icon in Chrome's toolbar and pin <strong>NutEgg</strong> for convenient side panel
             access.
           </li>
         </ol>
 
-        <h3>Option 2: From GitHub Release (.zip)</h3>
+        <h3 data-i18n-html="docs_chromeExtension_015">Option 2: From GitHub Release (.zip)</h3>
         <ol>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_016">
             Download the latest <code>nutegg-chrome-extension-*.zip</code> from the
             <a
               href="https://github.com/staff-000/nutegg-chrome-extension-release/releases"
@@ -129,32 +145,38 @@
               >Releases page</a
             >.
           </li>
-          <li>Unzip the archive to a local folder on your computer.</li>
-          <li>Open Google Chrome and go to <code>chrome://extensions</code>.</li>
-          <li>Toggle <strong>Developer mode</strong> on in the upper-right corner.</li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_017">Unzip the archive to a local folder on your computer.</li>
+          <li data-i18n-html="docs_chromeExtension_018">
+            Open Google Chrome and go to <code>chrome://extensions</code>.
+          </li>
+          <li data-i18n-html="docs_chromeExtension_019">
+            Toggle <strong>Developer mode</strong> on in the upper-right corner.
+          </li>
+          <li data-i18n-html="docs_chromeExtension_020">
             Click <strong>Load unpacked</strong> and select the unzipped directory containing
             <code>manifest.json</code>.
           </li>
-          <li>Click the puzzle icon in the Chrome toolbar and pin <strong>NutEgg</strong> for easy access.</li>
+          <li data-i18n-html="docs_chromeExtension_021">
+            Click the puzzle icon in the Chrome toolbar and pin <strong>NutEgg</strong> for easy access.
+          </li>
         </ol>
 
-        <h2>Side Panel Workflow</h2>
-        <p>Clicking the NutEgg extension icon opens Chrome's side panel:</p>
+        <h2 data-i18n-html="docs_chromeExtension_022">Side Panel Workflow</h2>
+        <p data-i18n-html="docs_chromeExtension_023">Clicking the NutEgg extension icon opens Chrome's side panel:</p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_024">
             <strong>Auto-Extraction</strong>: As you browse, NutEgg detects the active tab (YouTube video, Twitter/X
             thread, or blog post) and extracts its text and structure.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_025">
             <strong>Content Refresh (🔄)</strong>: Click the refresh button in content preview to re-extract the page on
             dynamic single-page apps without unexpectedly redirecting away from the preview.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_026">
             <strong>Target Egg Selector</strong>: In content preview, choose target knowledge eggs or use "Target eggs
             (auto-select by default)" to let AI match relevant vault trees automatically.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_027">
             <strong>Analysis Modes</strong>:
             <ul>
               <li>
@@ -167,173 +189,210 @@
               </li>
             </ul>
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_028">
             <strong>Status Indicator</strong>: A green dot indicates a healthy connection to your local Obsidian server
             (<code>127.0.0.1:27123</code>). If red, ensure Obsidian is running with the NutEgg plugin enabled.
           </li>
         </ul>
 
-        <h2>YouTube Integration & Smart Navigation</h2>
-        <p>On YouTube video pages, NutEgg extracts:</p>
+        <h2 data-i18n-html="docs_chromeExtension_029">YouTube Integration & Smart Navigation</h2>
+        <p data-i18n-html="docs_chromeExtension_030">On YouTube video pages, NutEgg extracts:</p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_031">
             <strong>Full Captions &amp; Transcripts</strong>: Automatic high-accuracy extraction from creator and
             auto-generated transcripts.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_032">
             <strong>Mind Map with Clickable Timestamps</strong>: Instant breakdown with clickable timestamp buttons that
             seek your active YouTube video player directly to that segment. When timestamps are present, redundant
             source tags are hidden to keep the tree clean.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_033">
             <strong>Q&amp;A with Timestamp Jumping</strong>: Ask any question about the video in natural language;
             NutEgg provides cited answers with clickable timestamp pills that jump straight to the source moment in
             video playback.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_034">
             <strong>Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the video title's premise,
             letting you skip fluff immediately.
           </li>
         </ul>
 
-        <h2>Text In-Page Source Navigation</h2>
-        <p>When reading articles, blogs, or forums:</p>
+        <h2 data-i18n-html="docs_chromeExtension_035">Text In-Page Source Navigation</h2>
+        <p data-i18n-html="docs_chromeExtension_036">When reading articles, blogs, or forums:</p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_037">
             <strong>📍 Jump to Source</strong>: Text mind-map nodes and Q&amp;A citations include source tags. Clicking
             a source tag automatically scrolls the live web page to the exact matching paragraph or quote and briefly
             highlights it with an outline.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_038">
             <strong>Comment Navigation</strong>: On discussion pages (Reddit, Zhihu, etc.), clicking source citations
             scrolls directly to the specific comment or answer.
           </li>
         </ul>
 
-        <h2>Discussion Analysis &amp; Community Perspectives</h2>
-        <p>NutEgg analyzes public comments across YouTube, Reddit, Twitter/X, Zhihu, and forums:</p>
+        <h2 data-i18n-html="docs_chromeExtension_039">Discussion Analysis &amp; Community Perspectives</h2>
+        <p data-i18n-html="docs_chromeExtension_040">
+          NutEgg analyzes public comments across YouTube, Reddit, Twitter/X, Zhihu, and forums:
+        </p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_041">
             <strong>Topic &amp; Stance Breakdown</strong>: Summarizes core debate points with stance badges (agree 👍,
             disagree 👎, mixed 🤔, neutral ⚖️) and reaction metrics.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_042">
             <strong>Extra Insights</strong>: High-value comments containing evidence, caveats, or unique experiences are
             preserved as concise extra insights.
           </li>
         </ul>
 
-        <h2>Chrome-Only Standalone Mode (No Obsidian Required)</h2>
-        <p>
+        <h2 data-i18n-html="docs_chromeExtension_043">Chrome-Only Standalone Mode (No Obsidian Required)</h2>
+        <p data-i18n-html="docs_chromeExtension_044">
           Don't have Obsidian installed or currently open? NutEgg works completely standalone inside Google Chrome!
         </p>
 
         <div class="callout">
-          <div class="callout-title">⚡ Fast Web Reading Without Note Overhead</div>
-          <p>
-            NutEgg is designed first and foremost as an ultra-fast web reading companion. You can extract, summarize, generate
-            mind maps, and ask questions about any article or YouTube video directly in Chrome without ever touching a note vault.
+          <div class="callout-title" data-i18n-html="docs_chromeExtension_045">
+            ⚡ Fast Web Reading Without Note Overhead
+          </div>
+          <p data-i18n-html="docs_chromeExtension_046">
+            NutEgg is designed first and foremost as an ultra-fast web reading companion. You can extract, summarize,
+            generate mind maps, and ask questions about any article or YouTube video directly in Chrome without ever
+            touching a note vault.
           </p>
         </div>
 
-        <h3>Features Available in Chrome Standalone:</h3>
+        <h3 data-i18n-html="docs_chromeExtension_047">Features Available in Chrome Standalone:</h3>
         <ul>
-          <li>
-            <strong>🎯 Instant Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the headline's question.
+          <li data-i18n-html="docs_chromeExtension_048">
+            <strong>🎯 Instant Anti-Clickbait Verdict</strong>: An objective 1-sentence answer to the headline's
+            question.
           </li>
-          <li>
-            <strong>📝 Executive 3-Sentence Summary</strong>: High-density takeaways extracted from any long article or video.
+          <li data-i18n-html="docs_chromeExtension_049">
+            <strong>📝 Executive 3-Sentence Summary</strong>: High-density takeaways extracted from any long article or
+            video.
           </li>
-          <li>
-            <strong>⏱️ Mind Map with Clickable Timestamps &amp; Seeking</strong>: Jump to key video segments with one click.
+          <li data-i18n-html="docs_chromeExtension_050">
+            <strong>⏱️ Mind Map with Clickable Timestamps &amp; Seeking</strong>: Jump to key video segments with one
+            click.
           </li>
-          <li>
-            <strong>💬 Video Q&amp;A &amp; Timestamp Jumping</strong>: Ask questions and click cited timestamp pills to scrub video playback directly to that segment.
+          <li data-i18n-html="docs_chromeExtension_051">
+            <strong>💬 Video Q&amp;A &amp; Timestamp Jumping</strong>: Ask questions and click cited timestamp pills to
+            scrub video playback directly to that segment.
           </li>
-          <li>
-            <strong>🧠 Collapsible Mind Maps</strong>: Multi-tier interactive thought trees breaking down core ideas visually.
+          <li data-i18n-html="docs_chromeExtension_052">
+            <strong>🧠 Collapsible Mind Maps</strong>: Multi-tier interactive thought trees breaking down core ideas
+            visually.
           </li>
-          <li><strong>🌐 50+ Languages Support</strong>: Extract and translate foreign-language content on the fly.</li>
+          <li data-i18n-html="docs_chromeExtension_053">
+            <strong>🌐 50+ Languages Support</strong>: Extract and translate foreign-language content on the fly.
+          </li>
         </ul>
 
-        <h3>How to Configure Chrome-Only Mode:</h3>
+        <h3 data-i18n-html="docs_chromeExtension_054">How to Configure Chrome-Only Mode:</h3>
         <ol>
-          <li>
-            Right-click the <strong>NutEgg extension icon</strong> in Chrome's toolbar and select <strong>Options</strong>.
+          <li data-i18n-html="docs_chromeExtension_055">
+            Right-click the <strong>NutEgg extension icon</strong> in Chrome's toolbar and select
+            <strong>Options</strong>.
           </li>
-          <li>
-            Select your preferred AI provider (e.g., Google Gemini, OpenAI, Claude, DeepSeek, or OpenRouter) and enter your API key.
+          <li data-i18n-html="docs_chromeExtension_056">
+            Select your preferred AI provider (e.g., Google Gemini, OpenAI, Claude, DeepSeek, or OpenRouter) and enter
+            your API key.
           </li>
-          <li>Click <strong>Save</strong>. You're ready to analyze any page!</li>
+          <li data-i18n-html="docs_chromeExtension_057">
+            Click <strong>Save</strong>. You're ready to analyze any page!
+          </li>
         </ol>
 
-        <h2>Obsidian Connection &amp; AI Execution Modes</h2>
-        <p>
-          When you connect the Chrome extension to the optional NutEgg Obsidian plugin, Chrome seamlessly adapts depending on the selected execution mode:
+        <h2 data-i18n-html="docs_chromeExtension_058">Obsidian Connection &amp; AI Execution Modes</h2>
+        <p data-i18n-html="docs_chromeExtension_059">
+          When you connect the Chrome extension to the optional NutEgg Obsidian plugin, Chrome seamlessly adapts
+          depending on the selected execution mode:
         </p>
 
         <div class="callout">
-          <div class="callout-title">🔒 API Key Security: Keys Never Leave Chrome</div>
-          <p>
-            In <strong>Connected API Mode</strong>, your API keys stay strictly inside Chrome's secure extension storage.
-            Obsidian manages knowledge templates and vault indexing, but delegates AI inference back to Chrome over an
-            authenticated local WebSocket. Chrome makes the provider API call locally and returns only the generated text.
+          <div class="callout-title" data-i18n-html="docs_chromeExtension_060">
+            🔒 API Key Security: Keys Never Leave Chrome
+          </div>
+          <p data-i18n-html="docs_chromeExtension_061">
+            In <strong>Connected API Mode</strong>, your API keys stay strictly inside Chrome's secure extension
+            storage. Obsidian manages knowledge templates and vault indexing, but delegates AI inference back to Chrome
+            over an authenticated local WebSocket. Chrome makes the provider API call locally and returns only the
+            generated text.
           </p>
         </div>
 
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px">
           <thead>
             <tr style="border-bottom: 2px solid var(--border-subtle); text-align: left">
-              <th style="padding: 10px">Execution Mode</th>
-              <th style="padding: 10px">Where AI Runs</th>
-              <th style="padding: 10px">Credentials Used</th>
+              <th style="padding: 10px" data-i18n-html="docs_chromeExtension_062">Execution Mode</th>
+              <th style="padding: 10px" data-i18n-html="docs_chromeExtension_063">Where AI Runs</th>
+              <th style="padding: 10px" data-i18n-html="docs_chromeExtension_064">Credentials Used</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Chrome-Only</strong></td>
-              <td style="padding: 10px">Directly inside Chrome</td>
-              <td style="padding: 10px">API key configured in Chrome Options</td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_065"><strong>Chrome-Only</strong></td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_066">Directly inside Chrome</td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_067">
+                API key configured in Chrome Options
+              </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Connected API Mode</strong></td>
-              <td style="padding: 10px">Chrome (delegated via local WebSocket by Obsidian)</td>
-              <td style="padding: 10px">API key in Chrome (keys never sent to Obsidian)</td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_068">
+                <strong>Connected API Mode</strong>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_069">
+                Chrome (delegated via local WebSocket by Obsidian)
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_070">
+                API key in Chrome (keys never sent to Obsidian)
+              </td>
             </tr>
             <tr style="border-bottom: 1px solid var(--border-subtle)">
-              <td style="padding: 10px"><strong>Shared Subscription Mode</strong></td>
-              <td style="padding: 10px">Inside Obsidian (via local CLI or ChatGPT OAuth)</td>
-              <td style="padding: 10px">Zero API keys (uses Codex, Claude Code, Antigravity, or ChatGPT)</td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_071">
+                <strong>Shared Subscription Mode</strong>
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_072">
+                Inside Obsidian (via local CLI or ChatGPT OAuth)
+              </td>
+              <td style="padding: 10px" data-i18n-html="docs_chromeExtension_073">
+                Zero API keys (uses Codex, Claude Code, Antigravity, or ChatGPT)
+              </td>
             </tr>
           </tbody>
         </table>
 
-        <h3>Multi-Profile Chrome Support</h3>
-        <p>
-          NutEgg supports multiple Chrome browser profiles (e.g. Personal and Work) connecting concurrently to the same Obsidian vault.
-          Each Chrome profile retains its own provider, model, and API key independently. Connecting or switching execution modes
-          never leaks or overwrites API keys between profiles.
+        <h3 data-i18n-html="docs_chromeExtension_074">Multi-Profile Chrome Support</h3>
+        <p data-i18n-html="docs_chromeExtension_075">
+          NutEgg supports multiple Chrome browser profiles (e.g. Personal and Work) connecting concurrently to the same
+          Obsidian vault. Each Chrome profile retains its own provider, model, and API key independently. Connecting or
+          switching execution modes never leaks or overwrites API keys between profiles.
         </p>
 
-        <h3>Offline &amp; Disconnect Recovery</h3>
-        <p>
-          If Obsidian is closed while connected mode is enabled, NutEgg displays a clear status light and gives you a one-click
-          <strong>"Use Chrome mode instead"</strong> option. This lets you immediately continue reading and asking questions using your
-          Chrome API setup without interruption or quota risk.
+        <h3 data-i18n-html="docs_chromeExtension_076">Offline &amp; Disconnect Recovery</h3>
+        <p data-i18n-html="docs_chromeExtension_077">
+          If Obsidian is closed while connected mode is enabled, NutEgg displays a clear status light and gives you a
+          one-click
+          <strong>"Use Chrome mode instead"</strong> option. This lets you immediately continue reading and asking
+          questions using your Chrome API setup without interruption or quota risk.
         </p>
 
-        <h2>Configuration &amp; Live Synchronization</h2>
-        <p>NutEgg includes real-time synchronization between the extension Options and active side panels:</p>
+        <h2 data-i18n-html="docs_chromeExtension_078">Configuration &amp; Live Synchronization</h2>
+        <p data-i18n-html="docs_chromeExtension_079">
+          NutEgg includes real-time synchronization between the extension Options and active side panels:
+        </p>
         <ul>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_080">
             <strong>Content Section Controls</strong>: Customize which sections are extracted and analyzed by default
             (Content, Summary, Mind Map, Q&amp;A, Knowledge Entries, and Discussion) in the Options page.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_081">
             <strong>Live Settings Sync</strong>: Changing your analysis models, enabled output sections, or server
             settings immediately updates all open side panels without requiring a page refresh.
           </li>
-          <li>
+          <li data-i18n-html="docs_chromeExtension_082">
             <strong>Custom Server Port</strong>: If default port <code>27123</code> conflicts with another service, open
             extension <strong>Options</strong>, adjust the port (e.g. <code>28123</code>), and test the connection.
           </li>
@@ -341,6 +400,7 @@
       </main>
     </div>
 
+    <script src="i18n.js"></script>
     <script src="../i18n.js"></script>
   </body>
 </html>

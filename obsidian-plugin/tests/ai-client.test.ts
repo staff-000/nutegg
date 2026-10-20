@@ -376,3 +376,33 @@ describe('BYOKit structured provider failures', () => {
     } finally { globalThis.fetch = original; }
   });
 });
+
+it('credit descriptors can be localized without mutating transport values or unknown diagnostics', async () => {
+  const { checkCreditAI, localizeCreditInfo } = await import('../../shared/src/client');
+  const { zh } = await import('../src/i18n/zh');
+  const settings = { ...DEFAULT_SETTINGS, aiProvider: 'openrouter' as const, aiApiKey: '' };
+  const credit = await checkCreditAI(settings);
+  assert.equal(credit.statusText, 'No API key configured');
+  assert.equal(credit.statusKey, 'creditNoKey');
+  const localized = localizeCreditInfo(credit, (key, params) =>
+    zh[key].replace(/\{(\w+)\}/g, (match, name) => String(params?.[name] ?? match))
+  );
+  assert.equal(localized.statusText, zh.creditNoKey);
+  assert.equal(localized.error, zh.creditNoKey);
+  assert.equal(credit.statusText, 'No API key configured');
+  assert.equal(localized.provider, 'openrouter');
+  const unknown = { statusText: 'Provider diagnostic', error: 'Diagnostic 123', statusKey: 'future_key' as any, errorKey: 'toString' as any };
+  assert.deepEqual(localizeCreditInfo(unknown, () => 'unused'), unknown);
+});
+
+it('credit interpolation metadata cannot retain provider-echoed API keys', async () => {
+  const { checkCreditAI, localizeCreditInfo } = await import('../../shared/src/client');
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response('', { status: 503, statusText: 'sensitive-key' });
+    const credit = await checkCreditAI({ ...DEFAULT_SETTINGS, aiProvider: 'local', aiApiKey: 'sensitive-key', aiModel: 'local-model' });
+    assert.doesNotMatch(JSON.stringify(credit), /sensitive-key/);
+    const localized = localizeCreditInfo(credit, (_key, params) => String(params?.status));
+    assert.doesNotMatch(JSON.stringify(localized), /sensitive-key/);
+  } finally { globalThis.fetch = originalFetch; }
+});

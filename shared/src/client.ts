@@ -1,10 +1,17 @@
+import { creditMessage, creditMessages, type CreditMessageKey, type CreditMessageParams } from './credit-messages';
 // ============================================================
 // NutEgg Unified AI Client & Transport
 // ============================================================
 
 import { OpenAI, CallError, Role } from 'byokit/client';
 import { trackAIRequest } from './ai-diagnostics';
-import { PROVIDER_CATALOG, isSubscriptionProvider, resolveConfig, resolveLocalEndpoint, aiConnectionLabel } from './catalog';
+import {
+  PROVIDER_CATALOG,
+  isSubscriptionProvider,
+  resolveConfig,
+  resolveLocalEndpoint,
+  aiConnectionLabel,
+} from './catalog';
 import type {
   AIProviderId,
   AISource,
@@ -60,6 +67,9 @@ export interface AICreditInfo {
   totalCredits?: number;
   totalUsage?: number;
   statusText: string;
+  statusKey?: CreditMessageKey;
+  statusParams?: CreditMessageParams;
+  errorKey?: CreditMessageKey;
   error?: string;
 }
 
@@ -75,30 +85,49 @@ export async function chatAI(
     throw new AIError('subscription_requires_obsidian', 'Set up an AI API key in Chrome Settings.');
   if (config.provider !== 'local' && !config.client.apiKey)
     throw new AIError('no_api_key', 'No AI API key configured. Open settings and enter your API key.');
-  return trackAIRequest(prompt, async () => {
-    try {
-      const response = await new OpenAI(config.client).chat.completions.create({
-        model: config.model,
-        messages: [{ role: Role.User, content: prompt }],
-        max_tokens: maxTokens,
-      }, { signal, timeoutMs: 180000 });
-      return response.choices[0].message.content || '';
-    } catch (error) {
-      // Presentation translation only; BYOKit owns transport, safety, and retries.
-      if (error instanceof CallError) {
-        const codes: Record<string, AIErrorCode> = {
-          invalid_credentials: 'auth_failed', access_denied: 'forbidden',
-          model_not_found_or_inaccessible: 'model_not_found', quota_exhausted: 'quota_exceeded',
-          rate_limited: 'rate_limited', provider_unavailable: 'server_error',
-          network_error: 'network_error', timeout: 'timeout',
-        };
-        throw new AIError(error.code === 'CANCELED' ? 'cancelled' :
-          error.code === 'EMPTY_RESPONSE' ? 'invalid_response' :
-          codes[error.attempt?.reason || 'unknown'] || 'unknown', error.message, error.status, error.completion);
+  return trackAIRequest(
+    prompt,
+    async () => {
+      try {
+        const response = await new OpenAI(config.client).chat.completions.create(
+          {
+            model: config.model,
+            messages: [{ role: Role.User, content: prompt }],
+            max_tokens: maxTokens,
+          },
+          { signal, timeoutMs: 180000 }
+        );
+        return response.choices[0].message.content || '';
+      } catch (error) {
+        // Presentation translation only; BYOKit owns transport, safety, and retries.
+        if (error instanceof CallError) {
+          const codes: Record<string, AIErrorCode> = {
+            invalid_credentials: 'auth_failed',
+            access_denied: 'forbidden',
+            model_not_found_or_inaccessible: 'model_not_found',
+            quota_exhausted: 'quota_exceeded',
+            rate_limited: 'rate_limited',
+            provider_unavailable: 'server_error',
+            network_error: 'network_error',
+            timeout: 'timeout',
+          };
+          throw new AIError(
+            error.code === 'CANCELED'
+              ? 'cancelled'
+              : error.code === 'EMPTY_RESPONSE'
+                ? 'invalid_response'
+                : codes[error.attempt?.reason || 'unknown'] || 'unknown',
+            error.message,
+            error.status,
+            error.completion
+          );
+        }
+        throw error;
       }
-      throw error;
-    }
-  }, debugScope, { signal });
+    },
+    debugScope,
+    { signal }
+  );
 }
 
 /**
@@ -111,6 +140,9 @@ export async function checkCreditAI(settings: NutEggAISettings): Promise<AICredi
     for (const field of ['error', 'statusText'] as const) {
       if (result[field]) result[field] = result[field]!.split(key).join('[redacted]');
     }
+  if (key && result.statusParams)
+    for (const [name, value] of Object.entries(result.statusParams))
+      if (typeof value === 'string') result.statusParams[name] = value.split(key).join('[redacted]');
   return result;
 }
 
@@ -127,11 +159,16 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
     source,
     model,
     hasBalance: false,
-    statusText: 'Checking...',
+    ...creditMessage('creditChecking'),
   };
 
   if (isSubscriptionProvider(settings))
-    return { ...baseInfo, statusText: 'Key required', error: 'Set up an AI API key in Chrome Settings.' };
+    return {
+      ...baseInfo,
+      ...creditMessage('creditKeyRequired'),
+      errorKey: 'creditSetupKey',
+      error: 'Set up an AI API key in Chrome Settings.',
+    };
 
   // 0. Local LLM (Ollama, LM Studio, etc.) — ping endpoint
   if (providerId === 'local') {
@@ -157,13 +194,14 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
         return {
           ...baseInfo,
           hasBalance: false,
-          statusText: `Connected [${typeLabel}]`,
+          ...creditMessage('creditConnected', { type: typeLabel }),
         };
       } else {
         return {
           ...baseInfo,
           hasBalance: false,
-          statusText: `Local LLM (${resp.status} ${resp.statusText})`,
+          ...creditMessage('creditLocalStatus', { status: `${resp.status} ${resp.statusText}` }),
+          errorKey: 'creditLocalStatus',
           error: `Local LLM server returned HTTP ${resp.status}`,
         };
       }
@@ -171,7 +209,8 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
       return {
         ...baseInfo,
         hasBalance: false,
-        statusText: 'Offline — ensure local runner is running',
+        ...creditMessage('creditLocalOffline'),
+        errorKey: 'creditLocalOffline',
         error: 'Cannot connect to local LLM server',
       };
     }
@@ -180,7 +219,8 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
   if (!apiKey) {
     return {
       ...baseInfo,
-      statusText: 'No API key configured',
+      ...creditMessage('creditNoKey'),
+      errorKey: 'creditNoKey',
       error: 'No API key',
     };
   }
@@ -209,24 +249,29 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
           remainingCredits: remaining,
           totalCredits,
           totalUsage,
-          statusText: `${balanceFormatted} left ($${totalUsage.toFixed(2)} used / $${totalCredits.toFixed(2)} total)`,
+          ...creditMessage('creditBalanceLeft', {
+            balance: balanceFormatted,
+            used: `$${totalUsage.toFixed(2)}`,
+            total: `$${totalCredits.toFixed(2)}`,
+          }),
         };
       } else if (resp.status === 401) {
         return {
           ...baseInfo,
-          statusText: 'Invalid API key',
+          ...creditMessage('creditInvalidKey'),
+          errorKey: 'creditAuthFailed',
           error: 'Authentication failed',
         };
       } else {
         return {
           ...baseInfo,
-          statusText: 'OpenRouter (Active)',
+          ...creditMessage('creditActive', { provider: 'OpenRouter' }),
         };
       }
     } catch (err) {
       return {
         ...baseInfo,
-        statusText: 'OpenRouter (Network error)',
+        ...creditMessage('creditNetworkError', { provider: 'OpenRouter' }),
         error: String(err),
       };
     }
@@ -255,20 +300,25 @@ async function checkCreditRequest(settings: NutEggAISettings): Promise<AICreditI
           balanceFormatted,
           currency: curr,
           remainingCredits: balance,
-          statusText: `${balanceFormatted} available`,
+          ...creditMessage('creditAvailable', { balance: balanceFormatted }),
         };
       } else if (resp.status === 401) {
-        return { ...baseInfo, statusText: 'Invalid API key', error: 'Auth failed' };
+        return {
+          ...baseInfo,
+          ...creditMessage('creditInvalidKey'),
+          errorKey: 'creditAuthFailed',
+          error: 'Auth failed',
+        };
       }
     } catch {}
-    return { ...baseInfo, statusText: 'DeepSeek (Active)' };
+    return { ...baseInfo, ...creditMessage('creditActive', { provider: 'DeepSeek' }) };
   }
 
   // Anthropic / OpenAI / Gemini
   return {
     ...baseInfo,
     hasBalance: false,
-    statusText: `${provider?.label || providerId} (Pay-as-you-go / Direct)`,
+    ...creditMessage('creditDirect', { provider: provider?.label || providerId }),
   };
 }
 
@@ -321,4 +371,20 @@ export class AIClient {
       );
     return chatAI(prompt, maxTokens, config, debugScope, this.signal);
   }
+}
+
+/** Format app-owned credit messages; retain unknown provider diagnostics unchanged. */
+export function localizeCreditInfo<T extends Partial<AICreditInfo>>(
+  info: T,
+  translate: (key: CreditMessageKey, params?: CreditMessageParams) => string
+): T {
+  return {
+    ...info,
+    ...(info.statusKey && Object.hasOwn(creditMessages, info.statusKey)
+      ? { statusText: translate(info.statusKey, info.statusParams) }
+      : {}),
+    ...(info.errorKey && Object.hasOwn(creditMessages, info.errorKey)
+      ? { error: translate(info.errorKey, info.statusParams) }
+      : {}),
+  };
 }

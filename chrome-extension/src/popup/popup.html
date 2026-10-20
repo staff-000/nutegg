@@ -114,6 +114,7 @@
               class="settings-btn"
               title="Settings"
               aria-label="Settings"
+              data-i18n-aria-label="settingsTooltip"
               data-i18n-title="settingsTooltip"
             >
               <svg
@@ -252,7 +253,13 @@
 
         <!-- Analysis Mode Selector -->
         <div class="mode-toggle-wrap" id="obsidian-analysis-mode" data-obsidian-only>
-          <div class="mode-pill" id="mode-pill" role="group" aria-label="Analysis Mode">
+          <div
+            class="mode-pill"
+            id="mode-pill"
+            role="group"
+            aria-label="Analysis Mode"
+            data-i18n-aria-label="defaultAnalysisMode"
+          >
             <button
               type="button"
               class="mode-pill-btn"
@@ -316,6 +323,7 @@
               aria-label="Question Scope"
               data-i18n-aria-label="scopeLabel"
               title="Question Scope"
+              data-i18n-title="scopeLabel"
             >
               <option value="within" data-i18n="scopeWithin">Content only</option>
               <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
@@ -361,7 +369,12 @@
             ></span>
           </button>
           <div class="sections-body hidden" id="sections-body">
-            <div class="sections-grid" role="group" aria-label="Content Analysis Sections">
+            <div
+              class="sections-grid"
+              role="group"
+              aria-label="Content Analysis Sections"
+              data-i18n-aria-label="sectionsConfigSection"
+            >
               <button
                 type="button"
                 class="section-chip active"
@@ -695,6 +708,7 @@
                   aria-label="Question Scope"
                   data-i18n-aria-label="scopeLabel"
                   title="Question Scope"
+                  data-i18n-title="scopeLabel"
                 >
                   <option value="within" data-i18n="scopeWithin">Content only</option>
                   <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
@@ -756,7 +770,12 @@
                 </div>
               </div>
               <div class="sections-body hidden" id="reanalyze-sections-body">
-                <div class="sections-grid" role="group" aria-label="Re-analysis Sections">
+                <div
+                  class="sections-grid"
+                  role="group"
+                  aria-label="Re-analysis Sections"
+                  data-i18n-aria-label="reanalysisSections"
+                >
                   <button
                     type="button"
                     class="section-chip active"
@@ -933,8 +952,25 @@
             <div>
               <div id="analysis-failure-message"></div>
               <p id="analysis-retry-hint" class="error-hint"></p>
-              <button id="analysis-retry-btn" type="button" data-i18n="retryAnalysis" title="Retry using the saved capture" data-i18n-title="analysisRetryHint">Retry analysis</button>
-              <button id="analysis-settings-btn" type="button" class="hidden" data-i18n="analysisOpenSettings" title="Open settings" data-i18n-title="analysisOpenSettings">Open settings</button>
+              <button
+                id="analysis-retry-btn"
+                type="button"
+                data-i18n="retryAnalysis"
+                title="Retry using the saved capture"
+                data-i18n-title="analysisRetryHint"
+              >
+                Retry analysis
+              </button>
+              <button
+                id="analysis-settings-btn"
+                type="button"
+                class="hidden"
+                data-i18n="analysisOpenSettings"
+                title="Open settings"
+                data-i18n-title="analysisOpenSettings"
+              >
+                Open settings
+              </button>
             </div>
           </div>
           <div id="error-banner" class="error-banner hidden">
@@ -983,7 +1019,13 @@
               data-hints="off"
             >
               <span id="egg-analysis-label" data-i18n="eggAnalysis">🥚 Egg Analysis</span
-              ><span class="egg-analysis-arrow" data-egg-analysis-arrow aria-label="Choose egg analysis mode">▾</span>
+              ><span
+                class="egg-analysis-arrow"
+                data-egg-analysis-arrow
+                aria-label="Choose egg analysis mode"
+                data-i18n-aria-label="chooseEggAnalysisMode"
+                >▾</span
+              >
             </button>
             <div id="egg-analysis-menu" class="egg-analysis-menu hidden" role="menu">
               <button

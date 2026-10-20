@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NutEgg — AI Reading Companion for Chrome | Read Less, Save Time</title>
+    <title data-i18n="websiteTitle">NutEgg — AI Reading Companion for Chrome | Read Less, Save Time</title>
     <meta
       name="description"
       content="NutEgg is a free, open-source Chrome extension that gives you instant verdicts, summaries, mind maps, and timestamped video Q&A for any article, thread, or YouTube video. Optional Obsidian add-on grows your knowledge vault."
@@ -26,7 +26,7 @@
           <a href="#obsidian" data-i18n="navObsidian">Obsidian Add-on</a>
           <a href="#expectations" data-i18n="navExpectations">Expectations</a>
           <a href="docs/index.html" data-i18n="navDocs">Documentation</a>
-          <select id="lang-select" class="nav-lang-select" aria-label="Language">
+          <select id="lang-select" class="nav-lang-select" aria-label="Language" data-i18n-aria-label="languageLabel">
             <option value="en">English</option>
             <option value="zh">简体中文</option>
             <option value="es">Español</option>
@@ -66,7 +66,7 @@
                 class="btn-primary btn-hero"
                 id="hero-chrome-btn"
               >
-                <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon" />
+                <img src="images/chrome-icon.png" alt="Chrome Logo" data-i18n-alt="chromeLogo" class="btn-logo-icon" />
                 <span class="btn-text-content">
                   <span data-i18n="addToChromeBtn">Add to Chrome — It's Free</span>
                   <span class="version-badge" id="chrome-version-hero">v{{CHROME_STORE_VERSION}}</span>
@@ -79,6 +79,7 @@
                   rel="noopener"
                   id="chrome-zip-hero"
                   title="Download standalone .zip for Chrome"
+                  data-i18n-title="downloadChromeZipHint"
                 >
                   <span data-i18n="downloadGithubZip">📦 Download .zip</span>
                   <span class="release-ver-tag" id="chrome-zip-ver-hero">(v{{CHROME_GITHUB_VERSION}})</span>
@@ -117,6 +118,7 @@
               <iframe
                 src="https://www.youtube-nocookie.com/embed/_u6mDoHZSAo?rel=0"
                 title="NutEgg Promo Video"
+                data-i18n-title="promoVideoTitle"
                 loading="lazy"
                 allow="
                   accelerometer;
@@ -185,6 +187,7 @@
               class="showcase-nav showcase-prev"
               id="showcase-prev"
               aria-label="Previous screenshot"
+              data-i18n-aria-label="previousScreenshot"
             >
               <svg
                 width="24"
@@ -209,6 +212,7 @@
                       <img
                         src="images/banner-verdict.jpg"
                         alt="NutEgg Summary & Title Verdict"
+                        data-i18n-alt="slide0Title"
                         class="showcase-img"
                         loading="eager"
                       />
@@ -231,6 +235,7 @@
                       <img
                         src="images/banner3.jpg"
                         alt="Ask Any Question, Jump to Timestamp"
+                        data-i18n-alt="slide1Title"
                         class="showcase-img"
                         loading="lazy"
                       />
@@ -253,6 +258,7 @@
                       <img
                         src="images/banner-mindmap.jpg"
                         alt="Interactive Mind Map"
+                        data-i18n-alt="slide2Title"
                         class="showcase-img"
                         loading="lazy"
                       />
@@ -275,6 +281,7 @@
                       <img
                         src="images/banner-languages.jpg"
                         alt="Multi-Source Support in 50+ Languages"
+                        data-i18n-alt="slide5Title"
                         class="showcase-img"
                         loading="lazy"
                       />
@@ -297,6 +304,7 @@
                       <img
                         src="images/banner-skip.jpg"
                         alt="Skip What You Already Know"
+                        data-i18n-alt="slide3Title"
                         class="showcase-img"
                         loading="lazy"
                       />
@@ -319,6 +327,7 @@
                       <img
                         src="images/banner-grow.jpg"
                         alt="Grow Your Knowledge Base"
+                        data-i18n-alt="slide4Title"
                         class="showcase-img"
                         loading="lazy"
                       />
@@ -336,7 +345,13 @@
               </div>
             </div>
 
-            <button type="button" class="showcase-nav showcase-next" id="showcase-next" aria-label="Next screenshot">
+            <button
+              type="button"
+              class="showcase-nav showcase-next"
+              id="showcase-next"
+              aria-label="Next screenshot"
+              data-i18n-aria-label="nextScreenshot"
+            >
               <svg
                 width="24"
                 height="24"
@@ -571,7 +586,12 @@
                 class="btn-secondary"
                 id="addon-obsidian-btn"
               >
-                <img src="images/obsidian-icon.png" alt="Obsidian Logo" class="btn-logo-icon" />
+                <img
+                  src="images/obsidian-icon.png"
+                  alt="Obsidian Logo"
+                  data-i18n-alt="obsidianLogo"
+                  class="btn-logo-icon"
+                />
                 <span class="btn-text-content">
                   <span data-i18n="obsidianPluginBtn">Obsidian Plugin</span>
                   <span class="version-badge version-badge-secondary" id="obsidian-version-addon"
@@ -586,6 +606,7 @@
                   rel="noopener"
                   id="obsidian-release-addon"
                   title="Get release assets from GitHub"
+                  data-i18n-title="githubAssetsHint"
                 >
                   <span data-i18n="downloadGithubPlugin">📦 GitHub Release</span>
                   <span class="release-ver-tag" id="obsidian-release-ver-addon">(v{{OBSIDIAN_GITHUB_VERSION}})</span>
@@ -646,7 +667,7 @@
                 class="btn-primary"
                 id="banner-chrome-btn"
               >
-                <img src="images/chrome-icon.png" alt="Chrome Logo" class="btn-logo-icon" />
+                <img src="images/chrome-icon.png" alt="Chrome Logo" data-i18n-alt="chromeLogo" class="btn-logo-icon" />
                 <span class="btn-text-content">
                   <span data-i18n="addToChromeBtn">Add to Chrome — It's Free</span>
                   <span class="version-badge" id="chrome-version-banner">v{{CHROME_STORE_VERSION}}</span>
@@ -659,6 +680,7 @@
                   rel="noopener"
                   id="chrome-zip-banner"
                   title="Download standalone .zip for Chrome"
+                  data-i18n-title="downloadChromeZipHint"
                 >
                   <span data-i18n="downloadGithubZip">📦 Download .zip</span>
                   <span class="release-ver-tag" id="chrome-zip-ver-banner">(v{{CHROME_GITHUB_VERSION}})</span>
@@ -681,7 +703,7 @@
     <footer>
       <div class="container footer-content">
         <div style="display: flex; align-items: center; gap: 8px">
-          <img src="icons/icon16.png" alt="NutEgg icon" />
+          <img src="icons/icon16.png" alt="NutEgg icon" data-i18n-alt="nuteggIcon" />
           <span data-i18n="footerText">NutEgg — Read less, hatch more. GNU GPLv3 Licensed.</span>
         </div>
         <div class="footer-links">

@@ -187,3 +187,38 @@ it('disconnect mode-switch warning exists in every supported language', () => {
     assert.match(dictionary.settingsChromeObsidianSwitchFailed, /\{error\}/, locale);
   }
 });
+
+it('new UI and credit messages preserve interpolation parameters in every locale', () => {
+  const keys = Object.keys(translations.en).filter(key => /^(credit|debug)/.test(key));
+  keys.push('modelTooltip', 'chooseEggAnalysisMode', 'reanalysisSections', 'localProtocolOpenai');
+  const params = value => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
+  for (const [locale, dictionary] of Object.entries(translations)) {
+    for (const key of keys) {
+      assert.ok(dictionary[key], `${locale}: ${key}`);
+      assert.deepStrictEqual(params(dictionary[key]), params(translations.en[key]), `${locale}: ${key}`);
+    }
+  }
+});
+
+it('localizes audited popup tooltips and accessible labels without changing control values', () => {
+  const fs = require('node:fs');
+  const { JSDOM } = require('jsdom');
+  const { applyI18n } = require('../src/i18n.js');
+  const dom = new JSDOM(fs.readFileSync(require.resolve('../src/popup/popup.html'), 'utf8'));
+  try {
+    const doc = dom.window.document;
+    const scope = doc.getElementById('followup-scope');
+    scope.value = 'beyond';
+    initI18n('zh_CN');
+    applyI18n(doc);
+    assert.equal(scope.title, t('scopeLabel'));
+    assert.equal(scope.getAttribute('aria-label'), t('scopeLabel'));
+    assert.equal(scope.value, 'beyond');
+    assert.equal(doc.getElementById('settings-btn').getAttribute('aria-label'), t('settingsTooltip'));
+    assert.equal(doc.getElementById('mode-pill').getAttribute('aria-label'), t('defaultAnalysisMode'));
+    assert.equal(doc.querySelector('[data-egg-analysis-arrow]').getAttribute('aria-label'), t('chooseEggAnalysisMode'));
+  } finally {
+    initI18n('en');
+    dom.window.close();
+  }
+});

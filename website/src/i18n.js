@@ -5,6 +5,17 @@
 
 const websiteTranslations = {
   en: {
+    languageLabel: "Language",
+    downloadChromeZipHint: "Download standalone .zip for Chrome",
+    githubAssetsHint: "Get release assets from GitHub",
+    promoVideoTitle: "NutEgg Promo Video",
+    previousScreenshot: "Previous screenshot",
+    nextScreenshot: "Next screenshot",
+    chromeLogo: "Chrome Logo",
+    obsidianLogo: "Obsidian Logo",
+    nuteggIcon: "NutEgg icon",
+    websiteTitle: "NutEgg — AI Reading Companion for Chrome · Read Less, Save Time",
+
     navTour: 'Product Tour',
     navMetaphor: 'The Metaphor',
     navHowItWorks: 'How It Works',
@@ -156,6 +167,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Obsidian Setup Guide',
   },
   zh: {
+    languageLabel: "语言",
+    downloadChromeZipHint: "下载 Chrome 独立扩展 .zip",
+    githubAssetsHint: "从 GitHub 获取发布文件",
+    promoVideoTitle: "NutEgg 宣传视频",
+    previousScreenshot: "上一张截图",
+    nextScreenshot: "下一张截图",
+    chromeLogo: "Chrome 标志",
+    obsidianLogo: "Obsidian 标志",
+    nuteggIcon: "NutEgg 图标",
+    websiteTitle: "NutEgg — Chrome AI 阅读助手 · 少读一点，多省时间",
+
     navTour: '产品体验',
     navMetaphor: '核心隐喻',
     navHowItWorks: '工作原理',
@@ -289,6 +311,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Obsidian 配置指南',
   },
   es: {
+    languageLabel: "Idioma",
+    downloadChromeZipHint: "Descargar .zip independiente para Chrome",
+    githubAssetsHint: "Obtener archivos de la versión en GitHub",
+    promoVideoTitle: "Vídeo de presentación de NutEgg",
+    previousScreenshot: "Captura anterior",
+    nextScreenshot: "Captura siguiente",
+    chromeLogo: "Logotipo de Chrome",
+    obsidianLogo: "Logotipo de Obsidian",
+    nuteggIcon: "Icono de NutEgg",
+    websiteTitle: "NutEgg — Asistente de lectura con IA para Chrome · Lee menos, ahorra tiempo",
+
     navTour: 'Recorrido',
     navMetaphor: 'La metáfora',
     navHowItWorks: 'Cómo funciona',
@@ -439,6 +472,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Guía de configuración de Obsidian',
   },
   ja: {
+    languageLabel: "言語",
+    downloadChromeZipHint: "Chrome 用の単体 .zip をダウンロード",
+    githubAssetsHint: "GitHub からリリースファイルを取得",
+    promoVideoTitle: "NutEgg 紹介動画",
+    previousScreenshot: "前のスクリーンショット",
+    nextScreenshot: "次のスクリーンショット",
+    chromeLogo: "Chrome ロゴ",
+    obsidianLogo: "Obsidian ロゴ",
+    nuteggIcon: "NutEgg アイコン",
+    websiteTitle: "NutEgg — Chrome の AI 読書アシスタント · 読む時間を節約",
+
     navTour: '製品ツアー',
     navMetaphor: 'コアコンセプト',
     navHowItWorks: '仕組み',
@@ -585,6 +629,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Obsidian 設定ガイド',
   },
   ko: {
+    languageLabel: "언어",
+    downloadChromeZipHint: "Chrome 독립 실행형 .zip 다운로드",
+    githubAssetsHint: "GitHub에서 릴리스 파일 받기",
+    promoVideoTitle: "NutEgg 소개 영상",
+    previousScreenshot: "이전 스크린샷",
+    nextScreenshot: "다음 스크린샷",
+    chromeLogo: "Chrome 로고",
+    obsidianLogo: "Obsidian 로고",
+    nuteggIcon: "NutEgg 아이콘",
+    websiteTitle: "NutEgg — Chrome AI 읽기 도우미 · 읽는 시간 절약",
+
     navTour: '제품 투어',
     navMetaphor: '핵심 은유',
     navHowItWorks: '작동 원리',
@@ -731,6 +786,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Obsidian 설정 가이드',
   },
   ar: {
+    languageLabel: "اللغة",
+    downloadChromeZipHint: "تنزيل ملف .zip مستقل لمتصفح Chrome",
+    githubAssetsHint: "الحصول على ملفات الإصدار من GitHub",
+    promoVideoTitle: "فيديو تعريفي لـ NutEgg",
+    previousScreenshot: "لقطة الشاشة السابقة",
+    nextScreenshot: "لقطة الشاشة التالية",
+    chromeLogo: "شعار Chrome",
+    obsidianLogo: "شعار Obsidian",
+    nuteggIcon: "أيقونة NutEgg",
+    websiteTitle: "NutEgg — مساعد قراءة بالذكاء الاصطناعي لمتصفح Chrome · اقرأ أقل ووفّر الوقت",
+
     navTour: 'جولة في المنتج',
     navMetaphor: 'المفهوم الأساسي',
     navHowItWorks: 'كيف يعمل',
@@ -877,6 +943,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 دليل إعداد Obsidian',
   },
   fr: {
+    languageLabel: "Langue",
+    downloadChromeZipHint: "Télécharger le .zip autonome pour Chrome",
+    githubAssetsHint: "Obtenir les fichiers de version sur GitHub",
+    promoVideoTitle: "Vidéo de présentation de NutEgg",
+    previousScreenshot: "Capture précédente",
+    nextScreenshot: "Capture suivante",
+    chromeLogo: "Logo Chrome",
+    obsidianLogo: "Logo Obsidian",
+    nuteggIcon: "Icône NutEgg",
+    websiteTitle: "NutEgg — Assistant de lecture IA pour Chrome · Lisez moins, gagnez du temps",
+
     navTour: 'Visite du produit',
     navMetaphor: 'La métaphore',
     navHowItWorks: 'Comment ça marche',
@@ -1030,6 +1107,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Guide de configuration Obsidian',
   },
   de: {
+    languageLabel: "Sprache",
+    downloadChromeZipHint: "Eigenständige .zip für Chrome herunterladen",
+    githubAssetsHint: "Versionsdateien von GitHub herunterladen",
+    promoVideoTitle: "NutEgg-Produktvideo",
+    previousScreenshot: "Vorheriger Screenshot",
+    nextScreenshot: "Nächster Screenshot",
+    chromeLogo: "Chrome-Logo",
+    obsidianLogo: "Obsidian-Logo",
+    nuteggIcon: "NutEgg-Symbol",
+    websiteTitle: "NutEgg — AI-Lesehilfe für Chrome · Weniger lesen, Zeit sparen",
+
     navTour: 'Produkt-Tour',
     navMetaphor: 'Die Metapher',
     navHowItWorks: 'Funktionsweise',
@@ -1183,6 +1271,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Obsidian-Einrichtungsanleitung',
   },
   pt: {
+    languageLabel: "Idioma",
+    downloadChromeZipHint: "Baixar .zip independente para Chrome",
+    githubAssetsHint: "Obter arquivos da versão no GitHub",
+    promoVideoTitle: "Vídeo de apresentação do NutEgg",
+    previousScreenshot: "Captura anterior",
+    nextScreenshot: "Próxima captura",
+    chromeLogo: "Logotipo do Chrome",
+    obsidianLogo: "Logotipo do Obsidian",
+    nuteggIcon: "Ícone do NutEgg",
+    websiteTitle: "NutEgg — Assistente de leitura com IA para Chrome · Leia menos, economize tempo",
+
     navTour: 'Tour pelo produto',
     navMetaphor: 'A metáfora',
     navHowItWorks: 'Como funciona',
@@ -1334,6 +1433,17 @@ const websiteTranslations = {
     addonGuideBtn: '📖 Guia de configuração do Obsidian',
   },
   ru: {
+    languageLabel: "Язык",
+    downloadChromeZipHint: "Скачать отдельный .zip для Chrome",
+    githubAssetsHint: "Скачать файлы выпуска с GitHub",
+    promoVideoTitle: "Презентационный ролик NutEgg",
+    previousScreenshot: "Предыдущий снимок",
+    nextScreenshot: "Следующий снимок",
+    chromeLogo: "Логотип Chrome",
+    obsidianLogo: "Логотип Obsidian",
+    nuteggIcon: "Значок NutEgg",
+    websiteTitle: "NutEgg — ИИ-помощник для чтения в Chrome · Читайте меньше, экономьте время",
+
     navTour: 'Обзор продукта',
     navMetaphor: 'Концепция',
     navHowItWorks: 'Как это работает',
@@ -1528,7 +1638,8 @@ function setWebLanguage(lang) {
 
 function tWeb(key) {
   const dict = websiteTranslations[currentWebLang] || websiteTranslations.en;
-  return dict[key] || websiteTranslations.en[key] || key;
+  const docs = typeof docsTranslations !== 'undefined' ? docsTranslations : {};
+  return dict[key] || docs[currentWebLang]?.[key] || websiteTranslations.en[key] || docs.en?.[key] || key;
 }
 
 function applyWebI18n() {
@@ -1550,6 +1661,12 @@ function applyWebI18n() {
       el.innerHTML = tWeb(key);
     }
   });
+
+  for (const attribute of ['title', 'aria-label', 'alt']) {
+    document.querySelectorAll(`[data-i18n-${attribute}]`).forEach(el => {
+      el.setAttribute(attribute, tWeb(el.getAttribute(`data-i18n-${attribute}`)));
+    });
+  }
 
   // Sync language dropdown selectors
   document.querySelectorAll('#lang-select, .nav-lang-select').forEach(sel => {

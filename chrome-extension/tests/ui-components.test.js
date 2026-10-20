@@ -1609,3 +1609,21 @@ describe("Modular UI Components", () => {
     assert.ok(html.includes('action-highlights'));
   });
 });
+
+it('developer diagnostics localize labels while preserving technical identifiers', () => {
+  const { initI18n, t } = require('../src/i18n.js');
+  const root = createMockRoot();
+  try {
+    initI18n('zh_CN');
+    new MetricsComponent(root).renderDebug({ unavailable: true }, true, {
+      settings: { connectionMode: 'chrome', serverOnline: false, chromeAiConfigured: false },
+      view: { extractedContent: { content: 'source', sourceType: 'custom_source_id' } },
+    });
+    const text = root.getElementById('debug-info').textContent;
+    assert.ok(text.includes(t('debugMode', { value: 'Chrome' })));
+    assert.ok(text.includes(t('debugChromeUnconfigured')));
+    assert.ok(text.includes('custom_source_id'));
+    assert.ok(!text.includes('Pipeline: idle'));
+    assert.ok(!text.includes('Settings:'));
+  } finally { initI18n('en'); }
+});
