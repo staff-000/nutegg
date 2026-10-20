@@ -15,11 +15,14 @@ function actions() {
 test('activation renders synchronously; A → B → C → A drops obsolete setup', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
   const f = actions(); seed(f.store, 3, { titleVerdict: 'C' });
+  // Only an uncaptured page needs history lookup on activation.
+  f.store.invalidateTab(1, 'https://tab1.test');
+  const epoch = f.store.activationEpoch;
   const lookups = []; const history = [];
   globalThis.chrome = { tabs: { get: id => { const d = deferred(); lookups.push({ id, ...d }); return d.promise; } } };
   f.operations.history = async id => history.push(id);
   const jobs = [1, 2, 3, 1].map(tabId => f.tab.handleTabActivated({ tabId }));
-  assert.equal(f.store.activeTabId, 1); assert.equal(f.store.activationEpoch, 5);
+  assert.equal(f.store.activeTabId, 1); assert.equal(f.store.activationEpoch, epoch + 4);
   for (const d of lookups) d.resolve({ id: d.id, url: `https://tab${d.id}.test`, status: 'complete' });
   await Promise.all(jobs);
   assert.deepEqual(history, [1]);
@@ -35,11 +38,15 @@ test('URL changes and reloads invalidate background jobs immediately', () => {
 test('slow history lookup cannot replace analysis completed during activation', async t => {
   const old = globalThis.chrome; t.after(() => { globalThis.chrome = old; });
   const f = actions(); const status = deferred(), saved = deferred();
+  f.store.invalidateTab(1, 'https://tab1.test');
   globalThis.chrome = { tabs: { get: async id => ({ id, url: `https://tab${id}.test`, status: 'complete' }) } };
   f.deps.envService.checkServerStatus = () => status.promise;
   let histories = 0; f.service.loadHistory = async () => { histories++; return saved.promise; };
   const setup = f.tab.handleTabActivated({ tabId: 1 });
   await new Promise(resolve => setImmediate(resolve));
+  assert.equal(histories, 1, 'the uncaptured page starts a pending history lookup');
+  // A manual capture supplies fresh content before the old history arrives.
+  await f.operations.extract(1);
   const job = f.analyze.handleAnalyze(); f.calls[0].resolve({ titleVerdict: 'New analysis' }); await job;
   saved.resolve([{ result: { titleVerdict: 'Old history' } }]); status.resolve(); await setup;
   assert.equal(histories, 1); assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'New analysis');

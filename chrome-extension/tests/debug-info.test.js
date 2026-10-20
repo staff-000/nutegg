@@ -6,6 +6,7 @@ const { deferred, fixture } = require('./helpers/popup-fixture');
 const { createMockRoot } = require('./helpers/mock-dom');
 const { MetricsComponent } = require('../src/popup/ui/metrics');
 const { SettingsState } = require('../src/popup/state/settings-state');
+const { t } = require('../src/i18n');
 
 test('AI diagnostics count overlapping requests and prompt words, and release failed calls', async () => {
   const before = core.getAIDebugInfo(), a = deferred(), b = deferred();
@@ -120,7 +121,10 @@ test('debug info displays settings and status when enabled', () => {
   assert.match(panel.textContent, /Chrome.*5 calls total/);
   assert.match(panel.textContent, /Connection.*Mode: Chrome.*Obsidian: Offline.*Chrome AI: Ready \(google \/ gemini-2\.5-flash\)/);
   assert.match(panel.textContent, /Settings.*Backend: Chrome \(google \/ gemini-2\.5-flash\).*Analysis: full.*Dialogue enhance: ON/);
-  assert.match(panel.textContent, /Status.*Pipeline: complete \(stage1\).*35,000 chars \(2 chunks\).*Video.*Format: interview.*Eggs: 2 matched/);
+  assert.match(panel.textContent, /Status.*Pipeline: complete \(stage1\)/);
+  assert.ok(panel.textContent.includes(t('debugContent', { chars: '35,000', chunks: 2, type: t('debugVideo') })));
+  assert.ok(panel.textContent.includes(t('debugFormat', { value: t('conversationFormat_interview') })));
+  assert.ok(panel.textContent.includes(t('debugEggs', { count: 2, names: 'tech.md, ai.md' })));
 });
 
 test('debug info shows Dialogue enhance OFF when optimizeForConversation is false', () => {
@@ -146,7 +150,7 @@ test('debug info shows Obsidian connection status and AI readiness', () => {
   };
   ui.renderDebug({ mode: 'obsidian', activeCalls: 0, totalCalls: 4 }, true, { view, settings });
   assert.match(panel.textContent, /Connection.*Mode: Obsidian.*Obsidian: Connected \(v0\.3\.0\) \[AI ready\].*Chrome AI: Ready \(google \/ gemini-2\.5-flash\)/);
-  assert.match(panel.textContent, /Pipeline: complete \(stage2\) \[obsidian mode\]/);
+  assert.ok(panel.textContent.includes(t('debugPipeline', { state: t('debugComplete'), details: ' (stage2) [obsidian]' })));
 });
 
 test('debug polling is opt-in and rejects stale backend responses and disabled preference', async () => {
