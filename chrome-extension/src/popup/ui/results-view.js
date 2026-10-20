@@ -30,6 +30,83 @@ class ResultsViewComponent {
     this.coreSummarySection = root.getElementById('core-summary-section');
     this.coreSummaryEl = root.getElementById('core-summary');
     this.currentView = null;
+    this.sectionFailures = [];
+  }
+
+  clearSectionFailures() {
+    for (const { section, notice, wasHidden } of this.sectionFailures) {
+      notice.remove();
+      if (wasHidden) section.classList.add('hidden');
+    }
+    this.sectionFailures = [];
+  }
+
+  renderSectionFailures(view, settings) {
+    if (view.currentView !== 'results' || view.analysisCancelled || view.isAnalyzing || !this.root.createElement) return;
+    const result = view.analysisResult || {}, sections = view.enabledSections || {};
+    const isChrome = settings.isChromeMode(result);
+    const groups = new Map();
+    const add = (id, failures, enabled = true) => {
+      if (enabled && failures.length) groups.set(id, [...(groups.get(id) || []), ...failures]);
+    };
+    const failures = result.analysisFailures || [];
+    const byTask = task => failures.filter(failure => failure.section === task);
+    let summary = byTask('summary'), mindmap = byTask('mindmap'), knowledge = byTask('knowledge'), discussion = byTask('discussion');
+    let title = summary, questions = summary;
+    let egg = (result.eggResults || []).flatMap(value => value.analysisFailures || []);
+    // A rejected request may have no result metadata. Mark only its missing
+    // outputs; existing successful content remains available.
+    const failed = view.errors?.analysis;
+    if (failed) {
+      const fallback = [{ code: failed.code }];
+      if (Number(view.analysisRetry?.payload.stage) === 2) egg = [...egg, ...fallback];
+      else {
+        if (!result.titleVerdict) title = [...title, ...fallback];
+        if (!result.coreSummary?.length) summary = [...summary, ...fallback];
+        if (!result.customQuestionAnswers?.length) questions = [...questions, ...fallback];
+        if (!result.mindMap?.length) mindmap = [...mindmap, ...fallback];
+        if (!result.extractedEntries?.length) knowledge = [...knowledge, ...fallback];
+        if (!result.discussion) discussion = [...discussion, ...fallback];
+      }
+    }
+    add('title-verdict-section', title, sections.titleVerdict !== false);
+    add('core-summary-section', summary, sections.coreSummary !== false);
+    add('custom-questions-section', questions, !!(view.analysisRetry?.payload.questions?.length || view.customQuestions?.trim()));
+    add('mindmap-section', mindmap, sections.mindMap !== false);
+    add('discussion-section', discussion, sections.discussion === true);
+    add('chrome-knowledge-section', knowledge, isChrome && view.generateKnowledgeEntries === true);
+    add('egg-knowledge-section', egg, !isChrome);
+    add('verdict-section', egg, !isChrome);
+    for (const [id, failures] of groups) {
+      const section = this.root.getElementById(id);
+      if (!section) continue;
+      if (id === 'verdict-section' && !result.readAction) {
+        for (const field of ['verdict-icon', 'verdict-text', 'verdict-reason']) {
+          const element = this.root.getElementById(field);
+          if (element) element.textContent = '';
+        }
+      }
+      const notice = this.root.createElement('div');
+      notice.className = 'ai-section-failure';
+      notice.setAttribute('role', 'status');
+      const message = this.root.createElement('p');
+      const explanation = globalThis.NutEggHelpers.analysisFailureNotice({ analysisResult: { analysisFailures: failures } });
+      message.textContent = t('analysisSectionFailed', { reason: explanation.reason });
+      notice.appendChild(message);
+      const retry = this.root.createElement('button');
+      retry.type = 'button';
+      retry.textContent = t('retryAnalysis');
+      retry.title = t('analysisRetryHint');
+      retry.disabled = !!view.busy || !view.analysisRetry || view.analysisRetry.pageGeneration !== view.pageGeneration;
+      retry.dataset.analysisRetry = 'true';
+      retry.dataset.tabId = String(view.activeTabId);
+      retry.dataset.pageGeneration = String(view.pageGeneration);
+      notice.appendChild(retry);
+      const wasHidden = section.classList.contains('hidden');
+      section.classList.remove('hidden');
+      section.querySelector('.section-header')?.insertAdjacentElement('afterend', notice) || section.appendChild(notice);
+      this.sectionFailures.push({ section, notice, wasHidden });
+    }
   }
 
   showResults() {
@@ -92,7 +169,7 @@ class ResultsViewComponent {
 
   render(session, settings) {
     if (!session) return;
-    const result = session.analysisResult;
+    const result = session.analysisResult || {};
     if (session.currentView === 'results') {
       const switchedToResults = this.currentView !== 'results';
       this.showResults();

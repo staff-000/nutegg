@@ -97,6 +97,10 @@ describe("Chrome Extension i18n", () => {
       "atLeastOneSection",
       "errorHintNoApiKey",
       "errorHintAuthFailed",
+      "retryAnalysis", "analysisOpenSettings", "analysisFailedReason", "analysisPartialFailure",
+      "analysisRetryHint", "analysisCancelled", "aiFailureTimeout", "aiFailureAuth", "aiFailureConfig", "aiFailureUnknown",
+      "analysisSectionFailed",
+      "aiFailureRequest", "aiFailureInvalidResponse", "aiFailureCli", "aiFailureResponseSize", "analysisRecoverySaved",
     ];
 
     for (const lang of supported) {

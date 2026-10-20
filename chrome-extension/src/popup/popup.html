@@ -929,6 +929,14 @@
             <div id="warning-message"></div>
           </div>
 
+          <div id="analysis-failure-banner" class="error-banner hidden" role="status" aria-live="polite">
+            <div>
+              <div id="analysis-failure-message"></div>
+              <p id="analysis-retry-hint" class="error-hint"></p>
+              <button id="analysis-retry-btn" type="button" data-i18n="retryAnalysis" title="Retry using the saved capture" data-i18n-title="analysisRetryHint">Retry analysis</button>
+              <button id="analysis-settings-btn" type="button" class="hidden" data-i18n="analysisOpenSettings" title="Open settings" data-i18n-title="analysisOpenSettings">Open settings</button>
+            </div>
+          </div>
           <div id="error-banner" class="error-banner hidden">
             <span class="error-icon">❌</span>
             <div>

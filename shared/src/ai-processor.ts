@@ -441,6 +441,11 @@ export class AIProcessor {
    * Progressively renders and streams partial results as soon as available.
    */
   async analyzeContent(capture: CapturePayload, onProgress?: AnalysisProgressCallback): Promise<ContentAnalysis> {
+    const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
+    const failed = (section: string, error: any, part?: number) => {
+      if (this.host.signal?.aborted || error?.code === 'cancelled') throw new AIError('cancelled', 'AI job cancelled.');
+      failures.push({ section, code: typeof error?.code === 'string' ? error.code : 'unknown', ...(part ? { part } : {}) });
+    };
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const discussionEnabled = sections.discussion === true;
     const needsDiscussionContext =
@@ -487,7 +492,7 @@ export class AIProcessor {
 
     let knowledgePromise: Promise<ExtractedKnowledgeEntry[]> | null = null;
     if (capture.generateKnowledgeEntries) {
-      knowledgePromise = this.extractChromeKnowledge(bodyCapture)
+      knowledgePromise = this.extractChromeKnowledge(bodyCapture, (error, part) => failed('knowledge', error, part))
         .then(entries => {
           onProgress?.({
             type: 'partial',
@@ -497,6 +502,7 @@ export class AIProcessor {
           return entries;
         })
         .catch(err => {
+          failed('knowledge', err);
           console.warn('[NutEgg] Chrome knowledge extraction error:', err);
           return [];
         });
@@ -518,6 +524,7 @@ export class AIProcessor {
     if (chunks.length > 1) {
       const res = await this.analyzeBodySection(bodyCapture, sections);
       verdictSummaryRes = res;
+      failures.push(...(res.analysisFailures || []));
       mindMapRes = res.mindMap || [];
       conversationRes = res.conversation;
       if (res.titleVerdict || res.coreSummary?.length) {
@@ -583,12 +590,14 @@ export class AIProcessor {
         if (vSettled.status === 'fulfilled') {
           verdictSummaryRes = vSettled.value;
         } else {
+          failed('summary', vSettled.reason);
           console.warn('[NutEgg] Verdict & Summary call failed:', vSettled.reason);
         }
         if (mSettled.status === 'fulfilled') {
           mindMapRes = mSettled.value.mindMap || [];
           conversationRes = mSettled.value.conversation;
         } else {
+          failed('mindmap', mSettled.reason);
           console.warn('[NutEgg] Mind Map call failed:', mSettled.reason);
         }
       } else {
@@ -609,6 +618,7 @@ export class AIProcessor {
             },
           });
         } catch (err) {
+          failed('summary', err);
           console.warn('[NutEgg] Verdict & Summary call failed:', err);
         }
 
@@ -643,6 +653,7 @@ export class AIProcessor {
             data: { mindMap: mindMapRes, ...(conversationRes ? { conversation: conversationRes } : {}) },
           });
         } catch (err) {
+          failed('mindmap', err);
           console.warn('[NutEgg] Mind Map call failed:', err);
           if (!verdictSummaryRes) throw err;
         }
@@ -688,6 +699,7 @@ export class AIProcessor {
     }
 
     const result: ContentAnalysis = {
+      ...(failures.length ? { analysisFailures: failures } : {}),
       titleVerdict: verdictSummaryRes.titleVerdict || '',
       coreSummary: verdictSummaryRes.coreSummary || [],
       customQuestionAnswers: verdictSummaryRes.customQuestionAnswers || [],
@@ -836,38 +848,43 @@ export class AIProcessor {
 
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     if (chunks.length > 1) {
-      const partResults = await Promise.all(
-        chunks.map(chunk =>
-          this.callContentChunk(
-            {
-              ...capture,
-              content: chunk.content,
-              chapters: chunk.chapters,
-              questions: [],
-              enabledSections: effectiveSections,
-            },
-            partNote(chunk)
-          )
-        )
-      );
-      const summary = await this.aggregateContent(
-        {
-          ...capture,
-          enabledSections: effectiveSections,
-        },
-        partResults.map((r, i) => ({
-          part: i + 1,
-          startTime: chunks[i].startTime,
-          bullets: r.coreSummary,
-          mindMap: effectiveSections.mindMap ? r.mindMap : undefined,
-        }))
-      );
+      const settled = await Promise.allSettled(chunks.map(chunk => this.callContentChunk({
+        ...capture, content: chunk.content, chapters: chunk.chapters, questions: [], enabledSections: effectiveSections,
+      }, partNote(chunk))));
+      this.ensureActive();
+      const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
+      const failed = (error: any, part?: number) => {
+        if (error?.code === 'cancelled') throw error;
+        const code = typeof error?.code === 'string' ? error.code : 'unknown';
+        if (effectiveSections.titleVerdict || effectiveSections.coreSummary || capture.questions?.length)
+          failures.push({ section: 'summary', code, ...(part ? { part } : {}) });
+        if (effectiveSections.mindMap) failures.push({ section: 'mindmap', code, ...(part ? { part } : {}) });
+      };
+      const available: Array<{ part: number; result: ContentAnalysis }> = [];
+      settled.forEach((part, index) => {
+        if (part.status === 'fulfilled') available.push({ part: index + 1, result: part.value });
+        else failed(part.reason, index + 1);
+      });
+      if (!available.length) {
+        const rejected = settled.find(part => part.status === 'rejected') as PromiseRejectedResult;
+        throw rejected.reason;
+      }
+      if (!failures.length) {
+        try {
+          return await this.aggregateContent({ ...capture, enabledSections: effectiveSections }, available.map(({ part, result }) => ({
+            part, startTime: chunks[part - 1].startTime, bullets: result.coreSummary,
+            mindMap: effectiveSections.mindMap ? result.mindMap : undefined,
+          })));
+        } catch (error) { this.ensureActive(); failed(error); }
+      }
+      // Keep successful per-part output in source order. It is explicitly partial,
+      // not a fabricated whole-source summary. No extra request is made on failure.
       return {
-        titleVerdict: summary.titleVerdict,
-        coreSummary: summary.coreSummary,
-        customQuestionAnswers: summary.customQuestionAnswers,
-        mindMap: summary.mindMap,
-        ...(summary.conversation ? { conversation: summary.conversation } : {}),
+        titleVerdict: available[0].result.titleVerdict || '',
+        coreSummary: available.flatMap(part => part.result.coreSummary || []),
+        customQuestionAnswers: [],
+        mindMap: available.flatMap(part => part.result.mindMap || []),
+        analysisFailures: failures,
       };
     }
 
@@ -910,11 +927,16 @@ export class AIProcessor {
     const signals = this.eggStage1Signals(capture, contentAnalysis);
     const eggResults = await Promise.all(
       eggs.map(async egg => {
-        if (chunks.length === 1)
-          return (await this.analyzeAgainstEgg(capture, egg, '', signals)) || this.failedEgg(egg);
+        const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
+        const failed = (error: any, part?: number) => failures.push({ section: 'egg',
+          code: typeof error?.code === 'string' ? error.code : 'unknown', ...(part ? { part } : {}) });
+        if (chunks.length === 1) {
+          const result = (await this.analyzeAgainstEgg(capture, egg, '', signals, error => failed(error, 1))) || this.failedEgg(egg);
+          return { ...result, ...(failures.length ? { analysisFailures: failures } : {}) };
+        }
         const parts = await Promise.all(
-          chunks.map(chunk =>
-            this.analyzeAgainstEgg({ ...capture, content: chunk.content }, egg, partNote(chunk), signals)
+          chunks.map((chunk, index) =>
+            this.analyzeAgainstEgg({ ...capture, content: chunk.content }, egg, partNote(chunk), signals, error => failed(error, index + 1))
           )
         );
         const disabledByEgg =
@@ -948,6 +970,7 @@ export class AIProcessor {
             entryGenerationDisabledByEgg: disabledByEgg,
             language: parts.find(p => p?.language)?.language,
             extractedEntries: entries,
+            ...(failures.length ? { analysisFailures: failures } : {}),
             ...aggregate,
           };
         } catch (err) {
@@ -955,6 +978,7 @@ export class AIProcessor {
           console.warn(`[NutEgg] Aggregate failed for ${egg.fileName}`, err);
           return {
             ...this.failedEgg(egg),
+            analysisFailures: [...failures, { section: 'aggregation', code: (err as any)?.code || 'unknown' }],
             generateKnowledgeEntries: generateEntries,
             entryGenerationDisabledByEgg: disabledByEgg,
             extractedEntries: entries,
@@ -1062,6 +1086,7 @@ export class AIProcessor {
     const budget = Math.min(configuredMax, !sections.mindMap ? 4096 : configuredMax);
     const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, !sections.mindMap ? 'verdict-summary' : 'content-analysis');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.keys(parsed).length) throw new AIError('invalid_response', 'The AI response did not contain usable structured output.');
     const validFormats = new Set<ConversationFormat>(['monologue', 'interview', 'podcast', 'ama', 'panel', 'debate']);
     let summaryConversation: ConversationMeta | undefined;
     if (!sections.mindMap && optimizeConversation) {
@@ -1116,7 +1141,8 @@ export class AIProcessor {
     capture: CapturePayload,
     egg: EggContent,
     partNoteStr = '',
-    signals = ''
+    signals = '',
+    onFailure?: (error: unknown) => void
   ): Promise<EggAnalysis | null> {
     const generateEntries = capture.generateKnowledgeEntries !== false && egg.generateKnowledgeEntries !== false;
     const entryGenDesc = generateEntries
@@ -1137,6 +1163,7 @@ export class AIProcessor {
     try {
       const response = await this.callAI(prompt, this.host?.settings?.contentAnalysisMaxTokens || 16384);
       const parsed = this.parseJson(response, 'egg-analysis');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.keys(parsed).length) throw new AIError('invalid_response', 'The AI response did not contain usable structured output.');
       const effectiveGeneration = generateEntries && parsed.generateKnowledgeEntries !== false;
       const disabledByEgg =
         egg.generateKnowledgeEntries === false || (generateEntries && parsed.generateKnowledgeEntries === false);
@@ -1152,6 +1179,7 @@ export class AIProcessor {
       };
     } catch (err) {
       if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+      onFailure?.(err);
       console.warn(`[NutEgg] Egg analysis failed for ${egg.fileName}`, err);
       return null;
     }
@@ -1213,23 +1241,24 @@ export class AIProcessor {
   /**
    * Extract high-signal knowledge entries in Chrome-only mode using the default Chrome knowledge prompt.
    */
-  async extractChromeKnowledge(capture: CapturePayload): Promise<ExtractedKnowledgeEntry[]> {
+  async extractChromeKnowledge(capture: CapturePayload, onFailure?: (error: unknown, part?: number) => void): Promise<ExtractedKnowledgeEntry[]> {
     if (!(this.host.isConfigured?.() ?? isAIConfigured(this.host?.settings))) {
       return [];
     }
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     if (chunks.length === 1) {
-      return this.callChromeKnowledgeChunk(capture, '');
+      return this.callChromeKnowledgeChunk(capture, '', error => onFailure?.(error, 1));
     }
     const partResults = await Promise.all(
-      chunks.map(chunk =>
+      chunks.map((chunk, index) =>
         this.callChromeKnowledgeChunk(
           {
             ...capture,
             content: chunk.content,
             chapters: chunk.chapters,
           },
-          partNote(chunk)
+          partNote(chunk),
+          error => onFailure?.(error, index + 1)
         )
       )
     );
@@ -1238,7 +1267,8 @@ export class AIProcessor {
 
   private async callChromeKnowledgeChunk(
     capture: CapturePayload,
-    partNoteStr = ''
+    partNoteStr = '',
+    onFailure?: (error: unknown) => void
   ): Promise<ExtractedKnowledgeEntry[]> {
     const prompt = renderPrompt(this.getPrompt('chromeKnowledge'), {
       title: capture.title,
@@ -1253,9 +1283,11 @@ export class AIProcessor {
     try {
       const response = await this.callAI(prompt, configuredMax);
       const parsed = this.parseJson(response, 'chrome-knowledge');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.keys(parsed).length) throw new AIError('invalid_response', 'The AI response did not contain usable structured output.');
       return this.parseExtractedEntries(parsed.extractedEntries);
     } catch (err) {
       if (this.host.signal?.aborted) throw new AIError('cancelled', 'AI job cancelled.');
+      onFailure?.(err);
       console.warn('[NutEgg] Chrome knowledge extraction failed:', err);
       return [];
     }
@@ -1327,6 +1359,7 @@ export class AIProcessor {
     const budget = Math.max(defaultMax, this.host?.settings?.contentAnalysisMaxTokens || defaultMax);
     const response = await this.callAI(prompt, budget);
     const parsed = this.parseJson(response, 'aggregate-content');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.keys(parsed).length) throw new AIError('invalid_response', 'The AI response did not contain usable structured output.');
     const rawConversation =
       sections.mindMap && optimizeConversation
         ? sanitizeConversationMeta(parsed.conversation, capture.content || '')

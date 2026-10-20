@@ -346,15 +346,15 @@ describe("Modular UI Components", () => {
     assert.equal(header.serverStatus.className, 'status-dot online');
   });
 
-  it("Header shows confirmed analysis or question provider failures in red without leaking across tabs", () => {
+  it("Per-request provider failures do not turn connection health red", () => {
     const header = new HeaderComponent(createMockRoot());
     const settings = new SettingsState();
     settings.setChromeAiStatus({ configured: true });
     for (const kind of ['analysis', 'followup']) {
       for (const code of ['quota_exceeded', 'auth_failed', 'network_error', 'forbidden', 'model_not_found', 'rate_limited', 'server_error']) {
         header.render({ errors: { [kind]: { code, message: 'Provider failed' } } }, settings);
-        assert.equal(header.serverStatus.className, 'status-dot offline');
-        assert.equal(header.tooltipSub.textContent, 'Provider failed');
+        assert.equal(header.serverStatus.className, 'status-dot chrome-ai');
+        assert.notEqual(header.tooltipSub.textContent, 'Provider failed');
       }
     }
     header.render({ errors: { extraction: { code: 'network_error', message: 'Page failed' } } }, settings);

@@ -45,6 +45,11 @@ class BannersComponent {
     this.chromeResultBanner = getEl('chrome-result-banner');
     this.chromeActionsCard = getEl('chrome-actions-card');
     this.errorReportBug = getEl('error-report-bug');
+    this.analysisFailureBanner = getEl('analysis-failure-banner');
+    this.analysisFailureMessage = getEl('analysis-failure-message');
+    this.analysisRetryButton = getEl('analysis-retry-btn');
+    this.analysisSettingsButton = getEl('analysis-settings-btn');
+    this.analysisRetryHint = getEl('analysis-retry-hint');
     this.initEvents();
   }
 
@@ -99,6 +104,25 @@ class BannersComponent {
         this.errorHint.classList.add('hidden');
       }
     }
+  }
+
+  renderAnalysisFailure(view) {
+    const notice = globalThis.NutEggHelpers?.analysisFailureNotice(view);
+    this.analysisFailureBanner?.classList.toggle('hidden', !notice);
+    if (!notice) return;
+    this.analysisFailureBanner?.classList.toggle('analysis-neutral', !!notice.neutral);
+    this.analysisFailureBanner?.classList.toggle('warning-banner', !!notice.partial);
+    this.analysisFailureBanner?.classList.toggle('error-banner', !notice.partial && !notice.neutral);
+    if (this.analysisFailureMessage) this.analysisFailureMessage.textContent = notice.message;
+    if (this.analysisRetryButton) {
+      this.analysisRetryButton.textContent = t('retryAnalysis');
+      this.analysisRetryButton.disabled = view.busy || !notice.retryable;
+    }
+    this.analysisSettingsButton?.classList.toggle('hidden', !notice.settings);
+    if (this.analysisSettingsButton) this.analysisSettingsButton.textContent = t('analysisOpenSettings');
+    if (this.analysisRetryHint) this.analysisRetryHint.textContent = [t('analysisRetryHint'),
+      view.backgroundJob && !view.backgroundJob.discardRecovery && !view.backgroundJob.persistenceError
+        ? t('analysisRecoverySaved') : null].filter(Boolean).join('\n');
   }
 
   showWarning(msg) {
@@ -206,6 +230,7 @@ class BannersComponent {
         if (this.successBanner && successTarget) successTarget.appendChild(this.successBanner);
         if (this.warningBanner) target.appendChild(this.warningBanner);
         if (this.errorBanner) target.appendChild(this.errorBanner);
+        if (this.analysisFailureBanner) target.appendChild(this.analysisFailureBanner);
       }
     }
   }

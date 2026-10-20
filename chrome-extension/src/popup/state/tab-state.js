@@ -70,6 +70,8 @@ class TabStateManager {
       analysisResult: null,
       stage1Payload: null,
       stage1ContentAnalysis: null,
+      analysisRetry: null,
+      analysisCancelled: false,
       currentNutId: null,
       captureHistory: [],
       followUpQa: [],
@@ -334,6 +336,9 @@ class TabStateManager {
         const job = event.job, source = job.payload;
         const { payload, context, result: rawResult, signature, progress, ...metadata } = job;
         next.backgroundJob = { ...popupCopy(metadata), detached: true };
+        next.analysisCancelled = job.status === 'cancelled';
+        next.analysisRetry = { payload: popupCopy(source), inputs: popupCopy(job.context?.inputs || {}),
+          stage1Request: popupCopy(job.context?.stage1Request), pageGeneration: next.pageGeneration };
         next.backgroundRestoredRevision = job.revision;
         if (!['waiting', 'running'].includes(job.status)) next.backgroundAppliedJobId = job.id;
         next.backgroundRecoveryPending = false;
@@ -362,7 +367,10 @@ class TabStateManager {
             nutId: next.currentNutId, saved: job.saved || 'analyzed', capturedAt: new Date(job.updatedAt).toISOString(),
           }, ...next.captureHistory.filter(entry => entry.nutId !== next.currentNutId)];
         }
-        if (['failed', 'cancelled', 'interrupted'].includes(job.status)) {
+        if (job.status === 'cancelled') {
+          delete next.errors.analysis;
+          if (!event.result && job.stage === 2 && source.contentAnalysis) result(source.contentAnalysis, true);
+        } else if (['failed', 'interrupted'].includes(job.status)) {
           next.errors.analysis = { message: job.errorCode === 'job_interrupted' ? t('jobInterrupted') : job.error || t('jobInterrupted'), code: job.errorCode };
           if (!event.result && job.stage === 2 && source.contentAnalysis) result(source.contentAnalysis, true);
         }
@@ -385,12 +393,17 @@ class TabStateManager {
         next.success = null;
         if (kind === 'extraction') next.warning = null;
         if (kind === 'analysis') next.completion = null;
+        if (kind === 'analysis') next.analysisCancelled = false;
         break;
       case 'phase':
         next.operations[kind].phase = event.phase;
         break;
       case 'analysisQueueState':
         if (['waiting', 'running'].includes(event.state)) next.operations.analysis.queueState = event.state;
+        break;
+      case 'analysisRetryContext':
+        next.analysisRetry = { payload: popupCopy(event.payload), inputs: popupCopy(event.inputs),
+          stage1Request: popupCopy(event.stage1Request), pageGeneration: next.pageGeneration };
         break;
       case 'captureProgress':
         next.operations[kind].progress = popupCopy(event.progress);
@@ -475,6 +488,7 @@ class TabStateManager {
         };
         break;
       case 'cachedResult':
+        next.analysisCancelled = false;
         result(event.result);
         next.selectedEggs = popupCopy(event.eggs);
         delete next.errors.analysis;
@@ -599,9 +613,17 @@ class TabStateManager {
         break;
       case 'operationFailed':
         finish();
+        if (kind === 'analysis' && event.partialResult && !['cancelled', 'stale', 'execution_changed'].includes(event.code)) {
+          next.analysisResult = { ...(next.analysisResult || {}), ...popupCopy(event.partialResult) };
+          next.resultRevision++;
+          next.currentView = 'results';
+        }
         if (kind === 'analysis' && next.backgroundJob && !['waiting', 'running'].includes(next.backgroundJob.status))
           next.backgroundAppliedJobId = next.backgroundJob.id;
-        next.errors[kind] = { message: event.error, code: event.code || null };
+        if (kind === 'analysis' && ['cancelled', 'stale', 'execution_changed'].includes(event.code)) {
+          delete next.errors.analysis;
+          next.analysisCancelled = true;
+        } else next.errors[kind] = { message: event.error, code: event.code || null };
         if (kind === 'followup')
           next.followUpQa = next.followUpQa.map(q => (q.pending ? { ...q, pending: false, answer: event.error } : q));
         break;
@@ -683,6 +705,7 @@ class TabStateManager {
   }
   applyHistory(tab, entry) {
     if (!entry?.result) return;
+    tab.analysisCancelled = false;
     tab.analysisResult = popupCopy(entry.result);
     tab.resultRevision++;
     tab.selectionRevision++;

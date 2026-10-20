@@ -26,6 +26,9 @@ export type AIErrorCode =
   | 'quota_exceeded'
   | 'network_error'
   | 'server_error'
+  | 'invalid_response'
+  | 'cli_unavailable'
+  | 'response_too_large'
   | 'unknown';
 
 export class AIError extends Error {

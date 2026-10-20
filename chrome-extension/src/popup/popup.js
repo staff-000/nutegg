@@ -105,6 +105,15 @@ async function initPopup() {
   click(a.modeConfirmBtn, () => analyzeAction.setAnalysisMode('preview'));
   click(a.analyzeBtn, () => analyzeAction.handleAnalyze());
   click(a.reanalyzeBtn, () => analyzeAction.handleAnalyze(true, null, true));
+  click(document.getElementById('analysis-retry-btn'), () => operations.retryAnalysis(tabStateManager.activeTabId));
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-analysis-retry]');
+    if (!button || button.disabled) return;
+    const tabId = Number(button.dataset.tabId), generation = Number(button.dataset.pageGeneration);
+    if (tabId !== tabStateManager.activeTabId || tabStateManager.getTab(tabId)?.pageGeneration !== generation) return;
+    event.preventDefault();
+    void operations.retryAnalysis(tabId);
+  });
   click(c.refreshBtn, () => tabAction.refreshCaptureForCurrentTab());
   click(a.stage1ProceedBtn, event => a.handleEggAnalysisClick(event, mode => analyzeAction.handleEggAnalysis(mode)));
   click(a.eggAnalysisOnlyBtn, () => {
@@ -159,7 +168,7 @@ async function initPopup() {
     input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
   click(e.createEggBtn, () => saveAction.handleCreateEgg(false));
   click(e.eggsCreateBtn, () => saveAction.handleCreateEgg(true));
-  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn')])
+  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn'), document.getElementById('analysis-settings-btn')])
     click(button, () => {
       chrome.runtime.openOptionsPage();
     });

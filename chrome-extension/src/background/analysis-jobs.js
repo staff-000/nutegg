@@ -125,6 +125,9 @@ class AnalysisJobManager {
           throw Object.assign(new Error('Stage 1 is no longer available. Reopen its analysis.'), { code: 'stale' });
         const { debugScope, ...request } = payload;
         continuation = context.parentJobId + ':' + await this.digest({ request, configuration: this.configurationKey(configuration) });
+        // An explicit retry is a new attempt, even when a prior partial result
+        // completed with exactly the same inputs. Ordinary continuation stays deduplicated.
+        if (context.retryOfJobId) continuation += ':' + message.jobId;
         const existing = [...this.jobs.values()].find(job => job.continuation === continuation && !['cancelled', 'failed', 'interrupted'].includes(job.status));
         if (existing) return existing;
       }
@@ -197,6 +200,15 @@ class AnalysisJobManager {
       if (!['cancelled', 'interrupted'].includes(job.status)) {
         job.status = live.controller.signal.aborted || ['cancelled', 'stale', 'execution_changed'].includes(error.code) ? 'cancelled' : 'failed';
         job.errorCode = error.code || 'analysis_failed'; job.error = error.message;
+        if (job.status === 'failed' && await this.valid(job)) {
+          const partial = {};
+          const fields = { summary: ['titleVerdict', 'coreSummary', 'customQuestionAnswers', 'conversation'],
+            mindmap: ['mindMap', 'conversation'], knowledge: ['extractedEntries'], discussion: ['discussion'], matchedEggs: ['matchedEggs'] };
+          for (const event of live.partials.values()) for (const field of Object.hasOwn(fields, event.section) ? fields[event.section] : [])
+            if (event.data?.[field] !== undefined) partial[field] = analysisJobClean(event.data[field]);
+          if (Object.keys(partial).length) job.result = { ...partial, stage: job.stage === 2 ? 'stage2' : 'stage1',
+            mode: job.configuration.mode, analysisFailures: [{ section: 'analysis', code: job.errorCode }] };
+        }
       }
     } finally {
       job.revision++; job.updatedAt = this.now();

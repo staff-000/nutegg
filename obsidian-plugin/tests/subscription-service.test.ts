@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
 import { EventEmitter } from 'node:events';
-import { SubscriptionService } from '../src/subscription-service';
+import { SubscriptionService, subscriptionErrorCode } from '../src/subscription-service';
 import { ConnectionAccess, NUTEGG_CHROME_ORIGIN } from '../src/connection-access';
 import { NutEggServer } from '../src/server';
 import { makeFakePlugin } from './helpers';
@@ -13,6 +13,15 @@ import { makeFakePlugin } from './helpers';
 const origin = `chrome-extension://${'a'.repeat(32)}`;
 const nonce = 'b'.repeat(64);
 const flush = () => new Promise(resolve => setImmediate(resolve));
+test('CLI failures retain their actionable reason instead of all becoming server outages', () => {
+  assert.equal(subscriptionErrorCode({ status: 504 }), 'timeout');
+  assert.equal(subscriptionErrorCode({ status: 503 }), 'cli_unavailable');
+  assert.equal(subscriptionErrorCode({ status: 502, code: 'invalid_response' }), 'invalid_response');
+  assert.equal(subscriptionErrorCode({ status: 502, code: 'response_too_large' }), 'response_too_large');
+  assert.equal(subscriptionErrorCode({ status: 401 }), 'auth_failed');
+  assert.equal(subscriptionErrorCode({ status: 429 }), 'quota_exceeded');
+  assert.equal(subscriptionErrorCode({ status: 502 }), 'server_error');
+});
 
 test('connection status counts recent authenticated clients, expires activity, and never exposes credentials', t => {
   t.mock.timers.enable({ apis: ['Date'], now: 1000 });

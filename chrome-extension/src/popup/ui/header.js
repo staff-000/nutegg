@@ -54,22 +54,8 @@ class HeaderComponent {
       this.updateServerStatus('checking');
       return;
     }
-    const providerError = [session?.errors?.analysis, session?.errors?.followup].find(error =>
-      [
-        'auth_failed',
-        'forbidden',
-        'model_not_found',
-        'rate_limited',
-        'quota_exceeded',
-        'network_error',
-        'server_error',
-        'timeout',
-      ].includes(error?.code)
-    );
-    if (providerError) {
-      this.updateServerStatus('connection-error', null, providerError.message);
-      return;
-    }
+    // Request failures belong to the originating analysis, not vault health.
+    // Cached health remains authoritative even when a provider call fails.
     const obsidianMode = settings.connectionMode === 'obsidian';
     if (!settings.serverOnline && ['subscription', 'chatgpt'].includes(settings.chromeAiAuthMethod)) {
       this.updateServerStatus('connection-error', null, t('aiConnectionRecovery'));

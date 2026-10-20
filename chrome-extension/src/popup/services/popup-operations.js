@@ -170,6 +170,7 @@ class PopupOperations {
       error: ['job_storage_full', 'job_storage_failed', 'job_storage_unavailable'].includes(error?.code)
         ? t('jobStorageUnavailable') : error?.code === 'job_protocol_mismatch' ? t('jobUpdateRequired') : error?.message || String(error),
       code: error?.code,
+      partialResult: error?.partialResult,
     });
     return { error: error?.message || String(error) };
   }
@@ -298,7 +299,13 @@ class PopupOperations {
     this.catalogTask = task;
     return task;
   }
-  async sendAnalysis(ctx, payload, onProgress) {
+  async sendAnalysis(ctx, payload, onProgress, retryOfJobId) {
+    const previousRetry = this.store.getTab(ctx.token.tabId)?.analysisRetry;
+    const stage1Request = Number(payload.stage) === 2
+      ? Number(previousRetry?.payload.stage) === 1 ? { payload: previousRetry.payload, inputs: previousRetry.inputs }
+        : previousRetry?.stage1Request
+      : undefined;
+    this.store.commitOperation(ctx.token, { type: 'analysisRetryContext', payload, inputs: ctx.inputs, stage1Request });
     const controller = new AbortController();
     const check = () => {
       if (!this.store.isOperationCurrent(ctx.token)) controller.abort();
@@ -319,7 +326,7 @@ class PopupOperations {
           } else onProgress?.(event);
         },
         { signal: controller.signal, tabId: ctx.token.tabId, jobId,
-          context: { inputs: ctx.inputs, parentJobId: Number(payload.stage) === 2 && parentJob?.stage === 1
+          context: { inputs: ctx.inputs, retryOfJobId, stage1Request, parentJobId: Number(payload.stage) === 2 && parentJob?.stage === 1
             ? parentJob.id : Number(payload.stage) === 2 ? parentJob?.parentJobId : undefined },
           onJob: job => {
             acceptedId = job.id; this.originalJobs.add(job.id);
@@ -333,6 +340,75 @@ class PopupOperations {
       this.localAnalysisTabs.delete(ctx.token.tabId);
       unsubscribe();
     }
+  }
+  async retryAnalysis(tabId) {
+    const tab = this.store.getTab(tabId);
+    let retry = tab?.analysisRetry;
+    if (!retry || retry.pageGeneration !== tab.pageGeneration || this.store.isBusy(tabId)) return { busy: true };
+    // A later egg stage may have succeeded while Stage 1 was incomplete.
+    // Retry that original request instead of needlessly regenerating healthy eggs.
+    if (!tab.errors.analysis && tab.analysisResult?.analysisFailures?.length && retry.stage1Request &&
+      !(tab.analysisResult?.eggResults || []).some(egg => egg.analysisFailures?.length)) retry = retry.stage1Request;
+    const ctx = this.store.beginOperation(tabId, 'analysis', retry.inputs || {},
+      Number(retry.payload.stage) === 2 ? ['sourceVersion', 'stage1Version'] : ['sourceVersion']);
+    if (!ctx) return { busy: true };
+    try {
+      const payload = structuredClone(retry.payload);
+      if (Number(payload.stage) === 2) {
+        const result = tab.analysisResult || {};
+        const cached = new Map([...(payload.cachedEggResults || []), ...(result.eggAnalysisCache || []),
+          ...(result.eggResults || [])].map(egg => [egg.egg, egg]));
+        const selected = payload.selectedEggs || payload.eggs || [];
+        payload.eggs = selected.filter(egg => !cached.has(egg) || cached.get(egg).analysisFailures?.length ||
+          ['partial', 'failed'].includes(cached.get(egg).generation?.status));
+        payload.cachedEggResults = [...cached.values()];
+        if (!payload.eggs.length) payload.eggs = retry.payload.eggs;
+        this.store.commitOperation(ctx.token, { type: 'phase', phase: 'stage2' });
+      }
+      const response = await this.sendAnalysis(ctx, payload, partial =>
+        this.store.commitOperation(ctx.token, { type: 'analysisPartial', partial }), tab.backgroundJob?.id || 'manual');
+      if (!this.store.isOperationCurrent(ctx.token)) return { stale: true };
+      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode, partialResult: response.partialResult });
+      let result = { ...response, generateKnowledgeEntries: payload.generateKnowledgeEntries };
+      if (Number(payload.stage) === 2) {
+        const cache = new Map([...(payload.cachedEggResults || []), ...(response.eggAnalysisCache || []),
+          ...(response.eggResults || [])].map(egg => [egg.egg, egg]));
+        const eggs = payload.selectedEggs || payload.eggs;
+        result = { ...globalThis.NutEggAI.composeEggResults(payload.contentAnalysis,
+          eggs.map(egg => cache.get(egg)).filter(Boolean), [...cache.values()], payload.generateKnowledgeEntries !== false), stage: 'stage2',
+          mode: response.mode || payload.contentAnalysis?.mode, nutId: response.nutId || payload.nutId,
+          generateKnowledgeEntries: payload.generateKnowledgeEntries };
+        this.store.commitOperation(ctx.token, { type: 'analysisComplete', result, eggs });
+      } else {
+        result.stage = 'stage1';
+        const chromeMode = result.mode === 'chrome' || retry.inputs?.chromeMode;
+        if (!chromeMode)
+          for (const key of ['eggResults', 'shouldRead', 'shouldReadReason', 'newKnowledge']) delete result[key];
+        const cached = Number(tab.analysisRetry.payload.stage) === 2 ||
+          tab.stage1Payload?.content === payload.content && tab.stage1Payload?.url === payload.url
+          ? tab.analysisResult?.eggAnalysisCache || tab.analysisResult?.eggResults || [] : [];
+        const eggs = retry.inputs?.eggs || result.matchedEggs || payload.eggs || [];
+        if (!chromeMode && eggs.length &&
+          (['full', 'fast'].includes(retry.inputs?.analysisMode) || retry.inputs?.reanalyze)) {
+          this.store.commitOperation(ctx.token, { type: 'analysisInterim', result, payload, eggs });
+          this.store.commitOperation(ctx.token, { type: 'phase', phase: 'stage2' });
+          const byEgg = new Map(cached.map(egg => [egg.egg, egg]));
+          const pending = eggs.filter(egg => !byEgg.has(egg) || byEgg.get(egg).analysisFailures?.length);
+          if (pending.length) return await this.runEggs({ ...ctx,
+            tab: { ...ctx.tab, generateKnowledgeEntries: payload.generateKnowledgeEntries },
+            inputs: { ...ctx.inputs, pending } }, result, payload, eggs, cached);
+          result = { ...globalThis.NutEggAI.composeEggResults(result, eggs.map(egg => byEgg.get(egg)), cached,
+            payload.generateKnowledgeEntries !== false),
+            stage: 'stage2', mode: result.mode, nutId: result.nutId, generateKnowledgeEntries: payload.generateKnowledgeEntries };
+          this.store.commitOperation(ctx.token, { type: 'analysisComplete', result, eggs });
+          return { success: true, result };
+        }
+        if (!chromeMode && cached.length) result.eggAnalysisCache = cached;
+        this.store.commitOperation(ctx.token, { type: 'analysisComplete', result, stage1: true,
+          payload: { ...payload, nutId: result.nutId }, eggs: result.matchedEggs || payload.eggs || [] });
+      }
+      return { success: true, result };
+    } catch (error) { return this.fail(ctx, error); }
   }
   async analyze(tabId, options) {
     const ctx = this.store.beginOperation(tabId, 'analysis', options, ['sourceVersion']);
@@ -360,7 +436,7 @@ class PopupOperations {
         this.store.commitOperation(token, { type: 'analysisPartial', partial: event });
       });
       if (!this.store.isOperationCurrent(token)) return { stale: true };
-      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
+      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode, partialResult: response.partialResult });
       const stage1 = { ...response, generateKnowledgeEntries: tab.generateKnowledgeEntries };
       const chromeMode = response.mode === 'chrome' || inputs.chromeMode;
       const eggs = chromeMode ? [] : inputs.eggs || response.matchedEggs || [];
@@ -404,6 +480,7 @@ class PopupOperations {
     const pending = eggs.filter(egg => {
       if (!byEgg.has(egg)) return true;
       const cachedResult = byEgg.get(egg);
+      if (cachedResult.analysisFailures?.length) return true;
       if (tab.generateKnowledgeEntries && !cachedResult.entryGenerationDisabledByEgg) {
         const wasEggOnly = cachedResult.generateKnowledgeEntries === false || result.generateKnowledgeEntries === false;
         const hasKnowledge = Boolean(
@@ -485,7 +562,7 @@ class PopupOperations {
     };
     const response = await this.sendAnalysis(ctx, payload);
     if (!this.store.isOperationCurrent(token)) return { stale: true };
-    if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
+    if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode, partialResult: response.partialResult });
     const cache = new Map(cached.map(r => [r.egg, r]));
     for (const r of [...(response.eggResults || []), ...(response.eggAnalysisCache || [])]) cache.set(r.egg, r);
     const result = {
@@ -582,7 +659,7 @@ class PopupOperations {
           outputLanguage: ctx.inputs.outputLanguage,
         },
       });
-      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode });
+      if (response?.error) throw Object.assign(new Error(response.error), { code: response.errorCode, partialResult: response.partialResult });
       this.store.commitOperation(token, {
         type: 'questionAnswered',
         id: token.requestId,

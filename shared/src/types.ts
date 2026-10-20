@@ -232,6 +232,8 @@ export interface DiscussionAnalysis {
 
 /** Content-level analysis, independent of any egg. */
 export interface ContentAnalysis {
+  /** Failed AI tasks, not source-coverage or factual-verification status. No provider text. */
+  analysisFailures?: Array<{ section: string; code: string; part?: number }>;
   discussion?: DiscussionAnalysis;
   /** Direct answer to the question posed in the title / intro. */
   titleVerdict: string;
@@ -324,6 +326,7 @@ export interface ExtractedKnowledgeEntry {
 }
 
 export interface EggAnalysis {
+  analysisFailures?: ContentAnalysis['analysisFailures'];
   generateKnowledgeEntries?: boolean;
   entryGenerationDisabledByEgg?: boolean;
   egg: string;

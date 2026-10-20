@@ -46,6 +46,7 @@ export async function analyzeContentStandalone(
   const config = resolveConfig(settings);
   const language = payload.outputLanguage || settings.outputLanguage || 'same-as-content';
   const host: AIProcessorHost = {
+    signal,
     settings: {
       ...settings,
       outputLanguage: language,
@@ -72,6 +73,7 @@ export async function askFollowUpStandalone(
   const config = resolveConfig(settings);
   const language = payload.outputLanguage || settings.outputLanguage || 'same-as-content';
   const host: AIProcessorHost = {
+    signal,
     settings: {
       ...settings,
       outputLanguage: language,

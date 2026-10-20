@@ -443,7 +443,41 @@ function openGitHubBugReport(errorContext = '', context = {}) {
  * Unified Helper Object
  * Enables calling helper methods via `helper.<methodName>` instead of polluting global scope.
  */
+// Provider text can contain request bodies or credentials. Present only localized,
+// code-based reasons; unknown failures remain explicitly unexplained.
+function analysisFailureNotice(view) {
+  if (view.analysisCancelled) return { message: t('analysisCancelled'), neutral: true,
+    retryable: !!view.analysisRetry && view.analysisRetry.pageGeneration === view.pageGeneration };
+  const failure = view.errors?.analysis;
+  const failures = [...(view.analysisResult?.analysisFailures || []),
+    ...(view.analysisResult?.eggResults || []).flatMap(egg => egg.analysisFailures || [])];
+  for (const result of [view.analysisResult, ...(view.analysisResult?.eggResults || [])])
+    if (['partial', 'failed'].includes(result?.generation?.status) && !result.analysisFailures?.length)
+      failures.push({ code: 'unknown' });
+  if (!failure && !failures.length) return null;
+  const reasons = {
+    timeout: 'aiFailureTimeout', network_error: 'errorHintNetwork', rate_limited: 'errorHintRateLimited',
+    quota_exceeded: 'errorHintQuotaExceeded', auth_failed: 'aiFailureAuth', forbidden: 'errorHintForbidden',
+    no_api_key: 'aiFailureConfig', model_not_found: 'errorHintModelNotFound', server_error: 'aiFailureRequest',
+    invalid_response: 'aiFailureInvalidResponse', cli_unavailable: 'aiFailureCli', response_too_large: 'aiFailureResponseSize',
+    reauthorization_required: 'aiFailureAuth', permission_missing: 'aiFailureAuth',
+    job_interrupted: 'jobInterrupted', job_connection_lost: 'jobConnectionLost',
+    job_storage_full: 'jobStorageUnavailable', job_storage_failed: 'jobStorageUnavailable',
+    job_storage_unavailable: 'jobStorageUnavailable', job_protocol_mismatch: 'jobUpdateRequired',
+  };
+  const codes = failure ? [failure.code] : failures.map(item => item.code);
+  const reason = [...new Set(codes.map(code => t(reasons[code] || 'aiFailureUnknown')))].join(' ');
+  const partial = !!(view.analysisResult?.titleVerdict || view.analysisResult?.coreSummary?.length || view.analysisResult?.mindMap?.length ||
+    view.analysisResult?.extractedEntries?.length || view.analysisResult?.eggResults?.some(egg =>
+      !egg.analysisFailures?.length || egg.extractedEntries?.length || egg.keyQuestionAnswers?.length));
+  return { message: t(partial ? 'analysisPartialFailure' : 'analysisFailedReason', { reason }), reason, partial,
+    settings: codes.some(code => ['no_api_key', 'auth_failed', 'forbidden', 'model_not_found', 'quota_exceeded',
+      'reauthorization_required', 'permission_missing', 'cli_unavailable'].includes(code)),
+    retryable: !!view.analysisRetry && view.analysisRetry.pageGeneration === view.pageGeneration };
+}
+
 const NutEggHelpers = {
+  analysisFailureNotice,
   t,
   escapeHtml,
   slugify,

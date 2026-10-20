@@ -18,6 +18,7 @@ class PopupRenderer {
   render() {
     const view = this.store.viewModel();
     const { ui, settings, root } = this;
+    ui.resultsUI.clearSectionFailures?.();
     const obsidianMode = !settings.isChromeMode();
     root.body?.classList.toggle('chrome-reader', !obsidianMode);
     root.body?.classList.toggle('obsidian-reader', obsidianMode);
@@ -44,7 +45,8 @@ class PopupRenderer {
     ui.headerUI.render(view, settings);
     ui.bannersUI.hideAll();
     ui.bannersUI.render(view, settings);
-    if (view.error) ui.bannersUI.showError(view.error, view.errorCode);
+    ui.bannersUI.renderAnalysisFailure?.(view);
+    if (view.error && view.error !== view.errors?.analysis?.message) ui.bannersUI.showError(view.error, view.errorCode);
     const envIssues = this.store.environment?.issues?.filter(Boolean) || [];
     const warningParts = [];
     if (view.warning) warningParts.push(view.warning);
@@ -296,6 +298,7 @@ class PopupRenderer {
       }
     }
     if (obsidianMode) root.getElementById?.('chrome-knowledge-section')?.classList.add('hidden');
+    ui.resultsUI.renderSectionFailures?.(view, settings);
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
     const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;
     keyed(

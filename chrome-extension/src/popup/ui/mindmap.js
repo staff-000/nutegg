@@ -528,6 +528,7 @@ class MindmapComponent {
         this.mindmapTree.innerHTML = `<div class="mindmap-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🧠 ${text}</span></div>`;
       }
     } else {
+      if (this.mindmapTree) this.mindmapTree.innerHTML = '';
       this.hide();
     }
   }

@@ -13,7 +13,7 @@ class AnalysisService {
     const api = this.chromeApi;
     if (!api?.runtime?.connect) return Promise.reject(new Error('Chrome runtime.connect unavailable'));
     return new Promise((resolve, reject) => {
-      let port, settled = false, detailRequested = false;
+      let port, settled = false, detailRequested = false, terminalStatus;
       const finish = (error, result) => {
         if (settled) return;
         settled = true;
@@ -35,9 +35,12 @@ class AnalysisService {
           if (message?.type === 'partial') { onProgress?.(message); return; }
           if (message?.type === 'job') {
             onJob?.(message.job);
-            if (message.job.status === 'completed' && !detailRequested) {
-              detailRequested = true;
-              port.postMessage({ protocol: 2, action: 'detail', jobId, requestId: jobId });
+            if (['completed', 'failed', 'interrupted'].includes(message.job.status)) {
+              terminalStatus = message.job.status;
+              if (!detailRequested) {
+                detailRequested = true;
+                port.postMessage({ protocol: 2, action: 'detail', jobId, requestId: jobId });
+              }
             } else if (['failed', 'cancelled', 'interrupted'].includes(message.job.status))
               finish(null, { error: message.job.error || 'Analysis interrupted. Retry explicitly.', errorCode: message.job.errorCode || 'job_interrupted' });
             return;
@@ -45,7 +48,9 @@ class AnalysisService {
           if (message?.type === 'detail') {
             if (!message.job) return finish(new Error('Analysis result is no longer available'));
             onJob?.(message.job);
-            return finish(null, message.job.result);
+            return finish(null, (message.job.status || terminalStatus) === 'completed' ? message.job.result : {
+              error: message.job.error || 'Analysis interrupted. Retry explicitly.', errorCode: message.job.errorCode || 'job_interrupted',
+              partialResult: message.job.result });
           }
           finish(null, message?.type === 'complete' ? message.result : message);
         });

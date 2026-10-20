@@ -281,7 +281,10 @@ for (const status of ['failed', 'cancelled', 'interrupted']) {
     const tab = f.store.getTab(1);
     assert.deepEqual(tab.analysisResult.eggResults, [cached]);
     assert.deepEqual(tab.selectedEggs, ['a.md', 'b.md']);
-    assert.equal(tab.errors.analysis.message, 'Stopped');
+    if (status === 'cancelled') {
+      assert.equal(tab.errors.analysis, undefined);
+      assert.equal(tab.analysisCancelled, true);
+    } else assert.equal(tab.errors.analysis.message, 'Stopped');
     assert.equal(tab.completion, null, 'a usable partial result is not an unread success');
     const retry = f.operations.eggs(1, { eggs: ['a.md', 'b.md'] });
     assert.deepEqual(f.calls[0].payload.eggs, ['b.md']);
@@ -290,3 +293,68 @@ for (const status of ['failed', 'cancelled', 'interrupted']) {
     assert.deepEqual(f.store.getTab(1).analysisResult.eggResults.map(r => r.egg), ['a.md', 'b.md']);
   });
 }
+
+test('failed Stage 1 restores reason and original retry context without another fetch', async t => {
+  const f = setup(t, 'chrome'), p = f.panel(); await p.operations.initializeRecovery();
+  const pending = p.operations.analyze(1, { chromeMode: true, outputLanguage: 'ja', questions: ['Original'] });
+  await until(() => f.requests.length === 1);
+  const source = structuredClone(f.requests[0].payload);
+  p.close(); await pending;
+  f.gates[0].resolve({ error: 'Provider response', errorCode: 'rate_limited' });
+  await until(() => !f.manager.live.size);
+  const reopened = f.panel(); await reopened.operations.initializeRecovery(); await reopened.operations.restoreForTab(1);
+  assert.equal(reopened.store.getTab(1).errors.analysis.code, 'rate_limited');
+  assert.equal(reopened.store.getTab(1).analysisRetry.payload.outputLanguage, 'ja');
+  reopened.extractor.extractPage = () => { throw new Error('Should not fetch'); };
+  const retry = reopened.operations.retryAnalysis(1);
+  assert.equal((await reopened.operations.retryAnalysis(1)).busy, true);
+  await until(() => f.requests.length === 2);
+  assert.deepEqual(f.requests[1].payload, source);
+  f.gates[1].resolve({ mode: 'chrome', coreSummary: ['Recovered'] }); await retry;
+  assert.equal(reopened.store.getTab(1).errors.analysis, undefined);
+  assert.equal(reopened.store.getTab(1).analysisResult.coreSummary[0], 'Recovered');
+});
+
+test('restored partial Stage 2 retries as a new job even when inputs repeat', async t => {
+  const f = setup(t), p = f.panel(); await p.operations.initializeRecovery();
+  const pending = p.operations.analyze(1, { analysisMode: 'full', eggs: ['a.md'] });
+  await until(() => f.requests.length === 1);
+  f.gates[0].resolve({ mode: 'obsidian', nutId: 12, coreSummary: ['Stage 1'], matchedEggs: ['a.md'] });
+  await until(() => f.requests.length === 2);
+  const failedEgg = { egg: 'a.md', extractedEntries: [], keyQuestionAnswers: [], analysisFailures: [{ section: 'egg', code: 'timeout' }] };
+  f.gates[1].resolve({ mode: 'obsidian', eggResults: [failedEgg] }); await pending;
+  p.close();
+  const reopened = f.panel(); await reopened.operations.initializeRecovery(); await reopened.operations.restoreForTab(1);
+  assert.ok(reopened.store.getTab(1).analysisResult.eggResults[0].analysisFailures);
+  for (let i = 2; i < 4; i++) {
+    const retry = reopened.operations.retryAnalysis(1);
+    await until(() => f.requests.length === i + 1);
+    assert.equal(f.requests[i].payload.stage, 2);
+    f.gates[i].resolve({ mode: 'obsidian', eggResults: [failedEgg] }); await retry;
+  }
+  assert.equal(f.requests.length, 4);
+  assert.equal([...f.manager.jobs.values()].filter(job => job.stage === 1).length, 1);
+});
+
+test('failed requests durably preserve source and already streamed output for reopening', async t => {
+  const f = setup(t, 'chrome'), p = f.panel(); await p.operations.initializeRecovery();
+  const pending = p.operations.analyze(1, { chromeMode: true });
+  await until(() => f.requests.length === 1);
+  f.gates[0].resolve({ error: 'AI request timed out', errorCode: 'timeout' }); await pending;
+  await until(() => !f.manager.live.size);
+  const job = [...f.manager.jobs.values()][0];
+  assert.equal(job.status, 'failed');
+  assert.equal(job.payload.content, 'Content 1');
+  assert.deepEqual(job.result.coreSummary, ['Working summary']);
+  assert.equal(p.store.getTab(1).errors.analysis.code, 'timeout');
+  assert.deepEqual(p.store.getTab(1).analysisResult.coreSummary, ['Working summary']);
+  assert.equal(p.store.getTab(1).completion, null);
+  p.close();
+  const reopened = f.panel(); await reopened.operations.initializeRecovery(); await reopened.operations.restoreForTab(1);
+  const tab = reopened.store.getTab(1);
+  assert.equal(tab.extractedContent.content, 'Content 1');
+  assert.deepEqual(tab.analysisResult.coreSummary, ['Working summary']);
+  assert.equal(tab.errors.analysis.code, 'timeout');
+  assert.equal(tab.completion, null);
+  assert.equal(f.requests.length, 1);
+});

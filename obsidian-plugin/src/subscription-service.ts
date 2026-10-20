@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, chmod, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { AIError } from '../../shared/src/client';
+import { AIError, type AIErrorCode } from '../../shared/src/client';
 import type { SubscriptionExecutor, SubscriptionProvider, SubscriptionStatus } from '../../shared/src/types';
 import {
   checkSubscriptionCli,
@@ -14,6 +14,16 @@ import {
 import { resolveAgyCommand, runGemini } from './subscription-gemini.mjs';
 
 const cli = { openai: 'codex', anthropic: 'claude', google: 'agy' };
+export function subscriptionErrorCode(error: { code?: string; status?: number }): AIErrorCode {
+  if (error.code === 'invalid_response' || error.code === 'response_too_large') return error.code;
+  if (error.status === 504) return 'timeout';
+  if (error.status === 503) return 'cli_unavailable';
+  if (error.status === 401) return 'auth_failed';
+  if (error.status === 403) return 'forbidden';
+  if (error.status === 429) return 'quota_exceeded';
+  if (error.status === 400) return 'model_not_found';
+  return 'server_error';
+}
 const docs: Record<SubscriptionProvider, string> = {
   openai: 'https://learn.chatgpt.com/docs/cli',
   anthropic: 'https://code.claude.com/docs/en/quickstart',
@@ -228,14 +238,7 @@ export class SubscriptionService implements SubscriptionExecutor {
       return result;
     } catch (error: any) {
       if (controller.signal.aborted) throw new AIError('cancelled', 'Subscription job cancelled.');
-      const code =
-        error.status === 401
-          ? 'auth_failed'
-          : error.status === 429
-            ? 'quota_exceeded'
-            : error.status === 400
-              ? 'model_not_found'
-              : 'server_error';
+      const code = subscriptionErrorCode(error);
       const message = error.status === 400 ? `${error.message} Choose another model.` : error.message;
       this.failures.set(provider, { message, errorCode: code });
       this.statusCache.delete(provider);

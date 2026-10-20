@@ -77,7 +77,7 @@ export async function runGemini(prompt, model, { command, signal, timeoutMs = 18
       child.stderr.setEncoding('utf8');
       child.stdout.on('data', (chunk) => {
         bytes += Buffer.byteLength(chunk);
-        if (bytes > MAX_OUTPUT) stop(new BridgeError(502, 'Antigravity CLI response exceeded the size limit.'));
+        if (bytes > MAX_OUTPUT) stop(new BridgeError(502, 'Antigravity CLI response exceeded the size limit.', 'response_too_large'));
         else output += chunk;
       });
       child.stderr.on('data', (chunk) => { errors = (errors + chunk).slice(-8192); });
@@ -102,10 +102,10 @@ export async function runGemini(prompt, model, { command, signal, timeoutMs = 18
       data = events.findLast(event => event.event === 'result')?.result;
       if (!data) throw new Error('Missing result');
     }
-    catch { throw new BridgeError(502, 'Antigravity CLI returned invalid JSON. Update the CLI and retry.'); }
+    catch { throw new BridgeError(502, 'Antigravity CLI returned invalid JSON. Update the CLI and retry.', 'invalid_response'); }
     if (data.error || data.status !== 'SUCCESS') throw cliFailure(JSON.stringify(data.error || data.status));
     if (typeof data.response !== 'string' || !data.response.trim()) {
-      throw new BridgeError(502, 'Antigravity CLI returned an empty response. Retry or select another CLI model.');
+      throw new BridgeError(502, 'Antigravity CLI returned an empty response. Retry or select another CLI model.', 'invalid_response');
     }
     return data.response;
   } finally {
