@@ -280,3 +280,21 @@ test('save receipts validate record identity, survive continuation and cannot do
     payload: { stage: 1, title: 'fresh', url: f.tabs.get(1).url, content: 'Changed source', nutId: 9 } });
   assert.equal(fresh.saved, undefined, 'reanalysis must not inherit an earlier Hatch');
 });
+
+test('discarded empty recovery snapshots cannot return after reopening; active and newer jobs survive', async t => {
+  const f = fixture(t);
+  const job = await f.submit(1);
+  await until(() => f.gates.has('1'));
+  await f.manager.discardSnapshot(job.id, job.revision, job.payload.url);
+  assert.ok(f.manager.jobs.has(job.id), 'never discard active work');
+  f.gates.get('1').resolve({ analysisFailures: [{ code: 'timeout' }] });
+  await until(() => !f.manager.live.size);
+  const revision = job.revision;
+  await f.manager.discardSnapshot(job.id, revision - 1, job.payload.url);
+  await f.manager.discardSnapshot(job.id, revision, 'https://example.org/another');
+  assert.ok(f.manager.jobs.has(job.id), 'revision and identity protect other results');
+  await f.manager.discardSnapshot(job.id, revision, job.payload.url);
+  assert.equal(f.manager.jobs.has(job.id), false);
+  assert.equal(f.store.records.some(record => record.id === job.id), false);
+  assert.equal((await f.manager.snapshot(1)).jobs.length, 0);
+});

@@ -248,7 +248,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
   assert.equal(root.getElementById('analyze-btn').classList.contains('inactive'), false);
   const store = context.module.exports.tabStateManager;
   store.dispatch({ type: 'historySelected', tabId: 1, entry: { nutId: 1, url: 'https://one.test', content: 'Captured content',
-    result: { stage: 'stage1', mode: 'obsidian', matchedEggs: ['a.md'] } } });
+    result: { stage: 'stage1', mode: 'obsidian', coreSummary: ['Stage 1 summary'], matchedEggs: ['a.md'] } } });
   const button = root.getElementById('stage1-proceed-btn');
   assert.equal(button.disabled, false);
   button.click();

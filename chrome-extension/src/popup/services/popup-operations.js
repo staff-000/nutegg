@@ -18,6 +18,17 @@ class PopupOperations {
     this.recoveryReady = service.watchJobs && chromeApi.tabs?.query
       ? new Promise(resolve => { this.finishRecovery = resolve; }) : Promise.resolve();
   }
+  async discardEmptyAnalysis(tab) {
+    const job = tab.backgroundJob;
+    if (this.recoveryJobs.get(tab.tabId)?.id === job?.id) this.recoveryJobs.delete(tab.tabId);
+    // Delete only the exact snapshot we rejected. A concurrent successful save
+    // or a later revision of a recovery job must survive this cleanup.
+    try {
+      await this.service.sendMessage({ action: 'discard-empty-analysis', url: tab.url,
+        result: tab.analysisResult, nutId: tab.currentNutId,
+        jobId: job?.id, revision: job?.revision });
+    } catch { /* Fresh capture remains available when local cleanup fails. */ }
+  }
   async initializeRecovery() {
     if (!this.service.watchJobs || !this.chromeApi.tabs?.query) return;
     try {
@@ -344,7 +355,7 @@ class PopupOperations {
   async retryAnalysis(tabId) {
     const tab = this.store.getTab(tabId);
     let retry = tab?.analysisRetry;
-    if (!retry || retry.pageGeneration !== tab.pageGeneration || this.store.isBusy(tabId)) return { busy: true };
+    if (!retry || retry.pageGeneration !== tab.pageGeneration || this.store.isBusy(tabId) || tab.operations.extraction?.running) return { busy: true };
     // A later egg stage may have succeeded while Stage 1 was incomplete.
     // Retry that original request instead of needlessly regenerating healthy eggs.
     if (!tab.errors.analysis && tab.analysisResult?.analysisFailures?.length && retry.stage1Request &&

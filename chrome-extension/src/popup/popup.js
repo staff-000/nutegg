@@ -50,6 +50,10 @@ async function initPopup() {
   tabStateManager.dispatch({ type: 'visibility', visible: document.visibilityState === 'visible' });
   tabStateManager.subscribe(event => renderer.handle(event));
   tabStateManager.subscribe(event => {
+    if (['analysisComplete', 'operationFailed', 'backgroundJobRestored', 'historyLoaded', 'historySelected', 'cachedResult'].includes(event.type))
+      void tabAction.refreshEmptyAnalysis(event.tabId);
+  });
+  tabStateManager.subscribe(event => {
     if ((event.type === 'receipt' && event.receipt.success) || event.type === 'analysisComplete') {
       void envService.fetchMetrics();
       void envService.checkServerStatus(true);

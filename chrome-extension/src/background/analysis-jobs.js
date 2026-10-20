@@ -287,6 +287,18 @@ class AnalysisJobManager {
       }
     });
   }
+  async discardSnapshot(id, revision, url) {
+    await this.init();
+    return this.exclusive(async () => {
+      const job = this.jobs.get(id);
+      if (!job || analysisJobActive(job) || job.revision !== revision ||
+        this.sourceKey(job.payload.url) !== this.sourceKey(url)) return;
+      await this.store.removeWhere(record => record.id === id && record.revision === revision);
+      if (job.revision !== revision) return;
+      job.discardRecovery = true;
+      this.jobs.delete(id);
+    });
+  }
   async clearChrome() {
     await this.init(); this.cacheEpoch++;
     for (const job of this.jobs.values()) if (job.configuration.mode === 'chrome') {

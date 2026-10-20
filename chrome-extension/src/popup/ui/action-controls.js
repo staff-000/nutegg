@@ -431,7 +431,7 @@ class ActionControlsComponent {
   }
 
   render(view, settings) {
-    const result = view.analysisResult;
+    const result = view.hasAnalysisContent === false ? null : view.analysisResult;
     const chromeMode = settings.connectionMode !== 'obsidian' || settings.isChromeMode(result);
     const stage1 = view.isStage1?.() || false;
     const busy = !!view.busy;

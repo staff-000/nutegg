@@ -589,6 +589,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'discard-empty-analysis') {
+    Promise.all([
+      discardChromeCacheSnapshot(message),
+      message.jobId ? analysisJobs().discardSnapshot(message.jobId, message.revision, message.url) : undefined,
+    ]).then(() => sendResponse({ success: true }))
+      .catch(err => sendResponse({ error: err.message }));
+    return true;
+  }
+
   if (message.action === 'set-chrome-cache-limit') {
     setChromeCacheLimit(message.limit)
       .then(info => sendResponse({ success: true, ...info }))
@@ -1235,6 +1244,17 @@ async function saveChromeCacheEntry(payload, result, generation = chromeCacheGen
   } catch (err) {
     console.warn?.('[NutEgg] Failed to save Chrome cache entry:', err);
   }
+}
+
+function discardChromeCacheSnapshot({ url, nutId, result }) {
+  if (!url || !result) return Promise.resolve();
+  return withChromeCacheLock(async () => {
+    const stored = await chrome.storage.local.get(['chromeTabCache']);
+    const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
+    const kept = cache.filter(entry => !(matchesCacheEntry(entry, url) && entry.nutId === nutId &&
+      JSON.stringify(entry.result) === JSON.stringify(result)));
+    if (kept.length !== cache.length) await chrome.storage.local.set({ chromeTabCache: kept });
+  });
 }
 
 function clearChromeCache() {

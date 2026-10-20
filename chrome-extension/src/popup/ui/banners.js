@@ -107,7 +107,9 @@ class BannersComponent {
   }
 
   renderAnalysisFailure(view) {
-    const notice = globalThis.NutEggHelpers?.analysisFailureNotice(view);
+    // Cached/recovered failures are not failures of a freshly opened page.
+    const show = view.currentView !== 'capture' || view.analysisStartedHere === true;
+    const notice = show ? globalThis.NutEggHelpers?.analysisFailureNotice(view) : null;
     this.analysisFailureBanner?.classList.toggle('hidden', !notice);
     if (!notice) return;
     this.analysisFailureBanner?.classList.toggle('analysis-neutral', !!notice.neutral);
@@ -116,7 +118,7 @@ class BannersComponent {
     if (this.analysisFailureMessage) this.analysisFailureMessage.textContent = notice.message;
     if (this.analysisRetryButton) {
       this.analysisRetryButton.textContent = t('retryAnalysis');
-      this.analysisRetryButton.disabled = view.busy || !notice.retryable;
+      this.analysisRetryButton.disabled = view.busy || view.extractionPending || !notice.retryable;
     }
     this.analysisSettingsButton?.classList.toggle('hidden', !notice.settings);
     if (this.analysisSettingsButton) this.analysisSettingsButton.textContent = t('analysisOpenSettings');

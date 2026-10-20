@@ -97,7 +97,7 @@ class ResultsViewComponent {
       retry.type = 'button';
       retry.textContent = t('retryAnalysis');
       retry.title = t('analysisRetryHint');
-      retry.disabled = !!view.busy || !view.analysisRetry || view.analysisRetry.pageGeneration !== view.pageGeneration;
+      retry.disabled = !!view.busy || !!view.extractionPending || !view.analysisRetry || view.analysisRetry.pageGeneration !== view.pageGeneration;
       retry.dataset.analysisRetry = 'true';
       retry.dataset.tabId = String(view.activeTabId);
       retry.dataset.pageGeneration = String(view.pageGeneration);

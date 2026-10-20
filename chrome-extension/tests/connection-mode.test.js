@@ -799,3 +799,19 @@ for (const navigation of ['away/back', 'hash route away/back', 'reload', 'closed
     assert.equal(next.ai.filter(call => call.action === 'analyze').length, 0);
   });
 }
+
+test('discarding an empty cache snapshot preserves other pages and newer successful saves', async () => {
+  const app = worker({ chromeCacheTabLimit: 10 }); await cacheTick();
+  const payload = cachePayload('empty');
+  const failure = { mode: 'chrome', analysisFailures: [{ code: 'timeout', section: 'summary' }] };
+  await app.context.saveChromeCacheEntry(payload, failure);
+  await app.context.saveChromeCacheEntry(cachePayload('partial'), cacheResult('partial'));
+  const rejected = structuredClone(app.stored.chromeTabCache.find(entry => entry.url === payload.url));
+  await app.context.discardChromeCacheSnapshot({ url: payload.url, nutId: rejected.nutId, result: rejected.result });
+  assert.equal(app.stored.chromeTabCache.length, 1);
+  assert.equal(app.stored.chromeTabCache[0].title, 'partial');
+  await app.context.saveChromeCacheEntry(payload, { ...cacheResult('empty'), nutId: rejected.nutId });
+  await app.context.discardChromeCacheSnapshot({ url: payload.url, nutId: rejected.nutId, result: rejected.result });
+  assert.equal(app.stored.chromeTabCache.length, 2, 'late cleanup cannot erase a replacement result, even with the same ID');
+  assert.deepEqual(app.stored.chromeTabCache.find(entry => entry.url === payload.url).result.coreSummary, ['summary-empty']);
+});

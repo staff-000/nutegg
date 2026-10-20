@@ -16,6 +16,29 @@ function popupFreeze(value) {
   }
   return value;
 }
+// Identifiers, matched eggs, execution metadata and failure notices alone do
+// not make an analysis view useful. Any substantive partial output does.
+function popupHasAnalysisContent(result, tab) {
+  if (!result || typeof result !== 'object') return false;
+  const text = value => typeof value === 'string' && !!value.trim() && value.trim() !== 'Could not generate a verdict.';
+  const reason = value => text(value) && !/(?:Egg analysis unavailable or failed|AI analysis unavailable|Some parts failed to process; coverage is incomplete|Whole-content aggregation failed; showing available per-part answers)[.!]?$/i.test(value.trim());
+  const entries = values => Array.isArray(values) && values.some(value => text(value?.content));
+  const answers = values => Array.isArray(values) && values.some(value => text(value?.answer));
+  const map = values => Array.isArray(values) && values.some(value => text(value?.name) || map(value?.children));
+  const eggs = Array.isArray(result.eggResults) ? result.eggResults : [];
+  const sections = tab?.enabledSections || {};
+  const chrome = result.mode ? result.mode === 'chrome' : tab?.analysisRetry?.inputs?.chromeMode === true;
+  const failed = result.analysisFailures?.length || eggs.some(egg => egg?.analysisFailures?.length);
+  return !!((sections.titleVerdict !== false && text(result.titleVerdict)) ||
+    (sections.coreSummary !== false && (text(result.coreSummary) || Array.isArray(result.coreSummary) && result.coreSummary.some(text))) ||
+    (sections.mindMap !== false && map(result.mindMap)) ||
+    entries(result.extractedEntries) || entries(result.newKnowledge) || answers(result.customQuestionAnswers) ||
+    (sections.discussion === true && Array.isArray(result.discussion?.topics) && result.discussion.topics.some(topic => text(topic?.title) || text(topic?.summary))) ||
+    (!chrome && (['full', 'highlights', 'summary', 'skip'].includes(result.readAction) || typeof result.shouldRead === 'boolean' ||
+    (!failed && reason(result.shouldReadReason)))) || eggs.some(egg => entries(egg?.extractedEntries) || answers(egg?.keyQuestionAnswers) ||
+      (!chrome && (['full', 'highlights', 'summary', 'skip'].includes(egg?.readAction) || typeof egg?.readVerdict === 'boolean' ||
+      (!egg?.analysisFailures?.length && reason(egg?.readVerdictReason))))));
+}
 class TabStateManager {
   #tabs = new Map();
   #listeners = new Set();
@@ -72,6 +95,8 @@ class TabStateManager {
       stage1ContentAnalysis: null,
       analysisRetry: null,
       analysisCancelled: false,
+      analysisStartedHere: false,
+      emptyAnalysisRefreshRevision: null,
       currentNutId: null,
       captureHistory: [],
       followUpQa: [],
@@ -169,6 +194,10 @@ class TabStateManager {
   }
   isBusy(tabId) {
     return ['analysis', 'saving', 'followup', 'creation'].some(k => this.getTab(tabId)?.operations[k]?.running);
+  }
+  hasAnalysisContent(tabId = this.activeTabId) {
+    const tab = this.getTab(tabId);
+    return popupHasAnalysisContent(tab?.analysisResult, tab);
   }
   beginOperation(tabId, kind, inputs = {}, dependencies = []) {
     if (!POPUP_OPERATION_KINDS.includes(kind)) throw new Error(`Invalid popup operation: ${kind}`);
@@ -295,7 +324,7 @@ class TabStateManager {
       next.resultRevision++;
       next.selectionRevision++;
       if (next.currentView !== 'results') next.presentation.scroll = 0;
-      next.currentView = 'results';
+      next.currentView = popupHasAnalysisContent(value, next) ? 'results' : 'capture';
       next.followUpQa = [];
       next.eggHatched = false;
       next.nutCollected = false;
@@ -394,6 +423,9 @@ class TabStateManager {
         if (kind === 'extraction') next.warning = null;
         if (kind === 'analysis') next.completion = null;
         if (kind === 'analysis') next.analysisCancelled = false;
+        if (kind === 'analysis') next.emptyAnalysisRefreshRevision = null;
+        // An old empty failure must not become this request's partial result.
+        if (kind === 'analysis' && !popupHasAnalysisContent(next.analysisResult, next)) next.analysisResult = null;
         break;
       case 'phase':
         next.operations[kind].phase = event.phase;
@@ -402,8 +434,30 @@ class TabStateManager {
         if (['waiting', 'running'].includes(event.state)) next.operations.analysis.queueState = event.state;
         break;
       case 'analysisRetryContext':
+        next.analysisStartedHere = true;
         next.analysisRetry = { payload: popupCopy(event.payload), inputs: popupCopy(event.inputs),
           stage1Request: popupCopy(event.stage1Request), pageGeneration: next.pageGeneration };
+        break;
+      case 'emptyAnalysisCaptureRequested':
+        if (event.pageGeneration !== next.pageGeneration || event.resultRevision !== next.resultRevision ||
+          popupHasAnalysisContent(next.analysisResult, next)) return;
+        next.emptyAnalysisRefreshRevision = next.resultRevision;
+        next.currentView = 'capture';
+        if (event.discard) {
+          next.captureHistory = next.captureHistory.filter(entry => popupHasAnalysisContent(entry.result, next));
+          next.analysisResult = null;
+          next.stage1ContentAnalysis = null;
+          next.stage1Payload = null;
+          next.analysisRetry = null;
+          next.currentNutId = null;
+          next.completion = null;
+          next.nutCollected = false;
+          next.eggHatched = false;
+          next.backgroundDismissedJobId = next.backgroundJob?.id;
+          next.backgroundJob = null;
+          next.backgroundRecoveryPending = false;
+          delete next.errors.analysis;
+        }
         break;
       case 'captureProgress':
         next.operations[kind].progress = popupCopy(event.progress);
@@ -449,6 +503,7 @@ class TabStateManager {
           };
         }
         next.analysisResult = updated;
+        next.currentView = popupHasAnalysisContent(updated, next) ? 'results' : 'capture';
         next.resultRevision++;
         break;
       }
@@ -647,13 +702,13 @@ class TabStateManager {
         }
         break;
       case 'view':
-        if (event.view === 'results' && !next.analysisResult) return;
+        if (event.view === 'results' && !popupHasAnalysisContent(next.analysisResult, next)) return;
         if (!['capture', 'results'].includes(event.view)) throw new Error('Invalid view');
         if (event.view === 'results' && next.currentView !== 'results') next.presentation.scroll = 0;
         next.currentView = event.view;
         break;
       case 'activitySelected': {
-        const targetView = next.analysisResult ? 'results' : 'capture';
+        const targetView = popupHasAnalysisContent(next.analysisResult, next) ? 'results' : 'capture';
         if (targetView === 'results' && next.currentView !== 'results') next.presentation.scroll = 0;
         next.currentView = targetView;
         break;
@@ -694,6 +749,11 @@ class TabStateManager {
       default:
         throw new Error(`Unknown popup event: ${event.type}`);
     }
+    if (['analysisComplete', 'backgroundJobRestored', 'operationFailed', 'cachedResult'].includes(event.type) &&
+      !popupHasAnalysisContent(next.analysisResult, next)) {
+      next.currentView = 'capture';
+      next.completion = null;
+    }
     for (const operation of Object.values(next.operations)) {
       if (operation.running && Object.entries(operation.dependencies || {}).some(([key, value]) => next[key] !== value))
         operation.running = false;
@@ -711,7 +771,6 @@ class TabStateManager {
     tab.selectionRevision++;
     tab.presentation.discussionComments = {};
     tab.presentation.scroll = 0;
-    tab.currentView = 'results';
     tab.completion = null;
     tab.followUpQa = [];
     tab.currentNutId = entry.nutId;
@@ -744,6 +803,7 @@ class TabStateManager {
     if (typeof tab.extractedContent?.content === 'string' && tab.extractedContent.content.trim())
       delete tab.errors.extraction;
     tab.selectedEggs = popupCopy(entry.result.matchedEggs || []);
+    tab.currentView = popupHasAnalysisContent(entry.result, tab) ? 'results' : 'capture';
   }
   getAnalysisActivity() {
     return [...this.#tabs.values()].flatMap(tab => {
@@ -778,6 +838,7 @@ class TabStateManager {
         });
     return Object.freeze({
       ...tab,
+      hasAnalysisContent: popupHasAnalysisContent(tab.analysisResult, tab),
       activeTabId: tab.tabId,
       allEggs: this.catalog,
       selectedEggs,
