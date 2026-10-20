@@ -723,3 +723,52 @@ test('multiple stalled local tracks cannot starve fresh discovery and the panel 
   assert.equal(await pending,'[00:01] Recovered transcript');
   assert.ok(panelStarted<=5000);assert.equal(ctx.signal.aborted,false);
 });
+
+// Current YouTube markup has nested button rows and no panel video-id.
+const currentYtSegment = (time, text) => `<ytd-transcript-segment-renderer><div class="segment" role="button"><div class="segment-start-offset">${time}</div><yt-formatted-string class="segment-text">${text}</yt-formatted-string></div></ytd-transcript-segment-renderer>`;
+
+test('8Ij7A1VCB7I: original-document panel works without player data and preserves timestamps', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const id = '8Ij7A1VCB7I';
+  const { c, dom } = youtubeFixture(t, `<ytd-watch-flexy video-id="${id}">${ytPanel('visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"', currentYtSegment('0:01', 'Hidden template'))}${ytPanel('visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"', currentYtSegment('1:00', 'economy will contract by 3% this year') + currentYtSegment('1:03', 'A separate caption'))}</ytd-watch-flexy>`, id);
+  c.readYtInitialPlayerResponse = () => null;
+  c.queryYouTubePlayerSnapshot = async () => null;
+  let clicks = 0, downloads = 0;
+  dom.window.document.querySelectorAll('button').forEach(button => button.onclick = () => clicks++);
+  c.captureFetchText = async () => { downloads++; return { ok: true, text: '' }; };
+  const context = c.createCaptureContext({ deadline: Date.now() + 5900 });
+  t.after(() => context.dispose());
+  const pending = c.extractYouTube(context);
+  await flushYoutube(); await advanceYoutube(t, 350);
+  const capture = await pending;
+  assert.equal(capture.transcriptAvailable, true);
+  assert.equal(capture.metadata.caption_source, 'transcript_panel');
+  assert.match(capture.content, /\[1:00\] economy will contract by 3% this year\n\[1:03\] A separate caption/);
+  assert.equal((capture.content.match(/economy will contract/g) || []).length, 1);
+  assert.doesNotMatch(capture.content, /Hidden template/);
+  assert.equal(downloads, 0);
+  assert.equal(clicks, 0);
+});
+
+test('original-document DOM ownership rejects transcripts after navigating away and back', async t => {
+  const { c, dom } = youtubeFixture(t, '<ytd-watch-flexy video-id="new">' + ytPanel('visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"', currentYtSegment('1:00', 'Stale caption')) + '</ytd-watch-flexy>');
+  c.readYtInitialPlayerResponse = () => null;
+  dom.window.history.pushState({}, '', '/watch?v=other');
+  c.syncCaptureNavigation();
+  dom.window.history.pushState({}, '', '/watch?v=new');
+  c.syncCaptureNavigation();
+  assert.equal(await c.readTranscriptPanel(undefined, { existingOnly: true }), '');
+});
+
+test('a foreign watch renderer is rejected even with a matching panel attribute', async t => {
+  const { c } = youtubeFixture(t, '<ytd-watch-flexy video-id="other">' + ytPanel('video-id="new" visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"', currentYtSegment('1:00', 'Foreign caption')) + '</ytd-watch-flexy>');
+  assert.equal(await c.readTranscriptPanel(), '');
+});
+
+test('hidden transcript segments are not accepted as a ready panel', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const { c } = youtubeFixture(t, ytPanel('video-id="new" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"', currentYtSegment('1:00', 'Hidden caption')) + '<ytd-video-description-transcript-section-renderer><button>Show transcript</button></ytd-video-description-transcript-section-renderer>');
+  const pending = c.readTranscriptPanel();
+  await advanceYoutube(t, 2000);
+  assert.equal(await pending, '');
+});
