@@ -808,8 +808,12 @@ test('discarding an empty cache snapshot preserves other pages and newer success
   await app.context.saveChromeCacheEntry(cachePayload('partial'), cacheResult('partial'));
   const rejected = structuredClone(app.stored.chromeTabCache.find(entry => entry.url === payload.url));
   await app.context.discardChromeCacheSnapshot({ url: payload.url, nutId: rejected.nutId, result: rejected.result });
-  assert.equal(app.stored.chromeTabCache.length, 1);
-  assert.equal(app.stored.chromeTabCache[0].title, 'partial');
+  assert.equal(app.stored.chromeTabCache.length, 2);
+  const capture = app.stored.chromeTabCache.find(entry => entry.url === payload.url);
+  assert.equal(capture.result, null);
+  assert.equal(capture.content, rejected.content);
+  assert.deepEqual(structuredClone(capture.capturePayload), rejected.capturePayload);
+  assert.deepEqual(structuredClone((await app.context.getChromeCacheHistory(payload.url)).latest), structuredClone(capture));
   await app.context.saveChromeCacheEntry(payload, { ...cacheResult('empty'), nutId: rejected.nutId });
   await app.context.discardChromeCacheSnapshot({ url: payload.url, nutId: rejected.nutId, result: rejected.result });
   assert.equal(app.stored.chromeTabCache.length, 2, 'late cleanup cannot erase a replacement result, even with the same ID');

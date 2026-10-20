@@ -294,7 +294,16 @@ test('discarded empty recovery snapshots cannot return after reopening; active a
   await f.manager.discardSnapshot(job.id, revision, 'https://example.org/another');
   assert.ok(f.manager.jobs.has(job.id), 'revision and identity protect other results');
   await f.manager.discardSnapshot(job.id, revision, job.payload.url);
-  assert.equal(f.manager.jobs.has(job.id), false);
-  assert.equal(f.store.records.some(record => record.id === job.id), false);
-  assert.equal((await f.manager.snapshot(1)).jobs.length, 0);
+  const capture = await f.manager.detail(job.id);
+  assert.equal(capture.result, null);
+  assert.equal(capture.analysisDiscarded, true);
+  assert.deepEqual(capture.payload, job.payload);
+  assert.equal(f.store.records.find(record => record.id === job.id).payload.content, job.payload.content);
+  assert.equal((await f.manager.snapshot(1)).jobs[0].analysisDiscarded, true);
+  const restarted = new AnalysisJobManager({ store: f.store, chromeApi: f.api, pageKey: url => url.split('#section')[0],
+    getConfiguration: async () => ({ mode: 'obsidian', revision: 'one' }), execute: async () => { throw new Error('Unexpected AI call'); } });
+  const restored = await restarted.detail(job.id);
+  assert.equal(restored.result, null);
+  assert.equal(restored.analysisDiscarded, true);
+  assert.deepEqual(restored.payload, job.payload);
 });

@@ -293,10 +293,16 @@ class AnalysisJobManager {
       const job = this.jobs.get(id);
       if (!job || analysisJobActive(job) || job.revision !== revision ||
         this.sourceKey(job.payload.url) !== this.sourceKey(url)) return;
-      await this.store.removeWhere(record => record.id === id && record.revision === revision);
-      if (job.revision !== revision) return;
-      job.discardRecovery = true;
-      this.jobs.delete(id);
+      // Keep the original capture durable; reopening restores it without the
+      // discarded result, failure notice, or an automatic provider request.
+      const updated = { ...job, result: null, analysisDiscarded: true, viewed: true, revision: revision + 1 };
+      delete updated.error;
+      delete updated.errorCode;
+      const saved = await this.store.mutate(records => ({
+        records: records.map(record => record.id === id && record.revision === revision ? analysisJobClean(updated) : record),
+        putIds: new Set([id]), result: records.some(record => record.id === id && record.revision === revision),
+      }));
+      if (saved && job.revision === revision) this.jobs.set(id, updated);
     });
   }
   async clearChrome() {

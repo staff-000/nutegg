@@ -27,7 +27,7 @@ class PopupOperations {
       await this.service.sendMessage({ action: 'discard-empty-analysis', url: tab.url,
         result: tab.analysisResult, nutId: tab.currentNutId,
         jobId: job?.id, revision: job?.revision });
-    } catch { /* Fresh capture remains available when local cleanup fails. */ }
+    } catch { /* The existing capture remains usable when local cleanup fails. */ }
   }
   async initializeRecovery() {
     if (!this.service.watchJobs || !this.chromeApi.tabs?.query) return;

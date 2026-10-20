@@ -90,6 +90,10 @@ class TabAction {
     if (
       !options.forceExtract &&
       !current.analysisResult &&
+      // A capture already restored for this page generation remains usable on
+      // tab activation and load completion. Re-reading empty vault history here
+      // would replace it and trigger another capture, briefly disabling Analyze.
+      !current.extractedContent &&
       !current.operations.extraction?.running &&
       !this.store.isBusy(lease.tabId)
     ) {
@@ -118,6 +122,7 @@ class TabAction {
     const current = this.store.getTab(tabId);
     if (tabId !== this.store.activeTabId || current?.pageGeneration !== tab.pageGeneration ||
       current.resultRevision !== tab.resultRevision || current.intentRevision !== tab.intentRevision || this.store.isBusy(tabId)) return;
+    if (current.extractedContent?.content?.trim()) return;
     return this.operations.extract(tabId);
   }
   async handleVisibilityChange() {

@@ -383,6 +383,17 @@ class TabStateManager {
         next.selectedEggs = popupCopy(source.selectedEggs || job.context?.inputs?.eggs || job.result?.matchedEggs || source.eggs || []);
         next.warning = globalThis.NutEggHelpers?.getExtractionWarning?.(source) || null;
         if (job.persistenceError) next.warning = [next.warning, t('jobSaveFailed')].filter(Boolean).join('\n');
+        if (job.analysisDiscarded) {
+          next.analysisResult = null;
+          next.stage1ContentAnalysis = null;
+          next.stage1Payload = null;
+          next.analysisRetry = null;
+          next.currentNutId = null;
+          next.completion = null;
+          next.currentView = 'capture';
+          delete next.errors.analysis;
+          break;
+        }
         if (event.result) {
           result(event.result, job.stage === 1);
           if (job.stage === 2) next.stage1ContentAnalysis = popupCopy(source.contentAnalysis);
@@ -444,7 +455,8 @@ class TabStateManager {
         next.emptyAnalysisRefreshRevision = next.resultRevision;
         next.currentView = 'capture';
         if (event.discard) {
-          next.captureHistory = next.captureHistory.filter(entry => popupHasAnalysisContent(entry.result, next));
+          next.captureHistory = next.captureHistory.map(entry => popupHasAnalysisContent(entry.result, next)
+            ? entry : { ...entry, result: null });
           next.analysisResult = null;
           next.stage1ContentAnalysis = null;
           next.stage1Payload = null;
@@ -764,7 +776,7 @@ class TabStateManager {
     this.emit({ ...event, tabId });
   }
   applyHistory(tab, entry) {
-    if (!entry?.result) return;
+    if (!entry || (!entry.result && !entry.content?.trim())) return;
     tab.analysisCancelled = false;
     tab.analysisResult = popupCopy(entry.result);
     tab.resultRevision++;
@@ -773,9 +785,9 @@ class TabStateManager {
     tab.presentation.scroll = 0;
     tab.completion = null;
     tab.followUpQa = [];
-    tab.currentNutId = entry.nutId;
-    tab.nutCollected = ['saved', 'skip'].includes(entry.saved);
-    tab.eggHatched = entry.saved === 'saved';
+    tab.currentNutId = entry.result ? entry.nutId : null;
+    tab.nutCollected = !!entry.result && ['saved', 'skip'].includes(entry.saved);
+    tab.eggHatched = !!entry.result && entry.saved === 'saved';
     tab.stage1Version++;
     tab.stage1ContentAnalysis = popupCopy(entry.result);
     if (entry.capturePayload?.enabledSections)
@@ -802,7 +814,12 @@ class TabStateManager {
     }
     if (typeof tab.extractedContent?.content === 'string' && tab.extractedContent.content.trim())
       delete tab.errors.extraction;
-    tab.selectedEggs = popupCopy(entry.result.matchedEggs || []);
+    if (!entry.result) {
+      tab.stage1Payload = null;
+      tab.analysisRetry = null;
+      delete tab.errors.analysis;
+    }
+    tab.selectedEggs = popupCopy(entry.result?.matchedEggs || []);
     tab.currentView = popupHasAnalysisContent(entry.result, tab) ? 'results' : 'capture';
   }
   getAnalysisActivity() {

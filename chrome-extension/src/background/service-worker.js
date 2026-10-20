@@ -1251,9 +1251,14 @@ function discardChromeCacheSnapshot({ url, nutId, result }) {
   return withChromeCacheLock(async () => {
     const stored = await chrome.storage.local.get(['chromeTabCache']);
     const cache = Array.isArray(stored.chromeTabCache) ? stored.chromeTabCache : [];
-    const kept = cache.filter(entry => !(matchesCacheEntry(entry, url) && entry.nutId === nutId &&
-      JSON.stringify(entry.result) === JSON.stringify(result)));
-    if (kept.length !== cache.length) await chrome.storage.local.set({ chromeTabCache: kept });
+    let changed = false;
+    const kept = cache.map(entry => {
+      if (!matchesCacheEntry(entry, url) || entry.nutId !== nutId ||
+        JSON.stringify(entry.result) !== JSON.stringify(result)) return entry;
+      changed = true;
+      return { ...entry, result: null };
+    });
+    if (changed) await chrome.storage.local.set({ chromeTabCache: kept });
   });
 }
 

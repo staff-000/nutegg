@@ -9,7 +9,7 @@ function setup(t) {
   return { ...f, action };
 }
 
-test('metadata-only cached results stay in capture and fetch fresh content exactly once', async t => {
+test('metadata-only cached results are cleared while captured content is reused', async t => {
   const f = setup(t); let captures = 0;
   f.store.invalidateTab(1, 'https://tab1.test');
   f.service.loadHistory = async () => [{ nutId: 42, content: 'Old cached source', title: 'Cached',
@@ -17,12 +17,13 @@ test('metadata-only cached results stay in capture and fetch fresh content exact
   f.extractor.extractPage = async () => { captures++; return { url: 'https://tab1.test', content: 'Fresh source', title: 'Fresh' }; };
   await f.action.handleTabActivated({ tabId: 1 });
   assert.equal(f.store.getTab(1).currentView, 'capture');
-  assert.equal(f.store.getTab(1).extractedContent.content, 'Fresh source');
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Old cached source');
   assert.equal(f.store.getTab(1).analysisResult, null, 'discard empty analysis metadata');
-  assert.equal(f.store.getTab(1).captureHistory.length, 0);
+  assert.equal(f.store.getTab(1).captureHistory.length, 1);
+  assert.equal(f.store.getTab(1).captureHistory[0].result, null);
   f.service.loadHistory = async () => [];
   await f.action.handleTabActivated({ tabId: 1 });
-  assert.equal(captures, 1);
+  assert.equal(captures, 0);
   assert.equal(f.calls.length, 0, 'fetching must not rerun AI');
 });
 
@@ -58,7 +59,7 @@ test('failure notices and whitespace do not count as substantive output', () => 
   }
 });
 
-test('empty recovery snapshots also fetch despite an existing source body', async t => {
+test('empty recovery snapshots preserve their existing source body', async t => {
   const f = setup(t); let captures = 0;
   f.operations.restoreForTab = async tabId => {
     f.store.dispatch({ type: 'historySelected', tabId, entry: { result: { nutId: 1 }, content: 'Recovered source' } });
@@ -67,7 +68,7 @@ test('empty recovery snapshots also fetch despite an existing source body', asyn
   f.extractor.extractPage = async () => { captures++; return { url: 'https://tab1.test', content: 'Fresh' }; };
   f.service.loadHistory = async () => [];
   await f.action.handleTabActivated({ tabId: 1 });
-  assert.equal(captures, 1);
+  assert.equal(captures, 0);
   assert.equal(f.store.getTab(1).currentView, 'capture');
 });
 
@@ -79,7 +80,7 @@ test('in-flight AI is preserved, and failed refreshes do not create retry loops'
   f.store.commitOperation(ctx.token, { type: 'operationFailed', error: 'Timeout', code: 'timeout' });
   f.extractor.extractPage = async () => { captures++; throw new Error('Capture unavailable'); };
   await f.action.refreshEmptyAnalysis(1); await f.action.refreshEmptyAnalysis(1);
-  assert.equal(captures, 1);
+  assert.equal(captures, 0);
 });
 
 test('tab switching and navigation discard stale empty-result fetches', async t => {
@@ -148,4 +149,58 @@ test('navigation during local cache cleanup cannot fetch the replacement page', 
   cleanup.resolve({ success: true }); await refresh;
   assert.equal(captures, 0);
   assert.equal(f.store.getTab(1).analysisResult, null);
+});
+
+for (const trigger of ['tab return', 'load completion']) test(`${trigger} reuses captured captions without loading empty history or disabling Analyze`, async t => {
+  const f = setup(t); let histories = 0, captures = 0;
+  const capture = f.store.beginOperation(1, 'extraction');
+  f.store.commitOperation(capture.token, { type: 'extracted', content: {
+    url: 'https://tab1.test', content: '[00:01] Captions already captured', transcriptAvailable: true, sourceType: 'bilibili',
+  } });
+  f.service.loadHistory = async () => {
+    histories++;
+    return [{ nutId: 42, content: 'Old body', result: { analysisFailures: [{ code: 'timeout' }] } }];
+  };
+  f.extractor.extractPage = async () => { captures++; return { url: 'https://tab1.test', content: 'Fetched again' }; };
+  const disabled = [];
+  f.store.subscribe(() => {
+    if (f.store.activeTabId === 1) disabled.push(!!globalThis.NutEggHelpers.getAnalyzeNotReadyReason(
+      f.store.viewModel(), { connectionMode: 'obsidian', serverOnline: true }));
+  });
+  if (trigger === 'tab return') {
+    f.store.activateTab(2);
+    await f.action.handleTabActivated({ tabId: 1 });
+  } else await f.action.handleTabUpdated(1, { status: 'complete' });
+  assert.equal(histories, 0);
+  assert.equal(captures, 0);
+  assert.equal(disabled.includes(true), false);
+  assert.match(f.store.getTab(1).extractedContent.content, /Captions already captured/);
+});
+
+test('capture-only cache entries reopen without fetching and restore transcript metadata', async t => {
+  const f = setup(t); let captures = 0;
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.service.loadHistory = async () => [{ nutId: 42, result: null, content: '[00:01] Saved captions',
+    capturePayload: { transcriptAvailable: true, metadata: { cid: '123' }, captureCoverage: { reasons: ['truncated'] } } }];
+  f.extractor.extractPage = async () => { captures++; throw new Error('Unexpected refetch'); };
+  await f.action.handleTabActivated({ tabId: 1 });
+  const tab = f.store.getTab(1);
+  assert.equal(tab.currentView, 'capture');
+  assert.equal(tab.analysisResult, null);
+  assert.equal(tab.currentNutId, null);
+  assert.equal(tab.extractedContent.content, '[00:01] Saved captions');
+  assert.equal(tab.extractedContent.transcriptAvailable, true);
+  assert.equal(tab.extractedContent.metadata.cid, '123');
+  assert.ok(tab.warning);
+  assert.equal(captures, 0);
+});
+
+test('an empty analysis with no captured body still fetches content', async t => {
+  const f = setup(t); let captures = 0;
+  f.store.invalidateTab(1, 'https://tab1.test');
+  f.service.loadHistory = async () => [{ result: { coreSummary: [], analysisFailures: [{ code: 'timeout' }] } }];
+  f.extractor.extractPage = async () => { captures++; return { content: 'New body', url: 'https://tab1.test' }; };
+  await f.action.handleTabActivated({ tabId: 1 });
+  assert.equal(captures, 1);
+  assert.equal(f.store.getTab(1).extractedContent.content, 'New body');
 });

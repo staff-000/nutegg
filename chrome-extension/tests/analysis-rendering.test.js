@@ -71,7 +71,7 @@ test('results view tolerates a pending result and a terminal failure without bla
   assert.equal(f.errors.length, 0);
 });
 
-test('opening an empty cached result shows content-fetch and fetches once, without AI', async t => {
+test('opening an empty cached result preserves capture without fetching or AI', async t => {
   const f = await popup(t, { history: [{ url: 'https://one.test', title: 'Cached', content: 'Cached body',
     result: { nutId: 1, matchedEggs: ['a.md'], coreSummary: [], mindMap: [], analysisFailures: [{ section: 'summary', code: 'timeout' }] } }] });
   await tick();
@@ -79,7 +79,8 @@ test('opening an empty cached result shows content-fetch and fetches once, witho
   assert.equal(f.root.getElementById('results-state').classList.contains('hidden'), true);
   assert.equal(f.root.getElementById('view-analysis-btn').classList.contains('hidden'), true);
   assert.equal(f.root.getElementById('analysis-failure-banner').classList.contains('hidden'), true);
-  assert.equal(f.captures(), 1);
+  assert.equal(f.captures(), 0);
+  assert.equal(f.store.getTab(1).extractedContent.content, 'Cached body');
   assert.equal(f.requests.length, 0);
 });
 
@@ -94,7 +95,7 @@ test('opening a partially populated cached result keeps results and skips fetchi
   assert.equal(f.requests.length, 0);
 });
 
-test('live empty completion switches to content-fetch and refreshes without reanalysis', async t => {
+test('live empty completion switches to content-fetch and preserves its capture', async t => {
   const f = await popup(t);
   assert.equal(f.captures(), 1);
   f.root.getElementById('analyze-btn').click(); await tick();
@@ -102,7 +103,7 @@ test('live empty completion switches to content-fetch and refreshes without rean
   await tick();
   assert.equal(f.root.getElementById('capture-state').classList.contains('hidden'), false);
   assert.equal(f.root.getElementById('results-state').classList.contains('hidden'), true);
-  assert.equal(f.captures(), 2);
+  assert.equal(f.captures(), 1);
   assert.equal(f.requests.length, 1);
   assert.equal(f.errors.length, 0);
 });

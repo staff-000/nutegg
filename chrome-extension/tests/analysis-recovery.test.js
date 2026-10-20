@@ -358,3 +358,39 @@ test('failed requests durably preserve source and already streamed output for re
   assert.equal(tab.completion, null);
   assert.equal(f.requests.length, 1);
 });
+
+for (const mode of ['chrome', 'obsidian']) test(`${mode}: cleared empty analysis restores its full captions and permits a fresh analysis`, async t => {
+  const f = setup(t, mode), original = f.panel(); await original.operations.initializeRecovery();
+  const content = '[00:01] Full original captions '.repeat(4000);
+  const capture = original.store.beginOperation(1, 'extraction');
+  original.store.commitOperation(capture.token, { type: 'extracted', content: {
+    url: 'https://tab1.test/', title: 'Captioned video', content, sourceType: 'bilibili',
+    transcriptAvailable: true, metadata: { cid: '123', subtitle_provenance: 'original' },
+    captureCoverage: { reasons: ['truncated'], originalCharacters: content.length + 10, capturedCharacters: content.length },
+  } });
+  const pending = original.operations.analyze(1, { analysisMode: 'preview', chromeMode: mode === 'chrome' });
+  await until(() => f.requests.length === 1);
+  f.gates[0].resolve({ mode, coreSummary: [], analysisFailures: [{ section: 'summary', code: 'timeout' }] });
+  await pending; await until(() => !f.manager.live.size);
+  const job = [...f.manager.jobs.values()][0];
+  await f.manager.discardSnapshot(job.id, job.revision, job.payload.url);
+  original.close();
+  const reopened = f.panel(); let fetches = 0;
+  reopened.operations.extractor.extractPage = async () => { fetches++; throw new Error('Must reuse capture'); };
+  await reopened.operations.initializeRecovery(); await reopened.operations.restoreForTab(1);
+  const restored = reopened.store.getTab(1);
+  assert.equal(restored.currentView, 'capture');
+  assert.equal(restored.analysisResult, null);
+  assert.equal(restored.analysisRetry, null);
+  assert.equal(restored.errors.analysis, undefined);
+  assert.equal(restored.extractedContent.content, content);
+  assert.equal(restored.extractedContent.transcriptAvailable, true);
+  assert.equal(restored.extractedContent.metadata.subtitle_provenance, 'original');
+  assert.deepEqual(restored.extractedContent.captureCoverage.reasons, ['truncated']);
+  assert.ok(restored.warning);
+  const retry = reopened.operations.analyze(1, { analysisMode: 'preview', chromeMode: mode === 'chrome' });
+  await until(() => f.requests.length === 2);
+  assert.equal(f.requests[1].payload.content, content);
+  f.gates[1].resolve({ mode, coreSummary: ['Success'] }); await retry;
+  assert.equal(fetches, 0);
+});
