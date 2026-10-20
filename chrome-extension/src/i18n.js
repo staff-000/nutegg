@@ -212,6 +212,7 @@
       sourceTooltip: 'scroll to the source',
       whereAreWe: 'Here',
       currentPosition: 'Current location',
+      videoSeekUnavailable: "Could not seek this video. Refresh the video page and try again.",
       sourceJumpUnavailable:
         'This source is not available on the current page. Open or load the referenced text or comments, then try again.',
       discussionSection: 'Discussion',
@@ -822,6 +823,7 @@
       sourceTooltip: '滚动到原文',
       whereAreWe: '当前',
       currentPosition: '当前位置',
+      videoSeekUnavailable: "无法跳转视频时间。请刷新视频页面后重试。",
       sourceJumpUnavailable: '当前页面无法定位此来源。请展开或加载对应正文或评论，然后重试。',
       discussionSection: '讨论',
       discussionLoad: '加载讨论',
@@ -1424,6 +1426,7 @@
       sourceTooltip: 'desplazarse a la fuente',
       whereAreWe: 'Aquí',
       currentPosition: 'Ubicación actual',
+      videoSeekUnavailable: "No se pudo avanzar al momento del vídeo. Actualiza la página e inténtalo de nuevo.",
       sourceJumpUnavailable:
         'Esta fuente no está disponible en la página actual. Abre o carga el texto o los comentarios y vuelve a intentarlo.',
       discussionSection: 'Discusión',
@@ -2040,6 +2043,7 @@
       sourceTooltip: '原文までスクロール',
       whereAreWe: '現在',
       currentPosition: '現在位置',
+      videoSeekUnavailable: "動画の指定時刻に移動できませんでした。ページを更新して再試行してください。",
       sourceJumpUnavailable:
         '現在のページで出典を見つけられません。本文やコメントを開くか読み込んでから再試行してください。',
       discussionSection: 'ディスカッション',
@@ -2643,6 +2647,7 @@
       sourceTooltip: '원문으로 스크롤',
       whereAreWe: '현재',
       currentPosition: '현재 위치',
+      videoSeekUnavailable: "동영상 시간으로 이동할 수 없습니다. 페이지를 새로고침하고 다시 시도하세요.",
       sourceJumpUnavailable:
         '현재 페이지에서 출처를 찾을 수 없습니다. 해당 본문이나 댓글을 열거나 불러온 후 다시 시도하세요.',
       discussionSection: '토론',
@@ -3242,6 +3247,7 @@
       sourceTooltip: 'التمرير إلى المصدر',
       whereAreWe: 'هنا',
       currentPosition: 'الموقع الحالي',
+      videoSeekUnavailable: "تعذر الانتقال إلى وقت الفيديو. حدّث صفحة الفيديو وحاول مرة أخرى.",
       sourceJumpUnavailable:
         'المصدر غير متاح في الصفحة الحالية. افتح النص أو التعليقات المشار إليها أو حمّلها ثم حاول مجددًا.',
       discussionSection: 'النقاش',
@@ -3851,6 +3857,7 @@
       sourceTooltip: 'faire défiler jusqu’à la source',
       whereAreWe: 'Ici',
       currentPosition: 'Position actuelle',
+      videoSeekUnavailable: "Impossible de rejoindre ce moment de la vidéo. Actualisez la page et réessayez.",
       sourceJumpUnavailable:
         'Cette source est introuvable sur la page actuelle. Ouvrez ou chargez le texte ou les commentaires, puis réessayez.',
       discussionSection: 'Discussion',
@@ -4477,6 +4484,7 @@
       sourceTooltip: 'zur Quelle scrollen',
       whereAreWe: 'Hier',
       currentPosition: 'Aktuelle Position',
+      videoSeekUnavailable: "Die Videoposition konnte nicht geändert werden. Lade die Seite neu und versuche es erneut.",
       sourceJumpUnavailable:
         'Diese Quelle ist auf der aktuellen Seite nicht verfügbar. Öffne oder lade den Text oder die Kommentare und versuche es erneut.',
       discussionSection: 'Diskussion',
@@ -5097,6 +5105,7 @@
       sourceTooltip: 'rolar até a fonte',
       whereAreWe: 'Aqui',
       currentPosition: 'Posição atual',
+      videoSeekUnavailable: "Não foi possível avançar no vídeo. Atualize a página e tente novamente.",
       sourceJumpUnavailable:
         'Esta fonte não está disponível na página atual. Abra ou carregue o texto ou os comentários e tente novamente.',
       discussionSection: 'Discussão',
@@ -5718,6 +5727,7 @@
       sourceTooltip: 'прокрутить к источнику',
       whereAreWe: 'Здесь',
       currentPosition: 'Текущее место',
+      videoSeekUnavailable: "Не удалось перейти к этому моменту видео. Обновите страницу и повторите попытку.",
       sourceJumpUnavailable:
         'Источник недоступен на текущей странице. Откройте или загрузите текст либо комментарии и повторите попытку.',
       discussionSection: 'Обсуждение',

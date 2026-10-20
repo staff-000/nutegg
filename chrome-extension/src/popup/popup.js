@@ -273,6 +273,8 @@ async function initPopup() {
   await activityUI.init({ manager: tabStateManager, onSelect: id => tabAction.openAnalysisActivity(id) });
   tabStateManager.subscribe(event => {
     if (['activated', 'invalidated'].includes(event.type)) {
+      if (event.type === 'activated' || event.tabId === interactionAction.seekTabId)
+        interactionAction.cancelPendingSeek?.();
       void operations.refreshDebugInfo();
       if (event.type === 'activated') void interactionAction.updateMindmapPosition();
     }

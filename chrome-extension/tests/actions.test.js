@@ -407,3 +407,34 @@ test('reanalyze keeps the originating questions and preferences while extraction
   assert.equal(f.store.getTab(1).analysisResult.titleVerdict, 'Result A');
   assert.equal(f.store.getTab(2).analysisResult, null);
 });
+
+test('timestamp click updates position only after confirmation and reports failed seeks in tab state', async t => {
+  const oldT = global.t; global.t = key => key; t.after(() => { global.t = oldT; });
+  const f = actions(), pending = deferred();
+  const action = new InteractionAction({ ...f.deps, pageExtractor: { seekToChapter: () => pending.promise } });
+  const click = action.seekToChapter(81);
+  assert.equal(f.store.getTab(1).playbackPosition, null);
+  pending.resolve({ success: true, type: 'video', currentTime: 81 });
+  assert.equal(await click, true);
+  assert.equal(f.store.getTab(1).playbackPosition.currentTime, 81);
+  action.pageExtractor.seekToChapter = async () => { throw new Error('missing receiver'); };
+  assert.equal(await action.seekToChapter(90), false);
+  assert.equal(f.store.getTab(1).playbackPosition.currentTime, 81);
+  assert.equal(f.store.getTab(1).errors.navigation.message, 'videoSeekUnavailable');
+});
+test('old position responses cannot overwrite a newer seek or another tab', async () => {
+  const f = actions(), pending = deferred(); let reads = 0;
+  const action = new InteractionAction({ ...f.deps, pageExtractor: {
+    getPagePosition: () => { reads++; return pending.promise; },
+    seekToChapter: async () => ({ success: true, type: 'video', currentTime: 81 }),
+  } });
+  const poll = action.updateMindmapPosition();
+  await action.updateMindmapPosition(); assert.equal(reads, 1);
+  await action.seekToChapter(81);
+  pending.resolve({ success: true, type: 'video', currentTime: 1037 }); await poll;
+  assert.equal(f.store.getTab(1).playbackPosition.currentTime, 81);
+  const late = deferred(); action.pageExtractor.getPagePosition = () => late.promise;
+  const second = action.updateMindmapPosition();
+  f.store.activateTab(2); late.resolve({ type: 'video', currentTime: 12 }); await second;
+  assert.equal(f.store.getTab(2).playbackPosition, null);
+});

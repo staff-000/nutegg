@@ -9,6 +9,10 @@ class PopupRenderer {
   handle(event) {
     if (['viewed', 'receipt'].includes(event.type)) return;
     if (event.tabId != null && event.tabId !== this.store.activeTabId) return;
+    if (event.type === 'playbackPosition') {
+      this.ui.mindmapUI.updateProgress?.(this.store.getTab(event.tabId)?.playbackPosition);
+      return;
+    }
     this.render();
   }
   render() {
@@ -214,7 +218,7 @@ class PopupRenderer {
         ui.mindmapUI.render(
           view.analysisResult?.mindMap,
           view.enabledSections.mindMap !== false,
-          null,
+          view.playbackPosition,
           isMindMapLoading,
           view.optimizeForConversation !== false ? view.analysisResult?.conversation : null,
           {
@@ -230,6 +234,8 @@ class PopupRenderer {
           }
         )
     );
+    keyed('mindmapPosition', [view.analysisResult?.mindMap, view.playbackPosition], () =>
+      ui.mindmapUI.updateProgress?.(view.playbackPosition));
     keyed('qa', [view.resultRevision, view.followUpQa], () =>
       ui.qaUI.render(view.analysisResult || {}, view.followUpQa)
     );

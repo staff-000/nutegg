@@ -52,6 +52,7 @@ describe("Chrome Extension i18n", () => {
     const supported = ["en", "zh_CN", "es", "ja", "ko", "ar", "fr", "de", "pt", "ru"];
     const requiredKeys = [
       "hatchEgg",
+      "videoSeekUnavailable",
       "hatchEggSelectEgg",
       "chipVerdictSummary", "toggleVerdictSummaryTooltip",
       "activityWaitingCount", "activityWaiting", "debugPanelAIStats", "debugTabAIStats", "debugPanelAIUnavailable", "debugAICountersReset", "activityRunningCount", "activityUnreadCount", "activityUnread", "activityRunning", "activityUntitled",

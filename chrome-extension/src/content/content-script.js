@@ -125,10 +125,71 @@ async function runCaptureRequest(message) {
   return job.promise;
 }
 
+// Playback commands share a document-owned player and navigation identity.
+function nuteggPlaybackIdentity() {
+  syncCaptureNavigation();
+  window.__nuteggDocumentId ||= globalThis.crypto?.randomUUID?.() || `${Date.now()}:${Math.random()}`;
+  return { documentId: window.__nuteggDocumentId, pageKey: NutEggPageIdentity.playbackPageKey(location.href),
+    generation: window.__nuteggNavigationState?.generation, url: location.href };
+}
+function nuteggPlaybackPlayer() {
+  return document.querySelector('#movie_player video, ytd-watch-flexy video') ||
+    document.querySelector('.bpx-player-video-wrap video, #bilibili-player video') ||
+    document.querySelector('video.html5-main-video, video.video-stream') || document.querySelector('video');
+}
+function nuteggPlaybackOwned(message) {
+  const identity = nuteggPlaybackIdentity();
+  return (!message.expectedUrl || NutEggPageIdentity.playbackPageKey(message.expectedUrl) === identity.pageKey) &&
+    (!message.documentId || message.documentId === identity.documentId) &&
+    (message.generation == null || message.generation === identity.generation);
+}
+async function nuteggSeek(message) {
+  const seconds = Number(message.seconds);
+  if (!Number.isFinite(seconds) || seconds < 0)
+    return { success: false, errorCode: 'invalid_timestamp' };
+  const request = (window.__nuteggSeekSequence = (window.__nuteggSeekSequence || 0) + 1);
+  const deadline = Date.now() + 2000;
+  let video, assigned = false;
+  while (Date.now() < deadline) {
+    if (request !== window.__nuteggSeekSequence || !nuteggPlaybackOwned(message))
+      return { success: false, errorCode: 'stale' };
+    video = nuteggPlaybackPlayer();
+    if (video && video.readyState > 0 && Number.isFinite(video.duration)) {
+      if (seconds > video.duration) return { success: false, errorCode: 'invalid_timestamp' };
+      if (!assigned) {
+        try { video.currentTime = seconds; assigned = true; }
+        catch { return { success: false, errorCode: 'seek_failed' }; }
+      }
+      if (!video.seeking && Math.abs(video.currentTime - seconds) <= 1) {
+        try { video.play?.()?.catch?.(() => {}); } catch {}
+        return { success: true, type: 'video', currentTime: video.currentTime,
+          duration: video.duration, ...nuteggPlaybackIdentity() };
+      }
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  return { success: false, errorCode: video ? 'seek_timeout' : 'player_unavailable' };
+}
+
 // Listen for messages from popup/background (attached once per window)
-if (!window.__nutegg_listener_attached) {
-  window.__nutegg_listener_attached = true;
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+{
+  // Retain active capture state while replacing only our own previous listener.
+  if (window.__nuteggMessageListener)
+    chrome.runtime.onMessage.removeListener(window.__nuteggMessageListener);
+  const listener = (message, _sender, sendResponse) => {
+    if (message.action === 'nutegg-handshake') {
+      sendResponse({ success: true, version: 1, ...nuteggPlaybackIdentity(), capabilities: ['seek', 'position'] });
+      return false;
+    }
+    if (['nutegg-seek', 'nutegg-cancel-seek', 'nutegg-page-position'].includes(message.action) && !nuteggPlaybackOwned(message)) {
+      sendResponse({ success: false, errorCode: 'stale' });
+      return false;
+    }
+    if (message.action === 'nutegg-cancel-seek') {
+      window.__nuteggSeekSequence = (window.__nuteggSeekSequence || 0) + 1;
+      sendResponse({ success: true });
+      return false;
+    }
     if (message.action === 'capture-navigation') {
       const active = window.__nuteggCaptureState?.active?.context;
       if (
@@ -248,45 +309,28 @@ if (!window.__nutegg_listener_attached) {
     }
 
     if (message.action === 'nutegg-seek') {
-      // Seek the page's video to the given timestamp (seconds) — used by the
-      // clickable Mind Map and Q&A timestamp pills in the popup.
-      const video =
-        document.querySelector('.html5-main-video') ||
-        document.querySelector('video.video-stream') ||
-        document.querySelector('video');
-      if (video) {
-        const secs = Number(message.seconds);
-        if (!isNaN(secs)) {
-          video.currentTime = secs;
-          video.play?.().catch(() => {});
-        }
-        sendResponse({ success: true });
-      } else {
-        sendResponse({ success: false, error: 'No video element found' });
-      }
-      return false;
+      nuteggSeek(message).then(sendResponse, () => sendResponse({ success: false, errorCode: 'seek_failed' }));
+      return true;
     }
 
     if (message.action === 'nutegg-page-position') {
-      const video =
-        document.querySelector('#movie_player video') ||
-        document.querySelector('ytd-watch-flexy video') ||
-        document.querySelector('.html5-main-video') ||
-        document.querySelector('video.video-stream') ||
-        document.querySelector('.bpx-player-video-wrap video') ||
-        document.querySelector('#bilibili-player video') ||
-        document.querySelector('video');
-      if (video && typeof video.currentTime === 'number' && !isNaN(video.currentTime)) {
+      const video = nuteggPlaybackPlayer();
+      if (video && video.readyState > 0 && Number.isFinite(video.currentTime)) {
         sendResponse({
           success: true,
           type: 'video',
           currentTime: video.currentTime,
           duration: isNaN(video.duration) ? 0 : video.duration,
           paused: Boolean(video.paused),
+          ...nuteggPlaybackIdentity(),
         });
         return false;
       }
 
+      if (window.detectYouTube?.() || window.detectBilibili?.()) {
+        sendResponse({ success: false, errorCode: 'player_unavailable' });
+        return false;
+      }
       const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
       const scrollHeight = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0);
       const clientHeight = window.innerHeight || document.documentElement.clientHeight || 1;
@@ -318,6 +362,7 @@ if (!window.__nutegg_listener_attached) {
       sendResponse({
         success: true,
         type: 'text',
+        ...nuteggPlaybackIdentity(),
         scrollY,
         scrollHeight,
         clientHeight,
@@ -347,7 +392,11 @@ if (!window.__nutegg_listener_attached) {
         );
       return true; // Keep channel open for async
     }
-  });
+  };
+  chrome.runtime.onMessage.addListener(listener);
+  window.__nuteggMessageListener = listener;
+  window.__nuteggListenerRecord = { version: 1, listener };
+  window.__nutegg_listener_attached = true;
 }
 
 console.log('[NutEgg] Content script loaded on:', window.location.href);

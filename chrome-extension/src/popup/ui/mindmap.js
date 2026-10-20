@@ -129,7 +129,7 @@ function findCurrentNode(nodes, progress) {
 
   // Nodes with valid metric
   const withMetric = flat.filter(item => item.val !== null);
-  if (withMetric.length === 0) return flat[0].node;
+  if (withMetric.length === 0) return isVideo ? null : flat[0].node;
 
   // Check linearity: non-decreasing progression across the tree
   let isLinear = true;
@@ -141,7 +141,7 @@ function findCurrentNode(nodes, progress) {
   }
 
   const reached = withMetric.filter(item => item.val <= targetValue);
-  if (reached.length === 0) return flat[0].node;
+  if (reached.length === 0) return isVideo ? null : flat[0].node;
 
   // Most recent started metric
   const maxVal = Math.max(...reached.map(item => item.val));
@@ -510,7 +510,7 @@ class MindmapComponent {
     this.nodes = nodes;
     this.conversation = conversation;
     this.options = options;
-    if (progress != null) this.lastProgress = progress;
+    this.lastProgress = progress;
     if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {
       this.show();
       const res = renderMindMap(nodes, this.mindmapTree, this.lastProgress, conversation, options);

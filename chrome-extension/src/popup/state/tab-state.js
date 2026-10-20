@@ -59,6 +59,7 @@ class TabStateManager {
       sourceVersion: 0,
       debugScope: `${this.#debugSessionId}:${tabId}:${this.#sequence}`,
       debugInfo: null,
+      playbackPosition: null,
       stage1Version: 0,
       resultRevision: 0,
       selectionRevision: 0,
@@ -142,6 +143,8 @@ class TabStateManager {
   }
   activateTab(tabId) {
     this.ensure(tabId);
+    const tab = this.getTab(tabId);
+    if (tab.playbackPosition) this.#tabs.set(tabId, popupFreeze({ ...tab, playbackPosition: null }));
     this.#activeTabId = tabId;
     const epoch = ++this.#activationEpoch;
     this.trace({ type: 'activated', tabId }, true);
@@ -640,6 +643,10 @@ class TabStateManager {
         break;
       case 'loading':
         next.currentTabLoading = event.loading;
+        break;
+      case 'playbackPosition':
+        if (event.pageGeneration !== prev.pageGeneration) return;
+        next.playbackPosition = event.position;
         break;
       case 'sourceJumpNotice':
         if (event.message) next.errors.navigation = { message: event.message };

@@ -1,3 +1,5 @@
+import { getVideoIdentity } from './video-identity';
+
 /** Application hash routes identify content; ordinary anchors identify positions. */
 export function isApplicationHash(hash: string): boolean {
   return /^#!?\//.test(hash);
@@ -20,4 +22,9 @@ export function hostMatches(value: string, domain: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Playback controls accept timestamped aliases while keeping video parts distinct. */
+export function playbackPageKey(value: string): string {
+  return getVideoIdentity(value)?.canonicalUrl || capturePageKey(value);
 }

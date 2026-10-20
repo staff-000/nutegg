@@ -24,6 +24,9 @@ const CONTENT_SCRIPT_FILES = captureScriptFiles(
  */
 class PageExtractor {
   constructor(options = {}) {
+    this.pageConnections = new Map();
+    this.seekRequests = new Map();
+    this.failedConnections = new Set();
     this.contentScriptFiles = options.contentScriptFiles ?? (
       typeof chrome !== 'undefined' && chrome.runtime?.getManifest
         ? captureScriptFiles(chrome.runtime.getManifest())
@@ -443,22 +446,100 @@ class PageExtractor {
   /**
    * Seek the tab's video player to a timestamp in seconds.
    */
-  async seekToChapter(tabId, seconds) {
-    if (tabId == null) return false;
-    const secs = typeof seconds === 'number' ? seconds : this.toSeconds(seconds);
-    try {
-      await chrome.tabs.sendMessage(tabId, { action: 'nutegg-seek', seconds: secs });
-      return true;
-    } catch {
-      const injected = await this.injectContentScript(tabId);
-      if (!injected) return false;
-      try {
-        await chrome.tabs.sendMessage(tabId, { action: 'nutegg-seek', seconds: secs });
-        return true;
-      } catch {
-        return false;
-      }
+  connectionError(code, error) {
+    return Object.assign(new Error(error?.message || code), { code });
+  }
+  async ensurePageConnection(tabId, { expectedUrl, isCurrent = () => true, explicit = false, owner = '' } = {}) {
+    const key = `${tabId}:${owner}:${expectedUrl ? NutEggPageIdentity.playbackPageKey(expectedUrl) : ''}`;
+    if (explicit) this.failedConnections.delete(key);
+    if (this.failedConnections.has(key)) throw this.connectionError('connection_unavailable');
+    const check = () => { if (!isCurrent()) throw this.connectionError('stale'); };
+    check();
+    let pending = this.pageConnections.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const deadline = Date.now() + 5000;
+        const bounded = async promise => {
+          const timeout = {};
+          const result = await this.withTimeout(promise, Math.max(1, deadline - Date.now()), timeout);
+          if (result === timeout) throw this.connectionError('connection_timeout');
+          return result;
+        };
+        const handshake = async () => {
+          check();
+          const response = await bounded(chrome.tabs.sendMessage(tabId, { action: 'nutegg-handshake' }));
+          check();
+          if (response?.version !== 1 || !response.success || !response.documentId ||
+              !Number.isInteger(response.generation) || !Array.isArray(response.capabilities) || !response.capabilities.includes('seek') ||
+              !response.capabilities.includes('position')) throw this.connectionError('incompatible_listener');
+          if (expectedUrl && response.pageKey !== NutEggPageIdentity.playbackPageKey(expectedUrl))
+            throw this.connectionError('stale');
+          return response;
+        };
+        try { return await handshake(); }
+        catch (error) { if (error.code === 'stale') throw error; }
+        check();
+        if (Date.now() >= deadline) throw this.connectionError('connection_timeout');
+        // Keep injection errors visible: capture's legacy boolean helper intentionally does not.
+        try {
+          const injections = await bounded(chrome.scripting.executeScript({ target: { tabId }, files: this.contentScriptFiles }));
+          const failure = injections?.find?.(entry => entry.error);
+          if (failure) throw new Error(failure.error.message || String(failure.error));
+        } catch (error) { throw this.connectionError('injection_failed', error); }
+        check();
+        try { return await handshake(); }
+        catch (error) { throw this.connectionError(error.code || 'listener_unavailable', error); }
+      })();
+      this.pageConnections.set(key, pending);
+      pending.catch(error => { if (error.code !== 'stale') this.failedConnections.add(key); })
+        .finally(() => { if (this.pageConnections.get(key) === pending) this.pageConnections.delete(key); });
     }
+    const result = await pending;
+    check();
+    return result;
+  }
+  async playbackCommand(tabId, action, values, options = {}) {
+    const identity = await this.ensurePageConnection(tabId, { ...options,
+      isCurrent: options.isPageCurrent || options.isCurrent });
+    if (options.isCurrent && !options.isCurrent()) throw this.connectionError('stale');
+    options.onConnected?.(identity);
+    const response = await this.withTimeout(chrome.tabs.sendMessage(tabId, {
+      action, ...values, expectedUrl: options.expectedUrl || identity.url,
+      documentId: identity.documentId, generation: identity.generation,
+    }), action === 'nutegg-seek' ? 2250 : 1000);
+    if (options.isCurrent && !options.isCurrent()) throw this.connectionError('stale');
+    if (!response?.success) throw this.connectionError(response?.errorCode || 'page_unavailable');
+    return response;
+  }
+  cancelPendingSeek(tabId) {
+    const request = this.seekRequests.get(tabId);
+    this.seekRequests.delete(tabId);
+    if (request?.identity) chrome.tabs.sendMessage(tabId, {
+      action: 'nutegg-cancel-seek', documentId: request.identity.documentId,
+      generation: request.identity.generation, expectedUrl: request.identity.url,
+    }).catch(() => {});
+  }
+  async seekToChapter(tabId, seconds, options = {}) {
+    if (tabId == null) throw this.connectionError('stale');
+    const raw = typeof seconds === 'string' ? seconds.replace(/[\[\]]/g, '').trim() : '';
+    const secs = typeof seconds === 'number' ? seconds : /^\d+(?::[0-5]\d){1,2}$/.test(raw)
+      ? this.toSeconds(raw) : /^\d+$/.test(raw) ? Number(raw) : NaN;
+    if (!Number.isFinite(secs) || secs < 0) throw this.connectionError('invalid_timestamp');
+    const previous = this.seekRequests.get(tabId);
+    const request = {};
+    this.seekRequests.set(tabId, request);
+    if (previous?.identity) chrome.tabs.sendMessage(tabId, {
+      action: 'nutegg-cancel-seek', documentId: previous.identity.documentId,
+      generation: previous.identity.generation, expectedUrl: previous.identity.url,
+    }).catch(() => {});
+    try {
+      return await this.playbackCommand(tabId, 'nutegg-seek', { seconds: secs }, {
+        ...options, explicit: true,
+        isPageCurrent: options.isPageCurrent || options.isCurrent || (() => true),
+        isCurrent: () => this.seekRequests.get(tabId) === request && (!options.isCurrent || options.isCurrent()),
+        onConnected: identity => { request.identity = identity; },
+      });
+    } finally { if (this.seekRequests.get(tabId) === request) this.seekRequests.delete(tabId); }
   }
 
   /**
@@ -491,23 +572,11 @@ class PageExtractor {
   /**
    * Get current playback timestamp or scroll position from the tab.
    */
-  async getPagePosition(tabId, targets = null) {
+  async getPagePosition(tabId, targets = null, options = {}) {
     if (tabId == null) return null;
-    const message = { action: 'nutegg-page-position', ...(targets ? { targets } : {}) };
-    let response = null;
-    try {
-      response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
-    } catch {}
-    if (response?.success) return response;
-    const injected = await this.injectContentScript(tabId);
-    if (!injected) return null;
-    try {
-      response = await this.withTimeout(chrome.tabs.sendMessage(tabId, message), 1000);
-      return response?.success ? response : null;
-    } catch {
-      return null;
-    }
+    return this.playbackCommand(tabId, 'nutegg-page-position', targets ? { targets } : {}, options);
   }
+
 }
 
 const _servicesScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;

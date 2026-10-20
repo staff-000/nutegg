@@ -142,8 +142,10 @@ describe("PageExtractor", () => {
         tabs: {
           sendMessage: async (tabId, msg) => {
             if (!injected) throw new Error("not injected");
+            if (msg.action === 'nutegg-handshake') return { success: true, version: 1,
+              documentId: 'doc', generation: 0, capabilities: ['seek', 'position'] };
             sentMessage = msg;
-            return { ok: true };
+            return { success: true, currentTime: 90 };
           },
         },
         scripting: {
@@ -155,9 +157,9 @@ describe("PageExtractor", () => {
       };
 
       const ok = await extractor.seekToChapter(42, "01:30");
-      assert.equal(ok, true);
+      assert.equal(ok.success, true);
       assert.equal(injected, true);
-      assert.deepEqual(sentMessage, { action: "nutegg-seek", seconds: 90 });
+      assert.deepEqual(sentMessage, { action: "nutegg-seek", seconds: 90, expectedUrl: undefined, documentId: "doc", generation: 0 });
     });
 
     it("sends scroll-to message", async () => {
@@ -185,6 +187,8 @@ describe("PageExtractor", () => {
       globalThis.chrome = {
         tabs: {
           sendMessage: async (tabId, msg) => {
+            if (msg.action === 'nutegg-handshake') return { success: true, version: 1,
+              documentId: 'doc', generation: 0, capabilities: ['seek', 'position'] };
             sentMessage = msg;
             return { success: true, type: "video", currentTime: 125, duration: 600 };
           },
@@ -193,7 +197,7 @@ describe("PageExtractor", () => {
 
       const result = await extractor.getPagePosition(42);
       assert.deepEqual(result, { success: true, type: "video", currentTime: 125, duration: 600 });
-      assert.deepEqual(sentMessage, { action: "nutegg-page-position" });
+      assert.deepEqual(sentMessage, { action: "nutegg-page-position", expectedUrl: undefined, documentId: "doc", generation: 0 });
     });
   });
 

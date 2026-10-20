@@ -176,3 +176,46 @@ Run only files affected by your change, each individually. If shared code change
 | Missing text or duplicated paragraphs | Use shared composed-DOM selection/serialization and existing article/DOM fixtures before writing another parser. |
 
 For past capture reliability checks and live-site limitations, see [content-fetch verification](content-fetch-verification.md). For popup ownership rules, see [popup developer documentation](../chrome-extension/src/popup/README.md).
+
+## Playback connection and cached results
+
+Cached analysis does not establish a page-script connection. `PageExtractor.ensurePageConnection()` uses the
+versioned `nutegg-handshake` before seeking or reading position, shares recovery in flight, injects the manifest
+scripts when needed, and verifies the listener afterward. A connection attempt has a five-second total budget.
+Failed automatic recovery is suppressed for that page generation; an explicit timestamp click may retry.
+
+The handshake owns a document ID, playback page key, and navigation generation. Playback keys use the existing
+video identity (including Bilibili parts), so playback offsets do not invalidate cached sources. Capture/history
+keys retain their existing behavior. Seeking and position reads use the same current-player selector. A seek has
+a two-second readiness/confirmation budget and must report observed playback time within one second of the target.
+Autoplay denial does not turn a successful seek into failure. A newer click cancels an older pending seek.
+
+Reinjection replaces the recorded NutEgg message listener without replacing active capture ownership. Keep the
+owned listener reference; a boolean flag alone cannot verify that Chrome still has a reachable listener.
+Position and seek failures are distinct from extraction/AI errors and belong to the originating tab state.
+
+Troubleshooting a cached result that cannot seek: inspect `nutegg-handshake`, then the rejection from
+`ensurePageConnection()` (`injection_failed`, `listener_unavailable`, `incompatible_listener`, or
+`connection_timeout`). Script execution alone is not proof of a working listener. A `stale` error means ownership
+changed and must never trigger a command on the replacement page. Do not delete the cache or rerun analysis.
+
+Regression command, from `chrome-extension/`: `node --test tests/playback.test.js`.
+
+### Verified cached-video failure (2026-10-19)
+
+On the reported YouTube video `h6vY3g8LFeA`, the cached result targeted the correct browser tab, but
+`nutegg-page-position` had no receiver. Debugger tracing of a fresh panel startup then confirmed Chrome rejected
+`chrome.scripting.executeScript`: “Extension manifest must request permission to access this host.” The old
+boolean injection helper discarded that error. The timestamp handler also updated the marker before receiving
+an acknowledgment. This establishes the immediate failure and failed recovery, but not why the earlier listener
+became unavailable. Do not label an extension reload as proven cause.
+
+The existing manifest deliberately does not add general scripting host permissions. If Chrome refuses temporary
+page access, recovery must remain a visible failure and request a page refresh. Automated fixtures cover successful
+recovery and seeking, refusal, ownership races, and bounded waits. Live verification on the original document
+confirmed the refusal and the new notice. After the user completed Google's unusual-traffic CAPTCHA following
+a refresh, clicking the cached mind-map timestamp 1:21 moved the live video from 17:17 to 1:21 and displayed Here
+on the matching entry. Closing/reopening the panel restored the same history entry and current marker. Switching
+to an existing Bilibili tab and back retained the YouTube result and correct position; the panel AI counters stayed
+at zero. The Bilibili tab had no cached mind map, so live Bilibili timestamp clicking was not exercised; Bilibili
+player selection, part identity, and seeking are covered by fixtures. No AI generation or vault writes were used.

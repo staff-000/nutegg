@@ -241,3 +241,20 @@ test('mindmap does not auto scroll when progress updates', t => {
 
 
 
+
+test('unknown playback clears Here and a new render never reuses the previous video position', t => {
+  const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
+  const old = global.document; global.document = dom.window.document;
+  t.after(() => { global.document = old; dom.window.close(); });
+  const component = new MindmapComponent(document);
+  component.render([{ name: 'Old video', time: '00:00' }], true, { type: 'video', currentTime: 1037 });
+  assert(document.querySelector('.mindmap-current-badge'));
+  component.render([{ name: 'New video', time: '01:00' }]);
+  assert.equal(document.querySelector('.mindmap-current-badge'), null);
+  component.updateProgress({ type: 'video', currentTime: 10 });
+  assert.equal(document.querySelector('.mindmap-current-badge'), null);
+  component.updateProgress({ type: 'video', currentTime: 81 });
+  assert(document.querySelector('.mindmap-current-badge'));
+  component.updateProgress(null);
+  assert.equal(document.querySelector('.mindmap-current-badge'), null);
+});

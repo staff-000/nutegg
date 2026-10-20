@@ -23,7 +23,8 @@ function createExtractorPage(t, options = {}) {
   win.chrome = { runtime: {
     getManifest: () => manifest,
     sendMessage: async message => { messages.push(message); return options.onMessage?.(message) ?? { success: true }; },
-    onMessage: { addListener: listener => listeners.push(listener) },
+    onMessage: { addListener: listener => listeners.push(listener),
+      removeListener: listener => { const index = listeners.indexOf(listener); if (index >= 0) listeners.splice(index, 1); } },
   } };
   // Unexpected network work must fail locally, never reach a live provider.
   win.fetch = async (url, init) => {
