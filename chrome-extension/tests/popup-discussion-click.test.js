@@ -22,7 +22,7 @@ async function loadPopup(t) {
     storage: { local: { get: (_, callback) => callback({}), set: async () => {} }, onChanged: listener() },
     tabs: { query: async () => [tab], get: async () => tab,
       onActivated: listener(), onUpdated: listener(), onRemoved: listener() },
-    runtime: { getManifest: () => ({ version: '0.2.3' }),
+    runtime: { getManifest: () => structuredClone(require('../manifest.json')),
       sendMessage: async message => { calls.push(message); return {}; }, openOptionsPage() {} },
   };
   win.fetch = async () => { throw new Error('Offline test'); };

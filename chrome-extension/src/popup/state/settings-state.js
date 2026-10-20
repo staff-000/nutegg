@@ -249,7 +249,8 @@ class SettingsState {
   }
 
   /**
-   * Existing results retain their backend; new analysis falls back while Obsidian is offline.
+   * Existing results retain their backend; new analysis uses the selected mode,
+   * including when Obsidian is offline. Switching requires an explicit choice.
    */
   isChromeMode(resultOrMode, matchedEggsCount = 0) {
     const res = resultOrMode;
