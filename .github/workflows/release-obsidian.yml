@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Checkout source repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -26,8 +29,15 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Verify release source and version
+        env:
+          SOURCE_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="${SOURCE_TAG#nutegg-obsidian-plugin-}"
+          node scripts/release-tools.mjs verify-source "$GITHUB_WORKSPACE" "$VERSION"
+
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Determine Obsidian workspace & compile
         run: |
@@ -84,56 +94,5 @@ jobs:
           DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)
           DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
           
-          if git diff --staged --quiet; then
-            echo "No changes in files to commit."
-          else
-            git commit -m "Release $TAG (version $VERSION)"
-            git push origin HEAD:"$DEFAULT_BRANCH"
-          fi
-
-          # If release already exists in target repo, delete it first to unlock the tag
-          if command -v gh >/dev/null 2>&1 && [ -n "$GH_TOKEN" ]; then
-            echo "Checking if GitHub Release $RELEASE_TAG already exists in $TARGET_REPO..."
-            gh release view "$RELEASE_TAG" --repo "$TARGET_REPO" >/dev/null 2>&1 && \
-              gh release delete "$RELEASE_TAG" --repo "$TARGET_REPO" --yes || true
-          fi
-
-          # Tag the release in the destination repository
-          git tag -fa "$RELEASE_TAG" -m "Release $RELEASE_TAG from $TAG"
-          git push origin --delete "$RELEASE_TAG" 2>/dev/null || true
-          git push origin "$RELEASE_TAG" --force || true
-
-          # Create GitHub Release with release assets attached
-          if command -v gh >/dev/null 2>&1 && [ -n "$GH_TOKEN" ]; then
-            echo "Publishing GitHub Release $RELEASE_TAG..."
-            gh release create "$RELEASE_TAG" \
-              main.js manifest.json styles.css \
-              --repo "$TARGET_REPO" \
-              --target "$DEFAULT_BRANCH" \
-              --title "NutEgg Obsidian Plugin $RELEASE_TAG" \
-              --notes "Automated release triggered by tag \`$TAG\` in [${{ github.repository }}](https://github.com/${{ github.repository }})." || echo "gh release create skipped or failed"
-          fi
-
-      - name: Update website release version on main
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ github.ref_name }}"
-          VERSION="${TAG#nutegg-obsidian-plugin-}"
-          echo "Updating website release version for Obsidian Plugin to $VERSION..."
-          cd "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main || true
-          git checkout main 2>/dev/null || true
-          git pull origin main --rebase 2>/dev/null || true
-          if [ -f "scripts/update-download-version.js" ]; then
-            node scripts/update-download-version.js --obsidian "$VERSION" --no-build
-            if git diff --quiet website/src/versions.json; then
-              echo "Website version is already up to date."
-            else
-              git add website/src/versions.json
-              git commit -m "chore(release): update Obsidian plugin version to $VERSION on website"
-              git push origin main || echo "⚠️ Direct push to main skipped (branch protected or permissions required)"
-            fi
-          fi
+          bash "$GITHUB_WORKSPACE/scripts/publish-release-assets.sh" \
+            "$TARGET_REPO" "$RELEASE_TAG" "$TAG" "$DEFAULT_BRANCH" main.js manifest.json styles.css

@@ -25,4 +25,4 @@ For content capture changes, read the [extractor contributor guide](docs/content
 4. **QuestionScope**: `"within"` (strict grounding) vs `"beyond"` (grounding stripped for open reasoning/fact-checking).
 5. **i18n**: Use `t(key, params)` from `src/i18n.js` / `src/helpers.js`. Never translate "NutEgg".
 6. **Targeted Tests**: Run only the specific test file with `node --test tests/<file>.test.js`.
-7. **Release Branching**: Minor releases (e.g. `0.4.0`) must be cut onto a new branch `release/X.Y` (e.g. `release/0.4`) from `main`. Subsequent patch releases (e.g. `0.4.1`) are updated and released directly on that `release/X.Y` branch.
+7. **Release Branching**: Minor releases (e.g. `0.4.0`) must be cut onto a new branch `release/X.Y` (e.g. `release/0.4`) from `main`. Subsequent patch releases (e.g. `0.4.1`) are updated and released directly on that `release/X.Y` branch. See [release procedure](docs/releasing.md). Published tags are immutable; synchronize applicable fix commits into `main` explicitly.

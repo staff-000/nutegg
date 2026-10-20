@@ -80,6 +80,9 @@ npm run dev:plugin                  # Watch mode for obsidian plugin
 ./release.sh 0.4.0 --dry-run        # Dry run for minor release (targets branch release/0.4)
 ./release.sh 0.4.0                  # Minor release: creates/switches to branch release/0.4, bumps versions, tags, and releases
 ./release.sh 0.4.1                  # Patch release: updates and releases on existing branch release/0.4
+./release.sh 0.4.0 --resume         # Resume an interrupted publication without moving tags
+
+# Full release procedure and hotfix sync: docs/releasing.md
 
 # Chrome extension development
 # Load unpacked from `chrome-extension/` at chrome://extensions (no dev server needed).
