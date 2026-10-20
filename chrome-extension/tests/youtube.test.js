@@ -772,3 +772,90 @@ test('hidden transcript segments are not accepted as a ready panel', async t => 
   await advanceYoutube(t, 2000);
   assert.equal(await pending, '');
 });
+
+const modernTranscriptRow = (time, text, tag = 'transcript-segment-view-model') => `<${tag} class="ytwTranscriptSegmentViewModelHost"><div role="button"><span class="ytwTranscriptSegmentViewModelTimestamp">${time}</span><span class="ytwTranscriptSegmentViewModelText"><span>${text}</span></span></div></${tag}>`;
+const modernTranscriptPanel = (content, attrs = '') => `<ytd-engagement-panel-section-list-renderer visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED" ${attrs}><yt-section-list-renderer data-target-id="PAmodern_transcript_view">${content}</yt-section-list-renderer></ytd-engagement-panel-section-list-renderer>`;
+
+test('2uyhavEACdo: captures the modern nested-target transcript with chapter groups', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const id = '2uyhavEACdo';
+  const html = `<ytd-watch-flexy video-id="${id}">${ytPanel('visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"')}${modernTranscriptPanel('<button>Chapter 1: Intro</button><div>' + modernTranscriptRow('0:00', 'I am really worried.') + '</div><button>Chapter 2: Theory</button><div>' + modernTranscriptRow('1:14', 'Every job solves a problem.') + '</div>')}</ytd-watch-flexy>`;
+  const { c, dom } = youtubeFixture(t, html, id);
+  c.queryYouTubePlayerSnapshot = async () => null;
+  c.captureFetchText = async () => assert.fail('Visible verified transcript needs no discovery requests');
+  let clicks = 0;
+  dom.window.document.querySelectorAll('button').forEach(button => button.onclick = () => clicks++);
+  const ctx = c.createCaptureContext({ deadline: Date.now() + 6000 });
+  t.after(() => ctx.dispose());
+  const pending = c.extractYouTube(ctx);
+  await flushYoutube(); await advanceYoutube(t, 350);
+  const capture = await pending;
+  assert.equal(capture.transcriptAvailable, true);
+  assert.equal(capture.metadata.caption_source, 'transcript_panel');
+  assert.match(capture.content, /\[0:00\] I am really worried.\n\[1:14\] Every job solves a problem./);
+  assert.doesNotMatch(capture.content, /Chapter 1|Chapter 2/);
+  assert.equal(clicks, 0);
+});
+
+for (const variant of ['renamed-tag', 'structural-rows']) {
+  test(`transcript layout tolerates ${variant} using scoped semantic fields`, async t => {
+    t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+    const rows = variant === 'renamed-tag'
+      ? modernTranscriptRow('0:04', 'Class-based caption', 'new-caption-component')
+      : '<section role="button"><span class="caption-timestamp">0:04</span><span class="newTranscriptSegmentText">Structural caption</span></section>';
+    const { c } = youtubeFixture(t, modernTranscriptPanel(rows, 'video-id="new"'));
+    const pending = c.readTranscriptPanel();
+    await advanceYoutube(t, 350);
+    assert.match(await pending, /^\[0:04\] (Class-based|Structural) caption$/);
+  });
+}
+
+test('timestamp buttons in chapters, comments and unrelated panels are never transcript candidates', async t => {
+  const rows = '<div role="button"><span class="timestamp">0:04</span><span class="segment-text">Unrelated text</span></div>';
+  const { c } = youtubeFixture(t, `<ytd-engagement-panel-section-list-renderer video-id="new" target-id="engagement-panel-chapters" visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED">${rows}</ytd-engagement-panel-section-list-renderer><main>${rows}</main>`);
+  assert.equal(await c.readTranscriptPanel(), '');
+});
+
+test('modern panel ownership remains unknown after SPA navigation', async t => {
+  const { c } = youtubeFixture(t, '<ytd-watch-flexy video-id="new">' + modernTranscriptPanel(modernTranscriptRow('0:00', 'Old captions')) + '</ytd-watch-flexy>');
+  c.window.__nuteggNavigationState.generation = 2;
+  assert.equal(await c.readTranscriptPanel(undefined, { existingOnly: true }), '');
+});
+
+test('modern fallback waits for incremental rows, ignores chapter buttons and closes only its new panel', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const { c, dom } = youtubeFixture(t, '<ytd-video-description-transcript-section-renderer><button id="show">Show transcript</button></ytd-video-description-transcript-section-renderer><aside><button id="unrelated">Close</button></aside>');
+  let closes = 0;
+  dom.window.document.querySelector('#show').onclick = () => {
+    dom.window.document.body.insertAdjacentHTML('beforeend', modernTranscriptPanel('<button id="close-button">Close</button><button>Chapter 1</button>' + modernTranscriptRow('0:00', 'First')));
+    dom.window.document.querySelector('#close-button').onclick = () => closes++;
+  };
+  dom.window.document.querySelector('#unrelated').onclick = () => assert.fail('Unrelated control clicked');
+  let finished = false;
+  const pending = c.readTranscriptPanel().then(text => { finished = true; return text; });
+  await advanceYoutube(t, 200);
+  dom.window.document.querySelector('yt-section-list-renderer').insertAdjacentHTML('beforeend', modernTranscriptRow('0:04', 'Second'));
+  await advanceYoutube(t, 250);
+  assert.equal(finished, false);
+  await advanceYoutube(t, 150);
+  assert.equal(await pending, '[0:00] First\n[0:04] Second');
+  assert.equal(closes, 1);
+});
+
+test('renamed description controls can request the transcript through aria-controls', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const { c, dom } = youtubeFixture(t, '<div id="description-inline-expander"><button aria-controls="new-transcript-panel">Localized transcript action</button></div>');
+  dom.window.document.querySelector('button').onclick = () => dom.window.document.body.insertAdjacentHTML('beforeend', modernTranscriptPanel(modernTranscriptRow('0:00', 'Requested caption')));
+  const pending = c.readTranscriptPanel();
+  await advanceYoutube(t, 350);
+  assert.equal(await pending, '[0:00] Requested caption');
+});
+
+test('structural transcript fallback ignores untimed buttons and empty rows', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const html = '<div role="button"><span class="timestamp">Chapter 2</span><span class="segment-text">Chapter title</span></div><div role="button"><span class="timestamp">0:04</span></div>' + modernTranscriptRow('0:05', 'Actual caption');
+  const { c } = youtubeFixture(t, modernTranscriptPanel(html, 'video-id="new"'));
+  const pending = c.readTranscriptPanel();
+  await advanceYoutube(t, 350);
+  assert.equal(await pending, '[0:05] Actual caption');
+});

@@ -1106,17 +1106,47 @@ function youtubeTranscriptPanelOwner(panel, context, response) {
   return '';
 }
 
+/** Layout recognition is separate from video ownership. Never search page-wide
+ * timestamp buttons: comments, chapters and recommendations are not transcripts.
+ * Prefer known rows, with a structural timestamp/text fallback inside a panel
+ * explicitly identified as a transcript. Keep selectors in this one adapter.
+ */
+function youtubeTranscriptLayout() {
+  const marker = '[target-id*="transcript" i], [panel-identifier*="transcript" i], [data-target-id*="transcript" i]';
+  const rowSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, transcript-segment-view-model, [class*="TranscriptSegmentViewModelHost"]';
+  const timeSelector = '.segment-start-offset, [class*="timestamp" i]';
+  const textSelector = '.segment-text, [class*="segment-text"], [class*="TranscriptSegment"][class*="Text"]';
+  const timeIn = row => row.querySelector(timeSelector)?.textContent?.trim() || '';
+  const textIn = row => row.querySelector(textSelector) || row.querySelector('yt-formatted-string');
+  const line = row => {
+    const text = decodeHtmlEntities(textIn(row)?.textContent?.trim() || '');
+    const time = timeIn(row);
+    return text ? (/^\d{1,3}:\d{2}(?::\d{2})?$/.test(time) ? `[${time}] ${text}` : text) : '';
+  };
+  const segments = panel => {
+    const rows = [...(panel?.querySelectorAll(`${rowSelector}, [role="button"]`) || [])].filter(row =>
+      row.matches(rowSelector) || (/^\d{1,3}:\d{2}(?::\d{2})?$/.test(timeIn(row)) && textIn(row))
+    );
+    const candidates = new Set(rows);
+    // A renderer and its nested button represent one segment. Preserve document
+    // order, including layouts that mix renderer variants or group by chapter.
+    return rows.filter(row => {
+      for (let parent = row.parentElement; parent && parent !== panel; parent = parent.parentElement)
+        if (candidates.has(parent)) return false;
+      return true;
+    });
+  };
+  const panels = () => [...document.querySelectorAll('ytd-engagement-panel-section-list-renderer')].filter(panel =>
+    panel.matches(marker) || panel.querySelector(`${marker}, ${rowSelector}, ytd-transcript-renderer`)
+  );
+  const buttonSelector = 'ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button, button[aria-controls*="transcript" i], [role="button"][aria-controls*="transcript" i]';
+  return { panels, segments, line, buttonSelector };
+}
+
 async function readTranscriptPanel(context, { existingOnly = false, waitMs = 2000 } = {}) {
   const expected = new URL(window.location.href).searchParams.get('v');
-  const panelSelector =
-    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]';
-  const segmentSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model';
-  const segmentsIn = panel => {
-    const rows = [...(panel?.querySelectorAll(segmentSelector) || [])];
-    // Older layouts expose only buttons; current layouts wrap those buttons in
-    // segment renderers. Never read both a row and its nested button.
-    return rows.length ? rows : [...(panel?.querySelectorAll('ytd-transcript-segment-list-renderer [role="button"]') || [])];
-  };
+  const layout = youtubeTranscriptLayout();
+  const segmentsIn = layout.segments;
   const current = () =>
     (!context || context.isCurrent?.() !== false) &&
     new URL(window.location.href).searchParams.get('v') === expected &&
@@ -1126,7 +1156,7 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
       window.__nuteggCaptureState.active?.id === context.requestId);
   const expanded = panel => panel?.getAttribute('visibility') === 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED';
   const getPanel = () => {
-    const panels = [...document.querySelectorAll(panelSelector)];
+    const panels = layout.panels();
     const matching = panels.filter(panel => {
       const explicit = panel.getAttribute('video-id') || panel.getAttribute('data-video-id');
       const watch = panel.closest('ytd-watch-flexy')?.getAttribute('video-id');
@@ -1142,8 +1172,8 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
   const wasExpanded = expanded(initialPanel);
   if (existingOnly && (!wasExpanded || owner(initialPanel) !== expected)) return '';
   const baselineNodes = new Set(segmentsIn(initialPanel));
-  const fingerprint = panel =>
-    segmentsIn(panel).map(el => el.textContent?.trim()).join('\n');
+  // Ignore highlighting/classes and chapter headers when checking stability.
+  const fingerprint = panel => segmentsIn(panel).map(layout.line).filter(Boolean).join('\n');
   const baselineText = fingerprint(initialPanel);
   const description = document.querySelector(
     '#description-inline-expander, ytd-expander#description, #description.ytd-watch-metadata'
@@ -1165,9 +1195,8 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
   document.addEventListener('click', userInteraction, true);
   const pause = ms => youtubeBounded(new Promise(() => {}), ms, context);
   const findButton = () =>
-    description?.querySelector(
-      'ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button'
-    ) ||
+    description?.querySelector(layout.buttonSelector) ||
+    // Outside the description retain only the known transcript-section controls.
     document.querySelector(
       'ytd-video-description-transcript-section-renderer button, ytd-transcript-section-renderer button'
     );
@@ -1232,18 +1261,7 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
           context?.check();
           return dedupTranscriptLines(
             segments
-              .map(segment => {
-                const time =
-                  segment
-                    .querySelector('.segment-start-offset, .segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')
-                    ?.textContent?.trim() || '';
-                const textElement =
-                  segment.querySelector(
-                    '.segment-text, .ytwTranscriptSegmentViewModelText, yt-formatted-string, [class*="segment-text"]'
-                  ) || segment;
-                const line = decodeHtmlEntities(textElement.textContent?.trim() || '');
-                return line ? (time ? `[${time}] ${line}` : line) : '';
-              })
+              .map(layout.line)
               .filter(Boolean)
           ).join('\n');
         }
