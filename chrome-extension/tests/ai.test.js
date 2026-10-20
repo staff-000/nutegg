@@ -38,6 +38,31 @@ const {
   AIProcessor,
 } = NutEggAI;
 
+test('thought-only API responses fail with safe completion metadata instead of becoming answers', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const provider of ['google', 'openai']) {
+      const body = provider === 'google' ? {
+        candidates: [{ content: { parts: [{ thought: true, text: 'PRIVATE_THOUGHT' }] }, finishReason: 'MAX_TOKENS' }],
+        usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 0, thoughtsTokenCount: 8, totalTokenCount: 11 },
+      } : {
+        choices: [{ message: { content: '', reasoning_content: 'PRIVATE_THOUGHT' }, finish_reason: 'length' }],
+        usage: { prompt_tokens: 3, completion_tokens: 8, total_tokens: 11, completion_tokens_details: { reasoning_tokens: 8, private: 'PRIVATE_KEY' } },
+      };
+      globalThis.fetch = async () => new Response(JSON.stringify({ ...body, private: 'PRIVATE_KEY' }));
+      const settings = { aiProvider: provider, aiApiKey: 'PRIVATE_KEY', aiModel: 'custom-model' };
+      await assert.rejects(NutEggAI.chatAI('PRIVATE_PROMPT', 10, resolveConfig(settings)), error => {
+        assert.equal(error.code, 'invalid_response');
+        assert.equal(error.completion.finishReason, 'length');
+        assert.equal(error.completion.reasoningPresent, true);
+        assert.equal(error.completion.usage.completion_tokens_details.reasoning_tokens, 8);
+        assert.doesNotMatch(error.message + JSON.stringify(error), /PRIVATE_/);
+        return true;
+      });
+    }
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('subscription auth normalization strips API credentials and is idempotent', async () => {
   for (const provider of ['google', 'openai', 'anthropic']) {
     for (const prefix of ['ai', 'chromeAi']) {

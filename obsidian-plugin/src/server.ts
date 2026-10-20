@@ -720,7 +720,6 @@ export class NutEggServer {
           const config = data.config || {};
           if (
             !Object.hasOwn(PROVIDER_CATALOG, config.aiProvider) ||
-            config.aiProvider.endsWith('-cli') ||
             typeof config.aiModel !== 'string' ||
             !config.aiModel.trim() ||
             config.aiModel.length > 512 ||
@@ -733,8 +732,7 @@ export class NutEggServer {
           if (
             config.localEndpoint !== undefined &&
             (typeof config.localEndpoint !== 'string' ||
-              config.localEndpoint.length > 2048 ||
-              !/^https?:\/\//.test(config.localEndpoint))
+              config.localEndpoint.length > 2048)
           ) {
             throw new ExecutionProtocolError('invalid_configuration', 'Invalid API endpoint.', 400);
           }

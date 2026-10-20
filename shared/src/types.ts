@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { Connection, StandardClientOptions } from 'byokit/client';
-import type { GENERATED_PROVIDERS } from './generated-models';
+import type { GENERATED_PROVIDERS } from './generated-models.mjs';
 
 export type AIProviderId = (typeof GENERATED_PROVIDERS)[number]['id'];
 

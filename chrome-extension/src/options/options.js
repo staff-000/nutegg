@@ -1057,10 +1057,11 @@ async function handleAiSave(advanced = false) {
     }
     return;
   }
-  saveActivePromptToState();
-  rememberProfile();
   aiSaveBtn.disabled = true;
   try {
+    if (!subscriptionSelected()) window.NutEggAI.resolveConfig(settings);
+    saveActivePromptToState();
+    rememberProfile();
     await chrome.storage.local.set({
       ...settings,
       chromeApiConfig: settings,

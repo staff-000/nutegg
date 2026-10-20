@@ -2,9 +2,9 @@
 // NutEgg Provider Catalog & Configuration Resolver
 // ============================================================
 
-import { ApiProtocol } from 'byokit/client';
+import { ApiProtocol, validateClientConfig } from 'byokit/client';
 import type { Connection } from 'byokit/client';
-import { GENERATED_MODELS, GENERATED_PROVIDERS } from './generated-models';
+import { GENERATED_MODELS, GENERATED_PROVIDERS } from './generated-models.mjs';
 import type { AIProviderId, ModelFamily, NutEggAISettings, ProviderInfo, ResolvedConfig } from './types';
 
 /** Display identity depends on authentication; saved provider IDs remain stable. */
@@ -27,7 +27,7 @@ function modelChoices(models: typeof GENERATED_MODELS) {
 const providers: ProviderInfo[] = GENERATED_PROVIDERS.map(provider => ({
   id: provider.id,
   label: provider.label,
-  connection: provider.connection as Connection,
+  connection: provider.connection,
   ...(provider.id === 'local' ? {} : modelChoices(GENERATED_MODELS.filter(model => model.providerId === provider.id))),
 }));
 
@@ -44,28 +44,18 @@ export const PROVIDER_CATALOG = Object.fromEntries(providers.map(provider => [pr
   provider.id === 'openrouter' ? { ...provider, families: OPENROUTER_FAMILIES } : provider,
 ])) as Record<AIProviderId, ProviderInfo>;
 
-/** Keys may use HTTP only over loopback; never permit a network plaintext hop. */
-export function validateAIEndpoint(endpoint: string, apiKey = ''): URL {
-  const url = new URL(endpoint);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash)
-    throw new Error('Use an HTTP(S) endpoint without credentials, query, or fragment.');
-  const loopback = url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(url.hostname);
-  if (apiKey.trim() && url.protocol !== 'https:' && !loopback)
-    throw new Error('API keys require HTTPS except on localhost or loopback endpoints.');
-  return url;
-}
-
 /** Local settings use base URLs and BYOKit's native protocol names. No requests. */
 export function resolveLocalEndpoint(settings: NutEggAISettings): Connection {
   const raw = (settings.chromeAiEndpoint || settings.localEndpoint || settings.aiEndpoint ||
     'http://127.0.0.1:11434/v1').trim();
-  const url = validateAIEndpoint(raw, settings.chromeAiApiKey ?? settings.aiApiKey ?? '');
-  if (/\/(?:chat\/completions|api\/chat)\/?$/.test(url.pathname))
-    throw new Error('Use the server base URL, without /chat/completions or /api/chat.');
-  return {
-    baseUrl: raw.replace(/\/+$/, ''),
+  const connection = validateClientConfig({
+    baseURL: raw.replace(/\/+$/, ''),
+    apiKey: settings.chromeAiApiKey ?? settings.aiApiKey ?? '',
     protocol: settings.localApiType === 'ollama' ? ApiProtocol.Ollama : ApiProtocol.OpenAI,
-  };
+  });
+  if (/\/(?:chat\/completions|api\/chat)\/?$/.test(new URL(connection.baseUrl).pathname))
+    throw new Error('Use the server base URL, without /chat/completions or /api/chat.');
+  return connection;
 }
 
 export function isSubscriptionProvider(settings?: NutEggAISettings): boolean {

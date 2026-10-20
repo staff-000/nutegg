@@ -1,20 +1,34 @@
 {
-  "byokitVersion": "0.2.0",
+  "byokitVersion": "0.2.3",
+  "target": "compact",
   "asOf": "2026-10-19T00:00:00Z",
   "configHash": "e05f3812534d4758c154ef7714e40496d96812239a724828246809aadcba7b49",
-  "direct": {
-    "schemaVersion": 1,
-    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
-    "configHash": "e05f3812534d4758c154ef7714e40496d96812239a724828246809aadcba7b49"
-  },
-  "openrouter": {
-    "schemaVersion": 1,
-    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
-    "configHash": "4d6ab94bb0927e9b536e6b4b13d56f73c2dc8bb68e98d79529ae6d5b2826fce6"
-  },
-  "local": {
-    "schemaVersion": 1,
-    "upstreamHash": "b5a87e6dbaed899948d28f388183b47e18a21b7082bada5ed7e5aad352bda4f6",
-    "configHash": "b3afa38f51c47776eb7d986d6532dae5ca779d6a78b46c1d8c092391ba89bbd1"
-  }
+  "upstreamHash": "ad902ef096a912e070c155f942257a84f0a30438dd9e5eeef342aca73bcb1899",
+  "outputHash": "4da8f2c649f9ab9230a05d455aa8d1e81082e11ecbd227ff531839392fd98db7",
+  "direct": [
+    "anthropic/claude-haiku-5-5",
+    "anthropic/claude-sonnet-5",
+    "anthropic/claude-sonnet-5-5",
+    "deepseek/deepseek-chat",
+    "deepseek/deepseek-flash",
+    "google/gemini-3.7-flash",
+    "google/gemini-3.8-flash",
+    "openai/gpt-5.6-luna",
+    "openai/gpt-6-luna",
+    "openai/gpt-6-sol",
+    "openai/gpt-6.1-sol"
+  ],
+  "openrouter": [
+    "openrouter/anthropic/claude-haiku-5.5",
+    "openrouter/anthropic/claude-sonnet-5",
+    "openrouter/anthropic/claude-sonnet-5.5",
+    "openrouter/deepseek/deepseek-chat",
+    "openrouter/deepseek/deepseek-v4.1-flash",
+    "openrouter/google/gemini-3.7-flash",
+    "openrouter/google/gemini-3.8-flash",
+    "openrouter/openai/gpt-5.6-luna",
+    "openrouter/openai/gpt-6-luna",
+    "openrouter/openai/gpt-6-sol",
+    "openrouter/openai/gpt-6.1-sol"
+  ]
 }

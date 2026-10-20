@@ -34,12 +34,14 @@ export type AIErrorCode =
 export class AIError extends Error {
   code: AIErrorCode;
   statusCode: number | null;
+  completion?: CallError['completion'];
 
-  constructor(code: AIErrorCode, message: string, statusCode?: number) {
+  constructor(code: AIErrorCode, message: string, statusCode?: number, completion?: CallError['completion']) {
     super(message);
     this.name = 'AIError';
     this.code = code;
     this.statusCode = statusCode ?? null;
+    this.completion = completion;
   }
 }
 
@@ -91,7 +93,8 @@ export async function chatAI(
           network_error: 'network_error', timeout: 'timeout',
         };
         throw new AIError(error.code === 'CANCELED' ? 'cancelled' :
-          codes[error.attempt?.reason || 'unknown'] || 'unknown', error.message, error.status);
+          error.code === 'EMPTY_RESPONSE' ? 'invalid_response' :
+          codes[error.attempt?.reason || 'unknown'] || 'unknown', error.message, error.status, error.completion);
       }
       throw error;
     }

@@ -18,7 +18,7 @@ test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter o
     for (const model of selected) {
       const resolved = core.resolveConfig({ aiProvider: providerId, aiModel: model.apiModelId });
       assert.equal(resolved.model, model.apiModelId);
-      assert.deepEqual(resolved.client.models[0], JSON.parse(JSON.stringify(model)));
+      assert.deepEqual(resolved.client.models[0], byokit.compactModels([model])[0]);
     }
   }
   assert.deepEqual(Object.keys(core.PROVIDER_CATALOG).sort(), [...config.providerIds.values, 'local', 'openrouter'].sort());
@@ -28,16 +28,16 @@ test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter o
     assert.equal(provider.label, model.provider.name);
     assert.equal(new URL(provider.connection.baseUrl).origin, new URL(model.connection.baseUrl).origin);
   }
-  const routerOfferings = byokit.getModels({ ...config, providerIds: ['openrouter'], dedupe: false });
-  const seen = new Set();
-  const expected = routerOfferings.filter(offering => {
-    if (!models.some(model => model.modelId === offering.modelId) || seen.has(offering.modelId)) return false;
-    seen.add(offering.modelId);
-    return true;
-  });
+  const expected = models.flatMap(seed => byokit.getEquivalentModels([seed], {
+    ...config, providerIds: [byokit.ProviderId.OpenRouter], dedupe: false, limit: 1,
+  }));
   assert.deepEqual(core.PROVIDER_CATALOG.openrouter.models, expected.map(offering => offering.apiModelId));
   assert.equal(new Set(expected.map(model => model.modelId)).size, expected.length);
   assert.doesNotMatch(code, /node_modules\/byokit\/catalog\.js|class Catalog|function localGroups/, 'runtime must not bundle BYOKit discovery or catalog');
+  const generated = await import('../../shared/src/generated-models.mjs');
+  const full = [...models, ...expected];
+  assert.deepEqual(generated.GENERATED_MODELS, byokit.compactModels(full));
+  assert.ok(JSON.stringify(generated.GENERATED_MODELS).length < JSON.stringify(full).length / 2);
 });
 
 test('removed providers are rejected and custom models remain available for supported providers', () => {

@@ -39,6 +39,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
     reduceSharedExecutionState:core.reduceSharedExecutionState,
     selectEffectiveExecution:core.selectEffectiveExecution,
     supportsSubscription: core.supportsSubscription,
+    resolveConfig: core.resolveConfig,
     PROVIDER_CATALOG: {
       google: { label: 'Google Gemini', models: ['gemini-default', 'gemini-pro'], defaultModel: 'gemini-default', keyPlaceholder: 'AIza...' },
       openai: { label: 'OpenAI', models: ['openai-default'], defaultModel: 'openai-default' },
@@ -96,6 +97,27 @@ test('saving a provider without balance support shows its status', async t => {
   await flush();
   assert.match(el('ai-test-result').textContent, /Local · Status: Ready/);
   assert.doesNotMatch(el('ai-test-result').textContent, /Balance:/);
+});
+
+test('invalid local endpoints cannot persist credentials or trigger synchronization', async t => {
+  for (const endpoint of ['http://server.example/v1', 'http://user:PRIVATE_KEY@localhost/v1', 'http://localhost/v1/chat/completions']) {
+    const { values, messages, creditCalls, el } = await setup(t, {
+      chromeAiProvider: 'local', chromeAiModel: 'installed-model', chromeAiApiKey: 'saved-key',
+      chromeAiEndpoint: 'http://localhost:8000/v1',
+    });
+    const before = structuredClone(values);
+    el('ai-local-endpoint').value = endpoint;
+    el('ai-key-input').value = 'PRIVATE_KEY';
+    const messageCount = messages.length;
+    el('ai-save-btn').click();
+    await flush();
+    assert.deepEqual(values, before);
+    assert.equal(creditCalls.length, 0);
+    assert.equal(messages.length, messageCount);
+    assert.equal(el('ai-test-result').classList.contains('error'), true);
+    assert.doesNotMatch(el('ai-test-result').textContent, /PRIVATE_KEY/);
+    assert.equal(el('ai-save-btn').disabled, false);
+  }
 });
 
 test('a fresh install shows Chrome setup and sensible defaults without contacting Obsidian', async t => {

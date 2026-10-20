@@ -2,7 +2,8 @@
 
 NutEgg uses BYOKit's `latest` tag as a **development dependency**. The lockfile
 records the installed version. Build-time selection generates
-`shared/src/generated-models.ts` with native BYOKit offering objects. Chrome and
+`shared/src/generated-models.mjs` and its `.d.mts` declaration with native BYOKit
+`ExecutionModel` objects, using the official `compactModels()` build API. Chrome and
 Obsidian use `byokit/client` for runtime execution; neither imports the bundled
 catalog or runs model discovery at startup. Provider IDs, display names, base
 URLs, and protocols come from BYOKit. There are no separate NutEgg provider IDs,
@@ -24,7 +25,7 @@ To refresh:
 
 1. Run `npm update byokit --ignore-scripts` to resolve the latest published snapshot.
 2. Advance `asOf` in `shared/byok.config.json` to the desired ISO timestamp.
-3. Run `npm run models:update` and review `generated-models.ts` and
+3. Run `npm run models:update` and review `generated-models.mjs`, its declaration, and
    `shared/models.lock.json`.
 4. Run `npm run build:extension` and `npm run build:plugin`.
 
@@ -36,18 +37,14 @@ longer supported; users must select one of the current providers.
 
 ## OpenRouter
 
-BYOKit's `providerIds` identifies the host that receives the key. OpenRouter
-therefore needs a separate query. The generator queries its offerings with the
-same content filters, joins them to selected direct models by canonical
-`modelId`, and retains one offering per canonical model. It always uses the
-returned `apiModelId`; prepending a vendor prefix to a direct API ID is unsafe.
-OpenRouter's global `dedupe: 2` is disabled for this intermediate query so it
-cannot discard an entire creator before the join. The direct selection already
-applies the requested cap per provider, speciality, and tier.
-
-BYOKit supplies the identities required for this integration. A creator
-filter or an API to resolve equivalent offerings across hosts would eliminate
-this small build-time join; neither is required to ship the change.
+BYOKit's `providerIds` identifies the host that receives the key. For each
+selected direct offering, the generator calls `getEquivalentModels([seed],
+{ ...config, providerIds: [ProviderId.OpenRouter], dedupe: false, limit: 1 })`.
+BYOKit resolves canonical identity and ranks the equivalent offerings; NutEgg
+keeps one result per seed for its model picker. There is no application-side
+cross-catalog join or fabricated reseller ID. The returned `apiModelId` is sent
+unchanged, using the OpenRouter key. The direct selection already applies the
+requested cap per provider, speciality, and tier.
 
 ## Local servers
 
@@ -61,7 +58,10 @@ is saved independently for each provider profile and synced to Obsidian.
 The model ID is sent unchanged. No model is guessed, installed, or discovered.
 An empty key means unauthenticated access; a supplied server key is preserved.
 Authenticated endpoints require HTTPS, except for `localhost`, IPv4 loopback,
-and `::1`. Provider calls and connection checks reject redirects so keys cannot
+and `::1`. BYOKit's offline `validateClientConfig()` enforces URL and credential
+transport safety before Chrome saves settings and Obsidian syncs secrets.
+The same validation runs when resolving a local execution or connection check.
+Provider calls and connection checks reject redirects so keys cannot
 be forwarded to another endpoint. Unauthenticated local-network HTTP remains
 available.
 The explicit connection check uses `/models` or `/api/tags` at that endpoint.
@@ -70,8 +70,8 @@ In connected mode, Save & continue also syncs keyless local configurations to
 Obsidian and removes the previous active key. Keyless local setups do not
 require SecretStorage.
 
-See [verified BYOKit product gaps](byokit-product-gaps.md), including the Gemini
-thought-only response bug that needs an upstream fix before production.
+See [verified BYOKit product gaps](byokit-product-gaps.md) for the fixes verified
+in the published 0.2.3 package and the corresponding NutEgg cleanup.
 
 References: [BYOKit README](https://github.com/staff-000/byokit#readme),
 [build-time generation](https://github.com/staff-000/byokit#build-a-smaller-model-list),
