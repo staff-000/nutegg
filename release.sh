@@ -105,6 +105,9 @@ for dir in '' chrome-extension obsidian-plugin shared website; do
     ln -s "$SCRIPT_DIR/${dir:+$dir/}node_modules" "$WORK/${dir:+$dir/}node_modules"
   fi
 done
+# Chrome's DOM tests share jsdom from the Obsidian workspace. Linking sibling
+# node_modules directories alone does not put them on Node's lookup path.
+export NODE_PATH="$WORK/obsidian-plugin/node_modules${NODE_PATH:+:$NODE_PATH}"
 (cd "$WORK/chrome-extension" && npm test)
 (cd "$WORK/obsidian-plugin" && npm test)
 (cd "$WORK" && npm run build)

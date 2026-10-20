@@ -264,3 +264,18 @@ if(input.includes('refs/heads/main')&&!fs.existsSync(${JSON.stringify(once)})){
   assert.equal(published.chromeExtension.githubVersion, '0.4.0');
   assert.equal(f.git('show', 'origin/main:main-only.txt'), 'Concurrent feature');
 });
+
+test('isolated release checks can load jsdom installed only in the sibling Obsidian workspace', t => {
+  const f = fixture(t);
+  f.write('.gitignore', 'node_modules/\n'); f.git('add', '.gitignore'); f.git('commit', '-m', 'Ignore installed dependencies'); f.git('push', 'origin', 'main');
+  const installed = path.dirname(path.dirname(require.resolve('jsdom', { paths: [path.join(root, 'obsidian-plugin')] })));
+  const modules = path.join(f.repo, 'obsidian-plugin/node_modules'); fs.mkdirSync(modules);
+  fs.symlinkSync(installed, path.join(modules, 'jsdom'), 'dir');
+  const npm = path.join(f.env.PATH.split(path.delimiter)[0], 'npm');
+  fs.appendFileSync(npm, `\nif [ "$CHECK_DOM" = 1 ] && [ "$1" = test ]; then node -e 'const {JSDOM}=require("jsdom"); const dom=new JSDOM("<p>Release check</p>"); if(dom.window.document.querySelector("p").textContent!=="Release check")process.exit(7); dom.window.close();'; fi\n`);
+  const head = f.git('rev-parse', 'HEAD');
+  success(f.run(['0.4.0', '--dry-run'], { EXPECTED_VERSION: '0.4.0', CHECK_DOM: '1', NODE_PATH: '' }));
+  assert.equal(f.git('rev-parse', 'HEAD'), head);
+  assert.equal(f.git('branch', '--show-current'), 'main');
+  assert.equal(f.git('status', '--porcelain'), '');
+});

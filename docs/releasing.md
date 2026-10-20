@@ -62,7 +62,7 @@ Distribution workflow reruns accept identical files/assets, upload missing asset
 
 - `./release.sh --check` tests/builds the current committed source without publishing.
 - `./release.sh VERSION --dry-run` validates the selected maintenance source and prospective version without changing the current branch, versions, tags, or remote repository. It fetches remote refs; `--allow-dirty` is permitted only here and checks committed source, not uncommitted edits.
-- Dependency packages must already be installed locally. Temporary worktrees reuse the installed dependencies; CI installs the committed lockfile with `npm ci`.
+- Dependency packages must already be installed locally. Temporary worktrees reuse the installed dependencies and expose the Obsidian workspace's shared DOM-test dependencies to Chrome tests through `NODE_PATH`; CI installs the committed lockfile with `npm ci`.
 - `--deploy [--vault PATH]` remains opt-in. Normal release commands do not update an Obsidian vault.
 
 Validate release-script changes with these commands from the repository root:
