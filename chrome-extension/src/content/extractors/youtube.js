@@ -1080,9 +1080,11 @@ function readYtInitialData() {
  * unavailable (consent walls, A/B layouts, ...).
  */
 function youtubeTranscriptPanelOwner(panel, context, response) {
+  const expected = new URL(window.location.href).searchParams.get('v');
+  const watchVideo = panel?.closest('ytd-watch-flexy')?.getAttribute('video-id');
+  if (watchVideo && watchVideo !== expected) return watchVideo;
   const explicit = panel?.getAttribute('video-id') || panel?.getAttribute('data-video-id');
   if (explicit) return explicit;
-  const expected = new URL(window.location.href).searchParams.get('v');
   const navigation = window.__nuteggNavigationState;
   try {
     const initial = new URL(navigation?.initialUrl);
@@ -1094,7 +1096,10 @@ function youtubeTranscriptPanelOwner(panel, context, response) {
       initial.pathname === '/watch' &&
       initial.searchParams.get('v') === expected &&
       panel?.closest('ytd-watch-flexy')?.getAttribute('video-id') === expected &&
-      (context?.youtubeSnapshot?.playerResponse || response)?.videoDetails?.videoId === expected
+      // The original document and watch renderer establish ownership even when
+      // MAIN-world access is blocked. A player snapshot is supplementary, not
+      // a prerequisite for reading the DOM fallback it is meant to recover.
+      (!response?.videoDetails?.videoId || response.videoDetails.videoId === expected)
     )
       return expected;
   } catch {}
@@ -1105,8 +1110,13 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
   const expected = new URL(window.location.href).searchParams.get('v');
   const panelSelector =
     'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"], ytd-engagement-panel-section-list-renderer[panel-identifier="engagement-panel-searchable-transcript"]';
-  const segmentSelector =
-    'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, ytd-transcript-segment-list-renderer [role="button"]';
+  const segmentSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model';
+  const segmentsIn = panel => {
+    const rows = [...(panel?.querySelectorAll(segmentSelector) || [])];
+    // Older layouts expose only buttons; current layouts wrap those buttons in
+    // segment renderers. Never read both a row and its nested button.
+    return rows.length ? rows : [...(panel?.querySelectorAll('ytd-transcript-segment-list-renderer [role="button"]') || [])];
+  };
   const current = () =>
     (!context || context.isCurrent?.() !== false) &&
     new URL(window.location.href).searchParams.get('v') === expected &&
@@ -1114,17 +1124,26 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
       !window.__nuteggCaptureState?.latest ||
       window.__nuteggCaptureState.latest === context.requestId ||
       window.__nuteggCaptureState.active?.id === context.requestId);
-  const getPanel = () => document.querySelector(panelSelector);
   const expanded = panel => panel?.getAttribute('visibility') === 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED';
+  const getPanel = () => {
+    const panels = [...document.querySelectorAll(panelSelector)];
+    const matching = panels.filter(panel => {
+      const explicit = panel.getAttribute('video-id') || panel.getAttribute('data-video-id');
+      const watch = panel.closest('ytd-watch-flexy')?.getAttribute('video-id');
+      return (!explicit || explicit === expected) && (!watch || watch === expected);
+    });
+    // YouTube can keep a hidden template beside its expanded transcript.
+    return matching.find(expanded) || matching[0] || panels[0];
+  };
   const until = Math.min(Date.now() + waitMs, context?.deadline || Infinity);
   const initialPanel = getPanel();
   const response = context?.youtubeSnapshot?.playerResponse || readYtInitialPlayerResponse();
   const owner = node => youtubeTranscriptPanelOwner(node, context, response);
   const wasExpanded = expanded(initialPanel);
   if (existingOnly && (!wasExpanded || owner(initialPanel) !== expected)) return '';
-  const baselineNodes = new Set(initialPanel?.querySelectorAll(segmentSelector) || []);
+  const baselineNodes = new Set(segmentsIn(initialPanel));
   const fingerprint = panel =>
-    [...(panel?.querySelectorAll(segmentSelector) || [])].map(el => el.textContent?.trim()).join('\n');
+    segmentsIn(panel).map(el => el.textContent?.trim()).join('\n');
   const baselineText = fingerprint(initialPanel);
   const description = document.querySelector(
     '#description-inline-expander, ytd-expander#description, #description.ytd-watch-metadata'
@@ -1188,7 +1207,7 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
         ownedPanel = panel;
       }
       if (owner(panel) && owner(panel) !== expected) return '';
-      const segments = [...(panel?.querySelectorAll(segmentSelector) || [])];
+      const segments = segmentsIn(panel);
       const text = fingerprint(panel);
       const fresh =
         requested &&
@@ -1205,7 +1224,7 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
         }
         return true;
       });
-      if (owned && text && !loading) {
+      if (owned && expanded(panel) && text && !loading) {
         if (text !== stableText) {
           stableText = text;
           stableSince = Date.now();
@@ -1216,7 +1235,7 @@ async function readTranscriptPanel(context, { existingOnly = false, waitMs = 200
               .map(segment => {
                 const time =
                   segment
-                    .querySelector('.segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')
+                    .querySelector('.segment-start-offset, .segment-timestamp, [class*="timestamp"], [class*="Timestamp"]')
                     ?.textContent?.trim() || '';
                 const textElement =
                   segment.querySelector(
