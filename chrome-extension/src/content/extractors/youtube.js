@@ -1116,8 +1116,14 @@ function youtubeTranscriptLayout() {
   const rowSelector = 'ytd-transcript-segment-renderer, yt-transcript-segment-view-model, transcript-segment-view-model, [class*="TranscriptSegmentViewModelHost"]';
   const timeSelector = '.segment-start-offset, [class*="timestamp" i]';
   const textSelector = '.segment-text, [class*="segment-text"], [class*="TranscriptSegment"][class*="Text"]';
-  const timeIn = row => row.querySelector(timeSelector)?.textContent?.trim() || '';
-  const textIn = row => row.querySelector(textSelector) || row.querySelector('yt-formatted-string');
+  const timeIn = row => [...row.querySelectorAll(timeSelector)]
+    .map(node => node.textContent?.trim() || '')
+    .find(text => /^\d{1,3}:\d{2}(?::\d{2})?$/.test(text)) || '';
+  const textIn = row => row.querySelector(textSelector) || row.querySelector('yt-formatted-string') ||
+    // Current modern rows put attributed text directly under the host, without
+    // a TranscriptSegment*Text wrapper. Keep this broader match inside a known
+    // segment only; it must not turn arbitrary chapter buttons into captions.
+    (row.matches(rowSelector) ? row.querySelector('[role="text"], .ytAttributedStringHost') : null);
   const line = row => {
     const text = decodeHtmlEntities(textIn(row)?.textContent?.trim() || '');
     const time = timeIn(row);

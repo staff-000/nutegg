@@ -859,3 +859,23 @@ test('structural transcript fallback ignores untimed buttons and empty rows', as
   await advanceYoutube(t, 350);
   assert.equal(await pending, '[0:05] Actual caption');
 });
+
+test('live 2uyhavEACdo markup: direct attributed text and accessibility timestamp label', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000 });
+  const id = '2uyhavEACdo';
+  // Captured from Chrome Elements, not a hypothetical Text wrapper. The a11y
+  // timestamp label is not a timestamp, even if it precedes the visual value.
+  const row = '<transcript-segment-view-model class="ytwTranscriptSegmentViewModelHost ytwTranscriptSegmentViewModelHostActive"><div class="ytwTranscriptSegmentViewModelTimestampA11yLabel">0 seconds</div><div aria-hidden="true" class="ytwTranscriptSegmentViewModelTimestamp ytwTranscriptSegmentViewModelTimestampActive">0:00</div><span class="ytAttributedStringHost ytAttributedStringLinkInheritColor" role="text">I\'m really worried. You only have 5 years left to get rich.</span></transcript-segment-view-model>';
+  const { c } = youtubeFixture(t, `<ytd-watch-flexy video-id="${id}">${modernTranscriptPanel(row)}</ytd-watch-flexy>`, id);
+  c.queryYouTubePlayerSnapshot = async () => null;
+  c.captureFetchText = async () => assert.fail('No network discovery needed for this verified open transcript');
+  const ctx = c.createCaptureContext({ deadline: Date.now() + 6000 });
+  t.after(() => ctx.dispose());
+  const pending = c.extractYouTube(ctx);
+  await flushYoutube(); await advanceYoutube(t, 350);
+  const capture = await pending;
+  assert.equal(capture.transcriptAvailable, true);
+  assert.match(capture.content, /\[0:00\] I'm really worried\. You only have 5 years left to get rich\./);
+  assert.doesNotMatch(capture.content, /0 seconds/);
+  assert.equal(capture.metadata.caption_source, 'transcript_panel');
+});
