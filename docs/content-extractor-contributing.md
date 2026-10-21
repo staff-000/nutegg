@@ -28,6 +28,8 @@ Popup PageExtractor (originating tab ID, request ID, deadline)
 
 Keep platform-specific detection, identity, metadata, and parsing together. Use shared helpers for behavior used by multiple platforms. Discussion collection is separate from primary body extraction. YouTube's snapshot and caption code stays together in `youtube.js`: it is also loaded by the background worker, so avoid DOM-dependent work at file initialization.
 
+YouTube transcript layout selectors live in `youtubeTranscriptLayout()` in `youtube.js`. It recognizes transcript markers on an engagement panel or its descendants (including `PAmodern_transcript_view`), legacy/modern segment components, and timestamp/text button pairs inside identified transcript panels. When adding a layout, extend this adapter and a realistic fixture in `youtube.test.js`; do not add page-wide timestamp scraping or relax video ownership. Layout recognition is separate from ownership, loading/stability checks, cancellation, and UI restoration. Renamed tags can work through existing class/structural fields, but wholly changed or unidentifiable layouts must fail safely.
+
 ## Add a website
 
 1. Create `chrome-extension/src/content/extractors/<platform>.js`. Define a synchronous detector and an extractor accepting `context`. Start with the example below for ordinary articles.
