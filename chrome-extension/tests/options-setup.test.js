@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const { JSDOM } = require('jsdom');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-async function setup(t, initial = {}, url = 'https://extension.test/options', credit = {}) {
+async function setup(t, initial = {}, url = 'https://extension.test/options', credit = {}, panel = {}) {
   const html = fs.readFileSync(require.resolve('../src/options/options.html'), 'utf8');
   const dom = new JSDOM(html, { url, runScripts: 'outside-only' });
   t.after(() => dom.window.close());
@@ -30,6 +30,7 @@ async function setup(t, initial = {}, url = 'https://extension.test/options', cr
       return {}; }, getManifest: () => ({ version: '1.0' }) },
     tabs: { create: () => {} },
   };
+  if (panel.getLayout) win.chrome.sidePanel = { getLayout: panel.getLayout };
   win.fetch = async url => { requests.push(url); if (String(url).endsWith('/health')) return { ok: true, json: async () => ({ subscriptionEnabled: initial.subscriptionFeatureEnabled !== false }) }; throw new Error('Offline'); };
   win.eval(fs.readFileSync(require.resolve('../dist/ai-core.js'), 'utf8'));
   const core = win.NutEggAI;
@@ -831,4 +832,67 @@ test('credit status descriptors use the settings UI locale rather than transport
   await flush(); await flush();
   assert.ok(el('ai-advanced-status').textContent.includes('可用 $12.34'));
   assert.ok(!el('ai-advanced-status').textContent.includes('$12.34 available'));
+});
+
+for (const side of ['left', 'right']) {
+  test(`panel position shows ${side} and opens Chrome Appearance settings`, async t => {
+    const { win, el, values, messages } = await setup(t, {}, undefined, {}, { getLayout: async () => ({ side }) });
+    assert.equal(el('panel-position-status').textContent, `Currently on the ${side}`);
+    assert.equal(el('panel-position-status').getAttribute('data-i18n'), side === 'left' ? 'panelPositionLeft' : 'panelPositionRight');
+    assert.match(win.document.querySelector('[data-i18n="panelPositionInstructions"]').textContent, /Appearance → Side panel/);
+    const before = JSON.stringify(values);
+    const opened = [];
+    win.chrome.tabs.create = async options => opened.push(options.url);
+    const previousMessages = messages.length;
+    el('panel-position-settings-btn').click();
+    await flush();
+    assert.deepEqual(opened, ['chrome://settings/appearance']);
+    assert.equal(el('panel-position-error').hidden, true);
+    assert.equal(JSON.stringify(values), before, 'opening Chrome settings does not change NutEgg preferences');
+    assert.equal(messages.length, previousMessages, 'opening Chrome settings does not change AI execution');
+  });
+}
+
+test('panel position refreshes when returning from Chrome settings and ignores stale reads', async t => {
+  let side = 'right';
+  const { win, el } = await setup(t, {}, undefined, {}, { getLayout: async () => ({ side }) });
+  side = 'left';
+  win.dispatchEvent(new win.Event('focus'));
+  await flush();
+  assert.equal(el('panel-position-status').textContent, 'Currently on the left');
+  side = 'right';
+  Object.defineProperty(win.document, 'hidden', { configurable: true, value: false });
+  win.document.dispatchEvent(new win.Event('visibilitychange'));
+  await flush();
+  assert.equal(el('panel-position-status').textContent, 'Currently on the right');
+  let finishOld;
+  win.chrome.sidePanel.getLayout = () => new Promise(resolve => { finishOld = resolve; });
+  win.dispatchEvent(new win.Event('focus'));
+  win.chrome.sidePanel.getLayout = async () => ({ side: 'left' });
+  win.dispatchEvent(new win.Event('focus'));
+  await flush();
+  finishOld({ side: 'right' });
+  await flush();
+  assert.equal(el('panel-position-status').textContent, 'Currently on the left');
+});
+
+test('panel position keeps manual instructions when unsupported, rejected, or unknown', async t => {
+  for (const panel of [{}, { getLayout: async () => { throw new Error('Unavailable'); } }, { getLayout: async () => ({ side: 'unknown' }) }]) {
+    const { el } = await setup(t, {}, undefined, {}, panel);
+    assert.equal(el('panel-position-status').textContent, 'Current position: check in Chrome settings');
+    assert.equal(el('panel-position-settings-btn').disabled, false);
+  }
+});
+
+test('panel settings shortcut failures show a usable manual URL and clear on retry', async t => {
+  const { win, el } = await setup(t);
+  win.chrome.tabs.create = async () => { throw new Error('Unavailable'); };
+  el('panel-position-settings-btn').click();
+  await flush();
+  assert.equal(el('panel-position-error').hidden, false);
+  assert.match(el('panel-position-error').textContent, /chrome:\/\/settings\/appearance/);
+  win.chrome.tabs.create = async () => {};
+  el('panel-position-settings-btn').click();
+  await flush();
+  assert.equal(el('panel-position-error').hidden, true);
 });
