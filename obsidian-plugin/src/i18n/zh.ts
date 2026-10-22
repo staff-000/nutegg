@@ -167,18 +167,7 @@ export const zh: Record<TranslationKey, string> = {
   subscriptionAccountSetup:
     '登录此连接并选择模型。Obsidian 和已连接的 Chrome 使用所选连接。API 密钥请在 Chrome 设置中配置。',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: '停用订阅模式',
-  subscriptionEnabledTitle: '已启用订阅模式',
-  subscriptionDisabledTitle: '已停用订阅模式',
-  subscriptionEnableInstructions: '在 Obsidian 设置 → NutEgg 中开启“订阅模式”。也可以使用命令面板（Cmd/Ctrl+P）。',
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: '订阅模式',
-  subscriptionModeSettingDesc: '使用本地 Claude、Codex 或 Gemini CLI 订阅，无需配置 API 密钥。',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',

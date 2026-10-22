@@ -27,6 +27,7 @@ export interface NutEggSettings {
   nativeConfigurationRevision?: number;
   legacyNativeApiCandidate?: { settings: Record<string, any>; keyRef: string };
 
+  /** Legacy persisted flag; availability is always on. */
   subscriptionEnabled: boolean;
   aiAuthMethod?: 'apiKey' | 'subscription' | 'chatgpt';
   /** Non-secret selection retained even while the credential store is unavailable. */
@@ -72,7 +73,7 @@ export interface NutEggSettings {
 
 export const DEFAULT_SETTINGS: NutEggSettings = {
   developerMode: false,
-  subscriptionEnabled: false,
+  subscriptionEnabled: true,
   aiAuthMethod: 'apiKey',
   subscriptionModels: {},
   aiProvider: 'anthropic',
@@ -145,7 +146,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     const mode = this.aiConnectionMode();
     if (mode === 'chatgpt') {
       this.displayChatGPT(connectionBox);
-    } else if (settings.subscriptionEnabled && mode === 'subscription') {
+    } else if (mode === 'subscription') {
       this.displaySubscriptionSetup(connectionBox);
     }
 
@@ -363,7 +364,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       ? t('connectionRecentClients', { count: String(clients) })
       : t(approvals ? 'connectionApprovalPending' : 'connectionWaiting');
     paint(rows.chrome, clientText, clients ? 'ready' : 'waiting');
-    const selected = this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+    const selected = this.plugin.settings.aiAuthMethod === 'subscription';
     const runtime = selected ? this.plugin.subscriptions?.getRuntimeStatus() : undefined;
     if (this.plugin.settings.aiAuthMethod === 'chatgpt') {
       const state = this.plugin.chatgpt?.status().state || 'error';
@@ -423,13 +424,15 @@ export class NutEggSettingTab extends PluginSettingTab {
       return box;
     }
     const view = this.chatgptView;
-    const current = () => view === this.chatgptView && this.aiConnectionMode() !== 'apiKey';
+    const current = () => view === this.chatgptView && this.aiConnectionMode() === mode;
     const selected =
       mode === 'chatgpt'
         ? 'chatgpt'
-        : this.plugin.server?.execution?.state?.subscription.provider || settings.subscriptionSelection?.provider || settings.aiProvider;
+        : this.plugin.server?.execution?.state?.subscription.provider ||
+          settings.subscriptionSelection?.provider ||
+          settings.aiProvider;
     new Setting(box)
-      .setName(`${t('aiMethod')} · ${t('subscriptionLabel')}`)
+      .setName(t('aiMethod'))
       .setDesc(t('obsidianAIConnectionsDesc'))
       .addDropdown(dropdown => {
         if (!selected) dropdown.addOption('', t('chooseAIConnection'));
@@ -499,12 +502,7 @@ export class NutEggSettingTab extends PluginSettingTab {
   refreshAISettings(): void {
     const settings = this.plugin.getNativeSettings();
     const provider = PROVIDER_CATALOG[settings.aiProvider as AIProviderId];
-    const authMethodLabel =
-      settings.aiAuthMethod === 'subscription'
-        ? settings.subscriptionEnabled
-          ? 'subscriptionLabel'
-          : 'aiConnectionUnavailable'
-        : 'subscriptionApiKey';
+    const authMethodLabel = settings.aiAuthMethod === 'subscription' ? 'subscriptionLabel' : 'subscriptionApiKey';
     this.aiConfigSummary?.setName(
       `${settings.aiAuthMethod === 'subscription' ? this.subscriptionLabel(settings.aiProvider as SubscriptionProvider) : provider?.label || settings.aiProvider} · ${t(authMethodLabel)} · ${settings.aiModel}`
     );
@@ -841,8 +839,7 @@ export class NutEggSettingTab extends PluginSettingTab {
       } catch (error) {
         status = { state: 'error' as const, message: String(error) };
       }
-      const subActive =
-        this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+      const subActive = this.plugin.settings.aiAuthMethod === 'subscription';
       if (request !== this.setupRequest || !subActive) return;
       this.accountState = status.state;
       this.refreshConnectionStatus();
@@ -887,8 +884,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                   this.plugin.subscriptions?.clearModelFailure?.(current);
                   const testModel = selectedModel(current);
                   outcome = await this.plugin.subscriptions.test(current, testModel);
-                  const subActive =
-                    this.plugin.settings.subscriptionEnabled && this.plugin.settings.aiAuthMethod === 'subscription';
+                  const subActive = this.plugin.settings.aiAuthMethod === 'subscription';
                   if (request !== this.setupRequest || !subActive) return;
                   const passed = outcome?.state === 'ready';
                   if (passed) {
@@ -915,8 +911,7 @@ export class NutEggSettingTab extends PluginSettingTab {
                 feedback = { text: String(error), error: true };
                 new Notice(feedback.text);
               } finally {
-                const subActive =
-                  this.plugin.settings.aiAuthMethod === 'subscription' && this.plugin.settings.subscriptionEnabled;
+                const subActive = this.plugin.settings.aiAuthMethod === 'subscription';
                 if (request === this.setupRequest && subActive) {
                   showFeedback();
                   await refresh();
@@ -1029,7 +1024,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiMaxTokens = new Setting(modelSection);
     this.refreshAISettings();
 
-    if (settings.subscriptionEnabled && settings.aiAuthMethod === 'subscription') {
+    if (settings.aiAuthMethod === 'subscription') {
       for (const provider of ['openai', 'anthropic', 'google'] as const) {
         new Setting(modelSection)
           .setName(`${this.subscriptionLabel(provider)} · ${t('subscriptionPath')}`)

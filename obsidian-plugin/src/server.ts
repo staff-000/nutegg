@@ -156,7 +156,7 @@ export class NutEggServer {
     this.execution = new ExecutionCoordinator(
       ExecutionCoordinator.initial(
         plugin.settings.executionState,
-        plugin.settings.subscriptionEnabled === true,
+        true,
         plugin.settings.subscriptionSelection,
         plugin.settings.aiAuthMethod
       ),
@@ -260,12 +260,6 @@ export class NutEggServer {
     } finally {
       this.execution.complete(job);
     }
-  }
-  async changeAvailability(enabled: boolean) {
-    return this.execution.change(this.execution.state.revision, randomUUID(), {
-      subscriptionAvailable: enabled,
-      mode: !enabled && this.execution.state.mode === 'subscription' ? 'apiKey' : this.execution.state.mode,
-    });
   }
   async changeSubscription(selection: any) {
     return this.execution.change(this.execution.state.revision, randomUUID(), { subscription: selection });
@@ -854,7 +848,7 @@ export class NutEggServer {
             return;
           }
           const provider = data.provider as SubscriptionProvider;
-          if (!this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') {
+          if (this.plugin.settings.aiAuthMethod !== 'subscription') {
             res.writeHead(403);
             res.end(
               JSON.stringify({
@@ -907,7 +901,7 @@ export class NutEggServer {
               ],
               instanceId: this.execution.state.instanceId,
               protocolVersion: EXECUTION_PROTOCOL,
-              subscriptionEnabled: this.plugin.settings.subscriptionEnabled === true,
+              subscriptionEnabled: true,
               port: this.port,
               version: this.plugin.manifest?.version || '',
               timestamp: Date.now(),

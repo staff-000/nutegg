@@ -129,12 +129,13 @@ function connectionTestDom(t: any) {
   return dom;
 }
 
-test('API connection box only displays live Chrome providers and models without editable controls', t => {
+test('API connection box only shows Chrome profiles without subscription controls', t => {
   const dom = connectionTestDom(t);
-  let editableControls = 0, refresh!: () => void;
-  for (const method of ['addDropdown', 'addText', 'addButton', 'addToggle'] as const) {
+  let editableControls = 0, selectors = 0, refresh!: () => void;
+  for (const method of ['addText', 'addButton', 'addToggle'] as const) {
     t.mock.method(Setting.prototype, method, function () { editableControls++; return this; });
   }
+  t.mock.method(Setting.prototype, 'addDropdown', function () { selectors++; return this; });
   t.mock.method(globalThis, 'setInterval', (callback: () => void) => {
     refresh = callback;
     return { unref() {} } as any;
@@ -156,6 +157,7 @@ test('API connection box only displays live Chrome providers and models without 
   assert.match(box.textContent, /Google.*chrome-gemini-model/);
   assert.doesNotMatch(box.textContent, /native-only-model/);
   assert.equal(editableControls, 0);
+  assert.equal(selectors, 0);
   assert.deepEqual(plugin.settings, before);
   profiles = [{ displayName: 'Work Chrome', provider: 'deepseek', model: 'new-chrome-model' }];
   refresh();
@@ -167,7 +169,7 @@ test('API connection box only displays live Chrome providers and models without 
   assert.doesNotMatch(box.textContent, /native-only-model|new-chrome-model/);
 });
 
-test('only subscription mode offers account choices and stale selectors cannot leave API mode', async t => {
+test('subscription connection choices hide during API execution and stale selectors cannot override Chrome', async t => {
   const dom = connectionTestDom(t);
   const choices: any[] = [];
   t.mock.method(Setting.prototype, 'addDropdown', function (configure: any) {
@@ -214,8 +216,9 @@ test('only subscription mode offers account choices and stale selectors cannot l
   assert.equal(plugin.server.execution.state.mode, 'apiKey', 'a Chrome mode switch invalidates subscription controls immediately');
   container.replaceChildren();
   (tab as any).displayAIConnections(container);
-  assert.equal(choices.length, 2, 'API mode renders no new selector');
+  assert.equal(choices.length, 2, 'API mode hides the connection selector');
   assert.equal(container.querySelector('[data-mode="apiKey"]')?.textContent, 'Waiting for Chrome');
+  assert.equal(plugin.server.execution.state.subscriptionAvailable, true, 'Chrome can still turn on subscriptions');
 });
 
 test('provider switching cannot restart a detached settings card and strand the new status', async t => {
@@ -344,55 +347,37 @@ test('model settings show credit, refresh it, and ignore results for the previou
 });
 
 
-test('off-state read-only settings do not name the hidden connection method', async () => {
-  const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: false, aiProvider: 'openai', aiAuthMethod: 'subscription', aiModel: 'auto' };
-  plugin.aiClient = { checkCredit: async () => ({ subscriptionState: 'disabled', providerLabel: 'OpenAI', statusText: 'AI connection unavailable' }) } as any;
-  const tab = new NutEggSettingTab({} as any, plugin);
-  const summary = { name: '', setName(value: string) { this.name = value; return this; } };
-  const button = { text: '', tooltip: '', setButtonText(value: string) { this.text = value; return this; }, setTooltip(value: string) { this.tooltip = value; return this; }, setDisabled() { return this; } };
-  Object.assign(tab, { aiConfigSummary: summary, aiCreditButton: button });
-  tab.refreshAISettings(); await tab.refreshAICredit();
-  assert.doesNotMatch(summary.name + button.text + button.tooltip, /subscription/i);
-  assert.match(summary.name, /API key/);
+test('legacy disabled availability migrates without replacing saved execution choices', async () => {
+  for (const mode of ['apiKey', 'subscription', 'chatgpt'] as const) {
+    const plugin = new NutEggPlugin();
+    plugin.loadData = async () => ({ subscriptionEnabled: false, aiAuthMethod: mode,
+      executionState: { mode, subscriptionAvailable: false },
+      aiProvider: 'openai', aiModel: 'saved-model', subscriptionSelection: { provider: 'openai', model: 'saved-model' } });
+    plugin.saveData = async () => {};
+    await plugin.loadSettings();
+    assert.equal(plugin.settings.subscriptionEnabled, true);
+    assert.equal(plugin.settings.aiAuthMethod, mode);
+    plugin.server = new NutEggServer(plugin, 0);
+    assert.equal(plugin.server.execution.snapshot().subscriptionAvailable, true);
+    assert.equal(plugin.server.execution.snapshot().mode, mode);
+    assert.deepEqual(plugin.server.execution.snapshot().subscription, { provider: 'openai', model: 'saved-model' });
+  }
 });
 
-
-test('off-state command palette has only a generic opt-in; feature commands appear after enable', () => {
-  const plugin = new NutEggPlugin(); plugin.settings = { ...DEFAULT_SETTINGS };
-  const commands: any[] = []; plugin.addCommand = (command: any) => { commands.push(command); return command; };
-  (plugin as any).registerSubscriptionCommands();
-  const visible = () => commands.filter(command => command.checkCallback(true)).map(command => command.name);
-  assert.equal(visible().length, 1);
-  assert.doesNotMatch(visible().join(' '), /subscription/i);
-  plugin.settings.subscriptionEnabled = true;
-  assert.deepEqual(visible(), ['Disable subscription mode']);
-});
-
-test('commands control availability without selecting subscription; disabling saves selection and stops work', async () => {
+test('Chrome can switch execution while subscription availability stays on', async () => {
   const plugin = new NutEggPlugin();
-  plugin.settings = { ...DEFAULT_SETTINGS, aiProvider: 'openai', aiAuthMethod: 'apiKey', aiApiKey: 'api-secret', aiModel: 'api-model' };
-  const commands: any[] = []; let cancellations = 0;
-  plugin.addCommand = (command: any) => { commands.push(command); return command; };
-  plugin.subscriptions = { cancelWork: async () => { cancellations++; } } as any;
-  plugin.openSettings = () => {};
-  plugin.settings.nativeApiConfig={aiProvider:'openai',aiModel:'api-model',aiApiKey:''};
-  plugin.server=new NutEggServer(plugin,0);
-  (plugin as any).registerSubscriptionCommands();
-  commands[0].checkCallback(false);
-  await new Promise(resolve => setImmediate(resolve));
+  plugin.settings = { ...DEFAULT_SETTINGS, subscriptionEnabled: false, aiAuthMethod: 'apiKey' };
+  plugin.saveData = async () => {};
+  plugin.subscriptions = { cancelWork: async () => {} } as any;
+  plugin.server = new NutEggServer(plugin, 0);
+  await plugin.server.execution.change(plugin.server.execution.state.revision, randomUUID(), {
+    mode: 'subscription', subscription: { provider: 'google', model: 'cli-custom' },
+  });
+  await plugin.server.execution.change(plugin.server.execution.state.revision, randomUUID(), { mode: 'apiKey' });
+  assert.equal(plugin.server.execution.state.mode, 'apiKey');
+  assert.equal(plugin.server.execution.state.subscriptionAvailable, true);
   assert.equal(plugin.settings.subscriptionEnabled, true);
-  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
-  assert.equal(plugin.settings.aiApiKey, '');
-  assert.equal(commands[1].checkCallback(true), true);
-  await plugin.server.execution.change(plugin.server.execution.state.revision,randomUUID(),{mode:'subscription',subscription:{provider:'google',model:'cli-custom'}});
-  const beforeDisable=cancellations;
-  commands[1].checkCallback(false);
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(plugin.settings.subscriptionEnabled, false);
-  assert.equal(plugin.settings.aiAuthMethod, 'apiKey');
   assert.deepEqual(plugin.settings.subscriptionSelection, { provider: 'google', model: 'cli-custom' });
-  assert.equal(cancellations, beforeDisable + 1);
 });
 
 test('subscription tests show progress and preserve success or failure after status refresh', async t => {
@@ -457,7 +442,7 @@ test('subscription tests show progress and preserve success or failure after sta
   assert.equal(plugin.settings.aiModel, 'api-model');
 });
 
-test('settings never offer a subscription toggle and hide subscription details while using API', async t => {
+test('settings hide subscription controls during API execution without an availability toggle', async t => {
   const dom = new JSDOM('<body><main></main></body>');
   const proto = dom.window.HTMLElement.prototype as any;
   proto.empty = function () { this.replaceChildren(); };
@@ -498,7 +483,7 @@ test('settings never offer a subscription toggle and hide subscription details w
     plugin.settings.subscriptionEnabled = enabled;
     names.length = toggles.length = 0; tab.display();
     await new Promise(resolve => setImmediate(resolve));
-    assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription/i);
+    assert.doesNotMatch(names.join(' ') + (tab as any).containerEl.textContent, /subscription mode|experimental AI connections/i);
     assert.deepEqual(toggles, ['Developer mode']);
     const container = (tab as any).containerEl as HTMLElement;
     assert.ok(container.querySelector('.nutegg-ai-connection-box[data-mode="apiKey"]'));

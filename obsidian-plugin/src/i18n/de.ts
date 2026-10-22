@@ -168,19 +168,7 @@ export const de = {
   subscriptionAccountSetup:
     'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: 'Abonnement-Modus deaktivieren',
-  subscriptionEnabledTitle: 'Abonnement-Modus aktiviert',
-  subscriptionDisabledTitle: 'Abonnement-Modus deaktiviert',
-  subscriptionEnableInstructions: 'Aktivieren Sie in den Obsidian-Einstellungen → NutEgg den „Abonnement-Modus“.',
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: 'Abonnement-Modus',
-  subscriptionModeSettingDesc:
-    'Lokales Claude-, Codex- oder Gemini-CLI-Abonnement anstelle eines API-Schlüssels verwenden.',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',

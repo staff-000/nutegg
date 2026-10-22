@@ -7,7 +7,7 @@ Obsidian owns the shared API key, CLI subscription, or ChatGPT sign-in mode. Con
 **ChatGPT sign-in** uses OpenAI's open-source OAuth integration directly. It requires neither an API key nor Codex CLI. NutEgg's Obsidian desktop plugin owns authorization and sends requests to the public Responses API. Native Obsidian actions and connected Chrome workflows use the same account and model. Chrome-only mode continues to use its own API configuration and does not support this connection.
 
 1. Update both the extension and plugin; they use execution protocol 3.
-2. Open Obsidian Settings → NutEgg and select **ChatGPT sign-in** from the direct connection choices: **ChatGPT sign-in**, **Codex CLI**, **Google Gemini**, and **Claude**. API keys are configured in Chrome settings. Alternatively, enable Obsidian connection in Chrome settings and select **ChatGPT sign-in** there.
+2. Turn on **Use Subscription** in connected Chrome, then open Obsidian Settings → NutEgg and select **ChatGPT sign-in** from the direct connection choices: **ChatGPT sign-in**, **Codex CLI**, **Google Gemini**, and **Claude**. API keys are configured in Chrome settings. Alternatively, enable Obsidian connection in Chrome settings and select **ChatGPT sign-in** there.
 3. Click **Continue with ChatGPT**, complete browser authorization, and explicitly allow ChatGPT plan usage. Identity-only login cannot run AI requests. Account and plan eligibility are determined by OpenAI.
 4. Choose an available account model. The first model is selected for a new connection; an unavailable saved model requires reselection. **Refresh models** updates the account-specific list.
 5. Keep Obsidian open while using connected Chrome. Analysis, questions, egg creation, Hatch, and subsequent merges use the selected connection. Signing out never enables API-key or CLI billing automatically.
@@ -23,11 +23,11 @@ Implementation follows OpenAI's [registration](https://developers.openai.com/siw
 
 ## CLI subscription setup
 
-1. In Obsidian Settings → NutEgg, select **Codex CLI**, **Google Gemini**, or **Claude** directly under **AI connection**. Selecting a CLI connection enables it; no preliminary command or authentication-method selector is needed.
+1. In Obsidian Settings → NutEgg, select **Codex CLI**, **Google Gemini**, or **Claude** directly under **AI connection**.
 2. Complete the selected connection's authorization flow and choose its model. The existing OpenAI/Codex connection is labeled **Codex CLI**; its saved identifier, paths, models, and CLI login are unchanged.
 3. Connected Chrome follows the selected connection and model. Switch directly to **ChatGPT sign-in** in Obsidian when desired.
 4. Configure API keys and select API execution in Chrome settings. Obsidian has no API-key editor, including in Developer Mode. Saved API configurations remain intact, and an existing API selection is not changed merely by opening Obsidian settings.
-5. The legacy **Disable subscription mode** command still disables CLI availability only. If CLI execution was selected, it returns to API mode; a selected ChatGPT connection remains selected. Choosing a CLI connection again enables it.
+5. Obsidian has no subscription availability toggle or enable/disable commands. In Chrome, **Use Subscription** still selects between the shared connection and API-key execution. Turning it off preserves the saved account and model.
 
 Provider installation and sign-in stay in Obsidian. If a CLI is missing, open its official installation guide or copy the displayed command into your terminal. NutEgg does not install software automatically. Connections use an automatically exchanged local credential; there is no token to copy or separate bridge to start.
 
@@ -45,7 +45,7 @@ Completed installation/sign-in controls hide automatically. One pending login pe
 
 Obsidian settings show live authenticated Chrome sessions, non-secret provider/model details, local server status and subscription runtime activity. Different API configurations are expected; there is no last-sync-wins conflict. API mode hides subscription guidance and stops owned subscription inference, login and discovery processes.
 
-API key and subscription preferences are retained separately across switching and restarts. Chrome sends non-secret execution metadata and its explicit shared mode choice. For inference, API keys and endpoints stay inside the initiating Chrome executor. An explicit connected API **Save & continue** also updates the native Obsidian account in SecretStorage with the saved Chrome account; each explicit save replaces the native key, while other profiles retain their own keys. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. The feature availability command is separate from Chrome's active connection switch.
+API key and subscription preferences are retained separately across switching and restarts. Chrome sends non-secret execution metadata and its explicit shared mode choice. For inference, API keys and endpoints stay inside the initiating Chrome executor. An explicit connected API **Save & continue** also updates the native Obsidian account in SecretStorage with the saved Chrome account; each explicit save replaces the native key, while other profiles retain their own keys. Obsidian keeps the subscription provider and model; Chrome cannot overwrite them. Subscription sync contains no API key. Obsidian hides subscription setup while Chrome uses API-key execution; turning on **Use Subscription** in connected Chrome shows it again.
 
 Provider IDs follow BYOKit directly: `openai`, `anthropic`, and `google`.
 Gemini model names and CLI integration names are unchanged. Legacy provider-ID
