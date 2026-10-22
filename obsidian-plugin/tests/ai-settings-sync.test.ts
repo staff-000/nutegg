@@ -488,6 +488,8 @@ test('settings hide subscription controls during API execution without an availa
     const container = (tab as any).containerEl as HTMLElement;
     assert.ok(container.querySelector('.nutegg-ai-connection-box[data-mode="apiKey"]'));
     assert.equal(container.querySelector('.nutegg-subscription-card'), null);
+    for (const provider of ['Codex CLI', 'Claude', 'Google'])
+      assert.ok(names.includes(`${provider} · Subscription CLI executable`), `${provider} path stays visible in API mode`);
     assert.equal(container.querySelector('.nutegg-native-ai-section'), null, 'API editing belongs only in Chrome');
     assert.equal(container.querySelector('.nutegg-model-config-section > h3')?.textContent, 'AI Model Configuration');
     assert.equal(container.querySelector('input[type="password"]'), null);

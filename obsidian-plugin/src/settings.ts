@@ -1024,31 +1024,29 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.aiMaxTokens = new Setting(modelSection);
     this.refreshAISettings();
 
-    if (settings.aiAuthMethod === 'subscription') {
-      for (const provider of ['openai', 'anthropic', 'google'] as const) {
-        new Setting(modelSection)
-          .setName(`${this.subscriptionLabel(provider)} · ${t('subscriptionPath')}`)
-          .setDesc(t('subscriptionPathHint'))
-          .addText(text => {
-            let currentVal = settings.subscriptionPaths?.[provider] || '';
-            if (!currentVal && this.plugin.subscriptions) {
-              void this.plugin.subscriptions
-                .resolve(provider)
-                .then(autoPath => {
-                  if (autoPath && !text.inputEl.value) {
-                    text.setValue(autoPath);
-                    (settings.subscriptionPaths ||= {})[provider] = autoPath;
-                    void this.plugin.saveSettings();
-                  }
-                })
-                .catch(() => {});
-            }
-            text.setValue(currentVal).onChange(async value => {
-              (settings.subscriptionPaths ||= {})[provider] = value.trim();
-              await this.plugin.saveSettings();
-            });
+    for (const provider of ['openai', 'anthropic', 'google'] as const) {
+      new Setting(modelSection)
+        .setName(`${this.subscriptionLabel(provider)} · ${t('subscriptionPath')}`)
+        .setDesc(t('subscriptionPathHint'))
+        .addText(text => {
+          let currentVal = settings.subscriptionPaths?.[provider] || '';
+          if (!currentVal && this.plugin.subscriptions) {
+            void this.plugin.subscriptions
+              .resolve(provider)
+              .then(autoPath => {
+                if (autoPath && !text.inputEl.value) {
+                  text.setValue(autoPath);
+                  (settings.subscriptionPaths ||= {})[provider] = autoPath;
+                  void this.plugin.saveSettings();
+                }
+              })
+              .catch(() => {});
+          }
+          text.setValue(currentVal).onChange(async value => {
+            (settings.subscriptionPaths ||= {})[provider] = value.trim();
+            await this.plugin.saveSettings();
           });
-      }
+        });
     }
 
     // ==========================================

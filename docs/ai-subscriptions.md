@@ -69,7 +69,7 @@ ChatGPT sign-in is independent of Codex CLI. Its output-token-limit note is info
 
 ## Runtime and local access
 
-Use current CLI versions: Codex requires restricted ephemeral execution flags; Claude requires safe mode and an empty tool list. Unsupported flags produce an update instruction. Executables are detected through PATH and standard native installation locations. An absolute executable-path override is available in Obsidian Developer Mode; restart the plugin after changing it. Windows uses native executables rather than `.cmd` wrappers.
+Use current CLI versions: Codex requires restricted ephemeral execution flags; Claude requires safe mode and an empty tool list. Unsupported flags produce an update instruction. Executables are detected through PATH and standard native installation locations. Absolute executable-path overrides are always visible in Obsidian Developer Mode, including during API-key execution; restart the plugin after changing it. Windows uses native executables rather than `.cmd` wrappers.
 
 Requests use isolated temporary workspaces, restricted tools, sanitized environments, bounded output, a serial queue of at most 32 jobs, and a three-minute inference timeout. Plugin shutdown cancels queued and running work. Login processes are tracked separately. API Max Tokens is not a hard output limit for subscription calls.
 
