@@ -773,3 +773,27 @@ test('unavailable ChatGPT exposes its startup diagnostic in settings and connect
   assert.equal(state.chatgpt?.available, false);
   assert.match(state.chatgpt?.message || '', /EPERM \/ fsync/);
 });
+
+
+test('ChatGPT execution works when every CLI is missing and no API key is configured', async () => {
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiAuthMethod: 'apiKey', aiApiKey: '' };
+  plugin.saveData = async () => {};
+  let cliCalls = 0;
+  const unavailable = async () => { ++cliCalls; throw new Error('No CLI installed'); };
+  plugin.subscriptions = { cancelWork: async () => {}, resolve: unavailable, status: unavailable,
+    models: unavailable, chat: unavailable } as any;
+  plugin.chatgpt = {
+    status: () => ({ available: true, state: 'ready', revision: 1, model: 'chatgpt-model' }),
+    chat: async (model: string, prompt: string) => {
+      assert.equal(model, 'chatgpt-model');
+      assert.equal(prompt, 'hello');
+      return 'ChatGPT reply';
+    },
+  } as any;
+  plugin.server = new NutEggServer(plugin, 0);
+  await plugin.server.execution.change(plugin.server.execution.state.revision, randomUUID(), { mode: 'chatgpt' });
+  assert.equal(await plugin.server.nativeChat('hello', 100), 'ChatGPT reply');
+  assert.equal(plugin.settings.aiAuthMethod, 'chatgpt');
+  assert.equal(cliCalls, 0);
+});
