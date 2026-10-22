@@ -113,6 +113,7 @@ export const zh: Record<TranslationKey, string> = {
   chatgptModel: 'ChatGPT 模型',
   chatgptRequiresObsidian: 'ChatGPT 登录需要连接 Obsidian。请保持 Obsidian 运行。',
   chatgptTokenHint: 'ChatGPT 登录模式不支持 API 输出令牌上限。',
+  chatgptStartupDiagnostic: '启动诊断：{code}。反馈问题时请附上此代码。',
   chatgptStorageUnavailable: 'ChatGPT 登录不可用。请检查本地凭据存储或其他正在运行的 Obsidian 实例。',
   chatgptState_signed_out: '尚未登录',
   chatgptState_signing_in: '正在登录…',

@@ -112,6 +112,7 @@ export const pt = {
   chatgptModel: 'ChatGPT model',
   chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
   chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStartupDiagnostic: 'Diagnóstico de inicialização: {code}. Inclua este código ao relatar o problema.',
   chatgptStorageUnavailable:
     'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
   chatgptState_signed_out: 'Not signed in',

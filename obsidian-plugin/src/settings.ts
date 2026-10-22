@@ -587,6 +587,11 @@ export class NutEggSettingTab extends PluginSettingTab {
       const statusLine = card.createEl('p', { cls: 'nutegg-connection-status-line' });
       statusLine.dataset.status = 'disconnected';
       statusLine.createSpan({ text: t('chatgptStorageUnavailable') });
+      if (this.plugin.chatgptStartupError)
+        card.createEl('p', {
+          text: t('chatgptStartupDiagnostic', { code: this.plugin.chatgptStartupError }),
+          cls: 'setting-item-description',
+        });
       return;
     }
     const status = service.status();

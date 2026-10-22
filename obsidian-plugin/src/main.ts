@@ -1,6 +1,6 @@
 import { localizeCreditInfo } from '../../shared/src/client';
 import { ChatGPTService } from './chatgpt-service';
-import { FileChatGPTStore } from './chatgpt-store';
+import { FileChatGPTStore, chatgptStartupDiagnostic } from './chatgpt-store';
 import type { SharedExecutionState } from '../../shared/src/execution';
 import { SubscriptionService } from './subscription-service';
 import { ConnectionAccess } from './connection-access';
@@ -41,6 +41,7 @@ export default class NutEggPlugin extends Plugin {
     this.nativeClient = client;
   }
   chatgpt?: ChatGPTService;
+  chatgptStartupError = '';
   chatgptCredit(): any {
     const status = this.chatgpt?.status();
     return {
@@ -233,8 +234,8 @@ export default class NutEggPlugin extends Plugin {
         store.close();
         throw error;
       }
-    } catch {
-      // The server exposes a public storage-unavailable status; credentials stay private.
+    } catch (error) {
+      this.chatgptStartupError = chatgptStartupDiagnostic(error);
     }
     this.connectionAccess = new ConnectionAccess(
       (this.settings.chromeConnections ||= {}),

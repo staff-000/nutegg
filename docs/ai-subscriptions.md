@@ -61,6 +61,12 @@ The AI credit pill says **Subscription** in both apps. Codex can report remainin
 
 Subscription status describes connection and provider-reported quota errors, not a monetary balance. Expired authentication, rejected models, exhausted quota, or inaccessible providers turn the light red. Initial missing installation/sign-in/verification is amber. See the [complete signal matrix](connection-status.md).
 
+### Windows connection troubleshooting
+
+If Codex runs in PowerShell but NutEgg reports it missing, check the native executable path in Obsidian Developer Mode. NutEgg searches PATH and npm platform packages, including nested packages and both `bin/codex.exe` and legacy `codex/codex.exe` layouts. A manual override must point to `codex.exe`, not a `.cmd` or `.ps1` shim; restart the plugin after changing it.
+
+ChatGPT sign-in is independent of Codex CLI. Its output-token-limit note is informational. If local credential storage cannot initialize, settings and the shared Chrome connection state include a diagnostic code. `storage_permissions` means Windows ACL setup failed, `storage_locked` means storage ownership could not be acquired, and a filesystem code such as `EPERM / fsync` identifies the failing operation. Fully quit Obsidian and reopen the vault to rule out an active owner; include the diagnostic code when reporting a persistent failure. Diagnostics exclude credential contents and local paths. Credential writes use a writable handle for the disk flush required by Windows.
+
 ## Runtime and local access
 
 Use current CLI versions: Codex requires restricted ephemeral execution flags; Claude requires safe mode and an empty tool list. Unsupported flags produce an update instruction. Executables are detected through PATH and standard native installation locations. An absolute executable-path override is available in Obsidian Developer Mode; restart the plugin after changing it. Windows uses native executables rather than `.cmd` wrappers.

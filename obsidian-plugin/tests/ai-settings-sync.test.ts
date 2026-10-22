@@ -124,6 +124,7 @@ function connectionTestDom(t: any) {
     return element;
   };
   proto.createDiv = function (options: any) { return this.createEl('div', options); };
+  proto.createSpan = function (options: any) { return this.createEl('span', options); };
   t.after(() => dom.window.close());
   return dom;
 }
@@ -767,3 +768,21 @@ test('syncOutputLanguage updates settings, saves, and refreshes the settings tab
   assert.equal(saved, 1);
 });
 
+
+
+test('unavailable ChatGPT exposes its startup diagnostic in settings and connected Chrome state', t => {
+  const dom = connectionTestDom(t);
+  const plugin = new NutEggPlugin();
+  plugin.settings = { ...DEFAULT_SETTINGS, aiAuthMethod: 'chatgpt' };
+  plugin.chatgptStartupError = 'EPERM / fsync';
+  plugin.server = new NutEggServer(plugin, 27123);
+  const tab = new NutEggSettingTab({} as any, plugin);
+  t.after(() => tab.hide());
+  const container = dom.window.document.querySelector('main')!;
+  (tab as any).displayChatGPT(container);
+  assert.match(container.textContent!, /Startup diagnostic: EPERM \/ fsync/);
+  assert.equal(container.querySelectorAll('button').length, 0);
+  const state = plugin.server.execution.snapshot();
+  assert.equal(state.chatgpt?.available, false);
+  assert.match(state.chatgpt?.message || '', /EPERM \/ fsync/);
+});

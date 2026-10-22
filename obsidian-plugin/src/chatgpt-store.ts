@@ -4,6 +4,34 @@ import * as os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
+/** Public diagnostics must never include paths, command output, or credential JSON. */
+export function chatgptStartupDiagnostic(error: unknown): string {
+  const value = error as { code?: unknown; syscall?: unknown } | null;
+  const codes = [
+    'EACCES',
+    'EPERM',
+    'ENOENT',
+    'EEXIST',
+    'EBADF',
+    'EINVAL',
+    'EIO',
+    'ENOSPC',
+    'storage_locked',
+    'storage_identity',
+    'storage_record',
+    'storage_permissions',
+    'storage_location',
+  ];
+  const code = typeof value?.code === 'string' && codes.includes(value.code) ? value.code : 'storage_unknown';
+  const calls = ['open', 'mkdir', 'fsync', 'rename', 'unlink', 'read', 'write', 'stat', 'lstat', 'realpath'];
+  const syscall = typeof value?.syscall === 'string' && calls.includes(value.syscall) ? value.syscall : '';
+  return [code, syscall].filter(Boolean).join(' / ');
+}
+
+function storageError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
 export interface ChatGPTCredentials {
   clientId: string;
   subject?: string;
@@ -48,7 +76,7 @@ export class FileChatGPTStore implements ChatGPTStore {
     const canonicalVault = fs.realpathSync(vaultPath);
     const canonicalStorage = fs.realpathSync(this.directory);
     if (canonicalStorage === canonicalVault || canonicalStorage.startsWith(canonicalVault + path.sep))
-      throw new Error('ChatGPT credentials must be stored outside the vault.');
+      throw storageError('storage_location', 'ChatGPT credentials must be stored outside the vault.');
     this.protect(this.directory, true);
     this.lock = path.join(this.directory, 'session.lock');
     try {
@@ -56,23 +84,25 @@ export class FileChatGPTStore implements ChatGPTStore {
     } catch (error: any) {
       if (error.code !== 'EEXIST') throw error;
       const pid = Number(fs.readFileSync(this.lock, 'utf8').split(':')[0]);
-      if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('ChatGPT credential storage is locked.');
+      if (!Number.isSafeInteger(pid) || pid < 1)
+        throw storageError('storage_locked', 'ChatGPT credential storage is locked.');
       try {
         process.kill(pid, 0);
       } catch (err: any) {
-        if (err.code !== 'ESRCH') throw new Error('ChatGPT credential storage is locked.');
+        if (err.code !== 'ESRCH') throw storageError('storage_locked', 'ChatGPT credential storage is locked.');
         fs.unlinkSync(this.lock);
         this.acquire();
       }
       if (fs.readFileSync(this.lock, 'utf8') !== this.owner)
-        throw new Error('Another Obsidian instance owns this ChatGPT connection.');
+        throw storageError('storage_locked', 'Another Obsidian instance owns this ChatGPT connection.');
     }
     try {
       const host = path.join(this.directory, 'host.json');
       if (!fs.existsSync(host)) this.atomic(host, JSON.stringify({ id: `urn:uuid:${randomUUID()}` }));
       this.protect(host);
       this.hostId = JSON.parse(fs.readFileSync(host, 'utf8')).id;
-      if (!/^urn:uuid:[\da-f-]{36}$/i.test(this.hostId)) throw new Error('Invalid ChatGPT installation identity.');
+      if (!/^urn:uuid:[\da-f-]{36}$/i.test(this.hostId))
+        throw storageError('storage_identity', 'Invalid ChatGPT installation identity.');
     } catch (error) {
       this.close();
       throw error;
@@ -80,7 +110,17 @@ export class FileChatGPTStore implements ChatGPTStore {
   }
   private acquire() {
     fs.writeFileSync(this.lock, this.owner, { flag: 'wx', mode: 0o600 });
-    this.protect(this.lock);
+    try {
+      this.protect(this.lock);
+    } catch (error) {
+      // Do not leave our own lock behind after a failed permission setup.
+      try {
+        if (fs.readFileSync(this.lock, 'utf8') === this.owner) fs.unlinkSync(this.lock);
+      } catch {
+        /* Preserve the initialization failure. */
+      }
+      throw error;
+    }
   }
   private protect(file: string, directory = false) {
     const stat = fs.lstatSync(file);
@@ -88,11 +128,15 @@ export class FileChatGPTStore implements ChatGPTStore {
       throw new Error('Unsafe ChatGPT storage path.');
     if (process.platform === 'win32') {
       const user = os.userInfo().username;
-      execFileSync('icacls', [file, '/reset'], { windowsHide: true, stdio: 'ignore' });
-      execFileSync('icacls', [file, '/inheritance:r', '/grant:r', `${user}:${directory ? '(OI)(CI)' : ''}F`], {
-        windowsHide: true,
-        stdio: 'ignore',
-      });
+      try {
+        execFileSync('icacls', [file, '/reset'], { windowsHide: true, stdio: 'ignore' });
+        execFileSync('icacls', [file, '/inheritance:r', '/grant:r', `${user}:${directory ? '(OI)(CI)' : ''}F`], {
+          windowsHide: true,
+          stdio: 'ignore',
+        });
+      } catch {
+        throw storageError('storage_permissions', 'Cannot protect ChatGPT credential storage.');
+      }
     } else {
       if (stat.uid !== process.getuid?.()) throw new Error('ChatGPT storage is owned by another user.');
       fs.chmodSync(file, directory ? 0o700 : 0o600);
@@ -104,7 +148,8 @@ export class FileChatGPTStore implements ChatGPTStore {
     try {
       fs.writeFileSync(temporary, value, { flag: 'wx', mode: 0o600 });
       this.protect(temporary);
-      const fd = fs.openSync(temporary, 'r');
+      // Windows FlushFileBuffers requires a handle opened with write access.
+      const fd = fs.openSync(temporary, 'r+');
       try {
         fs.fsyncSync(fd);
       } finally {
@@ -127,7 +172,7 @@ export class FileChatGPTStore implements ChatGPTStore {
       !Array.isArray(record.scopes) ||
       !Number.isFinite(record.expiresAt)
     )
-      throw new Error('Invalid ChatGPT credential record.');
+      throw storageError('storage_record', 'Invalid ChatGPT credential record.');
     return record;
   }
   save(value: ChatGPTCredentials) {

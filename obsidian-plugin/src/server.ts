@@ -171,7 +171,8 @@ export class NutEggServer {
       revision: 1,
       accountLabel: '',
       model: '',
-      message: 'ChatGPT local credential storage is unavailable.',
+      message: [t('chatgptStorageUnavailable'), plugin.chatgptStartupError
+        ? t('chatgptStartupDiagnostic', { code: plugin.chatgptStartupError }) : ''].filter(Boolean).join(' '),
     };
   }
 

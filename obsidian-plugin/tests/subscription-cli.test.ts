@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { runSubscription, parseSubscriptionOutput, subscriptionEnvironment, executeSubscriptionCli, resolveSubscriptionCommand } from '../src/subscription-cli.mjs';
+import { runSubscription, parseSubscriptionOutput, subscriptionEnvironment, executeSubscriptionCli, resolveSubscriptionCommand, resolveWindowsCodex } from '../src/subscription-cli.mjs';
 
 async function fixture(t, provider, auth = 'subscription') {
   const dir = await mkdtemp(join(tmpdir(), `nutegg-${provider}-test-`));
@@ -88,3 +88,23 @@ test('missing CLI and cancellation fail without an unbounded process', async t =
   controller.abort();
   await assert.rejects(executeSubscriptionCli('codex', command, [], '', { signal: controller.signal }), error => error.status === 499);
 });
+
+for (const arch of ['x64', 'arm64']) {
+  for (const layout of ['nested', 'sibling', 'legacy']) {
+    test(`Windows Codex discovery resolves ${arch} ${layout} npm installations`, async t => {
+      const prefix = await mkdtemp(join(tmpdir(), 'nutegg-codex-prefix-'));
+      t.after(() => rm(prefix, { recursive: true, force: true }));
+      const root = join(prefix, 'node_modules', '@openai', 'codex');
+      const platformPackage = `codex-win32-${arch}`;
+      const packageRoot = layout === 'nested' ? join(root, 'node_modules', '@openai', platformPackage)
+        : layout === 'sibling' ? join(prefix, 'node_modules', '@openai', platformPackage) : root;
+      const binaryFolder = join(packageRoot, 'vendor', `${arch === 'x64' ? 'x86_64' : 'aarch64'}-pc-windows-msvc`, layout === 'legacy' ? 'codex' : 'bin');
+      await mkdir(binaryFolder, { recursive: true });
+      const binary = join(binaryFolder, 'codex.exe');
+      await writeFile(binary, 'fixture');
+      await chmod(binary, 0o700);
+      assert.equal(await resolveWindowsCodex([prefix], arch), binary);
+      assert.equal(await resolveWindowsCodex([prefix], arch === 'x64' ? 'arm64' : 'x64'), undefined);
+    });
+  }
+}
