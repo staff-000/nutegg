@@ -2,10 +2,12 @@
 // NutEgg Provider Catalog & Configuration Resolver
 // ============================================================
 
-import { ApiProtocol, validateClientConfig } from 'byokit/client';
-import type { Connection } from 'byokit/client';
-import { GENERATED_MODELS, GENERATED_PROVIDERS } from './generated-models.mjs';
-import type { AIProviderId, ModelFamily, NutEggAISettings, ProviderInfo, ResolvedConfig } from './types';
+import { ApiProtocol, ProviderId, validateClientConfig } from 'byokit/client';
+import type { Connection, ExecutionModel } from 'byokit/client';
+import { getModelsByProvider } from '../generated/models.mjs';
+import type { AIProviderId, NutEggAISettings, ProviderInfo, ResolvedConfig } from './types';
+
+const modelsByProvider = getModelsByProvider();
 
 /** Display identity depends on authentication; saved provider IDs remain stable. */
 export function aiConnectionLabel(provider?: string, method?: string): string {
@@ -16,33 +18,27 @@ export function aiConnectionLabel(provider?: string, method?: string): string {
 }
 
 // Provider identities, labels, and connections all come from BYOKit at build time.
-function modelChoices(models: typeof GENERATED_MODELS) {
+function modelChoices(models: readonly ExecutionModel[]) {
   return {
     models: models.map(model => model.apiModelId),
     defaultModel: (models.find(model => model.tier === 'flash') || models[0])?.apiModelId,
   };
 }
 
-// Display choices only. Requests consume BYOKit's native connections and models.
-const providers: ProviderInfo[] = GENERATED_PROVIDERS.map(provider => ({
-  id: provider.id,
-  label: provider.label,
-  connection: provider.connection,
-  ...(provider.id === 'local' ? {} : modelChoices(GENERATED_MODELS.filter(model => model.providerId === provider.id))),
-}));
+// Local is a settings form; its actual endpoint and model are supplied by the user.
+// Cloud display metadata and execution offerings come from the native generated list.
+const providers: ProviderInfo[] = [
+  { id: ProviderId.Local, label: 'Local', connection: resolveLocalEndpoint({}) },
+  ...Object.values(modelsByProvider).map(models => ({
+    id: models[0].providerId,
+    label: models[0].provider!.name,
+    connection: models[0].connection!,
+    ...modelChoices(models),
+  })),
+];
 
-const routerModels = GENERATED_MODELS.filter(model => model.providerId === 'openrouter');
-const OPENROUTER_FAMILIES: ModelFamily[] = providers.flatMap(provider => {
-  if (provider.id === 'local' || provider.id === 'openrouter') return [];
-  const choices = modelChoices(routerModels.filter(model => model.modelId.startsWith(provider.id + '/')));
-  return choices.defaultModel ? [{ id: provider.id, label: provider.label, ...choices, defaultModel: choices.defaultModel }] : [];
-});
-const routerChoices = modelChoices(routerModels);
-OPENROUTER_FAMILIES.push({ id: 'custom', label: 'Custom OpenRouter Model', models: [], defaultModel: routerChoices.defaultModel! });
-
-export const PROVIDER_CATALOG = Object.fromEntries(providers.map(provider => [provider.id,
-  provider.id === 'openrouter' ? { ...provider, families: OPENROUTER_FAMILIES } : provider,
-])) as Record<AIProviderId, ProviderInfo>;
+export const PROVIDER_CATALOG = Object.fromEntries(providers.map(provider =>
+  [provider.id, provider])) as Record<AIProviderId, ProviderInfo>;
 
 /** Local settings use base URLs and BYOKit's native protocol names. No requests. */
 export function resolveLocalEndpoint(settings: NutEggAISettings): Connection {
@@ -75,18 +71,6 @@ export function normalizeAISettings<T extends NutEggAISettings>(settings: T): T 
     if (next[prefix + 'AuthMethod'] === 'subscription') next[prefix + 'ApiKey'] = '';
   }
   return next as T;
-}
-
-export function findOpenRouterFamily(modelName: string): ModelFamily | undefined {
-  const families = PROVIDER_CATALOG.openrouter!.families || [];
-  if (families.length === 0) return undefined;
-  const exact = families.find(f => f.models.includes(modelName));
-  if (exact) return exact;
-  const byPrefix = families.find(f => {
-    if (f.id === 'custom') return false;
-    return modelName.startsWith(f.id + '/');
-  });
-  return byPrefix || families.find(f => f.id === 'custom');
 }
 
 /**
@@ -132,7 +116,7 @@ export function resolveConfig(settings: NutEggAISettings): ResolvedConfig {
       apiKey,
       baseURL: connection.baseUrl,
       protocol: connection.protocol,
-      models: GENERATED_MODELS.filter(offering => offering.providerId === provider && offering.apiModelId === model),
+      models: (modelsByProvider[provider] || []).filter(offering => offering.apiModelId === model),
       ...(provider === 'openrouter' ? { defaultHeaders: {
         'HTTP-Referer': 'https://github.com/nutegg', 'X-Title': 'NutEgg',
       } } : {}),

@@ -4,7 +4,6 @@ import {
   AIClient,
   isAIConfigured,
   PROVIDER_CATALOG,
-  findOpenRouterFamily,
   type AIProviderId,
 } from "../src/ai-client";
 import { DEFAULT_SETTINGS, type NutEggSettings } from "../src/settings";
@@ -238,7 +237,7 @@ describe("AIClient Local LLM execution", () => {
   });
 });
 
-describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
+describe("PROVIDER_CATALOG selected models", () => {
   it("Obsidian initial settings use the shared provider default", () => {
     assert.equal(DEFAULT_SETTINGS.aiModel, PROVIDER_CATALOG[DEFAULT_SETTINGS.aiProvider].defaultModel);
   });
@@ -291,52 +290,6 @@ describe("PROVIDER_CATALOG consolidated models & OpenRouter families", () => {
     }
   });
 
-  it("OpenRouter defines vendor families with default models", () => {
-    const families = PROVIDER_CATALOG.openrouter.families;
-    assert.ok(Array.isArray(families) && families.length > 0, "OpenRouter must have families");
-    for (const fam of families) {
-      assert.ok(fam.id, "OpenRouter family must have an id");
-      assert.ok(fam.label, "OpenRouter family must have a label");
-      assert.ok(fam.defaultModel, "OpenRouter family must have a defaultModel");
-      if (fam.id !== "custom") {
-        assert.ok(fam.models.includes(fam.defaultModel));
-      }
-      for (const model of fam.models) {
-        assert.ok(PROVIDER_CATALOG.openrouter.models?.includes(model));
-        assert.equal(findOpenRouterFamily(model)?.id, fam.id);
-      }
-    }
-  });
-
-  it("findOpenRouterFamily resolves matching families and preserves custom model selection", () => {
-    // OpenAI family
-    const openaiFam = findOpenRouterFamily("openai/gpt-6-astra");
-    assert.equal(openaiFam?.id, "openai");
-
-    // Anthropic family
-    const anthropicFam = findOpenRouterFamily("anthropic/claude-sonnet-5");
-    assert.equal(anthropicFam?.id, "anthropic");
-
-    // DeepSeek family
-    const deepseekFam = findOpenRouterFamily("deepseek/deepseek-r1");
-    assert.equal(deepseekFam?.id, "deepseek");
-
-    // Google family
-    const googleFam = findOpenRouterFamily("google/gemini-2.5-flash");
-    assert.equal(googleFam?.id, "google");
-
-    // Vendors outside the selected four remain usable as custom model IDs.
-    const metaFam = findOpenRouterFamily("meta-llama/llama-3.3-70b-instruct");
-    assert.equal(metaFam?.id, "custom");
-
-    // Qwen family
-    const qwenFam = findOpenRouterFamily("qwen/qwen-2.5-72b-instruct");
-    assert.equal(qwenFam?.id, "custom");
-
-    // Unknown models belong to the custom family.
-    const fallbackFam = findOpenRouterFamily("unknown-model");
-    assert.equal(fallbackFam?.id, "custom");
-  });
 });
 
 describe('job cancellation and credential redaction',()=>{

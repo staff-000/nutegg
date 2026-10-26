@@ -736,7 +736,6 @@ export class NutEggServer {
             aiProvider: config.aiProvider,
             aiModel: config.aiModel,
             aiSource: config.aiSource === 'openrouter' ? ('openrouter' as const) : ('official' as const),
-            aiModelFamily: typeof config.aiModelFamily === 'string' ? config.aiModelFamily.slice(0, 512) : undefined,
             ...(config.localEndpoint ? { localEndpoint: config.localEndpoint } : {}),
             localApiType: config.localApiType === 'ollama' ? ('ollama' as const) : ('openai' as const),
             ...publicExecutionSettings({

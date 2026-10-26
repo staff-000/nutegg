@@ -233,8 +233,6 @@ export const ko = {
   localEndpointOpenAiDesc: '로컬 실행기용 OpenAI 호환 채팅 엔드포인트',
   localPresets: '프리셋: ',
   localApiKeyDesc: '로컬 LLM용 (선택 사항). 인증이 필요 없는 경우 비워 두세요.',
-  aiModelFamily: '2. 모델 패밀리',
-  aiModelFamilyDesc: 'OpenRouter의 모델 벤더 또는 아키텍처 그룹 선택',
   modelVersion: '3. 모델 버전',
   modelVersionDesc: 'OpenRouter에 "{model}"로 전달됩니다',
   aiModel: '2. 모델',

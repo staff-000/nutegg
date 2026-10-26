@@ -230,8 +230,6 @@ export const zh: Record<TranslationKey, string> = {
   localEndpointOpenAiDesc: '本地兼容 OpenAI 格式的 chat completions 接口地址',
   localPresets: '快速预设： ',
   localApiKeyDesc: '本地模型可选。若本地模型服务不需要身份验证，请留空。',
-  aiModelFamily: '2. 模型家族',
-  aiModelFamilyDesc: '选择 OpenRouter 上可用的 AI 厂商或模型类别',
   modelVersion: '3. 模型版本',
   modelVersionDesc: '请求将以 "{model}" 发送给 OpenRouter',
   aiModel: '2. 模型',

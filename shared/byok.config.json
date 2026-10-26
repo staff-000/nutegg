@@ -1,6 +1,7 @@
 {
   "asOf": "2026-10-19T00:00:00Z",
-  "providerIds": { "mode": "any", "values": ["anthropic", "google", "openai", "deepseek"] },
+  "providerIds": { "mode": "any", "values": ["anthropic", "google", "openai", "deepseek", "openrouter"] },
+  "creatorIds": { "mode": "any", "values": ["anthropic", "google", "openai", "deepseek"] },
   "local": false,
   "filters": {
     "tier": { "mode": "any", "values": ["flash", "workhorse"] },

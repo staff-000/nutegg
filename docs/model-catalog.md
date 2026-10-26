@@ -1,78 +1,87 @@
 # Model catalog
 
-NutEgg uses BYOKit's `latest` tag as a **development dependency**. The lockfile
-records the installed version. Build-time selection generates
-`shared/src/generated-models.mjs` and its `.d.mts` declaration with native BYOKit
-`ExecutionModel` objects, using the official `compactModels()` build API. Chrome and
-Obsidian use `byokit/client` for runtime execution; neither imports the bundled
-catalog or runs model discovery at startup. Provider IDs, display names, base
-URLs, and protocols come from BYOKit. There are no separate NutEgg provider IDs,
-provider aliases, protocol transports, or full-request-URL catalog.
-The generated provider view supplies display choices, and settings resolve to
-native BYOKit client options. Only the default local server address is supplied
-by NutEgg.
-This controls API-key model choices; subscription and ChatGPT models still come
-from their respective signed-in connections.
+NutEgg uses BYOKit **0.3.0** through the `latest` development dependency. The npm
+lockfile records the installed release. Model selection is configured in
+`shared/byok.config.json`. Chrome and Obsidian builds automatically compile it
+with BYOKit's own CLI before bundling or TypeScript checking:
 
-`shared/byok.config.json` encodes the requested query: Anthropic, Google, OpenAI,
-DeepSeek; Flash/Workhorse tiers; exactly General speciality and Text output;
-released within one year; `dedupe: 2`. `local: false` separates configured local
-servers from the cloud filters. `asOf` pins the relative date window for
-repeatable builds. Defaults use the first Flash offering in BYOKit's returned
-order, falling back to the first result. Existing saved API model IDs are kept.
+```sh
+npm run models:update
+# Runs:
+byokit build shared/byok.config.json --out shared/generated/models.mjs --compact
+```
 
-To refresh:
+Application access is one import and one call:
 
-1. Run `npm update byokit --ignore-scripts` to resolve the latest published snapshot.
-2. Advance `asOf` in `shared/byok.config.json` to the desired ISO timestamp.
-3. Run `npm run models:update` and review `generated-models.mjs`, its declaration, and
-   `shared/models.lock.json`.
-4. Run `npm run build:extension` and `npm run build:plugin`.
+```ts
+import { getModelsByProvider } from '../generated/models.mjs';
+const modelsByProvider = getModelsByProvider();
+```
 
-Ordinary builds use the checked-in selection without regenerating it or using
-the network. Generation fails if any selected direct provider has no results,
-or if there are no matching OpenRouter offerings. Custom model IDs remain
-available for supported providers. Kimi, Zhipu, and Qwen connections are no
-longer supported; users must select one of the current providers.
+There is no custom generation script, manual equivalent lookup, custom model
+lockfile, or handwritten declaration generation. The CLI writes the compact
+module, matching native `.d.mts` declarations, and `.mjs.lock.json` metadata in
+`shared/generated/`. All these build artifacts are ignored by git. Commit only
+the configuration and npm lockfile. Normal builds generate models offline from
+the installed BYOKit snapshot, without updating packages or querying npm.
+New releases refresh BYOKit once in the release worktree before validation and
+commit the updated npm lockfile with the release. Resume runs and CI install
+that locked version without updating it. See [releasing](releasing.md).
+Chrome and Obsidian import `byokit/client` for execution; neither bundles the
+full catalog or runs discovery at startup.
 
-## OpenRouter
+The direct `node chrome-extension/build.js` path also generates models, as do
+Obsidian's npm build/dev/lint commands and its test-bundling script. Standalone
+generation through `npm run models:update` remains available for inspection.
 
-BYOKit's `providerIds` identifies the host that receives the key. For each
-selected direct offering, the generator calls `getEquivalentModels([seed],
-{ ...config, providerIds: [ProviderId.OpenRouter], dedupe: false, limit: 1 })`.
-BYOKit resolves canonical identity and ranks the equivalent offerings; NutEgg
-keeps one result per seed for its model picker. There is no application-side
-cross-catalog join or fabricated reseller ID. The returned `apiModelId` is sent
-unchanged, using the OpenRouter key. The direct selection already applies the
-requested cap per provider, speciality, and tier.
+## Selection policy
 
-## Local servers
+The configuration selects Anthropic, Google, OpenAI, DeepSeek, and OpenRouter as
+hosting providers, and those first four organizations as creators. Filters retain
+Flash/Workhorse tiers, exactly General speciality and Text output, released
+within one year. The existing `asOf` pins the relative date window.
 
-Local setup is offline and requires the exact served model ID, a base URL,
-and an explicit protocol. Chrome exposes an OpenAI-compatible/Ollama selector.
-Use `http://localhost:8000/v1` for an OpenAI-compatible server or
-`http://localhost:11434` for Ollama. Full `/chat/completions` or `/api/chat`
-request URLs are rejected; BYOKit constructs request paths. Protocol selection
-is saved independently for each provider profile and synced to Obsidian.
+In 0.3.0, `dedupe: 2` selects up to two newest canonical models per
+creator/speciality/tier, then retains eligible offerings across the selected
+hosts. This replaces the old direct-provider shortlist plus equivalent-offering
+lookup. The current result is 24 offerings: 10 direct and 14 OpenRouter. A host
+may have multiple offerings for one canonical model. NutEgg uses every returned
+`apiModelId` unchanged; the API key always belongs to the hosting `providerId`.
 
-The model ID is sent unchanged. No model is guessed, installed, or discovered.
-An empty key means unauthenticated access; a supplied server key is preserved.
-Authenticated endpoints require HTTPS, except for `localhost`, IPv4 loopback,
-and `::1`. BYOKit's offline `validateClientConfig()` enforces URL and credential
-transport safety before Chrome saves settings and Obsidian syncs secrets.
-The same validation runs when resolving a local execution or connection check.
-Provider calls and connection checks reject redirects so keys cannot
-be forwarded to another endpoint. Unauthenticated local-network HTTP remains
-available.
-The explicit connection check uses `/models` or `/api/tags` at that endpoint.
-Saving still runs NutEgg's existing connection check; it does not scan ports.
-In connected mode, Save & continue also syncs keyless local configurations to
-Obsidian and removes the previous active key. Keyless local setups do not
-require SecretStorage.
+Provider names, protocols, and cloud connections come from the generated native
+objects. The remaining provider view only supplies settings display choices and
+defaults: first Flash result, falling back to the first result. Saved exact model
+IDs continue to work as custom choices even if no longer in the generated list.
+No unused OpenRouter family classification remains.
 
-See [verified BYOKit product gaps](byokit-product-gaps.md) for the fixes verified
-in the published 0.2.3 package and the corresponding NutEgg cleanup.
+Local is a separate settings option, with its default endpoint supplied by
+NutEgg. It is not a creator-filtered cloud offering. Subscription and ChatGPT
+model lists come from their signed-in connections.
 
-References: [BYOKit README](https://github.com/staff-000/byokit#readme),
-[build-time generation](https://github.com/staff-000/byokit#build-a-smaller-model-list),
-[Local setup](https://github.com/staff-000/byokit#local-models).
+## Refresh
+
+1. Advance `asOf` in `shared/byok.config.json` when the selection window should move.
+2. New releases update BYOKit automatically. To refresh a development install,
+   run `npm update byokit --ignore-scripts` explicitly.
+3. Run `npm run build:extension` or `npm run build:plugin`; either regenerates the
+   model list from the installed package. Review ignored output locally if needed.
+4. Run the targeted catalog tests. Commit configuration and dependency changes;
+   generated files stay local.
+
+## Local setup and validation
+
+Local requires the exact served model ID, a base URL, and an explicit protocol.
+Use `http://localhost:8000/v1` for OpenAI-compatible servers or
+`http://localhost:11434` for Ollama. NutEgg rejects full `/chat/completions` and
+`/api/chat` request URLs; BYOKit constructs request paths. No model is guessed
+and no local ports are scanned.
+
+The SDK's offline `validateClientConfig()` validates before Chrome saves and
+Obsidian syncs credentials. Empty keys are supported. Supplied keys require HTTPS
+except over loopback; execution and connection checks reject redirects. Explicit
+connection checks use `/models` or `/api/tags`. Keyless local sync clears the old
+active secret without requiring SecretStorage.
+
+BYOKit 0.3.0's root TypeScript declarations omit the new creator fields.
+The JSON configuration, CLI output, and `byokit/client` declarations support
+them, so the generated-list integration needs no workaround.

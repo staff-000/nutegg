@@ -233,8 +233,6 @@ export const en = {
   localEndpointOpenAiDesc: 'OpenAI-compatible chat completions URL for your local runner',
   localPresets: 'Presets: ',
   localApiKeyDesc: 'Optional for local LLMs. Leave empty if your local server does not require authentication.',
-  aiModelFamily: '2. Model Family',
-  aiModelFamilyDesc: 'Choose model vendor or architecture group on OpenRouter',
   modelVersion: '3. Model Version',
   modelVersionDesc: 'Sent to OpenRouter as "{model}"',
   aiModel: '2. Model',

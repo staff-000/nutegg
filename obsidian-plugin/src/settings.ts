@@ -45,8 +45,6 @@ export interface NutEggSettings {
   aiApiKey: string;
   /** Model name (selected from provider's model list, optional for local) */
   aiModel: string;
-  /** Model family / vendor (used when aiProvider === "openrouter") */
-  aiModelFamily?: string;
   /** Local LLM endpoint URL (used when aiProvider === "local") */
   localEndpoint: string;
   /** Local LLM API format: "openai" (LM Studio, llama.cpp, Ollama /v1) or "ollama" (native /api/chat) */

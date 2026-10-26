@@ -13,7 +13,7 @@ git push origin main
 ./release.sh 0.4.0
 ```
 
-The script fetches remote branches/tags, requires local `main` to match `origin/main` when creating a maintenance branch, and validates version-bumped source in a temporary worktree. It updates both package/manifest versions and tracked lockfile version metadata, runs the extension/plugin tests and workspace builds, creates `release/0.4`, and commits the version bump there. It atomically pushes that branch and these immutable annotated tags:
+The script fetches remote branches/tags, requires local `main` to match `origin/main` when creating a maintenance branch, and validates version-bumped source in a temporary worktree. It updates both package/manifest versions and tracked lockfile version metadata, installs isolated dependencies with `npm ci`, and runs `npm update byokit --ignore-scripts --no-audit --no-fund` once. It then runs the extension/plugin tests and workspace builds, creates `release/0.4`, and commits the version bump and refreshed lockfile there. It atomically pushes that branch and these immutable annotated tags:
 
 - `0.4.0`: source repository release.
 - `nutegg-obsidian-plugin-0.4.0`: Obsidian package build.
@@ -54,7 +54,7 @@ gh run rerun RUN_ID --failed
 ./release.sh 0.4.0 --resume
 ```
 
-`--resume` requires all three source tags to identify the same commit on the maintenance branch. It validates that tagged source without incrementing versions or moving tags, watches its original component runs, and retries the website update. For an older release, switch to its maintenance branch first. If source or published artifacts need changing, commit the fix and publish a new patch version instead.
+`--resume` requires all three source tags to identify the same commit on the maintenance branch. It installs the tagged lockfile with `npm ci` and validates that source without updating BYOKit, incrementing versions, or moving tags, watches its original component runs, and retries the website update. For an older release, switch to its maintenance branch first. If source or published artifacts need changing, commit the fix and publish a new patch version instead.
 
 Distribution workflow reruns accept identical files/assets, upload missing assets, and fail on conflicting content. Chrome ZIPs use deterministic ordering and timestamps so equivalent builds produce matching archives.
 
@@ -62,7 +62,10 @@ Distribution workflow reruns accept identical files/assets, upload missing asset
 
 - `./release.sh --check` tests/builds the current committed source without publishing.
 - `./release.sh VERSION --dry-run` validates the selected maintenance source and prospective version without changing the current branch, versions, tags, or remote repository. It fetches remote refs; `--allow-dirty` is permitted only here and checks committed source, not uncommitted edits.
-- Dependency packages must already be installed locally. Temporary worktrees reuse the installed dependencies and expose the Obsidian workspace's shared DOM-test dependencies to Chrome tests through `NODE_PATH`; CI installs the committed lockfile with `npm ci`.
+- New versioned releases and their dry runs install isolated dependencies and refresh BYOKit once before validation; registry access is required. Dependency changes remain in the temporary worktree until a successful release commits the refreshed lockfile. An install/update failure stops publication without changing the caller's checkout or installed dependencies.
+- `--resume` installs only the tagged lockfile, and CI uses `npm ci` without refreshing BYOKit. Both component builds therefore use the same release dependency snapshot.
+- `--check` reuses locally installed dependencies without refreshing npm. Temporary worktrees expose the Obsidian workspace's shared DOM-test dependencies to Chrome tests through `NODE_PATH`.
+- Normal build/dev/test/lint commands regenerate the ignored model list from installed BYOKit, without running `npm update`.
 - `--deploy [--vault PATH]` remains opt-in. Normal release commands do not update an Obsidian vault.
 
 Validate release-script changes with these commands from the repository root:

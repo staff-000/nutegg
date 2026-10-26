@@ -7,6 +7,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const { execFileSync } = require("node:child_process");
 
 let esbuild;
 const esbuildCandidates = [
@@ -37,6 +38,7 @@ const mdAsTextPlugin = {
 };
 
 async function build() {
+  execFileSync("npm", ["run", "models:update", "--prefix", path.join(__dirname, "..")], { stdio: "inherit" });
   const outfile = path.join(__dirname, "dist/ai-core.js");
   const entryPoint = path.join(__dirname, "../shared/src/index.ts");
   console.log("[NutEgg Build] Bundling shared AI engine into:", outfile);

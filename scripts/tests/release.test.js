@@ -20,7 +20,7 @@ function fixture(t) {
     write(`${dir}/package.json`, { name: `@nutegg/${dir}`, version: '0.3.0' });
     write(`${dir}/manifest.json`, { version: '0.3.0' });
   }
-  write('package-lock.json', { packages: { 'chrome-extension': { version: '0.3.0' }, 'obsidian-plugin': { version: '0.3.0' } } });
+  write('package-lock.json', { packages: { 'chrome-extension': { version: '0.3.0' }, 'obsidian-plugin': { version: '0.3.0' }, 'node_modules/byokit': { version: '0.3.0' } } });
   write('obsidian-plugin/package-lock.json', { version: '0.3.0', packages: { '': { version: '0.3.0' } } });
   write('website/src/versions.json', {
     chromeExtension: { githubVersion: '0.3.0', storeVersion: '0.2.0' },
@@ -30,7 +30,18 @@ function fixture(t) {
   execFileSync('git', ['init', '--bare', remote], { stdio: 'ignore' });
   git('remote', 'add', 'origin', remote); git('push', '-u', 'origin', 'main');
   const log = path.join(temp, 'calls.log');
-  fs.writeFileSync(path.join(bin, 'npm'), `#!/bin/sh\nprintf '%s %s\\n' "$PWD" "$*" >> "$TEST_LOG"\nif [ "$FAKE_BUILD_FAILURE" = 1 ]; then exit 9; fi\nif [ -n "$EXPECTED_VERSION" ]; then node -e 'const fs=require("fs"),p=require("path"); const root=fs.existsSync("chrome-extension")?process.cwd():p.dirname(process.cwd()); for(const d of ["chrome-extension","obsidian-plugin"]) if(JSON.parse(fs.readFileSync(p.join(root,d,"manifest.json"))).version!==process.env.EXPECTED_VERSION) process.exit(8);'; fi\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'npm'), `#!/bin/sh
+printf '%s %s\\n' "$PWD" "$*" >> "$TEST_LOG"
+if [ "$1" = ci ] && [ -L node_modules ]; then exit 11; fi
+if [ "$1" = update ] && [ "$2" = byokit ]; then
+  if [ "$FAKE_UPDATE_FAILURE" = 1 ]; then exit 13; fi
+  if [ -n "$FAKE_BYOKIT_VERSION" ]; then
+    node -e 'const fs=require("fs"); const file="package-lock.json",lock=JSON.parse(fs.readFileSync(file)); lock.packages["node_modules/byokit"].version=process.env.FAKE_BYOKIT_VERSION; fs.writeFileSync(file,JSON.stringify(lock,null,2)+"\\n");'
+  fi
+fi
+if [ "$FAKE_BUILD_FAILURE" = 1 ] && [ "$1" != ci ] && [ "$1" != update ]; then exit 9; fi
+if [ -n "$EXPECTED_VERSION" ]; then node -e 'const fs=require("fs"),p=require("path"); const root=fs.existsSync("chrome-extension")?process.cwd():p.dirname(process.cwd()); for(const d of ["chrome-extension","obsidian-plugin"]) if(JSON.parse(fs.readFileSync(p.join(root,d,"manifest.json"))).version!==process.env.EXPECTED_VERSION) process.exit(8);'; fi
+`, { mode: 0o755 });
   fs.writeFileSync(path.join(bin, 'sleep'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   fs.writeFileSync(path.join(bin, 'gh'), `#!/usr/bin/env node
 const fs=require('fs');const a=process.argv.slice(2);fs.appendFileSync(process.env.TEST_LOG,JSON.stringify(a)+'\\n');
@@ -91,6 +102,33 @@ test('patch releases stay on maintenance and do not merge main features', t => {
   assert.equal(f.git('show', 'origin/main:new-main-feature.txt'), 'Future feature');
 });
 
+test('a new release refreshes BYOKit once in isolation and commits its lockfile before tagging', t => {
+  const f = fixture(t);
+  f.write('.gitignore', 'node_modules/\n'); f.git('add', '.gitignore'); f.git('commit', '-m', 'Ignore installed dependencies'); f.git('push', 'origin', 'main');
+  f.write('node_modules/byokit/package.json', { version: '0.3.0' });
+  success(f.run(['0.4.0'], { EXPECTED_VERSION: '0.4.0', FAKE_BYOKIT_VERSION: '0.3.1' }));
+  const calls = fs.readFileSync(f.log, 'utf8');
+  assert.equal((calls.match(/ update byokit /g) || []).length, 1);
+  assert.ok(calls.indexOf(' ci ') < calls.indexOf(' update byokit '));
+  assert.ok(calls.indexOf(' update byokit ') < calls.indexOf('/chrome-extension test'));
+  assert.equal(f.read('package-lock.json').packages['node_modules/byokit'].version, '0.3.1');
+  assert.equal(JSON.parse(f.git('show', '0.4.0:package-lock.json')).packages['node_modules/byokit'].version, '0.3.1');
+  assert.equal(f.read('node_modules/byokit/package.json').version, '0.3.0', 'release preparation must not mutate the caller install');
+  assert.equal(JSON.parse(f.git('show', 'origin/main:package-lock.json')).packages['node_modules/byokit'].version, '0.3.0');
+});
+
+test('a failed BYOKit refresh stops before testing, committing, or publishing', t => {
+  const f = fixture(t), head = f.git('rev-parse', 'HEAD');
+  const result = f.run(['0.4.0'], { EXPECTED_VERSION: '0.4.0', FAKE_UPDATE_FAILURE: '1' });
+  assert.notEqual(result.status, 0);
+  assert.equal(f.git('rev-parse', 'HEAD'), head);
+  assert.equal(f.git('branch', '--show-current'), 'main');
+  assert.equal(f.git('tag'), '');
+  assert.equal(f.git('status', '--porcelain'), '');
+  assert.equal(f.read('package-lock.json').packages['node_modules/byokit'].version, '0.3.0');
+  assert.doesNotMatch(fs.readFileSync(f.log, 'utf8'), /\/chrome-extension test|"watch"/);
+});
+
 test('patch releases require an existing maintenance branch and new minor releases require pushed main', t => {
   const f = fixture(t);
   assert.match(f.run(['0.4.1']).stderr, /Missing maintenance branch/);
@@ -100,12 +138,13 @@ test('patch releases require an existing maintenance branch and new minor releas
 
 test('dry run checks selected release source without changing branch, tags, versions, or remote', t => {
   const f = fixture(t), head = f.git('rev-parse', 'HEAD');
-  success(f.run(['0.4.0', '--dry-run'], { EXPECTED_VERSION: '0.4.0' }));
+  success(f.run(['0.4.0', '--dry-run'], { EXPECTED_VERSION: '0.4.0', FAKE_BYOKIT_VERSION: '0.3.1' }));
   assert.equal(f.git('rev-parse', 'HEAD'), head);
   assert.equal(f.git('branch', '--show-current'), 'main');
   assert.equal(f.git('tag'), ''); assert.equal(f.git('status', '--porcelain'), '');
   assert.equal(f.git('ls-remote', '--heads', 'origin').split('\n').length, 1);
   assert.equal(f.read('chrome-extension/manifest.json').version, '0.3.0');
+  assert.equal(f.read('package-lock.json').packages['node_modules/byokit'].version, '0.3.0');
 });
 
 test('build failure publishes no refs and leaves the working checkout unchanged', t => {
@@ -118,13 +157,15 @@ test('build failure publishes no refs and leaves the working checkout unchanged'
 
 test('published tags are immutable and an interrupted release resumes without re-bumping', t => {
   const f = fixture(t);
-  const failed = f.run(['0.4.0'], { EXPECTED_VERSION: '0.4.0', FAKE_WORKFLOW_FAILURE: '1' });
+  const failed = f.run(['0.4.0'], { EXPECTED_VERSION: '0.4.0', FAKE_WORKFLOW_FAILURE: '1', FAKE_BYOKIT_VERSION: '0.3.1' });
   assert.notEqual(failed.status, 0); assert.match(failed.stderr, /Release build 10 failed/);
   const tag = f.git('rev-parse', 'refs/tags/0.4.0');
   assert.match(f.run(['0.4.0']).stderr, /already exists/);
-  success(f.run(['0.4.0', '--resume'], { EXPECTED_VERSION: '0.4.0' }));
+  success(f.run(['0.4.0', '--resume'], { EXPECTED_VERSION: '0.4.0', FAKE_UPDATE_FAILURE: '1' }));
   assert.equal(f.git('rev-parse', 'refs/tags/0.4.0'), tag);
   assert.equal(f.read('chrome-extension/manifest.json').version, '0.4.0');
+  assert.equal(f.read('package-lock.json').packages['node_modules/byokit'].version, '0.3.1');
+  assert.equal((fs.readFileSync(f.log, 'utf8').match(/ update byokit /g) || []).length, 1);
 });
 
 test('missing workflow runs fail instead of reporting publication success', t => {
@@ -274,8 +315,9 @@ test('isolated release checks can load jsdom installed only in the sibling Obsid
   const npm = path.join(f.env.PATH.split(path.delimiter)[0], 'npm');
   fs.appendFileSync(npm, `\nif [ "$CHECK_DOM" = 1 ] && [ "$1" = test ]; then node -e 'const {JSDOM}=require("jsdom"); const dom=new JSDOM("<p>Release check</p>"); if(dom.window.document.querySelector("p").textContent!=="Release check")process.exit(7); dom.window.close();'; fi\n`);
   const head = f.git('rev-parse', 'HEAD');
-  success(f.run(['0.4.0', '--dry-run'], { EXPECTED_VERSION: '0.4.0', CHECK_DOM: '1', NODE_PATH: '' }));
+  success(f.run(['--check'], { EXPECTED_VERSION: '0.3.0', CHECK_DOM: '1', NODE_PATH: '', FAKE_UPDATE_FAILURE: '1' }));
   assert.equal(f.git('rev-parse', 'HEAD'), head);
   assert.equal(f.git('branch', '--show-current'), 'main');
   assert.equal(f.git('status', '--porcelain'), '');
+  assert.doesNotMatch(fs.readFileSync(f.log, 'utf8'), / update byokit | ci /);
 });

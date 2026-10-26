@@ -232,8 +232,6 @@ export const ru = {
   localEndpointOpenAiDesc: 'OpenAI-совместимый URL для вашего локального движка',
   localPresets: 'Пресеты: ',
   localApiKeyDesc: 'Необязательно для локальных моделей. Оставьте пустым, если авторизация не требуется.',
-  aiModelFamily: '2. Семейство моделей',
-  aiModelFamilyDesc: 'Выберите разработчика модели или группу архитектуры в OpenRouter',
   modelVersion: '3. Версия модели',
   modelVersionDesc: 'Отправляется в OpenRouter как "{model}"',
   aiModel: '2. Модель',

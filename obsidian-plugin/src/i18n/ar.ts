@@ -230,8 +230,6 @@ export const ar = {
   localEndpointOpenAiDesc: 'عنوان URL متوافق مع OpenAI للمشغل المحلي',
   localPresets: 'الإعدادات المسبقة: ',
   localApiKeyDesc: 'اختياري للنماذج المحلية. اتركه فارغاً إذا لم يتطلب خادمك مصادقة.',
-  aiModelFamily: '2. عائلة النموذج',
-  aiModelFamilyDesc: 'اختر موفر النموذج أو مجموعة البنية في OpenRouter',
   modelVersion: '3. إصدار النموذج',
   modelVersionDesc: 'يتم إرساله إلى OpenRouter باسم "{model}"',
   aiModel: '2. النموذج',

@@ -232,8 +232,6 @@ export const ja = {
   localEndpointOpenAiDesc: 'ローカル環境のOpenAI互換チャットURL',
   localPresets: 'プリセット: ',
   localApiKeyDesc: 'ローカルLLM用（任意）。認証不要の場合は空欄にしてください。',
-  aiModelFamily: '2. モデルファミリー',
-  aiModelFamilyDesc: 'OpenRouterのモデルベンダーまたはアーキテクチャグループを選択',
   modelVersion: '3. モデルバージョン',
   modelVersionDesc: 'OpenRouterに「{model}」として送信されます',
   aiModel: '2. モデル',

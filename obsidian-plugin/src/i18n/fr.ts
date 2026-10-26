@@ -236,8 +236,6 @@ export const fr = {
   localEndpointOpenAiDesc: 'URL compatible OpenAI pour votre moteur local',
   localPresets: 'Préréglages : ',
   localApiKeyDesc: "Optionnel pour les LLM locaux. Laissez vide si aucune authentification n'est requise.",
-  aiModelFamily: '2. Famille de modèle',
-  aiModelFamilyDesc: "Choisissez le fournisseur ou groupe d'architecture sur OpenRouter",
   modelVersion: '3. Version du modèle',
   modelVersionDesc: 'Envoyé à OpenRouter comme "{model}"',
   aiModel: '2. Modèle',

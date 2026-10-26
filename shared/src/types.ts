@@ -2,10 +2,9 @@
 // NutEgg Unified AI Engine — Type Definitions
 // ============================================================
 
-import type { Connection, StandardClientOptions } from 'byokit/client';
-import type { GENERATED_PROVIDERS } from './generated-models.mjs';
+import type { Connection, ExecutionModel, StandardClientOptions } from 'byokit/client';
 
-export type AIProviderId = (typeof GENERATED_PROVIDERS)[number]['id'];
+export type AIProviderId = ExecutionModel['providerId'];
 
 export type AISource = 'official' | 'openrouter';
 export type AIAuthMethod = 'apiKey' | 'subscription' | 'chatgpt';
@@ -42,20 +41,12 @@ export interface SubscriptionExecutor {
   status(provider: SubscriptionProvider): Promise<SubscriptionStatus>;
 }
 
-export interface ModelFamily {
-  id: string;
-  label: string;
-  defaultModel: string;
-  models: string[];
-}
-
 export interface ProviderInfo {
   id: AIProviderId;
   label: string;
   connection: Connection;
   defaultModel?: string;
   models?: string[];
-  families?: ModelFamily[];
 }
 
 export interface ResolvedConfig {
@@ -73,7 +64,6 @@ export interface NutEggAISettings {
   aiEndpoint?: string;
   aiApiKey?: string;
   aiModel?: string;
-  aiModelFamily?: string;
   contentAnalysisMaxTokens?: number;
   outputLanguage?: string;
   chunkWindowChars?: number;

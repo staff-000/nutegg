@@ -98,13 +98,22 @@ VERSION_FILES=(chrome-extension/package.json chrome-extension/manifest.json obsi
 for file in package-lock.json chrome-extension/package-lock.json obsidian-plugin/package-lock.json; do
   if [[ -f "$WORK/$file" ]]; then VERSION_FILES+=("$file"); fi
 done
-git -C "$WORK" add -- "${VERSION_FILES[@]}"
-# Reuse installed dependencies; artifacts stay in the temporary worktree.
-for dir in '' chrome-extension obsidian-plugin shared website; do
-  if [[ -d "$SCRIPT_DIR/${dir:+$dir/}node_modules" ]]; then
-    ln -s "$SCRIPT_DIR/${dir:+$dir/}node_modules" "$WORK/${dir:+$dir/}node_modules"
+if [[ -n "$VERSION" ]]; then
+  # Own the release dependencies: updating a symlink would mutate the caller's install.
+  (cd "$WORK" && npm ci --no-audit --no-fund)
+  if [[ "$RESUME" == false ]]; then
+    # Refresh once before testing/tagging; CI and resumes use this committed lockfile.
+    (cd "$WORK" && npm update byokit --ignore-scripts --no-audit --no-fund)
   fi
-done
+else
+  # Fast local preflight checks reuse installed dependencies without refreshing npm.
+  for dir in '' chrome-extension obsidian-plugin shared website; do
+    if [[ -d "$SCRIPT_DIR/${dir:+$dir/}node_modules" ]]; then
+      ln -s "$SCRIPT_DIR/${dir:+$dir/}node_modules" "$WORK/${dir:+$dir/}node_modules"
+    fi
+  done
+fi
+git -C "$WORK" add -- "${VERSION_FILES[@]}"
 # Chrome's DOM tests share jsdom from the Obsidian workspace. Linking sibling
 # node_modules directories alone does not put them on Node's lookup path.
 export NODE_PATH="$WORK/obsidian-plugin/node_modules${NODE_PATH:+:$NODE_PATH}"
