@@ -1,3 +1,4 @@
+import { windowsSystemCommand } from './local-access';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -127,10 +128,11 @@ export class FileChatGPTStore implements ChatGPTStore {
     if (stat.isSymbolicLink() || (directory ? !stat.isDirectory() : !stat.isFile()))
       throw new Error('Unsafe ChatGPT storage path.');
     if (process.platform === 'win32') {
+      // Used only locally to assign the credential ACL; never sent as installation identity.
       const user = os.userInfo().username;
       try {
-        execFileSync('icacls', [file, '/reset'], { windowsHide: true, stdio: 'ignore' });
-        execFileSync('icacls', [file, '/inheritance:r', '/grant:r', `${user}:${directory ? '(OI)(CI)' : ''}F`], {
+        execFileSync(windowsSystemCommand('icacls'), [file, '/reset'], { windowsHide: true, stdio: 'ignore' });
+        execFileSync(windowsSystemCommand('icacls'), [file, '/inheritance:r', '/grant:r', `${user}:${directory ? '(OI)(CI)' : ''}F`], {
           windowsHide: true,
           stdio: 'ignore',
         });

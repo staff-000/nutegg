@@ -1,4 +1,6 @@
 export const ko = {
+  subscriptionLocalAccessHint: "CLI 연결은 설치된 제공업체 프로그램을 로컬에서 실행하고 임시 파일을 만듭니다. 요청한 콘텐츠만 제공업체로 전송됩니다.",
+  chatgptLocalStorageHint: "로그인 자격 증명은 보관함 외부의 로컬 앱 저장소에서 보호되며 Chrome 메시지나 내보내기에 포함되지 않습니다.",
   chatgptInvalidSignInCallback: "잘못된 로그인 콜백입니다.",
   chatgptInvalidCallback: "잘못된 콜백입니다.",
   chatgptRequestCancelled: "ChatGPT 요청이 취소되었습니다.",

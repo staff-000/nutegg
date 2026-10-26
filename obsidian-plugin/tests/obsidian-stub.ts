@@ -28,13 +28,17 @@ export class TAbstractFile {
   path: string = "";
   name: string = "";
 }
+export class TFolder extends TAbstractFile {
+  children: TAbstractFile[] = [];
+}
 export class TFile extends TAbstractFile {
   basename: string = "";
   extension: string = "";
 }
+export const languageState = { app: "en", moment: "en" };
 export function getLanguage(): string {
-  return "en";
+  return languageState.app;
 }
 export const moment = {
-  locale: () => "en",
+  locale: () => languageState.moment,
 };

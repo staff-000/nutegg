@@ -581,6 +581,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     const current = () => this.chatgptCard === card && view === this.chatgptView && this.aiConnectionMode() === 'chatgpt';
     card.createEl('h3', { text: t('chatgptLabel') });
     card.createEl('p', { text: t('chatgptTokenHint'), cls: 'setting-item-description' });
+    card.createEl('p', { text: t('chatgptLocalStorageHint'), cls: 'setting-item-description' });
     if (!service) {
       const statusLine = card.createEl('p', { cls: 'nutegg-connection-status-line' });
       statusLine.dataset.status = 'disconnected';
@@ -657,6 +658,7 @@ export class NutEggSettingTab extends PluginSettingTab {
     this.subscriptionCard = card;
     card.createEl('h3', { text: this.subscriptionLabel(this.plugin.settings.aiProvider as SubscriptionProvider) });
     card.createEl('p', { text: t('subscriptionAccountSetup'), cls: 'setting-item-description' });
+    card.createEl('p', { text: t('subscriptionLocalAccessHint'), cls: 'setting-item-description' });
 
     let provider: SubscriptionProvider = ['openai', 'anthropic', 'google'].includes(this.plugin.settings.aiProvider)
       ? (this.plugin.settings.aiProvider as SubscriptionProvider)

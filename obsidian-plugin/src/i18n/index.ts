@@ -41,12 +41,7 @@ export function getLanguage(): string {
       // ignore
     }
 
-    // 2. Obsidian's persistent app language in localStorage (used in all Obsidian versions)
-    if (!raw && typeof window !== 'undefined' && window?.localStorage) {
-      raw = window.localStorage.getItem('language') || undefined;
-    }
-
-    // 3. Obsidian's bundled Moment.js locale (set to the active language by Obsidian)
+    // 2. Obsidian's bundled Moment.js locale (set to the active language by Obsidian)
     if (!raw) {
       try {
         if (typeof moment?.locale === 'function') {
@@ -59,12 +54,12 @@ export function getLanguage(): string {
       }
     }
 
-    // 4. HTML document element lang
+    // 3. HTML document element lang
     if (!raw && typeof document !== 'undefined' && document.documentElement?.lang) {
       raw = document.documentElement.lang;
     }
 
-    // 5. System/browser fallback
+    // 4. System/browser fallback
     if (!raw && typeof navigator !== 'undefined' && navigator?.language) {
       raw = navigator.language;
     }

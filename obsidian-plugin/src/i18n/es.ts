@@ -1,4 +1,6 @@
 export const es = {
+  subscriptionLocalAccessHint: "Las conexiones CLI ejecutan el proveedor instalado localmente y crean archivos temporales. Solo el contenido solicitado se envía al proveedor.",
+  chatgptLocalStorageHint: "Las credenciales se protegen en el almacenamiento local de la aplicación fuera de la bóveda y no se incluyen en mensajes de Chrome ni exportaciones.",
   chatgptInvalidSignInCallback: "Respuesta de inicio de sesión no válida.",
   chatgptInvalidCallback: "Respuesta de retorno no válida.",
   chatgptRequestCancelled: "Solicitud de ChatGPT cancelada.",

@@ -1,4 +1,6 @@
 export const ja = {
+  subscriptionLocalAccessHint: "CLI 接続はインストール済みのプロバイダーをローカルで実行し、一時ファイルを作成します。要求された内容のみをプロバイダーに送信します。",
+  chatgptLocalStorageHint: "認証情報は保管庫の外のローカルアプリ領域で保護され、Chrome メッセージやエクスポートには含まれません。",
   chatgptInvalidSignInCallback: "ログインの応答が無効です。",
   chatgptInvalidCallback: "コールバックが無効です。",
   chatgptRequestCancelled: "ChatGPT のリクエストをキャンセルしました。",

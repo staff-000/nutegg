@@ -204,11 +204,11 @@
   letter-spacing: -0.01em;
   color: var(--text-normal);
 }
-.nutegg-subscription-card .setting-item {
+.nutegg-settings .nutegg-subscription-card .setting-item {
   margin: 0;
   padding: 12px 0;
   border-radius: 0;
-  background: transparent !important;
+  background: transparent;
   border-top: 1px solid var(--background-modifier-border);
 }
 .nutegg-subscription-card .setting-item:first-of-type,
@@ -252,8 +252,8 @@
   container-type: inline-size;
 }
 
-.nutegg-settings [hidden] {
-  display: none !important;
+.nutegg-settings.nutegg-settings [hidden] {
+  display: none;
 }
 
 .nutegg-settings > h2 {
@@ -627,11 +627,11 @@
 
 .nutegg-settings .nutegg-settings-section .setting-item,
 .nutegg-settings .nutegg-subscription-card .setting-item,
-.nutegg-settings .setting-item {
+.nutegg-settings.nutegg-settings .setting-item {
   margin: 0;
   padding: 12px 0;
   border-radius: 0;
-  background: transparent !important;
+  background: transparent;
 }
 
 .nutegg-settings .nutegg-settings-section .setting-item,
@@ -668,15 +668,15 @@
   box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.nutegg-settings select,
-.nutegg-settings .dropdown {
+.nutegg-settings.nutegg-settings select,
+.nutegg-settings.nutegg-settings .dropdown {
   appearance: none;
   -webkit-appearance: none;
   background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
   background-repeat: no-repeat;
   background-position: right 10px center;
   background-size: 12px 12px;
-  padding-right: 28px !important;
+  padding-right: 28px;
   cursor: pointer;
   text-align: left;
   text-align-last: left;

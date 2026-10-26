@@ -1,4 +1,6 @@
 export const de = {
+  subscriptionLocalAccessHint: "CLI-Verbindungen führen den installierten Anbieter lokal aus und erstellen temporäre Dateien. Nur angeforderte Inhalte werden an den Anbieter gesendet.",
+  chatgptLocalStorageHint: "Anmeldedaten werden im lokalen Anwendungsspeicher außerhalb des Vaults geschützt und sind nicht in Chrome-Nachrichten oder Exporten enthalten.",
   chatgptInvalidSignInCallback: "Ungültige Anmeldeantwort.",
   chatgptInvalidCallback: "Ungültiger Rückruf.",
   chatgptRequestCancelled: "ChatGPT-Anfrage abgebrochen.",

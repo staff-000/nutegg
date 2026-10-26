@@ -1,3 +1,4 @@
+import { filesInFolder } from './vault-files';
 import { t } from './i18n';
 import { Notice, TAbstractFile } from 'obsidian';
 import type NutEggPlugin from './main';
@@ -212,7 +213,7 @@ export class IndexSync {
     const folder = this.plugin.vaultFolder || 'nutegg';
     const norm = (p: string) => resolveEggPath(p, folder) || '';
 
-    const eggFilesOnDisk = (this.plugin.app.vault.getMarkdownFiles?.() || [])
+    const eggFilesOnDisk = filesInFolder(this.plugin.app.vault, this.plugin.vaultFolder || 'nutegg')
       .filter(f => isEggPath(f.path, folder))
       .map(f => f.path);
     const diskSet = new Set(eggFilesOnDisk);
@@ -320,7 +321,7 @@ export class IndexSync {
 
     // If syncUnindexed is enabled (e.g. from user Sync button), add valid unindexed egg files
     if (options?.syncUnindexed && indexFile) {
-      const diskEggFiles = (this.plugin.app.vault.getMarkdownFiles?.() || []).filter(f => isEggPath(f.path, folder));
+      const diskEggFiles = filesInFolder(this.plugin.app.vault, this.plugin.vaultFolder || 'nutegg').filter(f => isEggPath(f.path, folder));
       const indexedTargets = new Set(entries.map(e => norm(e.fileName)));
 
       for (const file of diskEggFiles) {

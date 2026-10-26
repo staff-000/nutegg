@@ -1,3 +1,4 @@
+import { filesInFolder } from './vault-files';
 import { trackAIRequest } from '../../shared/src/ai-diagnostics';
 import { ExecutionCoordinator, ExecutionProtocolError, type Job } from './execution-coordinator';
 import { EXECUTION_PROTOCOL, publicExecutionSettings } from '../../shared/src/execution';
@@ -518,7 +519,7 @@ export class NutEggServer {
   /** Count egg files (direct markdown notes under vaultFolder/, excluding system files). */
   private countEggs(): number {
     const folder = this.plugin.vaultFolder || 'nutegg';
-    return this.plugin.app.vault.getMarkdownFiles().filter(f => isEggPath(f.path, folder)).length;
+    return filesInFolder(this.plugin.app.vault, folder).filter(f => isEggPath(f.path, folder)).length;
   }
 
   /** Insert a capture entry into the SQLite DB if available. */

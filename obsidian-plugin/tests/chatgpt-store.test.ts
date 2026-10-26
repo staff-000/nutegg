@@ -91,3 +91,22 @@ test('startup diagnostics expose only known codes and operations, never sensitiv
   assert.equal(chatgptStartupDiagnostic(new SyntaxError('Unexpected token in secret JSON')), 'storage_unknown');
   assert.equal(chatgptStartupDiagnostic(null), 'storage_unknown');
 });
+
+test('credentials retain private permissions, reject symlink records and clear locally', t => {
+  const { vault, local } = fixture(t);
+  const store = new FileChatGPTStore(vault, local);
+  t.after(() => store.close());
+  const directory = path.join(local, fs.readdirSync(local)[0]);
+  store.save({ clientId: 'issued-client', refreshToken: 'secret', scopes: [], expiresAt: 1 });
+  const record = path.join(directory, 'credentials.json');
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(directory).mode & 0o777, 0o700);
+    assert.equal(fs.statSync(record).mode & 0o777, 0o600);
+  }
+  assert.throws(() => new FileChatGPTStore(vault, local), { code: 'storage_locked' });
+  store.clear(); assert.equal(store.load(), undefined);
+  const external = path.join(vault, 'private.txt'); fs.writeFileSync(external, 'private');
+  fs.symlinkSync(external, record);
+  assert.throws(() => store.load(), /Unsafe/);
+  store.clear(); assert.equal(fs.readFileSync(external, 'utf8'), 'private');
+});

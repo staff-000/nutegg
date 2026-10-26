@@ -1,3 +1,4 @@
+import { filesInFolder } from './vault-files';
 import { Notice, TAbstractFile, TFile } from 'obsidian';
 import type NutEggPlugin from './main';
 import { PROMPTS } from './prompt-templates';
@@ -278,12 +279,7 @@ export class WorkflowManager {
   getWorkflowFiles(): TFile[] {
     const folder = this.workflowFolder;
     const vault = this.plugin.app.vault;
-    let allFiles: TFile[] = [];
-    if (typeof vault.getFiles === 'function') {
-      allFiles = vault.getFiles();
-    } else if (typeof vault.getMarkdownFiles === 'function') {
-      allFiles = vault.getMarkdownFiles();
-    }
+    const allFiles = filesInFolder(vault, folder);
     return allFiles.filter(
       (f: TFile) =>
         f.path.startsWith(`${folder}/`) && !f.path.startsWith(`${folder}/_backup/`) && !f.path.endsWith('/_backup')
@@ -591,12 +587,7 @@ export class WorkflowManager {
   getEggFiles(): TFile[] {
     const folder = this.plugin.vaultFolder || 'nutegg';
     const vault = this.plugin.app.vault;
-    let allFiles: TFile[] = [];
-    if (typeof vault.getMarkdownFiles === 'function') {
-      allFiles = vault.getMarkdownFiles();
-    } else if (typeof vault.getFiles === 'function') {
-      allFiles = vault.getFiles();
-    }
+    const allFiles = filesInFolder(vault, folder);
     return allFiles.filter((f: TFile) => isEggPath(f.path, folder));
   }
 

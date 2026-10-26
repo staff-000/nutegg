@@ -1,4 +1,6 @@
 export const ru = {
+  subscriptionLocalAccessHint: "Подключения CLI запускают установленную программу провайдера локально и создают временные файлы. Провайдеру отправляется только запрошенное содержимое.",
+  chatgptLocalStorageHint: "Данные входа защищены в локальном хранилище приложения вне хранилища Obsidian и не включаются в сообщения Chrome или экспорт.",
   chatgptInvalidSignInCallback: "Недействительный ответ входа.",
   chatgptInvalidCallback: "Недействительный обратный вызов.",
   chatgptRequestCancelled: "Запрос ChatGPT отменён.",

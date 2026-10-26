@@ -1,3 +1,4 @@
+import { windowsSystemCommand } from './local-access';
 import { t } from './i18n';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, writeFile, chmod, rm, readFile } from 'node:fs/promises';
@@ -41,6 +42,14 @@ type Login = {
 };
 
 export class SubscriptionService implements SubscriptionExecutor {
+  private ownedLoginDirectories = new Set<string>();
+
+  private async removeLoginDirectory(directory: string): Promise<void> {
+    if (!this.ownedLoginDirectories.has(directory)) return; // Repeated cancellation is harmless.
+    await rm(directory, { recursive: true, force: true });
+    this.ownedLoginDirectories.delete(directory);
+  }
+
   private tail = Promise.resolve();
   private controllers = new Set<AbortController>();
   private logins = new Map<SubscriptionProvider, Login>();
@@ -556,9 +565,10 @@ export class SubscriptionService implements SubscriptionExecutor {
     this.usageCache = undefined;
     // A real terminal supports provider prompts and device codes without exposing auth output to Chrome.
     const directory = await mkdtemp(join(tmpdir(), 'nutegg-login-'));
+    this.ownedLoginDirectories.add(directory);
     login.directory = directory;
     if (!this.enabled() || this.closed || generation !== (this.loginGeneration.get(provider) || 0)) {
-      await rm(directory, { recursive: true, force: true });
+      await this.removeLoginDirectory(directory);
       throw new Error(t('subscriptionLoginCancelled'));
     }
     const script = join(directory, process.platform === 'win32' ? 'login.ps1' : `nutegg-login-${login.id}.command`);
@@ -605,7 +615,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     if (process.platform === 'darwin') {
       child = spawn('/usr/bin/open', ['-a', 'Terminal', script], { shell: false });
     } else if (process.platform === 'win32') {
-      child = spawn('powershell.exe', ['-NoProfile', '-File', script], { shell: false, windowsHide: false });
+      child = spawn(windowsSystemCommand('powershell'), ['-NoProfile', '-File', script], { shell: false, windowsHide: false });
     } else {
       let terminal = 'x-terminal-emulator';
       for (const candidate of ['x-terminal-emulator', 'gnome-terminal', 'konsole', 'xterm']) {
@@ -663,7 +673,7 @@ export class SubscriptionService implements SubscriptionExecutor {
     }
     login.child?.kill();
     this.logins.delete(provider);
-    if (login.directory) await rm(login.directory, { recursive: true, force: true });
+    if (login.directory) await this.removeLoginDirectory(login.directory);
   }
   cancelWork(): Promise<void> {
     if (this.stopping) return this.stopping;

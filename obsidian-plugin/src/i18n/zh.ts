@@ -1,6 +1,8 @@
 import type { TranslationKey } from './en';
 
 export const zh: Record<TranslationKey, string> = {
+  subscriptionLocalAccessHint: "CLI 连接会在本机运行已安装的提供商程序并创建临时文件，仅将请求的内容发送给该提供商。",
+  chatgptLocalStorageHint: "登录凭据受保护地存储在仓库之外的本机应用目录中，不会包含在 Chrome 消息或导出内容中。",
   chatgptInvalidSignInCallback: "登录回调无效。",
   chatgptInvalidCallback: "回调无效。",
   chatgptRequestCancelled: "ChatGPT 请求已取消。",

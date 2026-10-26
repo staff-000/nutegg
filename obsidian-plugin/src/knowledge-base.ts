@@ -1,3 +1,4 @@
+import { TFile } from 'obsidian';
 import type { CaptureCoverage, DiscussionCapture, AnalysisSectionsConfig } from '../../shared/src/types';
 import { t } from './i18n';
 import { normalizeCaptureCoverage } from '../../shared/src/capture-coverage';
@@ -175,8 +176,8 @@ export class KnowledgeBase {
   async updateRawAnalysis(fileName: string, analysis: unknown): Promise<void> {
     const vault = this.plugin.app.vault;
     if (!(await vault.adapter.exists(fileName))) throw new Error(`Nut not found: ${fileName}`);
-    const file = vault.getMarkdownFiles().find(file => file.path === fileName);
-    if (!file) throw new Error(`Nut not found: ${fileName}`);
+    const file = vault.getAbstractFileByPath(fileName);
+    if (!(file instanceof TFile)) throw new Error(`Nut not found: ${fileName}`);
     const transform = (content: string) => {
       const marker = '\n# NutEgg Analysis\n\n```json\n';
       const offset = content.lastIndexOf(marker);

@@ -1,4 +1,6 @@
 export const ar = {
+  subscriptionLocalAccessHint: "تشغّل اتصالات CLI برنامج المزوّد المثبّت محليًا وتُنشئ ملفات مؤقتة. يُرسَل المحتوى المطلوب فقط إلى المزوّد.",
+  chatgptLocalStorageHint: "تُحمى بيانات تسجيل الدخول في تخزين التطبيق المحلي خارج الخزنة ولا تُضمَّن في رسائل Chrome أو الصادرات.",
   chatgptInvalidSignInCallback: "استجابة تسجيل الدخول غير صالحة.",
   chatgptInvalidCallback: "استجابة العودة غير صالحة.",
   chatgptRequestCancelled: "تم إلغاء طلب ChatGPT.",

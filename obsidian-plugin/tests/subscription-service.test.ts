@@ -434,3 +434,16 @@ process.stdin.resume(); process.stdin.on('end', () => {
   assert.equal(stats.activeCalls, 0); assert.equal(stats.waitingCalls, 0);
   assert.equal(stats.completedCalls, 2); assert.equal(stats.failedCalls, 0); assert.equal(stats.cancelledCalls, 1);
 });
+
+test('login cleanup is idempotent and cannot delete an unowned directory', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'nutegg-cleanup-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const marker = join(directory, 'keep'); await writeFile(marker, 'private');
+  const service = new SubscriptionService();
+  await (service as any).removeLoginDirectory(directory);
+  assert.equal(await readFile(marker, 'utf8'), 'private');
+  (service as any).ownedLoginDirectories.add(directory);
+  await (service as any).removeLoginDirectory(directory);
+  await (service as any).removeLoginDirectory(directory);
+  await assert.rejects(readFile(marker));
+});

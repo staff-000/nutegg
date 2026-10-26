@@ -95,3 +95,5 @@ Run the following with real accounts on **macOS, Windows, and Linux** before cla
 - Close Obsidian during running/queued inference: confirm processes stop, the light becomes red, and no API request occurs. Open the API recovery flow and confirm mode/billing changes only after Save.
 
 Windows requires native CLI executables; Linux requires a supported terminal. Provider sign-in must be completed by the account holder.
+
+Local process and file access are documented in [plugin permissions](plugin-permissions.md). ChatGPT sign-in is a separate plugin-owned OAuth connection; CLI subscriptions use credentials managed by the installed CLI.

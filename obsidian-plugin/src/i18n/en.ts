@@ -1,4 +1,6 @@
 export const en = {
+  subscriptionLocalAccessHint: "CLI connections run your installed provider locally and create temporary files. Only requested content is sent to that provider.",
+  chatgptLocalStorageHint: "Sign-in credentials are protected in local application storage outside your vault and are not included in Chrome messages or exports.",
   chatgptInvalidSignInCallback: "Invalid sign-in callback.",
   chatgptInvalidCallback: "Invalid callback.",
   chatgptRequestCancelled: "ChatGPT request cancelled.",

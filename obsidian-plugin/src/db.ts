@@ -1,3 +1,5 @@
+import { dirname, relative, sep } from 'node:path';
+import { vaultDatabasePath } from './local-access';
 import type { CapturePayload } from '../../shared/src/types';
 import type NutEggPlugin from './main';
 import type { AnalysisResult } from './ai-processor';
@@ -89,17 +91,19 @@ export class NutEggDatabase {
       if (!DatabaseSync) {
         throw new Error('node:sqlite is not available in this Obsidian version');
       }
-      await this.ensureFolder(this.dbPath.split('/').slice(0, -1).join('/'));
       // DatabaseSync needs an absolute path — adapter paths are vault-relative.
       // getBasePath() exists at runtime but is missing from Obsidian's typings.
       const basePath = (this.plugin.app.vault.adapter as any).getBasePath() as string;
-      this.db = new DatabaseSync(`${basePath}/${this.dbPath}`);
+      const target = vaultDatabasePath(basePath, this.dbPath);
+      const folder = relative(basePath, dirname(target)).split(sep).join('/');
+      if (folder) await this.ensureFolder(folder);
+      this.db = new DatabaseSync(vaultDatabasePath(basePath, this.dbPath));
       // Single-file journal (not WAL) — safer for synced vault folders
       this.db.exec('PRAGMA journal_mode = DELETE;');
       this.createSchema();
       console.log('[NutEgg] SQLite database ready:', this.dbPath);
     } catch (err) {
-      console.error('[NutEgg] SQLite unavailable — dedup cache, replay and search disabled:', err);
+      console.error('[NutEgg] SQLite unavailable — dedup cache, replay and search disabled.');
       this.db = null;
     }
   }
