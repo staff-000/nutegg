@@ -125,3 +125,102 @@ for (const event of ['cancel-job', 'job-finished', 'revision', 'disconnect']) {
     api.close();
   });
 }
+
+async function pollingFixture() {
+  let socket, response;
+  let requests = 0;
+  const stored = {};
+  const initial = { instanceId: 'vault', protocolVersion: 3, revision: 2, mode: 'apiKey',
+    subscriptionAvailable: true, subscription: { provider: 'google', model: 'auto' }, transition: 'changing' };
+  const context = vm.createContext({
+    crypto: require('node:crypto').webcrypto, AbortSignal,
+    getConnectionMode: async () => 'obsidian', getServerUrl: async () => 'http://127.0.0.1:27123',
+    connectObsidian: async () => ({ instanceId: 'vault', credential: 'private' }),
+    loadChromeAiSettings: async () => ({}),
+    NutEggAI: { EXECUTION_PROTOCOL: 3, publicExecutionSettings: x => x, reduceSharedExecutionState: (_, x) => x },
+    chrome: { storage: { local: { get: async () => stored, set: async x => Object.assign(stored, x) } } },
+    setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
+    serverFetch: async (url, options) => {
+      ++requests;
+      assert.ok(url.endsWith('/execution/state'));
+      assert.equal(options.cache, 'no-store');
+      return new Promise(resolve => { response = (state, ok = true) => resolve({ ok, json: async () => ({ state, error: 'offline' }) }); });
+    },
+    WebSocket: class { constructor() { socket = this; this.readyState = 1; } send() {} close() {} },
+  });
+  vm.runInContext(fs.readFileSync(require.resolve('../src/background/execution-session.js'), 'utf8'), context);
+  const call = code => vm.runInContext(code, context);
+  const opening = call('NutEggExecution.ensure()');
+  await new Promise(resolve => setImmediate(resolve));
+  await socket.onmessage({ data: JSON.stringify({ type: 'connected', session: { sessionId: 'B' }, state: initial }) });
+  await opening;
+  return { initial, stored, call, socket, setFetch: fetch => { context.serverFetch = fetch; }, reply: (...args) => response(...args), requests: () => requests };
+}
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('periodic status pull recovers a missed ready update and deduplicates overlapping refreshes', async () => {
+  const f = await pollingFixture();
+  const a = f.call('NutEggExecution.latest()'), b = f.call('NutEggExecution.latest()');
+  await tick(); assert.equal(f.requests(), 1);
+  f.reply({ ...f.initial, transition: 'ready' });
+  assert.equal((await a).transition, 'ready'); assert.equal((await b).transition, 'ready');
+  assert.equal(f.stored.obsidianExecutionState.transition, 'ready');
+  const again = f.call('NutEggExecution.latest()'); await tick();
+  assert.equal(f.requests(), 2);
+  f.reply({ ...f.initial, mode: 'subscription', revision: 3, transition: 'ready' });
+  assert.equal((await again).mode, 'subscription');
+});
+
+test('a delayed poll cannot roll back a pushed ready transition at the same revision', async () => {
+  const f = await pollingFixture();
+  const pending = f.call('NutEggExecution.latest()'); await tick();
+  await f.socket.onmessage({ data: JSON.stringify({ type: 'state', state: { ...f.initial, transition: 'ready' } }) });
+  f.reply(f.initial);
+  assert.equal((await pending).transition, 'ready');
+});
+
+test('a delayed poll cannot restore state after disconnection', async () => {
+  const f = await pollingFixture(); const pending = f.call('NutEggExecution.latest()');
+  const rejected = assert.rejects(pending, /connection changed/); await tick();
+  f.call('NutEggExecution.close()'); f.reply({ ...f.initial, transition: 'ready' }); await rejected;
+  assert.equal(f.stored.obsidianExecutionState.transition, 'changing');
+});
+
+test('failed status polls preserve confirmed state and permit another refresh', async () => {
+  const f = await pollingFixture(); const pending = f.call('NutEggExecution.latest()');
+  const rejected = assert.rejects(pending, /offline/); await tick(); f.reply(undefined, false); await rejected;
+  assert.equal(f.stored.obsidianExecutionState.transition, 'changing');
+  const retry = f.call('NutEggExecution.latest()'); await tick();
+  f.reply({ ...f.initial, transition: 'ready' }); assert.equal((await retry).transition, 'ready');
+});
+
+
+test('a mode-change revision conflict refreshes authority before returning the error', async () => {
+  const f = await pollingFixture();
+  let reads = 0;
+  f.setFetch(async url => {
+    if (url.endsWith('/execution/mode')) return { ok: false, json: async () => ({
+      error: 'AI mode changed. Refresh and try again.', errorCode: 'revision_conflict',
+      state: { ...f.initial, revision: 3, transition: 'changing' },
+    }) };
+    assert.ok(url.endsWith('/execution/state')); ++reads;
+    return { ok: true, json: async () => ({ state: { ...f.initial, revision: 3, transition: 'ready' } }) };
+  });
+  await assert.rejects(f.call("NutEggExecution.changeMode('subscription')"), /AI mode changed/);
+  assert.equal(reads, 1);
+  assert.equal(f.stored.obsidianExecutionState.revision, 3);
+  assert.equal(f.stored.obsidianExecutionState.transition, 'ready');
+});
+
+test('polling rejects incompatible responses and reconnects after an Obsidian instance change', async () => {
+  const f = await pollingFixture();
+  let pending = f.call('NutEggExecution.latest()');
+  let rejected = assert.rejects(pending, /Update both/); await tick();
+  f.reply({ ...f.initial, protocolVersion: 2 }); await rejected;
+  assert.equal(f.stored.obsidianExecutionState.protocolVersion, 3);
+  pending = f.call('NutEggExecution.latest()');
+  rejected = assert.rejects(pending, /Obsidian restarted/); await tick();
+  f.reply({ ...f.initial, instanceId: 'new-vault', transition: 'ready' }); await rejected;
+  assert.equal(f.call('NutEggExecution.session'), null);
+  assert.equal(f.stored.obsidianExecutionState.instanceId, 'vault');
+});
