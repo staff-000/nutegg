@@ -1,3 +1,4 @@
+import { filesInFolder } from './vault-files';
 import { trackAIRequest } from '../../shared/src/ai-diagnostics';
 import { ExecutionCoordinator, ExecutionProtocolError, type Job } from './execution-coordinator';
 import { EXECUTION_PROTOCOL, publicExecutionSettings } from '../../shared/src/execution';
@@ -156,7 +157,7 @@ export class NutEggServer {
     this.execution = new ExecutionCoordinator(
       ExecutionCoordinator.initial(
         plugin.settings.executionState,
-        plugin.settings.subscriptionEnabled === true,
+        true,
         plugin.settings.subscriptionSelection,
         plugin.settings.aiAuthMethod
       ),
@@ -171,7 +172,8 @@ export class NutEggServer {
       revision: 1,
       accountLabel: '',
       model: '',
-      message: 'ChatGPT local credential storage is unavailable.',
+      message: [t('chatgptStorageUnavailable'), plugin.chatgptStartupError
+        ? t('chatgptStartupDiagnostic', { code: plugin.chatgptStartupError }) : ''].filter(Boolean).join(' '),
     };
   }
 
@@ -259,12 +261,6 @@ export class NutEggServer {
     } finally {
       this.execution.complete(job);
     }
-  }
-  async changeAvailability(enabled: boolean) {
-    return this.execution.change(this.execution.state.revision, randomUUID(), {
-      subscriptionAvailable: enabled,
-      mode: !enabled && this.execution.state.mode === 'subscription' ? 'apiKey' : this.execution.state.mode,
-    });
   }
   async changeSubscription(selection: any) {
     return this.execution.change(this.execution.state.revision, randomUUID(), { subscription: selection });
@@ -523,7 +519,7 @@ export class NutEggServer {
   /** Count egg files (direct markdown notes under vaultFolder/, excluding system files). */
   private countEggs(): number {
     const folder = this.plugin.vaultFolder || 'nutegg';
-    return this.plugin.app.vault.getMarkdownFiles().filter(f => isEggPath(f.path, folder)).length;
+    return filesInFolder(this.plugin.app.vault, folder).filter(f => isEggPath(f.path, folder)).length;
   }
 
   /** Insert a capture entry into the SQLite DB if available. */
@@ -740,7 +736,6 @@ export class NutEggServer {
             aiProvider: config.aiProvider,
             aiModel: config.aiModel,
             aiSource: config.aiSource === 'openrouter' ? ('openrouter' as const) : ('official' as const),
-            aiModelFamily: typeof config.aiModelFamily === 'string' ? config.aiModelFamily.slice(0, 512) : undefined,
             ...(config.localEndpoint ? { localEndpoint: config.localEndpoint } : {}),
             localApiType: config.localApiType === 'ollama' ? ('ollama' as const) : ('openai' as const),
             ...publicExecutionSettings({
@@ -853,7 +848,7 @@ export class NutEggServer {
             return;
           }
           const provider = data.provider as SubscriptionProvider;
-          if (!this.plugin.settings.subscriptionEnabled || this.plugin.settings.aiAuthMethod !== 'subscription') {
+          if (this.plugin.settings.aiAuthMethod !== 'subscription') {
             res.writeHead(403);
             res.end(
               JSON.stringify({
@@ -906,7 +901,7 @@ export class NutEggServer {
               ],
               instanceId: this.execution.state.instanceId,
               protocolVersion: EXECUTION_PROTOCOL,
-              subscriptionEnabled: this.plugin.settings.subscriptionEnabled === true,
+              subscriptionEnabled: true,
               port: this.port,
               version: this.plugin.manifest?.version || '',
               timestamp: Date.now(),

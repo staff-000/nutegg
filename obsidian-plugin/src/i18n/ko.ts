@@ -1,4 +1,6 @@
 export const ko = {
+  subscriptionLocalAccessHint: "CLI 연결은 설치된 제공업체 프로그램을 로컬에서 실행하고 임시 파일을 만듭니다. 요청한 콘텐츠만 제공업체로 전송됩니다.",
+  chatgptLocalStorageHint: "로그인 자격 증명은 보관함 외부의 로컬 앱 저장소에서 보호되며 Chrome 메시지나 내보내기에 포함되지 않습니다.",
   chatgptInvalidSignInCallback: "잘못된 로그인 콜백입니다.",
   chatgptInvalidCallback: "잘못된 콜백입니다.",
   chatgptRequestCancelled: "ChatGPT 요청이 취소되었습니다.",
@@ -112,6 +114,7 @@ export const ko = {
   chatgptModel: 'ChatGPT model',
   chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
   chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStartupDiagnostic: '시작 진단 코드: {code}. 문제를 보고할 때 이 코드를 포함하세요.',
   chatgptStorageUnavailable:
     'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
   chatgptState_signed_out: 'Not signed in',
@@ -167,18 +170,7 @@ export const ko = {
   subscriptionAccountSetup:
     'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: '구독 모드 비활성화',
-  subscriptionEnabledTitle: '구독 모드 활성화됨',
-  subscriptionDisabledTitle: '구독 모드 비활성화됨',
-  subscriptionEnableInstructions: "Obsidian 설정 → NutEgg에서 '구독 모드'를 활성화하세요.",
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: '구독 모드',
-  subscriptionModeSettingDesc: 'API 키 대신 로컬 Claude, Codex 또는 Gemini CLI 구독을 사용합니다.',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',
@@ -241,8 +233,6 @@ export const ko = {
   localEndpointOpenAiDesc: '로컬 실행기용 OpenAI 호환 채팅 엔드포인트',
   localPresets: '프리셋: ',
   localApiKeyDesc: '로컬 LLM용 (선택 사항). 인증이 필요 없는 경우 비워 두세요.',
-  aiModelFamily: '2. 모델 패밀리',
-  aiModelFamilyDesc: 'OpenRouter의 모델 벤더 또는 아키텍처 그룹 선택',
   modelVersion: '3. 모델 버전',
   modelVersionDesc: 'OpenRouter에 "{model}"로 전달됩니다',
   aiModel: '2. 모델',

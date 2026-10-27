@@ -179,3 +179,7 @@ All processing happens locally. Content is sent to your chosen AI provider for a
 ## License
 
 GNU General Public License v3.0
+
+## Permissions and local data
+
+See [plugin permissions and data access](docs/plugin-permissions.md) for local integrations, credential storage, clipboard use, and release verification.

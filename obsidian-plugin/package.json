@@ -1,12 +1,15 @@
 {
   "name": "@nutegg/obsidian-plugin",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Read less, hatch more. Capture web content, curate knowledge in Obsidian",
   "main": "main.js",
   "scripts": {
+    "predev": "npm run models:update --prefix ..",
     "dev": "node esbuild.config.mjs",
+    "prebuild": "npm run models:update --prefix ..",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "test": "node esbuild.test.mjs && node --test \"tests-dist/*.test.js\"",
+    "prelint": "npm run models:update --prefix ..",
     "lint": "tsc -noEmit -skipLibCheck"
   },
   "keywords": [

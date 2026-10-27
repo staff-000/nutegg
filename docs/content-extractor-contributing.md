@@ -30,6 +30,8 @@ Keep platform-specific detection, identity, metadata, and parsing together. Use 
 
 YouTube transcript layout selectors live in `youtubeTranscriptLayout()` in `youtube.js`. It recognizes transcript markers on an engagement panel or its descendants (including `PAmodern_transcript_view`), legacy/modern segment components, and timestamp/text button pairs inside identified transcript panels. When adding a layout, extend this adapter and a realistic fixture in `youtube.test.js`; do not add page-wide timestamp scraping or relax video ownership. Layout recognition is separate from ownership, loading/stability checks, cancellation, and UI restoration. Renamed tags can work through existing class/structural fields, but wholly changed or unidentifiable layouts must fail safely.
 
+WeChat articles use the site-specific branch in `article.js`, selected only for `mp.weixin.qq.com/s` and `/s/<id>`. It reads the visible `#js_content` or `.rich_media_content` body rather than scoring generic page containers. Keep missing/hidden bodies retryable and recognized verification/deletion notices unavailable; never substitute page controls for prose or reveal hidden content. Synthetic fixtures in `wechat.test.js` cover these layouts and runtime behavior without fetching live articles.
+
 ## Add a website
 
 1. Create `chrome-extension/src/content/extractors/<platform>.js`. Define a synchronous detector and an extractor accepting `context`. Start with the example below for ordinary articles.
@@ -156,6 +158,7 @@ node --test tests/douyin.test.js
 node --test tests/weibo.test.js
 node --test tests/zhihu.test.js
 NODE_PATH=../obsidian-plugin/node_modules node --test tests/article.test.js
+NODE_PATH=../obsidian-plugin/node_modules node --test tests/wechat.test.js
 NODE_PATH=../obsidian-plugin/node_modules node --test tests/dom-reader.test.js
 NODE_PATH=../obsidian-plugin/node_modules node --test tests/youtube.test.js
 NODE_PATH=../obsidian-plugin/node_modules node --test tests/twitter.test.js

@@ -6,6 +6,41 @@ const t = (key, params) => (window.NutEggI18n ? window.NutEggI18n.t(key, params)
 
 const DEFAULT_PORT = 27123;
 
+let panelPositionRequest = 0;
+async function refreshPanelPosition() {
+  const status = document.getElementById('panel-position-status');
+  if (!status) return;
+  const request = ++panelPositionRequest;
+  let key = 'panelPositionUnknown';
+  try {
+    const layout = await chrome.sidePanel?.getLayout?.();
+    if (layout?.side === 'left') key = 'panelPositionLeft';
+    else if (layout?.side === 'right') key = 'panelPositionRight';
+  } catch {
+    // Older Chrome versions and unavailable layout reads retain manual guidance.
+  }
+  if (request !== panelPositionRequest) return;
+  status.setAttribute('data-i18n', key);
+  status.textContent = t(key);
+}
+
+function initPanelPositionSettings() {
+  document.getElementById('panel-position-settings-btn')?.addEventListener('click', async () => {
+    const error = document.getElementById('panel-position-error');
+    error.hidden = true;
+    try {
+      await chrome.tabs.create({ url: 'chrome://settings/appearance' });
+    } catch {
+      error.hidden = false;
+    }
+  });
+  window.addEventListener('focus', () => void refreshPanelPosition());
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void refreshPanelPosition();
+  });
+  void refreshPanelPosition();
+}
+
 // Server connection elements
 const portInput = document.getElementById('port-input');
 const portDisplay = document.getElementById('port-display');
@@ -498,6 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize i18n following browser language
   window.NutEggI18n?.initI18n();
   window.NutEggI18n?.applyI18n();
+  initPanelPositionSettings();
 
   // 1. Server settings
   const port = stored.serverPort || DEFAULT_PORT;

@@ -4,8 +4,11 @@ import esbuild from "esbuild";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { execFileSync } from "node:child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+execFileSync("npm", ["run", "models:update", "--prefix", path.join(__dirname, "..")], { stdio: "inherit" });
 
 await esbuild.build({
   entryPoints: ["tests/*.test.ts"],

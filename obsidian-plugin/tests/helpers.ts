@@ -3,7 +3,7 @@
  * No Obsidian runtime is needed: modules are tested against these fakes.
  */
 
-import { TFile } from "obsidian";
+import { TFile, TFolder } from "obsidian";
 
 export function makeFakeVault(initial: Record<string, string> = {}) {
   const files = new Map<string, string>(Object.entries(initial));
@@ -64,7 +64,13 @@ export function makeFakeVault(initial: Record<string, string> = {}) {
       files.delete(file.path);
       vault.trigger("delete", toTFile(file.path));
     },
-    getAbstractFileByPath: (p: string) => (files.has(p) ? toTFile(p) : null),
+    getAbstractFileByPath: (p: string): any => {
+      if (files.has(p)) return toTFile(p);
+      const paths = [...files.keys()].filter(k => k.startsWith(p + '/'));
+      if (!paths.length) return null;
+      const children = [...new Set(paths.map(k => p + '/' + k.slice(p.length + 1).split('/')[0]))];
+      return Object.assign(new TFolder(), { path: p, name: p.split('/').pop(), children: children.map(k => vault.getAbstractFileByPath(k)) });
+    },
     getFiles: () =>
       [...files.keys()].map((p) => toTFile(p)),
     getMarkdownFiles: () =>

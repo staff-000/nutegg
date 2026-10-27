@@ -2,7 +2,9 @@ import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, mkdtemp, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
-import { delimiter, isAbsolute, join, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { windowsSearchDirectories, resolveWindowsClaude } from './subscription-windows.mjs';
 
 export class BridgeError extends Error {
   constructor(status, message, code) { super(message); this.status = status; if (code) this.code = code; }
@@ -13,6 +15,33 @@ const PROVIDERS = {
   claude: { label: 'Claude Code', login: 'claude auth login', override: 'NUTEGG_CLAUDE_COMMAND' },
 };
 
+function missingCommand(info) {
+  return new BridgeError(503, `${info.label} was not found. Install it, run ${info.login}, and check again. Set ${info.override} if it is installed outside PATH.`);
+}
+
+// Resolve the native binary behind npm's Windows shims, including nested optional
+// platform packages and non-default npm prefixes present on PATH.
+export async function resolveWindowsCodex(prefixes, arch = process.arch) {
+  const target = arch === 'arm64' ? 'aarch64' : arch === 'x64' ? 'x86_64' : null;
+  if (!target) return undefined;
+  const platformPackage = `@openai/codex-win32-${arch}`;
+  for (const prefix of new Set(prefixes)) {
+    const root = join(prefix, 'node_modules', '@openai', 'codex');
+    const roots = [root];
+    try {
+      roots.unshift(dirname(createRequire(join(root, 'package.json')).resolve(`${platformPackage}/package.json`)));
+    } catch { /* Also support legacy packages without resolvable package metadata. */ }
+    roots.push(join(root, 'node_modules', platformPackage), join(prefix, 'node_modules', platformPackage));
+    for (const packageRoot of new Set(roots)) {
+      for (const folder of ['bin', 'codex']) {
+        const candidate = join(packageRoot, 'vendor', `${target}-pc-windows-msvc`, folder, 'codex.exe');
+        try { await access(candidate, constants.X_OK); return candidate; } catch {}
+      }
+    }
+  }
+  return undefined;
+}
+
 export async function resolveSubscriptionCommand(provider, command) {
   const info = PROVIDERS[provider];
   if (!info) throw new BridgeError(400, 'Unknown subscription provider.');
@@ -21,21 +50,28 @@ export async function resolveSubscriptionCommand(provider, command) {
     ? [resolve(name)]
     : (process.env.PATH || '').split(delimiter).filter(Boolean).map(dir => join(dir, name));
   if (!command && !process.env[info.override] && process.platform === 'win32') {
+    const directories = await windowsSearchDirectories();
+    if (provider === 'claude') {
+      const binary = await resolveWindowsClaude({ directories });
+      if (binary) return binary;
+      throw missingCommand(info);
+    }
+    candidates.push(...directories.map(dir => join(dir, name)));
     const appData = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
     const local = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
     candidates.push(join(local, 'Programs', provider, name), join(homedir(), '.local', 'bin', name));
     if (provider === 'codex') {
-      for (const arch of ['x86_64', 'aarch64']) {
-        candidates.push(join(appData, 'npm', 'node_modules', '@openai', 'codex', 'vendor', `${arch}-pc-windows-msvc`, 'codex', 'codex.exe'));
-        candidates.push(join(appData, 'npm', 'node_modules', '@openai', `codex-win32-${arch === 'x86_64' ? 'x64' : 'arm64'}`, 'vendor', `${arch}-pc-windows-msvc`, 'codex', 'codex.exe'));
-      }
+      const binary = await resolveWindowsCodex([
+        ...directories, join(appData, 'npm'),
+      ]);
+      if (binary) candidates.push(binary);
     }
   }
   if (!command && !process.env[info.override]) candidates.push(join(homedir(), '.local', 'bin', name), join('/opt/homebrew/bin', name), join('/usr/local/bin', name));
   for (const path of candidates) {
     try { await access(path, constants.X_OK); return path; } catch {}
   }
-  throw new BridgeError(503, `${info.label} was not found. Install it, run ${info.login}, and check again. Set ${info.override} if it is installed outside PATH.`);
+  throw missingCommand(info);
 }
 
 export function subscriptionEnvironment(provider, source = process.env) {

@@ -230,7 +230,7 @@ test('the actual popup scripts wire Egg Analysis clicks, loading, responses and 
       onActivated: { addListener() {} }, onUpdated: { addListener() {} }, onRemoved: { addListener() {} }, onAttached: { addListener() {} }, onDetached: { addListener() {} } },
     storage: { local: { get: (keys, callback) => callback({ connectionMode: 'obsidian' }), set() {} }, onChanged: { addListener() {} } } };
   const intervals = new Set(); t.after(() => { for (const timer of intervals) clearInterval(timer); });
-  const context = vm.createContext({ console, AbortController, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
+  const context = vm.createContext({ console, URL, TextEncoder, TextDecoder, AbortController, crypto: require('node:crypto').webcrypto, structuredClone, setTimeout, clearTimeout,
     setInterval: (...args) => { const timer = setInterval(...args); intervals.add(timer); return timer; }, clearInterval, document: root,
     chrome: api, navigator: { language: 'en' }, window: { addEventListener() {}, scrollTo() {}, scrollY: 0 }, module: { exports: {} } });
   vm.runInContext('Object.assign(globalThis, window); window = globalThis;', context);

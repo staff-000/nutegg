@@ -991,10 +991,10 @@ it('discussion capture snapshot excludes unselected comments and preserves selec
   assert.equal(s.captureSnapshot(payload).discussion.items[0].id, 'a');
 });
 
-it('shared state contains no API credentials and defaults subscription capability off',()=>{
+it('shared state contains no API credentials and always advertises subscription capability',()=>{
   const s=makeServer({settings:{aiApiKey:'private-api-key'}});
   assert.equal(s.execution.snapshot().mode,'apiKey');
-  assert.equal(s.execution.snapshot().subscriptionAvailable,false);
+  assert.equal(s.execution.snapshot().subscriptionAvailable,true);
   assert.ok(!JSON.stringify(s.execution.snapshot()).includes('private-api-key'));
 });
 

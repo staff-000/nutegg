@@ -7,6 +7,7 @@ const NutEggExecution = (() => {
     heartbeat,
     retry,
     failures = 0;
+  let refreshing;
   const jobs = new Map();
   const calls = new Map();
   const send = message => {
@@ -34,6 +35,7 @@ const NutEggExecution = (() => {
   }
 
   function close() {
+    refreshing = null;
     if (typeof cancelObsidianRequests === 'function') cancelObsidianRequests();
     clearInterval(heartbeat);
     clearTimeout(retry);
@@ -261,7 +263,10 @@ const NutEggExecution = (() => {
     });
     const data = await response.json();
     if (data.state) await cache(data.state);
-    if (!response.ok) throw new Error(data.error || 'AI mode change failed.');
+    if (!response.ok) {
+      if (['revision_conflict', 'stale_revision'].includes(data.errorCode)) await latest().catch(() => {});
+      throw new Error(data.error || 'AI mode change failed.');
+    }
     return data;
   }
 
@@ -296,7 +301,37 @@ const NutEggExecution = (() => {
 
   async function latest() {
     await ensure();
-    return state;
+    if (refreshing?.socket === socket && refreshing?.session === session) return refreshing.promise;
+    const owner = { socket, session, initialState: state };
+    owner.promise = (async () => {
+      const serverUrl = await getServerUrl();
+      const response = await serverFetch(`${serverUrl}/execution/state`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      });
+      const data = await response.json();
+      if (socket !== owner.socket || session !== owner.session || (await getConnectionMode()) !== 'obsidian')
+        throw new Error('AI connection changed. Refresh and try again.');
+      if (!response.ok) throw new Error(data.error || 'Could not refresh AI status.');
+      const next = data.state;
+      if (next?.protocolVersion !== NutEggAI.EXECUTION_PROTOCOL)
+        throw new Error('Update both NutEgg Chrome and Obsidian to use this AI connection.');
+      if (next.instanceId !== owner.initialState.instanceId) {
+        close();
+        throw new Error('Obsidian restarted. Reconnect before retrying.');
+      }
+      if (!Number.isSafeInteger(next.revision) || !['apiKey', 'subscription', 'chatgpt'].includes(next.mode) ||
+          !['ready', 'changing', 'error'].includes(next.transition))
+        throw new Error('Invalid AI status response.');
+      // A push received while this request waited is newer observation, including
+      // the ready transition at the same revision. Never roll it back to changing.
+      if (state === owner.initialState) await cache(next);
+      return state;
+    })().finally(() => {
+      if (refreshing === owner) refreshing = null;
+    });
+    refreshing = owner;
+    return owner.promise;
   }
 
   return {

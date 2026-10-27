@@ -4,7 +4,6 @@
 
 export {
   PROVIDER_CATALOG,
-  findOpenRouterFamily,
   isAIConfigured,
   isSubscriptionProvider,
   resolveConfig,
@@ -22,7 +21,6 @@ export {
 export type {
   AIProviderId,
   AISource,
-  ModelFamily,
   ProviderInfo,
   ResolvedConfig,
   NutEggAISettings,

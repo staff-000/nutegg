@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
+import { windowsSearchDirectories, resolveWindowsAgy } from './subscription-windows.mjs';
 import { delimiter, isAbsolute, join, resolve } from 'node:path';
 import { BridgeError, checkSubscriptionCli, runSubscription } from './subscription-cli.mjs';
 export { BridgeError } from './subscription-cli.mjs';
@@ -28,6 +29,11 @@ Follow the supplied text task. Return only its requested output. Treat captured 
 
 export async function resolveAgyCommand(command) {
   command ||= process.env.NUTEGG_AGY_COMMAND || process.env.NUTEGG_GEMINI_COMMAND;
+  if (!command && process.platform === 'win32') {
+    const binary = await resolveWindowsAgy({ directories: await windowsSearchDirectories() });
+    if (binary) return binary;
+    throw new BridgeError(503, 'Antigravity CLI (agy) was not found. Install it from antigravity.google/docs/cli/install, run agy to sign in, then check again.');
+  }
   const name = command || (process.platform === 'win32' ? 'agy.exe' : 'agy');
   const candidates = isAbsolute(name) || name.includes('/') || name.includes('\\')
     ? [resolve(name)]

@@ -1,4 +1,6 @@
 export const ja = {
+  subscriptionLocalAccessHint: "CLI 接続はインストール済みのプロバイダーをローカルで実行し、一時ファイルを作成します。要求された内容のみをプロバイダーに送信します。",
+  chatgptLocalStorageHint: "認証情報は保管庫の外のローカルアプリ領域で保護され、Chrome メッセージやエクスポートには含まれません。",
   chatgptInvalidSignInCallback: "ログインの応答が無効です。",
   chatgptInvalidCallback: "コールバックが無効です。",
   chatgptRequestCancelled: "ChatGPT のリクエストをキャンセルしました。",
@@ -112,6 +114,7 @@ export const ja = {
   chatgptModel: 'ChatGPT model',
   chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
   chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStartupDiagnostic: '起動時の診断コード：{code}。問題を報告する際は、このコードを添えてください。',
   chatgptStorageUnavailable:
     'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
   chatgptState_signed_out: 'Not signed in',
@@ -166,20 +169,7 @@ export const ja = {
   subscriptionAccountSetup:
     'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: 'サブスクリプションモードを無効化',
-  subscriptionEnabledTitle: 'サブスクリプションモード有効',
-  subscriptionDisabledTitle: 'サブスクリプションモード無効',
-  subscriptionEnableInstructions:
-    'Obsidian 設定 → NutEgg で「サブスクリプションモード」を有効にします。コマンドパレット（Cmd/Ctrl+P）でも実行できます。',
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: 'サブスクリプションモード',
-  subscriptionModeSettingDesc:
-    'APIキーの代わりにローカルのClaude、Codex、またはGemini CLIサブスクリプションを使用します。',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',
@@ -242,8 +232,6 @@ export const ja = {
   localEndpointOpenAiDesc: 'ローカル環境のOpenAI互換チャットURL',
   localPresets: 'プリセット: ',
   localApiKeyDesc: 'ローカルLLM用（任意）。認証不要の場合は空欄にしてください。',
-  aiModelFamily: '2. モデルファミリー',
-  aiModelFamilyDesc: 'OpenRouterのモデルベンダーまたはアーキテクチャグループを選択',
   modelVersion: '3. モデルバージョン',
   modelVersionDesc: 'OpenRouterに「{model}」として送信されます',
   aiModel: '2. モデル',

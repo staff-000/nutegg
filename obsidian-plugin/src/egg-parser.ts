@@ -1,3 +1,4 @@
+import { filesInFolder } from './vault-files';
 import type NutEggPlugin from './main';
 import type { IndexEntry } from './index-reader';
 import type { TFile } from 'obsidian';
@@ -44,7 +45,7 @@ export class EggParser {
     if (!path) return null;
     const vault = this.plugin.app.vault;
     const exists = await vault.adapter.exists(path);
-    const files = vault.getMarkdownFiles().filter(file => resolveEggPath(file.path, folder) === file.path);
+    const files = filesInFolder(vault, folder).filter(file => resolveEggPath(file.path, folder) === file.path);
     const exact = exists && files.find(file => file.path === path);
     if (exact) return { file: exact, path: exact.path };
     // Keep case-insensitive aliases, but never pick arbitrarily between ambiguous names.

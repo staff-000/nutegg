@@ -6,7 +6,9 @@ on:
       - 'nutegg-obsidian-plugin-*'
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -63,6 +65,16 @@ jobs:
             echo "✅ $PLUGIN_DIR/$file ($(wc -c < "$PLUGIN_DIR/$file") bytes)"
           done
 
+      - name: Attest exact release assets
+        id: provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          create-storage-record: false
+          subject-path: |
+            ${{ env.PLUGIN_DIR }}/main.js
+            ${{ env.PLUGIN_DIR }}/manifest.json
+            ${{ env.PLUGIN_DIR }}/styles.css
+
       - name: Checkout release repository
         uses: actions/checkout@v4
         with:
@@ -72,9 +84,14 @@ jobs:
 
       - name: Push artifacts and create release
         env:
+          SOURCE_REPO: ${{ github.repository }}
+          SOURCE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+          RELEASE_PROVENANCE_NOTE: "Build provenance: https://github.com/${{ github.repository }}/attestations — verify provenance.json against the source repository. Instructions: https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/docs/releasing.md#verify-obsidian-release-provenance"
+          NEW_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
           GH_TOKEN: ${{ secrets.RELEASE_PAT || secrets.RELEASE_TOKEN || secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
+          TAG="$SOURCE_TAG"
           VERSION="${TAG#nutegg-obsidian-plugin-}"
           RELEASE_TAG="$VERSION"
 
@@ -83,6 +100,11 @@ jobs:
           cp "$PLUGIN_DIR/manifest.json" release-repo/
           cp "$PLUGIN_DIR/styles.css" release-repo/
           [ -f "$PLUGIN_DIR/README.md" ] && cp "$PLUGIN_DIR/README.md" release-repo/
+
+          bash scripts/prepare-release-provenance.sh \
+            "$SOURCE_REPO" "$TARGET_REPO" "$RELEASE_TAG" "$SOURCE_TAG" "$SOURCE_SHA" \
+            "$NEW_BUNDLE" release-repo/provenance.json \
+            release-repo/main.js release-repo/manifest.json release-repo/styles.css
 
           cd release-repo
           git config user.name "github-actions[bot]"
@@ -95,4 +117,4 @@ jobs:
           DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
           
           bash "$GITHUB_WORKSPACE/scripts/publish-release-assets.sh" \
-            "$TARGET_REPO" "$RELEASE_TAG" "$TAG" "$DEFAULT_BRANCH" main.js manifest.json styles.css
+            "$TARGET_REPO" "$RELEASE_TAG" "$TAG" "$DEFAULT_BRANCH" main.js manifest.json styles.css provenance.json

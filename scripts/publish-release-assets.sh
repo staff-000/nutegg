@@ -26,5 +26,5 @@ if gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1; then
   done
 else
   gh release create "$VERSION" "$@" --repo "$REPO" --verify-tag --target "$DEFAULT_BRANCH" \
-    --title "NutEgg $VERSION" --notes "Automated release from source tag $SOURCE_TAG."
+    --title "NutEgg $VERSION" --notes "Automated release from source tag $SOURCE_TAG.${RELEASE_PROVENANCE_NOTE:+ $RELEASE_PROVENANCE_NOTE}"
 fi

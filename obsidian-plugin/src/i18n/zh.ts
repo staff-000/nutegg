@@ -1,6 +1,8 @@
 import type { TranslationKey } from './en';
 
 export const zh: Record<TranslationKey, string> = {
+  subscriptionLocalAccessHint: "CLI 连接会在本机运行已安装的提供商程序并创建临时文件，仅将请求的内容发送给该提供商。",
+  chatgptLocalStorageHint: "登录凭据受保护地存储在仓库之外的本机应用目录中，不会包含在 Chrome 消息或导出内容中。",
   chatgptInvalidSignInCallback: "登录回调无效。",
   chatgptInvalidCallback: "回调无效。",
   chatgptRequestCancelled: "ChatGPT 请求已取消。",
@@ -113,6 +115,7 @@ export const zh: Record<TranslationKey, string> = {
   chatgptModel: 'ChatGPT 模型',
   chatgptRequiresObsidian: 'ChatGPT 登录需要连接 Obsidian。请保持 Obsidian 运行。',
   chatgptTokenHint: 'ChatGPT 登录模式不支持 API 输出令牌上限。',
+  chatgptStartupDiagnostic: '启动诊断：{code}。反馈问题时请附上此代码。',
   chatgptStorageUnavailable: 'ChatGPT 登录不可用。请检查本地凭据存储或其他正在运行的 Obsidian 实例。',
   chatgptState_signed_out: '尚未登录',
   chatgptState_signing_in: '正在登录…',
@@ -166,18 +169,7 @@ export const zh: Record<TranslationKey, string> = {
   subscriptionAccountSetup:
     '登录此连接并选择模型。Obsidian 和已连接的 Chrome 使用所选连接。API 密钥请在 Chrome 设置中配置。',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: '停用订阅模式',
-  subscriptionEnabledTitle: '已启用订阅模式',
-  subscriptionDisabledTitle: '已停用订阅模式',
-  subscriptionEnableInstructions: '在 Obsidian 设置 → NutEgg 中开启“订阅模式”。也可以使用命令面板（Cmd/Ctrl+P）。',
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: '订阅模式',
-  subscriptionModeSettingDesc: '使用本地 Claude、Codex 或 Gemini CLI 订阅，无需配置 API 密钥。',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',
@@ -238,8 +230,6 @@ export const zh: Record<TranslationKey, string> = {
   localEndpointOpenAiDesc: '本地兼容 OpenAI 格式的 chat completions 接口地址',
   localPresets: '快速预设： ',
   localApiKeyDesc: '本地模型可选。若本地模型服务不需要身份验证，请留空。',
-  aiModelFamily: '2. 模型家族',
-  aiModelFamilyDesc: '选择 OpenRouter 上可用的 AI 厂商或模型类别',
   modelVersion: '3. 模型版本',
   modelVersionDesc: '请求将以 "{model}" 发送给 OpenRouter',
   aiModel: '2. 模型',

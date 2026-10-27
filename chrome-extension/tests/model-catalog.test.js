@@ -7,7 +7,7 @@ const code = fs.readFileSync(path.join(__dirname, '../dist/ai-core.js'), 'utf8')
 const core = new Function(code + '\nreturn NutEggAI;')();
 const config = require('../../shared/byok.config.json');
 
-test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter offering IDs', async () => {
+test('shipped catalog uses the native CLI selection, creator filters, and provider API IDs', async () => {
   const byokit = await import('byokit');
   const models = byokit.getModels(config);
   for (const providerId of config.providerIds.values) {
@@ -21,23 +21,23 @@ test('shipped catalog matches the pinned BYOKit query and uses real OpenRouter o
       assert.deepEqual(resolved.client.models[0], byokit.compactModels([model])[0]);
     }
   }
-  assert.deepEqual(Object.keys(core.PROVIDER_CATALOG).sort(), [...config.providerIds.values, 'local', 'openrouter'].sort());
+  assert.deepEqual(Object.keys(core.PROVIDER_CATALOG).sort(), [...config.providerIds.values, 'local'].sort());
   for (const model of models) {
+    assert.ok(config.creatorIds.values.includes(model.creatorId));
     const provider = core.PROVIDER_CATALOG[model.providerId];
     assert.equal(provider.id, model.providerId);
     assert.equal(provider.label, model.provider.name);
     assert.equal(new URL(provider.connection.baseUrl).origin, new URL(model.connection.baseUrl).origin);
   }
-  const expected = models.flatMap(seed => byokit.getEquivalentModels([seed], {
-    ...config, providerIds: [byokit.ProviderId.OpenRouter], dedupe: false, limit: 1,
-  }));
+  const expected = models.filter(model => model.providerId === byokit.ProviderId.OpenRouter);
   assert.deepEqual(core.PROVIDER_CATALOG.openrouter.models, expected.map(offering => offering.apiModelId));
-  assert.equal(new Set(expected.map(model => model.modelId)).size, expected.length);
   assert.doesNotMatch(code, /node_modules\/byokit\/catalog\.js|class Catalog|function localGroups/, 'runtime must not bundle BYOKit discovery or catalog');
-  const generated = await import('../../shared/src/generated-models.mjs');
-  const full = [...models, ...expected];
-  assert.deepEqual(generated.GENERATED_MODELS, byokit.compactModels(full));
-  assert.ok(JSON.stringify(generated.GENERATED_MODELS).length < JSON.stringify(full).length / 2);
+  const generated = await import('../../shared/generated/models.mjs');
+  assert.deepEqual(generated.models, byokit.compactModels(models));
+  assert.deepEqual(generated.getModelsByProvider(), Object.fromEntries(
+    Object.entries(byokit.getModelsByProvider(config)).map(([providerId, offerings]) =>
+      [providerId, byokit.compactModels(offerings)])));
+  assert.ok(JSON.stringify(generated.models).length < JSON.stringify(models).length / 2);
 });
 
 test('removed providers are rejected and custom models remain available for supported providers', () => {
@@ -47,10 +47,11 @@ test('removed providers are rejected and custom models remain available for supp
     assert.equal(core.isAIConfigured(settings), false);
     assert.throws(() => core.resolveConfig(settings), /Unknown AI provider/);
   }
-  const selected = core.resolveConfig({ aiProvider: 'openai', aiModel: 'custom-working-model', aiApiKey: 'own-key' });
-  assert.equal(selected.model, 'custom-working-model');
-  assert.equal(selected.client.apiKey, 'own-key');
-  assert.equal(core.findOpenRouterFamily('some-vendor/custom-model').id, 'custom');
+  for (const [provider, model] of [['openai', 'custom-working-model'], ['openrouter', 'some-vendor/custom-model']]) {
+    const selected = core.resolveConfig({ aiProvider: provider, aiModel: model, aiApiKey: 'own-key' });
+    assert.equal(selected.model, model);
+    assert.equal(selected.client.apiKey, 'own-key');
+  }
 });
 
 test('local setup uses explicit base URLs and protocols offline and requires the exact served model', () => {

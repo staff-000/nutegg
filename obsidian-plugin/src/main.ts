@@ -1,6 +1,6 @@
 import { localizeCreditInfo } from '../../shared/src/client';
 import { ChatGPTService } from './chatgpt-service';
-import { FileChatGPTStore } from './chatgpt-store';
+import { FileChatGPTStore, chatgptStartupDiagnostic } from './chatgpt-store';
 import type { SharedExecutionState } from '../../shared/src/execution';
 import { SubscriptionService } from './subscription-service';
 import { ConnectionAccess } from './connection-access';
@@ -41,6 +41,7 @@ export default class NutEggPlugin extends Plugin {
     this.nativeClient = client;
   }
   chatgpt?: ChatGPTService;
+  chatgptStartupError = '';
   chatgptCredit(): any {
     const status = this.chatgpt?.status();
     return {
@@ -87,7 +88,7 @@ export default class NutEggPlugin extends Plugin {
       ? (this.app as any)?.secretStorage?.getSecret(this.settings.nativeApiKeyRef) || ''
       : this.settings.aiApiKey || '';
     const fallbackSubscription =
-      this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription'
+      this.settings.aiAuthMethod === 'subscription'
         ? {
             mode: 'subscription' as const,
             subscription: this.settings.subscriptionSelection || {
@@ -122,7 +123,7 @@ export default class NutEggPlugin extends Plugin {
       ...previous,
       executionState: structuredClone(state),
       chatgptModel: state.chatgpt?.available ? state.chatgpt.model : previous.chatgptModel,
-      subscriptionEnabled: state.subscriptionAvailable,
+      subscriptionEnabled: true,
       subscriptionSelection: state.subscription,
       aiAuthMethod: state.mode,
     };
@@ -212,7 +213,6 @@ export default class NutEggPlugin extends Plugin {
     this.subscriptions = new SubscriptionService(
       this.settings.subscriptionPaths,
       () =>
-        this.settings.subscriptionEnabled === true &&
         this.settings.aiAuthMethod === 'subscription' &&
         (!this.settings.executionState || this.settings.executionState.transition === 'ready')
     );
@@ -233,8 +233,8 @@ export default class NutEggPlugin extends Plugin {
         store.close();
         throw error;
       }
-    } catch {
-      // The server exposes a public storage-unavailable status; credentials stay private.
+    } catch (error) {
+      this.chatgptStartupError = chatgptStartupDiagnostic(error);
     }
     this.connectionAccess = new ConnectionAccess(
       (this.settings.chromeConnections ||= {}),
@@ -318,8 +318,6 @@ export default class NutEggPlugin extends Plugin {
     this.addRibbonIcon('coins', t('ribbonCheckCredit'), async () => {
       await this.updateCreditStatusBar(true);
     });
-
-    this.registerSubscriptionCommands();
 
     // Command: Create a new egg file
     this.addCommand({
@@ -479,29 +477,6 @@ export default class NutEggPlugin extends Plugin {
     }
   }
 
-  private registerSubscriptionCommands(): void {
-    // Off-state activation stays an advanced, generic command.
-    for (const enabled of [true, false])
-      this.addCommand({
-        id: enabled ? 'nutegg-enable-subscriptions' : 'nutegg-disable-subscriptions',
-        name: t(enabled ? 'subscriptionEnableCommand' : 'subscriptionDisableCommand'),
-        checkCallback: checking => {
-          if (this.settings.subscriptionEnabled === enabled) return false;
-          if (!checking)
-            void (async () => {
-              await this.server.changeAvailability(enabled);
-              this.aiClient = new AIClient(this.settings, this.subscriptions);
-              this.aiProcessor = new AIProcessor(this);
-              this.settingsTab?.display();
-              this.updateCreditStatusBar?.();
-              new Notice(t(enabled ? 'subscriptionSetupInstructions' : 'subscriptionDisabledTitle'), 12000);
-              if (enabled) this.openSettings();
-            })();
-          return true;
-        },
-      });
-  }
-
   refreshSettingsTab(): void {
     this.settingsTab?.display();
   }
@@ -617,6 +592,8 @@ export default class NutEggPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const data = (await this.loadData()) || {};
     this.settings = normalizeAISettings(Object.assign({}, DEFAULT_SETTINGS, data));
+    // Legacy opt-out no longer gates connection setup or changes the saved AI choice.
+    this.settings.subscriptionEnabled = true;
     const legacyKey = this.settings.aiApiKey;
     let movedLegacyFile: { original: string; legacy: string } | undefined;
     if (legacyKey) {
@@ -653,17 +630,6 @@ export default class NutEggPlugin extends Plugin {
       localApiType: DEFAULT_SETTINGS.localApiType,
       aiApiKey: '',
     };
-    if (!this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription') {
-      if (['openai', 'anthropic', 'google'].includes(this.settings.aiProvider)) {
-        this.settings.subscriptionSelection = {
-          provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'google',
-          model: this.settings.aiModel || 'auto',
-        };
-      }
-      this.settings.aiAuthMethod = 'apiKey';
-      this.settings.aiApiKey = '';
-      this.settings.aiModel = '';
-    }
     if (legacyKey) {
       try {
         await this.saveData({
@@ -692,7 +658,7 @@ export default class NutEggPlugin extends Plugin {
         return;
       }
     }
-    const isSubscription = this.settings.subscriptionEnabled && this.settings.aiAuthMethod === 'subscription';
+    const isSubscription = this.settings.aiAuthMethod === 'subscription';
     if (isSubscription && ['openai', 'anthropic', 'google'].includes(this.settings.aiProvider)) {
       this.settings.subscriptionSelection = {
         provider: this.settings.aiProvider as 'openai' | 'anthropic' | 'google',

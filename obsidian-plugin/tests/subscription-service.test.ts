@@ -181,9 +181,10 @@ test('local server rejects unauthorized process launch and config writes before 
   for (const path of ['/subscription/status', '/subscription/models', '/subscription/login/start', '/subscription/test']) assert.equal((await request(path, { Authorization: 'Bearer secret' })).status, 403);
   assert.equal(calls, 1);
   plugin.settings.aiAuthMethod = 'subscription';
-  plugin.settings.subscriptionEnabled = false;
-  for (const path of ['/subscription/status', '/subscription/login/start', '/subscription/test']) assert.equal((await request(path, { Authorization: 'Bearer secret' })).status, 403);
-  assert.equal(calls, 1);
+  plugin.settings.subscriptionEnabled = false; // Legacy opt-out no longer disables availability.
+  assert.equal((await fetch(url + '/health').then(response => response.json())).subscriptionEnabled, true);
+  assert.equal((await request('/subscription/status', { Authorization: 'Bearer secret' })).status, 200);
+  assert.equal(calls, 2);
 });
 
 async function fixture(t, body: string) {
@@ -364,7 +365,7 @@ test('expired previously verified authentication is an error, not initial setup'
 });
 
 
-test('subscriptions default off and require an Obsidian-owned enable decision', async t => {
+test('CLI operations require the selected executor before starting provider work', async t => {
   const service = new SubscriptionService();
   assert.equal((await service.status('openai')).state, 'disabled');
   await assert.rejects(service.chat('openai', 'auto', 'never send'), /AI connection unavailable/);
@@ -432,4 +433,17 @@ process.stdin.resume(); process.stdin.on('end', () => {
   stats = getAIDebugInfo(scope).panel!;
   assert.equal(stats.activeCalls, 0); assert.equal(stats.waitingCalls, 0);
   assert.equal(stats.completedCalls, 2); assert.equal(stats.failedCalls, 0); assert.equal(stats.cancelledCalls, 1);
+});
+
+test('login cleanup is idempotent and cannot delete an unowned directory', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'nutegg-cleanup-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const marker = join(directory, 'keep'); await writeFile(marker, 'private');
+  const service = new SubscriptionService();
+  await (service as any).removeLoginDirectory(directory);
+  assert.equal(await readFile(marker, 'utf8'), 'private');
+  (service as any).ownedLoginDirectories.add(directory);
+  await (service as any).removeLoginDirectory(directory);
+  await (service as any).removeLoginDirectory(directory);
+  await assert.rejects(readFile(marker));
 });

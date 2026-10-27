@@ -122,7 +122,10 @@ const credentials = (expiresAt = Date.now() + 3600000): ChatGPTCredentials => ({
   expiresAt,
 });
 
-test('registration, verified identity, model discovery, inference, persistence, and revocation', async () => {
+test('ChatGPT sign-in, models, inference, persistence and revocation work without CLI subprocesses', async t => {
+  const processes = require('node:child_process');
+  for (const method of ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync'])
+    t.mock.method(processes, method, () => assert.fail(`ChatGPT must not launch a CLI via ${method}`));
   const h = setup();
   try {
     await h.service.signIn();

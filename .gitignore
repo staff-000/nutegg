@@ -10,3 +10,4 @@ website/dist/
 .agents/
 promo-video/
 obsidian-plugin/tests-dist/
+shared/generated/

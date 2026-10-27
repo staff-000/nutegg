@@ -1,4 +1,6 @@
 export const pt = {
+  subscriptionLocalAccessHint: "As conexões CLI executam o provedor instalado localmente e criam arquivos temporários. Apenas o conteúdo solicitado é enviado ao provedor.",
+  chatgptLocalStorageHint: "As credenciais são protegidas no armazenamento local do aplicativo fora do cofre e não são incluídas em mensagens do Chrome nem em exportações.",
   chatgptInvalidSignInCallback: "Retorno de login inválido.",
   chatgptInvalidCallback: "Retorno inválido.",
   chatgptRequestCancelled: "Solicitação do ChatGPT cancelada.",
@@ -112,6 +114,7 @@ export const pt = {
   chatgptModel: 'ChatGPT model',
   chatgptRequiresObsidian: 'ChatGPT sign-in requires Obsidian-connected mode. Keep Obsidian open.',
   chatgptTokenHint: 'ChatGPT sign-in does not enforce the API output-token limit.',
+  chatgptStartupDiagnostic: 'Diagnóstico de inicialização: {code}. Inclua este código ao relatar o problema.',
   chatgptStorageUnavailable:
     'ChatGPT sign-in is unavailable. Check local credential storage or another running Obsidian instance.',
   chatgptState_signed_out: 'Not signed in',
@@ -166,18 +169,7 @@ export const pt = {
   subscriptionAccountSetup:
     'Sign in to this connection and choose its model. Obsidian and connected Chrome use the selected connection. Configure API keys in Chrome settings.',
 
-  subscriptionEnableCommand: 'Enable experimental AI connections',
-  subscriptionDisableCommand: 'Desativar modo de assinatura',
-  subscriptionEnabledTitle: 'Modo de assinatura ativado',
-  subscriptionDisabledTitle: 'Modo de assinatura desativado',
-  subscriptionEnableInstructions: 'Nas Configurações do Obsidian → NutEgg, ative o «Modo de assinatura».',
-  subscriptionSetupInstructions:
-    'Subscriptions are now available. In Chrome, turn on Obsidian connection and enable Use subscription. Then return here to authorize your account and choose its model. Switch back to API key in Chrome whenever you want. Run NutEgg: Disable subscription mode to hide the feature and restore the saved Chrome API configuration.',
-  subscriptionModeSettingName: 'Modo de assinatura',
-  subscriptionModeSettingDesc: 'Usar a assinatura local de CLI do Claude, Codex ou Gemini em vez da chave de API.',
   subscriptionUsageUnavailable: 'Remaining usage is not reported by this provider.',
-  subscriptionGuideTitle: 'How to enable and authorize subscriptions',
-
   subscriptionSteps: 'Install → Sign in → Ready',
   subscriptionInstall: 'Installation guide ↗',
   subscriptionCopy: 'Copy command',
@@ -240,8 +232,6 @@ export const pt = {
   localEndpointOpenAiDesc: 'URL de chat compatível com OpenAI para seu executor local',
   localPresets: 'Predefinições: ',
   localApiKeyDesc: 'Opcional para LLMs locais. Deixe em branco se seu servidor local não exigir autenticação.',
-  aiModelFamily: '2. Família do modelo',
-  aiModelFamilyDesc: 'Escolha o fornecedor ou grupo de arquitetura no OpenRouter',
   modelVersion: '3. Versão do modelo',
   modelVersionDesc: 'Enviado ao OpenRouter como "{model}"',
   aiModel: '2. Modelo',

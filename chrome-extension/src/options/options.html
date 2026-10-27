@@ -231,6 +231,35 @@
         </div>
       </section>
 
+      <section class="panel-position-card" aria-labelledby="panel-position-title">
+        <div class="density-card-header">
+          <span class="disclosure-icon" aria-hidden="true">↔</span>
+          <div class="summary-copy">
+            <strong id="panel-position-title" data-i18n="panelPositionTitle">Side panel position</strong>
+            <span id="panel-position-status" role="status" data-i18n="panelPositionUnknown"
+              >Current position: check in Chrome settings</span
+            >
+          </div>
+        </div>
+        <p class="hint" data-i18n="panelPositionInstructions">
+          To move NutEgg to the left, open Chrome settings and choose Left under Appearance → Side panel.
+        </p>
+        <p class="hint" data-i18n="panelPositionShared">Chrome shares this setting across side panels.</p>
+        <button
+          id="panel-position-settings-btn"
+          class="secondary-btn"
+          type="button"
+          data-i18n="panelPositionOpenSettings"
+          title="To move NutEgg to the left, open Chrome settings and choose Left under Appearance → Side panel."
+          data-i18n-title="panelPositionInstructions"
+        >
+          Open Chrome Appearance settings
+        </button>
+        <p id="panel-position-error" class="hint" role="status" hidden data-i18n="panelPositionOpenError">
+          Could not open Chrome settings. Enter chrome://settings/appearance in the address bar.
+        </p>
+      </section>
+
       <details class="settings-disclosure" id="reading-preferences">
         <summary>
           <span class="disclosure-icon" aria-hidden="true">🌺</span
