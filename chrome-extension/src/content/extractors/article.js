@@ -1,16 +1,26 @@
 // ============================================================
-// NutEgg Extractor: Article (Medium, Substack, blogs, news)
+// NutEgg Extractor: Article (WeChat, Medium, Substack, blogs, news)
 // ============================================================
 //
 // Detects article-like pages via og:type, <article> tags, and
-// schema.org markup. Includes Medium-specific extraction.
+// schema.org markup. Includes WeChat- and Medium-specific extraction.
 //
 // Depends on: utils.js (extractText, getMeta, truncate, estimateTime, readingTime)
+
+function isWeChatArticle(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname === 'mp.weixin.qq.com' && /^\/s(?:\/[A-Za-z0-9_-]+)?\/?$/.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
 
 function detectArticle() {
   const url = window.location.href;
 
   // Explicit article sites
+  if (isWeChatArticle(url)) return true;
   if (NutEggPageIdentity.hostMatches(url, 'medium.com')) return true;
   if (NutEggPageIdentity.hostMatches(url, 'substack.com')) return true;
 
@@ -30,6 +40,7 @@ function extractArticle(context) {
   const siteName = getMeta('og:site_name');
 
   // Site-specific extraction
+  if (isWeChatArticle(url)) return extractWeChatArticle(url, context);
   if (NutEggPageIdentity.hostMatches(url, 'medium.com')) return extractMedium(url, siteName, context);
 
   const articleEl = findArticleElement(context);
@@ -114,6 +125,58 @@ function extractArticle(context) {
         ...(site && { site }),
         reading_time: readingTime(contentText),
         time_estimate_minutes: estimateTime(contentText, 'article'),
+      },
+    },
+    body
+  );
+}
+
+// WeChat does not consistently expose a semantic article element. Keep its
+// body selection scoped so page controls and verification prompts aren't prose.
+function findVisibleWeChatElement(selector) {
+  return [...document.querySelectorAll(selector)].find(element => {
+    for (let current = element; current; current = current.parentElement) {
+      if (captureExcluded(current)) return false;
+    }
+    return true;
+  });
+}
+
+function extractWeChatArticle(url, context) {
+  context?.check();
+  const text = selector => findVisibleWeChatElement(selector)?.textContent?.trim() || '';
+  const title = text('#activity-name') || text('.rich_media_title') || getMeta('og:title') || document.title;
+  const site = text('#js_name') || getMeta('og:site_name') || '';
+  const author = text('#js_author_name') || text('#meta_content .rich_media_meta_text') || getMeta('author') || site;
+  const published = text('#publish_time') || getMeta('article:published_time') || '';
+  const articleEl = findVisibleWeChatElement('#js_content') || findVisibleWeChatElement('.rich_media_content');
+  // An absent/hidden body must remain not_ready, rather than capturing the shell.
+  const body = captureTextResult(articleEl, context);
+  if (!body.text) {
+    const gate = text('.weui-msg__text-area, .page_msg');
+    if (/环境异常|完成验证|访问过于频繁|内容(?:已被|已|被).{0,6}删除|无法查看|访问受限/.test(gate)) {
+      body.status = 'unavailable';
+      body.blocked = true;
+    }
+  }
+
+  const parts = [`# ${title}`];
+  if (author) parts.push(`**Author:** ${author}`);
+  if (published) parts.push(`**Published:** ${published}`);
+  parts.push(`\n## Content\n\n${body.text}`);
+  return applyTextCaptureResult(
+    {
+      url,
+      title,
+      content: parts.join('\n'),
+      sourceType: 'article',
+      metadata: {
+        platform: 'WeChat',
+        ...(author && { author }),
+        ...(published && { published }),
+        ...(site && { site }),
+        reading_time: readingTime(body.text),
+        time_estimate_minutes: estimateTime(body.text, 'article'),
       },
     },
     body
