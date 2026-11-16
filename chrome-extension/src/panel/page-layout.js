@@ -51,7 +51,8 @@
       if (properties)
         return [...properties].some(
           ([key, value]) =>
-            node.style.getPropertyValue(key) !== value.applied || node.style.getPropertyPriority(key) !== 'important'
+            node.style.getPropertyValue(key) !== value.applied ||
+            node.style.getPropertyPriority(key) !== value.appliedPriority
         );
       return this.win.getComputedStyle(node).position === 'fixed';
     }
@@ -111,7 +112,7 @@
       if (
         !previous ||
         element.style.getPropertyValue(property) !== previous.applied ||
-        element.style.getPropertyPriority(property) !== 'important'
+        element.style.getPropertyPriority(property) !== previous.appliedPriority
       ) {
         previous = {
           value: element.style.getPropertyValue(property),
@@ -121,13 +122,14 @@
       }
       element.style.setProperty(property, value, 'important');
       previous.applied = element.style.getPropertyValue(property);
+      previous.appliedPriority = element.style.getPropertyPriority(property);
     }
     restore(collection) {
       for (const [element, properties] of collection)
         for (const [property, previous] of properties) {
           if (
             element.style.getPropertyValue(property) !== previous.applied ||
-            element.style.getPropertyPriority(property) !== 'important'
+            element.style.getPropertyPriority(property) !== previous.appliedPriority
           )
             continue;
           if (previous.value) element.style.setProperty(property, previous.value, previous.priority);
@@ -142,13 +144,17 @@
         left = this.side === 'left' ? reserved : 0;
       const html = this.doc.documentElement;
       this.write(html, 'width', `${available}px`);
+      this.write(html, 'min-width', '0');
       this.write(html, 'max-width', 'none');
       this.write(html, 'box-sizing', 'border-box');
       this.write(html, 'margin-left', `${left}px`);
       this.write(html, 'margin-right', this.side === 'right' ? `${reserved}px` : '0px');
       if (this.doc.body) {
         this.write(this.doc.body, 'max-width', '100%');
+        this.write(this.doc.body, 'min-width', '0');
         this.write(this.doc.body, 'box-sizing', 'border-box');
+        // Clip overflow without creating a new scrolling ancestor for sticky content.
+        this.write(this.doc.body, 'overflow-x', 'clip');
       }
       // Viewport-fixed headers and controls do not naturally follow the narrower document.
       this.restore(this.fixed);
@@ -159,9 +165,10 @@
         count = 0;
       while ((node = walker.nextNode()) && ++count <= SCAN_LIMIT) {
         const style = this.win.getComputedStyle(node);
-        if (style.position !== 'fixed' && node.getBoundingClientRect().width >= viewport - 1 && viewport > available) {
+        if (style.position !== 'fixed' && node.getBoundingClientRect().width > available && viewport > available) {
           this.write(node, 'max-width', '100%');
-          if (parseFloat(style.minWidth) > available) this.write(node, 'min-width', '0');
+          this.write(node, 'box-sizing', 'border-box');
+          if (style.minWidth === 'auto' || parseFloat(style.minWidth) > available) this.write(node, 'min-width', '0');
         }
         if (style.position !== 'fixed' || style.display === 'none' || style.visibility === 'hidden') continue;
         let ancestor = node.parentElement,
@@ -188,6 +195,32 @@
         const adjusted = node.getBoundingClientRect();
         const correction = Math.max(left, Math.min(adjusted.left, left + available - adjusted.width)) - adjusted.left;
         if (correction) this.write(node, 'left', `${nextLeft + correction}px`, this.fixed);
+      }
+      this.fitVideoRows();
+    }
+    fitVideoRows() {
+      const url = new URL(this.doc.location.href);
+      if (!/(?:^|\.)bilibili\.com$/.test(url.hostname) || !/^\/video\//.test(url.pathname)) return;
+      // Bilibili centers a fixed-size player and recommendation column even when
+      // their combined width exceeds #app, placing the player under a left panel.
+      for (const row of this.doc.querySelectorAll('.video-container-v1')) {
+        if (this.win.getComputedStyle(row).display !== 'flex') continue;
+        const bounds = row.getBoundingClientRect();
+        const columns = [...row.children].filter(node => node.matches('.left-container,.right-container'));
+        if (
+          !columns.some(node => {
+            const rect = node.getBoundingClientRect();
+            return rect.width && (rect.left < bounds.left || rect.right > bounds.right);
+          })
+        )
+          continue;
+        this.write(row, 'flex-wrap', 'wrap');
+        this.write(row, 'justify-content', 'flex-start');
+        for (const column of columns) {
+          this.write(column, 'max-width', '100%');
+          this.write(column, 'min-width', '0');
+          this.write(column, 'box-sizing', 'border-box');
+        }
       }
     }
     update(width = this.width) {
