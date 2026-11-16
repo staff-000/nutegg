@@ -67,7 +67,7 @@ globalThis.NutEggPanel = {
     modeBtn.setAttribute('data-hint', modeHint);
     modeBtn.setAttribute('aria-label', modeHint);
     modeBtn.innerHTML =
-      '<svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M12 4v12"/></svg>';
+      '<svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><path d="M12 4v12"/></svg>';
 
     const status = document.createElement('div');
     status.className = 'panel-status hidden';
@@ -113,22 +113,12 @@ globalThis.NutEggPanel = {
 
     const controls = [modeBtn];
     if (context) {
-      const collapse = document.createElement('button');
-      collapse.type = 'button';
-      collapse.className = 'panel-icon-button panel-collapse-button';
-      collapse.setAttribute('data-nutegg-panel-ctrl', '');
-      collapse.textContent = context.settings?.side === 'left' ? '‹' : '›';
-      const collapseHint = t('panelCollapse') === 'panelCollapse' ? 'Minimize' : t('panelCollapse');
-      collapse.setAttribute('data-hint', collapseHint);
-      collapse.setAttribute('aria-label', collapseHint);
-      collapse.addEventListener('click', () => void this.send('panel-collapse'));
-      controls.push(collapse);
-
       const close = document.createElement('button');
       close.type = 'button';
       close.className = 'panel-icon-button panel-close-button';
       close.setAttribute('data-nutegg-panel-ctrl', '');
-      close.textContent = '×';
+      close.innerHTML =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
       close.setAttribute('data-hint', t('panelClose'));
       close.setAttribute('aria-label', t('panelClose'));
       close.addEventListener('click', () => void this.send('panel-close'));

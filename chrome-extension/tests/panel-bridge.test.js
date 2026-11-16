@@ -72,5 +72,5 @@ test('compact header icon controls have localized popup hints and no extra mode 
   assert.equal(close.getAttribute('data-hint'), 'Close NutEgg');
   assert.equal(close.getAttribute('aria-label'), 'Close NutEgg');
   assert.ok(win.document.querySelector('.panel-switch-icon-btn').getAttribute('data-hint'));
-  assert.ok(win.document.querySelector('.panel-collapse-button').getAttribute('data-hint'));
+  assert.equal(win.document.querySelector('.panel-collapse-button'), null);
 });

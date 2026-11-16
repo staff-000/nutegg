@@ -183,9 +183,14 @@ var NutEggPanels = (() => {
     }
     // Only the top-level isolated content script can submit signals or operate its host.
     if (
-      ['panel-signals', 'panel-host-close', 'panel-suggest-save', 'panel-suggest-edit', 'panel-resize'].includes(
-        message.action
-      )
+      [
+        'panel-signals',
+        'panel-prefetch-complete',
+        'panel-host-close',
+        'panel-suggest-save',
+        'panel-suggest-edit',
+        'panel-resize',
+      ].includes(message.action)
     ) {
       if (sender.id !== chrome.runtime.id || tabId == null || sender.frameId !== 0 || !/^https?:/.test(sender.url))
         return { error: 'forbidden' };
@@ -222,9 +227,53 @@ var NutEggPanels = (() => {
             return { error: 'stale' };
           current = { ...current, signals, decision };
           await save(tabId, current);
-          if (tab.active && settings.mode === 'injected' && decision.open && !current.suppressed && !current.opened)
-            await open(tabId, true);
-          return { decision, settings, suggestion: suggestion(current, 'allow') };
+          const shouldPrefetch = !!(
+            tab.active &&
+            settings.mode === 'injected' &&
+            decision.open &&
+            !current.suppressed &&
+            !current.opened
+          );
+          return { decision, settings, shouldPrefetch, key: current.key, suggestion: suggestion(current, 'allow') };
+        }
+        if (message.action === 'panel-prefetch-complete') {
+          const capture = message.capture;
+          const usable =
+            !!capture?.content?.trim() &&
+            capture.transcriptAvailable !== false &&
+            !['not_ready', 'unavailable'].includes(capture.extractionStatus) &&
+            !capture.captureCoverage?.reasons?.includes('access_restricted');
+          if (
+            !usable ||
+            message.key !== current.key ||
+            !tab.active ||
+            settings.mode !== 'injected' ||
+            current.suppressed ||
+            current.opened
+          ) {
+            return { opened: false };
+          }
+          const minutes = NutEggRules.readingMinutes(capture.content);
+          const nextSignals = {
+            ...(current.signals || { url: tab.url }),
+            minutes,
+            contentAvailable: true,
+          };
+          const finalDecision = await evaluate(nextSignals, current.cached);
+          const latest = await chrome.tabs.get(tabId);
+          if (pageKey(latest.url) !== current.key || !latest.active) return { opened: false };
+          if (!finalDecision.open) {
+            await save(tabId, { ...current, signals: nextSignals, decision: finalDecision });
+            return { opened: false, decision: finalDecision };
+          }
+          await save(tabId, {
+            ...current,
+            signals: nextSignals,
+            decision: finalDecision,
+            transfer: { url: tab.url, extractedContent: capture },
+          });
+          await open(tabId, true);
+          return { opened: true, decision: finalDecision };
         }
         if (message.action === 'panel-host-close') return close(tabId);
         if (message.action === 'panel-resize') {
@@ -382,10 +431,6 @@ var NutEggPanels = (() => {
         return { ok: true };
       });
     if (message.action === 'panel-close') return serial(target, () => close(target));
-    if (message.action === 'panel-collapse') {
-      await send(target, { action: 'nutegg-panel-collapse' });
-      return { ok: true };
-    }
     if (message.action === 'panel-dismiss-hint') {
       settings = { ...settings, migrationHint: false };
       await chrome.storage.local.set({ panelSettings: settings });

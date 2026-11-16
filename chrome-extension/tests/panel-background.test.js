@@ -92,7 +92,21 @@ async function fixture(saved) {
     listing: false,
     searchText: 'Creative business',
   };
-  const inspect = (id = 1) => send({ action: 'panel-signals', url: tabs.get(id).url, signals }, content(id));
+  const inspect = async (id = 1, captureOverride) => {
+    const res = await send({ action: 'panel-signals', url: tabs.get(id).url, signals }, content(id));
+    if (res?.shouldPrefetch) {
+      await send(
+        {
+          action: 'panel-prefetch-complete',
+          url: tabs.get(id).url,
+          key: res.key,
+          capture: captureOverride || { url: tabs.get(id).url, content: 'word '.repeat(650), extractionStatus: 'ready' },
+        },
+        content(id)
+      );
+    }
+    return res;
+  };
   const register = id => send({ action: 'panel-register', grant: session[`panel:${id}`]?.grant }, extension(id));
   return { chrome, local, session, messages, events, tabs, send, inspect, register, content, extension, context };
 }
@@ -217,4 +231,10 @@ test('fetched reading metrics survive later passive probes and reject stale capt
   assert.equal(f.session['panel:1'].signals.minutes, 8);
   assert.equal(f.session['panel:1'].signals.contentAvailable, true);
   assert.equal((await f.send({ action: 'panel-capture-metrics', key: 'https://old.test', minutes: 9, contentAvailable: true }, f.extension())).error, 'stale');
+});
+
+test('auto-open stays closed when content fetch fails or returns empty', async () => {
+  const f = await fixture();
+  await f.inspect(1, { url: f.tabs.get(1).url, content: '', extractionStatus: 'unavailable' });
+  assert.equal(f.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 0);
 });

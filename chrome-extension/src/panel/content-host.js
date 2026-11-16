@@ -5,12 +5,11 @@
   let pageLayout,
     host,
     frame,
-    edgeTab,
-    collapsed = false,
     timer,
     maxTimer,
     lastUrl = location.href,
     settledKey = '',
+    prefetchingKey = '',
     lastSignals,
     lastSettings,
     epoch = 0;
@@ -121,6 +120,30 @@
       if (document.readyState === 'complete' && (lastSignals.contentAvailable || lastSignals.listing || response?.decision?.open)) {
         settledKey = NutEggPageIdentity.capturePageKey(url);
       }
+      if (response?.shouldPrefetch && !host) {
+        const key = response.key || NutEggPageIdentity.capturePageKey(url);
+        if (prefetchingKey !== key && typeof runCaptureRequest === 'function') {
+          prefetchingKey = key;
+          try {
+            const capture = await runCaptureRequest({
+              action: 'extract-content',
+              url,
+              requestId: `prefetch:${current}:${Date.now()}`,
+            });
+            if (url !== location.href || host) return;
+            const ok =
+              !!capture?.content?.trim() &&
+              capture.transcriptAvailable !== false &&
+              !['not_ready', 'unavailable'].includes(capture.extractionStatus) &&
+              !capture.captureCoverage?.reasons?.includes('access_restricted');
+            if (ok) {
+              await message('panel-prefetch-complete', { key, capture });
+            }
+          } catch {
+            // Content fetch failed or timed out: keep panel closed!
+          }
+        }
+      }
     } catch {
       /* A partially loaded page will be inspected again after settling. */
     }
@@ -134,35 +157,7 @@
     pageLayout?.dispose();
     pageLayout = null;
     host?.remove();
-    edgeTab?.remove();
-    host = frame = edgeTab = null;
-    collapsed = false;
-  }
-  function setCollapsed(next) {
-    if (!host) return;
-    collapsed = !!next;
-    host.style.display = collapsed ? 'none' : '';
-    if (collapsed) {
-      pageLayout?.dispose();
-      pageLayout = null;
-      if (!edgeTab) {
-        const side = lastSettings?.side === 'left' ? 'left' : 'right';
-        edgeTab = document.createElement('button');
-        edgeTab.type = 'button';
-        edgeTab.setAttribute('data-nutegg-ui', '');
-        edgeTab.title = 'NutEgg';
-        edgeTab.style.cssText = `all:initial;position:fixed;top:50%;transform:translateY(-50%);${side}:0;width:28px;height:64px;background:#fcfaf7;border:1px solid #d4c9b8;border-${side}:none;border-radius:${side === 'right' ? '8px 0 0 8px' : '0 8px 8px 0'};box-shadow:0 2px 12px #0002;cursor:pointer;z-index:2147483646;display:flex;align-items:center;justify-content:center;font:700 14px system-ui;color:#a85718;`;
-        edgeTab.textContent = side === 'right' ? '‹' : '›';
-        edgeTab.addEventListener('click', () => setCollapsed(false));
-        document.documentElement.append(edgeTab);
-      }
-      edgeTab.style.display = 'flex';
-    } else {
-      if (edgeTab) edgeTab.style.display = 'none';
-      const side = lastSettings?.side === 'left' ? 'left' : 'right';
-      const width = Math.min(lastSettings?.width || 420, innerWidth);
-      pageLayout = new NutEggPanelPageLayout(host, { side, width, layoutMode: lastSettings?.layoutMode });
-    }
+    host = frame = null;
   }
   function show(messageData) {
     remove();
@@ -229,15 +224,11 @@
       remove();
       respond({ ok: true });
     }
-    if (data.action === 'nutegg-panel-collapse') {
-      setCollapsed(!collapsed);
-      respond({ ok: true, collapsed });
-    }
     if (data.action === 'capture-navigation') {
       settledKey = '';
       schedule();
     }
-    return ['nutegg-panel-show', 'nutegg-panel-hide', 'nutegg-panel-collapse'].includes(data.action);
+    return ['nutegg-panel-show', 'nutegg-panel-hide'].includes(data.action);
   };
   new MutationObserver(records => {
     let href = '';
@@ -263,6 +254,7 @@
       epoch++;
       if (changed) {
         settledKey = '';
+        prefetchingKey = '';
         remove();
       }
       schedule();

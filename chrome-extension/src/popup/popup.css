@@ -39,7 +39,8 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-shrink: 0;
+  gap: 1px;
 }
 
 .ai-credit-pill {
@@ -83,7 +84,9 @@ body {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
   opacity: 0.6;
   transition:
     opacity 0.15s,
@@ -3848,7 +3851,7 @@ body {
 }
 .header-actions {
   flex-shrink: 0;
-  gap: 9px;
+  gap: 2px;
 }
 .status-dot.chrome-ai,
 .status-dot.online {
@@ -3886,9 +3889,10 @@ body {
   display: inline-block;
 }
 .settings-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  border-radius: 4px;
 }
 .setup-hub {
   background: #f5eddf;
@@ -4352,7 +4356,7 @@ body.density-ultra-compact .brand-tagline {
   display: none;
 }
 body.density-ultra-compact .header-actions {
-  gap: 4px;
+  gap: 1px;
 }
 body.density-ultra-compact .icon-btn {
   width: 26px;
@@ -4484,7 +4488,7 @@ body.density-ultra-compact .footer {
     padding: 16px;
   }
   .header-actions {
-    gap: 7px;
+    gap: 2px;
   }
   .brand-tagline {
     display: none;
@@ -4522,18 +4526,20 @@ body.density-ultra-compact .footer {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  margin: 0;
+  border: none;
+  border-radius: 4px;
   background: transparent;
-  color: #6b6258;
-  font-size: 18px !important;
+  color: #4b5563;
+  opacity: 0.7;
   line-height: 1;
   cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
-.panel-icon-button:hover { background: #efe7dc; color: #302b26; }
+.panel-icon-button:hover { opacity: 1; background: #efe7dc; color: #302b26; }
 .panel-header-fallback {
   display: flex;
   justify-content: flex-end;
