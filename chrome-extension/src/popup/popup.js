@@ -40,17 +40,33 @@ const presentation = values =>
 const click = (element, fn) => element?.addEventListener('click', fn);
 
 async function initPopup() {
+  try {
+    await globalThis.NutEggPanel?.ready;
+  } catch {
+    document.body.textContent = 'NutEgg: unauthorized panel';
+    return;
+  }
   if (typeof requestAnimationFrame === 'function')
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   globalThis.NutEggI18n?.initI18n();
   globalThis.NutEggI18n?.applyI18n();
   const stored = await settings.loadFromStorage();
+  await globalThis.NutEggPanel?.mount({ manager: tabStateManager });
   tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
   if (stored?.cachedMetrics) tabStateManager.dispatch({ type: 'metrics', value: stored.cachedMetrics });
   tabStateManager.dispatch({ type: 'visibility', visible: document.visibilityState === 'visible' });
   tabStateManager.subscribe(event => renderer.handle(event));
   tabStateManager.subscribe(event => {
-    if (['analysisComplete', 'operationFailed', 'backgroundJobRestored', 'historyLoaded', 'historySelected', 'cachedResult'].includes(event.type))
+    if (
+      [
+        'analysisComplete',
+        'operationFailed',
+        'backgroundJobRestored',
+        'historyLoaded',
+        'historySelected',
+        'cachedResult',
+      ].includes(event.type)
+    )
       void tabAction.refreshEmptyAnalysis(event.tabId);
   });
   tabStateManager.subscribe(event => {
@@ -172,7 +188,12 @@ async function initPopup() {
     input?.addEventListener('input', () => activeDraft({ newEggDescription: input.value }));
   click(e.createEggBtn, () => saveAction.handleCreateEgg(false));
   click(e.eggsCreateBtn, () => saveAction.handleCreateEgg(true));
-  for (const button of [h.statusIndicatorWrap, h.settingsBtn, document.getElementById('setup-open-settings-btn'), document.getElementById('analysis-settings-btn')])
+  for (const button of [
+    h.statusIndicatorWrap,
+    h.settingsBtn,
+    document.getElementById('setup-open-settings-btn'),
+    document.getElementById('analysis-settings-btn'),
+  ])
     click(button, () => {
       chrome.runtime.openOptionsPage();
     });
@@ -306,7 +327,8 @@ async function initPopup() {
       void envService.checkServerStatus();
   }, 15000);
   chrome.tabs.onActivated.addListener(info => {
-    if (activityUI.windowId == null || activityUI.windowId === info.windowId) void tabAction.handleTabActivated(info);
+    if (!globalThis.NutEggPanel?.context && (activityUI.windowId == null || activityUI.windowId === info.windowId))
+      void tabAction.handleTabActivated(info);
   });
   chrome.tabs.onUpdated.addListener((id, changes) => tabAction.handleTabUpdated(id, changes));
   chrome.tabs.onRemoved.addListener(id => tabAction.handleTabRemoved(id));
@@ -316,6 +338,7 @@ async function initPopup() {
   globalThis.NutEggStartup?.finish();
   await operations.initializeRecovery();
   await tabAction.refreshForCurrentTab();
+  await globalThis.NutEggPanel?.maybeAutoAnalyze({ manager: tabStateManager, analyzeAction });
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { initPopup, tabStateManager, renderer };
 else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initPopup);

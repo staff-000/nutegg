@@ -3,6 +3,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 ## Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
 **Type:** {{source_type}}
 {{part_note}}
 {{questions}}
@@ -25,6 +26,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
 {
+  "contentMetadata": {"topics": ["concise topic"], "author": null, "answerableQuestions": ["A question substantially answered by this content?"]},
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
   "format": "monologue",
@@ -45,3 +47,5 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.
 - For timestamped video content, cite the exact source timestamp supporting that answer, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps.
 {{shared_output_rules}}
+
+- contentMetadata: list up to 5 distinct concise topics and up to 5 questions substantially answered by the source. These are discovery questions, separate from customQuestionAnswers. Use empty lists when unsupported. Author must be the captured author/channel; use null when unknown. Never infer authorship from a title, guest, or commenter. Aggregate only supported topics/questions across parts; deduplicate and cap each list at 5.

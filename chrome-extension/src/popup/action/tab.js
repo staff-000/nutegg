@@ -28,8 +28,13 @@ class TabAction {
         loading: tab.status === 'loading',
       });
       if (!this.store.hasAnalysisContent(tabId) && (origin.analysisResult || origin.errors.analysis)) {
-        this.store.dispatch({ type: 'emptyAnalysisCaptureRequested', tabId,
-          pageGeneration: origin.pageGeneration, resultRevision: origin.resultRevision, discard: true });
+        this.store.dispatch({
+          type: 'emptyAnalysisCaptureRequested',
+          tabId,
+          pageGeneration: origin.pageGeneration,
+          resultRevision: origin.resultRevision,
+          discard: true,
+        });
         await this.operations.discardEmptyAnalysis(origin);
         if (!current()) return;
       }
@@ -46,11 +51,16 @@ class TabAction {
       return this.handleTabActivated({ tabId }, { forceExtract });
     }
     const epoch = this.store.activationEpoch;
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const boundId = globalThis.NutEggPanel?.context?.tabId;
+    const [tab] =
+      boundId != null
+        ? [await chrome.tabs.get(boundId)]
+        : await chrome.tabs.query({ active: true, currentWindow: true });
     if (epoch !== this.store.activationEpoch || !tab) return;
     return this.handleTabActivated({ tabId: tab.id }, { forceExtract });
   }
   handleTabActivated({ tabId }, options = {}) {
+    if (globalThis.NutEggPanel?.context && tabId !== globalThis.NutEggPanel.context.tabId) return;
     this.store.ensure(tabId);
     const lease = this.store.activateTab(tabId);
     const record = this.store.getTab(tabId);
@@ -67,6 +77,7 @@ class TabAction {
         title: tab.title,
         loading: tab.status === 'loading',
       });
+      await globalThis.NutEggPanel?.restore(this.store, lease.tabId);
       const statusPromise = this.envService.checkServerStatus();
       // Restore saved content before touching the page. History routes through
       // the worker using the saved mode and does not need connection readiness.
@@ -82,7 +93,7 @@ class TabAction {
   async restoreOrExtract(lease, record, options) {
     await this.operations.recoveryReady;
     if (!this.store.isActivationCurrent(lease)) return;
-    if (!options.forceExtract && await this.operations.restoreForTab?.(lease.tabId)) {
+    if (!options.forceExtract && (await this.operations.restoreForTab?.(lease.tabId))) {
       await this.refreshEmptyAnalysis(lease.tabId);
       return;
     }
@@ -113,11 +124,24 @@ class TabAction {
   }
   async refreshEmptyAnalysis(tabId) {
     const tab = this.store.getTab(tabId);
-    if (!tab || tabId !== this.store.activeTabId || this.store.hasAnalysisContent(tabId) ||
-      (!tab.analysisResult && !tab.errors.analysis) || this.store.isBusy(tabId) || tab.backgroundRecoveryPending ||
-      tab.operations.extraction?.running || tab.emptyAnalysisRefreshRevision === tab.resultRevision) return;
-    this.store.dispatch({ type: 'emptyAnalysisCaptureRequested', tabId,
-      pageGeneration: tab.pageGeneration, resultRevision: tab.resultRevision, discard: !tab.analysisStartedHere });
+    if (
+      !tab ||
+      tabId !== this.store.activeTabId ||
+      this.store.hasAnalysisContent(tabId) ||
+      (!tab.analysisResult && !tab.errors.analysis) ||
+      this.store.isBusy(tabId) ||
+      tab.backgroundRecoveryPending ||
+      tab.operations.extraction?.running ||
+      tab.emptyAnalysisRefreshRevision === tab.resultRevision
+    )
+      return;
+    this.store.dispatch({
+      type: 'emptyAnalysisCaptureRequested',
+      tabId,
+      pageGeneration: tab.pageGeneration,
+      resultRevision: tab.resultRevision,
+      discard: !tab.analysisStartedHere,
+    });
     if (!tab.analysisStartedHere) await this.operations.discardEmptyAnalysis(tab);
     const current = this.store.getTab(tabId);
     if (tabId !== this.store.activeTabId || current?.pageGeneration !== tab.pageGeneration ||
@@ -130,7 +154,11 @@ class TabAction {
     this.store.dispatch({ type: 'visibility', visible });
     if (!visible) return;
     const epoch = this.store.activationEpoch;
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const boundId = globalThis.NutEggPanel?.context?.tabId;
+    const [tab] =
+      boundId != null
+        ? [await chrome.tabs.get(boundId)]
+        : await chrome.tabs.query({ active: true, currentWindow: true });
     if (epoch !== this.store.activationEpoch || !tab) return;
     return this.handleTabActivated({ tabId: tab.id });
   }
@@ -168,6 +196,7 @@ class TabAction {
     this.store.invalidateTab(tabId, '', true);
   }
   async openAnalysisActivity(tabId) {
+    if (globalThis.NutEggPanel?.context && tabId !== globalThis.NutEggPanel.context.tabId) return;
     const record = this.store.getTab(tabId);
     if (!record) return;
     const generation = record.pageGeneration;

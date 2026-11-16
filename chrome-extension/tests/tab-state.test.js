@@ -98,3 +98,25 @@ test('extraction errors do not clear analysis errors or warnings owned by other 
   store.commitOperation(x.token, { type: 'extracted', content: { content: 'New content' } });
   assert.equal(store.getTab(1).errors.analysis.message, 'Analysis failed');
 });
+
+test('panel handoff preserves capture and drafts while rejecting stale pages', () => {
+  const { store } = fixture();
+  const tab = store.getTab(1);
+  const snapshot = {
+    url: tab.url,
+    extractedContent: { url: tab.url, content: 'Source body' },
+    customQuestions: 'Why?',
+    followUpQa: [{ question: 'How?', answer: 'Carefully' }],
+  };
+  store.dispatch({ type: 'panelTransferRestored', tabId: 1, pageGeneration: tab.pageGeneration, snapshot });
+  assert.equal(store.getTab(1).extractedContent.content, 'Content 1', 'newer captured content remains authoritative');
+  const empty = new TabStateManager();
+  empty.ensure(1, tab.url);
+  empty.dispatch({ type: 'panelTransferRestored', tabId: 1, pageGeneration: empty.getTab(1).pageGeneration, snapshot });
+  assert.equal(empty.getTab(1).extractedContent.content, 'Source body');
+  assert.equal(store.getTab(1).customQuestions, 'Why?');
+  assert.equal(store.getTab(2).customQuestions, '');
+  store.invalidateTab(1, 'https://new.test');
+  store.dispatch({ type: 'panelTransferRestored', tabId: 1, pageGeneration: tab.pageGeneration, snapshot });
+  assert.equal(store.getTab(1).extractedContent, null);
+});

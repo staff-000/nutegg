@@ -53,7 +53,8 @@ class AnalysisActivityComponent {
       const tabs = await this.tabs.query(this.windowId == null ? { currentWindow: true } : { windowId: this.windowId });
       if (revision !== this.refreshRevision) return;
       const byId = new Map(tabs.map(tab => [tab.id, tab]));
-      const entries = this.manager.getAnalysisActivity().filter(entry => byId.has(entry.tabId));
+      const boundId = globalThis.NutEggPanel?.context?.tabId;
+      const entries = this.manager.getAnalysisActivity().filter(entry => byId.has(entry.tabId) && (boundId == null || entry.tabId === boundId));
       this.render(entries.map(entry => ({ ...entry, title: entry.title || byId.get(entry.tabId).title || entry.url })));
     } catch {
       // A closing window may make its tabs unavailable.

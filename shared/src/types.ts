@@ -221,7 +221,14 @@ export interface DiscussionAnalysis {
 }
 
 /** Content-level analysis, independent of any egg. */
+export interface ContentMetadata {
+  topics: string[];
+  author: string | null;
+  answerableQuestions: string[];
+}
+
 export interface ContentAnalysis {
+  contentMetadata?: ContentMetadata;
   /** Failed AI tasks, not source-coverage or factual-verification status. No provider text. */
   analysisFailures?: Array<{ section: string; code: string; part?: number }>;
   discussion?: DiscussionAnalysis;
@@ -246,6 +253,8 @@ export interface CaptureCoverage {
 }
 
 export interface CapturePayload {
+  /** Structured source attribution, never inferred from incidental mentions. */
+  metadata?: { author?: string; authorHandle?: string; channelName?: string; [key: string]: unknown };
   /** Known capture limitations; absent means coverage has not been assessed. */
   captureCoverage?: CaptureCoverage;
   /** Opaque tab/page diagnostics ID; never included in prompts or archived content. */
@@ -379,7 +388,12 @@ export type AnalysisProgressEvent =
   | {
       type: 'partial';
       section: 'summary';
-      data: { titleVerdict?: string; coreSummary?: string[]; customQuestionAnswers?: KeyAnswer[] };
+      data: {
+        contentMetadata?: ContentMetadata;
+        titleVerdict?: string;
+        coreSummary?: string[];
+        customQuestionAnswers?: KeyAnswer[];
+      };
     }
   | { type: 'partial'; section: 'mindmap'; data: { mindMap: MindMapNode[]; conversation?: ConversationMeta } }
   | { type: 'partial'; section: 'discussion'; data: { discussion: DiscussionAnalysis } }

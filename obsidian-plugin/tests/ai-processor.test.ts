@@ -855,3 +855,52 @@ describe("AIProcessor Output Language Rules", () => {
   });
 });
 
+
+describe('content metadata', () => {
+  it('deduplicates and caps lists, prefers captured author, and tolerates old output', () => {
+    const p = new AIProcessor(makeFakePlugin() as any) as any;
+    const metadata = p.parseContentMetadata(
+      {
+        topics: [' AI ', 'ai', 'B', 'C', 'D', 'E', 'F', 3],
+        author: 'Invented',
+        answerableQuestions: ['Why?', 'why?', 'How?'],
+      },
+      { metadata: { author: 'Dan Koe' } }
+    );
+    assert.deepEqual(metadata, {
+      topics: ['AI', 'B', 'C', 'D', 'E'],
+      author: 'Dan Koe',
+      answerableQuestions: ['Why?', 'How?'],
+    });
+    assert.equal(p.parseContentMetadata(undefined, capture), undefined);
+    assert.equal(
+      p.parseContentMetadata({ author: 'Guest', topics: [], answerableQuestions: [] }, capture).author,
+      null
+    );
+  });
+  it('preserves metadata through chunk and aggregate analysis', async () => {
+    const p = new AIProcessor(makeFakePlugin() as any) as any;
+    const prompts: string[] = [];
+    p.callAI = async (prompt: string) => {
+      prompts.push(prompt);
+      return JSON.stringify({
+        titleVerdict: 'Yes',
+        coreSummary: ['A'],
+        contentMetadata: { topics: ['Business'], author: 'Wrong', answerableQuestions: ['How?'] },
+      });
+    };
+    const source = {
+      ...capture,
+      metadata: { author: 'Dan Koe' },
+      enabledSections: { titleVerdict: true, coreSummary: true, mindMap: false, discussion: false },
+    };
+    const result = await p.callContentChunk(source);
+    assert.equal(result.contentMetadata.author, 'Dan Koe');
+    assert.match(prompts[0], /Dan Koe/);
+    const aggregate = await p.aggregateContent(source, [
+      { part: 1, startTime: '', bullets: ['A'], contentMetadata: result.contentMetadata },
+    ]);
+    assert.deepEqual(aggregate.contentMetadata, result.contentMetadata);
+    assert.match(prompts[1], /Business/);
+  });
+});

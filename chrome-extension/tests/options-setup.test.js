@@ -896,3 +896,22 @@ test('panel settings shortcut failures show a usable manual URL and clear on ret
   await flush();
   assert.equal(el('panel-position-error').hidden, true);
 });
+
+test('prompt editing stays visible in managed modes and saves without changing API settings', async t => {
+  for (const mode of ['subscription', 'chatgpt']) {
+    const state = { instanceId: 'prompt-test', protocolVersion: 3, revision: 1, transition: 'ready', subscriptionAvailable: true, mode, subscription: { provider: 'google', model: 'auto' }, chatgpt: { state: 'ready', model: 'chatgpt-model' } };
+    const { win, el, values, change } = await setup(t, { connectionMode: 'obsidian', chromeAiAuthMethod: mode, chromeAiApiKey: 'preserved-key', obsidianExecutionState: state });
+    const beforeKey = values.chromeAiApiKey;
+    assert.equal(el('chrome-advanced-settings').classList.contains('hidden'), false);
+    assert.equal(el('ai-prompt-select').disabled, false);
+    assert.equal(el('ai-prompt-textarea').disabled, false);
+    assert.equal(el('ai-prompt-save-btn').disabled, false);
+    el('ai-prompt-select').value = 'verdictSummary'; change('ai-prompt-select');
+    el('ai-prompt-textarea').value = 'Custom summary and topic instructions';
+    el('ai-prompt-textarea').dispatchEvent(new win.Event('input', { bubbles: true }));
+    el('ai-prompt-save-btn').click(); await flush();
+    assert.equal(values.chromeAiPromptOverrides.verdictSummary, 'Custom summary and topic instructions');
+    assert.equal(values.chromeAiApiKey, beforeKey);
+    assert.equal(values.obsidianExecutionState.mode, mode);
+  }
+});

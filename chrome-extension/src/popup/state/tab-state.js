@@ -29,8 +29,10 @@ function popupHasAnalysisContent(result, tab) {
   const sections = tab?.enabledSections || {};
   const chrome = result.mode ? result.mode === 'chrome' : tab?.analysisRetry?.inputs?.chromeMode === true;
   const failed = result.analysisFailures?.length || eggs.some(egg => egg?.analysisFailures?.length);
-  return !!((sections.titleVerdict !== false && text(result.titleVerdict)) ||
-    (sections.coreSummary !== false && (text(result.coreSummary) || Array.isArray(result.coreSummary) && result.coreSummary.some(text))) ||
+  return !!(
+    (sections.titleVerdict !== false && text(result.titleVerdict)) ||
+    (sections.coreSummary !== false &&
+      (text(result.coreSummary) || (Array.isArray(result.coreSummary) && result.coreSummary.some(text)))) ||
     (sections.mindMap !== false && map(result.mindMap)) ||
     entries(result.extractedEntries) || entries(result.newKnowledge) || answers(result.customQuestionAnswers) ||
     (sections.discussion === true && Array.isArray(result.discussion?.topics) && result.discussion.topics.some(topic => text(topic?.title) || text(topic?.summary))) ||
@@ -82,6 +84,7 @@ class TabStateManager {
       sourceVersion: 0,
       debugScope: `${this.#debugSessionId}:${tabId}:${this.#sequence}`,
       debugInfo: null,
+      panelClassification: null,
       playbackPosition: null,
       stage1Version: 0,
       resultRevision: 0,
@@ -351,9 +354,13 @@ class TabStateManager {
         next.backgroundJob = popupCopy(job);
         next.backgroundRecoveryPending = job.status === 'completed';
         next.debugScope = job.debugScope || next.debugScope;
-        next.operations.analysis = { ...next.operations.analysis,
-          running: ['waiting', 'running'].includes(job.status), queueState: job.status,
-          phase: job.stage === 2 ? 'stage2' : 'stage1', startedAt: job.createdAt };
+        next.operations.analysis = {
+          ...next.operations.analysis,
+          running: ['waiting', 'running'].includes(job.status),
+          queueState: job.status,
+          phase: job.stage === 2 ? 'stage2' : 'stage1',
+          startedAt: job.createdAt,
+        };
         if (job.status === 'completed' && prev.backgroundJob?.status !== 'completed')
           next.completion = { revision: next.resultRevision + 1, completedAt: job.updatedAt, startedAt: job.createdAt };
         if (job.viewed) next.completion = null;
@@ -366,8 +373,12 @@ class TabStateManager {
         const { payload, context, result: rawResult, signature, progress, ...metadata } = job;
         next.backgroundJob = { ...popupCopy(metadata), detached: true };
         next.analysisCancelled = job.status === 'cancelled';
-        next.analysisRetry = { payload: popupCopy(source), inputs: popupCopy(job.context?.inputs || {}),
-          stage1Request: popupCopy(job.context?.stage1Request), pageGeneration: next.pageGeneration };
+        next.analysisRetry = {
+          payload: popupCopy(source),
+          inputs: popupCopy(job.context?.inputs || {}),
+          stage1Request: popupCopy(job.context?.stage1Request),
+          pageGeneration: next.pageGeneration,
+        };
         next.backgroundRestoredRevision = job.revision;
         if (!['waiting', 'running'].includes(job.status)) next.backgroundAppliedJobId = job.id;
         next.backgroundRecoveryPending = false;
@@ -402,18 +413,72 @@ class TabStateManager {
           next.completion = job.status !== 'completed' || job.viewed ? null : { revision: next.resultRevision, completedAt: job.updatedAt, startedAt: job.createdAt };
           if (job.viewed) next.viewedRevision = next.resultRevision;
           if (job.status === 'completed') delete next.errors.analysis;
-          if (next.currentNutId != null) next.captureHistory = [{
-            ...popupCopy(source), capturePayload: popupCopy(source), result: popupCopy(event.result),
-            nutId: next.currentNutId, saved: job.saved || 'analyzed', capturedAt: new Date(job.updatedAt).toISOString(),
-          }, ...next.captureHistory.filter(entry => entry.nutId !== next.currentNutId)];
+          if (next.currentNutId != null)
+            next.captureHistory = [
+              {
+                ...popupCopy(source),
+                capturePayload: popupCopy(source),
+                result: popupCopy(event.result),
+                nutId: next.currentNutId,
+                saved: job.saved || 'analyzed',
+                capturedAt: new Date(job.updatedAt).toISOString(),
+              },
+              ...next.captureHistory.filter(entry => entry.nutId !== next.currentNutId),
+            ];
         }
         if (job.status === 'cancelled') {
           delete next.errors.analysis;
           if (!event.result && job.stage === 2 && source.contentAnalysis) result(source.contentAnalysis, true);
         } else if (['failed', 'interrupted'].includes(job.status)) {
-          next.errors.analysis = { message: job.errorCode === 'job_interrupted' ? t('jobInterrupted') : job.error || t('jobInterrupted'), code: job.errorCode };
+          next.errors.analysis = {
+            message: job.errorCode === 'job_interrupted' ? t('jobInterrupted') : job.error || t('jobInterrupted'),
+            code: job.errorCode,
+          };
           if (!event.result && job.stage === 2 && source.contentAnalysis) result(source.contentAnalysis, true);
         }
+        break;
+      }
+      case 'panelClassification':
+        if (event.pageGeneration !== prev.pageGeneration) return;
+        next.panelClassification = popupCopy(event.value);
+        break;
+      case 'panelTransferRestored': {
+        if (event.pageGeneration !== prev.pageGeneration || event.snapshot?.url !== prev.url || this.isBusy(tabId))
+          return;
+        for (const key of [
+          'extractedContent',
+          'analysisResult',
+          'stage1Payload',
+          'stage1ContentAnalysis',
+          'currentNutId',
+          'captureHistory',
+          'followUpQa',
+          'selectedEggs',
+          'preSelectedEggs',
+          'customQuestions',
+          'followupDraft',
+          'customQuestionsScope',
+          'followupScope',
+          'enabledSections',
+          'generateKnowledgeEntries',
+          'optimizeForConversation',
+          'currentView',
+          'presentation',
+          'nutCollected',
+          'eggHatched',
+        ]) {
+          if (
+            ['analysisResult', 'stage1Payload', 'stage1ContentAnalysis', 'currentNutId'].includes(key) &&
+            prev.analysisResult
+          )
+            continue;
+          if (key === 'extractedContent' && prev.extractedContent) continue;
+          if (key in event.snapshot) next[key] = popupCopy(event.snapshot[key]);
+        }
+        next.sourceVersion++;
+        next.stage1Version++;
+        next.resultRevision++;
+        next.intentRevision++;
         break;
       }
       case 'debugInfo':
@@ -446,8 +511,12 @@ class TabStateManager {
         break;
       case 'analysisRetryContext':
         next.analysisStartedHere = true;
-        next.analysisRetry = { payload: popupCopy(event.payload), inputs: popupCopy(event.inputs),
-          stage1Request: popupCopy(event.stage1Request), pageGeneration: next.pageGeneration };
+        next.analysisRetry = {
+          payload: popupCopy(event.payload),
+          inputs: popupCopy(event.inputs),
+          stage1Request: popupCopy(event.stage1Request),
+          pageGeneration: next.pageGeneration,
+        };
         break;
       case 'emptyAnalysisCaptureRequested':
         if (event.pageGeneration !== next.pageGeneration || event.resultRevision !== next.resultRevision ||
@@ -483,6 +552,7 @@ class TabStateManager {
             ...updated,
             titleVerdict: partial.data.titleVerdict,
             coreSummary: partial.data.coreSummary,
+            contentMetadata: popupCopy(partial.data.contentMetadata || existing.contentMetadata),
             customQuestionAnswers: partial.data.customQuestionAnswers || existing.customQuestionAnswers || [],
             ...(partial.data.conversation ? { conversation: popupCopy(partial.data.conversation) } : {}),
           };

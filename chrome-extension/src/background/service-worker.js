@@ -7,7 +7,9 @@ importScripts(
   '../content/extractors/youtube.js',
   'execution-session.js',
   'analysis-job-store.js',
-  'analysis-jobs.js'
+  'analysis-jobs.js',
+  '../panel/rules.js',
+  '../panel/background.js'
 );
 
 const { PROVIDER_CATALOG, isSubscriptionProvider, checkCreditAI, analyzeContentStandalone, askFollowUpStandalone } =
@@ -22,9 +24,9 @@ async function init() {
   const stored = await chrome.storage.local.get(['serverPort']);
   if (stored.serverPort) serverPort = stored.serverPort;
 
-  // Side panel only — clicking the extension icon opens the panel directly
+  // The panel broker routes toolbar clicks to the selected UI.
   chrome.action.setPopup({ popup: '' });
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {}); // OK if sidePanel API not available
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {}); // OK if sidePanel API not available
   console.log('[NutEgg] Port:', serverPort);
 }
 
@@ -383,7 +385,7 @@ chrome.tabs?.onAttached?.addListener((tabId, info) => {
   void analysisJobsInstance?.move(tabId, info.newWindowId).catch(() => {});
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+function handleTrustedMessage(message, _sender, sendResponse) {
   if (message.action === 'youtube-player-snapshot')
     return handleYouTubePlayerSnapshotMessage(message, _sender, sendResponse);
   if (_sender?.id !== chrome.runtime.id || (_sender?.url && !_sender.url.startsWith(chrome.runtime.getURL('/')))) {
@@ -703,6 +705,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       .catch(() => sendResponse({ nuts: 0, eggs: 0, timeSaved: '0m' }));
     return true;
   }
+}
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (message.action?.startsWith('panel-')) return;
+  if (message.action === 'youtube-player-snapshot') return handleYouTubePlayerSnapshotMessage(message, sender, respond);
+  const checkAuth =
+    typeof NutEggPanels !== 'undefined'
+      ? NutEggPanels.authorized(sender)
+      : Promise.resolve(
+          sender?.id === chrome.runtime.id && (!sender?.url || sender.url.startsWith(chrome.runtime.getURL('/')))
+        );
+  checkAuth
+    .then(allowed => {
+      if (!allowed) return respond({ error: 'Privileged extension page required.', errorCode: 'forbidden' });
+      handleTrustedMessage(message, sender, respond);
+    })
+    .catch(error => respond({ error: error.message }));
+  return true;
 });
 
 // --- Background-owned analysis jobs ---
@@ -716,7 +735,7 @@ async function getAnalysisConfiguration() {
   return {
     mode, cacheGeneration: chromeCacheGeneration, revision: mode === 'obsidian' ? `${execution.instanceId}:${execution.revision}:${saved.chromeApiRevision || 'initial'}` : saved.chromeApiRevision || 'initial',
     serverPort: mode === 'obsidian' ? saved.serverPort || DEFAULT_PORT : null,
-    cacheAllowed: mode !== 'chrome' || await getChromeCacheLimit() > 0,
+    cacheAllowed: mode !== 'chrome' || (await getChromeCacheLimit()) > 0,
   };
 }
 function analysisJobs() {
@@ -735,7 +754,13 @@ chrome.runtime.onConnect.addListener(port => {
   if (port.sender?.id !== chrome.runtime.id || !port.sender?.url?.startsWith(chrome.runtime.getURL('/'))) {
     port.disconnect(); return;
   }
-  analysisJobs().attach(port);
+  analysisJobs().attach(port, message =>
+    typeof NutEggPanels !== 'undefined'
+      ? NutEggPanels.authorized(port.sender).then(
+          allowed => allowed && (!port.sender.tab || message.tabId == null || message.tabId === port.sender.tab.id)
+        )
+      : true
+  );
 });
 // --- Server communication ---
 

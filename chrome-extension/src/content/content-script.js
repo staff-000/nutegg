@@ -10,15 +10,51 @@
  * @property {'continue'|'stop'} onError Whether ordinary failures may fall through. Ownership/cancellation always stop.
  */
 var BUILTIN_EXTRACTORS = [
-  { name: 'youtube', detect: window.detectYouTube, extract: window.extractYouTube, bodyReadiness: false, onError: 'continue' },
-  { name: 'twitter', detect: window.detectTwitter, extract: window.extractTwitter, bodyReadiness: false, onError: 'continue' },
-  { name: 'bilibili', detect: window.detectBilibili, extract: window.extractBilibili, bodyReadiness: false, onError: 'stop' },
+  {
+    name: 'youtube',
+    detect: window.detectYouTube,
+    extract: window.extractYouTube,
+    bodyReadiness: false,
+    onError: 'continue',
+  },
+  {
+    name: 'twitter',
+    detect: window.detectTwitter,
+    extract: window.extractTwitter,
+    bodyReadiness: false,
+    onError: 'continue',
+  },
+  {
+    name: 'bilibili',
+    detect: window.detectBilibili,
+    extract: window.extractBilibili,
+    bodyReadiness: false,
+    onError: 'stop',
+  },
   { name: 'douyin', detect: window.detectDouyin, extract: window.extractDouyin, bodyReadiness: false, onError: 'stop' },
   { name: 'weibo', detect: window.detectWeibo, extract: window.extractWeibo, bodyReadiness: false, onError: 'stop' },
   { name: 'zhihu', detect: window.detectZhihu, extract: window.extractZhihu, bodyReadiness: false, onError: 'stop' },
-  { name: 'forum', detect: window.detectForum, extract: window.extractForum, bodyReadiness: false, onError: 'continue' },
-  { name: 'tiktok', detect: window.detectTikTok, extract: window.extractTikTok, bodyReadiness: false, onError: 'continue' },
-  { name: 'article', detect: window.detectArticle, extract: window.extractArticle, bodyReadiness: true, onError: 'continue' },
+  {
+    name: 'forum',
+    detect: window.detectForum,
+    extract: window.extractForum,
+    bodyReadiness: false,
+    onError: 'continue',
+  },
+  {
+    name: 'tiktok',
+    detect: window.detectTikTok,
+    extract: window.extractTikTok,
+    bodyReadiness: false,
+    onError: 'continue',
+  },
+  {
+    name: 'article',
+    detect: window.detectArticle,
+    extract: window.extractArticle,
+    bodyReadiness: true,
+    onError: 'continue',
+  },
   // Generic must remain last: it always matches.
   { name: 'generic', detect: () => true, extract: window.extractGeneric, bodyReadiness: true, onError: 'continue' },
 ];
@@ -129,19 +165,28 @@ async function runCaptureRequest(message) {
 function nuteggPlaybackIdentity() {
   syncCaptureNavigation();
   window.__nuteggDocumentId ||= globalThis.crypto?.randomUUID?.() || `${Date.now()}:${Math.random()}`;
-  return { documentId: window.__nuteggDocumentId, pageKey: NutEggPageIdentity.playbackPageKey(location.href),
-    generation: window.__nuteggNavigationState?.generation, url: location.href };
+  return {
+    documentId: window.__nuteggDocumentId,
+    pageKey: NutEggPageIdentity.playbackPageKey(location.href),
+    generation: window.__nuteggNavigationState?.generation,
+    url: location.href,
+  };
 }
 function nuteggPlaybackPlayer() {
-  return document.querySelector('#movie_player video, ytd-watch-flexy video') ||
+  return (
+    document.querySelector('#movie_player video, ytd-watch-flexy video') ||
     document.querySelector('.bpx-player-video-wrap video, #bilibili-player video') ||
-    document.querySelector('video.html5-main-video, video.video-stream') || document.querySelector('video');
+    document.querySelector('video.html5-main-video, video.video-stream') ||
+    document.querySelector('video')
+  );
 }
 function nuteggPlaybackOwned(message) {
   const identity = nuteggPlaybackIdentity();
-  return (!message.expectedUrl || NutEggPageIdentity.playbackPageKey(message.expectedUrl) === identity.pageKey) &&
+  return (
+    (!message.expectedUrl || NutEggPageIdentity.playbackPageKey(message.expectedUrl) === identity.pageKey) &&
     (!message.documentId || message.documentId === identity.documentId) &&
-    (message.generation == null || message.generation === identity.generation);
+    (message.generation == null || message.generation === identity.generation)
+  );
 }
 async function nuteggSeek(message) {
   const seconds = Number(message.seconds);
@@ -161,9 +206,16 @@ async function nuteggSeek(message) {
         catch { return { success: false, errorCode: 'seek_failed' }; }
       }
       if (!video.seeking && Math.abs(video.currentTime - seconds) <= 1) {
-        try { video.play?.()?.catch?.(() => {}); } catch {}
-        return { success: true, type: 'video', currentTime: video.currentTime,
-          duration: video.duration, ...nuteggPlaybackIdentity() };
+        try {
+          video.play?.()?.catch?.(() => {});
+        } catch {}
+        return {
+          success: true,
+          type: 'video',
+          currentTime: video.currentTime,
+          duration: video.duration,
+          ...nuteggPlaybackIdentity(),
+        };
       }
     }
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -177,6 +229,7 @@ async function nuteggSeek(message) {
   if (window.__nuteggMessageListener)
     chrome.runtime.onMessage.removeListener(window.__nuteggMessageListener);
   const listener = (message, _sender, sendResponse) => {
+    if (globalThis.__nuteggPanelMessage?.(message, _sender, sendResponse)) return false;
     if (message.action === 'nutegg-handshake') {
       sendResponse({ success: true, version: 1, ...nuteggPlaybackIdentity(), capabilities: ['seek', 'position'] });
       return false;

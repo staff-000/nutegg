@@ -29,6 +29,7 @@ import type {
   AnalysisProgressCallback,
   CapturePayload,
   ContentAnalysis,
+  ContentMetadata,
   KeyAnswer,
   NutEggAISettings,
   QuestionScope,

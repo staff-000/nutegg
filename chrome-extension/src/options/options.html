@@ -231,7 +231,7 @@
         </div>
       </section>
 
-      <section class="panel-position-card" aria-labelledby="panel-position-title">
+      <section class="panel-position-card" aria-labelledby="panel-position-title" hidden>
         <div class="density-card-header">
           <span class="disclosure-icon" aria-hidden="true">↔</span>
           <div class="summary-copy">
@@ -450,6 +450,9 @@
                 </button>
               </div>
               <select id="ai-prompt-select">
+                <option value="verdictSummary" data-i18n="promptOptSummary">Summary and content metadata</option>
+                <option value="mindMapAnalysis" data-i18n="promptOptMindMap">Mind map</option>
+                <option value="aggregateContent" data-i18n="promptOptAggregate">Combine long-content summaries</option>
                 <option value="contentAnalysis" data-i18n="promptOptContentAnalysis">
                   Content Analysis (Stage 1 Summary &amp; Mind Map)
                 </option>
@@ -468,6 +471,8 @@
                 aria-label="Custom prompts"
                 data-i18n-aria-label="settingsPromptsLabel"
               ></textarea>
+              <button id="ai-prompt-save-btn" type="button" class="secondary-btn" data-i18n="saveBtn" data-hints="off">Save</button>
+              <span id="ai-prompt-save-status" role="status" aria-live="polite"></span>
               <p class="hint" data-i18n="settingsPromptsHint">
                 Adjust how your Chrome AI responds. Leave the defaults for the standard NutEgg experience.
               </p>
@@ -604,5 +609,7 @@
     <script src="../popup/state/settings-state.js"></script>
     <script src="options.js"></script>
     <script src="../tooltips.js"></script>
+    <script defer src="../panel/rules.js"></script>
+    <script defer src="../panel/options.js"></script>
   </body>
 </html>

@@ -3,6 +3,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 ## Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
 **Type:** {{source_type}}
 {{part_note}}{{chapters}}
 {{questions}}
@@ -21,6 +22,7 @@ The `time` field shown on mind-map nodes is optional: include it only when a sou
 For conversational formats (interview, podcast, AMA, panel, debate), set `conversation.format` accordingly, populate `participants`, and use conversation node kinds (`question`, `answer`, `disagreement`, `example`, `takeaway`) as instructed.
 For monologues, solo lectures, and written articles/essays, set `conversation`: `{"format": "monologue", "confidence": "high", "participants": []}` and use standard hierarchical concept nodes without conversation kind tags.
 {
+  "contentMetadata": {"topics": ["concise topic"], "author": null, "answerableQuestions": ["A question substantially answered by this content?"]},
   "titleVerdict": "direct answer to the title's question",
   "coreSummary": ["bullet 1", "bullet 2", "bullet 3"],
   "conversation": {
@@ -77,3 +79,5 @@ For monologues, solo lectures, and written articles/essays, set `conversation`: 
 - mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 - Preserve source references and exact quotes on mind-map nodes when combining parts. Never replace an original reference with a generated topic title or summary; omit sources when unsupported.
 {{shared_output_rules}}
+
+- contentMetadata: list up to 5 distinct concise topics and up to 5 questions substantially answered by the source. These are discovery questions, separate from customQuestionAnswers. Use empty lists when unsupported. Author must be the captured author/channel; use null when unknown. Never infer authorship from a title, guest, or commenter. Aggregate only supported topics/questions across parts; deduplicate and cap each list at 5.

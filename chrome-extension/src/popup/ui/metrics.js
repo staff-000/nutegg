@@ -135,6 +135,17 @@ class MetricsComponent {
     }
 
     if (view) {
+      const classification = view.panelClassification;
+      if (classification) {
+        const details = [
+          classification.ruleId ? t('panelOpenedBy', { rule: classification.name === 'panelStarter' ? t('panelStarter') : classification.name || t('panelDefault') }) : '',
+          classification.author, classification.topic,
+          classification.minutes == null ? t('panelMinutesUnknown') : t('panelMinutes', { count: classification.minutes }),
+          t(classification.contentAvailable ? 'panelContentReady' : 'panelContentMissing'),
+          t(classification.readingProvenance === 'capture' ? 'panelCaptured' : classification.provenance === 'cached' ? 'panelCached' : 'panelLocal'),
+        ].filter(Boolean);
+        lines.push(`🧭 ${details.join(' · ')}`);
+      }
       const stParts = [];
       if (view.operations?.analysis?.running) {
         const phase = view.operations.analysis.phase ? ` (${view.operations.analysis.phase})` : '';

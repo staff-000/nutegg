@@ -10,7 +10,7 @@ function captureExcluded(node) {
   return (
     node.nodeType === 1 &&
     (node.matches(
-      'script,style,noscript,svg,nav,footer,button,input,select,textarea,.comments,#comments,[itemprop="comment"],[data-comment-id],.sidebar,.advertisement,.ads,.social-share,.share-buttons,.related-posts,[role="navigation"]'
+      '[data-nutegg-ui],script,style,noscript,svg,nav,footer,button,input,select,textarea,.comments,#comments,[itemprop="comment"],[data-comment-id],.sidebar,.advertisement,.ads,.social-share,.share-buttons,.related-posts,[role="navigation"]'
     ) ||
       captureNodeHidden(node))
   );

@@ -222,8 +222,8 @@ function renderSubscriptionAccess() {
   aiProviderSelect.closest('.option-row').hidden = isSub;
   document.getElementById('ai-setup-help').hidden = isSub;
   for (const control of chromeAdvancedSettings.querySelectorAll('input, select, textarea, button'))
-    control.disabled = isSub;
-  chromeAdvancedSettings.classList.toggle('hidden', isSub);
+    control.disabled = isSub && !control.closest('#ai-prompt-row');
+  chromeAdvancedSettings.classList.remove('hidden');
   const badge = document.getElementById('subscription-model-badge');
   if (badge && activeSubscriptionModel)
     badge.textContent = activeSubscriptionModel === 'auto' ? t('subscriptionAuto') : activeSubscriptionModel;
@@ -964,7 +964,13 @@ function initAiSettings(stored) {
   aiTestBtn.addEventListener('click', handleAiTest);
 
   if (aiPromptSelect && aiPromptTextarea) {
+    aiPromptSelect.value = activePromptKey;
     loadPromptIntoTextarea(activePromptKey);
+    document.getElementById('ai-prompt-save-btn')?.addEventListener('click', async () => {
+      saveActivePromptToState();
+      await chrome.storage.local.set({ chromeAiPromptOverrides: savedPromptOverrides });
+      document.getElementById('ai-prompt-save-status').textContent = t('settingsSavedShort');
+    });
 
     aiPromptSelect.addEventListener('change', () => {
       saveActivePromptToState();

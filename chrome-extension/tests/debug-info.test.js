@@ -208,6 +208,7 @@ test('background debug messages return Chrome counters or bounded Obsidian snaps
   const vm = require('node:vm'); let listener, requests = 0;
   const stats = { activeCalls: 2, totalCalls: 4, promptWords: 100, lastPromptWords: 30 };
   const context = vm.createContext({
+    NutEggPanels: { authorized: async () => true },
     NutEggAI: { combineAIDebugInfo: core.combineAIDebugInfo, getAIDebugInfo: scope => { assert.equal(scope, 'tab:1'); return stats; }, normalizeAIDebugScope: core.normalizeAIDebugScope, restoreChromeApiPreferences: core.restoreChromeApiPreferences }, importScripts() {}, console: { log() {} }, AbortSignal, URL,
     chrome: { storage: { local: { get: async () => ({ executionSchemaVersion: 2, serverPort: 12345, connectionMode: 'obsidian', 'obsidianConnection:http://127.0.0.1:12345:test': 'approved-test-credential' }), set: async () => {} } }, action: { setPopup() {} }, sidePanel: { setPanelBehavior: async () => {} },
       runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}${path}`, onMessage: { addListener(fn) { listener = fn; } }, onConnect: { addListener() {} } } },

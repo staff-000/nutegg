@@ -421,6 +421,7 @@ export class AIProcessor {
       title: string;
       content: string;
       sourceType: string;
+      metadata?: CapturePayload['metadata'];
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
       questionsScope?: QuestionScope;
@@ -444,7 +445,11 @@ export class AIProcessor {
     const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
     const failed = (section: string, error: any, part?: number) => {
       if (this.host.signal?.aborted || error?.code === 'cancelled') throw new AIError('cancelled', 'AI job cancelled.');
-      failures.push({ section, code: typeof error?.code === 'string' ? error.code : 'unknown', ...(part ? { part } : {}) });
+      failures.push({
+        section,
+        code: typeof error?.code === 'string' ? error.code : 'unknown',
+        ...(part ? { part } : {}),
+      });
     };
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const discussionEnabled = sections.discussion === true;
@@ -533,6 +538,7 @@ export class AIProcessor {
           section: 'summary',
           data: {
             titleVerdict: res.titleVerdict,
+            contentMetadata: res.contentMetadata,
             coreSummary: res.coreSummary,
             customQuestionAnswers: res.customQuestionAnswers,
             ...(res.conversation ? { conversation: res.conversation } : {}),
@@ -558,6 +564,7 @@ export class AIProcessor {
             section: 'summary',
             data: {
               titleVerdict: res.titleVerdict,
+              contentMetadata: res.contentMetadata,
               coreSummary: res.coreSummary,
               customQuestionAnswers: res.customQuestionAnswers,
               ...(res.conversation ? { conversation: res.conversation } : {}),
@@ -612,6 +619,7 @@ export class AIProcessor {
             section: 'summary',
             data: {
               titleVerdict: verdictSummaryRes.titleVerdict,
+              contentMetadata: verdictSummaryRes.contentMetadata,
               coreSummary: verdictSummaryRes.coreSummary,
               customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
               ...(verdictSummaryRes.conversation ? { conversation: verdictSummaryRes.conversation } : {}),
@@ -668,6 +676,7 @@ export class AIProcessor {
         section: 'summary',
         data: {
           titleVerdict: verdictSummaryRes.titleVerdict,
+          contentMetadata: verdictSummaryRes.contentMetadata,
           coreSummary: verdictSummaryRes.coreSummary,
           customQuestionAnswers: verdictSummaryRes.customQuestionAnswers,
           ...(verdictSummaryRes.conversation ? { conversation: verdictSummaryRes.conversation } : {}),
@@ -701,6 +710,7 @@ export class AIProcessor {
     const result: ContentAnalysis = {
       ...(failures.length ? { analysisFailures: failures } : {}),
       titleVerdict: verdictSummaryRes.titleVerdict || '',
+      contentMetadata: verdictSummaryRes.contentMetadata,
       coreSummary: verdictSummaryRes.coreSummary || [],
       customQuestionAnswers: verdictSummaryRes.customQuestionAnswers || [],
       mindMap: mindMapRes || [],
@@ -871,16 +881,32 @@ export class AIProcessor {
       }
       if (!failures.length) {
         try {
-          return await this.aggregateContent({ ...capture, enabledSections: effectiveSections }, available.map(({ part, result }) => ({
-            part, startTime: chunks[part - 1].startTime, bullets: result.coreSummary,
-            mindMap: effectiveSections.mindMap ? result.mindMap : undefined,
-          })));
-        } catch (error) { this.ensureActive(); failed(error); }
+          return await this.aggregateContent(
+            { ...capture, enabledSections: effectiveSections },
+            available.map(({ part, result }) => ({
+              part,
+              startTime: chunks[part - 1].startTime,
+              bullets: result.coreSummary,
+              contentMetadata: result.contentMetadata,
+              mindMap: effectiveSections.mindMap ? result.mindMap : undefined,
+            }))
+          );
+        } catch (error) {
+          this.ensureActive();
+          failed(error);
+        }
       }
       // Keep successful per-part output in source order. It is explicitly partial,
       // not a fabricated whole-source summary. No extra request is made on failure.
       return {
         titleVerdict: available[0].result.titleVerdict || '',
+        contentMetadata: this.parseContentMetadata(
+          {
+            topics: available.flatMap(p => p.result.contentMetadata?.topics || []),
+            answerableQuestions: available.flatMap(p => p.result.contentMetadata?.answerableQuestions || []),
+          },
+          capture
+        ),
         coreSummary: available.flatMap(part => part.result.coreSummary || []),
         customQuestionAnswers: [],
         mindMap: available.flatMap(part => part.result.mindMap || []),
@@ -928,8 +954,12 @@ export class AIProcessor {
     const eggResults = await Promise.all(
       eggs.map(async egg => {
         const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
-        const failed = (error: any, part?: number) => failures.push({ section: 'egg',
-          code: typeof error?.code === 'string' ? error.code : 'unknown', ...(part ? { part } : {}) });
+        const failed = (error: any, part?: number) =>
+          failures.push({
+            section: 'egg',
+            code: typeof error?.code === 'string' ? error.code : 'unknown',
+            ...(part ? { part } : {}),
+          });
         if (chunks.length === 1) {
           const result = (await this.analyzeAgainstEgg(capture, egg, '', signals, error => failed(error, 1))) || this.failedEgg(egg);
           return { ...result, ...(failures.length ? { analysisFailures: failures } : {}) };
@@ -1026,6 +1056,32 @@ export class AIProcessor {
       .join('\n\n');
   }
 
+  private parseContentMetadata(
+    value: any,
+    capture: { metadata?: { author?: string; authorHandle?: string; channelName?: string } }
+  ): ContentAnalysis['contentMetadata'] {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const clean = (items: unknown): string[] => {
+      const seen = new Set<string>();
+      return (Array.isArray(items) ? items : [])
+        .filter((item): item is string => typeof item === 'string')
+        .map(item => item.trim().slice(0, 500))
+        .filter(item => {
+          const key = item.normalize('NFKC').toLocaleLowerCase();
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 5);
+    };
+    const author = capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle;
+    return {
+      topics: clean(value.topics),
+      author: typeof author === 'string' && author.trim() ? author.trim() : null,
+      answerableQuestions: clean(value.answerableQuestions),
+    };
+  }
+
   /** Phase 1 — content-level summary + mind map + custom question answers. */
   private async callContentChunk(
     capture: {
@@ -1033,6 +1089,7 @@ export class AIProcessor {
       url: string;
       content: string;
       sourceType: string;
+      metadata?: CapturePayload['metadata'];
       chapters?: Array<{ time: string; title: string }>;
       questions?: string[];
       questionsScope?: QuestionScope;
@@ -1063,6 +1120,8 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      captured_author:
+        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
       part_note: partNoteStr,
       chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       questions: this.questionsBlock(
@@ -1118,6 +1177,7 @@ export class AIProcessor {
       : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
 
     return {
+      contentMetadata: this.parseContentMetadata(parsed.contentMetadata, capture),
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || 'Could not generate a verdict.') : '',
       coreSummary:
         sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
@@ -1156,6 +1216,8 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      captured_author:
+        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
       part_note: partNoteStr,
       content: capture.content,
       shared_output_rules: this.getEggOutputRules(egg, '', capture),
@@ -1274,6 +1336,8 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      captured_author:
+        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
       part_note: partNoteStr,
       content: this.truncate(capture.content, this.chunkWindowChars),
       shared_output_rules: this.getContentOutputRules(capture as any, 'within'),
@@ -1299,6 +1363,7 @@ export class AIProcessor {
       title: string;
       url: string;
       sourceType?: string;
+      metadata?: CapturePayload['metadata'];
       optimizeForConversation?: boolean;
       content?: string;
       chapters?: Array<{ time: string; title: string }>;
@@ -1310,11 +1375,13 @@ export class AIProcessor {
       part: number;
       startTime: string;
       bullets: string[];
+      contentMetadata?: ContentAnalysis['contentMetadata'];
       mindMap?: MindMapNode[];
     }>
   ): Promise<{
     titleVerdict: string;
     coreSummary: string[];
+    contentMetadata?: ContentAnalysis['contentMetadata'];
     customQuestionAnswers: KeyAnswer[];
     mindMap?: MindMapNode[];
     conversation?: ConversationMeta;
@@ -1332,6 +1399,8 @@ export class AIProcessor {
     const prompt = renderPrompt(prunedTpl, {
       title: capture.title,
       url: capture.url,
+      captured_author:
+        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
       chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       chunk_summaries: chunkSummaries
         .map(c => {
@@ -1341,7 +1410,7 @@ export class AIProcessor {
           if (sections.mindMap && Array.isArray(c.mindMap) && c.mindMap.length > 0) {
             mmStr = '\n### Key Concepts/Branches from this part:\n' + JSON.stringify(c.mindMap);
           }
-          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || '- (no summary)'}${mmStr}`;
+          return `## Part ${c.part} of ${chunkSummaries.length}${at}\n${bullets || '- (no summary)'}${mmStr}\nMetadata: ${JSON.stringify(c.contentMetadata || {})}`;
         })
         .join('\n\n'),
       questions: this.questionsBlock(
@@ -1374,6 +1443,7 @@ export class AIProcessor {
       : { mindMap: stripConversationFields(parsedMindMap), conversation: undefined };
 
     return {
+      contentMetadata: this.parseContentMetadata(parsed.contentMetadata, capture),
       titleVerdict: sections.titleVerdict ? String(parsed.titleVerdict || 'Could not generate a verdict.') : '',
       coreSummary:
         sections.coreSummary && Array.isArray(parsed.coreSummary) ? parsed.coreSummary.map(String).slice(0, 3) : [],
@@ -1590,6 +1660,8 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
+      captured_author:
+        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
       prior_qa: priorBlock,
       content: discussionContext
         ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * 0.6)) +

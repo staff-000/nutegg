@@ -9,7 +9,8 @@
     "tabs",
     "storage",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "offscreen"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
@@ -76,7 +77,11 @@
         "src/content/extractors/article.js",
         "src/content/extractors/generic.js",
         "src/content/source-navigation.js",
-        "src/content/content-script.js"
+        "src/content/content-script.js",
+        "src/i18n.js",
+        "src/panel/rules.js",
+        "src/panel/page-layout.js",
+        "src/panel/content-host.js"
       ],
       "run_at": "document_idle"
     }
@@ -90,5 +95,17 @@
       "description": "Quick capture current page."
     }
   },
-  "minimum_chrome_version": "116"
+  "minimum_chrome_version": "116",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/popup/popup.html"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "use_dynamic_url": true
+    }
+  ]
 }

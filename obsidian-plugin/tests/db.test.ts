@@ -171,3 +171,17 @@ it('migrates existing databases and round-trips exact structured discussion snap
     assert.deepEqual(db.getNutById(id!)?.capturePayload, capturePayload);
   } finally { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
 });
+
+
+it("round-trips optional content metadata without a schema migration", { skip: !sqliteAvailable() }, async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nutegg-metadata-test-"));
+  const adapter = { exists: async () => false, getBasePath: () => tmp };
+  const db = new NutEggDatabase({ settings: { rawFolder: "nutegg/_raw" }, app: { vault: { adapter,
+    createFolder: async (p: string) => fs.mkdirSync(path.join(tmp, p), { recursive: true }) } } } as any);
+  try {
+    await db.init();
+    const contentMetadata = { topics: ["Business"], author: "Dan Koe", answerableQuestions: ["How do I start?"] };
+    db.insertNut(capture({ url: "https://example.com/metadata", analysisResult: { titleVerdict: "Start small", coreSummary: ["Experiment"], customQuestionAnswers: [], matchedEggs: [], eggResults: [], newKnowledge: [], contentMetadata } }));
+    assert.deepEqual(db.getNutByUrl("https://example.com/metadata")?.analysisResult?.contentMetadata, contentMetadata);
+  } finally { db.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
+});

@@ -90,7 +90,9 @@ class ResultsViewComponent {
       notice.className = 'ai-section-failure';
       notice.setAttribute('role', 'status');
       const message = this.root.createElement('p');
-      const explanation = globalThis.NutEggHelpers.analysisFailureNotice({ analysisResult: { analysisFailures: failures } });
+      const explanation = globalThis.NutEggHelpers.analysisFailureNotice({
+        analysisResult: { analysisFailures: failures },
+      });
       message.textContent = t('analysisSectionFailed', { reason: explanation.reason });
       notice.appendChild(message);
       const retry = this.root.createElement('button');
@@ -186,6 +188,87 @@ class ResultsViewComponent {
       this.renderProvenance(prov);
       const effectiveSections = session?.enabledSections || settings?.enabledSections;
       this.renderCoreSummary(result.coreSummary, effectiveSections?.coreSummary !== false);
+      let metadataEl = this.root.getElementById('content-metadata');
+      if (!metadataEl && this.coreSummarySection && this.root.createElement) {
+        metadataEl = this.root.createElement('div');
+        metadataEl.id = 'content-metadata';
+        metadataEl.className = 'content-metadata';
+        this.coreSummarySection.append(metadataEl);
+      }
+      if (metadataEl) {
+        if (typeof metadataEl.replaceChildren === 'function') metadataEl.replaceChildren();
+        else metadataEl.textContent = '';
+        const metadata = result.contentMetadata;
+        if (metadata && effectiveSections?.coreSummary !== false && typeof this.root.createElement === 'function') {
+          const urlStr = session?.url || '';
+          let hostname = '';
+          try {
+            hostname = urlStr ? new URL(urlStr).hostname.replace(/^www\./, '') : '';
+          } catch {}
+          const renderChips = (labelKey, items, isAuthor = false) => {
+            if (!items?.length) return;
+            const row = this.root.createElement('div');
+            row.className = 'metadata-row';
+            const lbl = this.root.createElement('span');
+            lbl.className = 'metadata-label';
+            lbl.textContent = `${t(labelKey)}: `;
+            row.append(lbl);
+            for (const item of items) {
+              const btn = this.root.createElement('button');
+              btn.type = 'button';
+              btn.className = 'metadata-chip';
+              btn.textContent = item;
+              btn.title = hostname ? `Auto-open ${hostname} for "${item}"` : item;
+              btn.addEventListener('click', async () => {
+                if (!hostname || !globalThis.NutEggPanel?.send) return;
+                const res = await globalThis.NutEggPanel.send('panel-save-rule', {
+                  rule: {
+                    action: 'allow',
+                    hostname,
+                    website: globalThis.NutEggRules?.websiteRegex?.(urlStr),
+                    name: `${hostname} · ${item}`,
+                    topics: [item],
+                  },
+                }).catch(() => null);
+                if (res?.ok) {
+                  btn.classList.add('saved');
+                  btn.textContent = `✓ ${item}`;
+                }
+              });
+              row.append(btn);
+            }
+            metadataEl.append(row);
+          };
+          renderChips('panelTopics', metadata.topics);
+          if (metadata.author) renderChips('panelAuthor', [metadata.author], true);
+          if (metadata.answerableQuestions?.length) {
+            const qRow = this.root.createElement('div');
+            qRow.className = 'metadata-row metadata-questions-row';
+            const lbl = this.root.createElement('span');
+            lbl.className = 'metadata-label';
+            lbl.textContent = `${t('panelQuestions')}: `;
+            qRow.append(lbl);
+            for (const q of metadata.answerableQuestions) {
+              const btn = this.root.createElement('button');
+              btn.type = 'button';
+              btn.className = 'metadata-question-chip';
+              btn.textContent = q;
+              btn.addEventListener('click', () => {
+                const input = this.root.getElementById('followup-input');
+                const sendBtn = this.root.getElementById('followup-btn');
+                if (input) {
+                  input.value = q;
+                  input.dispatchEvent?.(new Event('input', { bubbles: true }));
+                  input.focus?.();
+                }
+                if (sendBtn && !sendBtn.disabled) sendBtn.click();
+              });
+              qRow.append(btn);
+            }
+            metadataEl.append(qRow);
+          }
+        }
+      }
     } else {
       this.showCapture();
     }
