@@ -148,8 +148,46 @@ globalThis.NutEggPanel = {
 
     if (container) {
       const headerEl = container.querySelector?.('.header');
-      if (headerEl) headerEl.after(status, ruleBar);
-      else container.prepend(status, ruleBar);
+      if (headerEl) {
+        headerEl.after(status, ruleBar);
+        if (context && !headerEl.hasAttribute('data-nutegg-draggable')) {
+          headerEl.setAttribute('data-nutegg-draggable', '');
+          let drag = null;
+          const finishDrag = (event, cancel = false) => {
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            if (drag.started) {
+              headerEl.removeAttribute('data-nutegg-dragging');
+              window.parent?.postMessage?.(
+                { action: 'nutegg-panel-drag-end', dx: event.screenX - drag.startX, cancel },
+                '*'
+              );
+            }
+            if (headerEl.hasPointerCapture?.(event.pointerId)) headerEl.releasePointerCapture(event.pointerId);
+            drag = null;
+          };
+          headerEl.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || event.target.closest?.('button, [role="button"], a, input, select, textarea'))
+              return;
+            drag = { pointerId: event.pointerId, startX: event.screenX, started: false };
+            headerEl.setPointerCapture?.(event.pointerId);
+          });
+          headerEl.addEventListener('pointermove', event => {
+            if (!drag || event.pointerId !== drag.pointerId) return;
+            const dx = event.screenX - drag.startX;
+            if (!drag.started) {
+              if (Math.abs(dx) < 4) return;
+              drag.started = true;
+              headerEl.setAttribute('data-nutegg-dragging', '');
+              window.parent?.postMessage?.({ action: 'nutegg-panel-drag-start' }, '*');
+            }
+            window.parent?.postMessage?.({ action: 'nutegg-panel-drag-move', dx }, '*');
+          });
+          headerEl.addEventListener('pointerup', event => finishDrag(event, false));
+          headerEl.addEventListener('pointercancel', event => finishDrag(event, true));
+        }
+      } else {
+        container.prepend(status, ruleBar);
+      }
     }
 
     let lastRuleBarKey = '';

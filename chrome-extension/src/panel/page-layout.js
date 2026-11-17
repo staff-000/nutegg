@@ -315,6 +315,19 @@
         if (actual.left !== target) this.write(item.node, 'left', `${target + target - actual.left}px`, this.fixed);
       }
     }
+    setSide(side) {
+      if (this.disposed || !['left', 'right'].includes(side) || this.side === side) return;
+      this.side = side;
+      this.horizontalOffset = 0;
+      this.restore(this.fixed);
+      this.restore(this.saved);
+      if (this.scrollbarHost) {
+        this.scrollbarHost.hidden = true;
+        this.scrollbarHost.style.setProperty('display', 'none', 'important');
+      }
+      if (this.layoutMode === 'auto') this.mode = 'floating';
+      this.update();
+    }
     setLayoutMode(layoutMode) {
       if (this.disposed || this.layoutMode === layoutMode) return;
       this.layoutMode = layoutMode;

@@ -4631,3 +4631,16 @@ body.density-ultra-compact .footer {
   cursor: pointer;
 }
 .metadata-question-chip:hover { background: #fdf6ed; border-color: #c9ad8c; }
+.header[data-nutegg-draggable] {
+  cursor: grab;
+  user-select: none;
+}
+.header[data-nutegg-dragging] {
+  cursor: grabbing;
+}
+.header[data-nutegg-draggable] button,
+.header[data-nutegg-draggable] [role='button'],
+.header[data-nutegg-draggable] a,
+.header[data-nutegg-draggable] input {
+  cursor: pointer;
+}

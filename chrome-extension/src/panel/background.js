@@ -190,6 +190,7 @@ var NutEggPanels = (() => {
         'panel-suggest-save',
         'panel-suggest-edit',
         'panel-resize',
+        'panel-side',
       ].includes(message.action)
     ) {
       if (sender.id !== chrome.runtime.id || tabId == null || sender.frameId !== 0 || !/^https?:/.test(sender.url))
@@ -278,6 +279,11 @@ var NutEggPanels = (() => {
         if (message.action === 'panel-host-close') return close(tabId);
         if (message.action === 'panel-resize') {
           settings = NutEggRules.normalize({ ...settings, width: message.width });
+          await chrome.storage.local.set({ panelSettings: settings });
+          return { ok: true };
+        }
+        if (message.action === 'panel-side') {
+          settings = NutEggRules.normalize({ ...settings, side: message.side });
           await chrome.storage.local.set({ panelSettings: settings });
           return { ok: true };
         }

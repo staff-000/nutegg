@@ -59,6 +59,17 @@ test('always push mode pushes right-docked pages even when right margin is clear
   layout.setLayoutMode('auto');
   assert.equal(host.getAttribute('data-nutegg-layout'), 'floating');
 });
+test('setSide switches pushed layout cleanly between right and left', t => {
+  const { doc, host, layout } = fixture(t, { right: 1500, layoutMode: 'push' });
+  assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
+  assert.equal(doc.documentElement.style.width, '1168px');
+  layout.setSide('left');
+  assert.equal(doc.documentElement.style.width, '');
+  assert.equal(doc.body.style.marginLeft, '440px');
+  layout.setSide('right');
+  assert.equal(doc.documentElement.style.width, '1168px');
+  assert.equal(doc.body.style.marginLeft, '8px');
+});
 test('left panels reserve the left side and resizing updates the reservation', t => {
   const { doc, layout } = fixture(t, { left: 20, right: 900, side: 'left' });
   assert.equal(doc.body.style.marginLeft, '440px');

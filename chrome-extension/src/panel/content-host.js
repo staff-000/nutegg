@@ -5,6 +5,9 @@
   let pageLayout,
     host,
     frame,
+    dragPreview,
+    dragSession,
+    applyHostSide,
     timer,
     maxTimer,
     lastUrl = location.href,
@@ -154,6 +157,10 @@
     if (!maxTimer) maxTimer = setTimeout(inspect, 2000);
   }
   function remove() {
+    dragPreview?.remove();
+    dragPreview = null;
+    dragSession = null;
+    applyHostSide = null;
     pageLayout?.dispose();
     pageLayout = null;
     host?.remove();
@@ -165,10 +172,10 @@
     host = document.createElement('div');
     host.setAttribute('data-nutegg-ui', '');
     const shadow = host.attachShadow({ mode: 'closed' });
-    const side = messageData.settings.side,
-      width = Math.min(messageData.settings.width, innerWidth);
+    let activeSide = messageData.settings.side === 'left' ? 'left' : 'right';
+    const width = Math.min(messageData.settings.width, innerWidth);
     const style = document.createElement('style');
-    style.textContent = `:host{all:initial;position:fixed!important;top:0!important;bottom:0!important;${side}:0!important;width:min(${width}px,100vw)!important;z-index:2147483646!important;box-shadow:0 0 24px #0003;background:#fcfaf7}iframe{border:0;width:100%;height:100%;display:block} .grip{position:absolute;top:0;bottom:0;${side === 'right' ? 'left' : 'right'}:0;width:6px;cursor:ew-resize;touch-action:none}`;
+    style.textContent = `:host{all:initial;position:fixed!important;top:0!important;bottom:0!important;${activeSide}:0!important;width:min(${width}px,100vw)!important;z-index:2147483646!important;box-shadow:0 0 24px #0003;background:#fcfaf7}iframe{border:0;width:100%;height:100%;display:block} .grip{position:absolute;top:0;bottom:0;${activeSide === 'right' ? 'left' : 'right'}:0;width:6px;cursor:ew-resize;touch-action:none}`;
     shadow.append(style);
     frame = document.createElement('iframe');
     frame.title = 'NutEgg';
@@ -180,9 +187,24 @@
     grip.setAttribute('aria-label', t('panelResize'));
     grip.tabIndex = 0;
     let activeWidth = width;
+    const hostStyle = () => style.sheet.cssRules[0].style;
+    const gripStyle = () => style.sheet.cssRules[2].style;
+    const dockTo = nextSide => {
+      activeSide = nextSide === 'left' ? 'left' : 'right';
+      hostStyle().removeProperty('left');
+      hostStyle().removeProperty('right');
+      hostStyle().setProperty(activeSide, '0', 'important');
+      gripStyle().removeProperty('left');
+      gripStyle().removeProperty('right');
+      gripStyle().setProperty(activeSide === 'right' ? 'left' : 'right', '0');
+      pageLayout?.setSide?.(activeSide);
+    };
+    applyHostSide = nextSide => {
+      if (nextSide !== activeSide) dockTo(nextSide);
+    };
     const resize = value => {
       activeWidth = Math.max(Math.min(280, innerWidth), Math.min(900, innerWidth, value));
-      style.sheet.cssRules[0].style.setProperty('width', `min(${activeWidth}px,100vw)`, 'important');
+      hostStyle().setProperty('width', `min(${activeWidth}px,100vw)`, 'important');
       pageLayout?.update(activeWidth);
     };
     grip.addEventListener('pointerdown', event => {
@@ -192,7 +214,7 @@
     });
     grip.addEventListener('pointermove', event => {
       if (grip.hasPointerCapture(event.pointerId))
-        resize(side === 'right' ? innerWidth - event.clientX : event.clientX);
+        resize(activeSide === 'right' ? innerWidth - event.clientX : event.clientX);
     });
     const done = () => {
       if (frame) frame.style.pointerEvents = '';
@@ -203,13 +225,55 @@
     grip.addEventListener('keydown', event => {
       if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         event.preventDefault();
-        resize(activeWidth + (event.key === 'ArrowLeft' ? -20 : 20) * (side === 'left' ? 1 : -1));
+        resize(activeWidth + (event.key === 'ArrowLeft' ? -20 : 20) * (activeSide === 'left' ? 1 : -1));
         done();
       }
     });
     shadow.append(grip);
     document.documentElement.append(host);
-    pageLayout = new NutEggPanelPageLayout(host, { side, width, layoutMode: messageData.settings.layoutMode });
+    pageLayout = new NutEggPanelPageLayout(host, { side: activeSide, width, layoutMode: messageData.settings.layoutMode });
+    dragSession = {
+      start: () => {
+        const startLeft = activeSide === 'right' ? Math.max(0, innerWidth - activeWidth) : 0;
+        dragSession.startLeft = startLeft;
+        dragSession.currentLeft = startLeft;
+        dragPreview?.remove();
+        dragPreview = document.createElement('div');
+        dragPreview.setAttribute('data-nutegg-ui', '');
+        dragPreview.style.cssText = `all:initial;position:fixed!important;top:0!important;bottom:0!important;${activeSide}:0!important;width:${activeWidth}px!important;background:rgba(168,87,24,0.1)!important;border:2px dashed rgba(168,87,24,0.45)!important;box-sizing:border-box!important;pointer-events:none!important;z-index:2147483645!important`;
+        document.documentElement.append(dragPreview);
+        hostStyle().removeProperty('right');
+        hostStyle().setProperty('left', `${startLeft}px`, 'important');
+      },
+      move: dx => {
+        if (dragSession.startLeft == null) dragSession.start();
+        const currentLeft = Math.max(0, Math.min(innerWidth - activeWidth, dragSession.startLeft + dx));
+        dragSession.currentLeft = currentLeft;
+        hostStyle().setProperty('left', `${currentLeft}px`, 'important');
+        const targetSide = currentLeft + activeWidth / 2 < innerWidth / 2 ? 'left' : 'right';
+        if (dragPreview) {
+          dragPreview.style.removeProperty('left');
+          dragPreview.style.removeProperty('right');
+          dragPreview.style.setProperty(targetSide, '0', 'important');
+        }
+      },
+      end: (dx, cancel) => {
+        const previousSide = activeSide;
+        const currentLeft =
+          dragSession.startLeft == null
+            ? previousSide === 'right'
+              ? Math.max(0, innerWidth - activeWidth)
+              : 0
+            : Math.max(0, Math.min(innerWidth - activeWidth, dragSession.startLeft + dx));
+        dragPreview?.remove();
+        dragPreview = null;
+        dragSession.startLeft = null;
+        const targetSide =
+          cancel || Math.abs(dx) < 16 ? previousSide : currentLeft + activeWidth / 2 < innerWidth / 2 ? 'left' : 'right';
+        dockTo(targetSide);
+        if (targetSide !== previousSide) void message('panel-side', { side: targetSide });
+      },
+    };
     if (!messageData.automatic) {
       setTimeout(() => void inspect(), 250);
     }
@@ -263,10 +327,18 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !host && settledKey !== NutEggPageIdentity.capturePageKey(location.href)) schedule();
   });
+  window.addEventListener('message', event => {
+    if (!frame || event.source !== frame.contentWindow || !dragSession) return;
+    const data = event.data;
+    if (data?.action === 'nutegg-panel-drag-start') dragSession.start();
+    if (data?.action === 'nutegg-panel-drag-move') dragSession.move(Number(data.dx) || 0);
+    if (data?.action === 'nutegg-panel-drag-end') dragSession.end(Number(data.dx) || 0, !!data.cancel);
+  });
   chrome.storage?.onChanged?.addListener((changes, areaName) => {
     if (areaName !== 'local' || !changes.panelSettings?.newValue || !pageLayout) return;
     const next = changes.panelSettings.newValue;
     lastSettings = next;
+    if (next.side) applyHostSide?.(next.side);
     if (next.layoutMode) pageLayout.setLayoutMode?.(next.layoutMode);
   });
   schedule();
