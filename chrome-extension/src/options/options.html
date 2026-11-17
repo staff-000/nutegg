@@ -11,7 +11,19 @@
     <main class="options-container">
       <header class="settings-header">
         <div class="brand"><img src="../../icons/icon32.png" alt="" class="logo-icon" /><span>NutEgg</span></div>
-        <span class="mode-badge" id="connection-mode-badge" data-i18n="settingsChromeMode">Works in Chrome</span>
+        <div class="settings-header-actions">
+          <button
+            id="export-config-top-btn"
+            class="secondary-btn"
+            type="button"
+            data-i18n="exportConfigBtn"
+            data-i18n-title="exportConfigTooltip"
+            title="Download settings as a local JSON file"
+          >
+            Export config
+          </button>
+          <span class="mode-badge" id="connection-mode-badge" data-i18n="settingsChromeMode">Works in Chrome</span>
+        </div>
       </header>
       <div class="settings-intro">
         <h1 data-i18n="settingsHeadline">Read less, hatch more, save time</h1>
@@ -582,7 +594,17 @@
         </div>
       </details>
       <footer class="settings-footer">
-        <a href="#" id="shortcuts-link" data-i18n="keyboardShortcutSection">Keyboard Shortcut</a
+        <button
+          id="export-config-bottom-btn"
+          class="text-btn"
+          type="button"
+          data-i18n="exportConfigBtn"
+          data-i18n-title="exportConfigTooltip"
+          title="Download settings as a local JSON file"
+        >
+          Export config</button
+        ><span aria-hidden="true">·</span
+        ><a href="#" id="shortcuts-link" data-i18n="keyboardShortcutSection">Keyboard Shortcut</a
         ><span aria-hidden="true">·</span
         ><button
           id="report-bug-btn"

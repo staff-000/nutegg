@@ -18,7 +18,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Header
   const header = el('div', 'panel-settings-header');
-  header.append(el('h2', '', t('panelSettings')));
+  const heading = el('h2');
+  const emoji = el('span', 'label-emoji', '🪟');
+  emoji.setAttribute('aria-hidden', 'true');
+  heading.append(emoji, ' ', t('panelSettings'));
+  header.append(heading);
   const status = el('span', 'panel-save-status');
   status.setAttribute('role', 'status');
   header.append(status);
@@ -96,7 +100,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const autoRow = row(t('panelAutoAnalyze'), autoCheck, t('panelHintAuto'));
   section.append(policyRow, autoRow);
 
-  // 3. Always-visible Whitelist & Blacklist Rules
+  // 3. Opening rules hidden under "Add custom rules"
+  const rulesDisclosure = el('details', 'panel-custom-rules');
+  const rulesSummary = el('summary', '', t('panelAddCustomRules'));
+  rulesDisclosure.append(rulesSummary);
+
   const rulesBox = el('div', 'panel-rules-box');
   const rulesHeader = el('div', 'panel-rules-header');
   rulesHeader.append(el('h3', '', t('panelRules')));
@@ -104,11 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const rulesActions = el('div', 'panel-rules-actions');
   const addBtn = el('button', 'secondary-btn', `+ ${t('panelAddRule')}`);
   addBtn.type = 'button';
-  const tryBtn = el('button', 'text-btn', t('panelTryExample'));
-  tryBtn.type = 'button';
-  const testCurrentBtn = el('button', 'text-btn', t('panelTest'));
-  testCurrentBtn.type = 'button';
-  rulesActions.append(addBtn, tryBtn, testCurrentBtn);
+  rulesActions.append(addBtn);
   rulesHeader.append(rulesActions);
   rulesBox.append(rulesHeader);
 
@@ -175,15 +179,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const editorBtns = el('div', 'panel-composer-footer');
   const saveRuleBtn = el('button', 'primary-btn', t('panelSave'));
   saveRuleBtn.type = 'button';
-  const testRuleBtn = el('button', 'secondary-btn', t('panelTest'));
-  testRuleBtn.type = 'button';
   const cancelRuleBtn = el('button', 'text-btn', t('panelCancel'));
   cancelRuleBtn.type = 'button';
-  editorBtns.append(cancelRuleBtn, testRuleBtn, saveRuleBtn);
+  editorBtns.append(cancelRuleBtn, saveRuleBtn);
   editor.append(editorBtns);
   editor.addEventListener('submit', event => event.preventDefault());
   rulesBox.append(editor);
-  section.append(rulesBox);
+  rulesDisclosure.append(rulesBox);
+  section.append(rulesDisclosure);
 
   function visibility() {
     const isNative = displaySelect.value === 'native';
@@ -192,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     nativeNotice.hidden = !isNative;
     policyRow.hidden = isNative;
     autoRow.hidden = isNative;
-    rulesBox.hidden = isNative;
+    rulesDisclosure.hidden = isNative;
     policySelect.disabled = isNative;
     autoCheck.disabled = isNative;
   }
@@ -271,24 +274,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  async function preview(rule) {
-    const res = await chrome.runtime.sendMessage({ action: 'panel-test-rules', rules: rule ? [rule] : undefined });
-    status.textContent =
-      res?.error || res?.decision?.error
-        ? t(res?.error === 'panelNoSignals' ? 'panelNoSignals' : 'panelInvalid')
-        : [
-            t(res.decision.open ? 'panelAllow' : 'panelBlock'),
-            res.decision.name === 'panelStarter' ? t('panelStarter') : res.decision.name,
-            res.decision.topic,
-            res.decision.minutes == null
-              ? t('panelMinutesUnknown')
-              : t('panelMinutes', { count: res.decision.minutes }),
-            t(res.decision.contentAvailable ? 'panelContentReady' : 'panelContentMissing'),
-          ]
-            .filter(Boolean)
-            .join(' · ');
-  }
-
   function edit(rule) {
     editing = rule || null;
     editor.hidden = false;
@@ -337,10 +322,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       editBtn.type = 'button';
       editBtn.addEventListener('click', () => edit(rule));
 
-      const testBtn = el('button', 'text-btn', t('panelTest'));
-      testBtn.type = 'button';
-      testBtn.addEventListener('click', () => void preview(rule));
-
       const delBtn = el('button', 'text-btn', t('panelDelete'));
       delBtn.type = 'button';
       delBtn.addEventListener('click', async () => {
@@ -349,33 +330,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         render();
       });
 
-      item.append(enabled, badge, summary, editBtn, testBtn, delBtn);
+      item.append(enabled, badge, summary, editBtn, delBtn);
       rulesList.append(item);
     }
   }
 
   addBtn.addEventListener('click', () => edit());
-  tryBtn.addEventListener('click', () =>
-    edit({
-      id: crypto.randomUUID(),
-      name: 'YouTube · Dan Koe',
-      enabled: true,
-      hostname: 'youtube.com',
-      website: NutEggRules.websiteRegex('youtube.com'),
-      action: 'allow',
-      topics: ['Dan Koe'],
-    })
-  );
-  testCurrentBtn.addEventListener('click', () => void preview());
   cancelRuleBtn.addEventListener('click', () => {
     editor.hidden = true;
-  });
-  testRuleBtn.addEventListener('click', () => {
-    try {
-      void preview(buildDraft());
-    } catch {
-      status.textContent = t('panelInvalid');
-    }
   });
   saveRuleBtn.addEventListener('click', async () => {
     try {
@@ -389,15 +351,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  const density = document.querySelector('#ui-density-card');
-  if (density) density.before(section);
-  else document.querySelector('.setup-card')?.after(section);
+  const reading = document.querySelector('#reading-preferences');
+  if (reading) reading.after(section);
+  else {
+    const density = document.querySelector('#ui-density-card');
+    if (density) density.before(section);
+    else document.querySelector('.setup-card')?.after(section);
+  }
   if (!section.isConnected) document.querySelector('.settings-intro')?.after(section);
   render();
   visibility();
 
   const draftRule = (await chrome.storage.session.get('panelRuleDraft')).panelRuleDraft;
   if (draftRule) {
+    rulesDisclosure.open = true;
     edit(draftRule);
     await chrome.storage.session.remove('panelRuleDraft');
     section.scrollIntoView();

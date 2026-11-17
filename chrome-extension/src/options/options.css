@@ -1158,8 +1158,12 @@ textarea {
 .panel-settings [hidden] { display: none !important; }
 .panel-field-hint { flex-basis: 100%; margin: -2px 0 6px; line-height: 1.4; }
 .panel-settings .panel-position-card { margin: 12px 0; box-shadow: none; }
+.panel-custom-rules { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.panel-custom-rules > summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink); }
+.panel-custom-rules .panel-rules-box { margin-top: 10px; padding-top: 0; border-top: 0; }
 .panel-advanced-matching { margin: 10px 0; padding: 10px 12px; border: 1px solid #ded8cf; border-radius: 8px; background: #fff; }
 .panel-advanced-matching summary { cursor: pointer; font-size: 13px; font-weight: 500; }
+.settings-header-actions { display: inline-flex; align-items: center; gap: 10px; }
 
 /* Keep the chevron comfortably inset instead of against the control edge. */
 select:not([multiple]) {

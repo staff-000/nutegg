@@ -1406,3 +1406,48 @@ function initChromeCacheSettings(stored) {
     void runCacheAction({ action: 'clear-chrome-cache' }, 'cacheCleared');
   });
 }
+
+function initConfigExport() {
+  const buttons = [
+    document.getElementById('export-config-top-btn'),
+    document.getElementById('export-config-bottom-btn'),
+  ].filter(Boolean);
+  if (!buttons.length) return;
+  const EXCLUDED_KEYS = new Set([
+    'chromeAiApiKey',
+    'chromeAiApiKeys',
+    'chromeAiSubscriptionToken',
+    'aiProfiles',
+    'cachedTabs',
+    'cachedMetrics',
+    'analysisCache',
+  ]);
+  const exportConfig = async btn => {
+    const all = await chrome.storage.local.get(null);
+    const config = {};
+    for (const [key, value] of Object.entries(all || {})) {
+      if (!EXCLUDED_KEYS.has(key) && !/apiKey|token|secret|cache/i.test(key)) config[key] = value;
+    }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: chrome.runtime.getManifest?.()?.version || '',
+      config,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nutegg-config-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const original = btn.textContent;
+    btn.textContent = t('configExported');
+    setTimeout(() => {
+      if (btn.textContent === t('configExported')) btn.textContent = original;
+    }, 2000);
+  };
+  for (const btn of buttons) {
+    btn.addEventListener('click', () => void exportConfig(btn));
+  }
+}
+initConfigExport();
