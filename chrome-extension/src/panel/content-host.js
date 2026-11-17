@@ -263,5 +263,11 @@
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !host && settledKey !== NutEggPageIdentity.capturePageKey(location.href)) schedule();
   });
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !changes.panelSettings?.newValue || !pageLayout) return;
+    const next = changes.panelSettings.newValue;
+    lastSettings = next;
+    if (next.layoutMode) pageLayout.setLayoutMode?.(next.layoutMode);
+  });
   schedule();
 })();

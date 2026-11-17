@@ -4,10 +4,10 @@ const { JSDOM } = require('jsdom');
 const { PanelPageLayout } = require('../src/panel/page-layout');
 function fixture(
   t,
-  { left = 550, right = 1050, side = 'right', scan = false, url = 'https://example.com/article', prepare } = {}
+  { left = 550, right = 1050, side = 'right', layoutMode = 'auto', scan = false, url = 'https://example.com/article', prepare } = {}
 ) {
   const dom = new JSDOM(
-    '<html style="margin-left:2px"><body><main><p>Readable content</p></main><div data-nutegg-ui></div></body></html>',
+    '<html style="margin-left:2px"><body style="margin-left:8px"><main><p>Readable content</p></main><div data-nutegg-ui></div></body></html>',
     { pretendToBeVisual: true, url }
   );
   t.after(() => dom.window.close());
@@ -29,7 +29,7 @@ function fixture(
   if (scan) for (let i = 0; i < 3100; i++) doc.querySelector('main').append(doc.createElement('span'));
   prepare?.(win);
   const host = doc.querySelector('[data-nutegg-ui]');
-  const layout = new PanelPageLayout(host, { side, width: 420, document: doc, window: win });
+  const layout = new PanelPageLayout(host, { side, width: 420, layoutMode, document: doc, window: win });
   t.after(() => layout.dispose());
   return { doc, win, host, layout };
 }
@@ -42,17 +42,29 @@ test('insufficient space reserves width and closing restores original styles', t
   const { doc, host, layout } = fixture(t, { right: 1500 });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
   assert.equal(doc.documentElement.style.width, '1168px');
-  assert.equal(doc.documentElement.style.marginRight, '432px');
+  assert.equal(doc.body.style.marginLeft, '8px');
+  assert.equal(layout.scrollbarHost.style.width, '1168px');
+  assert.equal(doc.querySelectorAll('[data-nutegg-page-scroll]').length, 1);
   layout.dispose();
   assert.equal(doc.documentElement.style.width, '');
   assert.equal(doc.documentElement.style.marginLeft, '2px');
 });
+test('always push mode pushes right-docked pages even when right margin is clear', t => {
+  const { doc, host, layout } = fixture(t, { right: 1050, layoutMode: 'push' });
+  assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
+  assert.equal(doc.documentElement.style.width, '1168px');
+  layout.setLayoutMode('floating');
+  assert.equal(host.getAttribute('data-nutegg-layout'), 'floating');
+  assert.equal(doc.documentElement.style.width, '');
+  layout.setLayoutMode('auto');
+  assert.equal(host.getAttribute('data-nutegg-layout'), 'floating');
+});
 test('left panels reserve the left side and resizing updates the reservation', t => {
   const { doc, layout } = fixture(t, { left: 20, right: 900, side: 'left' });
-  assert.equal(doc.documentElement.style.marginLeft, '432px');
+  assert.equal(doc.body.style.marginLeft, '440px');
   layout.update(500);
-  assert.equal(doc.documentElement.style.width, '1088px');
-  assert.equal(doc.documentElement.style.marginLeft, '512px');
+  assert.equal(layout.scrollbarHost.style.width, '1088px');
+  assert.equal(doc.body.style.marginLeft, '520px');
 });
 test('a wider panel switches from floating to inserted without oscillating', t => {
   const { layout } = fixture(t);
@@ -64,12 +76,12 @@ test('a wider panel switches from floating to inserted without oscillating', t =
 test('uncertain geometry reserves space and page-owned style changes survive cleanup', t => {
   const { doc, layout } = fixture(t, { scan: true });
   assert.equal(layout.mode, 'inserted');
-  doc.documentElement.style.setProperty('width', '777px');
+  doc.body.style.setProperty('margin-left', '777px');
   layout.dispose();
-  assert.equal(doc.documentElement.style.width, '777px');
+  assert.equal(doc.body.style.marginLeft, '777px');
 });
 
-test('Bilibili minimum-width app and centered video columns reflow without changing sticky positioning', t => {
+test('Bilibili columns retain their original layout and live DOM while the page pans horizontally', t => {
   const { doc, layout } = fixture(t, {
     left: 0,
     right: 1440,
@@ -90,14 +102,40 @@ test('Bilibili minimum-width app and centered video columns reflow without chang
       app.querySelector('.right-container').getBoundingClientRect = () => rect(1301, 350);
     },
   });
-  assert.equal(doc.querySelector('#app').style.minWidth, '0');
-  assert.equal(doc.querySelector('.video-container-v1').style.flexWrap, 'wrap');
-  assert.equal(doc.querySelector('.video-container-v1').style.justifyContent, 'flex-start');
+  const player = doc.querySelector('.left-container');
+  assert.equal(doc.querySelector('#app').style.minWidth, '1080px');
+  assert.equal(doc.querySelector('.video-container-v1').style.flexWrap, 'nowrap');
+  assert.equal(doc.querySelector('.video-container-v1').style.justifyContent, 'center');
   assert.equal(doc.querySelector('.left-container').style.position, 'sticky');
-  assert.equal(doc.body.style.overflowX, 'clip');
+  assert.ok(doc.body.style.clipPath);
+  assert.equal(doc.body.style.overflowX, '');
+  layout.horizontalOffset = 200;
+  layout.pan();
+  assert.equal(doc.body.style.marginLeft, '240px');
+  assert.equal(doc.querySelector('.left-container'), player);
   layout.dispose();
   assert.equal(doc.querySelector('#app').style.minWidth, '1080px');
   assert.equal(doc.querySelector('.video-container-v1').style.flexWrap, 'nowrap');
   assert.equal(doc.querySelector('.video-container-v1').style.justifyContent, 'center');
   assert.equal(doc.body.style.overflowX, '');
+  assert.equal(doc.body.style.clipPath, '');
+  assert.equal(doc.querySelector('[data-nutegg-page-scroll]'), null);
+});
+
+test('horizontal scrolling pans the existing page while ordinary vertical wheel scrolling remains native', t => {
+  const { doc, win, layout } = fixture(t, { left: 20, right: 900, side: 'left' });
+  const content = doc.querySelector('main');
+  layout.scrollbar.scrollLeft = 200;
+  layout.scrollbar.dispatchEvent(new win.Event('scroll'));
+  assert.equal(doc.body.style.marginLeft, '240px');
+  assert.equal(doc.querySelector('main'), content);
+  const vertical = new win.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+  doc.body.dispatchEvent(vertical);
+  assert.equal(vertical.defaultPrevented, false);
+  const horizontal = new win.WheelEvent('wheel', { deltaX: 100, bubbles: true, cancelable: true });
+  doc.body.dispatchEvent(horizontal);
+  assert.equal(horizontal.defaultPrevented, true);
+  assert.equal(doc.body.style.marginLeft, '140px');
+  layout.dispose();
+  assert.equal(doc.body.style.marginLeft, '8px');
 });

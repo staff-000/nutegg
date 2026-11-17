@@ -11,3 +11,5 @@ website/dist/
 promo-video/
 obsidian-plugin/tests-dist/
 shared/generated/
+__pycache__/
+*.pyc

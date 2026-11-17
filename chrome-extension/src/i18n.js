@@ -7944,6 +7944,9 @@
   const captureMetricLabels = {"en": "Fetched content", "zh_CN": "已抓取的正文", "ja": "取得済みの本文", "ko": "가져온 본문", "es": "Contenido capturado", "fr": "Contenu capturé", "de": "Erfasster Inhalt", "pt": "Conteúdo capturado", "ru": "Полученный текст", "ar": "المحتوى المجلوب"};
   for (const [locale, label] of Object.entries(captureMetricLabels)) translations[locale].panelCaptured = label;
 
+  const pageScrollLabels = {"en": "Scroll the webpage horizontally", "zh_CN": "横向滚动网页", "ja": "ウェブページを横にスクロール", "ko": "웹페이지 가로 스크롤", "es": "Desplazar la página horizontalmente", "fr": "Faire défiler la page horizontalement", "de": "Webseite horizontal scrollen", "pt": "Rolar a página horizontalmente", "ru": "Прокрутить страницу по горизонтали", "ar": "تمرير صفحة الويب أفقيًا"};
+  for (const [locale, label] of Object.entries(pageScrollLabels)) translations[locale].panelPageScroll = label;
+
   let currentLocale = 'en';
 
   /**
