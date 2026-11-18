@@ -138,26 +138,15 @@ var NutEggPanels = (() => {
       ...(author || topic ? { topics: [author || topic] } : {}),
     };
   }
-  function sameRuleScope(existing, rule) {
-    return (
-      existing.website === rule.website &&
-      JSON.stringify(existing.authors || []) === JSON.stringify(rule.authors || []) &&
-      JSON.stringify(existing.topics || []) === JSON.stringify(rule.topics || []) &&
-      existing.minMinutes == null &&
-      existing.maxMinutes == null &&
-      existing.contentAvailable == null
-    );
-  }
   async function upsertRule(rawRule) {
     const rule = NutEggRules.validate({
       id: rawRule.id || crypto.randomUUID(),
       enabled: rawRule.enabled !== false,
       ...rawRule,
     });
-    const baseRules = (settings.rules || []).filter(existing => !sameRuleScope(existing, rule));
     settings = NutEggRules.normalize({
       ...settings,
-      rules: [...baseRules, rule],
+      rules: NutEggRules.mergeRule(settings.rules, rule),
     });
     await chrome.storage.local.set({ panelSettings: settings });
     return rule;

@@ -27,10 +27,9 @@ async function setup(t, settings = defaults) {
   return { win, root, control, change, saved };
 }
 
-test('panel settings sit between Connect your AI and UI Density and show unified display control', async t => {
+test('panel settings sit below Make it yours and show unified display control', async t => {
   const { win, root, control, change } = await setup(t);
-  assert.equal(root.previousElementSibling.className, 'setup-card');
-  assert.equal(root.nextElementSibling.id, 'ui-density-card');
+  assert.equal(root.previousElementSibling.id, 'reading-preferences');
   const native = win.document.querySelector('.panel-position-card');
   assert.equal(native.closest('.panel-settings'), root);
   assert.equal(native.hidden, true);
@@ -41,7 +40,7 @@ test('panel settings sit between Connect your AI and UI Density and show unified
   assert.equal(native.hidden, false);
   assert.equal(control('Panel opening settings').disabled, true);
   assert.equal(control('Panel opening settings').closest('.option-row').hidden, true);
-  assert.equal(root.querySelector('.panel-rules-box').hidden, true);
+  assert.equal(root.querySelector('.panel-custom-rules').hidden, true);
   assert.equal(control('Page overlap').closest('.option-row').hidden, true);
 });
 
@@ -49,44 +48,59 @@ test('three opening presets are selected cleanly and custom rules stay visible a
   const { root, control, change, saved } = await setup(t);
   assert.equal(control('Panel opening settings').value, 'nutegg');
   assert.equal(control('Panel opening settings').options.length, 3);
-  assert.equal(root.querySelector('.panel-rules-box').hidden, false);
+  assert.equal(root.querySelector('.panel-custom-rules').hidden, false);
   for (const value of ['open', 'closed', 'nutegg']) {
     await change('Panel opening settings', value);
-    assert.equal(root.querySelector('.panel-rules-box').hidden, false);
+    assert.equal(root.querySelector('.panel-custom-rules').hidden, false);
     assert.equal(saved.at(-1).panelSettings.openingPolicy, value);
   }
 });
 
-test('Dan Koe example populates the 3-field composer with More conditions collapsed', async t => {
-  const { root, control, saved } = await setup(t);
-  const count = saved.length;
-  const tryBtn = [...root.querySelectorAll('.panel-rules-actions button')].find(b => b.textContent === 'Try this example');
-  tryBtn.click();
-  assert.equal(root.querySelector('.panel-rule-editor').hidden, false);
-  assert.equal(control('Website hostname (blank = all)').value, 'youtube.com');
-  assert.equal(control('Topics').value, 'Dan Koe');
-  assert.equal(control('Action').value, 'allow');
-  assert.equal(root.querySelector('.panel-advanced-matching').open, false);
-  assert.equal(saved.length, count);
-
-  const save = [...root.querySelectorAll('.panel-composer-footer button')].find(el => el.textContent === 'Save');
-  save.click();
+test('unified filter/add input adds a site card and inline chip adds topic/author/channel rule', async t => {
+  const { win, root, saved } = await setup(t);
+  const filterInput = root.querySelector('.panel-rules-filter');
+  filterInput.value = 'youtube.com';
+  filterInput.dispatchEvent(new win.Event('input', { bubbles: true }));
+  root.querySelector('.panel-rules-header').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }));
+  await flush();
+  const siteCard = [...root.querySelectorAll('.panel-site-card')].find(
+    c => c.querySelector('.panel-site-name')?.textContent === 'youtube.com'
+  );
+  assert.ok(siteCard);
+  const addChipBtn = siteCard.querySelector('.panel-chip-add');
+  assert.equal(addChipBtn.textContent, '+ topic / author / channel');
+  addChipBtn.click();
+  const chipInput = siteCard.querySelector('.panel-chip-input');
+  chipInput.value = 'Dan Koe';
+  chipInput.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
   await flush();
   const rule = saved.at(-1).panelSettings.rules.at(-1);
   assert.equal(rule.hostname, 'youtube.com');
   assert.deepEqual(rule.topics, ['Dan Koe']);
-  assert.equal(rule.authors, undefined);
 });
 
-test('editing an existing generated regex restores its friendly hostname and migrated topics', async t => {
-  const { root, control } = await setup(t, {
+test('existing generated regex rule and subdomain/sub-URL rules group into one root-domain card and master-detail switches selection', async t => {
+  const { root } = await setup(t, {
     ...defaults,
     openingPolicy: 'closed',
     rules: [
       { id: 'old', name: 'YouTube', website: websiteRegex('youtube.com'), action: 'allow', authors: ['Dan Koe'] },
+      { id: 'sub', name: 'YouTube Shorts', website: '^https://www\\.youtube\\.com/shorts', action: 'block' },
+      { id: 'zh', name: 'Zhihu', website: websiteRegex('zhihu.com'), action: 'allow', topics: ['AI'] },
     ],
   });
-  [...root.querySelectorAll('.panel-rule-row button')].find(el => el.textContent === 'Edit').click();
-  assert.equal(control('Website hostname (blank = all)').value, 'youtube.com');
-  assert.equal(control('Topics').value, 'Dan Koe');
+  // Master list has ranked items with Global on top and China on bottom; only 1 detail card renders at a time
+  const navKeys = [...root.querySelectorAll('.panel-site-nav-item')].map(el => el.dataset.siteKey);
+  assert.deepEqual(navKeys, ['*', 'youtube.com', 'zhihu.com']);
+  assert.equal(root.querySelectorAll('.panel-site-detail .panel-site-card').length, 1);
+  const ytCard = root.querySelector('.panel-site-detail .panel-site-card');
+  assert.equal(ytCard.querySelector('.panel-site-name').textContent, 'youtube.com');
+  assert.ok([...ytCard.querySelectorAll('.panel-topic-chip.allow')].some(c => c.textContent.includes('Dan Koe')));
+  assert.equal(ytCard.querySelectorAll('.panel-rule-row').length, 1);
+
+  // Clicking zhihu.com in the list switches the detail pane to zhihu.com with China tag
+  root.querySelector('.panel-site-nav-item[data-site-key="zhihu.com"]').click();
+  const zhCard = root.querySelector('.panel-site-detail .panel-site-card');
+  assert.equal(zhCard.querySelector('.panel-site-name').textContent, 'zhihu.com');
+  assert.equal(zhCard.querySelector('.panel-region-tag.is-china').textContent, 'China');
 });

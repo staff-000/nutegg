@@ -76,9 +76,8 @@
     const linkText = links.reduce((count, link) => count + (link.textContent?.length || 0), 0);
     const listing =
       !!document.querySelector('[role=feed]') ||
-      (!article && !video && links.length > 8 && linkText / Math.max(1, body.length) > 0.45) ||
-      /\/(?:feed|results|search|subscriptions|shorts)(?:\/|$)/.test(url.pathname) ||
-      (/(?:^|\.)youtube\.com$/.test(url.hostname) && url.pathname !== '/watch');
+      Boolean(globalThis.NutEggRules?.isListingUrl?.(location.href)) ||
+      (!article && !video && links.length > 8 && linkText / Math.max(1, body.length) > 0.45);
     const author =
       meta('meta[name="author"]') ||
       meta('meta[property="article:author"]') ||

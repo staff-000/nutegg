@@ -10,6 +10,66 @@
     contentAvailable: true,
     excludeListings: true,
   };
+  const GLOBAL_DOMAINS = ['youtube.com', 'reddit.com', 'substack.com', 'x.com', 'arxiv.org', 'medium.com'];
+  const CHINA_DOMAINS = ['bilibili.com', 'qq.com', 'zhihu.com', 'weibo.com', 'douyin.com', 'xiaohongshu.com'];
+  const DEFAULT_WHITELIST_HOSTS = [
+    'youtube.com',
+    'reddit.com',
+    'substack.com',
+    'x.com',
+    'arxiv.org',
+    'medium.com',
+    'bilibili.com',
+    'qq.com',
+    'zhihu.com',
+    'weibo.com',
+  ];
+  function domainRegion(host) {
+    const h = String(host || '').toLocaleLowerCase();
+    if (GLOBAL_DOMAINS.includes(h)) return 'global';
+    if (CHINA_DOMAINS.includes(h)) return 'china';
+    return '';
+  }
+  function compareDomains(a, b) {
+    const ha = String(a || '').toLocaleLowerCase(),
+      hb = String(b || '').toLocaleLowerCase();
+    const rank = h => {
+      const gi = GLOBAL_DOMAINS.indexOf(h);
+      if (gi !== -1) return [0, gi];
+      const ci = CHINA_DOMAINS.indexOf(h);
+      if (ci !== -1) return [2, ci];
+      return [1, 0];
+    };
+    const [ga, ia] = rank(ha),
+      [gb, ib] = rank(hb);
+    if (ga !== gb) return ga - gb;
+    if (ia !== ib) return ia - ib;
+    return ha.localeCompare(hb);
+  }
+  function rootDomain(rawInput) {
+    if (!rawInput || typeof rawInput !== 'string') return '';
+    let host = rawInput.trim();
+    if (!host || host === '*' || host === '.*') return '';
+    try {
+      const url = new URL(host.includes('://') ? host : `https://${host}`);
+      host = url.hostname;
+    } catch {
+      const m = host
+        .replace(/\\\./g, '.')
+        .match(/(?:https?:\/\/)?(?:[^/]+\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)/i);
+      host = m ? m[1] : '';
+    }
+    host = host.replace(/^www\./i, '').toLocaleLowerCase();
+    if (!host || !host.includes('.')) return '';
+    const parts = host.split('.');
+    if (parts.length <= 2) return host;
+    const sld = parts.at(-2),
+      tld = parts.at(-1);
+    if (/^(?:co|com|org|net|gov|edu|ac)$/.test(sld) && tld.length === 2 && parts.length >= 3) {
+      return parts.slice(-3).join('.');
+    }
+    return parts.slice(-2).join('.');
+  }
   const defaults = {
     version: 2,
     openingPolicy: 'nutegg',
@@ -114,9 +174,23 @@
       return '';
     }
   }
+  function buildDefaultRules() {
+    return DEFAULT_WHITELIST_HOSTS.map(host => ({
+      id: `default-${host}`,
+      name: host,
+      hostname: host,
+      website: websiteRegex(host),
+      enabled: true,
+      action: 'allow',
+      minMinutes: 3,
+      contentAvailable: true,
+      excludeListings: true,
+      _starter: true,
+    }));
+  }
   function activeRules(settings) {
     const custom = Array.isArray(settings.rules) ? settings.rules : [];
-    if (settings.openingPolicy === 'nutegg') return [...custom, { ...starter, _starter: true }];
+    if (settings.openingPolicy === 'nutegg') return [...custom, ...buildDefaultRules()];
     return custom;
   }
   function hasCustomRegex(settings) {
@@ -125,7 +199,40 @@
       return !websiteHostname(rule);
     });
   }
+  function isListingUrl(rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      const host = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
+      const path = url.pathname.replace(/\/+$/, '') || '/';
+      const hasItemQuery = /[?&](?:v|id|p|post|article|story|doc|status|item)=/i.test(url.search);
+      if (path === '/' && !hasItemQuery) return true;
+      if (
+        /^\/(?:home|index(?:\.[a-z0-9]+)?|feed|feeds|discover|explore|trending|popular|all|latest|new|top|hot|following|for-you|subscriptions|notifications|messages|bookmarks|lists|communities|search|results|shorts|reels|channels|categories|tags|topics|archive|directory)(?:\/|$)/i.test(
+          path
+        )
+      )
+        return true;
+      if ((host === 'youtube.com' || host.endsWith('.youtube.com')) && path !== '/watch' && !path.startsWith('/live/'))
+        return true;
+      if (
+        (host === 'x.com' || host.endsWith('.x.com') || host === 'twitter.com' || host.endsWith('.twitter.com')) &&
+        !/\/(?:status|article)\//.test(path)
+      )
+        return true;
+      if ((host === 'reddit.com' || host.endsWith('.reddit.com')) && !/\/comments\//.test(path)) return true;
+      if (
+        (host === 'bilibili.com' || host.endsWith('.bilibili.com')) &&
+        !/^\/(?:video|read|bangumi\/play)\//.test(path)
+      )
+        return true;
+      if (host === 'news.ycombinator.com' && path !== '/item') return true;
+      return false;
+    } catch {
+      return false;
+    }
+  }
   function decide(settings, signals, cached) {
+    const isListing = Boolean(signals.listing || isListingUrl(signals.url));
     const matches = [];
     for (const raw of activeRules(settings)) {
       if (raw.enabled === false) continue;
@@ -155,7 +262,7 @@
       if (rule.minMinutes != null && (signals.minutes == null || signals.minutes < rule.minMinutes)) continue;
       if (rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) continue;
       if (typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) continue;
-      if (rule.excludeListings && signals.listing) continue;
+      if (rule.excludeListings !== false && isListing) continue;
       const conditional = !!(
         authors.length ||
         topics.length ||
@@ -164,7 +271,7 @@
         rule.contentAvailable != null ||
         rule.excludeListings
       );
-      const rank = (rule.website === '.*' ? 0 : 2) + (conditional ? 1 : 0) + (raw._starter ? 0 : 0.5);
+      const rank = raw._starter ? 1 : (rule.website === '.*' ? 0 : 2) + (conditional ? 1 : 0) + 0.5;
       matches.push({ rule, rank, topic: topicMatch, author });
     }
     matches.sort((a, b) => b.rank - a.rank || Number(b.rule.action === 'block') - Number(a.rule.action === 'block'));
@@ -172,8 +279,9 @@
     return {
       open: match
         ? match.rule.action === 'allow'
-        : settings.openingPolicy === 'open' ||
-          (!['closed', 'nutegg'].includes(settings.openingPolicy) && settings.defaultOpen === true),
+        : !isListing &&
+          (settings.openingPolicy === 'open' ||
+            (!['closed', 'nutegg'].includes(settings.openingPolicy) && settings.defaultOpen === true)),
       ruleId: match?.rule.id || null,
       name: match?.rule.name || '',
       topic: match?.topic || null,
@@ -183,8 +291,77 @@
       contentAvailable: signals.contentAvailable,
     };
   }
+  function isSimpleSiteRule(rule) {
+    return (
+      rule &&
+      !list(rule.topics).length &&
+      !list(rule.authors).length &&
+      rule.minMinutes == null &&
+      rule.maxMinutes == null &&
+      rule.contentAvailable == null &&
+      rule.excludeListings !== true &&
+      (!rule.aliases || !Object.keys(rule.aliases).length) &&
+      (rule.website === '.*' || !!websiteHostname(rule))
+    );
+  }
+  function isSimpleTopicRule(rule) {
+    return (
+      rule &&
+      list(rule.topics).length > 0 &&
+      !list(rule.authors).length &&
+      rule.minMinutes == null &&
+      rule.maxMinutes == null &&
+      rule.contentAvailable == null &&
+      rule.excludeListings !== true &&
+      (!rule.aliases || !Object.keys(rule.aliases).length) &&
+      (rule.website === '.*' || !!websiteHostname(rule))
+    );
+  }
+  function mergeRule(existingRules, rawRule) {
+    const rule = validate({
+      id: rawRule.id || crypto.randomUUID(),
+      enabled: rawRule.enabled !== false,
+      ...rawRule,
+    });
+    const rules = Array.isArray(existingRules) ? existingRules.map(r => ({ ...r })) : [];
+    const host = websiteHostname(rule);
+    if (isSimpleTopicRule(rule)) {
+      const incoming = list(rule.topics);
+      const cleaned = [];
+      for (const item of rules) {
+        if (item.website === rule.website && isSimpleTopicRule(item) && item.action !== rule.action) {
+          const remaining = list(item.topics).filter(t => !incoming.some(n => fold(n) === fold(t)));
+          if (remaining.length) cleaned.push({ ...item, topics: remaining });
+        } else {
+          cleaned.push(item);
+        }
+      }
+      const target = cleaned.find(
+        item => item.website === rule.website && isSimpleTopicRule(item) && item.action === rule.action && item.enabled !== false
+      );
+      if (target) {
+        const merged = [...list(target.topics)];
+        for (const t of incoming) {
+          if (!merged.some(m => fold(m) === fold(t))) merged.push(t);
+        }
+        target.topics = merged.slice(0, 20);
+        return cleaned;
+      }
+      return [...cleaned, { ...rule, ...(host ? { hostname: host } : {}), topics: incoming }];
+    }
+    if (isSimpleSiteRule(rule)) {
+      const filtered = rules.filter(item => !(item.website === rule.website && isSimpleSiteRule(item)));
+      return [...filtered, { ...rule, ...(host ? { hostname: host } : {}) }];
+    }
+    return [...rules.filter(item => item.id !== rule.id), rule];
+  }
   const api = {
     defaults,
+    defaultRules: buildDefaultRules(),
+    DEFAULT_WHITELIST_HOSTS,
+    domainRegion,
+    compareDomains,
+    rootDomain,
     normalize,
     readingMinutes,
     contains,
@@ -193,7 +370,11 @@
     validate,
     activeRules,
     hasCustomRegex,
+    isListingUrl,
     decide,
+    isSimpleSiteRule,
+    isSimpleTopicRule,
+    mergeRule,
   };
   root.NutEggRules = api;
   if (typeof module !== 'undefined') module.exports = api;

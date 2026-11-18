@@ -103,3 +103,59 @@ test('legacy authors migrate to Topics and friendly hostnames round-trip', () =>
   assert.equal(rules.websiteHostname(rule()), 'youtube.com');
   assert.equal(rules.validate({ action: 'allow', hostname: 'youtube.com' }).website, rules.websiteRegex('youtube.com'));
 });
+test('mergeRule groups topics by site and action, and YouTube Closed + Dan Koe Open + OPC Closed resolves cleanly', () => {
+  let list = [];
+  list = rules.mergeRule(list, { hostname: 'youtube.com', website: rules.websiteRegex('youtube.com'), action: 'block' });
+  list = rules.mergeRule(list, { hostname: 'youtube.com', website: rules.websiteRegex('youtube.com'), action: 'allow', topics: ['Dan Koe'] });
+  list = rules.mergeRule(list, { hostname: 'youtube.com', website: rules.websiteRegex('youtube.com'), action: 'allow', topics: ['Lex Fridman'] });
+  list = rules.mergeRule(list, { hostname: 'youtube.com', website: rules.websiteRegex('youtube.com'), action: 'block', topics: ['OPC'] });
+  assert.equal(list.length, 3);
+  assert.deepEqual(list.find(r => r.action === 'allow' && r.topics?.length)?.topics, ['Dan Koe', 'Lex Fridman']);
+  // Other YouTube video -> Closed
+  assert.equal(decide(list, { ...page, author: 'Other', searchText: 'Random' }).open, false);
+  // Dan Koe video -> Open
+  assert.equal(decide(list, page).open, true);
+  // Dan Koe video about OPC -> Closed (block wins tie)
+  assert.equal(decide(list, { ...page, searchText: 'Building an OPC business' }).open, false);
+  // Moving Dan Koe to block removes it from allow
+  list = rules.mergeRule(list, { hostname: 'youtube.com', website: rules.websiteRegex('youtube.com'), action: 'block', topics: ['Dan Koe'] });
+  assert.deepEqual(list.find(r => r.action === 'allow' && r.topics?.length)?.topics, ['Lex Fridman']);
+});
+test('isListingUrl and decide skip x.com/home, root homepages, and feeds even under custom allow rules', () => {
+  assert.equal(rules.isListingUrl('https://x.com/home'), true);
+  assert.equal(rules.isListingUrl('https://x.com/dankoe/status/12345'), false);
+  assert.equal(rules.isListingUrl('https://example.com/'), true);
+  assert.equal(rules.isListingUrl('https://example.com/article'), false);
+  assert.equal(rules.isListingUrl('https://news.ycombinator.com/'), true);
+  assert.equal(rules.isListingUrl('https://news.ycombinator.com/item?id=123'), false);
+  const xAllow = [{ id: 'x', name: 'X', hostname: 'x.com', website: rules.websiteRegex('x.com'), action: 'allow' }];
+  assert.equal(decide(xAllow, { ...page, url: 'https://x.com/home' }).open, false);
+  assert.equal(decide(xAllow, { ...page, url: 'https://x.com/dankoe/status/12345' }).open, true);
+  // NutEgg default uses a curated whitelist (youtube.com is whitelisted; random-site.com is not)
+  const defSettings = rules.normalize();
+  assert.equal(rules.decide(defSettings, page).open, true);
+  assert.equal(rules.decide(defSettings, { ...page, url: 'https://random-site.com/article' }).open, false);
+  // rootDomain groups subdomains and sub-URLs into their root domain
+  assert.equal(rules.rootDomain('https://zhuanlan.zhihu.com/p/12345'), 'zhihu.com');
+  assert.equal(rules.rootDomain('mp.weixin.qq.com'), 'qq.com');
+  assert.equal(rules.rootDomain('^https://www\\.youtube\\.com/watch'), 'youtube.com');
+  // Domain ranking puts Global on top, custom in middle, China on bottom
+  const ranked = ['weibo.com', 'myblog.com', 'arxiv.org', 'bilibili.com', 'youtube.com', 'qq.com', 'reddit.com', 'zhihu.com', 'x.com', 'substack.com'].sort(
+    rules.compareDomains
+  );
+  assert.deepEqual(ranked, [
+    'youtube.com',
+    'reddit.com',
+    'substack.com',
+    'x.com',
+    'arxiv.org',
+    'myblog.com',
+    'bilibili.com',
+    'qq.com',
+    'zhihu.com',
+    'weibo.com',
+  ]);
+  assert.equal(rules.domainRegion('youtube.com'), 'global');
+  assert.equal(rules.domainRegion('bilibili.com'), 'china');
+  assert.equal(rules.domainRegion('myblog.com'), '');
+});
