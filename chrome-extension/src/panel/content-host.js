@@ -51,7 +51,9 @@
           if (m) sec = (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
         }
         if (!sec) {
-          const domDur = document.querySelector('.ytp-time-duration')?.textContent?.trim();
+          const domDur = document
+            .querySelector('.ytp-time-duration, .bpx-player-ctrl-time-duration')
+            ?.textContent?.trim();
           const parts = domDur ? domDur.split(':').map(Number) : [];
           if (parts.length >= 2 && parts.every(Number.isFinite)) {
             sec = parts.reduce((acc, n) => acc * 60 + n, 0);
@@ -83,7 +85,7 @@
       meta('meta[property="article:author"]') ||
       document
         .querySelector(
-          '[itemprop="author"] [itemprop="name"], [rel="author"], ytd-video-owner-renderer #channel-name a, #owner #channel-name a'
+          '[itemprop="author"] [itemprop="name"], [rel="author"], ytd-video-owner-renderer #channel-name a, #owner #channel-name a, .up-detail-top .up-name, .up-name, #v_upinfo .u-info .name'
         )
         ?.textContent?.trim() ||
       '';

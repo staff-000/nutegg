@@ -65,9 +65,11 @@ test('a description without a transcript does not become known reading time', as
 });
 test('compact header icon controls have localized popup hints and no extra mode bar', async t => {
   const { win, manager } = await fixture(t);
+  assert.equal(win.document.querySelector('.panel-smart-rule-bar'), null);
   win.NutEggPanel.context = { tabId: 1, key: 'https://example.com/article', settings: {} };
   await win.NutEggPanel.mount({ manager });
   assert.equal(win.document.querySelector('.panel-mode-bar'), null);
+  assert.ok(win.document.querySelector('.panel-smart-rule-bar'));
   const close = win.document.querySelector('.panel-close-button');
   assert.equal(close.getAttribute('data-hint'), 'Close NutEgg');
   assert.equal(close.getAttribute('aria-label'), 'Close NutEgg');

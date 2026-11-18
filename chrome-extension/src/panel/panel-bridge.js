@@ -111,7 +111,11 @@ globalThis.NutEggPanel = {
       }
     });
 
-    const controls = [modeBtn];
+    const ruleBar = document.createElement('div');
+    ruleBar.className = 'panel-smart-rule-bar';
+    ruleBar.setAttribute('data-nutegg-panel-ctrl', '');
+
+    const controls = context ? [ruleBar, modeBtn] : [modeBtn];
     if (context) {
       const close = document.createElement('button');
       close.type = 'button';
@@ -141,16 +145,13 @@ globalThis.NutEggPanel = {
       await chrome.storage.session.remove('panelRestrictedHint');
     }
 
-    // Quiet, dismissible in-panel smart rule bar
-    const ruleBar = document.createElement('div');
-    ruleBar.className = 'panel-smart-rule-bar hidden';
-    ruleBar.setAttribute('data-nutegg-panel-ctrl', '');
-
     if (container) {
       const topSlot = document.createElement('div');
       topSlot.className = 'panel-top-slot';
       topSlot.setAttribute('data-nutegg-panel-ctrl', '');
-      topSlot.append(status, ruleBar);
+      const activityEl = container.querySelector?.('#analysis-activity');
+      if (activityEl) topSlot.append(activityEl);
+      topSlot.append(status);
       const headerEl = container.querySelector?.('.header');
       if (headerEl) {
         headerEl.after(topSlot);
@@ -195,122 +196,262 @@ globalThis.NutEggPanel = {
     }
 
     let lastRuleBarKey = '';
+    document.addEventListener('click', e => {
+      if (!ruleBar.contains(e.target)) {
+        const menuEl = ruleBar.querySelector('.smart-rule-menu');
+        const triggerEl = ruleBar.querySelector('.smart-rule-trigger');
+        if (menuEl && !menuEl.classList.contains('hidden')) {
+          menuEl.classList.add('hidden');
+          triggerEl?.setAttribute('aria-expanded', 'false');
+        }
+      }
+    });
     const refreshRuleBar = async () => {
-      const tabId = context?.tabId ?? manager.activeTabId;
+      if (!context) return;
+      const tabId = context.tabId ?? manager.activeTabId;
       const tab = manager.getTab(tabId);
-      if (!tab?.url || !/^https?:/.test(tab.url)) {
-        ruleBar.classList.add('hidden');
-        return;
+      const rawUrl = tab?.url || context?.key || '';
+      const info = (await this.send('panel-get-suggestion', { tabId }).catch(() => null)) || {};
+      let hostname = info.hostname || '';
+      if (!hostname && /^https?:/.test(rawUrl)) {
+        try {
+          hostname =
+            globalThis.NutEggRules?.rootDomain?.(rawUrl) ||
+            new URL(rawUrl).hostname.replace(/^www\./, '').toLowerCase();
+        } catch {
+          hostname = '';
+        }
       }
-      const info = await this.send('panel-get-suggestion', { tabId }).catch(() => null);
-      if (!info || !info.hostname || info.dismissed) {
-        ruleBar.classList.add('hidden');
-        return;
-      }
-      const key = `${info.hostname}|${info.author || ''}|${(info.topics || []).join(',')}|${info.automatic}|${info.decision?.ruleId || ''}`;
+      const website =
+        info.website || (hostname && globalThis.NutEggRules?.websiteRegex ? globalThis.NutEggRules.websiteRegex(hostname) : hostname);
+      const author = info.author || tab?.extractedContent?.metadata?.author || null;
+      const topics = info.topics?.length
+        ? info.topics
+        : tab?.analysisResult?.topics || tab?.extractedContent?.metadata?.topics || [];
+      const isAutoOpened = Boolean(info.automatic || context?.automatic || tab?.panelClassification?.automatic);
+      const isSiteAllowed = Boolean(
+        info.isSiteAllowed ??
+          (hostname && (globalThis.NutEggRules?.DEFAULT_WHITELIST_HOSTS || []).includes(hostname))
+      );
+      const key = `${hostname}|${author || ''}|${topics.join(',')}|${isAutoOpened}|${info.decision?.ruleId || ''}|${info.minutes ?? ''}|${isSiteAllowed}`;
       if (key === lastRuleBarKey) return;
       lastRuleBarKey = key;
 
-      // Only show if auto-opened (quick mute) or if manually opened on a site without an explicit custom rule
-      const hasCustomRule = !!(info.decision?.ruleId && info.decision.name !== 'panelStarter');
-      if (!info.automatic && hasCustomRule) {
-        ruleBar.classList.add('hidden');
-        return;
-      }
-
       ruleBar.replaceChildren();
-      const label = document.createElement('span');
-      label.className = 'smart-rule-label';
-      label.textContent = info.automatic ? '⚡ Auto-opened' : '⚡ Auto-open?';
-      ruleBar.append(label);
+      const action = isAutoOpened ? 'block' : 'allow';
+      const trigger = document.createElement('button');
+      trigger.type = 'button';
+      trigger.className = `panel-icon-button smart-rule-trigger ${isAutoOpened ? 'is-muted' : 'is-active'}`;
+      trigger.setAttribute('aria-expanded', 'false');
+      const targetLabel = hostname || 'this site';
+      const hintText = isAutoOpened
+        ? `Auto-opened on ${targetLabel} (click to mute)`
+        : `Manually opened on ${targetLabel} (click for auto-open rules)`;
+      trigger.setAttribute('data-hint', hintText);
+      trigger.setAttribute('aria-label', hintText);
+      // Auto-opened -> show Mute (bell-slash); Manually opened -> show Ring (bell)
+      trigger.innerHTML = isAutoOpened
+        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+        : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
 
-      const action = info.automatic ? 'block' : 'allow';
-      const prefix = info.automatic ? 'Mute' : '+';
-      const saveAndConfirm = async ruleDraft => {
+      const menu = document.createElement('div');
+      menu.className = 'smart-rule-menu hidden';
+      const toggleMenu = (open = menu.classList.contains('hidden')) => {
+        menu.classList.toggle('hidden', !open);
+        trigger.setAttribute('aria-expanded', String(!!open));
+      };
+      trigger.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleMenu();
+      });
+
+      const saveAndConfirm = async (ruleDraft, savedLabel) => {
         const res = await this.send('panel-save-rule', { rule: ruleDraft });
         if (!res?.ok) return;
-        ruleBar.replaceChildren();
+        menu.replaceChildren();
+        const confirmRow = document.createElement('div');
+        confirmRow.className = 'smart-rule-confirm-row';
         const savedMsg = document.createElement('span');
         savedMsg.className = 'smart-rule-saved';
-        savedMsg.textContent = `✓ ${action === 'allow' ? 'Whitelisted' : 'Muted'}`;
+        savedMsg.textContent = `✓ ${savedLabel || (ruleDraft.action === 'allow' ? 'Auto-open saved' : 'Muted')}`;
         const undoBtn = document.createElement('button');
         undoBtn.type = 'button';
         undoBtn.className = 'smart-rule-chip';
         undoBtn.textContent = 'Undo';
         undoBtn.addEventListener('click', async () => {
           await this.send('panel-delete-rule', { id: res.rule.id });
-          ruleBar.classList.add('hidden');
+          toggleMenu(false);
+          lastRuleBarKey = '';
+          void refreshRuleBar();
         });
-        ruleBar.append(savedMsg, undoBtn);
-        setTimeout(() => ruleBar.classList.add('hidden'), 6000);
+        confirmRow.append(savedMsg, undoBtn);
+        menu.append(confirmRow);
+        toggleMenu(true);
+        setTimeout(() => {
+          toggleMenu(false);
+          lastRuleBarKey = '';
+          void refreshRuleBar();
+        }, 3500);
       };
 
-      const hasSiteSameAction = Boolean(
-        info.hasSiteRule &&
-        ((action === 'allow' && info.decision?.open) || (action === 'block' && !info.decision?.open))
-      );
-      if (!hasSiteSameAction) {
-        const siteChip = document.createElement('button');
-        siteChip.type = 'button';
-        siteChip.className = 'smart-rule-chip';
-        siteChip.textContent = `${prefix} ${info.hostname}`;
-        siteChip.addEventListener('click', () =>
-          void saveAndConfirm({
-            action,
-            hostname: info.hostname,
-            website: info.website,
-            name: info.hostname,
-          })
-        );
-        ruleBar.append(siteChip);
+      const addMenuItem = (text, onClick) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'smart-rule-menu-item';
+        item.textContent = text;
+        item.addEventListener('click', onClick);
+        menu.append(item);
+      };
+
+      if (hostname) {
+        const reason = document.createElement('div');
+        reason.className = 'smart-rule-reason';
+        if (isAutoOpened) {
+          reason.textContent = `Auto-opened on ${hostname}`;
+        } else if (isSiteAllowed) {
+          if (info.listing) {
+            reason.textContent = `${hostname} is auto-open (skipped on feed/list URL)`;
+          } else if (info.minutes != null && info.minutes < 3) {
+            reason.textContent = `${hostname} is auto-open (3+ min, this page is ${info.minutes} min)`;
+          } else if (info.decision?.ruleId && !info.decision?.open) {
+            reason.textContent = `Blocked by rule: ${info.decision.name || hostname}`;
+          } else {
+            reason.textContent = `Manually opened (${hostname} auto-opens at 3+ min)`;
+          }
+        } else {
+          reason.textContent = `Auto-open is off for ${hostname}`;
+        }
+        menu.append(reason);
+
+        if (isAutoOpened) {
+          addMenuItem(`🔕 Mute all of ${hostname}`, () =>
+            void saveAndConfirm(
+              {
+                action: 'block',
+                hostname,
+                website,
+                name: hostname,
+              },
+              `Muted ${hostname}`
+            )
+          );
+          if (author) {
+            addMenuItem(`🔕 Mute "${author}" on ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'block',
+                  hostname,
+                  website,
+                  name: `${hostname} · ${author}`,
+                  topics: [author],
+                },
+                `Muted ${author}`
+              )
+            );
+          }
+          if (topics[0] && topics[0] !== author) {
+            const topic = topics[0];
+            addMenuItem(`🔕 Mute topic "${topic}" on ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'block',
+                  hostname,
+                  website,
+                  name: `${hostname} · ${topic}`,
+                  topics: [topic],
+                },
+                `Muted ${topic}`
+              )
+            );
+          }
+        } else {
+          if (isSiteAllowed) {
+            if (!info.listing) {
+              addMenuItem(`🔔 Allow short pages on ${hostname} (0+ min)`, () =>
+                void saveAndConfirm(
+                  {
+                    action: 'allow',
+                    hostname,
+                    website,
+                    name: hostname,
+                    minMinutes: 0,
+                    excludeListings: true,
+                  },
+                  'Allowed 0+ min'
+                )
+              );
+            }
+          } else {
+            addMenuItem(`🔔 Auto-open all of ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'allow',
+                  hostname,
+                  website,
+                  name: hostname,
+                  excludeListings: true,
+                },
+                `Auto-open ${hostname}`
+              )
+            );
+          }
+          if (author) {
+            addMenuItem(`🔔 Auto-open "${author}" on ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'allow',
+                  hostname,
+                  website,
+                  name: `${hostname} · ${author}`,
+                  topics: [author],
+                },
+                `Auto-open ${author}`
+              )
+            );
+          }
+          if (topics[0] && topics[0] !== author) {
+            const topic = topics[0];
+            addMenuItem(`🔔 Auto-open topic "${topic}" on ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'allow',
+                  hostname,
+                  website,
+                  name: `${hostname} · ${topic}`,
+                  topics: [topic],
+                },
+                `Auto-open ${topic}`
+              )
+            );
+          }
+          if (isSiteAllowed) {
+            addMenuItem(`🔕 Mute all of ${hostname}`, () =>
+              void saveAndConfirm(
+                {
+                  action: 'block',
+                  hostname,
+                  website,
+                  name: hostname,
+                },
+                `Muted ${hostname}`
+              )
+            );
+          }
+        }
       }
 
-      const topicTarget = info.author || info.topics?.[0];
-      if (topicTarget) {
-        const topicChip = document.createElement('button');
-        topicChip.type = 'button';
-        topicChip.className = 'smart-rule-chip';
-        topicChip.textContent = `${prefix} ${info.hostname} · ${topicTarget}`;
-        topicChip.addEventListener('click', () =>
-          void saveAndConfirm({
+      addMenuItem('⚙️ Customize in Settings…', () => {
+        toggleMenu(false);
+        void this.send('panel-open-rule-editor', {
+          rule: {
             action,
-            hostname: info.hostname,
-            website: info.website,
-            name: `${info.hostname} · ${topicTarget}`,
-            topics: [topicTarget],
-          })
-        );
-        ruleBar.append(topicChip);
-      }
-
-      if (info.topics?.[0] && info.author && info.topics[0] !== info.author) {
-        const topic = info.topics[0];
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'smart-rule-chip';
-        chip.textContent = `${prefix} ${info.hostname} · ${topic}`;
-        chip.addEventListener('click', () =>
-          void saveAndConfirm({
-            action,
-            hostname: info.hostname,
-            website: info.website,
-            name: `${info.hostname} · ${topic}`,
-            topics: [topic],
-          })
-        );
-        ruleBar.append(chip);
-      }
-
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.className = 'smart-rule-dismiss';
-      dismiss.textContent = '×';
-      dismiss.setAttribute('aria-label', t('panelDismiss'));
-      dismiss.addEventListener('click', async () => {
-        ruleBar.classList.add('hidden');
-        await this.send('panel-dismiss-suggestion', { hostname: info.hostname });
+            ...(hostname ? { hostname, website, name: hostname } : {}),
+            ...(author || topics[0] ? { topics: [author || topics[0]] } : {}),
+          },
+        });
       });
-      ruleBar.append(dismiss);
+
+      ruleBar.append(trigger, menu);
       ruleBar.classList.remove('hidden');
     };
 

@@ -262,6 +262,7 @@ var NutEggPanels = (() => {
           const minutes = NutEggRules.readingMinutes(capture.content);
           const nextSignals = {
             ...(current.signals || { url: tab.url }),
+            author: String(capture.metadata?.author || current.signals?.author || '').slice(0, 300),
             minutes,
             contentAvailable: true,
           };
@@ -316,28 +317,46 @@ var NutEggPanels = (() => {
     }
     if (message.action === 'panel-get-suggestion' && target != null) {
       const current = await state(target);
-      if (!current.signals?.url) return { suggestion: null };
-      let hostname = '';
-      try {
-        hostname = new URL(current.signals.url).hostname.replace(/^www\./, '').toLowerCase();
-      } catch {}
+      const tabUrl = current.signals?.url || (await chrome.tabs.get(target).catch(() => null))?.url;
+      if (!tabUrl || !/^https?:/.test(tabUrl)) return { suggestion: null };
+      const hostname =
+        NutEggRules.rootDomain?.(tabUrl) ||
+        new URL(tabUrl).hostname.replace(/^www\./, '').toLowerCase();
       const dismissed = (settings.dismissedSuggestions || []).includes(hostname);
-      const author = current.cached?.author || current.signals.author || null;
+      const author =
+        current.cached?.author ||
+        current.signals?.author ||
+        current.transfer?.extractedContent?.metadata?.author ||
+        null;
       const topics = current.cached?.topics || [];
-      const siteRegex = NutEggRules.websiteRegex(current.signals.url);
-      const hasSiteRule = (settings.rules || []).some(
-        r => r.enabled !== false && r.website === siteRegex && NutEggRules.isSimpleSiteRule(r)
+      const siteRegex = NutEggRules.websiteRegex(hostname);
+      const customSiteRule = (settings.rules || []).find(
+        r => r.enabled !== false && r.website === siteRegex && !r.topics?.length && !r.authors?.length
+      );
+      const isDefaultWhitelisted =
+        settings.openingPolicy === 'nutegg' && (NutEggRules.DEFAULT_WHITELIST_HOSTS || []).includes(hostname);
+      const isSiteAllowed = Boolean(
+        customSiteRule ? customSiteRule.action === 'allow' : isDefaultWhitelisted || settings.openingPolicy === 'open'
       );
       return {
         dismissed,
         hostname,
         website: siteRegex,
-        hasSiteRule,
+        hasSiteRule: Boolean(customSiteRule),
+        isSiteAllowed,
+        minutes: current.signals?.minutes ?? null,
+        listing: Boolean(current.signals?.listing || NutEggRules.isListingUrl?.(tabUrl)),
+        contentAvailable: current.signals?.contentAvailable ?? false,
         author,
         topics,
         decision: current.decision,
         automatic: !!current.automatic,
       };
+    }
+    if (message.action === 'panel-open-rule-editor') {
+      if (message.rule) await chrome.storage.session.set({ panelRuleDraft: message.rule });
+      await chrome.runtime.openOptionsPage();
+      return { ok: true };
     }
     if (message.action === 'panel-dismiss-suggestion') {
       const host = typeof message.hostname === 'string' ? message.hostname.trim().toLowerCase() : '';
