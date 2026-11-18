@@ -137,10 +137,14 @@ test('isListingUrl and decide skip x.com/home, root homepages, and feeds even un
   assert.equal(rules.decide(defSettings, { ...page, url: 'https://random-site.com/article' }).open, false);
   // rootDomain groups subdomains and sub-URLs into their root domain
   assert.equal(rules.rootDomain('https://zhuanlan.zhihu.com/p/12345'), 'zhihu.com');
-  assert.equal(rules.rootDomain('mp.weixin.qq.com'), 'qq.com');
+  assert.equal(rules.rootDomain('https://mp.weixin.qq.com/s/abc'), 'mp.weixin.qq.com');
   assert.equal(rules.rootDomain('^https://www\\.youtube\\.com/watch'), 'youtube.com');
+  // Bilibili watchlater / list and WeChat articles are allowed (not skipped as listings)
+  assert.equal(rules.isListingUrl('https://www.bilibili.com/list/watchlater?bvid=BV123'), false);
+  assert.equal(rules.isListingUrl('https://mp.weixin.qq.com/s/abc123'), false);
+  assert.equal(rules.isListingUrl('https://mp.weixin.qq.com/'), true);
   // Domain ranking puts Global on top, custom in middle, China on bottom
-  const ranked = ['weibo.com', 'myblog.com', 'arxiv.org', 'bilibili.com', 'youtube.com', 'qq.com', 'reddit.com', 'zhihu.com', 'x.com', 'substack.com'].sort(
+  const ranked = ['weibo.com', 'myblog.com', 'arxiv.org', 'bilibili.com', 'youtube.com', 'mp.weixin.qq.com', 'reddit.com', 'zhihu.com', 'x.com', 'substack.com'].sort(
     rules.compareDomains
   );
   assert.deepEqual(ranked, [
@@ -151,7 +155,7 @@ test('isListingUrl and decide skip x.com/home, root homepages, and feeds even un
     'arxiv.org',
     'myblog.com',
     'bilibili.com',
-    'qq.com',
+    'mp.weixin.qq.com',
     'zhihu.com',
     'weibo.com',
   ]);

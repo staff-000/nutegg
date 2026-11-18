@@ -137,7 +137,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   ]);
   const websiteInput = el('input');
   websiteInput.type = 'text';
-  websiteInput.placeholder = 'youtube.com, * or /^https:\\/\\//';
+  websiteInput.placeholder = 'youtube.com, youtube.com/shorts, or *';
+
+  const websiteRow = row(t('panelWebsite'), websiteInput);
+  const websitePreview = el('p', 'hint panel-website-preview');
+  websiteRow.append(websitePreview);
 
   const topicsInput = el('input');
   topicsInput.type = 'text';
@@ -146,7 +150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const primaryGrid = el('div', 'panel-composer-grid');
   primaryGrid.append(
     row(t('panelAction'), actionSel),
-    row(t('panelWebsite'), websiteInput),
+    websiteRow,
     row(t('panelTopics'), topicsInput)
   );
   editor.append(primaryGrid);
@@ -242,6 +246,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       .map(v => v.trim())
       .filter(Boolean);
 
+  function resolveWebsiteInput(rawInput) {
+    const rawSite = String(rawInput || '').trim();
+    if (!rawSite || rawSite === '*' || rawSite === '.*') {
+      return { hostname: '', website: '.*' };
+    }
+    if (rawSite.startsWith('/') && rawSite.endsWith('/') && rawSite.length > 2) {
+      const pattern = rawSite.slice(1, -1);
+      new RegExp(pattern, 'i');
+      return { hostname: '', website: pattern };
+    }
+    if (rawSite.startsWith('^')) {
+      new RegExp(rawSite, 'i');
+      return { hostname: '', website: rawSite };
+    }
+    const rootHost = NutEggRules.rootDomain(rawSite);
+    const website = rawSite.includes('/') ? NutEggRules.subUrlRegex(rootHost, rawSite) : NutEggRules.websiteRegex(rawSite);
+    const hostname = NutEggRules.websiteHostname({ website });
+    return { hostname, website };
+  }
+
+  function updateWebsitePreview() {
+    try {
+      const { website } = resolveWebsiteInput(websiteInput.value);
+      websitePreview.textContent = `Regex: ${website}`;
+      websitePreview.classList.remove('is-error');
+    } catch {
+      websitePreview.textContent = t('panelInvalid');
+      websitePreview.classList.add('is-error');
+    }
+  }
+  websiteInput.addEventListener('input', updateWebsitePreview);
+
   function buildDraft() {
     const aliasMap = {};
     for (const line of aliasesInput.value.split('\n').filter(l => l.trim())) {
@@ -250,19 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       aliasMap[topic.trim()] = parseCsv(rest.join(':'));
     }
 
-    const rawSite = websiteInput.value.trim();
-    let hostname = '';
-    let website = '.*';
-    if (!rawSite || rawSite === '*' || rawSite === '.*') {
-      website = '.*';
-    } else if (rawSite.startsWith('/') && rawSite.endsWith('/') && rawSite.length > 2) {
-      website = rawSite.slice(1, -1);
-    } else if (rawSite.startsWith('^')) {
-      website = rawSite;
-    } else {
-      hostname = rawSite;
-      website = NutEggRules.websiteRegex(rawSite);
-    }
+    const { hostname, website } = resolveWebsiteInput(websiteInput.value);
 
     const topicList = parseCsv(topicsInput.value);
     const derivedName = nameInput.value.trim() || [hostname || t('panelAllWebsites'), ...topicList].join(' · ');
@@ -288,7 +312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     editor.hidden = false;
     actionSel.value = rule?.action || 'allow';
     const friendlyHost = NutEggRules.websiteHostname(rule);
-    websiteInput.value = friendlyHost || (rule?.website && rule.website !== '.*' ? rule.website : '');
+    websiteInput.value =
+      friendlyHost || (rule?.website && rule.website !== '.*' ? rule.website : selectedKey !== '*' ? selectedKey : '');
+    updateWebsitePreview();
     topicsInput.value = [...new Set([...(rule?.topics || []), ...(rule?.authors || [])])].join(', ');
     nameInput.value = rule?.name === 'panelStarter' ? t('panelStarter') : rule?.name || '';
     aliasesInput.value = Object.entries(rule?.aliases || {})
@@ -441,6 +467,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           website,
           defaultRule: null,
           siteRule: null,
+          allowUrls: [],
+          blockUrls: [],
           allowTopics: [],
           blockTopics: [],
           advanced: [],
@@ -472,13 +500,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       const g = isGlobal ? globalGroup : ensureGroup(groupHost, groupHost, NutEggRules.websiteRegex(groupHost));
       const isRootScope = isGlobal || exactHost === groupHost;
-      if (isRootScope && NutEggRules.isSimpleSiteRule(rule) && rule.enabled !== false) {
+      const isRootSiteConditionRule =
+        isRootScope &&
+        !rule.topics?.length &&
+        !rule.authors?.length &&
+        (!rule.aliases || !Object.keys(rule.aliases).length);
+      const isSimpleSubUrlRule =
+        !isRootScope &&
+        !rule.topics?.length &&
+        !rule.authors?.length &&
+        rule.minMinutes == null &&
+        rule.maxMinutes == null &&
+        rule.contentAvailable == null &&
+        rule.excludeListings !== true &&
+        (!rule.aliases || !Object.keys(rule.aliases).length);
+      if (isRootSiteConditionRule && rule.enabled !== false) {
         g.siteRule = rule;
       } else if (isRootScope && NutEggRules.isSimpleTopicRule(rule) && rule.enabled !== false) {
         const listTarget = rule.action === 'block' ? g.blockTopics : g.allowTopics;
         for (const topic of rule.topics || []) {
           if (!listTarget.some(v => v.toLocaleLowerCase() === topic.toLocaleLowerCase())) listTarget.push(topic);
         }
+      } else if (isSimpleSubUrlRule && rule.enabled !== false) {
+        if (rule.action === 'block') g.blockUrls.push(rule);
+        else g.allowUrls.push(rule);
       } else {
         g.advanced.push(rule);
       }
@@ -570,18 +615,75 @@ document.addEventListener('DOMContentLoaded', async () => {
         const card = el('div', `panel-site-card${active.defaultRule ? ' is-default-site' : ''}`);
         const head = el('div', 'panel-site-head');
         const titleWrap = el('div', 'panel-site-title-wrap');
-        titleWrap.append(el('span', 'panel-site-name', active.hostname));
+        const siteNameEl = el('span', 'panel-site-name', active.hostname);
+        if (!active.defaultRule) {
+          siteNameEl.title = t('panelEdit');
+          siteNameEl.classList.add('is-editable');
+          siteNameEl.addEventListener('click', () => {
+            const nameInputEl = el('input', 'panel-site-rename-input');
+            nameInputEl.type = 'text';
+            nameInputEl.value = active.hostname;
+            siteNameEl.replaceWith(nameInputEl);
+            nameInputEl.focus();
+            nameInputEl.select();
+            let done = false;
+            const commitRename = async saveIt => {
+              if (done) return;
+              done = true;
+              const nextHost = NutEggRules.rootDomain(nameInputEl.value.trim());
+              if (saveIt && nextHost && nextHost !== active.hostname) {
+                const oldHost = active.hostname;
+                const nextRegex = NutEggRules.websiteRegex(nextHost);
+                settings.rules = settings.rules.map(r => {
+                  if (ruleGroupHost(r) !== oldHost) return r;
+                  const exact = NutEggRules.websiteHostname(r);
+                  if (exact === oldHost) return { ...r, hostname: nextHost, website: nextRegex, name: nextHost };
+                  return r;
+                });
+                if (draftSites.delete(oldHost)) draftSites.add(nextHost);
+                selectedKey = nextHost;
+                await persist();
+              } else if (saveIt && nameInputEl.value.trim() && !nextHost) {
+                status.textContent = t('panelInvalid');
+              }
+              render();
+            };
+            nameInputEl.addEventListener('keydown', e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void commitRename(true);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                void commitRename(false);
+              }
+            });
+            nameInputEl.addEventListener('blur', () => void commitRename(true));
+          });
+        }
+        titleWrap.append(siteNameEl);
         const regionBadge = makeRegionBadge(active.hostname);
         if (regionBadge) titleWrap.append(regionBadge);
-        if (active.defaultRule && active.siteRule?.action !== 'block') {
-          titleWrap.append(
-            el(
-              'span',
-              'panel-rule-default-tag',
-              `${t('panelDefaultTag')} · ${describeRule(active.defaultRule).replace(/^[^·]+·\s*/, '')}`
-            )
-          );
+        const condSource = active.siteRule || active.defaultRule;
+        const primaryParts = [active.siteRule ? t('panelEdit') : t('panelDefaultTag')];
+        if (condSource?.minMinutes != null) primaryParts.push(`${condSource.minMinutes}+ min`);
+        if (condSource?.maxMinutes != null) primaryParts.push(`≤${condSource.maxMinutes} min`);
+        if (condSource?.contentAvailable === true) primaryParts.push(t('panelContentReady'));
+        else if (condSource?.contentAvailable === false) primaryParts.push(t('panelContentMissing'));
+
+        const condBtn = el('button', 'panel-rule-default-tag is-editable');
+        condBtn.type = 'button';
+        condBtn.setAttribute('aria-label', t('panelEdit'));
+        const condTextWrap = el('span', 'panel-default-tag-text');
+        condTextWrap.append(el('span', 'panel-default-tag-line', primaryParts.join(' · ')));
+        if (condSource?.excludeListings) {
+          condTextWrap.append(el('span', 'panel-default-tag-sub', t('panelSkipLists')));
         }
+        const condEditIcon = el('span', 'panel-default-tag-edit');
+        condEditIcon.setAttribute('aria-hidden', 'true');
+        condEditIcon.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+        condBtn.append(condTextWrap, condEditIcon);
+        titleWrap.append(condBtn);
         head.append(titleWrap);
 
         const headRight = el('div', 'panel-site-controls');
@@ -600,8 +702,166 @@ document.addEventListener('DOMContentLoaded', async () => {
         head.append(headRight);
         card.append(head);
 
+        const condEditor = el('div', 'panel-site-conditions-bar');
+        condEditor.hidden = true;
+        const condMin = el('input', 'panel-cond-min');
+        condMin.type = 'number';
+        condMin.min = '0';
+        condMin.placeholder = '0';
+        condMin.value = condSource?.minMinutes ?? '';
+        const condAvail = makeSelect([
+          ['any', t('panelAny')],
+          ['yes', t('panelContentReady')],
+          ['no', t('panelContentMissing')],
+        ]);
+        condAvail.value =
+          typeof condSource?.contentAvailable === 'boolean'
+            ? condSource.contentAvailable
+              ? 'yes'
+              : 'no'
+            : 'any';
+        const condLists = el('input');
+        condLists.type = 'checkbox';
+        condLists.checked = condSource?.excludeListings !== false;
+        const condSaveBtn = el('button', 'secondary-btn', t('panelSave'));
+        condSaveBtn.type = 'button';
+
+        const makeCondField = (labelText, ctrl) => {
+          const wrap = el('label', 'panel-cond-field');
+          wrap.append(el('span', '', labelText), ctrl);
+          return wrap;
+        };
+        condEditor.append(
+          makeCondField(t('panelMin'), condMin),
+          makeCondField(t('panelAvailability'), condAvail),
+          makeCondField(t('panelSkipLists'), condLists),
+          condSaveBtn
+        );
+        condBtn.addEventListener('click', () => {
+          condEditor.hidden = !condEditor.hidden;
+        });
+        condSaveBtn.addEventListener('click', async () => {
+          const nextRule = NutEggRules.validate({
+            id: active.siteRule?.id || crypto.randomUUID(),
+            enabled: true,
+            name: active.hostname,
+            hostname: active.hostname,
+            website: active.website,
+            action: active.siteRule?.action || 'allow',
+            ...(condMin.value !== '' ? { minMinutes: Number(condMin.value) } : {}),
+            ...(condAvail.value !== 'any' ? { contentAvailable: condAvail.value === 'yes' } : {}),
+            excludeListings: condLists.checked,
+          });
+          settings.rules = [
+            ...settings.rules.filter(r => r.id !== active.siteRule?.id),
+            nextRule,
+          ];
+          draftSites.delete(active.hostname);
+          await persist();
+          render();
+        });
+        card.append(condEditor);
+
+        const makeUrlChipRow = (labelText, kind, urlRules, defaultPaths = []) => {
+          const rowEl = el('div', 'panel-chip-row');
+          rowEl.append(el('span', 'panel-chip-label', labelText));
+          const chips = el('div', 'panel-chip-list');
+          for (const pathLabel of defaultPaths) {
+            const pathRegex = NutEggRules.subUrlRegex(active.hostname, pathLabel);
+            if (active.blockUrls.some(r => r.website === pathRegex)) continue;
+            const chip = el('span', `panel-topic-chip ${kind}`);
+            chip.append(el('span', '', `${active.hostname}${pathLabel}`));
+            const rm = el('button', 'panel-chip-remove', '×');
+            rm.type = 'button';
+            rm.setAttribute('aria-label', `${t('panelDelete')} ${pathLabel}`);
+            rm.addEventListener('click', async () => {
+              settings.rules = NutEggRules.mergeRule(settings.rules, {
+                name: `${active.hostname}${pathLabel}`,
+                website: pathRegex,
+                action: 'block',
+              });
+              await persist();
+              render();
+            });
+            chip.append(rm);
+            chips.append(chip);
+          }
+          for (const r of urlRules) {
+            const label = NutEggRules.friendlyUrlLabel(r);
+            const chip = el('span', `panel-topic-chip ${kind}`);
+            chip.append(el('span', '', label));
+            const rm = el('button', 'panel-chip-remove', '×');
+            rm.type = 'button';
+            rm.setAttribute('aria-label', `${t('panelDelete')} ${label}`);
+            rm.addEventListener('click', async () => {
+              settings.rules = settings.rules.filter(item => item.id !== r.id);
+              await persist();
+              render();
+            });
+            chip.append(rm);
+            chips.append(chip);
+          }
+          const addBtnEl = el('button', 'panel-chip-add', t('panelTreeAddUrl'));
+          addBtnEl.type = 'button';
+          addBtnEl.addEventListener('click', () => {
+            const input = el('input', 'panel-chip-input');
+            input.type = 'text';
+            input.placeholder = t('panelTreeUrlPlaceholder');
+            addBtnEl.replaceWith(input);
+            input.focus();
+            let done = false;
+            const commit = async saveIt => {
+              if (done) return;
+              done = true;
+              const val = input.value.trim();
+              if (saveIt && val) {
+                try {
+                  const regex = NutEggRules.subUrlRegex(active.hostname, val);
+                  const hostMatch = NutEggRules.websiteHostname({ website: regex });
+                  settings.rules = [
+                    ...settings.rules.filter(item => !(item.website === regex && item.action !== kind)),
+                    NutEggRules.validate({
+                      id: crypto.randomUUID(),
+                      enabled: true,
+                      name: val,
+                      ...(hostMatch ? { hostname: hostMatch } : {}),
+                      website: regex,
+                      action: kind,
+                    }),
+                  ];
+                  draftSites.delete(active.hostname);
+                  await persist();
+                } catch {
+                  status.textContent = t('panelInvalid');
+                }
+              }
+              render();
+            };
+            input.addEventListener('keydown', e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void commit(true);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                void commit(false);
+              }
+            });
+            input.addEventListener('blur', () => void commit(true));
+          });
+          chips.append(addBtnEl);
+          rowEl.append(chips);
+          return rowEl;
+        };
+
         const body = el('div', 'panel-site-body');
         body.append(
+          makeUrlChipRow(
+            t('panelTreeOpenUrls'),
+            'allow',
+            active.allowUrls,
+            active.defaultRule ? NutEggRules.domainDefaultPaths(active.hostname) : []
+          ),
+          makeUrlChipRow(t('panelTreeClosedUrls'), 'block', active.blockUrls),
           makeChipRow(
             t('panelTreeOpenFor'),
             'allow',

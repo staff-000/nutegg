@@ -11,7 +11,7 @@
     excludeListings: true,
   };
   const GLOBAL_DOMAINS = ['youtube.com', 'reddit.com', 'substack.com', 'x.com', 'arxiv.org', 'medium.com'];
-  const CHINA_DOMAINS = ['bilibili.com', 'qq.com', 'zhihu.com', 'weibo.com', 'douyin.com', 'xiaohongshu.com'];
+  const CHINA_DOMAINS = ['bilibili.com', 'mp.weixin.qq.com', 'qq.com', 'zhihu.com', 'weibo.com', 'douyin.com', 'xiaohongshu.com'];
   const DEFAULT_WHITELIST_HOSTS = [
     'youtube.com',
     'reddit.com',
@@ -20,10 +20,60 @@
     'arxiv.org',
     'medium.com',
     'bilibili.com',
-    'qq.com',
+    'mp.weixin.qq.com',
     'zhihu.com',
     'weibo.com',
   ];
+  const DOMAIN_PATH_HINTS = {
+    'youtube.com': ['/watch', '/live/*'],
+    'reddit.com': ['/comments/*'],
+    'substack.com': ['/p/*'],
+    'x.com': ['/status/*', '/article/*'],
+    'arxiv.org': ['/abs/*', '/html/*', '/pdf/*'],
+    'medium.com': ['/*/*'],
+    'bilibili.com': ['/video/*', '/read/*', '/bangumi/play/*', '/list/*'],
+    'mp.weixin.qq.com': ['/s/*'],
+    'zhihu.com': ['/question/*', '/p/*'],
+    'weibo.com': ['/detail/*', '/*/*'],
+  };
+  function domainDefaultPaths(host) {
+    return DOMAIN_PATH_HINTS[String(host || '').toLocaleLowerCase()] || [];
+  }
+  function domainScopeHint(host) {
+    const h = String(host || '').toLocaleLowerCase();
+    if (!h) return '';
+    const paths = DOMAIN_PATH_HINTS[h];
+    return paths ? `*.${h} (${paths.join(', ')})` : `*.${h}/*`;
+  }
+  function subUrlRegex(rootHost, rawInput) {
+    const raw = String(rawInput || '').trim();
+    if (!raw) throw new Error('Invalid website');
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (raw.startsWith('/')) {
+      const cleanPath = raw.replace(/\/\*+$/, '').replace(/\/+$/, '') || '/';
+      return `^https?://(?:[^/]+\\.)?${esc(rootHost)}(?::[0-9]+)?${esc(cleanPath)}(?:[/?#]|$)`;
+    }
+    const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
+    const host = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
+    const cleanPath = url.pathname.replace(/\/\*+$/, '').replace(/\/+$/, '');
+    if (!cleanPath || cleanPath === '/') return websiteRegex(host);
+    const hostPattern = host === rootHost ? `(?:[^/]+\\.)?${esc(host)}` : `(?:www\\.)?${esc(host)}`;
+    return `^https?://${hostPattern}(?::[0-9]+)?${esc(cleanPath)}(?:[/?#]|$)`;
+  }
+  function friendlyUrlLabel(rule) {
+    const host = websiteHostname(rule);
+    if (host) return host;
+    const raw = String(rule?.website || '');
+    const m = raw.match(
+      /^\^https\??:\/\/(?:\(\?:[^)]+\)\??)?(?:www\\\.)?([a-z0-9\\.-]+)(?:\(\?:\[0-9\]\+\)\?)?(\/[^($]+)?/i
+    );
+    if (m) {
+      const h = m[1].replace(/\\\./g, '.');
+      const p = (m[2] || '').replace(/\\\//g, '/').replace(/\\\./g, '.');
+      return p ? `${h}${p}` : h;
+    }
+    return raw;
+  }
   function domainRegion(host) {
     const h = String(host || '').toLocaleLowerCase();
     if (GLOBAL_DOMAINS.includes(h)) return 'global';
@@ -61,6 +111,7 @@
     }
     host = host.replace(/^www\./i, '').toLocaleLowerCase();
     if (!host || !host.includes('.')) return '';
+    if (host === 'mp.weixin.qq.com') return host;
     const parts = host.split('.');
     if (parts.length <= 2) return host;
     const sld = parts.at(-2),
@@ -222,9 +273,10 @@
       if ((host === 'reddit.com' || host.endsWith('.reddit.com')) && !/\/comments\//.test(path)) return true;
       if (
         (host === 'bilibili.com' || host.endsWith('.bilibili.com')) &&
-        !/^\/(?:video|read|bangumi\/play)\//.test(path)
+        !/^\/(?:video|read|bangumi\/play|list)\//.test(path)
       )
         return true;
+      if (host === 'mp.weixin.qq.com' && !/^\/s(?:\/|$)/.test(path)) return true;
       if (host === 'news.ycombinator.com' && path !== '/item') return true;
       return false;
     } catch {
@@ -360,6 +412,10 @@
     defaultRules: buildDefaultRules(),
     DEFAULT_WHITELIST_HOSTS,
     domainRegion,
+    domainDefaultPaths,
+    domainScopeHint,
+    subUrlRegex,
+    friendlyUrlLabel,
     compareDomains,
     rootDomain,
     normalize,

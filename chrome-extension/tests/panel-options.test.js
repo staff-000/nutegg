@@ -67,8 +67,10 @@ test('unified filter/add input adds a site card and inline chip adds topic/autho
     c => c.querySelector('.panel-site-name')?.textContent === 'youtube.com'
   );
   assert.ok(siteCard);
-  const addChipBtn = siteCard.querySelector('.panel-chip-add');
-  assert.equal(addChipBtn.textContent, '+ topic / author / channel');
+  const addChipBtn = [...siteCard.querySelectorAll('.panel-chip-add')].find(
+    b => b.textContent === '+ topic / author / channel'
+  );
+  assert.ok(addChipBtn);
   addChipBtn.click();
   const chipInput = siteCard.querySelector('.panel-chip-input');
   chipInput.value = 'Dan Koe';
@@ -80,7 +82,7 @@ test('unified filter/add input adds a site card and inline chip adds topic/autho
 });
 
 test('existing generated regex rule and subdomain/sub-URL rules group into one root-domain card and master-detail switches selection', async t => {
-  const { root } = await setup(t, {
+  const { win, root, control, saved } = await setup(t, {
     ...defaults,
     openingPolicy: 'closed',
     rules: [
@@ -96,11 +98,43 @@ test('existing generated regex rule and subdomain/sub-URL rules group into one r
   const ytCard = root.querySelector('.panel-site-detail .panel-site-card');
   assert.equal(ytCard.querySelector('.panel-site-name').textContent, 'youtube.com');
   assert.ok([...ytCard.querySelectorAll('.panel-topic-chip.allow')].some(c => c.textContent.includes('Dan Koe')));
-  assert.equal(ytCard.querySelectorAll('.panel-rule-row').length, 1);
+  assert.ok([...ytCard.querySelectorAll('.panel-topic-chip.block')].some(c => c.textContent.includes('youtube.com/shorts')));
 
   // Clicking zhihu.com in the list switches the detail pane to zhihu.com with China tag
   root.querySelector('.panel-site-nav-item[data-site-key="zhihu.com"]').click();
   const zhCard = root.querySelector('.panel-site-detail .panel-site-card');
   assert.equal(zhCard.querySelector('.panel-site-name').textContent, 'zhihu.com');
   assert.equal(zhCard.querySelector('.panel-region-tag.is-china').textContent, 'China');
+
+  // Adding a subdomain / sub-URL chip directly saves a friendly rule without editing raw regex
+  const addUrlBtn = [...zhCard.querySelectorAll('.panel-chip-add')].find(b => b.textContent === '+ subdomain / URL');
+  assert.ok(addUrlBtn);
+  addUrlBtn.click();
+  const urlInput = zhCard.querySelector('.panel-chip-input');
+  urlInput.value = 'zhuanlan.zhihu.com';
+  urlInput.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  await flush();
+  assert.ok(
+    [...root.querySelectorAll('.panel-site-detail .panel-topic-chip.allow')].some(c =>
+      c.textContent.includes('zhuanlan.zhihu.com')
+    )
+  );
+
+  // Advanced rule composer auto-updates regex preview as user types domain or domain/path
+  root.querySelector('.panel-rules-actions button.text-btn').click();
+  const siteInput = control('Website hostname (blank = all)');
+  siteInput.value = 'example.org';
+  siteInput.dispatchEvent(new win.Event('input', { bubbles: true }));
+  assert.equal(root.querySelector('.panel-website-preview').textContent, `Regex: ${websiteRegex('example.org')}`);
+
+  // Clicking panel-rule-default-tag opens inline condition editor for contentAvailable and minMinutes
+  const condTag = root.querySelector('.panel-site-detail .panel-rule-default-tag.is-editable');
+  assert.ok(condTag);
+  condTag.click();
+  const condBar = root.querySelector('.panel-site-conditions-bar');
+  assert.equal(condBar.hidden, false);
+  condBar.querySelector('select').value = 'no';
+  condBar.querySelector('button').click();
+  await flush();
+  assert.equal(saved.at(-1).panelSettings.rules.at(-1).contentAvailable, false);
 });
