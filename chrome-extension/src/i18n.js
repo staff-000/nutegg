@@ -382,12 +382,12 @@
       aiError: '❌ AI Error: {error}',
 
       aiBannerConnected:
-        "🟢 <strong>Obsidian is currently connected.</strong> NutEgg uses Obsidian's AI configuration and vault knowledge tree by default.",
+        "🟢 Obsidian is currently connected. NutEgg uses Obsidian's AI configuration and vault knowledge tree by default.",
       aiBannerConnectedFallback: ' The settings below will act as your fallback when Obsidian is closed.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian is currently offline.</strong> NutEgg will run in standalone mode using the AI configuration below for fast content verdicts and summaries.',
+        '🟠 Obsidian is currently offline. NutEgg will run in standalone mode using the AI configuration below for fast content verdicts and summaries.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian is currently offline.</strong> Standalone Chrome AI is turned off. Start Obsidian to capture, or enable the option below.',
+        '⚪ Obsidian is currently offline. Standalone Chrome AI is turned off. Start Obsidian to capture, or enable the option below.',
       sectionPreferencesSaved: 'Section preferences saved.',
       checkingObsidianStatus: 'Checking Obsidian status...',
       versionMismatchShort: ' ⚠️ Version mismatch: Plugin is v{pluginVersion}, Extension is v{extVersion}.',
@@ -400,7 +400,7 @@
       promptOptFollowUp: 'Follow-up Q&A',
       obsidianPitchTitle: '💡 Want full knowledge curation?',
       obsidianPitchDesc:
-        'Chrome standalone mode provides fast reading verdicts and summaries. Connecting NutEgg with the <strong>Obsidian companion plugin</strong> unlocks automated knowledge tree matching, delta tracking across reading sessions, and direct vault note saving.',
+        'Chrome standalone mode provides fast reading verdicts and summaries. Connecting NutEgg with the Obsidian companion plugin unlocks automated knowledge tree matching, delta tracking across reading sessions, and direct vault note saving.',
       aiSettingsSaved: 'AI Settings saved successfully.',
       resetPromptDefault: 'Reset {key} prompt to default.',
       invalidPortNumber: 'Invalid port number (1-65535).',
@@ -431,9 +431,9 @@
       versionMismatchFull:
         'Version mismatch: Chrome extension is v{extVersion}, but Obsidian plugin is v{pluginVersion}. Please update both to the same version for full compatibility.',
       aiKeyRequiredChrome:
-        '<strong>AI Key Required:</strong> Standalone Chrome AI is enabled, but no API key is configured.',
+        'AI Key Required: Standalone Chrome AI is enabled, but no API key is configured.',
       obsidianOfflineBanner:
-        '<strong>Obsidian is offline:</strong> Start Obsidian to capture, or enable standalone Chrome AI in Settings.',
+        'Obsidian is offline: Start Obsidian to capture, or enable standalone Chrome AI in Settings.',
       enableChromeAiBtn: '⚡ Enable Chrome AI',
 
       atLeastOneSection: 'At least one analysis section must remain enabled.',
@@ -620,7 +620,7 @@
       nutCollectedVault: 'Nut collected to Obsidian vault!',
       noNewKnowledgeToAdd: 'No new knowledge found to add',
       stage1NutSavedNotice:
-        '<strong>Nut collected to vault!</strong> Raw content saved. You can still hatch the egg below if you want.',
+        'Nut collected to vault! Raw content saved. You can still hatch the egg below if you want.',
       stage1NoEggsNotice: 'No eggs in vault. Create an egg to run analysis.',
       stage1NoSelectedNotice: 'No egg selected, pick an egg to run egg analysis.',
       stage1SelectedNotice: '{count} egg(s) selected, review and run egg analysis.',
@@ -642,13 +642,13 @@
       stateSaved: 'saved',
       stateCollected: 'collected',
       stateAnalyzed: 'analyzed',
-      unprocessedParent: '🐣 → Unprocessed · suggested under: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Unprocessed · suggested under: {parent}',
       unprocessedOnly: '🐣 → Unprocessed',
       eggKeyQuestions: '💬 Key Questions for this Egg ({count})',
       viewCovered: '▸ View Covered',
       hideCovered: '▾ Hide Covered',
       badgeCovered: 'Covered',
-      underParent: 'under: <strong>{parent}</strong>',
+      underParent: 'under: {parent}',
       alreadyKnown: 'Already known',
       currentKnowledgeInEgg: '📚 Current Knowledge in Egg',
       viewTree: '▸ View Tree',
@@ -718,7 +718,7 @@
       obsidianNoKeyConfig:
         'Obsidian is connected but no AI API key is configured. Please add an API key in Obsidian → NutEgg Settings.',
       errorHintNoApiKey:
-        'Open Obsidian Settings → NutEgg, enable <strong>Developer Mode</strong>, and add your API key.',
+        'Open Obsidian Settings → NutEgg, enable Developer Mode, and add your API key.',
       errorHintAuthFailed: 'Your API key was rejected. Double-check it in Obsidian Settings → NutEgg.',
       errorHintForbidden: 'Your account may not have access to this model, or needs a funded billing plan.',
       errorHintModelNotFound: 'The model name may be incorrect. Go to Settings and try a different model.',
@@ -1069,12 +1069,12 @@
       aiError: '❌ AI 错误：{error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian 当前已连接。</strong>NutEgg 默认使用 Obsidian 的 AI 配置和知识库 Egg 树。',
+        '🟢 Obsidian 当前已连接。NutEgg 默认使用 Obsidian 的 AI 配置和知识库 Egg 树。',
       aiBannerConnectedFallback: ' 以下设置将在 Obsidian 关闭时作为备用配置生效。',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian 当前未启动。</strong>NutEgg 将使用下方的 AI 配置运行独立模式，快速生成内容结论和摘要。',
+        '🟠 Obsidian 当前未启动。NutEgg 将使用下方的 AI 配置运行独立模式，快速生成内容结论和摘要。',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian 当前未启动。</strong>Chrome 独立 AI 已关闭。请打开 Obsidian 进行捕获，或启用下方选项。',
+        '⚪ Obsidian 当前未启动。Chrome 独立 AI 已关闭。请打开 Obsidian 进行捕获，或启用下方选项。',
       sectionPreferencesSaved: '分析模块设置已保存。',
       checkingObsidianStatus: '正在检查 Obsidian 状态...',
       versionMismatchShort: ' ⚠️ 版本不匹配：插件版本为 v{pluginVersion}，扩展版本为 v{extVersion}。',
@@ -1087,7 +1087,7 @@
       promptOptFollowUp: '追问答疑 Q&A',
       obsidianPitchTitle: '💡 想要完整的知识树策展？',
       obsidianPitchDesc:
-        'Chrome 独立模式提供快速阅读结论与摘要。将 NutEgg 连接至 <strong>Obsidian 伴侣插件</strong>，即可解锁自动知识树匹配、增量洞察提取以及将笔记直接保存至本地知识库。',
+        'Chrome 独立模式提供快速阅读结论与摘要。将 NutEgg 连接至 Obsidian 伴侣插件，即可解锁自动知识树匹配、增量洞察提取以及将笔记直接保存至本地知识库。',
       aiSettingsSaved: 'AI 设置已保存成功。',
       resetPromptDefault: '已将 {key} 提示词重置为默认值。',
       invalidPortNumber: '无效的端口号（1-65535）。',
@@ -1117,9 +1117,9 @@
 
       versionMismatchFull:
         '版本不匹配：Chrome 扩展版本为 v{extVersion}，而 Obsidian 插件版本为 v{pluginVersion}。请更新至相同版本以获得完整兼容性。',
-      aiKeyRequiredChrome: '<strong>需要 AI 密钥：</strong>已启用 Chrome 独立 AI，但尚未配置 API 密钥。',
+      aiKeyRequiredChrome: '需要 AI 密钥：已启用 Chrome 独立 AI，但尚未配置 API 密钥。',
       obsidianOfflineBanner:
-        '<strong>Obsidian 未启动：</strong>请打开 Obsidian 进行知识捕获，或在设置中开启 Chrome 独立 AI。',
+        'Obsidian 未启动：请打开 Obsidian 进行知识捕获，或在设置中开启 Chrome 独立 AI。',
       enableChromeAiBtn: '⚡ 开启 Chrome AI',
 
       atLeastOneSection: '至少需要保留一个启用的分析模块。',
@@ -1299,7 +1299,7 @@
       nutCollected: '✅ Nut 已收集',
       nutCollectedVault: 'Nut 已保存至 Obsidian 库！',
       noNewKnowledgeToAdd: '未发现需要新增的知识',
-      stage1NutSavedNotice: '<strong>Nut 已保存至库！</strong> 原始网页已归档。您仍可在下方继续孵化 Egg。',
+      stage1NutSavedNotice: 'Nut 已保存至库！ 原始网页已归档。您仍可在下方继续孵化 Egg。',
       stage1NoEggsNotice: '库中暂无 Egg，请创建 Egg 以运行分析。',
       stage1NoSelectedNotice: '未选择 Egg，请勾选 Egg 以运行分析。',
       stage1SelectedNotice: '已选择 {count} 个 Egg，请查看并运行 Egg 分析。',
@@ -1321,13 +1321,13 @@
       stateSaved: '已保存',
       stateCollected: '已收集',
       stateAnalyzed: '已分析',
-      unprocessedParent: '🐣 → 未处理 · 建议归入：<strong>{parent}</strong>',
+      unprocessedParent: '🐣 → 未处理 · 建议归入：{parent}',
       unprocessedOnly: '🐣 → 未处理',
       eggKeyQuestions: '💬 针对此 Egg 的关键问题 ({count})',
       viewCovered: '▸ 查看已覆盖',
       hideCovered: '▾ 收起已覆盖',
       badgeCovered: '已覆盖',
-      underParent: '归入：<strong>{parent}</strong>',
+      underParent: '归入：{parent}',
       alreadyKnown: '已有知识',
       currentKnowledgeInEgg: '📚 Egg 当前已有知识',
       viewTree: '▸ 查看知识树',
@@ -1392,7 +1392,7 @@
       obsidianOfflineStart: 'Obsidian 未连接。请打开 Obsidian，或在 NutEgg 设置中切换到 Chrome。',
       chromeAiNoKeyConfig: '请在 NutEgg 设置中添加 API 密钥，即可在 Chrome 中分析。',
       obsidianNoKeyConfig: 'Obsidian 已连接，但未配置 AI API 密钥。请在 Obsidian → NutEgg 设置中添加。',
-      errorHintNoApiKey: '打开 Obsidian 设置 → NutEgg，启用<strong>开发者模式</strong>并填入 API 密钥。',
+      errorHintNoApiKey: '打开 Obsidian 设置 → NutEgg，启用开发者模式并填入 API 密钥。',
       errorHintAuthFailed: 'API 密钥验证失败。请在 Obsidian 设置 → NutEgg 中检查密钥。',
       errorHintForbidden: '您的账户无权访问该模型，或需要充值账单套餐。',
       errorHintModelNotFound: '模型名称可能不正确。请在设置中尝试更换模型。',
@@ -1753,12 +1753,12 @@
       aiError: '❌ Error de IA: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian está actualmente conectado.</strong> NutEgg utiliza la configuración de IA de Obsidian y el árbol de conocimiento por defecto.',
+        '🟢 Obsidian está actualmente conectado. NutEgg utiliza la configuración de IA de Obsidian y el árbol de conocimiento por defecto.',
       aiBannerConnectedFallback: ' La configuración siguiente actuará como respaldo cuando Obsidian esté cerrado.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian está actualmente desconectado.</strong> NutEgg funcionará en modo independiente utilizando la siguiente configuración de IA para veredictos y resúmenes rápidos.',
+        '🟠 Obsidian está actualmente desconectado. NutEgg funcionará en modo independiente utilizando la siguiente configuración de IA para veredictos y resúmenes rápidos.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian está actualmente desconectado.</strong> La IA de Chrome independiente está desactivada. Inicia Obsidian para capturar o activa la opción a continuación.',
+        '⚪ Obsidian está actualmente desconectado. La IA de Chrome independiente está desactivada. Inicia Obsidian para capturar o activa la opción a continuación.',
       sectionPreferencesSaved: 'Preferencias de sección guardadas.',
       checkingObsidianStatus: 'Comprobando el estado de Obsidian...',
       versionMismatchShort:
@@ -1772,7 +1772,7 @@
       promptOptFollowUp: 'Preguntas y respuestas de seguimiento',
       obsidianPitchTitle: '💡 ¿Quieres una curaduría de conocimiento completa?',
       obsidianPitchDesc:
-        'El modo independiente de Chrome proporciona veredictos rápidos y resúmenes. Conectar NutEgg con el <strong>plugin de Obsidian</strong> desbloquea el emparejamiento automático de árboles de conocimiento, seguimiento de novedades y guardado directo en tu bóveda.',
+        'El modo independiente de Chrome proporciona veredictos rápidos y resúmenes. Conectar NutEgg con el plugin de Obsidian desbloquea el emparejamiento automático de árboles de conocimiento, seguimiento de novedades y guardado directo en tu bóveda.',
       aiSettingsSaved: 'Ajustes de IA guardados con éxito.',
       resetPromptDefault: 'Plantilla de {key} restablecida por defecto.',
       invalidPortNumber: 'Número de puerto no válido (1-65535).',
@@ -1805,9 +1805,9 @@
       versionMismatchFull:
         'Discrepancia de versión: la extensión de Chrome es v{extVersion}, pero el plugin de Obsidian es v{pluginVersion}. Actualiza ambos a la misma versión para compatibilidad completa.',
       aiKeyRequiredChrome:
-        '<strong>Clave de IA requerida:</strong> La IA independiente de Chrome está habilitada, pero no hay ninguna clave de API configurada.',
+        'Clave de IA requerida: La IA independiente de Chrome está habilitada, pero no hay ninguna clave de API configurada.',
       obsidianOfflineBanner:
-        '<strong>Obsidian está desconectado:</strong> Inicia Obsidian para capturar o habilita la IA de Chrome independiente en Ajustes.',
+        'Obsidian está desconectado: Inicia Obsidian para capturar o habilita la IA de Chrome independiente en Ajustes.',
       enableChromeAiBtn: '⚡ Habilitar IA de Chrome',
 
       atLeastOneSection: 'Al menos una sección de análisis debe permanecer activada.',
@@ -1996,7 +1996,7 @@
       nutCollectedVault: '¡Nut guardado en la bóveda de Obsidian!',
       noNewKnowledgeToAdd: 'No se encontraron nuevos conocimientos para añadir',
       stage1NutSavedNotice:
-        '<strong>¡Nut guardado en la bóveda!</strong> Contenido original archivado. Todavía puedes empollar el egg abajo si lo deseas.',
+        '¡Nut guardado en la bóveda! Contenido original archivado. Todavía puedes empollar el egg abajo si lo deseas.',
       stage1NoEggsNotice: 'No hay eggs en la bóveda. Crea uno para analizar.',
       stage1NoSelectedNotice: 'Ningún egg seleccionado, elige uno para analizar.',
       stage1SelectedNotice: '{count} egg(s) seleccionados, revisa y ejecuta el análisis.',
@@ -2018,13 +2018,13 @@
       stateSaved: 'guardado',
       stateCollected: 'recolectado',
       stateAnalyzed: 'analizado',
-      unprocessedParent: '🐣 → Sin procesar · sugerido bajo: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Sin procesar · sugerido bajo: {parent}',
       unprocessedOnly: '🐣 → Sin procesar',
       eggKeyQuestions: '💬 Preguntas clave para este Egg ({count})',
       viewCovered: '▸ Ver cubiertos',
       hideCovered: '▾ Ocultar cubiertos',
       badgeCovered: 'Cubierto',
-      underParent: 'bajo: <strong>{parent}</strong>',
+      underParent: 'bajo: {parent}',
       alreadyKnown: 'Ya conocido',
       currentKnowledgeInEgg: '📚 Conocimiento actual en el Egg',
       viewTree: '▸ Ver árbol',
@@ -2092,7 +2092,7 @@
       chromeAiNoKeyConfig: 'Añade tu clave API en Ajustes de NutEgg para analizar en Chrome.',
       obsidianNoKeyConfig: 'Obsidian está conectado pero no hay clave API configurada. Añádela en Obsidian → NutEgg.',
       errorHintNoApiKey:
-        'Abre Configuración de Obsidian → NutEgg, activa <strong>Modo desarrollador</strong> y añade tu clave API.',
+        'Abre Configuración de Obsidian → NutEgg, activa Modo desarrollador y añade tu clave API.',
       errorHintAuthFailed: 'Clave API rechazada. Compruébala en Configuración de Obsidian → NutEgg.',
       errorHintForbidden: 'Tu cuenta puede no tener acceso a este modelo o requerir un plan de facturación activo.',
       errorHintModelNotFound: 'El nombre del modelo puede ser incorrecto. Prueba con otro modelo en Configuración.',
@@ -2443,12 +2443,12 @@
       aiError: '❌ AI エラー: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian は現在接続されています。</strong>NutEgg はデフォルトで Obsidian の AI 設定と保管庫のナレッジツリーを使用します。',
+        '🟢 Obsidian は現在接続されています。NutEgg はデフォルトで Obsidian の AI 設定と保管庫のナレッジツリーを使用します。',
       aiBannerConnectedFallback: ' 以下の設定は、Obsidian が閉じているときのフォールバックとして機能します。',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian は現在オフラインです。</strong>NutEgg は以下の AI 設定を使用したスタンドアロンモードで動作し、迅速なコンテンツ判定と要約を提供します。',
+        '🟠 Obsidian は現在オフラインです。NutEgg は以下の AI 設定を使用したスタンドアロンモードで動作し、迅速なコンテンツ判定と要約を提供します。',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian は現在オフラインです。</strong>Chrome 単体 AI はオフになっています。キャプチャするには Obsidian を起動するか、下のオプションを有効にしてください。',
+        '⚪ Obsidian は現在オフラインです。Chrome 単体 AI はオフになっています。キャプチャするには Obsidian を起動するか、下のオプションを有効にしてください。',
       sectionPreferencesSaved: 'セクション設定を保存しました。',
       checkingObsidianStatus: 'Obsidian の状態を確認中...',
       versionMismatchShort: ' ⚠️ バージョンの不一致: プラグインは v{pluginVersion}、拡張機能は v{extVersion} です。',
@@ -2461,7 +2461,7 @@
       promptOptFollowUp: 'フォローアップ Q&A',
       obsidianPitchTitle: '💡 完全なナレッジキュレーションをお望みですか？',
       obsidianPitchDesc:
-        'Chrome単体モードは、迅速な結論と要約を提供します。NutEggを<strong>Obsidianプラグイン</strong>と連携することで、ナレッジツリーの自動照合、セッション間の新規性追跡、保管庫への直接保存が利用可能になります。',
+        'Chrome単体モードは、迅速な結論と要約を提供します。NutEggをObsidianプラグインと連携することで、ナレッジツリーの自動照合、セッション間の新規性追跡、保管庫への直接保存が利用可能になります。',
       aiSettingsSaved: 'AI設定が正常に保存されました。',
       resetPromptDefault: '{key} のプロンプトをデフォルトにリセットしました。',
       invalidPortNumber: '無効なポート番号です（1〜65535）。',
@@ -2492,9 +2492,9 @@
 
       versionMismatchFull:
         'バージョンの不一致: Chrome拡張機能は v{extVersion} ですが、Obsidianプラグインは v{pluginVersion} です。完全な互換性を確保するために両方を同じバージョンに更新してください。',
-      aiKeyRequiredChrome: '<strong>AIキーが必要です:</strong> Chrome単体AIが有効ですが、APIキーが設定されていません。',
+      aiKeyRequiredChrome: 'AIキーが必要です: Chrome単体AIが有効ですが、APIキーが設定されていません。',
       obsidianOfflineBanner:
-        '<strong>Obsidianがオフラインです:</strong> キャプチャするにはObsidianを起動するか、設定でChrome単体AIを有効にしてください。',
+        'Obsidianがオフラインです: キャプチャするにはObsidianを起動するか、設定でChrome単体AIを有効にしてください。',
       enableChromeAiBtn: '⚡ Chrome AIを有効化',
 
       atLeastOneSection: '少なくとも1つの分析セクションを有効にしておく必要があります。',
@@ -2679,7 +2679,7 @@
       nutCollectedVault: 'NutをObsidian保管庫に保存しました！',
       noNewKnowledgeToAdd: '追加すべき新しい知識はありませんでした',
       stage1NutSavedNotice:
-        '<strong>Nutを保管庫に保存しました！</strong> 原文をアーカイブしました。必要に応じて下でEggを孵化できます。',
+        'Nutを保管庫に保存しました！ 原文をアーカイブしました。必要に応じて下でEggを孵化できます。',
       stage1NoEggsNotice: '保管庫にEggがありません。作成して分析してください。',
       stage1NoSelectedNotice: 'Eggが未選択です。選択して分析を実行してください。',
       stage1SelectedNotice: '{count}個のEggを選択中、確認してEgg分析を実行',
@@ -2701,13 +2701,13 @@
       stateSaved: '保存済み',
       stateCollected: '収集済み',
       stateAnalyzed: '分析済み',
-      unprocessedParent: '🐣 → 未処理 · 提案分類：<strong>{parent}</strong>',
+      unprocessedParent: '🐣 → 未処理 · 提案分類：{parent}',
       unprocessedOnly: '🐣 → 未処理',
       eggKeyQuestions: '💬 このEggの重要課題 ({count})',
       viewCovered: '▸ 網羅済みを表示',
       hideCovered: '▾ 網羅済みを非表示',
       badgeCovered: '網羅済み',
-      underParent: '分類：<strong>{parent}</strong>',
+      underParent: '分類：{parent}',
       alreadyKnown: '既存知識',
       currentKnowledgeInEgg: '📚 Egg内の既存知識',
       viewTree: '▸ ツリーを表示',
@@ -2775,7 +2775,7 @@
       chromeAiNoKeyConfig: 'Chrome で分析するには、NutEgg の設定で API キーを追加してください。',
       obsidianNoKeyConfig: 'Obsidianが接続されましたがAIキーが未設定です。Obsidian設定で追加してください。',
       errorHintNoApiKey:
-        'Obsidian設定 → NutEgg を開き、<strong>開発者モード</strong>を有効にしてAPIキーを追加してください。',
+        'Obsidian設定 → NutEgg を開き、開発者モードを有効にしてAPIキーを追加してください。',
       errorHintAuthFailed: 'APIキーが拒否されました。Obsidian設定 → NutEgg で再確認してください。',
       errorHintForbidden: 'アカウントにこのモデルのアクセス権がないか、請求プランのチャージが必要です。',
       errorHintModelNotFound: 'モデル名が正しくない可能性があります。設定で別のモデルをお試しください。',
@@ -3124,12 +3124,12 @@
       aiError: '❌ AI 오류: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian이 현재 연결되어 있습니다.</strong> NutEgg는 기본적으로 Obsidian의 AI 설정과 볼트 지식 트리를 사용합니다.',
+        '🟢 Obsidian이 현재 연결되어 있습니다. NutEgg는 기본적으로 Obsidian의 AI 설정과 볼트 지식 트리를 사용합니다.',
       aiBannerConnectedFallback: ' 아래 설정은 Obsidian이 닫혀 있을 때 대체 구성으로 사용됩니다.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian이 현재 오프라인입니다.</strong> NutEgg는 아래의 AI 구성을 사용하는 독립형 모드로 실행되어 빠른 콘텐츠 판정 및 요약을 제공합니다.',
+        '🟠 Obsidian이 현재 오프라인입니다. NutEgg는 아래의 AI 구성을 사용하는 독립형 모드로 실행되어 빠른 콘텐츠 판정 및 요약을 제공합니다.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian이 현재 오프라인입니다.</strong> 독립형 Chrome AI가 꺼져 있습니다. 캡처하려면 Obsidian을 시작하거나 아래 옵션을 활성화하세요.',
+        '⚪ Obsidian이 현재 오프라인입니다. 독립형 Chrome AI가 꺼져 있습니다. 캡처하려면 Obsidian을 시작하거나 아래 옵션을 활성화하세요.',
       sectionPreferencesSaved: '섹션 설정이 저장되었습니다.',
       checkingObsidianStatus: 'Obsidian 상태 확인 중...',
       versionMismatchShort: ' ⚠️ 버전 불일치: 플러그인은 v{pluginVersion}, 확장 프로그램은 v{extVersion}입니다.',
@@ -3142,7 +3142,7 @@
       promptOptFollowUp: '후속 Q&A',
       obsidianPitchTitle: '💡 완벽한 지식 큐레이션을 원하시나요?',
       obsidianPitchDesc:
-        'Chrome 단독 모드는 빠른 판정과 핵심 요약을 제공합니다. NutEgg를 <strong>Obsidian 플러그인</strong>과 연결하면 지식 트리 자동 매칭, 증분 인사이트 추출, 볼트 직접 저장이 가능합니다.',
+        'Chrome 단독 모드는 빠른 판정과 핵심 요약을 제공합니다. NutEgg를 Obsidian 플러그인과 연결하면 지식 트리 자동 매칭, 증분 인사이트 추출, 볼트 직접 저장이 가능합니다.',
       aiSettingsSaved: 'AI 설정이 성공적으로 저장되었습니다.',
       resetPromptDefault: '{key} 프롬프트를 기본값으로 재설정했습니다.',
       invalidPortNumber: '유효하지 않은 포트 번호입니다(1-65535).',
@@ -3172,9 +3172,9 @@
 
       versionMismatchFull:
         '버전 불일치: Chrome 확장 프로그램은 v{extVersion}이지만 Obsidian 플러그인은 v{pluginVersion}입니다. 완벽한 호환성을 위해 둘 다 동일한 버전으로 업데이트하세요.',
-      aiKeyRequiredChrome: '<strong>AI 키 필요:</strong> Chrome 단독 AI가 활성화되었지만 API 키가 설정되지 않았습니다.',
+      aiKeyRequiredChrome: 'AI 키 필요: Chrome 단독 AI가 활성화되었지만 API 키가 설정되지 않았습니다.',
       obsidianOfflineBanner:
-        '<strong>Obsidian 오프라인:</strong> 캡처하려면 Obsidian을 시작하거나 설정에서 독립형 Chrome AI를 활성화하세요.',
+        'Obsidian 오프라인: 캡처하려면 Obsidian을 시작하거나 설정에서 독립형 Chrome AI를 활성화하세요.',
       enableChromeAiBtn: '⚡ Chrome AI 활성화',
 
       atLeastOneSection: '최소 하나의 분석 섹션은 활성화되어 있어야 합니다.',
@@ -3358,7 +3358,7 @@
       nutCollectedVault: 'Obsidian 볼트에 Nut 수집 완료!',
       noNewKnowledgeToAdd: '새로 추가할 지식이 발견되지 않았습니다',
       stage1NutSavedNotice:
-        '<strong>볼트에 Nut 저장 완료!</strong> 원본이 보관되었습니다. 원하시면 아래에서 Egg를 부화할 수 있습니다.',
+        '볼트에 Nut 저장 완료! 원본이 보관되었습니다. 원하시면 아래에서 Egg를 부화할 수 있습니다.',
       stage1NoEggsNotice: '볼트에 Egg가 없습니다. 생성하여 분석을 실행하세요.',
       stage1NoSelectedNotice: '선택된 Egg 없음, Egg를 선택하여 분석을 실행하세요.',
       stage1SelectedNotice: 'Egg {count}개 선택됨, 확인 후 Egg 분석 실행',
@@ -3380,13 +3380,13 @@
       stateSaved: '저장됨',
       stateCollected: '수집됨',
       stateAnalyzed: '분석됨',
-      unprocessedParent: '🐣 → 미처리 · 제안 분류: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → 미처리 · 제안 분류: {parent}',
       unprocessedOnly: '🐣 → 미처리',
       eggKeyQuestions: '💬 이 Egg의 핵심 질문 ({count})',
       viewCovered: '▸ 포함된 내용 보기',
       hideCovered: '▾ 포함된 내용 숨기기',
       badgeCovered: '포함됨',
-      underParent: '분류: <strong>{parent}</strong>',
+      underParent: '분류: {parent}',
       alreadyKnown: '이미 알고 있음',
       currentKnowledgeInEgg: '📚 Egg 내 기존 지식',
       viewTree: '▸ 트리 보기',
@@ -3452,7 +3452,7 @@
       obsidianOfflineStart: 'Obsidian이 오프라인입니다. Obsidian을 열거나 NutEgg 설정에서 Chrome으로 전환하세요.',
       chromeAiNoKeyConfig: 'Chrome에서 분석하려면 NutEgg 설정에 API 키를 추가하세요.',
       obsidianNoKeyConfig: 'Obsidian이 연결되었으나 AI 키가 설정되지 않았습니다. Obsidian 설정에서 키를 등록하세요.',
-      errorHintNoApiKey: 'Obsidian 설정 → NutEgg에서 <strong>개발자 모드</strong>를 켜고 API 키를 입력하세요.',
+      errorHintNoApiKey: 'Obsidian 설정 → NutEgg에서 개발자 모드를 켜고 API 키를 입력하세요.',
       errorHintAuthFailed: 'API 키가 거부되었습니다. Obsidian 설정 → NutEgg에서 키를 확인하세요.',
       errorHintForbidden: '계정에 이 모델에 대한 권한이 없거나 결제 플랜 충전이 필요합니다.',
       errorHintModelNotFound: '모델 이름이 올바르지 않을 수 있습니다. 설정에서 다른 모델을 선택해 보세요.',
@@ -3803,12 +3803,12 @@
       aiError: '❌ خطأ في الذكاء الاصطناعي: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian متصل حاليًا.</strong> يستخدم NutEgg تكوين الذكاء الاصطناعي وشجرة المعرفة في Obsidian افتراضيًا.',
+        '🟢 Obsidian متصل حاليًا. يستخدم NutEgg تكوين الذكاء الاصطناعي وشجرة المعرفة في Obsidian افتراضيًا.',
       aiBannerConnectedFallback: ' ستعمل الإعدادات أدناه كبديل احتياطي عند إغلاق Obsidian.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian غير متصل حاليًا.</strong> سيعمل NutEgg في الوضع المستقل باستخدام تكوين الذكاء الاصطناعي أدناه للحصول على ملخصات وأحكام سريعة.',
+        '🟠 Obsidian غير متصل حاليًا. سيعمل NutEgg في الوضع المستقل باستخدام تكوين الذكاء الاصطناعي أدناه للحصول على ملخصات وأحكام سريعة.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian غير متصل حاليًا.</strong> ذكاء Chrome الاصطناعي المستقل معطل. شغّل Obsidian للالتقاط أو فعّل الخيار أدناه.',
+        '⚪ Obsidian غير متصل حاليًا. ذكاء Chrome الاصطناعي المستقل معطل. شغّل Obsidian للالتقاط أو فعّل الخيار أدناه.',
       sectionPreferencesSaved: 'تم حفظ تفضيلات الأقسام.',
       checkingObsidianStatus: 'جارٍ التحقق من حالة Obsidian...',
       versionMismatchShort: ' ⚠️ عدم تطابق الإصدار: إضافة Obsidian هي v{pluginVersion}، وملحق Chrome هو v{extVersion}.',
@@ -3821,7 +3821,7 @@
       promptOptFollowUp: 'أسئلة وأجوبة المتابعة',
       obsidianPitchTitle: '💡 هل تريد تنظيم المعرفة بالكامل؟',
       obsidianPitchDesc:
-        'يوفر وضع Chrome المستقل أحكاماً وملخصات سريعة. يتيح توصيل NutEgg بـ <strong>ملحق Obsidian</strong> مطابقة شجرة المعرفة تلقائياً وتتبع الإضافات الجديدة وحفظ الملاحظات مباشرة في خزانتك.',
+        'يوفر وضع Chrome المستقل أحكاماً وملخصات سريعة. يتيح توصيل NutEgg بـ ملحق Obsidian مطابقة شجرة المعرفة تلقائياً وتتبع الإضافات الجديدة وحفظ الملاحظات مباشرة في خزانتك.',
       aiSettingsSaved: 'تم حفظ إعدادات الذكاء الاصطناعي بنجاح.',
       resetPromptDefault: 'تمت إعادة تعيين قالب {key} إلى الافتراضي.',
       invalidPortNumber: 'رقم المنفذ غير صالح (1-65535).',
@@ -3854,9 +3854,9 @@
       versionMismatchFull:
         'عدم تطابق في الإصدار: إضافة Chrome هي v{extVersion}، بينما إضافة Obsidian هي v{pluginVersion}. يرجى تحديث كليهما إلى نفس الإصدار للتوافق الكامل.',
       aiKeyRequiredChrome:
-        '<strong>مفتاح الذكاء الاصطناعي مطلوب:</strong> تم تفعيل ذكاء Chrome الاصطناعي، لكن لم يتم تكوين مفتاح API.',
+        'مفتاح الذكاء الاصطناعي مطلوب: تم تفعيل ذكاء Chrome الاصطناعي، لكن لم يتم تكوين مفتاح API.',
       obsidianOfflineBanner:
-        '<strong>Obsidian غير متصل:</strong> شغّل Obsidian للالتقاط، أو فعّل ذكاء Chrome الاصطناعي المستقل في الإعدادات.',
+        'Obsidian غير متصل: شغّل Obsidian للالتقاط، أو فعّل ذكاء Chrome الاصطناعي المستقل في الإعدادات.',
       enableChromeAiBtn: '⚡ تفعيل Chrome AI',
 
       atLeastOneSection: 'يجب تفعيل قسم تحليل واحد على الأقل.',
@@ -4039,7 +4039,7 @@
       nutCollectedVault: 'تم حفظ الـ Nut في خزانة Obsidian!',
       noNewKnowledgeToAdd: 'لم يتم العثور على معارف جديدة لإضافتها',
       stage1NutSavedNotice:
-        '<strong>تم حفظ الـ Nut في الخزانة!</strong> تم حفظ المحتوى الخام. لا يزال بإمكانك تفقيس الـ egg أدناه إذا أردت.',
+        'تم حفظ الـ Nut في الخزانة! تم حفظ المحتوى الخام. لا يزال بإمكانك تفقيس الـ egg أدناه إذا أردت.',
       stage1NoEggsNotice: 'لا توجد eggs في الخزانة، أنشئ واحداً للتحليل.',
       stage1NoSelectedNotice: 'لم يتم اختيار أي egg، اختر egg لتشغيل التحليل.',
       stage1SelectedNotice: 'تم اختيار {count} egg، راجع وشغّل التحليل',
@@ -4061,13 +4061,13 @@
       stateSaved: 'محفوظ',
       stateCollected: 'تم جمعه',
       stateAnalyzed: 'تم تحليله',
-      unprocessedParent: '🐣 → غير معالج · مقترح تحت: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → غير معالج · مقترح تحت: {parent}',
       unprocessedOnly: '🐣 → غير معالج',
       eggKeyQuestions: '💬 أسئلة رئيسية لهذا الـ Egg ({count})',
       viewCovered: '▸ عرض المغطى',
       hideCovered: '▾ إخفاء المغطى',
       badgeCovered: 'مغطى',
-      underParent: 'تحت: <strong>{parent}</strong>',
+      underParent: 'تحت: {parent}',
       alreadyKnown: 'معروف مسبقاً',
       currentKnowledgeInEgg: '📚 المعرفة الحالية في الـ Egg',
       viewTree: '▸ عرض الشجرة',
@@ -4132,7 +4132,7 @@
       obsidianOfflineStart: 'Obsidian غير متصل. افتحه أو انتقل إلى Chrome في إعدادات NutEgg.',
       chromeAiNoKeyConfig: 'أضف مفتاح API في إعدادات NutEgg للتحليل في Chrome.',
       obsidianNoKeyConfig: 'Obsidian متصل ولكن لم يتم تكوين مفتاح API. أضفه في إعدادات Obsidian → NutEgg.',
-      errorHintNoApiKey: 'افتح إعدادات Obsidian → NutEgg، وفعّل <strong>وضع المطور</strong> وأضف مفتاح API.',
+      errorHintNoApiKey: 'افتح إعدادات Obsidian → NutEgg، وفعّل وضع المطور وأضف مفتاح API.',
       errorHintAuthFailed: 'تم رفض مفتاح API. تحقق منه في إعدادات Obsidian → NutEgg.',
       errorHintForbidden: 'قد لا يمتلك حسابك صلاحية الوصول لهذا النموذج، أو يحتاج لخطة مدفوعة.',
       errorHintModelNotFound: 'قد يكون اسم النموذج غير صحيح. جرب نموذجاً آخر في الإعدادات.',
@@ -4497,12 +4497,12 @@
       aiError: '❌ Erreur IA : {error}',
 
       aiBannerConnected:
-        "🟢 <strong>Obsidian est actuellement connecté.</strong> NutEgg utilise par défaut la configuration IA et l'arborescence de connaissances d'Obsidian.",
+        "🟢 Obsidian est actuellement connecté. NutEgg utilise par défaut la configuration IA et l'arborescence de connaissances d'Obsidian.",
       aiBannerConnectedFallback: ' Les paramètres ci-dessous serviront de secours lorsque Obsidian sera fermé.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian est actuellement hors ligne.</strong> NutEgg fonctionnera en mode autonome en utilisant la configuration IA ci-dessous pour des verdicts et des résumés rapides.',
+        '🟠 Obsidian est actuellement hors ligne. NutEgg fonctionnera en mode autonome en utilisant la configuration IA ci-dessous pour des verdicts et des résumés rapides.',
       aiBannerOfflineDisabled:
-        "⚪ <strong>Obsidian est actuellement hors ligne.</strong> L'IA autonome de Chrome est désactivée. Démarrez Obsidian pour capturer ou activez l'option ci-dessous.",
+        "⚪ Obsidian est actuellement hors ligne. L'IA autonome de Chrome est désactivée. Démarrez Obsidian pour capturer ou activez l'option ci-dessous.",
       sectionPreferencesSaved: 'Préférences de section enregistrées.',
       checkingObsidianStatus: "Vérification du statut d'Obsidian...",
       versionMismatchShort:
@@ -4516,7 +4516,7 @@
       promptOptFollowUp: 'Questions et réponses de suivi',
       obsidianPitchTitle: '💡 Vous voulez une curation complète des connaissances ?',
       obsidianPitchDesc:
-        "Le mode autonome de Chrome offre des résumés rapides et des verdicts de lecture. Associer NutEgg au <strong>plugin Obsidian</strong> débloque l'organisation automatique en arbre de connaissances et l'archivage direct dans votre coffre.",
+        "Le mode autonome de Chrome offre des résumés rapides et des verdicts de lecture. Associer NutEgg au plugin Obsidian débloque l'organisation automatique en arbre de connaissances et l'archivage direct dans votre coffre.",
       aiSettingsSaved: 'Paramètres IA enregistrés avec succès.',
       resetPromptDefault: 'Modèle de prompt {key} réinitialisé par défaut.',
       invalidPortNumber: 'Numéro de port invalide (1-65535).',
@@ -4549,9 +4549,9 @@
       versionMismatchFull:
         "Incompatibilité de version : l'extension Chrome est v{extVersion}, mais le plugin Obsidian est v{pluginVersion}. Veuillez mettre à jour les deux vers la même version pour une compatibilité totale.",
       aiKeyRequiredChrome:
-        "<strong>Clé IA requise :</strong> L'IA Chrome autonome est activée, mais aucune clé API n'est configurée.",
+        "Clé IA requise : L'IA Chrome autonome est activée, mais aucune clé API n'est configurée.",
       obsidianOfflineBanner:
-        "<strong>Obsidian est hors ligne :</strong> Démarrez Obsidian pour capturer, ou activez l'IA autonome Chrome dans les Paramètres.",
+        "Obsidian est hors ligne : Démarrez Obsidian pour capturer, ou activez l'IA autonome Chrome dans les Paramètres.",
       enableChromeAiBtn: '⚡ Activer Chrome AI',
 
       atLeastOneSection: "Au moins une section d'analyse doit rester activée.",
@@ -4741,7 +4741,7 @@
       nutCollectedVault: 'Nut sauvegardé dans le coffre Obsidian !',
       noNewKnowledgeToAdd: 'Aucune nouvelle connaissance à ajouter trouvée',
       stage1NutSavedNotice:
-        "<strong>Nut collecté dans le coffre !</strong> Contenu brut sauvegardé. Vous pouvez toujours faire éclore l'egg ci-dessous si vous le souhaitez.",
+        "Nut collecté dans le coffre ! Contenu brut sauvegardé. Vous pouvez toujours faire éclore l'egg ci-dessous si vous le souhaitez.",
       stage1NoEggsNotice: "Aucun egg dans le coffre. Créez-en un pour lancer l'analyse.",
       stage1NoSelectedNotice: "Aucun egg sélectionné, choisissez-en un pour lancer l'analyse.",
       stage1SelectedNotice: "{count} egg(s) sélectionnés, vérifiez et lancez l'analyse.",
@@ -4763,13 +4763,13 @@
       stateSaved: 'sauvegardé',
       stateCollected: 'collecté',
       stateAnalyzed: 'analysé',
-      unprocessedParent: '🐣 → Non traité · suggéré sous : <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Non traité · suggéré sous : {parent}',
       unprocessedOnly: '🐣 → Non traité',
       eggKeyQuestions: '💬 Questions clés pour cet Egg ({count})',
       viewCovered: '▸ Voir les éléments couverts',
       hideCovered: '▾ Masquer les éléments couverts',
       badgeCovered: 'Couvert',
-      underParent: 'sous : <strong>{parent}</strong>',
+      underParent: 'sous : {parent}',
       alreadyKnown: 'Déjà connu',
       currentKnowledgeInEgg: "📚 Connaissances actuelles dans l'Egg",
       viewTree: "▸ Voir l'arbre",
@@ -4839,7 +4839,7 @@
       obsidianNoKeyConfig:
         "Obsidian est connecté mais aucune clé API n'est configurée. Ajoutez-en une dans Obsidian → NutEgg.",
       errorHintNoApiKey:
-        'Ouvrez Paramètres Obsidian → NutEgg, activez le <strong>Mode développeur</strong> et ajoutez votre clé API.',
+        'Ouvrez Paramètres Obsidian → NutEgg, activez le Mode développeur et ajoutez votre clé API.',
       errorHintAuthFailed: 'Votre clé API a été rejetée. Vérifiez-la dans Paramètres Obsidian → NutEgg.',
       errorHintForbidden:
         "Votre compte n'a peut-être pas accès à ce modèle ou nécessite un plan de facturation approvisionné.",
@@ -5203,13 +5203,13 @@
       aiError: '❌ KI-Fehler: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian ist derzeit verbunden.</strong> NutEgg verwendet standardmäßig die KI-Konfiguration und den Wissensbaum von Obsidian.',
+        '🟢 Obsidian ist derzeit verbunden. NutEgg verwendet standardmäßig die KI-Konfiguration und den Wissensbaum von Obsidian.',
       aiBannerConnectedFallback:
         ' Die folgenden Einstellungen dienen als Ausweichlösung, wenn Obsidian geschlossen ist.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian ist derzeit offline.</strong> NutEgg wird im Standalone-Modus mit der unten stehenden KI-Konfiguration für schnelle Urteile und Zusammenfassungen ausgeführt.',
+        '🟠 Obsidian ist derzeit offline. NutEgg wird im Standalone-Modus mit der unten stehenden KI-Konfiguration für schnelle Urteile und Zusammenfassungen ausgeführt.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian ist derzeit offline.</strong> Eigenständige Chrome-KI ist deaktiviert. Starten Sie Obsidian zum Erfassen oder aktivieren Sie die folgende Option.',
+        '⚪ Obsidian ist derzeit offline. Eigenständige Chrome-KI ist deaktiviert. Starten Sie Obsidian zum Erfassen oder aktivieren Sie die folgende Option.',
       sectionPreferencesSaved: 'Abschnittseinstellungen gespeichert.',
       checkingObsidianStatus: 'Obsidian-Status wird überprüft...',
       versionMismatchShort: ' ⚠️ Versionskonflikt: Plugin ist v{pluginVersion}, Erweiterung ist v{extVersion}.',
@@ -5222,7 +5222,7 @@
       promptOptFollowUp: 'Nachfrage-Q&A',
       obsidianPitchTitle: '💡 Möchten Sie die vollständige Wissenskuratierung?',
       obsidianPitchDesc:
-        'Der eigenständige Chrome-Modus bietet schnelle Leseurteile und Zusammenfassungen. Das Verbinden von NutEgg mit dem <strong>Obsidian-Plugin</strong> schaltet den automatischen Wissensbaum-Abgleich, Delta-Tracking und direktes Speichern frei.',
+        'Der eigenständige Chrome-Modus bietet schnelle Leseurteile und Zusammenfassungen. Das Verbinden von NutEgg mit dem Obsidian-Plugin schaltet den automatischen Wissensbaum-Abgleich, Delta-Tracking und direktes Speichern frei.',
       aiSettingsSaved: 'KI-Einstellungen erfolgreich gespeichert.',
       resetPromptDefault: '{key}-Prompt auf Standard zurückgesetzt.',
       invalidPortNumber: 'Ungültige Portnummer (1-65535).',
@@ -5254,9 +5254,9 @@
       versionMismatchFull:
         'Versionskonflikt: Chrome-Erweiterung ist v{extVersion}, aber Obsidian-Plugin ist v{pluginVersion}. Bitte aktualisieren Sie beide auf dieselbe Version für volle Kompatibilität.',
       aiKeyRequiredChrome:
-        '<strong>KI-Schlüssel erforderlich:</strong> Eigenständige Chrome-KI ist aktiviert, aber kein API-Schlüssel konfiguriert.',
+        'KI-Schlüssel erforderlich: Eigenständige Chrome-KI ist aktiviert, aber kein API-Schlüssel konfiguriert.',
       obsidianOfflineBanner:
-        '<strong>Obsidian ist offline:</strong> Starten Sie Obsidian zum Erfassen oder aktivieren Sie eigenständige Chrome-KI in den Einstellungen.',
+        'Obsidian ist offline: Starten Sie Obsidian zum Erfassen oder aktivieren Sie eigenständige Chrome-KI in den Einstellungen.',
       enableChromeAiBtn: '⚡ Chrome KI aktivieren',
 
       atLeastOneSection: 'Mindestens ein Analyseabschnitt muss aktiviert bleiben.',
@@ -5443,7 +5443,7 @@
       nutCollectedVault: 'Nut im Obsidian-Vault gespeichert!',
       noNewKnowledgeToAdd: 'Kein neues Wissen zum Hinzufügen gefunden',
       stage1NutSavedNotice:
-        '<strong>Nut im Vault gespeichert!</strong> Rohinhalt archiviert. Du kannst das Egg unten bei Bedarf noch ausbrüten.',
+        'Nut im Vault gespeichert! Rohinhalt archiviert. Du kannst das Egg unten bei Bedarf noch ausbrüten.',
       stage1NoEggsNotice: 'Keine Eggs im Vault. Erstelle eins zur Analyse.',
       stage1NoSelectedNotice: 'Kein Egg ausgewählt, wähle ein Egg zum Starten der Analyse.',
       stage1SelectedNotice: '{count} Egg(s) ausgewählt, prüfen und Egg-Analyse starten.',
@@ -5465,13 +5465,13 @@
       stateSaved: 'gespeichert',
       stateCollected: 'gesammelt',
       stateAnalyzed: 'analysiert',
-      unprocessedParent: '🐣 → Unverarbeitet · vorgeschlagen unter: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Unverarbeitet · vorgeschlagen unter: {parent}',
       unprocessedOnly: '🐣 → Unverarbeitet',
       eggKeyQuestions: '💬 Kernfragen für dieses Egg ({count})',
       viewCovered: '▸ Abgedecktes anzeigen',
       hideCovered: '▾ Abgedecktes ausblenden',
       badgeCovered: 'Abgedeckt',
-      underParent: 'unter: <strong>{parent}</strong>',
+      underParent: 'unter: {parent}',
       alreadyKnown: 'Bereits bekannt',
       currentKnowledgeInEgg: '📚 Aktuelles Wissen im Egg',
       viewTree: '▸ Baum anzeigen',
@@ -5540,7 +5540,7 @@
       obsidianNoKeyConfig:
         'Obsidian ist verbunden, aber kein KI-Schlüssel hinterlegt. Bitte in Obsidian → NutEgg hinzufügen.',
       errorHintNoApiKey:
-        'Öffne Obsidian-Einstellungen → NutEgg, aktiviere den <strong>Entwicklermodus</strong> und trage deinen API-Schlüssel ein.',
+        'Öffne Obsidian-Einstellungen → NutEgg, aktiviere den Entwicklermodus und trage deinen API-Schlüssel ein.',
       errorHintAuthFailed: 'API-Schlüssel wurde abgelehnt. Bitte in Obsidian-Einstellungen → NutEgg prüfen.',
       errorHintForbidden: 'Kein Zugriff auf dieses Modell oder Guthaben erforderlich.',
       errorHintModelNotFound: 'Modellname evtl. inkorrekt. Versuche ein anderes Modell in den Einstellungen.',
@@ -5899,13 +5899,13 @@
       aiError: '❌ Erro de IA: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>O Obsidian está conectado no momento.</strong> O NutEgg usa a configuração de IA e a árvore de conhecimento do Obsidian por padrão.',
+        '🟢 O Obsidian está conectado no momento. O NutEgg usa a configuração de IA e a árvore de conhecimento do Obsidian por padrão.',
       aiBannerConnectedFallback:
         ' As configurações abaixo funcionarão como fallback quando o Obsidian estiver fechado.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>O Obsidian está offline no momento.</strong> O NutEgg funcionará no modo autônomo usando a configuração de IA abaixo para vereditos rápidos e resumos.',
+        '🟠 O Obsidian está offline no momento. O NutEgg funcionará no modo autônomo usando a configuração de IA abaixo para vereditos rápidos e resumos.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>O Obsidian está offline no momento.</strong> A IA autônoma do Chrome está desativada. Inicie o Obsidian para capturar ou ative a opção abaixo.',
+        '⚪ O Obsidian está offline no momento. A IA autônoma do Chrome está desativada. Inicie o Obsidian para capturar ou ative a opção abaixo.',
       sectionPreferencesSaved: 'Preferências de seção salvas.',
       checkingObsidianStatus: 'Verificando o status do Obsidian...',
       versionMismatchShort: ' ⚠️ Incompatibilidade de versão: o plugin é v{pluginVersion}, a extensão é v{extVersion}.',
@@ -5918,7 +5918,7 @@
       promptOptFollowUp: 'Perguntas e Respostas de Acompanhamento',
       obsidianPitchTitle: '💡 Quer curadoria de conhecimento completa?',
       obsidianPitchDesc:
-        'O modo independente do Chrome oferece veredictos e resumos rápidos. Conectar o NutEgg com o <strong>plugin do Obsidian</strong> desbloqueia mapeamento automático na árvore de conhecimento, rastreamento de novidades e salvamento direto no cofre.',
+        'O modo independente do Chrome oferece veredictos e resumos rápidos. Conectar o NutEgg com o plugin do Obsidian desbloqueia mapeamento automático na árvore de conhecimento, rastreamento de novidades e salvamento direto no cofre.',
       aiSettingsSaved: 'Configurações de IA salvas com sucesso.',
       resetPromptDefault: 'Prompt {key} redefinido para o padrão.',
       invalidPortNumber: 'Número de porta inválido (1-65535).',
@@ -5951,9 +5951,9 @@
       versionMismatchFull:
         'Incompatibilidade de versão: a extensão do Chrome é v{extVersion}, mas o plugin do Obsidian é v{pluginVersion}. Atualize ambos para a mesma versão para compatibilidade total.',
       aiKeyRequiredChrome:
-        '<strong>Chave de IA necessária:</strong> A IA independente do Chrome está ativada, mas nenhuma chave de API está configurada.',
+        'Chave de IA necessária: A IA independente do Chrome está ativada, mas nenhuma chave de API está configurada.',
       obsidianOfflineBanner:
-        '<strong>O Obsidian está offline:</strong> Inicie o Obsidian para capturar ou ative a IA autônoma do Chrome nas Configurações.',
+        'O Obsidian está offline: Inicie o Obsidian para capturar ou ative a IA autônoma do Chrome nas Configurações.',
       enableChromeAiBtn: '⚡ Ativar Chrome AI',
 
       atLeastOneSection: 'Pelo menos uma seção de análise deve permanecer ativada.',
@@ -6143,7 +6143,7 @@
       nutCollectedVault: 'Nut salvo no cofre do Obsidian!',
       noNewKnowledgeToAdd: 'Nenhum novo conhecimento encontrado para adicionar',
       stage1NutSavedNotice:
-        '<strong>Nut salvo no cofre!</strong> Conteúdo bruto arquivado. Você ainda pode chocar o egg abaixo se quiser.',
+        'Nut salvo no cofre! Conteúdo bruto arquivado. Você ainda pode chocar o egg abaixo se quiser.',
       stage1NoEggsNotice: 'Nenhum egg no cofre. Crie um para analisar.',
       stage1NoSelectedNotice: 'Nenhum egg selecionado, escolha um egg para analisar.',
       stage1SelectedNotice: '{count} egg(s) selecionados, revise e execute a análise.',
@@ -6165,13 +6165,13 @@
       stateSaved: 'salvo',
       stateCollected: 'coletado',
       stateAnalyzed: 'analisado',
-      unprocessedParent: '🐣 → Não processado · sugerido sob: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Não processado · sugerido sob: {parent}',
       unprocessedOnly: '🐣 → Não processado',
       eggKeyQuestions: '💬 Perguntas principais para este Egg ({count})',
       viewCovered: '▸ Ver cobertos',
       hideCovered: '▾ Ocultar cobertos',
       badgeCovered: 'Coberto',
-      underParent: 'sob: <strong>{parent}</strong>',
+      underParent: 'sob: {parent}',
       alreadyKnown: 'Já conhecido',
       currentKnowledgeInEgg: '📚 Conhecimento atual no Egg',
       viewTree: '▸ Ver árvore',
@@ -6240,7 +6240,7 @@
       obsidianNoKeyConfig:
         'O Obsidian está conectado, mas nenhuma chave de API foi configurada. Adicione no Obsidian → NutEgg.',
       errorHintNoApiKey:
-        'Abra as Configurações do Obsidian → NutEgg, ative o <strong>Modo Desenvolvedor</strong> e insira sua chave de API.',
+        'Abra as Configurações do Obsidian → NutEgg, ative o Modo Desenvolvedor e insira sua chave de API.',
       errorHintAuthFailed: 'Chave de API rejeitada. Verifique nas Configurações do Obsidian → NutEgg.',
       errorHintForbidden: 'Sua conta pode não ter acesso a este modelo ou requerer saldo em fatura.',
       errorHintModelNotFound: 'Nome do modelo possivelmente incorreto. Tente outro modelo nas configurações.',
@@ -6599,13 +6599,13 @@
       aiError: '❌ Ошибка ИИ: {error}',
 
       aiBannerConnected:
-        '🟢 <strong>Obsidian сейчас подключен.</strong> NutEgg по умолчанию использует конфигурацию ИИ и дерево знаний Obsidian.',
+        '🟢 Obsidian сейчас подключен. NutEgg по умолчанию использует конфигурацию ИИ и дерево знаний Obsidian.',
       aiBannerConnectedFallback:
         ' Нижеследующие настройки будут использоваться в качестве резервных при закрытом Obsidian.',
       aiBannerOfflineStandalone:
-        '🟠 <strong>Obsidian сейчас не в сети.</strong> NutEgg будет работать в автономном режиме, используя приведенную ниже конфигурацию ИИ для быстрых выводов и резюме.',
+        '🟠 Obsidian сейчас не в сети. NutEgg будет работать в автономном режиме, используя приведенную ниже конфигурацию ИИ для быстрых выводов и резюме.',
       aiBannerOfflineDisabled:
-        '⚪ <strong>Obsidian сейчас не в сети.</strong> Автономный Chrome AI выключен. Запустите Obsidian для захвата или включите опцию ниже.',
+        '⚪ Obsidian сейчас не в сети. Автономный Chrome AI выключен. Запустите Obsidian для захвата или включите опцию ниже.',
       sectionPreferencesSaved: 'Настройки разделов сохранены.',
       checkingObsidianStatus: 'Проверка статуса Obsidian...',
       versionMismatchShort: ' ⚠️ Несоответствие версий: плагин v{pluginVersion}, расширение v{extVersion}.',
@@ -6618,7 +6618,7 @@
       promptOptFollowUp: 'Дополнительные вопросы и ответы',
       obsidianPitchTitle: '💡 Хотите полноценную организацию знаний?',
       obsidianPitchDesc:
-        'Автономный режим Chrome обеспечивает быстрые вердикты и краткие обзоры. Подключение NutEgg к <strong>плагину Obsidian</strong> открывает автоматическое сопоставление с деревом знаний, отслеживание новизны и сохранение в хранилище.',
+        'Автономный режим Chrome обеспечивает быстрые вердикты и краткие обзоры. Подключение NutEgg к плагину Obsidian открывает автоматическое сопоставление с деревом знаний, отслеживание новизны и сохранение в хранилище.',
       aiSettingsSaved: 'Настройки ИИ успешно сохранены.',
       resetPromptDefault: 'Шаблон {key} сброшен на значение по умолчанию.',
       invalidPortNumber: 'Неверный номер порта (1-65535).',
@@ -6650,9 +6650,9 @@
 
       versionMismatchFull:
         'Несоответствие версий: расширение Chrome версии v{extVersion}, а плагин Obsidian версии v{pluginVersion}. Пожалуйста, обновите оба до одинаковой версии для полной совместимости.',
-      aiKeyRequiredChrome: '<strong>Требуется ключ ИИ:</strong> Автономный Chrome AI включен, но ключ API не настроен.',
+      aiKeyRequiredChrome: 'Требуется ключ ИИ: Автономный Chrome AI включен, но ключ API не настроен.',
       obsidianOfflineBanner:
-        '<strong>Obsidian не в сети:</strong> Запустите Obsidian для сохранения или включите автономный Chrome AI в настройках.',
+        'Obsidian не в сети: Запустите Obsidian для сохранения или включите автономный Chrome AI в настройках.',
       enableChromeAiBtn: '⚡ Включить Chrome AI',
 
       atLeastOneSection: 'Как минимум один раздел анализа должен оставаться включенным.',
@@ -6837,7 +6837,7 @@
       nutCollectedVault: 'Nut сохранен в хранилище Obsidian!',
       noNewKnowledgeToAdd: 'Новых знаний для добавления не найдено',
       stage1NutSavedNotice:
-        '<strong>Nut сохранен в хранилище!</strong> Исходный текст сохранен. При желании вы можете высидеть egg ниже.',
+        'Nut сохранен в хранилище! Исходный текст сохранен. При желании вы можете высидеть egg ниже.',
       stage1NoEggsNotice: 'В хранилище нет eggs. Создайте egg для анализа.',
       stage1NoSelectedNotice: 'Egg не выбран, выберите egg для запуска анализа.',
       stage1SelectedNotice: 'Выбрано {count} egg, проверьте и запустите анализ.',
@@ -6859,13 +6859,13 @@
       stateSaved: 'сохранено',
       stateCollected: 'собрано',
       stateAnalyzed: 'проанализировано',
-      unprocessedParent: '🐣 → Не обработано · предложено в: <strong>{parent}</strong>',
+      unprocessedParent: '🐣 → Не обработано · предложено в: {parent}',
       unprocessedOnly: '🐣 → Не обработано',
       eggKeyQuestions: '💬 Ключевые вопросы для этого Egg ({count})',
       viewCovered: '▸ Показать охваченное',
       hideCovered: '▾ Скрыть охваченное',
       badgeCovered: 'Охвачено',
-      underParent: 'в: <strong>{parent}</strong>',
+      underParent: 'в: {parent}',
       alreadyKnown: 'Уже известно',
       currentKnowledgeInEgg: '📚 Имеющиеся знания в Egg',
       viewTree: '▸ Показать дерево',
@@ -6931,7 +6931,7 @@
       chromeAiNoKeyConfig: 'Добавьте API-ключ в настройках NutEgg для анализа в Chrome.',
       obsidianNoKeyConfig: 'Obsidian подключен, но API-ключ не настроен. Добавьте ключ в Obsidian → NutEgg.',
       errorHintNoApiKey:
-        'Откройте Настройки Obsidian → NutEgg, включите <strong>Режим разработчика</strong> и введите API-ключ.',
+        'Откройте Настройки Obsidian → NutEgg, включите Режим разработчика и введите API-ключ.',
       errorHintAuthFailed: 'API-ключ отклонен. Проверьте его в Настройках Obsidian → NutEgg.',
       errorHintForbidden: 'У вашего аккаунта нет доступа к модели либо требуется пополнить баланс.',
       errorHintModelNotFound: 'Неверное имя модели. Попробуйте выбрать другую модель в настройках.',
