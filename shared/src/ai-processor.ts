@@ -843,6 +843,27 @@ export class AIProcessor {
     return result;
   }
 
+  private async mapSettledWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<R>
+  ): Promise<Array<PromiseSettledResult<R>>> {
+    const results: Array<PromiseSettledResult<R>> = new Array(items.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length) {
+        const index = next++;
+        try {
+          results[index] = { status: 'fulfilled', value: await fn(items[index], index) };
+        } catch (reason) {
+          results[index] = { status: 'rejected', reason };
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+    return results;
+  }
+
   private async analyzeBodySection(
     capture: CapturePayload,
     effectiveSections: AnalysisSectionsConfig
@@ -862,9 +883,18 @@ export class AIProcessor {
 
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     if (chunks.length > 1) {
-      const settled = await Promise.allSettled(chunks.map(chunk => this.callContentChunk({
-        ...capture, content: chunk.content, chapters: chunk.chapters, questions: [], enabledSections: effectiveSections,
-      }, partNote(chunk))));
+      const settled = await this.mapSettledWithConcurrency(chunks, 4, chunk =>
+        this.callContentChunk(
+          {
+            ...capture,
+            content: chunk.content,
+            chapters: chunk.chapters,
+            questions: [],
+            enabledSections: effectiveSections,
+          },
+          partNote(chunk)
+        )
+      );
       this.ensureActive();
       const failures: NonNullable<ContentAnalysis['analysisFailures']> = [];
       const failed = (error: any, part?: number) => {

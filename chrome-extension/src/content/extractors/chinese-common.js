@@ -174,7 +174,7 @@ function chineseVideoResult(platform, title, description, author, duration, tran
   const content = [
     `# ${title}`,
     description && `## Description\n\n${description}`,
-    transcript.text && `## Transcript\n\n${truncate(transcript.text, 100000)}`,
+    transcript.text && `## Transcript\n\n${transcript.text}`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -193,7 +193,5 @@ function chineseVideoResult(platform, title, description, author, duration, tran
       ...extra,
     },
   };
-  if (transcript.text.length > 100000)
-    addCaptureCoverage(result, 'truncated', { originalCharacters: transcript.text.length, capturedCharacters: 100000 });
   return result;
 }

@@ -59,9 +59,7 @@ async function extractYouTube(context) {
     parts.push(`\n## Chapters\n\n${chapters.map(c => `- ${c.time} — ${c.title}`).join('\n')}`);
   }
   if (transcript) {
-    // 100k chars ≈ 2 hours of speech — only a sanity cap, so long videos
-    // keep their full transcript (the AI trims its own prompt window).
-    parts.push(`\n## Transcript\n\n${truncate(transcript, 100000)}`);
+    parts.push(`\n## Transcript\n\n${transcript}`);
   } else {
     parts.push(`\n## Transcript\n\n*No transcript available for this video.*`);
   }
@@ -88,8 +86,6 @@ async function extractYouTube(context) {
       time_estimate_minutes: timeMinutes,
     },
   };
-  if (transcript.length > 100000)
-    addCaptureCoverage(result, 'truncated', { originalCharacters: transcript.length, capturedCharacters: 100000 });
   return result;
 }
 
