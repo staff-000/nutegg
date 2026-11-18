@@ -313,14 +313,17 @@ globalThis.NutEggPanel = {
       if (!tab) return;
       const key = globalThis.NutEggPageIdentity.capturePageKey(tab.url || '');
       const initial = key === globalThis.NutEggPageIdentity.capturePageKey(seedKey || '') ? decision : null;
-      const base = tab.panelClassification || initial || {};
+      const base = {
+        ...(tab.panelClassification || initial || {}),
+        automatic: Boolean(context?.automatic),
+      };
       if (!tab.extractedContent) {
         if (!tab.panelClassification && initial)
           manager.dispatch({
             type: 'panelClassification',
             tabId: tab.tabId,
             pageGeneration: tab.pageGeneration,
-            value: initial,
+            value: base,
           });
         return;
       }

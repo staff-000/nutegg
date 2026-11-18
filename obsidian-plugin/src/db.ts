@@ -41,6 +41,8 @@ export interface NutRow {
   analysisResult: AnalysisResult | null;
   /** Fingerprints of durably hatched entries; independent of later analysis updates. */
   confirmedKnowledge?: string[] | null;
+  topics?: string[] | null;
+  questions?: string[] | null;
   capturePayload?: (CapturePayload & { metadata?: Record<string, string> }) | null;
 }
 
@@ -137,6 +139,8 @@ export class NutEggDatabase {
         file_name TEXT,
         capture_payload TEXT,
         confirmed_knowledge TEXT,
+        topics TEXT,
+        questions TEXT,
         analysis_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_nuts_url ON nuts(url);
@@ -146,6 +150,10 @@ export class NutEggDatabase {
       this.db!.exec('ALTER TABLE nuts ADD COLUMN capture_payload TEXT');
     if (!columns.some(column => column.name === 'confirmed_knowledge'))
       this.db!.exec('ALTER TABLE nuts ADD COLUMN confirmed_knowledge TEXT');
+    if (!columns.some(column => column.name === 'topics'))
+      this.db!.exec('ALTER TABLE nuts ADD COLUMN topics TEXT');
+    if (!columns.some(column => column.name === 'questions'))
+      this.db!.exec('ALTER TABLE nuts ADD COLUMN questions TEXT');
   }
 
   // --- Nuts ---
@@ -157,12 +165,14 @@ export class NutEggDatabase {
   insertNut(row: Omit<NutRow, 'id'>): number | null {
     if (!this.db) return null;
     this.corpusCache = null;
+    const topics = row.topics ?? row.analysisResult?.contentMetadata?.topics ?? null;
+    const questions = row.questions ?? row.analysisResult?.contentMetadata?.answerableQuestions ?? null;
     try {
       const res = this.db
         .prepare(
           `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload, confirmed_knowledge)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload, confirmed_knowledge, topics, questions)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           row.url,
@@ -179,7 +189,9 @@ export class NutEggDatabase {
           row.fileName || null,
           row.analysisResult ? JSON.stringify(row.analysisResult) : null,
           row.capturePayload ? JSON.stringify(row.capturePayload) : null,
-          row.confirmedKnowledge ? JSON.stringify(row.confirmedKnowledge) : null
+          row.confirmedKnowledge ? JSON.stringify(row.confirmedKnowledge) : null,
+          topics ? JSON.stringify(topics) : null,
+          questions ? JSON.stringify(questions) : null
         );
       return Number(res.lastInsertRowid);
     } catch (err) {
@@ -232,6 +244,8 @@ export class NutEggDatabase {
       matchedEggs?: string[];
       analysisResult?: AnalysisResult | null;
       confirmedKnowledge?: string[];
+      topics?: string[] | null;
+      questions?: string[] | null;
     }
   ): void {
     if (!this.db) return;
@@ -261,6 +275,16 @@ export class NutEggDatabase {
     if (patch.confirmedKnowledge !== undefined) {
       sets.push('confirmed_knowledge = ?');
       params.push(JSON.stringify(patch.confirmedKnowledge));
+    }
+    const nextTopics = patch.topics ?? patch.analysisResult?.contentMetadata?.topics;
+    if (nextTopics !== undefined) {
+      sets.push('topics = ?');
+      params.push(nextTopics ? JSON.stringify(nextTopics) : null);
+    }
+    const nextQuestions = patch.questions ?? patch.analysisResult?.contentMetadata?.answerableQuestions;
+    if (nextQuestions !== undefined) {
+      sets.push('questions = ?');
+      params.push(nextQuestions ? JSON.stringify(nextQuestions) : null);
     }
     if (sets.length === 0) return;
     params.push(id);
@@ -382,9 +406,24 @@ export class NutEggDatabase {
       const parsed = row.confirmed_knowledge ? JSON.parse(row.confirmed_knowledge) : null;
       if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) confirmedKnowledge = parsed;
     } catch {}
+    let topics: string[] | null = null;
+    try {
+      const parsed = row.topics ? JSON.parse(row.topics) : null;
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) topics = parsed;
+    } catch {}
+    if (!topics && analysisResult?.contentMetadata?.topics) topics = analysisResult.contentMetadata.topics;
+    let questions: string[] | null = null;
+    try {
+      const parsed = row.questions ? JSON.parse(row.questions) : null;
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) questions = parsed;
+    } catch {}
+    if (!questions && analysisResult?.contentMetadata?.answerableQuestions)
+      questions = analysisResult.contentMetadata.answerableQuestions;
     return {
       capturePayload,
       confirmedKnowledge,
+      topics,
+      questions,
       id: row.id,
       url: row.url,
       title: row.title,

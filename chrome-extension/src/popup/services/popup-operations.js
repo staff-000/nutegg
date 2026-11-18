@@ -619,6 +619,8 @@ class PopupOperations {
         ...content,
         debugScope: tab.debugScope,
         analysis: result,
+        topics: result?.contentMetadata?.topics || [],
+        questions: result?.contentMetadata?.answerableQuestions || [],
         summary: result?.summary || '',
         matchedEggs: result?.matchedEggs || [],
         newKnowledge: entries,

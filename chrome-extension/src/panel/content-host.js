@@ -24,7 +24,7 @@
     const meta = selector => document.querySelector(selector)?.getAttribute('content') || '';
     const url = new URL(location.href);
     const article =
-      !!document.querySelector('article,[role="article"],[itemprop="articleBody"]') ||
+      !!document.querySelector('article,[role="article"],[itemprop="articleBody"],[class*="ArticleBody"],[data-module="ArticleBody"]') ||
       meta('meta[property="og:type"]') === 'article';
     const video =
       (!article && !!document.querySelector('video')) ||

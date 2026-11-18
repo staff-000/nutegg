@@ -544,6 +544,8 @@ export class NutEggServer {
         matchedEggs: result.matchedEggs || [],
         fileName: '',
         analysisResult: result,
+        topics: result.contentMetadata?.topics || null,
+        questions: result.contentMetadata?.answerableQuestions || null,
         capturePayload: this.captureSnapshot(capture),
       }) ?? undefined
     );
@@ -1707,6 +1709,12 @@ export class NutEggServer {
           processingResult: saved,
           confirmedKnowledge,
           ...(confirm.analysis ? { analysisResult: confirm.analysis } : {}),
+          ...((confirm as any).topics || confirm.analysis?.contentMetadata?.topics
+            ? { topics: (confirm as any).topics || confirm.analysis?.contentMetadata?.topics }
+            : {}),
+          ...((confirm as any).questions || confirm.analysis?.contentMetadata?.answerableQuestions
+            ? { questions: (confirm as any).questions || confirm.analysis?.contentMetadata?.answerableQuestions }
+            : {}),
           ...(fileName ? { fileName } : {}),
         });
       } else {
@@ -1726,6 +1734,8 @@ export class NutEggServer {
           matchedEggs: eggNames,
           fileName,
           analysisResult: confirm.analysis ?? null,
+          topics: (confirm as any).topics ?? confirm.analysis?.contentMetadata?.topics ?? null,
+          questions: (confirm as any).questions ?? confirm.analysis?.contentMetadata?.answerableQuestions ?? null,
           capturePayload: this.captureSnapshot(confirm),
         });
       }

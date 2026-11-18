@@ -217,10 +217,15 @@ var NutEggPanels = (() => {
             return { error: 'stale' };
           current = { ...current, signals, decision };
           await save(tabId, current);
+          let canOpenAfterCapture = decision.open;
+          if (!canOpenAfterCapture && !signals.listing && !signals.contentAvailable) {
+            const potential = await evaluate({ ...signals, contentAvailable: true, minutes: 999 }, current.cached);
+            canOpenAfterCapture = Boolean(potential?.open);
+          }
           const shouldPrefetch = !!(
             tab.active &&
             settings.mode === 'injected' &&
-            decision.open &&
+            canOpenAfterCapture &&
             !current.suppressed &&
             !current.opened
           );
@@ -308,10 +313,15 @@ var NutEggPanels = (() => {
       const dismissed = (settings.dismissedSuggestions || []).includes(hostname);
       const author = current.cached?.author || current.signals.author || null;
       const topics = current.cached?.topics || [];
+      const siteRegex = NutEggRules.websiteRegex(current.signals.url);
+      const hasSiteRule = (settings.rules || []).some(
+        r => r.enabled !== false && r.website === siteRegex && NutEggRules.isSimpleSiteRule(r)
+      );
       return {
         dismissed,
         hostname,
-        website: NutEggRules.websiteRegex(current.signals.url),
+        website: siteRegex,
+        hasSiteRule,
         author,
         topics,
         decision: current.decision,
