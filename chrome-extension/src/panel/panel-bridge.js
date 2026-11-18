@@ -115,7 +115,7 @@ globalThis.NutEggPanel = {
     ruleBar.className = 'panel-smart-rule-bar';
     ruleBar.setAttribute('data-nutegg-panel-ctrl', '');
 
-    const controls = context ? [ruleBar, modeBtn] : [modeBtn];
+    const controls = context ? [modeBtn, ruleBar] : [modeBtn];
     if (context) {
       const close = document.createElement('button');
       close.type = 'button';
