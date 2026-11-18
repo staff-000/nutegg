@@ -66,6 +66,18 @@
     const host = websiteHostname(rule);
     if (host) return host;
     const raw = String(rule?.website || '');
+    // Generated path rules contain an optional port group before the path.
+    // Parse that group explicitly so the label cannot silently collapse to the host.
+    const port = '(?::[0-9]+)?', boundary = '(?:[/?#]|$)';
+    const portAt = raw.indexOf(port);
+    if (raw.startsWith('^https?://') && portAt !== -1 && raw.endsWith(boundary)) {
+      const hostPattern = raw.slice('^https?://'.length, portAt)
+        .replace('(?:[^/]+\\.)?', '').replace('(?:www\\.)?', '');
+      const hostname = hostPattern.replace(/\\\./g, '.');
+      const path = raw.slice(portAt + port.length, -boundary.length).replace(/\\(.)/g, '$1');
+      if (/^[a-z0-9.-]+$/i.test(hostname) && path.startsWith('/'))
+        return `${hostname}${path === '/' ? '' : path}/*`;
+    }
     const m = raw.match(
       /^\^https\??:\/\/(?:\(\?:[^)]+\)\??)?(?:www\\\.)?([a-z0-9\\.-]+)(?:\(\?:\[0-9\]\+\)\?)?(\/[^($]+)?/i
     );
@@ -243,8 +255,19 @@
   }
   function activeRules(settings) {
     const custom = Array.isArray(settings.rules) ? settings.rules : [];
-    if (settings.openingPolicy === 'nutegg') return [...custom, ...buildDefaultRules()];
+    if (settings.openingPolicy === 'nutegg') return buildDefaultRules();
+    if (settings.openingPolicy === 'open' || settings.openingPolicy === 'closed') return [];
     return custom;
+  }
+  function customize(settings) {
+    if (settings.openingPolicy === 'custom') return settings;
+    return {
+      ...settings,
+      openingPolicy: 'custom',
+      defaultOpen: settings.openingPolicy === 'open',
+      customRulesInitialized: true,
+      rules: activeRules(settings).map(rule => structuredClone(rule)),
+    };
   }
   function hasCustomRegex(settings) {
     return activeRules(settings).some(rule => {
@@ -426,6 +449,7 @@
     websiteHostname,
     validate,
     activeRules,
+    customize,
     hasCustomRegex,
     isListingUrl,
     decide,

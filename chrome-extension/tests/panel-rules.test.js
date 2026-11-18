@@ -77,7 +77,7 @@ test('invalid regex is rejected and defaults remain available', () => {
   assert.equal(rules.decide({ rules: [], defaultOpen: true }, page).open, true);
 });
 
-test('opening presets set fallback behavior while custom whitelist/blacklist rules always apply', () => {
+test('built-in presets ignore saved custom rules and custom mode applies them', () => {
   const withoutCustom = { ...rules.defaults, rules: [] };
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'open' }, page).open, true);
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'closed' }, page).open, false);
@@ -85,11 +85,13 @@ test('opening presets set fallback behavior while custom whitelist/blacklist rul
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'nutegg' }, { ...page, minutes: 1 }).open, true);
 
   const withBlock = { ...rules.defaults, rules: [rule({ action: 'block' })] };
-  assert.equal(rules.decide({ ...withBlock, openingPolicy: 'open' }, page).open, false);
-  assert.equal(rules.decide({ ...withBlock, openingPolicy: 'nutegg' }, page).open, false);
+  assert.equal(rules.decide({ ...withBlock, openingPolicy: 'open' }, page).open, true);
+  assert.equal(rules.decide({ ...withBlock, openingPolicy: 'nutegg' }, page).open, true);
 
+  assert.equal(rules.decide({ ...withBlock, openingPolicy: 'custom' }, page).open, false);
   const withAllow = { ...rules.defaults, rules: [rule({ action: 'allow' })] };
-  assert.equal(rules.decide({ ...withAllow, openingPolicy: 'closed' }, page).open, true);
+  assert.equal(rules.decide({ ...withAllow, openingPolicy: 'closed' }, page).open, false);
+  assert.equal(rules.decide({ ...withAllow, openingPolicy: 'custom' }, page).open, true);
 });
 test('Topics includes channel names and aliases even when AI subjects are cached', () => {
   assert.equal(decide([rule({ topics: ['Dan Koe'] })], page, { topics: ['Cooking'] }).open, true);
@@ -176,4 +178,36 @@ test('disabled content conditions retain their config without affecting matches 
   // Inactive conditions must not outrank a website-only block.
   assert.equal(decide([savedRule, rule({ id: 'block', action: 'block' })]).open, false);
   assert.deepEqual(rules.mergeRule([savedRule], { ...savedRule, name: 'Renamed' })[0], { ...savedRule, name: 'Renamed', enabled: true });
+});
+
+
+test('customizing forks each preset and retains its baseline without changing built-ins', () => {
+  for (const policy of ['nutegg', 'open', 'closed']) {
+    const preset = rules.normalize({ openingPolicy: policy, rules: [rule({ action: 'block' })] });
+    const before = structuredClone(preset);
+    const custom = rules.customize(preset);
+    assert.equal(custom.openingPolicy, 'custom');
+    assert.equal(custom.defaultOpen, policy === 'open');
+    assert.deepEqual(preset, before);
+    assert.equal(rules.decide(custom, page).open, rules.decide(preset, page).open);
+    const another = { ...page, url: 'https://example.org/article' };
+    assert.equal(rules.decide(custom, another).open, policy === 'open');
+    custom.rules = rules.mergeRule(custom.rules, rule({ action: 'block' }));
+    assert.equal(rules.decide(custom, page).open, false);
+    assert.equal(rules.decide({ ...custom, openingPolicy: 'nutegg' }, page).open, true);
+    assert.equal(rules.decide({ ...custom, openingPolicy: 'open' }, page).open, true);
+    assert.equal(rules.decide({ ...custom, openingPolicy: 'closed' }, page).open, false);
+    assert.equal(rules.customize(custom), custom);
+  }
+});
+
+
+test('generated URL labels retain path scope instead of showing a whole-domain block', () => {
+  for (const input of ['/read/*', '/video/*', '/bangumi/play/*', '/list/*']) {
+    const website = rules.subUrlRegex('bilibili.com', input);
+    assert.equal(rules.friendlyUrlLabel({ website }), `bilibili.com${input}`);
+  }
+  const website = rules.subUrlRegex('zhihu.com', 'zhuanlan.zhihu.com/p/123');
+  assert.equal(rules.friendlyUrlLabel({ website }), 'zhuanlan.zhihu.com/p/123/*');
+  assert.equal(rules.friendlyUrlLabel({ website: rules.websiteRegex('bilibili.com') }), 'bilibili.com');
 });

@@ -213,11 +213,12 @@ test('settings preview targets the requested website tab rather than the options
   assert.equal(result.decision.open, true);
 });
 
-test('accepting a suggestion preserves the current opening preset while adding the rule', async () => {
+test('accepting a suggestion creates customized rules with the preset fallback', async () => {
   for (const policy of ['open', 'closed']) {
     const f = await fixture({ ...Rules.defaults, openingPolicy: policy }); await f.inspect();
     await f.send({ action: 'panel-suggest-save', url: f.tabs.get(1).url, allow: policy === 'closed' });
-    assert.equal(f.local.panelSettings.openingPolicy, policy);
+    assert.equal(f.local.panelSettings.openingPolicy, 'custom');
+    assert.equal(f.local.panelSettings.defaultOpen, policy === 'open');
     assert.equal(f.local.panelSettings.rules.length, 1);
     assert.deepEqual(f.local.panelSettings.rules[0].topics, ['Dan Koe']);
   }

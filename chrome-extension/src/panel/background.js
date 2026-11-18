@@ -144,6 +144,7 @@ var NutEggPanels = (() => {
       enabled: rawRule.enabled !== false,
       ...rawRule,
     });
+    settings = NutEggRules.customize(settings);
     settings = NutEggRules.normalize({
       ...settings,
       rules: NutEggRules.mergeRule(settings.rules, rule),
@@ -330,7 +331,7 @@ var NutEggPanels = (() => {
         null;
       const topics = current.cached?.topics || [];
       const siteRegex = NutEggRules.websiteRegex(hostname);
-      const customSiteRule = (settings.rules || []).find(
+      const customSiteRule = NutEggRules.activeRules(settings).find(
         r => r.enabled !== false && r.website === siteRegex && !r.topics?.length && !r.authors?.length
       );
       const isDefaultWhitelisted =
@@ -372,6 +373,7 @@ var NutEggPanels = (() => {
       return { ok: true, rule: saved, settings };
     }
     if (message.action === 'panel-delete-rule') {
+      settings = NutEggRules.customize(settings);
       settings = NutEggRules.normalize({
         ...settings,
         rules: (settings.rules || []).filter(item => item.id !== message.id),

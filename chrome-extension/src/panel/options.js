@@ -87,13 +87,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ['nutegg', t('panelPresetDefault')],
     ['open', t('panelDefaultOpen')],
     ['closed', t('panelDefaultClosed')],
+    ['custom', t('panelPresetCustom')],
   ]);
-  policySelect.value =
-    settings.openingPolicy === 'custom'
-      ? settings.defaultOpen
-        ? 'open'
-        : 'closed'
-      : settings.openingPolicy;
+  policySelect.value = settings.openingPolicy;
 
   const autoCheck = el('input');
   autoCheck.type = 'checkbox';
@@ -217,6 +213,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoCheck.disabled = isNative;
   }
 
+  function beginCustomEdit() {
+    settings = NutEggRules.customize(settings);
+    policySelect.value = 'custom';
+  }
+
   async function persist() {
     await chrome.storage.local.set({ panelSettings: settings });
     status.textContent = t('panelSaved');
@@ -227,13 +228,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function saveSettings() {
     const val = displaySelect.value;
+    if (
+      policySelect.value === 'custom' && settings.openingPolicy !== 'custom'
+    ) {
+      beginCustomEdit();
+    }
     settings = NutEggRules.normalize({
       ...settings,
       mode: val === 'native' ? 'native' : 'injected',
       side: val === 'injected-left' ? 'left' : 'right',
       layoutMode: layoutSelect.value,
       openingPolicy: policySelect.value,
-      defaultOpen: policySelect.value === 'open',
+      defaultOpen: settings.defaultOpen,
+      customRulesInitialized: settings.customRulesInitialized || policySelect.value === 'custom',
       autoAnalyze: autoCheck.checked,
     });
     visibility();
@@ -415,6 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function addTopicForSite(website, hostname, action, topic) {
+    beginCustomEdit();
     settings.rules = NutEggRules.mergeRule(settings.rules, {
       website,
       ...(hostname ? { hostname } : {}),
@@ -428,6 +436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function removeTopicForSite(website, action, topic) {
     const target = topic.toLocaleLowerCase();
+    beginCustomEdit();
     settings.rules = settings.rules
       .map(r => {
         if (r.website !== website || !NutEggRules.isSimpleTopicRule(r) || r.action !== action) return r;
@@ -440,6 +449,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function setSiteDefault(website, hostname, nextAction) {
+    beginCustomEdit();
     settings.rules = settings.rules.filter(r => !(r.website === website && NutEggRules.isSimpleSiteRule(r)));
     if (nextAction === 'allow' || nextAction === 'block') {
       settings.rules = NutEggRules.mergeRule(settings.rules, {
@@ -495,7 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const host of draftSites) ensureGroup(host, host, NutEggRules.websiteRegex(host));
 
     const customRegexRules = [];
-    for (const rule of settings.rules) {
+    for (const rule of settings.openingPolicy === 'custom' ? settings.rules : []) {
       const isGlobal = rule.website === '.*';
       const exactHost = NutEggRules.websiteHostname(rule);
       const groupHost = ruleGroupHost(rule);
@@ -520,7 +530,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         rule.excludeListings !== true &&
         (!rule.aliases || !Object.keys(rule.aliases).length);
       if (isRootSiteConditionRule && rule.enabled !== false) {
-        g.siteRule = rule;
+        // A copied preset retains its URL chips as well as its matching behavior.
+        if (rule._starter) g.defaultRule = rule;
+        else g.siteRule = rule;
       } else if (isRootScope && NutEggRules.isSimpleTopicRule(rule) && rule.enabled !== false) {
         const listTarget = rule.action === 'block' ? g.blockTopics : g.allowTopics;
         for (const topic of rule.topics || []) {
@@ -639,6 +651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               if (saveIt && nextHost && nextHost !== active.hostname) {
                 const oldHost = active.hostname;
                 const nextRegex = NutEggRules.websiteRegex(nextHost);
+                beginCustomEdit();
                 settings.rules = settings.rules.map(r => {
                   if (ruleGroupHost(r) !== oldHost) return r;
                   const exact = NutEggRules.websiteHostname(r);
@@ -669,7 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const regionBadge = makeRegionBadge(active.hostname);
         if (regionBadge) titleWrap.append(regionBadge);
         const condSource = active.siteRule || active.defaultRule;
-        const primaryParts = [active.siteRule ? t('panelEdit') : t('panelDefaultTag')];
+        const primaryParts = [];
         if (NutEggRules.contentConditionsEnabled && condSource?.minMinutes != null) primaryParts.push(`${condSource.minMinutes}+ min`);
         if (NutEggRules.contentConditionsEnabled && condSource?.maxMinutes != null) primaryParts.push(`≤${condSource.maxMinutes} min`);
         if (NutEggRules.contentConditionsEnabled && condSource?.contentAvailable === true) primaryParts.push(t('panelContentReady'));
@@ -679,7 +692,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         condBtn.type = 'button';
         condBtn.setAttribute('aria-label', t('panelEdit'));
         const condTextWrap = el('span', 'panel-default-tag-text');
-        condTextWrap.append(el('span', 'panel-default-tag-line', primaryParts.join(' · ')));
+        if (primaryParts.length)
+          condTextWrap.append(el('span', 'panel-default-tag-line', primaryParts.join(' · ')));
         if (condSource?.excludeListings) {
           condTextWrap.append(el('span', 'panel-default-tag-sub', t('panelSkipLists')));
         }
@@ -687,17 +701,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         condEditIcon.setAttribute('aria-hidden', 'true');
         condEditIcon.innerHTML =
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-        condBtn.append(condTextWrap, condEditIcon);
+        if (condTextWrap.childElementCount) condBtn.append(condTextWrap);
+        condBtn.append(condEditIcon);
         titleWrap.append(condBtn);
         head.append(titleWrap);
 
         const headRight = el('div', 'panel-site-controls');
-        const hasCustomForGroup = settings.rules.some(r => ruleGroupHost(r) === active.hostname);
+        const hasCustomForGroup = settings.openingPolicy === 'custom' &&
+          settings.rules.some(r => ruleGroupHost(r) === active.hostname);
         if (hasCustomForGroup || !active.defaultRule) {
           const delSiteBtn = el('button', 'text-btn', t('panelDelete'));
           delSiteBtn.type = 'button';
           delSiteBtn.addEventListener('click', async () => {
             draftSites.delete(active.hostname);
+            beginCustomEdit();
             settings.rules = settings.rules.filter(r => ruleGroupHost(r) !== active.hostname);
             await persist();
             render();
@@ -760,6 +777,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ...(condAvail.value !== 'any' ? { contentAvailable: condAvail.value === 'yes' } : {}),
             excludeListings: condLists.checked,
           });
+          beginCustomEdit();
           settings.rules = [
             ...settings.rules.filter(r => r.id !== active.siteRule?.id),
             nextRule,
@@ -783,6 +801,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             rm.type = 'button';
             rm.setAttribute('aria-label', `${t('panelDelete')} ${pathLabel}`);
             rm.addEventListener('click', async () => {
+              beginCustomEdit();
               settings.rules = NutEggRules.mergeRule(settings.rules, {
                 name: `${active.hostname}${pathLabel}`,
                 website: pathRegex,
@@ -802,6 +821,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             rm.type = 'button';
             rm.setAttribute('aria-label', `${t('panelDelete')} ${label}`);
             rm.addEventListener('click', async () => {
+              beginCustomEdit();
               settings.rules = settings.rules.filter(item => item.id !== r.id);
               await persist();
               render();
@@ -826,6 +846,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                   const regex = NutEggRules.subUrlRegex(active.hostname, val);
                   const hostMatch = NutEggRules.websiteHostname({ website: regex });
+                  beginCustomEdit();
                   settings.rules = [
                     ...settings.rules.filter(item => !(item.website === regex && item.action !== kind)),
                     NutEggRules.validate({
@@ -915,6 +936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const delBtn = el('button', 'text-btn', t('panelDelete'));
           delBtn.type = 'button';
           delBtn.addEventListener('click', async () => {
+            beginCustomEdit();
             settings.rules = settings.rules.filter(r => r.id !== adv.id);
             await persist();
             render();
@@ -950,6 +972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const delBtn = el('button', 'text-btn', t('panelDelete'));
         delBtn.type = 'button';
         delBtn.addEventListener('click', async () => {
+          beginCustomEdit();
           settings.rules = settings.rules.filter(r => r.id !== rule.id);
           await persist();
           render();
@@ -974,6 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       status.textContent = t('panelInvalid');
       return;
     }
+    beginCustomEdit();
     settings.rules = NutEggRules.mergeRule(settings.rules, {
       name: host,
       hostname: host,
@@ -993,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   saveRuleBtn.addEventListener('click', async () => {
     try {
       const rule = buildDraft();
+      beginCustomEdit();
       settings.rules = [...settings.rules.filter(item => item.id !== rule.id), rule];
       await persist();
       editor.hidden = true;
