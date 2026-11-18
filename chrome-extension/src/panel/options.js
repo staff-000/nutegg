@@ -13,20 +13,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     return node;
   };
 
-  const section = el('section', 'settings-section panel-settings');
+  const section = el('details', 'settings-disclosure panel-settings');
   section.id = 'nutegg-panel-settings';
 
-  // Header
-  const header = el('div', 'panel-settings-header');
-  const heading = el('h2');
-  const emoji = el('span', 'label-emoji', '🪟');
-  emoji.setAttribute('aria-hidden', 'true');
-  heading.append(emoji, ' ', t('panelSettings'));
-  header.append(heading);
+  // Disclosure summary header (matches "Make it yours")
+  const summary = el('summary');
+  const icon = el('span', 'disclosure-icon', '🪟');
+  icon.setAttribute('aria-hidden', 'true');
+  const summaryCopy = el('span', 'summary-copy');
+  summaryCopy.append(el('strong', '', t('panelSettings')), el('span', '', t('panelPopupConfig')));
   const status = el('span', 'panel-save-status');
   status.setAttribute('role', 'status');
-  header.append(status);
-  section.append(header);
+  const chevron = el('span', 'chevron');
+  chevron.setAttribute('aria-hidden', 'true');
+  summary.append(icon, summaryCopy, status, chevron);
+
+  const bodyWrap = el('div', 'disclosure-content');
+  section.append(summary, bodyWrap);
 
   function makeSelect(options) {
     const sel = el('select');
@@ -75,9 +78,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const displayRow = row('Panel display', displaySelect);
   const layoutRow = row('Page overlap', layoutSelect);
 
-  section.append(displayRow, layoutRow);
-  if (nativePosition) section.append(nativePosition);
-  section.append(nativeNotice);
+  bodyWrap.append(displayRow, layoutRow);
+  if (nativePosition) bodyWrap.append(nativePosition);
+  bodyWrap.append(nativeNotice);
 
   // 2. Auto-Popup Default & Auto-Analyze
   const policySelect = makeSelect([
@@ -98,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const policyRow = row(t('panelPopupConfig'), policySelect, t('panelHintPreset'));
   const autoRow = row(t('panelAutoAnalyze'), autoCheck, t('panelHintAuto'));
-  section.append(policyRow, autoRow);
+  bodyWrap.append(policyRow, autoRow);
 
   // 3. Opening rules hidden under "Add custom rules"
   const rulesDisclosure = el('details', 'panel-custom-rules');
@@ -198,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   editor.addEventListener('submit', event => event.preventDefault());
   rulesBox.append(editor);
   rulesDisclosure.append(rulesBox);
-  section.append(rulesDisclosure);
+  bodyWrap.append(rulesDisclosure);
 
   function visibility() {
     const isNative = displaySelect.value === 'native';
@@ -1007,6 +1010,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const draftRule = (await chrome.storage.session.get('panelRuleDraft')).panelRuleDraft;
   if (draftRule) {
+    section.open = true;
     rulesDisclosure.open = true;
     edit(draftRule);
     await chrome.storage.session.remove('panelRuleDraft');

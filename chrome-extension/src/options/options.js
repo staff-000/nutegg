@@ -690,8 +690,6 @@ function renderConnectionMode(mode) {
   renderSubscriptionAccess();
   connectionModeBadge.textContent = t(usesObsidian ? 'settingsObsidianMode' : 'settingsChromeMode');
   connectionModeBadge.classList.toggle('obsidian', usesObsidian);
-  const obsidianSettings = document.getElementById('obsidian-settings');
-  if (obsidianSettings) obsidianSettings.open = usesObsidian;
 }
 
 async function setConnectionMode(mode) {
@@ -749,19 +747,10 @@ function initConnectionMode(stored) {
   const forceChrome = ['1', 'true'].includes(urlParams.get('enableAi'));
   renderConnectionMode(forceChrome ? 'chrome' : stored.connectionMode);
   if (forceChrome) chrome.storage.local.set({ connectionMode: 'chrome', chromeAiEnabled: true });
+  obsidianModeEnabled.addEventListener('click', e => e.stopPropagation());
   obsidianModeEnabled.addEventListener('change', () =>
     setConnectionMode(obsidianModeEnabled.checked ? 'obsidian' : 'chrome')
   );
-  const obsidianSummary = document.querySelector('#obsidian-settings > summary');
-  if (obsidianSummary) {
-    obsidianSummary.addEventListener('click', e => {
-      if (e.target !== obsidianModeEnabled) {
-        e.preventDefault();
-        obsidianModeEnabled.checked = !obsidianModeEnabled.checked;
-        obsidianModeEnabled.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-  }
   document.getElementById('use-chrome-btn').addEventListener('click', async () => {
     if (await setConnectionMode('chrome')) aiProviderSelect.focus();
   });

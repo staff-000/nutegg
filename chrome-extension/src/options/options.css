@@ -1052,6 +1052,15 @@ textarea {
   border-radius: 12px;
   background: var(--paper);
 }
+.panel-settings.settings-disclosure {
+  padding: 0;
+}
+.panel-settings > summary {
+  cursor: pointer;
+}
+.panel-settings .disclosure-content {
+  padding: 18px 22px 20px;
+}
 .panel-settings-header {
   display: flex;
   align-items: center;
