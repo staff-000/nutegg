@@ -41,7 +41,7 @@ test('clear side space floats without changing website styles', t => {
 test('insufficient space reserves width and closing restores original styles', t => {
   const { doc, host, layout } = fixture(t, { right: 1500 });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
-  assert.equal(doc.documentElement.style.width, '1168px');
+  assert.equal(doc.documentElement.style.width, '');
   assert.equal(doc.body.style.marginLeft, '8px');
   assert.equal(layout.scrollbarHost.style.width, '1168px');
   assert.equal(doc.querySelectorAll('[data-nutegg-page-scroll]').length, 1);
@@ -52,7 +52,7 @@ test('insufficient space reserves width and closing restores original styles', t
 test('always push mode pushes right-docked pages even when right margin is clear', t => {
   const { doc, host, layout } = fixture(t, { right: 1050, layoutMode: 'push' });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
-  assert.equal(doc.documentElement.style.width, '1168px');
+  assert.equal(doc.documentElement.style.width, '');
   layout.setLayoutMode('floating');
   assert.equal(host.getAttribute('data-nutegg-layout'), 'floating');
   assert.equal(doc.documentElement.style.width, '');
@@ -62,12 +62,12 @@ test('always push mode pushes right-docked pages even when right margin is clear
 test('setSide switches pushed layout cleanly between right and left', t => {
   const { doc, host, layout } = fixture(t, { right: 1500, layoutMode: 'push' });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
-  assert.equal(doc.documentElement.style.width, '1168px');
+  assert.equal(doc.documentElement.style.width, '');
   layout.setSide('left');
   assert.equal(doc.documentElement.style.width, '');
   assert.equal(doc.body.style.marginLeft, '440px');
   layout.setSide('right');
-  assert.equal(doc.documentElement.style.width, '1168px');
+  assert.equal(doc.documentElement.style.width, '');
   assert.equal(doc.body.style.marginLeft, '8px');
 });
 test('left panels reserve the left side and resizing updates the reservation', t => {
@@ -149,4 +149,39 @@ test('horizontal scrolling pans the existing page while ordinary vertical wheel 
   assert.equal(doc.body.style.marginLeft, '140px');
   layout.dispose();
   assert.equal(doc.body.style.marginLeft, '8px');
+});
+
+
+test('right docking preserves native page width and fixed media geometry', t => {
+  const { doc, layout } = fixture(t, { right: 1500, prepare(win) {
+    win.document.body.style.width = '1584px';
+    const media = win.document.createElement('div');
+    media.id = 'live-photo';
+    media.style.cssText = 'position:fixed;width:300px;left:1300px';
+    media.getBoundingClientRect = () => ({left:1300,right:1600,top:50,bottom:350,width:300,height:300});
+    win.document.body.append(media);
+  }});
+  assert.equal(doc.body.style.width, '1584px');
+  assert.equal(doc.documentElement.style.width, '');
+  assert.equal(doc.body.style.marginLeft, '8px');
+  assert.equal(doc.querySelector('#live-photo').style.width, '300px');
+  assert.equal(doc.querySelector('#live-photo').style.left, '1300px');
+  assert.equal(layout.canvasWidth, 1600);
+});
+
+test('feed mutations, media loads and vertical scrolling do not rewrite page layout', async t => {
+  const { doc, win, layout } = fixture(t, { right: 1500 });
+  const mutations = [];
+  const observer = new win.MutationObserver(records => mutations.push(...records));
+  observer.observe(doc.documentElement, {attributes:true, subtree:true, attributeFilter:['style']});
+  t.after(() => observer.disconnect());
+  doc.querySelector('main').append(doc.createElement('video'));
+  doc.querySelector('video').dispatchEvent(new win.Event('load'));
+  win.dispatchEvent(new win.Event('scroll'));
+  await new Promise(resolve => setTimeout(resolve, 300));
+  layout.update();
+  await Promise.resolve();
+  assert.equal(mutations.length, 0, 'passive updates must not reset geometry or retrigger hover');
+  layout.update(500);
+  assert.equal(layout.scrollbarHost.style.width, '1088px');
 });

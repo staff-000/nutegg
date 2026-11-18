@@ -122,7 +122,11 @@
         };
         properties.set(property, previous);
       }
-      element.style.setProperty(property, value, 'important');
+      if (
+        element.style.getPropertyValue(property) !== value ||
+        element.style.getPropertyPriority(property) !== 'important'
+      )
+        element.style.setProperty(property, value, 'important');
       previous.applied = element.style.getPropertyValue(property);
       previous.appliedPriority = element.style.getPropertyPriority(property);
     }
@@ -209,6 +213,12 @@
     }
     reserve() {
       if (!this.doc.body) return;
+      // Feed animations, media loads and vertical scrolling must not repeatedly reset
+      // the document geometry: doing so can retrigger hover/autoplay on live photos.
+      const geometryKey = `${this.viewport()}:${this.win.innerHeight}:${this.width}:${this.side}`;
+      if (this.geometryKey === geometryKey && this.layoutBody === this.doc.body && this.saved.size) return;
+      this.geometryKey = geometryKey;
+      this.layoutBody = this.doc.body;
       // Measure the live site's own layout, without changing its DOM or columns.
       this.restore(this.fixed);
       this.restore(this.saved);
@@ -216,7 +226,6 @@
         body = this.doc.body,
         viewport = this.viewport();
       const nativeStyle = this.win.getComputedStyle(body);
-      const bounds = body.getBoundingClientRect();
       this.nativeBodyWidth = nativeStyle.width;
       this.nativeMarginLeft = parseFloat(nativeStyle.marginLeft) || 0;
       const reserved = Math.min(this.width + GAP, viewport),
@@ -256,14 +265,12 @@
           this.fixedItems.push({ node, left: rect.left, right: rect.right, width: style.width });
       }
       this.write(html, 'overflow-x', 'clip');
-      if (this.side === 'right') {
-        this.write(html, 'width', `${available}px`);
-      } else if (this.nativeBodyWidth && this.nativeBodyWidth !== 'auto') {
+      if (this.nativeBodyWidth && this.nativeBodyWidth !== 'auto') {
         this.write(body, 'width', this.nativeBodyWidth);
       }
       const postBounds = body.getBoundingClientRect();
       this.canvasWidth = Math.max(
-        this.side === 'right' ? available : viewport,
+        viewport,
         html.scrollWidth,
         body.scrollWidth,
         postBounds.right + (this.win.scrollX || 0)
@@ -291,22 +298,6 @@
       );
       for (const item of this.fixedItems || []) {
         if (!item.node.isConnected) continue;
-        if (this.side === 'right') {
-          const available = this.pageRight - this.pageLeft;
-          if (item.left <= 0 && item.right > available) {
-            const clamped = Math.max(0, available - Math.max(0, item.left));
-            this.write(item.node, 'left', `${item.left - this.horizontalOffset}px`, this.fixed);
-            this.write(item.node, 'right', 'auto', this.fixed);
-            this.write(item.node, 'width', `${clamped}px`, this.fixed);
-          } else if (item.right > available || this.horizontalOffset > 0) {
-            const shift = item.right > available ? Math.min(item.left, item.right - available) : 0;
-            const target = item.left - shift - this.horizontalOffset;
-            this.write(item.node, 'left', `${target}px`, this.fixed);
-            this.write(item.node, 'right', 'auto', this.fixed);
-            if (item.width && item.width !== 'auto') this.write(item.node, 'width', item.width, this.fixed);
-          }
-          continue;
-        }
         const target = item.left + offset;
         this.write(item.node, 'left', `${target}px`, this.fixed);
         this.write(item.node, 'right', 'auto', this.fixed);
@@ -346,7 +337,8 @@
       this.width = width;
       if (this.layoutMode === 'floating') {
         this.mode = 'floating';
-        this.host.setAttribute('data-nutegg-layout', this.mode);
+        if (this.host.getAttribute('data-nutegg-layout') !== this.mode)
+          this.host.setAttribute('data-nutegg-layout', this.mode);
         return;
       }
       if (this.layoutMode === 'push') {
@@ -358,7 +350,8 @@
           this.mode = 'inserted';
         }
       }
-      this.host.setAttribute('data-nutegg-layout', this.mode);
+      if (this.host.getAttribute('data-nutegg-layout') !== this.mode)
+        this.host.setAttribute('data-nutegg-layout', this.mode);
       if (this.mode === 'inserted') this.reserve();
     }
     dispose() {
