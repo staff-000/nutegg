@@ -184,9 +184,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   more.append(
     row(t('panelRuleName'), nameInput),
     row(t('panelAliases'), aliasesInput),
-    row(t('panelMin'), minInput),
-    row(t('panelMax'), maxInput),
-    row(t('panelAvailability'), availSelect),
+    ...(NutEggRules.contentConditionsEnabled ? [
+      row(t('panelMin'), minInput),
+      row(t('panelMax'), maxInput),
+      row(t('panelAvailability'), availSelect),
+    ] : []),
     row(t('panelSkipLists'), listingsCheck)
   );
   editor.append(more);
@@ -348,9 +350,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const scope = NutEggRules.websiteHostname(rule) || (rule.website === '.*' ? t('panelAllWebsites') : rule.website);
     const parts = [scope];
     if (rule.topics?.length) parts.push(rule.topics.join(', '));
-    if (rule.minMinutes != null) parts.push(`${rule.minMinutes}+ min`);
-    if (rule.maxMinutes != null) parts.push(`≤${rule.maxMinutes} min`);
-    if (rule.contentAvailable === true) parts.push(t('panelContentReady'));
+    if (NutEggRules.contentConditionsEnabled && rule.minMinutes != null) parts.push(`${rule.minMinutes}+ min`);
+    if (NutEggRules.contentConditionsEnabled && rule.maxMinutes != null) parts.push(`≤${rule.maxMinutes} min`);
+    if (NutEggRules.contentConditionsEnabled && rule.contentAvailable === true) parts.push(t('panelContentReady'));
     if (rule.excludeListings) parts.push(t('panelSkipLists'));
     return parts.join(' · ');
   }
@@ -668,10 +670,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (regionBadge) titleWrap.append(regionBadge);
         const condSource = active.siteRule || active.defaultRule;
         const primaryParts = [active.siteRule ? t('panelEdit') : t('panelDefaultTag')];
-        if (condSource?.minMinutes != null) primaryParts.push(`${condSource.minMinutes}+ min`);
-        if (condSource?.maxMinutes != null) primaryParts.push(`≤${condSource.maxMinutes} min`);
-        if (condSource?.contentAvailable === true) primaryParts.push(t('panelContentReady'));
-        else if (condSource?.contentAvailable === false) primaryParts.push(t('panelContentMissing'));
+        if (NutEggRules.contentConditionsEnabled && condSource?.minMinutes != null) primaryParts.push(`${condSource.minMinutes}+ min`);
+        if (NutEggRules.contentConditionsEnabled && condSource?.maxMinutes != null) primaryParts.push(`≤${condSource.maxMinutes} min`);
+        if (NutEggRules.contentConditionsEnabled && condSource?.contentAvailable === true) primaryParts.push(t('panelContentReady'));
+        else if (NutEggRules.contentConditionsEnabled && condSource?.contentAvailable === false) primaryParts.push(t('panelContentMissing'));
 
         const condBtn = el('button', 'panel-rule-default-tag is-editable');
         condBtn.type = 'button';
@@ -735,8 +737,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           return wrap;
         };
         condEditor.append(
-          makeCondField(t('panelMin'), condMin),
-          makeCondField(t('panelAvailability'), condAvail),
+          ...(NutEggRules.contentConditionsEnabled ? [
+            makeCondField(t('panelMin'), condMin),
+            makeCondField(t('panelAvailability'), condAvail),
+          ] : []),
           makeCondField(t('panelSkipLists'), condLists),
           condSaveBtn
         );
@@ -751,6 +755,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             hostname: active.hostname,
             website: active.website,
             action: active.siteRule?.action || 'allow',
+            ...(condSource?.maxMinutes != null ? { maxMinutes: condSource.maxMinutes } : {}),
             ...(condMin.value !== '' ? { minMinutes: Number(condMin.value) } : {}),
             ...(condAvail.value !== 'any' ? { contentAvailable: condAvail.value === 'yes' } : {}),
             excludeListings: condLists.checked,

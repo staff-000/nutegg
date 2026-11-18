@@ -1,5 +1,7 @@
 /* Shared by the background, settings, and the bounded regex worker. */
 (function (root) {
+  // Retain stored length/availability conditions for future use, but keep them inactive.
+  const contentConditionsEnabled = false;
   const starter = {
     id: 'long-content',
     name: 'panelStarter',
@@ -205,11 +207,11 @@
     if (rule.hostname) rule = { ...rule, website: websiteRegex(rule.hostname) };
     if (typeof rule.website !== 'string' || rule.website.length > 500) throw new Error('Invalid website regex');
     new RegExp(rule.website, 'i');
-    for (const key of ['minMinutes', 'maxMinutes'])
+    if (contentConditionsEnabled) for (const key of ['minMinutes', 'maxMinutes'])
       if (rule[key] != null && (!Number.isFinite(rule[key]) || rule[key] < 0)) throw new Error('Invalid reading time');
-    if (rule.minMinutes != null && rule.maxMinutes != null && rule.minMinutes > rule.maxMinutes)
+    if (contentConditionsEnabled && rule.minMinutes != null && rule.maxMinutes != null && rule.minMinutes > rule.maxMinutes)
       throw new Error('Invalid reading range');
-    if (rule.contentAvailable != null && typeof rule.contentAvailable !== 'boolean')
+    if (contentConditionsEnabled && rule.contentAvailable != null && typeof rule.contentAvailable !== 'boolean')
       throw new Error('Invalid content availability');
     return rule;
   }
@@ -311,16 +313,14 @@
         );
       });
       if (topics.length && !topicMatch) continue;
-      if (rule.minMinutes != null && (signals.minutes == null || signals.minutes < rule.minMinutes)) continue;
-      if (rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) continue;
-      if (typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) continue;
+      if (contentConditionsEnabled && rule.minMinutes != null && (signals.minutes == null || signals.minutes < rule.minMinutes)) continue;
+      if (contentConditionsEnabled && rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) continue;
+      if (contentConditionsEnabled && typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) continue;
       if (rule.excludeListings !== false && isListing) continue;
       const conditional = !!(
         authors.length ||
         topics.length ||
-        rule.minMinutes != null ||
-        rule.maxMinutes != null ||
-        rule.contentAvailable != null ||
+        (contentConditionsEnabled && (rule.minMinutes != null || rule.maxMinutes != null || rule.contentAvailable != null)) ||
         rule.excludeListings
       );
       const rank = raw._starter ? 1 : (rule.website === '.*' ? 0 : 2) + (conditional ? 1 : 0) + 0.5;
@@ -408,6 +408,7 @@
     return [...rules.filter(item => item.id !== rule.id), rule];
   }
   const api = {
+    contentConditionsEnabled,
     defaults,
     defaultRules: buildDefaultRules(),
     DEFAULT_WHITELIST_HOSTS,

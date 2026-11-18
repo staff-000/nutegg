@@ -127,14 +127,36 @@ test('existing generated regex rule and subdomain/sub-URL rules group into one r
   siteInput.dispatchEvent(new win.Event('input', { bubbles: true }));
   assert.equal(root.querySelector('.panel-website-preview').textContent, `Regex: ${websiteRegex('example.org')}`);
 
-  // Clicking panel-rule-default-tag opens inline condition editor for contentAvailable and minMinutes
+  // Inline conditions retain feed/listing control while retired content controls stay absent
   const condTag = root.querySelector('.panel-site-detail .panel-rule-default-tag.is-editable');
   assert.ok(condTag);
   condTag.click();
   const condBar = root.querySelector('.panel-site-conditions-bar');
   assert.equal(condBar.hidden, false);
-  condBar.querySelector('select').value = 'no';
+  assert.equal(condBar.querySelector('select'), null);
+  assert.equal(condBar.querySelector('input[type=number]'), null);
   condBar.querySelector('button').click();
   await flush();
-  assert.equal(saved.at(-1).panelSettings.rules.at(-1).contentAvailable, false);
+  assert.equal(saved.at(-1).panelSettings.rules.at(-1).contentAvailable, undefined);
+});
+
+
+test('retired content controls stay hidden and inline edits preserve saved conditions', async t => {
+  const legacy = { id: 'yt', hostname: 'youtube.com', website: websiteRegex('youtube.com'),
+    name: 'YouTube', action: 'allow', minMinutes: 3, maxMinutes: 10, contentAvailable: false };
+  const { root, saved } = await setup(t, { ...defaults, rules: [legacy] });
+  assert.equal(root.querySelector('.panel-advanced-matching input[type=number]'), null);
+  const tag = root.querySelector('.panel-site-detail .panel-rule-default-tag.is-editable');
+  assert.ok(!tag.textContent.includes('min'));
+  tag.click();
+  const bar = root.querySelector('.panel-site-conditions-bar');
+  assert.equal(bar.querySelector('input[type=number]'), null);
+  assert.equal(bar.querySelector('select'), null);
+  bar.querySelector('input[type=checkbox]').checked = false;
+  bar.querySelector('button').click();
+  await flush();
+  const updated = saved.at(-1).panelSettings.rules.find(r => r.id === legacy.id);
+  assert.equal(updated.minMinutes, 3);
+  assert.equal(updated.maxMinutes, 10);
+  assert.equal(updated.contentAvailable, false);
 });

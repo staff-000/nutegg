@@ -6,7 +6,7 @@ The initial preset is **NutEgg default settings**: open available main content r
 
 ## Rules
 
-Each rule has a website URL regular expression and an Open or Keep closed action. Optional topic, minimum/maximum reading minutes, and content-availability conditions combine with AND. Multiple topics combine with OR. Topics can be subjects, people, or channel names. Missing information cannot satisfy a condition requiring it.
+Each rule has a website URL regular expression and an Open or Keep closed action. Optional topic conditions apply. Reading-length and content-availability conditions are temporarily disabled and hidden in settings; their stored configuration is retained and does not affect matching or rule priority. Multiple topics combine with OR. Topics can be subjects, people, or channel names. Missing information cannot satisfy a condition requiring it.
 
 For example, all Dan Koe videos on YouTube use website hostname `youtube.com`, Topics `Dan Koe`, and action Open. No regex is required. The editor generates the URL matcher internally; advanced regex is optional for specific URL paths. Structured channel names participate in topic matching alongside cached AI subjects and local page signals. Old author/channel rule fields migrate into Topics.
 

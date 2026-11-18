@@ -35,7 +35,7 @@ test('website level precedes global and conditional precedes website-only; block
   assert.equal(decide([rule({ action: 'block' }), rule({ authors: ['Dan Koe'] })]).open, true);
   assert.equal(decide([rule(), rule({ action: 'block' })]).open, false);
 });
-test('conditions combine with AND, values with OR, and unknown metrics fail', () => {
+test('topic and author conditions combine; disabled length and availability conditions are ignored', () => {
   const combined = rule({
     authors: ['Unknown', 'Dan Koe'],
     topics: ['Business'],
@@ -44,8 +44,8 @@ test('conditions combine with AND, values with OR, and unknown metrics fail', ()
     contentAvailable: true,
   });
   assert.equal(decide([combined]).open, true);
-  assert.equal(decide([combined], { ...page, minutes: null }).open, false);
-  assert.equal(decide([combined], { ...page, contentAvailable: false }).open, false);
+  assert.equal(decide([combined], { ...page, minutes: null }).open, true);
+  assert.equal(decide([combined], { ...page, contentAvailable: false }).open, true);
   assert.equal(decide([combined], { ...page, searchText: 'Cooking tips' }, { topics: ['Cooking'] }).open, false);
   assert.equal(decide([combined], page, { topics: ['Business'] }).provenance, 'cached');
   // Sub-topic / partial topic match against cached AI topics + local searchText fallback
@@ -62,13 +62,13 @@ test('local topic aliases require bounded words; estimates are multilingual', ()
   assert.equal(rules.readingMinutes('word '.repeat(200) + '中'.repeat(400)), 2);
   assert.equal(rules.readingMinutes(''), null);
 });
-test('starter excludes feeds, unknown content, and short content; migration never reseeds deleted rules', () => {
+test('starter excludes feeds but ignores disabled content conditions; migration never reseeds deleted rules', () => {
   const settings = rules.normalize();
   assert.equal(settings.autoAnalyze, false);
   assert.equal(rules.decide(settings, page).open, true);
   assert.equal(rules.decide(settings, { ...page, listing: true }).open, false);
-  assert.equal(rules.decide(settings, { ...page, minutes: 2 }).open, false);
-  assert.equal(rules.decide(settings, { ...page, minutes: null, contentAvailable: false }).open, false);
+  assert.equal(rules.decide(settings, { ...page, minutes: 2 }).open, true);
+  assert.equal(rules.decide(settings, { ...page, minutes: null, contentAvailable: false }).open, true);
   assert.deepEqual(rules.normalize({ version: 1, rules: [] }).rules, []);
 });
 test('invalid regex is rejected and defaults remain available', () => {
@@ -82,7 +82,7 @@ test('opening presets set fallback behavior while custom whitelist/blacklist rul
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'open' }, page).open, true);
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'closed' }, page).open, false);
   assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'nutegg' }, page).open, true);
-  assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'nutegg' }, { ...page, minutes: 1 }).open, false);
+  assert.equal(rules.decide({ ...withoutCustom, openingPolicy: 'nutegg' }, { ...page, minutes: 1 }).open, true);
 
   const withBlock = { ...rules.defaults, rules: [rule({ action: 'block' })] };
   assert.equal(rules.decide({ ...withBlock, openingPolicy: 'open' }, page).open, false);
@@ -162,4 +162,18 @@ test('isListingUrl and decide skip x.com/home, root homepages, and feeds even un
   assert.equal(rules.domainRegion('youtube.com'), 'global');
   assert.equal(rules.domainRegion('bilibili.com'), 'china');
   assert.equal(rules.domainRegion('myblog.com'), '');
+});
+
+
+test('disabled content conditions retain their config without affecting matches or priority', () => {
+  const savedRule = rule({ minMinutes: 50, maxMinutes: 60, contentAvailable: true });
+  const saved = rules.normalize({ openingPolicy: 'custom', rules: [savedRule] });
+  assert.equal(rules.contentConditionsEnabled, false);
+  assert.deepEqual(saved.rules[0], savedRule);
+  for (const minutes of [null, 0, 100]) {
+    assert.equal(rules.decide(saved, { ...page, minutes, contentAvailable: false }).open, true);
+  }
+  // Inactive conditions must not outrank a website-only block.
+  assert.equal(decide([savedRule, rule({ id: 'block', action: 'block' })]).open, false);
+  assert.deepEqual(rules.mergeRule([savedRule], { ...savedRule, name: 'Renamed' })[0], { ...savedRule, name: 'Renamed', enabled: true });
 });
