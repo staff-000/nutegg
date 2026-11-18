@@ -106,7 +106,7 @@ test('real popup DOM renders Analyze progress, partial failure, retry, and recov
   await tick();
   assert.equal(f.root.getElementById('results-state').classList.contains('hidden'), false);
   assert.match(f.root.getElementById('core-summary').textContent, /Successful summary/);
-  assert.match(f.root.getElementById('content-metadata').textContent, /Business.*Dan Koe.*How can I build a business/);
+  assert.equal(f.root.getElementById('content-metadata'), null);
   f.ports
     .at(-1)
     .respond({
