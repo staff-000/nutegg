@@ -217,6 +217,17 @@ var NutEggPanels = (() => {
             return { error: 'stale' };
           current = { ...current, signals, decision };
           await save(tabId, current);
+          const blockedByRule =
+            settings.openingPolicy === 'closed' ||
+            (decision.ruleId && !decision.open && decision.name !== 'panelStarter' && !String(decision.ruleId).startsWith('default-'));
+          if (tab.active && settings.mode === 'injected' && !current.suppressed && !current.opened && !blockedByRule && typeof fetchHistory === 'function') {
+            const historyRes = await fetchHistory(tab.url).catch(() => null);
+            const cachedEntry = historyRes?.latest;
+            if (cachedEntry && (cachedEntry.result || cachedEntry.content || cachedEntry.capturePayload)) {
+              await open(tabId, true);
+              return { decision, settings, shouldPrefetch: false, opened: true, key: current.key, suggestion: suggestion(current, 'allow') };
+            }
+          }
           let canOpenAfterCapture = decision.open;
           if (!canOpenAfterCapture && !signals.listing && !signals.contentAvailable) {
             const potential = await evaluate({ ...signals, contentAvailable: true, minutes: 999 }, current.cached);

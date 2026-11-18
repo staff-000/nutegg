@@ -466,14 +466,18 @@ export class NutEggServer {
       );
       rows = [...new Map([...rows, ...legacy].map(row => [row.id, row])).values()].sort((a, b) => b.id - a.id);
     } else if (rows.length === 0) {
-      const twMatch = normalized.match(/x\.com\/[^/]+\/status\/(\d+)/);
+      const twMatch = normalized.match(/(?:x|twitter)\.com\/[^/]+\/status\/(\d+)/);
       if (twMatch) {
         rows = db.getNutHistoryByPattern(`%/status/${twMatch[1]}%`);
       }
     }
 
     return rows
-      .filter(row => (row.analysisResult as any)?.schemaVersion === 3)
+      .filter(row =>
+        row.analysisResult
+          ? (row.analysisResult as any)?.schemaVersion === 3
+          : Boolean(row.content || row.capturePayload)
+      )
       .map(row => ({
         nutId: row.id,
         capturedAt: row.savedAt,
