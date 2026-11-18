@@ -19,6 +19,7 @@ export * from './egg-parser';
 export * from './egg-template';
 export * from './egg-examples';
 export * from './prompt-templates';
+export * from './settings-schema';
 export * from './ai-processor';
 
 import { resolveConfig } from './catalog';

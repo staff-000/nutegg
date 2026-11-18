@@ -1016,4 +1016,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.session.remove('panelRuleDraft');
     section.scrollIntoView();
   }
+
+  window.addEventListener('nutegg-settings-updated', async () => {
+    const fresh = await chrome.runtime.sendMessage({ action: 'panel-get-settings' });
+    settings = NutEggRules.normalize(fresh?.settings);
+    displaySelect.value =
+      settings.mode === 'native' ? 'native' : settings.side === 'left' ? 'injected-left' : 'injected-right';
+    layoutSelect.value = settings.layoutMode || 'auto';
+    policySelect.value = settings.openingPolicy || 'nutegg';
+    autoAnalyzeCheckbox.checked = !!settings.autoAnalyze;
+    visibility();
+    render();
+  });
 });

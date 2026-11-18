@@ -1520,3 +1520,117 @@ select:not([multiple]) {
   padding-right: 40px;
 }
 .panel-settings select:not([multiple]) { padding-right: 40px; }
+
+/* AI Settings Configuration Assistant */
+.ai-assistant-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  padding: 24px 29px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 22px #60401704;
+}
+.ai-assistant-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ai-assistant-header h2 {
+  margin: 0 0 2px;
+  font-size: 16px;
+}
+.ai-assistant-header .hint {
+  margin: 0;
+}
+.ai-assistant-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ai-assistant-examples-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.ai-assistant-chip {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #dfd5c7;
+  background: #faf6ef;
+  color: #55402d;
+  cursor: pointer;
+}
+.ai-assistant-chip:hover {
+  background: #f0e6d6;
+  border-color: #c29e74;
+}
+#ai-assistant-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid #d4c9ba;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 60px;
+}
+#ai-assistant-input:focus {
+  outline: none;
+  border-color: var(--primary, #94502c);
+}
+.ai-assistant-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ai-assistant-response {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-radius: 9px;
+  border: 1px solid #dfd5c7;
+  background: #faf7f2;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.ai-assistant-response.is-error {
+  border-color: #e5baba;
+  background: #fdf6f6;
+  color: #7f1d1d;
+}
+.ai-assistant-response.is-partial {
+  border-color: #e6cf9c;
+  background: #fffbeb;
+}
+.ai-assistant-response.is-success {
+  border-color: #bad3ba;
+  background: #f6faf5;
+}
+.ai-assistant-summary {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ai-assistant-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.ai-assistant-list li {
+  margin: 2px 0;
+}
+.ai-assistant-unsupported-title {
+  margin-top: 8px;
+  font-weight: 600;
+  color: #92400e;
+}
+.ai-assistant-setup-btn {
+  margin-top: 8px;
+}

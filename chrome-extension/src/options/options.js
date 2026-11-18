@@ -615,6 +615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (obsidianModeEnabled.checked && stored.obsidianExecutionState)
     await applySharedExecution(stored.obsidianExecutionState);
   if (obsidianModeEnabled.checked) await refreshSubscriptionAccess();
+  updateAiAssistantPlacement();
   for (const element of [
     aiProviderSelect,
     aiModelSelect,
@@ -1142,6 +1143,7 @@ async function handleAiSave(advanced = false) {
       chromeAiPromptOverrides: savedPromptOverrides,
     });
     savedApiConfig = { ...settings };
+    updateAiAssistantPlacement();
 
     if (new URLSearchParams(window.location.search).has('setupApi') && !subscriptionSelected())
       obsidianModeEnabled.checked = false;
@@ -1459,3 +1461,264 @@ function initConfigExport() {
   }
 }
 initConfigExport();
+
+async function refreshOptionsUiFromStorage() {
+  const stored = await chrome.storage.local.get([
+    'connectionMode',
+    'serverPort',
+    'analysisMode',
+    'chromeAiProvider',
+    'chromeAiModel',
+    'uiDensity',
+    'outputLanguage',
+    'enabledSections',
+    'generateKnowledgeEntries',
+    'optimizeForConversation',
+    'chunkWindowChars',
+    'contentAnalysisMaxTokens',
+    'chromeCacheTabLimit',
+    'captureRetryCount',
+    'captureRetryDelayMs',
+    'debugInfo',
+    'chromeAiPromptOverrides',
+  ]);
+  if (obsidianModeEnabled) {
+    obsidianModeEnabled.checked = stored.connectionMode === 'obsidian';
+    renderConnectionMode(stored.connectionMode === 'obsidian' ? 'obsidian' : 'chrome');
+  }
+  if (portInput && stored.serverPort) {
+    portInput.value = stored.serverPort;
+    if (portDisplay) portDisplay.textContent = stored.serverPort;
+  }
+  if (modeSelect && stored.analysisMode) {
+    modeSelect.value = stored.analysisMode;
+    updateModeDesc(stored.analysisMode);
+  }
+  if (uiDensitySelect && stored.uiDensity) {
+    uiDensitySelect.value = stored.uiDensity === 'comfortable' ? 'margin' : stored.uiDensity;
+  }
+  if (outputLangSelect && stored.outputLanguage) {
+    outputLangSelect.value = stored.outputLanguage;
+  }
+  if (stored.enabledSections) {
+    if (sectionVerdictSummary) {
+      sectionVerdictSummary.checked =
+        stored.enabledSections.titleVerdict !== false && stored.enabledSections.coreSummary !== false;
+    }
+    if (sectionMindmap) sectionMindmap.checked = stored.enabledSections.mindMap !== false;
+    if (sectionDiscussion) sectionDiscussion.checked = stored.enabledSections.discussion === true;
+  }
+  if (sectionKnowledge && stored.generateKnowledgeEntries !== undefined) {
+    sectionKnowledge.checked = stored.generateKnowledgeEntries === true;
+  }
+  if (optimizeConversation && stored.optimizeForConversation !== undefined) {
+    optimizeConversation.checked = stored.optimizeForConversation !== false;
+  }
+  if (chunkWindowInput && stored.chunkWindowChars) chunkWindowInput.value = stored.chunkWindowChars;
+  if (maxTokensInput && stored.contentAnalysisMaxTokens) maxTokensInput.value = stored.contentAnalysisMaxTokens;
+  const cacheLimitEl = document.getElementById('chrome-cache-limit-input');
+  if (cacheLimitEl && typeof stored.chromeCacheTabLimit === 'number') cacheLimitEl.value = stored.chromeCacheTabLimit;
+  const retryCountEl = document.getElementById('capture-retry-count');
+  if (retryCountEl && typeof stored.captureRetryCount === 'number') retryCountEl.value = stored.captureRetryCount;
+  const retryDelayEl = document.getElementById('capture-retry-delay');
+  if (retryDelayEl && typeof stored.captureRetryDelayMs === 'number') {
+    retryDelayEl.value = stored.captureRetryDelayMs / 1000;
+  }
+  if (debugInfoEnabled && stored.debugInfo !== undefined) debugInfoEnabled.checked = stored.debugInfo === true;
+  if (aiProviderSelect && stored.chromeAiProvider && aiProviderSelect.value !== stored.chromeAiProvider) {
+    aiProviderSelect.value = stored.chromeAiProvider;
+    updateModelOptions(stored.chromeAiProvider, stored.chromeAiModel);
+    updateProviderHints(stored.chromeAiProvider);
+  } else if (aiModelSelect && stored.chromeAiModel) {
+    updateModelOptions(aiProviderSelect?.value || stored.chromeAiProvider || 'google', stored.chromeAiModel);
+  }
+  savedPromptOverrides = stored.chromeAiPromptOverrides || {};
+  if (aiPromptSelect) loadPromptIntoTextarea(aiPromptSelect.value);
+  updateAiAssistantPlacement();
+}
+
+function initAiSettingsAssistant() {
+  const input = document.getElementById('ai-assistant-input');
+  const applyBtn = document.getElementById('ai-assistant-apply-btn');
+  const undoBtn = document.getElementById('ai-assistant-undo-btn');
+  const statusEl = document.getElementById('ai-assistant-status');
+  const responseEl = document.getElementById('ai-assistant-response');
+  if (!input || !applyBtn || !responseEl) return;
+
+  let lastUndoPatch = null;
+
+  const renderResponse = ({ tone, summaryText, changes = [], unsupported = [], setupTarget = '' }) => {
+    responseEl.replaceChildren();
+    responseEl.className = `ai-assistant-response is-${tone}`;
+
+    const summary = document.createElement('div');
+    summary.className = 'ai-assistant-summary';
+    summary.textContent = summaryText;
+    responseEl.append(summary);
+
+    if (changes.length > 0) {
+      const list = document.createElement('ul');
+      list.className = 'ai-assistant-list';
+      for (const c of changes) {
+        const li = document.createElement('li');
+        li.textContent = `✅ ${c.summary}`;
+        list.append(li);
+      }
+      responseEl.append(list);
+    }
+
+    if (unsupported.length > 0) {
+      const title = document.createElement('div');
+      title.className = 'ai-assistant-unsupported-title';
+      title.textContent = t('aiAssistantUnsupportedTitle');
+      const list = document.createElement('ul');
+      list.className = 'ai-assistant-list';
+      for (const u of unsupported) {
+        const li = document.createElement('li');
+        li.textContent = `⚠️ ${u.request}: ${u.reason}`;
+        list.append(li);
+      }
+      responseEl.append(title, list);
+    }
+
+    if (setupTarget) {
+      const jumpBtn = document.createElement('button');
+      jumpBtn.type = 'button';
+      jumpBtn.className = 'secondary-btn ai-assistant-setup-btn';
+      jumpBtn.textContent =
+        setupTarget === 'obsidian' ? t('aiAssistantGoObsidian') : t('aiAssistantGoAiSetup');
+      jumpBtn.addEventListener('click', () => {
+        if (setupTarget === 'obsidian') {
+          const obsDetails = document.getElementById('obsidian-settings');
+          if (obsDetails) obsDetails.open = true;
+          obsDetails?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          document.getElementById('setup-heading')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          document.getElementById('ai-key-input')?.focus();
+        }
+      });
+      responseEl.append(jumpBtn);
+    }
+  };
+
+  document.querySelectorAll('.ai-assistant-chip[data-ai-example]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      input.value = chip.getAttribute('data-ai-example') || '';
+      input.focus();
+    });
+  });
+
+  const handleApply = async () => {
+    const query = input.value.trim();
+    if (!query) {
+      renderResponse({
+        tone: 'error',
+        summaryText: t('aiAssistantEmptyInput'),
+      });
+      input.focus();
+      return;
+    }
+
+    applyBtn.disabled = true;
+    if (statusEl) statusEl.textContent = t('aiAssistantApplying');
+    try {
+      const res = await chrome.runtime.sendMessage({
+        action: 'ai-configure-settings',
+        request: query,
+      });
+
+      if (res?.preflightError) {
+        const preflightMap = {
+          no_api_key: { text: t('aiAssistantNeedApiKey'), target: 'ai' },
+          obsidian_offline: { text: t('aiAssistantNeedObsidian'), target: 'obsidian' },
+          subscription_not_ready: { text: t('aiAssistantNeedSubscription'), target: 'obsidian' },
+          chatgpt_not_signed_in: { text: t('aiAssistantNeedChatgpt'), target: 'ai' },
+          empty_request: { text: t('aiAssistantEmptyInput'), target: '' },
+        };
+        const info = preflightMap[res.reasonCode] || { text: t('aiAssistantNeedApiKey'), target: 'ai' };
+        renderResponse({ tone: 'error', summaryText: info.text, setupTarget: info.target });
+        return;
+      }
+
+      if (res?.error) {
+        renderResponse({ tone: 'error', summaryText: res.error });
+        return;
+      }
+
+      const hasChanges = Array.isArray(res?.appliedChanges) && res.appliedChanges.length > 0;
+      if (hasChanges) {
+        input.value = '';
+        lastUndoPatch = res.undoStoragePatch || null;
+        undoBtn?.classList.toggle('hidden', !lastUndoPatch || Object.keys(lastUndoPatch).length === 0);
+        await refreshOptionsUiFromStorage();
+        window.dispatchEvent(new CustomEvent('nutegg-settings-updated'));
+      }
+
+      const tone =
+        res?.status === 'applied'
+          ? 'success'
+          : res?.status === 'partial'
+            ? 'partial'
+            : 'error';
+      renderResponse({
+        tone,
+        summaryText: res?.message || t('aiAssistantNoChanges'),
+        changes: res?.appliedChanges || [],
+        unsupported: res?.unsupported || [],
+      });
+    } catch (err) {
+      renderResponse({
+        tone: 'error',
+        summaryText: err?.message || t('aiAssistantFailed'),
+      });
+    } finally {
+      applyBtn.disabled = false;
+      if (statusEl) statusEl.textContent = '';
+    }
+  };
+
+  applyBtn.addEventListener('click', () => void handleApply());
+  input.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      void handleApply();
+    }
+  });
+
+  undoBtn?.addEventListener('click', async () => {
+    if (!lastUndoPatch) return;
+    undoBtn.disabled = true;
+    try {
+      await chrome.runtime.sendMessage({
+        action: 'ai-undo-settings',
+        undoPatch: lastUndoPatch,
+      });
+      lastUndoPatch = null;
+      undoBtn.classList.add('hidden');
+      await refreshOptionsUiFromStorage();
+      window.dispatchEvent(new CustomEvent('nutegg-settings-updated'));
+      renderResponse({
+        tone: 'success',
+        summaryText: t('aiAssistantUndone'),
+      });
+    } finally {
+      undoBtn.disabled = false;
+    }
+  });
+}
+function updateAiAssistantPlacement() {
+  const card = document.getElementById('ai-assistant-card');
+  const setupCard = document.querySelector('.setup-card');
+  if (!card || !setupCard) return;
+  const aiConfigured = Boolean(
+    managedSelected() || window.NutEggAI?.isAIConfigured?.(getAiFormSettings())
+  );
+  if (aiConfigured) {
+    if (setupCard.previousElementSibling !== card) setupCard.before(card);
+  } else if (setupCard.nextElementSibling !== card) {
+    setupCard.after(card);
+  }
+}
+
+initAiSettingsAssistant();
+updateAiAssistantPlacement();

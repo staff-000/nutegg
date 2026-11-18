@@ -223,6 +223,68 @@
         </div>
       </section>
 
+      <section class="ai-assistant-card" id="ai-assistant-card" aria-labelledby="ai-assistant-heading">
+        <div class="ai-assistant-header">
+          <span class="disclosure-icon" aria-hidden="true">✨</span>
+          <div class="summary-copy">
+            <h2 id="ai-assistant-heading" data-i18n="aiAssistantTitle">Customize configuration with AI</h2>
+            <p class="hint" data-i18n="aiAssistantSubtitle">
+              Describe how you want NutEgg to behave in plain words. Only requested settings are changed.
+            </p>
+          </div>
+        </div>
+        <div class="ai-assistant-examples" aria-label="Example prompts">
+          <span class="ai-assistant-examples-label" data-i18n="aiAssistantExamplesLabel">Try:</span>
+          <button
+            type="button"
+            class="ai-assistant-chip"
+            data-ai-example="Use Obsidian mode, and ask the summary prompt to include feedback from Charlie Munger"
+            data-i18n="aiAssistantExample1"
+          >
+            Use Obsidian &amp; include Charlie Munger feedback in summary
+          </button>
+          <button
+            type="button"
+            class="ai-assistant-chip"
+            data-ai-example="Output in Spanish, show Discussion, and use compact mode"
+            data-i18n="aiAssistantExample2"
+          >
+            Output in Spanish &amp; show Discussion
+          </button>
+          <button
+            type="button"
+            class="ai-assistant-chip"
+            data-ai-example="Auto-open arxiv.org, mute x.com, and enable auto-analyze"
+            data-i18n="aiAssistantExample3"
+          >
+            Auto-open arxiv.org, mute x.com &amp; auto-analyze
+          </button>
+        </div>
+        <textarea
+          id="ai-assistant-input"
+          rows="2"
+          placeholder='e.g. "Use Obsidian mode, include feedback from Charlie Munger in summary, auto-open arxiv.org"'
+          data-i18n-placeholder="aiAssistantPlaceholder"
+          aria-label="Describe the settings you want to change"
+          data-i18n-aria-label="aiAssistantTitle"
+        ></textarea>
+        <div class="ai-assistant-actions">
+          <button id="ai-assistant-apply-btn" type="button" class="primary-btn" data-i18n="aiAssistantApplyBtn">
+            Apply with AI
+          </button>
+          <button
+            id="ai-assistant-undo-btn"
+            type="button"
+            class="secondary-btn hidden"
+            data-i18n="aiAssistantUndoBtn"
+          >
+            Undo last change
+          </button>
+          <span id="ai-assistant-status" class="hint" role="status" aria-live="polite"></span>
+        </div>
+        <div id="ai-assistant-response" class="ai-assistant-response hidden" role="region" aria-live="polite"></div>
+      </section>
+
       <section class="density-card" id="ui-density-card">
         <div class="density-card-header">
           <span class="disclosure-icon" aria-hidden="true">🎨</span>

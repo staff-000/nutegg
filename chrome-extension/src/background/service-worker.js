@@ -705,6 +705,20 @@ function handleTrustedMessage(message, _sender, sendResponse) {
       .catch(() => sendResponse({ nuts: 0, eggs: 0, timeSaved: '0m' }));
     return true;
   }
+
+  if (message.action === 'ai-configure-settings') {
+    handleAiConfigureSettings(message.request)
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err?.message || 'Failed to configure settings with AI' }));
+    return true;
+  }
+
+  if (message.action === 'ai-undo-settings') {
+    handleAiUndoSettings(message.undoPatch)
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ error: err?.message || 'Failed to undo settings' }));
+    return true;
+  }
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.action?.startsWith('panel-')) return;
@@ -1742,6 +1756,119 @@ async function checkServer() {
     }
     return { online: false };
   }
+}
+
+async function handleAiConfigureSettings(userRequest) {
+  const query = String(userRequest || '').trim();
+  if (!query) return { preflightError: true, reasonCode: 'empty_request' };
+
+  const mode = await getConnectionMode();
+  const aiSettings = await loadChromeAiSettings();
+  let useObsidianAsk = false;
+
+  if (mode === 'obsidian') {
+    const server = await checkServer();
+    if (!server.online) {
+      return { preflightError: true, reasonCode: 'obsidian_offline' };
+    }
+    const execMode = NutEggExecution.state?.mode || 'apiKey';
+    if (execMode === 'apiKey') {
+      if (!NutEggAI.isAIConfigured(aiSettings)) {
+        return { preflightError: true, reasonCode: 'no_api_key' };
+      }
+    } else if (execMode === 'subscription') {
+      if (!NutEggExecution.state?.subscriptionAvailable) {
+        return { preflightError: true, reasonCode: 'subscription_not_ready' };
+      }
+      useObsidianAsk = true;
+    } else if (execMode === 'chatgpt') {
+      if (!NutEggExecution.state?.chatgpt?.signedIn) {
+        return { preflightError: true, reasonCode: 'chatgpt_not_signed_in' };
+      }
+      useObsidianAsk = true;
+    }
+  } else if (!NutEggAI.isAIConfigured(aiSettings)) {
+    return { preflightError: true, reasonCode: 'no_api_key' };
+  }
+
+  const stored = await chrome.storage.local.get([
+    'connectionMode',
+    'serverPort',
+    'analysisMode',
+    'chromeAiProvider',
+    'chromeAiModel',
+    'uiDensity',
+    'outputLanguage',
+    'enabledSections',
+    'generateKnowledgeEntries',
+    'optimizeForConversation',
+    'chunkWindowChars',
+    'contentAnalysisMaxTokens',
+    'chromeCacheTabLimit',
+    'captureRetryCount',
+    'captureRetryDelayMs',
+    'debugInfo',
+    'chromeAiPromptOverrides',
+    'panelSettings',
+  ]);
+  const snapshot = {
+    ...stored,
+    connectionMode: mode,
+    serverPort: stored.serverPort || DEFAULT_PORT,
+    chromeAiProvider: aiSettings.chromeAiProvider,
+    chromeAiModel: aiSettings.chromeAiModel,
+    outputLanguage: aiSettings.outputLanguage,
+    chunkWindowChars: aiSettings.chunkWindowChars,
+    contentAnalysisMaxTokens: aiSettings.contentAnalysisMaxTokens,
+    panelSettings: typeof NutEggRules !== 'undefined' ? NutEggRules.normalize(stored.panelSettings) : stored.panelSettings,
+  };
+
+  const prompt = NutEggAI.buildSettingsAssistantPrompt(snapshot, query);
+  let rawResponse = '';
+  if (useObsidianAsk) {
+    const askRes = await handleAsk({
+      url: 'nutegg://settings',
+      title: 'NutEgg Settings Assistant',
+      content: 'NutEgg Settings Configuration Assistant',
+      questions: [prompt],
+      scope: 'beyond',
+    });
+    if (askRes?.error) {
+      return { error: askRes.error, errorCode: askRes.errorCode || 'unknown' };
+    }
+    rawResponse = askRes?.answers?.[0]?.answer || '';
+  } else {
+    const config = NutEggAI.resolveConfig(aiSettings);
+    rawResponse = await NutEggAI.chatAI(prompt, 2500, config, 'ai-settings-assistant');
+  }
+
+  const plan = NutEggAI.validateAndApplySettingsPlan(rawResponse, snapshot);
+  const patch = { ...plan.nextStoragePatch };
+  if (Object.keys(patch).length > 0) {
+    if (patch.panelSettings && typeof NutEggRules !== 'undefined') {
+      patch.panelSettings = NutEggRules.normalize(patch.panelSettings);
+    }
+    if (patch.serverPort) serverPort = patch.serverPort;
+    if (patch.chromeAiProvider || patch.chromeAiModel) {
+      patch.chromeApiRevision = crypto.randomUUID();
+    }
+    await chrome.storage.local.set(patch);
+  }
+  return plan;
+}
+
+async function handleAiUndoSettings(undoPatch) {
+  if (!undoPatch || typeof undoPatch !== 'object') return { ok: false };
+  const toSet = {};
+  const toRemove = [];
+  for (const [k, v] of Object.entries(undoPatch)) {
+    if (v === undefined) toRemove.push(k);
+    else toSet[k] = v;
+  }
+  if (toSet.serverPort) serverPort = toSet.serverPort;
+  if (Object.keys(toSet).length > 0) await chrome.storage.local.set(toSet);
+  if (toRemove.length > 0) await chrome.storage.local.remove(toRemove);
+  return { ok: true };
 }
 
 console.log('[NutEgg] Background service worker started');

@@ -228,6 +228,43 @@ if (buildExt.status === 0) {
   logError(`Chrome extension bundle failed:\n${buildExt.stderr || buildExt.stdout}`);
 }
 
+// Check 7 (part of Step 6): Ensure AI Settings Schema stays in sync with options.html & PROMPTS
+try {
+  const aiCorePath = path.join(ROOT_DIR, 'chrome-extension', 'dist', 'ai-core.js');
+  const optionsHtmlPath = path.join(ROOT_DIR, 'chrome-extension', 'src', 'options', 'options.html');
+  const aiCoreCode = fs.readFileSync(aiCorePath, 'utf8');
+  const sandbox = { window: {}, globalThis: {}, structuredClone, URL, console };
+  const vm = require('vm');
+  vm.runInNewContext(aiCoreCode, sandbox);
+  const NutEggAI = sandbox.NutEggAI || sandbox.globalThis.NutEggAI || sandbox.window.NutEggAI;
+  const schemaEntries = NutEggAI?.SETTINGS_SCHEMA || [];
+  const nonAiControls = new Set(NutEggAI?.NON_AI_CONFIGURABLE_CONTROLS || []);
+  const coveredControls = new Set(schemaEntries.flatMap(e => e.controlIds || []));
+  const optionsHtml = fs.readFileSync(optionsHtmlPath, 'utf8');
+  const controlMatches = [...optionsHtml.matchAll(/<(?:input|select|textarea)\b[^>]*\bid=["']([^"']+)["']/gi)].map(
+    m => m[1]
+  );
+  const missingControls = controlMatches.filter(id => !coveredControls.has(id) && !nonAiControls.has(id));
+  if (missingControls.length > 0) {
+    logError(
+      `options.html controls missing from shared/src/settings-schema.ts (SETTINGS_SCHEMA or NON_AI_CONFIGURABLE_CONTROLS): ${missingControls.join(', ')}`
+    );
+  }
+  const promptKeys = Object.keys(NutEggAI?.PROMPTS || {});
+  const describedPrompts = new Set(Object.keys(NutEggAI?.PROMPT_TARGET_DESCRIPTIONS || {}));
+  const missingPrompts = promptKeys.filter(k => !describedPrompts.has(k));
+  if (missingPrompts.length > 0) {
+    logError(
+      `PROMPTS keys missing from shared/src/settings-schema.ts (PROMPT_TARGET_DESCRIPTIONS): ${missingPrompts.join(', ')}`
+    );
+  }
+  if (missingControls.length === 0 && missingPrompts.length === 0) {
+    logSuccess('AI Settings schema is in sync with options.html controls and PROMPTS');
+  }
+} catch (schemaErr) {
+  logError(`AI Settings schema sync check failed: ${schemaErr.message}`);
+}
+
 // Summary
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 if (hasErrors) {
