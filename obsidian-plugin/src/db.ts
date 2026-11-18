@@ -1,6 +1,6 @@
 import { dirname, relative, sep } from 'node:path';
 import { vaultDatabasePath } from './local-access';
-import type { CapturePayload } from '../../shared/src/types';
+import type { CapturePayload, UserNoteEntry } from '../../shared/src/types';
 import type NutEggPlugin from './main';
 import type { AnalysisResult } from './ai-processor';
 import type { DatabaseSync as DatabaseSyncClass } from 'node:sqlite';
@@ -43,6 +43,7 @@ export interface NutRow {
   confirmedKnowledge?: string[] | null;
   topics?: string[] | null;
   questions?: string[] | null;
+  userNotes?: UserNoteEntry[] | null;
   capturePayload?: (CapturePayload & { metadata?: Record<string, string> }) | null;
 }
 
@@ -141,6 +142,7 @@ export class NutEggDatabase {
         confirmed_knowledge TEXT,
         topics TEXT,
         questions TEXT,
+        user_notes TEXT,
         analysis_result TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_nuts_url ON nuts(url);
@@ -154,6 +156,8 @@ export class NutEggDatabase {
       this.db!.exec('ALTER TABLE nuts ADD COLUMN topics TEXT');
     if (!columns.some(column => column.name === 'questions'))
       this.db!.exec('ALTER TABLE nuts ADD COLUMN questions TEXT');
+    if (!columns.some(column => column.name === 'user_notes'))
+      this.db!.exec('ALTER TABLE nuts ADD COLUMN user_notes TEXT');
   }
 
   // --- Nuts ---
@@ -171,8 +175,8 @@ export class NutEggDatabase {
       const res = this.db
         .prepare(
           `INSERT INTO nuts (url, title, source_type, content, saved_at, published_at, author,
-             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload, confirmed_knowledge, topics, questions)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+             time_estimate_minutes, processing_result, summary, matched_eggs, file_name, analysis_result, capture_payload, confirmed_knowledge, topics, questions, user_notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           row.url,
@@ -191,7 +195,8 @@ export class NutEggDatabase {
           row.capturePayload ? JSON.stringify(row.capturePayload) : null,
           row.confirmedKnowledge ? JSON.stringify(row.confirmedKnowledge) : null,
           topics ? JSON.stringify(topics) : null,
-          questions ? JSON.stringify(questions) : null
+          questions ? JSON.stringify(questions) : null,
+          row.userNotes ? JSON.stringify(row.userNotes) : null
         );
       return Number(res.lastInsertRowid);
     } catch (err) {
@@ -246,6 +251,7 @@ export class NutEggDatabase {
       confirmedKnowledge?: string[];
       topics?: string[] | null;
       questions?: string[] | null;
+      userNotes?: UserNoteEntry[] | null;
     }
   ): void {
     if (!this.db) return;
@@ -286,6 +292,10 @@ export class NutEggDatabase {
       sets.push('questions = ?');
       params.push(nextQuestions ? JSON.stringify(nextQuestions) : null);
     }
+    if (patch.userNotes !== undefined) {
+      sets.push('user_notes = ?');
+      params.push(patch.userNotes ? JSON.stringify(patch.userNotes) : null);
+    }
     if (sets.length === 0) return;
     params.push(id);
     try {
@@ -293,6 +303,20 @@ export class NutEggDatabase {
     } catch (err) {
       // A DB write must never break the confirm flow — log and continue
       console.error('[NutEgg] updateNut failed:', err);
+    }
+  }
+
+  /** Commit-only single-column update for user notes (does not invalidate search corpus). */
+  updateUserNotes(id: number, userNotes: UserNoteEntry[]): boolean {
+    if (!this.db) return false;
+    try {
+      const res = this.db
+        .prepare('UPDATE nuts SET user_notes = ? WHERE id = ?')
+        .run(JSON.stringify(Array.isArray(userNotes) ? userNotes : []), id);
+      return Number(res.changes || 0) > 0;
+    } catch (err) {
+      console.error('[NutEgg] updateUserNotes failed:', err);
+      return false;
     }
   }
 
@@ -419,11 +443,17 @@ export class NutEggDatabase {
     } catch {}
     if (!questions && analysisResult?.contentMetadata?.answerableQuestions)
       questions = analysisResult.contentMetadata.answerableQuestions;
+    let userNotes: UserNoteEntry[] | null = null;
+    try {
+      const parsed = row.user_notes ? JSON.parse(row.user_notes) : null;
+      if (Array.isArray(parsed)) userNotes = parsed;
+    } catch {}
     return {
       capturePayload,
       confirmedKnowledge,
       topics,
       questions,
+      userNotes,
       id: row.id,
       url: row.url,
       title: row.title,

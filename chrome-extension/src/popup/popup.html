@@ -713,8 +713,59 @@
                   <option value="within" data-i18n="scopeWithin">Content only</option>
                   <option value="beyond" data-i18n="readerScopeBeyond">Global knowledge</option>
                 </select>
-                <button id="followup-btn" class="followup-btn" data-i18n="askBtn" data-hints="off">Ask</button>
+                <button id="followup-btn" class="followup-btn" title="Ask (⌘/Ctrl+Enter)" data-hints="off">
+                  <span data-i18n="askBtn">Ask</span>
+                  <kbd class="btn-shortcut" aria-hidden="true">⌘↵</kbd>
+                </button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="user-notes-section" data-obsidian-only class="result-section hidden">
+          <div class="section-header">
+            <div class="section-label">
+              <span data-i18n="userNotesSection">📝 Your Notes</span>
+              <span id="user-notes-count" class="section-hint"></span>
+            </div>
+            <div class="user-notes-header-actions">
+              <button
+                type="button"
+                id="user-notes-copy-all"
+                class="user-note-icon-btn hidden"
+                title="Copy all notes"
+                data-i18n-title="copyAllNotes"
+              >
+                📋
+              </button>
+              <span class="section-chevron" aria-hidden="true"
+                ><svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline></svg
+              ></span>
+            </div>
+          </div>
+          <div class="section-content">
+            <div id="user-notes-list" class="user-notes-list"></div>
+            <div class="user-notes-input-row">
+              <textarea
+                id="user-note-input"
+                rows="1"
+                data-i18n-placeholder="userNotesPlaceholder"
+                placeholder="Write a note… (⌘/Ctrl+Enter to add)"
+              ></textarea>
+              <button id="user-note-add-btn" type="button" class="followup-btn" title="Add (⌘/Ctrl+Enter)" data-hints="off">
+                <span data-i18n="addNoteBtn">Add</span>
+                <kbd class="btn-shortcut" aria-hidden="true">⌘↵</kbd>
+              </button>
             </div>
           </div>
         </div>
@@ -1139,6 +1190,7 @@
     <script defer src="services/popup-operations.js"></script>
     <script defer src="ui/mindmap.js"></script>
     <script defer src="ui/qa.js"></script>
+    <script defer src="ui/notes.js"></script>
     <script defer src="ui/eggs.js"></script>
     <script defer src="ui/header.js"></script>
     <script defer src="ui/analysis-activity.js"></script>

@@ -144,13 +144,17 @@ function _renderCustomQuestions(options = {}) {
   if (listEl) {
     if (all.length > 0) {
       listEl.innerHTML = all
-        .map(qa => {
+        .map((qa, idx) => {
           const isBeyond = qa.scope === 'beyond';
           const badgeClass = isBeyond ? 'qa-scope-badge qa-scope-beyond' : 'qa-scope-badge qa-scope-within';
           const badgeIcon = isBeyond ? '🌐' : '📄';
           const badgeText = isBeyond ? t('scopeBeyond') : t('scopeWithin');
           const badgeTitle = isBeyond ? t('scopeBeyondTooltip') : t('scopeWithinTooltip');
           const scopeBadge = `<span class="${badgeClass}" title="${_qaEscapeHtml(badgeTitle)}">${badgeIcon} ${_qaEscapeHtml(badgeText)}</span>`;
+          const canSaveToNotes = options.canSaveToNotes && qa.answer && qa.answer !== '…';
+          const saveNoteBtn = canSaveToNotes
+            ? `<button type="button" class="qa-save-note-btn" data-qa-index="${idx}" title="${_qaEscapeHtml(t('saveToNotes'))}">📝 ${_qaEscapeHtml(t('saveToNotes'))}</button>`
+            : '';
           return `
           <div class="egg-group">
             <div class="qa-item">
@@ -158,10 +162,23 @@ function _renderCustomQuestions(options = {}) {
               <div class="qa-answer">${linkifyTimestamps(_qaEscapeHtml(qa.answer))}</div>
               ${qa.execution ? `<div class="qa-execution" style="font-size:11px;opacity:.7">${_qaEscapeHtml(t('executionMetadata', { provider: qa.execution.provider, model: !qa.execution.model || qa.execution.model === 'auto' ? t('subscriptionAuto') : qa.execution.model, method: qa.execution.authMethod === 'chatgpt' ? t('chatgptLabel') : qa.execution.authMethod === 'subscription' ? t(qa.execution.provider === 'openai' ? 'codexSubscription' : 'subscriptionLabel') : t('subscriptionApiKey') }))}</div>` : ''}
               ${renderQaSources(qa.sources)}
+              ${saveNoteBtn ? `<div class="qa-item-actions">${saveNoteBtn}</div>` : ''}
             </div>
           </div>`;
         })
         .join('');
+      if (options.onSaveToNotes) {
+        listEl.querySelectorAll('.qa-save-note-btn').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.stopPropagation();
+            const qa = all[Number(btn.dataset.qaIndex)];
+            if (!qa) return;
+            await options.onSaveToNotes(qa);
+            btn.textContent = `✓ ${t('saved')}`;
+            btn.disabled = true;
+          });
+        });
+      }
     } else {
       listEl.innerHTML = '';
     }
@@ -258,7 +275,7 @@ class QaComponent {
     return buildPriorQa(res, qaList);
   }
 
-  render(firstArg, secondArg) {
+  render(firstArg, secondArg, thirdArg = {}) {
     if (firstArg && typeof firstArg === 'object' && (firstArg.customQuestionsSection || firstArg.customQuestionsList)) {
       return _renderCustomQuestions({
         customQuestionsSection: this.customQuestionsSection,
@@ -293,6 +310,8 @@ class QaComponent {
       scope: this.followupScope,
       questions,
       followUps,
+      canSaveToNotes: Boolean(thirdArg?.canSaveToNotes),
+      onSaveToNotes: thirdArg?.onSaveToNotes,
     });
   }
 

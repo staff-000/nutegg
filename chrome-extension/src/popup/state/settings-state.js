@@ -24,6 +24,7 @@ class SettingsState {
     this.enabledSections = { ...DEFAULT_ANALYSIS_SECTIONS };
     this.generateKnowledgeEntries = false;
     this.optimizeForConversation = true;
+    this.userNotesEnabled = true;
     this.debugInfo = false;
     this.captureRetryCount = 3;
     this.captureRetryDelayMs = 3000;
@@ -60,6 +61,7 @@ class SettingsState {
             'outputLanguage',
             'generateKnowledgeEntries',
             'optimizeForConversation',
+            'userNotesEnabled',
             'popupDiagnostics',
             'debugInfo',
             'captureRetryCount',
@@ -92,6 +94,7 @@ class SettingsState {
       }
       this.generateKnowledgeEntries = stored?.generateKnowledgeEntries === true;
       this.optimizeForConversation = stored?.optimizeForConversation !== false;
+      this.userNotesEnabled = stored?.userNotesEnabled !== false;
       this.debugInfo = stored?.debugInfo === true;
       if (
         stored?.uiDensity === 'comfortable' ||

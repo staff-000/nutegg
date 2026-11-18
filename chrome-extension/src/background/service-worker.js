@@ -552,6 +552,13 @@ function handleTrustedMessage(message, _sender, sendResponse) {
     return true;
   }
 
+  if (message.action === 'save-user-notes') {
+    handleSaveUserNotes(message.payload)
+      .then(r => sendResponse(r))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
   if (message.action === 'ask') {
     handleAsk(message.payload)
       .then(r => sendResponse(r))
@@ -1756,6 +1763,18 @@ async function checkServer() {
     }
     return { online: false };
   }
+}
+
+async function handleSaveUserNotes(payload) {
+  if ((await getConnectionMode()) !== 'obsidian') return { success: false, mode: 'chrome' };
+  const serverUrl = await getServerUrl();
+  const response = await serverFetch(`${serverUrl}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+    signal: AbortSignal.timeout(5000),
+  });
+  return response.json().catch(() => ({ success: false }));
 }
 
 async function handleAiConfigureSettings(userRequest) {

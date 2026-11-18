@@ -239,10 +239,21 @@ class PopupRenderer {
     keyed('mindmapPosition', [view.analysisResult?.mindMap, view.playbackPosition], () =>
       ui.mindmapUI.updateProgress?.(view.playbackPosition)
     );
-    keyed('qa', [view.resultRevision, view.followUpQa], () =>
-      ui.qaUI.render(view.analysisResult || {}, view.followUpQa)
+    keyed(
+      'qa',
+      [view.resultRevision, view.followUpQa, settings.connectionMode, settings.userNotesEnabled],
+      () =>
+        ui.qaUI.render(view.analysisResult || {}, view.followUpQa, {
+          canSaveToNotes: obsidianMode && settings.userNotesEnabled !== false,
+          onSaveToNotes: qa => ui.notesUI?.addQaNote?.(qa),
+        })
     );
     ui.qaUI.setFollowupLoading(view.busy);
+    keyed(
+      'notes',
+      [view.resultRevision, view.userNotes, settings.connectionMode, settings.userNotesEnabled],
+      () => ui.notesUI?.render(view, settings)
+    );
     keyed(
       'eggs',
       [

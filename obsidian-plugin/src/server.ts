@@ -27,7 +27,7 @@ import {
 } from './ai-processor';
 import { sanitizeEggName } from './index-sync';
 import { composeEggResults } from '../../shared/src/analysis-results';
-import type { EggAnalysis } from '../../shared/src/types';
+import type { EggAnalysis, UserNoteEntry } from '../../shared/src/types';
 import { isEggPath, insertEggLanguage, resolveEggPath } from './egg-parser';
 
 interface AnalyzeRequest {
@@ -482,7 +482,10 @@ export class NutEggServer {
         nutId: row.id,
         capturedAt: row.savedAt,
         saved: row.processingResult === 'saved' || row.processingResult === 'skip' ? row.processingResult : 'analyzed',
-        result: row.analysisResult,
+        result: row.analysisResult
+          ? { ...row.analysisResult, userNotes: row.userNotes || row.analysisResult.userNotes || [] }
+          : row.analysisResult,
+        userNotes: row.userNotes || row.analysisResult?.userNotes || [],
         title: row.title,
         author: row.author,
         publishedAt: row.publishedAt,
@@ -973,6 +976,11 @@ export class NutEggServer {
 
         if (req.method === 'POST' && req.url === '/confirm') {
           await this.handleConfirm(req, res);
+          return;
+        }
+
+        if (req.method === 'POST' && req.url === '/notes') {
+          await this.handleUpdateNotes(req, res);
           return;
         }
 
@@ -1621,6 +1629,37 @@ export class NutEggServer {
       .digest('hex');
   }
 
+  /** POST /notes — Commit-only single-column update for user notes on an analyzed Nut. */
+  private async handleUpdateNotes(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    try {
+      const body = await this.readBody(req);
+      const data = JSON.parse(body || '{}') as { nutId?: number; url?: string; userNotes?: UserNoteEntry[] };
+      const notes = Array.isArray(data.userNotes) ? data.userNotes : [];
+      const db = this.plugin.db;
+      if (!db?.available) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Database unavailable' }));
+        return;
+      }
+      let nutId = typeof data.nutId === 'number' ? data.nutId : undefined;
+      if (nutId == null && data.url) {
+        const row = db.getNutByUrl(this.normalizeUrl(data.url));
+        if (row) nutId = row.id;
+      }
+      if (nutId == null) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Nut record not found' }));
+        return;
+      }
+      const updated = db.updateUserNotes(nutId, notes);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: updated, nutId, userNotes: notes }));
+    } catch (err: any) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, error: err?.message || 'Invalid notes payload' }));
+    }
+  }
+
   /** POST /confirm — archive the nut and append knowledge not previously hatched. */
   private async handleConfirm(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     let releaseConfirmation: (() => void) | undefined;
@@ -1707,6 +1746,7 @@ export class NutEggServer {
           captureCoverage: normalizeCaptureCoverage(confirm.captureCoverage),
           summary,
           matchedEggs: eggNames,
+          userNotes: (confirm as any).userNotes,
           processingResult: saved,
           analysis: confirm.analysis,
         });
@@ -1717,9 +1757,24 @@ export class NutEggServer {
       // Insert new knowledge into the eggs' Unprocessed sections. Entries
       // carry the insight + examples from the AI, plus author and source.
       const mergedEggs: MergeResult[] = [];
+      const userNotes: UserNoteEntry[] = Array.isArray((confirm as any).userNotes) ? (confirm as any).userNotes : [];
       if (hasKnowledge) {
         const author = confirm.metadata?.author || confirm.metadata?.channel || confirm.metadata?.handle || '';
-        await this.plugin.knowledgeBase.appendKnowledge(confirm.newKnowledge, confirm.title, confirm.url, author);
+        const noteEntries =
+          userNotes.length > 0
+            ? eggNames.flatMap(egg =>
+                userNotes.map(n => ({
+                  egg,
+                  content: `- [note] ${n.time ? `[${n.time}] ` : ''}${n.text.trim()}`,
+                }))
+              )
+            : [];
+        await this.plugin.knowledgeBase.appendKnowledge(
+          [...confirm.newKnowledge, ...noteEntries],
+          confirm.title,
+          confirm.url,
+          author
+        );
 
         // Ensure confirmed eggs have language frontmatter set if known from analysis
         const perEggList = confirm.analysis?.eggResults;
@@ -1762,6 +1817,7 @@ export class NutEggServer {
           ...((confirm as any).questions || confirm.analysis?.contentMetadata?.answerableQuestions
             ? { questions: (confirm as any).questions || confirm.analysis?.contentMetadata?.answerableQuestions }
             : {}),
+          ...(userNotes.length > 0 ? { userNotes } : {}),
           ...(fileName ? { fileName } : {}),
         });
       } else {
@@ -1783,6 +1839,7 @@ export class NutEggServer {
           analysisResult: confirm.analysis ?? null,
           topics: (confirm as any).topics ?? confirm.analysis?.contentMetadata?.topics ?? null,
           questions: (confirm as any).questions ?? confirm.analysis?.contentMetadata?.answerableQuestions ?? null,
+          userNotes: userNotes.length > 0 ? userNotes : undefined,
           capturePayload: this.captureSnapshot(confirm),
         });
       }

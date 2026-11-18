@@ -1,5 +1,5 @@
 import { TFile } from 'obsidian';
-import type { CaptureCoverage, DiscussionCapture, AnalysisSectionsConfig } from '../../shared/src/types';
+import type { CaptureCoverage, DiscussionCapture, AnalysisSectionsConfig, UserNoteEntry } from '../../shared/src/types';
 import { t } from './i18n';
 import { normalizeCaptureCoverage } from '../../shared/src/capture-coverage';
 import type NutEggPlugin from './main';
@@ -33,6 +33,7 @@ export class KnowledgeBase {
     summary?: string;
     analysis?: unknown;
     matchedEggs?: string[];
+    userNotes?: UserNoteEntry[];
     processingResult: 'saved' | 'skip' | 'unprocessed';
   }): Promise<string> {
     const folder = this.plugin.settings.rawFolder;
@@ -139,6 +140,13 @@ export class KnowledgeBase {
       );
     }
     frontmatterLines.push(capture.content);
+    if (Array.isArray(capture.userNotes) && capture.userNotes.length > 0) {
+      frontmatterLines.push('', '# User Notes', '');
+      for (const note of capture.userNotes) {
+        const prefix = note.time ? `[${note.time}] ` : '';
+        frontmatterLines.push(`- ${prefix}${note.text.replace(/\n+/g, ' ').trim()}`);
+      }
+    }
     if (capture.enabledSections?.discussion && capture.discussion) {
       frontmatterLines.push(
         '',

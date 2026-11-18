@@ -23,6 +23,7 @@ const ui = Object.fromEntries(
     ['mindmapUI', 'MindmapComponent'],
     ['discussionUI', 'DiscussionComponent'],
     ['qaUI', 'QaComponent'],
+    ['notesUI', 'NotesComponent'],
     ['eggsUI', 'EggsComponent'],
   ].map(([name, type]) => [name, new globalThis.NutEggUI[type]()])
 );
@@ -50,6 +51,11 @@ async function initPopup() {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   globalThis.NutEggI18n?.initI18n();
   globalThis.NutEggI18n?.applyI18n();
+  if (typeof navigator !== 'undefined' && !/mac/i.test(navigator.platform || navigator.userAgent || '')) {
+    document.querySelectorAll('.btn-shortcut').forEach(el => {
+      el.textContent = 'Ctrl↵';
+    });
+  }
   const stored = await settings.loadFromStorage();
   await globalThis.NutEggPanel?.mount({ manager: tabStateManager });
   tabStateManager.dispatch({ type: 'defaults', defaults: analyzeAction.settingsDefaults() });
@@ -172,6 +178,13 @@ async function initPopup() {
       captureEggsExpanded: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation.captureEggsExpanded,
     })
   );
+  ui.notesUI?.init({
+    onDraftChange: noteDraft => activeDraft({ noteDraft }),
+    onSaveNotes: (userNotes, clearDraft) =>
+      operations.saveNotes(tabStateManager.activeTabId, userNotes, clearDraft),
+    getPlaybackSeconds: () => tabStateManager.getTab(tabStateManager.activeTabId)?.playbackPosition,
+    onSeekTimestamp: time => interactionAction.seekVideoToTime?.(time),
+  });
   click(e.eggsToggle, () => {
     const currentlyExpanded = e.eggsExpanded
       ? !e.eggsExpanded.classList.contains('hidden')

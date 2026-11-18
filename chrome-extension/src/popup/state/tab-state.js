@@ -108,6 +108,8 @@ class TabStateManager {
       activeEggTab: null,
       customQuestions: '',
       followupDraft: '',
+      userNotes: [],
+      noteDraft: '',
       newEggName: '',
       newEggDescription: '',
       customQuestionsScope: 'within',
@@ -333,6 +335,7 @@ class TabStateManager {
       next.eggHatched = false;
       next.nutCollected = false;
       next.currentNutId = value.nutId ?? next.currentNutId;
+      if (Array.isArray(value?.userNotes)) next.userNotes = popupCopy(value.userNotes);
       if (stage1) {
         next.stage1Version++;
         next.stage1ContentAnalysis = popupCopy(value);
@@ -458,6 +461,8 @@ class TabStateManager {
           'preSelectedEggs',
           'customQuestions',
           'followupDraft',
+          'userNotes',
+          'noteDraft',
           'customQuestionsScope',
           'followupScope',
           'enabledSections',
@@ -710,6 +715,12 @@ class TabStateManager {
           h.nutId === next.currentNutId ? { ...h, saved: event.hatch ? 'saved' : 'skip' } : h
         );
         break;
+      case 'notesUpdated':
+        next.userNotes = popupCopy(Array.isArray(event.userNotes) ? event.userNotes : []);
+        if (next.analysisResult) next.analysisResult.userNotes = popupCopy(next.userNotes);
+        if (event.clearDraft) next.noteDraft = '';
+        next.resultRevision++;
+        break;
       case 'questionStarted':
         next.followUpQa.push({
           id: event.id,
@@ -788,6 +799,8 @@ class TabStateManager {
           'customQuestionsScope',
           'followupScope',
           'followupDraft',
+          'userNotes',
+          'noteDraft',
           'newEggName',
           'newEggDescription',
           'presentation',
@@ -868,6 +881,7 @@ class TabStateManager {
     tab.presentation.scroll = 0;
     tab.completion = null;
     tab.followUpQa = [];
+    tab.userNotes = popupCopy(entry.userNotes || entry.result?.userNotes || []);
     tab.currentNutId = entry.result ? entry.nutId : null;
     tab.nutCollected = !!entry.result && ['saved', 'skip'].includes(entry.saved);
     tab.eggHatched = !!entry.result && entry.saved === 'saved';

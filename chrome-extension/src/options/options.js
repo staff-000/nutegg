@@ -87,6 +87,7 @@ const sectionMindmap = document.getElementById('section-mindmap');
 const optimizeConversation = document.getElementById('optimize-conversation');
 const sectionKnowledge = document.getElementById('section-knowledge');
 const sectionDiscussion = document.getElementById('section-discussion');
+const sectionNotes = document.getElementById('section-notes');
 const sectionsSaveBtn = document.getElementById('sections-save-btn');
 const sectionsStatus = document.getElementById('sections-status');
 const uiDensitySelect = document.getElementById('ui-density-select');
@@ -491,6 +492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'enabledSections',
     'generateKnowledgeEntries',
     'optimizeForConversation',
+    'userNotesEnabled',
     'uiDensity',
     'connectionMode',
     'obsidianExecutionState',
@@ -586,7 +588,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // 2. Content Analysis Sections initialization
-  initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries, stored.optimizeForConversation);
+  initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries, stored.optimizeForConversation, stored.userNotesEnabled);
 
   if (uiDensitySelect) {
     const savedDensity = stored.uiDensity || 'compact';
@@ -1296,7 +1298,7 @@ function showResult(msg, type) {
   testResult.classList.remove('hidden');
 }
 
-function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, savedOptimizeForConversation) {
+function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, savedOptimizeForConversation, savedUserNotesEnabled) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
   if (sectionVerdictSummary)
     sectionVerdictSummary.checked = sections.titleVerdict !== false && sections.coreSummary !== false;
@@ -1305,6 +1307,12 @@ function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, save
     optimizeConversation.checked = savedOptimizeForConversation !== false;
     optimizeConversation.addEventListener('change', () =>
       chrome.storage.local.set({ optimizeForConversation: optimizeConversation.checked })
+    );
+  }
+  if (sectionNotes) {
+    sectionNotes.checked = savedUserNotesEnabled !== false;
+    sectionNotes.addEventListener('change', () =>
+      chrome.storage.local.set({ userNotesEnabled: sectionNotes.checked })
     );
   }
   if (sectionKnowledge) {
@@ -1474,6 +1482,7 @@ async function refreshOptionsUiFromStorage() {
     'enabledSections',
     'generateKnowledgeEntries',
     'optimizeForConversation',
+    'userNotesEnabled',
     'chunkWindowChars',
     'contentAnalysisMaxTokens',
     'chromeCacheTabLimit',
@@ -1513,6 +1522,9 @@ async function refreshOptionsUiFromStorage() {
   }
   if (optimizeConversation && stored.optimizeForConversation !== undefined) {
     optimizeConversation.checked = stored.optimizeForConversation !== false;
+  }
+  if (sectionNotes && stored.userNotesEnabled !== undefined) {
+    sectionNotes.checked = stored.userNotesEnabled !== false;
   }
   if (chunkWindowInput && stored.chunkWindowChars) chunkWindowInput.value = stored.chunkWindowChars;
   if (maxTokensInput && stored.contentAnalysisMaxTokens) maxTokensInput.value = stored.contentAnalysisMaxTokens;

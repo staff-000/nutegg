@@ -619,6 +619,7 @@ class PopupOperations {
         ...content,
         debugScope: tab.debugScope,
         analysis: result,
+        userNotes: tab.userNotes || [],
         topics: result?.contentMetadata?.topics || [],
         questions: result?.contentMetadata?.answerableQuestions || [],
         summary: result?.summary || '',
@@ -643,6 +644,25 @@ class PopupOperations {
       // A disconnected client cannot know whether the backend accepted its write.
       if (requested && !received) receipt({ success: false, outcome: 'unknown' });
       return this.fail(ctx, error);
+    }
+  }
+  async saveNotes(tabId, userNotes, clearDraft = false) {
+    const tab = this.store.getTab(tabId);
+    if (!tab) return { success: false };
+    const normalized = Array.isArray(userNotes) ? userNotes : [];
+    this.store.dispatch({ type: 'notesUpdated', tabId, userNotes: normalized, clearDraft });
+    try {
+      const response = await this.service.sendMessage({
+        action: 'save-user-notes',
+        payload: {
+          nutId: tab.currentNutId ?? tab.analysisResult?.nutId ?? undefined,
+          url: tab.url || tab.extractedContent?.url,
+          userNotes: normalized,
+        },
+      });
+      return response || { success: false };
+    } catch (error) {
+      return { success: false, error: error?.message || String(error) };
     }
   }
   async followup(tabId, question, options = {}) {

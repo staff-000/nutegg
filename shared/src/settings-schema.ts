@@ -211,6 +211,14 @@ export const SETTINGS_SCHEMA: readonly SettingSchemaEntry[] = [
     controlIds: ['optimize-conversation'],
   },
   {
+    key: 'userNotesEnabled',
+    label: 'User Notes (Obsidian Mode)',
+    type: 'boolean',
+    defaultValue: true,
+    description: 'Show the multi-entry Your Notes section on Results view in Obsidian mode.',
+    controlIds: ['section-notes'],
+  },
+  {
     key: 'chunkWindowChars',
     label: 'General Chunk Window Size',
     type: 'integer',
@@ -333,6 +341,7 @@ export interface SettingsSnapshot {
   };
   generateKnowledgeEntries?: boolean;
   optimizeForConversation?: boolean;
+  userNotesEnabled?: boolean;
   chunkWindowChars?: number;
   contentAnalysisMaxTokens?: number;
   chromeCacheTabLimit?: number;
@@ -452,6 +461,7 @@ export function buildSettingsAssistantPrompt(currentSnapshot: SettingsSnapshot, 
     },
     generateKnowledgeEntries: Boolean(currentSnapshot.generateKnowledgeEntries),
     optimizeForConversation: currentSnapshot.optimizeForConversation !== false,
+    userNotesEnabled: currentSnapshot.userNotesEnabled !== false,
     chunkWindowChars: currentSnapshot.chunkWindowChars ?? 30000,
     contentAnalysisMaxTokens: currentSnapshot.contentAnalysisMaxTokens ?? 16384,
     chromeCacheTabLimit: currentSnapshot.chromeCacheTabLimit ?? 100,

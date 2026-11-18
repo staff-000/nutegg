@@ -350,9 +350,19 @@ export interface MergeResult {
   entries: number;
 }
 
+/** User-authored note entry saved on a Nut in Obsidian mode. */
+export interface UserNoteEntry {
+  id: string;
+  text: string;
+  time?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface AnalysisResult extends ContentAnalysis {
   execution?: import('./execution').ExecutionMetadata;
   generateKnowledgeEntries?: boolean;
+  userNotes?: UserNoteEntry[];
   shouldRead: boolean | null;
   readAction?: ReadAction;
   readingSources?: SourceRef[];
