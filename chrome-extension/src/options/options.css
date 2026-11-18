@@ -1295,7 +1295,21 @@ textarea {
 .panel-site-body {
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+.panel-site-subsection {
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #f0ebe2;
+}
+.panel-site-subsection-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8c7a65;
 }
 .panel-chip-row {
   display: flex;

@@ -854,14 +854,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         const body = el('div', 'panel-site-body');
-        body.append(
+        const urlSection = el('div', 'panel-site-subsection');
+        urlSection.append(
+          el('div', 'panel-site-subsection-title', t('panelTreeUrlSection')),
           makeUrlChipRow(
             t('panelTreeOpenUrls'),
             'allow',
             active.allowUrls,
             active.defaultRule ? NutEggRules.domainDefaultPaths(active.hostname) : []
           ),
-          makeUrlChipRow(t('panelTreeClosedUrls'), 'block', active.blockUrls),
+          makeUrlChipRow(t('panelTreeClosedUrls'), 'block', active.blockUrls)
+        );
+        const topicSection = el('div', 'panel-site-subsection');
+        topicSection.append(
+          el('div', 'panel-site-subsection-title', t('panelTreeTopicSection')),
           makeChipRow(
             t('panelTreeOpenFor'),
             'allow',
@@ -887,6 +893,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           )
         );
+        body.append(urlSection, topicSection);
         for (const adv of active.advanced) {
           const advRow = el('div', 'panel-rule-row');
           const badge = el(
@@ -952,16 +959,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   filterInput.addEventListener('input', () => render());
-  rulesHeader.addEventListener('submit', e => {
+  rulesHeader.addEventListener('submit', async e => {
     e.preventDefault();
     const host = NutEggRules.rootDomain(filterInput.value.trim());
     if (!host) {
       status.textContent = t('panelInvalid');
       return;
     }
-    draftSites.add(host);
+    settings.rules = NutEggRules.mergeRule(settings.rules, {
+      name: host,
+      hostname: host,
+      website: NutEggRules.websiteRegex(host),
+      action: 'allow',
+      excludeListings: true,
+    });
     selectedKey = host;
     filterInput.value = '';
+    await persist();
     render();
   });
   addBtn.addEventListener('click', () => edit());

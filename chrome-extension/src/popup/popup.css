@@ -4552,13 +4552,29 @@ body.density-ultra-compact .footer {
   gap: 4px;
   margin-bottom: 6px;
 }
+.panel-top-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.panel-top-slot:empty,
+.panel-top-slot:has(> .hidden:first-child):has(> .hidden:last-child) {
+  display: none;
+}
+.panel-top-slot > .panel-status {
+  flex: 0 1 auto;
+  margin: 0;
+}
 .panel-smart-rule-bar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
   gap: 6px;
   padding: 6px 10px;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   border-radius: 8px;
   background: #f7f1e8;
   border: 1px solid #e5dace;

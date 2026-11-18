@@ -147,9 +147,13 @@ globalThis.NutEggPanel = {
     ruleBar.setAttribute('data-nutegg-panel-ctrl', '');
 
     if (container) {
+      const topSlot = document.createElement('div');
+      topSlot.className = 'panel-top-slot';
+      topSlot.setAttribute('data-nutegg-panel-ctrl', '');
+      topSlot.append(status, ruleBar);
       const headerEl = container.querySelector?.('.header');
       if (headerEl) {
-        headerEl.after(status, ruleBar);
+        headerEl.after(topSlot);
         if (context && !headerEl.hasAttribute('data-nutegg-draggable')) {
           headerEl.setAttribute('data-nutegg-draggable', '');
           let drag = null;
@@ -186,7 +190,7 @@ globalThis.NutEggPanel = {
           headerEl.addEventListener('pointercancel', event => finishDrag(event, true));
         }
       } else {
-        container.prepend(status, ruleBar);
+        container.prepend(topSlot);
       }
     }
 
@@ -241,27 +245,16 @@ globalThis.NutEggPanel = {
         setTimeout(() => ruleBar.classList.add('hidden'), 6000);
       };
 
-      if (info.author) {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'smart-rule-chip';
-        chip.textContent = `${prefix} ${info.hostname} · ${info.author}`;
-        chip.addEventListener('click', () =>
-          void saveAndConfirm({
-            action,
-            hostname: info.hostname,
-            website: info.website,
-            name: `${info.hostname} · ${info.author}`,
-            topics: [info.author],
-          })
-        );
-        ruleBar.append(chip);
-      } else {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'smart-rule-chip';
-        chip.textContent = `${prefix} ${info.hostname}`;
-        chip.addEventListener('click', () =>
+      const hasSiteSameAction = Boolean(
+        info.hasSiteRule &&
+        ((action === 'allow' && info.decision?.open) || (action === 'block' && !info.decision?.open))
+      );
+      if (!hasSiteSameAction) {
+        const siteChip = document.createElement('button');
+        siteChip.type = 'button';
+        siteChip.className = 'smart-rule-chip';
+        siteChip.textContent = `${prefix} ${info.hostname}`;
+        siteChip.addEventListener('click', () =>
           void saveAndConfirm({
             action,
             hostname: info.hostname,
@@ -269,15 +262,33 @@ globalThis.NutEggPanel = {
             name: info.hostname,
           })
         );
-        ruleBar.append(chip);
+        ruleBar.append(siteChip);
       }
 
-      if (info.topics?.[0] && info.topics[0] !== info.author) {
+      const topicTarget = info.author || info.topics?.[0];
+      if (topicTarget) {
+        const topicChip = document.createElement('button');
+        topicChip.type = 'button';
+        topicChip.className = 'smart-rule-chip';
+        topicChip.textContent = `${prefix} ${info.hostname} · ${topicTarget}`;
+        topicChip.addEventListener('click', () =>
+          void saveAndConfirm({
+            action,
+            hostname: info.hostname,
+            website: info.website,
+            name: `${info.hostname} · ${topicTarget}`,
+            topics: [topicTarget],
+          })
+        );
+        ruleBar.append(topicChip);
+      }
+
+      if (info.topics?.[0] && info.author && info.topics[0] !== info.author) {
         const topic = info.topics[0];
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'smart-rule-chip';
-        chip.textContent = `${prefix} ${topic}`;
+        chip.textContent = `${prefix} ${info.hostname} · ${topic}`;
         chip.addEventListener('click', () =>
           void saveAndConfirm({
             action,
