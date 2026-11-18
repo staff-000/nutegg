@@ -1427,8 +1427,14 @@ body {
   cursor: pointer;
 }
 
-.mindmap-node-name:hover {
+.mindmap-node-name:hover,
+.mindmap-node-content:has(> .mindmap-node-name:hover, > .mindmap-node-detail:hover) > .mindmap-node-name,
+.mindmap-node-content:has(> .mindmap-node-name:hover, > .mindmap-node-detail:hover) > .mindmap-node-detail {
   color: var(--primary, #a8561e);
+}
+.mindmap-node-name.is-jumpable,
+.mindmap-node-detail.is-jumpable {
+  cursor: pointer;
 }
 
 .mindmap-node-detail {

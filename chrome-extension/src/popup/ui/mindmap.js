@@ -379,6 +379,22 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
     headerEl.appendChild(contentWrap);
     nodeEl.appendChild(headerEl);
 
+    const jumpPill = headerEl.querySelector('.source-pill');
+    if (jumpPill) {
+      nameEl.classList.add('is-jumpable');
+      const jumpHandler = e => {
+        if (e.target.closest?.('.source-pill, .mindmap-toggle-btn')) return;
+        e.stopPropagation();
+        jumpPill.click();
+      };
+      nameEl.addEventListener('click', jumpHandler);
+      const detailEl = contentWrap.querySelector('.mindmap-node-detail');
+      if (detailEl) {
+        detailEl.classList.add('is-jumpable');
+        detailEl.addEventListener('click', jumpHandler);
+      }
+    }
+
     if (hasChildren) {
       const childrenContainer = document.createElement('div');
       childrenContainer.className = 'mindmap-children';
@@ -396,7 +412,7 @@ function renderMindMap(nodes, container, progress = null, conversation = null, o
       };
 
       toggleBtn.addEventListener('click', toggleBranch);
-      nameEl.addEventListener('click', toggleBranch);
+      if (!jumpPill) nameEl.addEventListener('click', toggleBranch);
     }
 
     return nodeEl;
@@ -417,6 +433,20 @@ class MindmapComponent {
     this.options = {};
     this.lastProgress = null;
     this.currentNode = null;
+    this.lastUserScrollAt = 0;
+    this.attachScrollTracker();
+  }
+
+  markUserTouched() {
+    this.lastUserScrollAt = Date.now();
+  }
+
+  attachScrollTracker() {
+    const target = this.root?.addEventListener ? this.root : null;
+    if (!target) return;
+    const touch = () => this.markUserTouched();
+    target.addEventListener('wheel', touch, { passive: true, capture: true });
+    target.addEventListener('touchmove', touch, { passive: true, capture: true });
   }
 
   show() {
@@ -434,9 +464,19 @@ class MindmapComponent {
   updateProgress(progress) {
     this.lastProgress = progress;
     if (!this.mindmapTree || !Array.isArray(this.nodes) || this.nodes.length === 0) return null;
+    if (progress == null) {
+      this.currentNode = null;
+      this.highlightCurrentNode(null);
+      return null;
+    }
+    const prevNode = this.currentNode;
     const current = findCurrentNode(this.nodes, progress);
     this.currentNode = current;
-    this.highlightCurrentNode(current);
+    const nodeEl = this.highlightCurrentNode(current);
+    const isVideo = progress?.type === 'video' || typeof progress?.currentTime === 'number';
+    if (nodeEl && isVideo && current && current !== prevNode && Date.now() - this.lastUserScrollAt >= 5000) {
+      nodeEl.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    }
     return current;
   }
 
@@ -504,6 +544,7 @@ class MindmapComponent {
       }
       parentBranch = parentBranch.parentElement?.closest('.mindmap-children');
     }
+    return nodeEl;
   }
 
   render(nodes, enabled = true, progress = null, isLoading = false, conversation = null, options = {}) {
@@ -511,6 +552,7 @@ class MindmapComponent {
     this.conversation = conversation;
     this.options = options;
     this.lastProgress = progress;
+    this.currentNode = null;
     if (Array.isArray(nodes) && nodes.length > 0 && enabled !== false) {
       this.show();
       const res = renderMindMap(nodes, this.mindmapTree, this.lastProgress, conversation, options);

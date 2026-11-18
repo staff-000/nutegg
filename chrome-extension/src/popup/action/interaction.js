@@ -60,12 +60,10 @@ class InteractionAction {
     try {
       const pos = await this.pageExtractor.getPagePosition(owner.tabId, null,
         { ...owner.options, isCurrent: current, isPageCurrent: owner.options.isCurrent });
-      if (current()) this.store.dispatch({ type: 'playbackPosition', tabId: owner.tabId,
+      if (current() && pos != null) this.store.dispatch({ type: 'playbackPosition', tabId: owner.tabId,
         pageGeneration: owner.tab.pageGeneration, position: pos });
       return pos;
     } catch {
-      if (current()) this.store.dispatch({ type: 'playbackPosition', tabId: owner.tabId,
-        pageGeneration: owner.tab.pageGeneration, position: null });
       return null;
     } finally { this.positionPending = false; }
   }

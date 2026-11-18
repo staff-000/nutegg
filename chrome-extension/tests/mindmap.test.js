@@ -36,7 +36,7 @@ test('a timestamped root keeps its own citation visible', t => {
   assert.equal(document.querySelector('.source-pill').dataset.time, '00:00');
 });
 
-test('text mind-map source tags jump while titles only expand branches', t => {
+test('text mind-map source tags and node text both jump while toggle button expands branches', t => {
   const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
   const previousDocument = global.document;
   global.document = dom.window.document;
@@ -52,8 +52,10 @@ test('text mind-map source tags jump while titles only expand branches', t => {
   assert.deepEqual(calls, [['Original heading', 'Exact supporting passage', 'zhihu:answer-1']]);
   assert.equal(document.querySelector('.mindmap-children').classList.contains('collapsed'), false);
   document.querySelector('.mindmap-node-name').click();
+  assert.equal(document.querySelector('.mindmap-children').classList.contains('collapsed'), false);
+  assert.equal(calls.length, 2);
+  document.querySelector('.mindmap-toggle-btn').click();
   assert.equal(document.querySelector('.mindmap-children').classList.contains('collapsed'), true);
-  assert.equal(calls.length, 1);
   document.querySelector('.mindmap-toggle-btn').click();
   assert.equal(document.querySelector('.mindmap-children').classList.contains('collapsed'), false);
 });
@@ -213,7 +215,7 @@ test('updateProgress dynamically shifts current node and uncollapses parent bran
   assert.equal(children[1].classList.contains('collapsed'), false);
 });
 
-test('mindmap does not auto scroll when progress updates', t => {
+test('mindmap auto scrolls during video playback only after 5s without panel scroll', t => {
   const dom = new JSDOM('<div id="mindmap-section"><div id="mindmap-tree"></div></div>');
   const previousDocument = global.document;
   global.document = dom.window.document;
@@ -233,10 +235,17 @@ test('mindmap does not auto scroll when progress updates', t => {
   });
 
   component.updateProgress({ type: 'video', currentTime: 10 });
-  component.updateProgress({ type: 'video', currentTime: 130 });
+  assert.equal(scrollCount, 1);
 
-  // Auto scroll is disabled; scrollIntoView should never be called
-  assert.equal(scrollCount, 0);
+  // User scrolls on the panel -> suppresses auto-scroll for 5s
+  component.markUserTouched();
+  component.updateProgress({ type: 'video', currentTime: 130 });
+  assert.equal(scrollCount, 1);
+
+  // After 5s of inactivity, auto-scroll resumes on next node change
+  component.lastUserScrollAt = Date.now() - 5500;
+  component.updateProgress({ type: 'video', currentTime: 10 });
+  assert.equal(scrollCount, 2);
 });
 
 

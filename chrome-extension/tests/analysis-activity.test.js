@@ -15,11 +15,11 @@ test('indicator derives window-filtered unread/running rows and handles selectio
   store.beginOperation(2, 'analysis'); store.ensure(3); store.beginOperation(3, 'analysis');
   const ui = new AnalysisActivityComponent(root()); let selected;
   await ui.init({ manager: store, onSelect: id => { selected = id; }, tabs: { query: async () => [{ id: 1, windowId: 7 }, { id: 2, windowId: 7 }] } });
-  assert.equal(ui.label.textContent, '⌛ 1 waiting · ✅ 1 unread');
+  assert.equal(ui.label.textContent, '✅ 1 unread · ⌛ 1 waiting');
   assert.equal(ui.arrow.textContent, '▾');
   assert.equal(ui.arrow.classList.contains('expanded'), false);
-  const rows = ui.list.children.filter(e => e.dataset.activityTab); assert.deepEqual(rows.map(e => e.dataset.activityTab), ['2', '1']);
-  ui.list.listeners.click({ target: { closest: () => rows[1] } }); assert.equal(selected, 1);
+  const rows = ui.list.children.filter(e => e.dataset.activityTab); assert.deepEqual(rows.map(e => e.dataset.activityTab), ['1', '2']);
+  ui.list.listeners.click({ target: { closest: () => rows[0] } }); assert.equal(selected, 1);
   store.dispatch({ type: 'viewed', tabId: 1, revision: store.getTab(1).resultRevision }); await ui.refresh();
   assert.equal(ui.label.textContent, '⌛ 1 waiting');
 });
@@ -51,18 +51,18 @@ test('twenty tabs show exclusive running/waiting/unread counts excluding zero an
   store.commitOperation(jobs[0].token, { type: 'analysisComplete', result: { titleVerdict: 'Done' } });
   store.commitOperation(jobs[3].token, { type: 'analysisQueueState', state: 'running' });
   await ui.refresh();
-  assert.equal(ui.label.textContent, '⏳ 3 running · ⌛ 16 waiting · ✅ 1 unread');
+  assert.equal(ui.label.textContent, '✅ 1 unread · ⏳ 3 running · ⌛ 16 waiting');
   store.activateTab(1);
   store.dispatch({ type: 'viewed', tabId: 1, revision: store.getTab(1).resultRevision });
   store.invalidateTab(2, 'https://replacement.test');
   assert.equal(store.commitOperation(jobs[1].token, { type: 'analysisQueueState', state: 'running' }), false);
-  for (const job of jobs.slice(2)) store.commitOperation(job.token, { type: 'operationFailed', error: 'Cancelled' });
+  for (const job of jobs.slice(2)) store.commitOperation(job.token, { type: 'operationFailed', error: 'Cancelled', code: 'cancelled' });
   await ui.refresh();
   assert.equal(ui.label.textContent, '');
   assert.equal(ui.container.classList.contains('hidden'), true);
 });
 
-test('Stage 2 can wait again and unrelated operation kinds do not enter analysis counts', () => {
+test('Stage 2 can wait again and failed analyses appear in activity until selected', () => {
   const { store } = fixture();
   const job = store.beginOperation(1, 'analysis');
   store.beginOperation(2, 'followup'); store.ensure(3); store.beginOperation(3, 'creation');
@@ -73,5 +73,8 @@ test('Stage 2 can wait again and unrelated operation kinds do not enter analysis
   const entries = store.getAnalysisActivity();
   assert.equal(entries.length, 1); assert.equal(entries[0].waiting, true);
   store.commitOperation(job.token, { type: 'operationFailed', error: 'Failed' });
-  assert.equal(store.getAnalysisActivity().length, 0);
+  const failedEntries = store.getAnalysisActivity();
+  assert.equal(failedEntries.length, 1);
+  assert.equal(failedEntries[0].failed, true);
+  assert.equal(failedEntries[0].errorMessage, 'Failed');
 });

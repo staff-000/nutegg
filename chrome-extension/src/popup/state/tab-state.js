@@ -123,6 +123,7 @@ class TabStateManager {
       success: null,
       operations: {},
       completion: null,
+      failure: null,
       currentTabLoading: false,
       presentation: {
         scroll: 0,
@@ -498,6 +499,7 @@ class TabStateManager {
         next.success = null;
         if (kind === 'extraction') next.warning = null;
         if (kind === 'analysis') next.completion = null;
+        if (kind === 'analysis') next.failure = null;
         if (kind === 'analysis') next.analysisCancelled = false;
         if (kind === 'analysis') next.emptyAnalysisRefreshRevision = null;
         // An old empty failure must not become this request's partial result.
@@ -623,6 +625,7 @@ class TabStateManager {
           completedAt: Date.now(),
           startedAt: next.operations[kind].startedAt,
         };
+        next.failure = null;
         break;
       case 'cachedResult':
         next.analysisCancelled = false;
@@ -760,7 +763,16 @@ class TabStateManager {
         if (kind === 'analysis' && ['cancelled', 'stale', 'execution_changed'].includes(event.code)) {
           delete next.errors.analysis;
           next.analysisCancelled = true;
-        } else next.errors[kind] = { message: event.error, code: event.code || null };
+          next.failure = null;
+        } else {
+          next.errors[kind] = { message: event.error, code: event.code || null };
+          if (kind === 'analysis') {
+            next.failure = {
+              failedAt: Date.now(),
+              message: event.error || 'Analysis failed',
+            };
+          }
+        }
         if (kind === 'followup')
           next.followUpQa = next.followUpQa.map(q => (q.pending ? { ...q, pending: false, answer: event.error } : q));
         break;
@@ -793,6 +805,7 @@ class TabStateManager {
         const targetView = popupHasAnalysisContent(next.analysisResult, next) ? 'results' : 'capture';
         if (targetView === 'results' && next.currentView !== 'results') next.presentation.scroll = 0;
         next.currentView = targetView;
+        next.failure = null;
         break;
       }
       case 'pageInfo':
@@ -895,17 +908,22 @@ class TabStateManager {
   getAnalysisActivity() {
     return [...this.#tabs.values()].flatMap(tab => {
       const job = tab.operations.analysis;
-      if (!job?.running && (!tab.completion || tab.completion.revision <= tab.viewedRevision)) return [];
+      const hasUnread = Boolean(tab.completion && tab.completion.revision > tab.viewedRevision);
+      const hasFailure = Boolean(tab.failure && !job?.running);
+      if (!job?.running && !hasUnread && !hasFailure) return [];
       return [
         {
           tabId: tab.tabId,
-          title: tab.extractedContent?.title || tab.backgroundJob?.title,
+          title: tab.extractedContent?.title || tab.backgroundJob?.title || tab.title,
           url: tab.url,
           running: !!job?.running,
           waiting: !!job?.running && job.queueState === 'waiting',
-          revision: job?.running ? job.requestId : tab.completion.revision,
+          failed: hasFailure,
+          errorMessage: hasFailure ? tab.failure.message : '',
+          revision: job?.running ? job.requestId : hasUnread ? tab.completion.revision : tab.failure.failedAt,
           startedAt: job?.startedAt,
           completedAt: tab.completion?.completedAt,
+          failedAt: tab.failure?.failedAt,
         },
       ];
     });

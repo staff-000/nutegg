@@ -80,7 +80,9 @@ test('failure keeps the old successful result and view, without unread completio
   const ctx = store.beginOperation(1, 'analysis');
   store.commitOperation(ctx.token, { type: 'operationFailed', error: 'Failed' });
   assert.equal(store.getTab(1).analysisResult.titleVerdict, 'Old'); assert.equal(store.getTab(1).currentView, 'capture');
-  assert.equal(store.getAnalysisActivity().length, 0);
+  const activity = store.getAnalysisActivity();
+  assert.equal(activity.length, 1);
+  assert.equal(activity[0].failed, true);
 });
 test('restoration does not rewrite global defaults; diagnostics omit input data and are bounded', () => {
   const { store } = fixture();
