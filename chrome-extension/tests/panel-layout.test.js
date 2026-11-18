@@ -197,3 +197,41 @@ test('feed mutations, media loads and vertical scrolling do not rewrite page lay
   layout.update(500);
   assert.equal(layout.scrollbarHost.style.width, '1088px');
 });
+
+test('opening below the fold does not align the page to the currently visible content', t => {
+  const { layout, doc } = fixture(t, { left: 400, right: 1500, layoutMode: 'push', prepare(win) {
+    Object.defineProperty(win, 'scrollY', { value: 900, configurable: true });
+  }});
+  assert.equal(layout.horizontalOffset, 0);
+  assert.equal(doc.body.style.marginLeft, '8px');
+});
+
+test('mini-player stays beside panel and releases dimensions when returning to normal flow', t => {
+  const { doc, layout } = fixture(t, { left: 0, right: 1500, layoutMode: 'push', prepare(win) {
+    const player = win.document.createElement('div');
+    player.id = 'mini-player';
+    player.style.cssText = 'position:fixed;right:20px;width:300px';
+    player.append(win.document.createElement('video'));
+    player.getBoundingClientRect = () => {
+      const left = player.style.left ? parseFloat(player.style.left) : 1280;
+      return {left,right:left+300,top:300,bottom:500,width:300,height:200};
+    };
+    win.document.body.append(player);
+  }});
+  const player = doc.querySelector('#mini-player');
+  const video = player.firstChild;
+  assert.equal(player.style.left, '848px');
+  player.style.position = 'static';
+  layout.update();
+  assert.equal(player.style.left, '');
+  assert.equal(player.style.right, '20px');
+  assert.equal(player.style.getPropertyPriority('width'), '');
+  assert.equal(player.firstChild, video);
+  // Mini mode can activate again while NutEgg stays open.
+  player.style.position = 'fixed';
+  layout.update();
+  assert.equal(player.style.left, '848px');
+  layout.dispose();
+  assert.equal(player.style.left, '');
+  assert.equal(player.style.right, '20px');
+});

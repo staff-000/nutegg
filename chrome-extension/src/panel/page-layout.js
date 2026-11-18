@@ -28,7 +28,7 @@
             record =>
               !this.isUI(record.target) &&
               (record.type === 'attributes'
-                ? this.attributeChanged(record.target)
+                ? record.attributeName === 'class' || this.attributeChanged(record.target)
                 : [...record.addedNodes, ...record.removedNodes].some(node => !this.isUI(node)))
           )
         )
@@ -126,7 +126,7 @@
             )
               return 2;
             const style = this.win.getComputedStyle(node);
-            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return 2;
+            if (style.position === 'fixed' || style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return 2;
           }
           return 1;
         },
@@ -264,7 +264,10 @@
       // Feed animations, media loads and vertical scrolling must not repeatedly reset
       // the document geometry: doing so can retrigger hover/autoplay on live photos.
       const geometryKey = `${this.viewport()}:${this.win.innerHeight}:${this.width}:${this.side}`;
-      if (this.geometryKey === geometryKey && this.layoutBody === this.doc.body && this.saved.size) return;
+      if (this.geometryKey === geometryKey && this.layoutBody === this.doc.body && this.saved.size) {
+        this.refreshFloatingMedia();
+        return;
+      }
       this.geometryKey = geometryKey;
       this.layoutBody = this.doc.body;
       // Measure the live site's own layout, without changing its DOM or columns.
@@ -310,7 +313,8 @@
         if (contained) continue;
         const rect = node.getBoundingClientRect();
         if (rect.width && rect.height)
-          this.fixedItems.push({ node, left: rect.left, right: rect.right, width: style.width });
+          this.fixedItems.push({ node, left: rect.left, right: rect.right, width: style.width,
+            position: style.position, media: node.matches('video') || !!node.querySelector('video') });
       }
       this.write(html, 'overflow-x', 'clip');
       if (this.nativeBodyWidth && this.nativeBodyWidth !== 'auto') {
@@ -331,7 +335,8 @@
       this.horizontalOffset = Math.max(0, Math.min(this.horizontalOffset, this.canvasWidth - available));
       if (this.autoAlignedSide !== this.side) {
         this.autoAlignedSide = this.side;
-        const span = this.measureContentSpan();
+        // Below the fold, visible comments or a mini-player do not describe the page's original margin.
+        const span = (this.win.scrollY || 0) === 0 ? this.measureContentSpan() : null;
         if (span && span.left > GAP * 3) {
           const maxShift = Math.max(0, span.left - GAP);
           let targetOffset = 0;
@@ -345,6 +350,38 @@
       }
       this.scrollbar.scrollLeft = this.horizontalOffset;
       this.pan();
+    }
+    refreshFloatingMedia() {
+      let changed = false;
+      this.fixedItems = (this.fixedItems || []).filter(item => {
+        if (item.node.isConnected && this.win.getComputedStyle(item.node).position === item.position) return true;
+        const properties = this.fixed.get(item.node);
+        if (properties) {
+          this.restore(new Map([[item.node, properties]]));
+          this.fixed.delete(item.node);
+        }
+        changed = true;
+        return false;
+      });
+      // Players can enter mini mode after the panel has already opened. Inspect only
+      // media ancestors; never reset the whole page on each scroll or feed mutation.
+      for (const video of this.doc.querySelectorAll('video')) {
+        if (this.isUI(video)) continue;
+        for (let node = video; node && node !== this.doc.body; node = node.parentElement) {
+          const style = this.win.getComputedStyle(node);
+          if (style.position !== 'fixed') continue;
+          if (!this.fixedItems.some(item => item.node === node)) {
+            const rect = node.getBoundingClientRect();
+            if (rect.width && rect.height) {
+              this.fixedItems.push({ node, left: rect.left, right: rect.right, width: style.width,
+                position: 'fixed', media: true });
+              changed = true;
+            }
+          }
+          break;
+        }
+      }
+      if (changed) this.pan();
     }
     pan() {
       if (this.disposed || !this.doc.body) return;
@@ -360,7 +397,9 @@
       );
       for (const item of this.fixedItems || []) {
         if (!item.node.isConnected) continue;
-        const target = item.left + offset;
+        const target = item.media && item.position === 'fixed'
+          ? Math.max(this.pageLeft, Math.min(item.left, this.pageRight - (this.viewport() - item.right) - parseFloat(item.width)))
+          : item.left + offset;
         this.write(item.node, 'left', `${target}px`, this.fixed);
         this.write(item.node, 'right', 'auto', this.fixed);
         if (item.width && item.width !== 'auto') this.write(item.node, 'width', item.width, this.fixed);
