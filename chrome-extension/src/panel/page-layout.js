@@ -107,6 +107,54 @@
       }
       return found;
     }
+    measureContentSpan() {
+      const rootEl =
+        this.doc.querySelector('.video-container-v1, #mirror-vdcon, main, article, [role="main"]') ||
+        this.doc.body ||
+        this.doc.documentElement;
+      if (!rootEl) return null;
+      let minLeft = Infinity,
+        maxRight = -Infinity,
+        scanned = 0;
+      const walker = this.doc.createTreeWalker(rootEl, 1 | 4, {
+        acceptNode: node => {
+          if (this.isUI(node)) return 2;
+          if (node.nodeType === 1) {
+            if (
+              node.matches('script,style,noscript,template,header,nav,[role="banner"],[role="navigation"],.bili-header,#biliMainHeader') ||
+              node.hidden
+            )
+              return 2;
+            const style = this.win.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return 2;
+          }
+          return 1;
+        },
+      });
+      let node;
+      while ((node = walker.nextNode()) && ++scanned <= 800) {
+        if (node.nodeType === 3 && node.textContent.trim()) {
+          const range = this.doc.createRange();
+          range.selectNodeContents(node);
+          for (const rect of range.getClientRects()) {
+            if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < this.win.innerHeight) {
+              minLeft = Math.min(minLeft, rect.left);
+              maxRight = Math.max(maxRight, rect.right);
+            }
+          }
+        } else if (
+          node.nodeType === 1 &&
+          node.matches('img,video,canvas,svg,iframe')
+        ) {
+          const rect = node.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < this.win.innerHeight) {
+            minLeft = Math.min(minLeft, rect.left);
+            maxRight = Math.max(maxRight, rect.right);
+          }
+        }
+      }
+      return minLeft < Infinity && maxRight > -Infinity ? { left: minLeft, right: maxRight } : null;
+    }
     write(element, property, value, collection = this.saved) {
       let properties = collection.get(element);
       if (!properties) collection.set(element, (properties = new Map()));
@@ -281,6 +329,20 @@
       this.scrollbarHost.style.setProperty('display', this.scrollbarHost.hidden ? 'none' : 'block', 'important');
       this.scrollTrack.style.width = `${this.canvasWidth}px`;
       this.horizontalOffset = Math.max(0, Math.min(this.horizontalOffset, this.canvasWidth - available));
+      if (this.autoAlignedSide !== this.side) {
+        this.autoAlignedSide = this.side;
+        const span = this.measureContentSpan();
+        if (span && span.left > GAP * 3) {
+          const maxShift = Math.max(0, span.left - GAP);
+          let targetOffset = 0;
+          if (this.side === 'left') {
+            targetOffset = maxShift;
+          } else if (span.right > available - GAP) {
+            targetOffset = Math.min(maxShift, span.right - (available - GAP));
+          }
+          this.horizontalOffset = Math.max(0, Math.min(targetOffset, Math.max(0, this.canvasWidth - available)));
+        }
+      }
       this.scrollbar.scrollLeft = this.horizontalOffset;
       this.pan();
     }
@@ -309,6 +371,8 @@
     setSide(side) {
       if (this.disposed || !['left', 'right'].includes(side) || this.side === side) return;
       this.side = side;
+      this.geometryKey = '';
+      this.autoAlignedSide = '';
       this.horizontalOffset = 0;
       this.restore(this.fixed);
       this.restore(this.saved);
@@ -322,6 +386,8 @@
     setLayoutMode(layoutMode) {
       if (this.disposed || this.layoutMode === layoutMode) return;
       this.layoutMode = layoutMode;
+      this.geometryKey = '';
+      this.autoAlignedSide = '';
       if (layoutMode === 'floating' || layoutMode === 'auto') {
         this.mode = 'floating';
         this.restore(this.fixed);

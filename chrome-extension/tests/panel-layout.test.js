@@ -39,7 +39,7 @@ test('clear side space floats without changing website styles', t => {
   assert.equal(doc.documentElement.style.width, '');
 });
 test('insufficient space reserves width and closing restores original styles', t => {
-  const { doc, host, layout } = fixture(t, { right: 1500 });
+  const { doc, host, layout } = fixture(t, { left: 0, right: 1500 });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
   assert.equal(doc.documentElement.style.width, '');
   assert.equal(doc.body.style.marginLeft, '8px');
@@ -60,7 +60,7 @@ test('always push mode pushes right-docked pages even when right margin is clear
   assert.equal(host.getAttribute('data-nutegg-layout'), 'floating');
 });
 test('setSide switches pushed layout cleanly between right and left', t => {
-  const { doc, host, layout } = fixture(t, { right: 1500, layoutMode: 'push' });
+  const { doc, host, layout } = fixture(t, { left: 0, right: 1500, layoutMode: 'push' });
   assert.equal(host.getAttribute('data-nutegg-layout'), 'inserted');
   assert.equal(doc.documentElement.style.width, '');
   layout.setSide('left');
@@ -151,9 +151,21 @@ test('horizontal scrolling pans the existing page while ordinary vertical wheel 
   assert.equal(doc.body.style.marginLeft, '8px');
 });
 
+test('push mode auto-scrolls centered content to align beside left or right panel', t => {
+  // Left panel: content starts at left=300 in 1600px viewport -> trims excess left margin (300 - 12 = 288)
+  const leftFit = fixture(t, { left: 300, right: 1100, side: 'left', layoutMode: 'push' });
+  assert.equal(leftFit.layout.horizontalOffset, 288);
+  assert.equal(leftFit.doc.body.style.marginLeft, `${8 + 432 - 288}px`);
+
+  // Right panel: content right=1360 exceeds available=1168, left=260 -> shifts left to fit right edge
+  const rightFit = fixture(t, { left: 260, right: 1360, side: 'right', layoutMode: 'push' });
+  assert.equal(rightFit.layout.horizontalOffset, 1360 - (1168 - 12));
+  assert.equal(rightFit.doc.body.style.marginLeft, `${8 - rightFit.layout.horizontalOffset}px`);
+});
+
 
 test('right docking preserves native page width and fixed media geometry', t => {
-  const { doc, layout } = fixture(t, { right: 1500, prepare(win) {
+  const { doc, layout } = fixture(t, { left: 0, right: 1500, prepare(win) {
     win.document.body.style.width = '1584px';
     const media = win.document.createElement('div');
     media.id = 'live-photo';
