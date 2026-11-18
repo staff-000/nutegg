@@ -168,13 +168,15 @@ function syncSubscriptionToggle() {
   notice.textContent = t('sharedModeNotice');
   notice.hidden =
     !obsidianModeEnabled.checked || (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available);
-  toggle.checked = managedSelected();
+  const isManaged = managedSelected();
+  toggle.checked = isManaged;
   toggle.disabled =
-    !obsidianModeEnabled.checked ||
-    (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available) ||
     !!methodChange ||
     connectionModeChange ||
-    (!!acknowledgedSharedState?.transition && acknowledgedSharedState.transition !== 'ready');
+    (!isManaged &&
+      (!obsidianModeEnabled.checked ||
+        (!subscriptionEnabled && !acknowledgedSharedState?.chatgpt?.available) ||
+        (!!acknowledgedSharedState?.transition && acknowledgedSharedState.transition !== 'ready')));
   const wrapper = document.getElementById('ai-auth-row');
   wrapper.setAttribute('aria-label', t('useSubscriptionSwitch'));
   wrapper.setAttribute('aria-disabled', String(toggle.disabled));
@@ -356,6 +358,14 @@ async function changeAiMethod(method) {
   try {
     await methodChange;
   } catch (error) {
+    if (method === 'apiKey') {
+      obsidianModeEnabled.checked = false;
+      renderConnectionMode('chrome');
+      await chrome.storage.local.set({ connectionMode: 'chrome', chromeAiAuthMethod: 'apiKey' });
+      await applyLocalApiKeyMode();
+      await chrome.runtime.sendMessage({ action: 'sync-ai-config' }).catch(() => {});
+      return;
+    }
     showAiResult(t('aiError', { error: error.message }), 'error');
     await refreshSubscriptionAccess();
   } finally {
@@ -377,9 +387,18 @@ async function refreshSubscriptionAccess() {
     if (result?.error) throw new Error(result.error);
     if (result?.state) await applySharedExecution(result.state);
   } catch (error) {
-    if (request === subscriptionFeatureRequest && obsidianModeEnabled.checked)
-      aiStatusBanner.textContent = t('aiError', { error: error.message });
-  } // Offline preserves the last confirmed mode; no API billing fallback.
+    if (request === subscriptionFeatureRequest && obsidianModeEnabled.checked) {
+      if (managedSelected() && (savedApiConfig?.chromeAiApiKey || aiKeyInput?.value?.trim())) {
+        obsidianModeEnabled.checked = false;
+        renderConnectionMode('chrome');
+        await chrome.storage.local.set({ connectionMode: 'chrome', chromeAiAuthMethod: 'apiKey' });
+        await applyLocalApiKeyMode();
+        await chrome.runtime.sendMessage({ action: 'sync-ai-config' }).catch(() => {});
+      } else {
+        aiStatusBanner.textContent = t('aiError', { error: error.message });
+      }
+    }
+  } // Offline preserves the last confirmed mode when no Chrome API key is configured.
 }
 async function subscriptionControl(operation, extra = {}) {
   let provider = aiProviderSelect.value;
@@ -919,7 +938,7 @@ function initAiSettings(stored) {
   setupChatGPTControls();
   const useSubscriptionToggle = document.getElementById('use-subscription-toggle');
   useSubscriptionToggle?.addEventListener('change', () => {
-    if (useSubscriptionToggle.disabled || !obsidianModeEnabled.checked) {
+    if (useSubscriptionToggle.disabled || (!obsidianModeEnabled.checked && useSubscriptionToggle.checked)) {
       syncSubscriptionToggle();
       return;
     }
