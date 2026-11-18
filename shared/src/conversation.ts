@@ -254,34 +254,5 @@ export function normalizeConversationMindMap(
     sortedNodes.sort((a, b) => (toSeconds(a.time!) || 0) - (toSeconds(b.time!) || 0));
   }
 
-  // Budget cap: max 8 topics; group remainder into a summary node
-  if (sortedNodes.length > 8) {
-    const top8 = sortedNodes.slice(0, 8);
-    const excess = sortedNodes.slice(8);
-    const excessSummary = excess.map(n => n.name).join('; ');
-    top8.push({
-      kind: 'topic',
-      name: `+${excess.length} more topics`,
-      detail: excessSummary,
-      children: excess.flatMap(n => n.children || []).slice(0, 6),
-    });
-    sortedNodes = top8;
-  }
-
-  // Budget cap: max 6 questions per topic
-  for (const topic of sortedNodes) {
-    if (Array.isArray(topic.children) && topic.children.length > 6) {
-      const top6 = topic.children.slice(0, 6);
-      const excessQ = topic.children.slice(6);
-      const excessQSummary = excessQ.map(q => q.name).join('; ');
-      top6.push({
-        kind: 'question',
-        name: `+${excessQ.length} more questions`,
-        detail: excessQSummary,
-      });
-      topic.children = top6;
-    }
-  }
-
   return { mindMap: sortedNodes, conversation };
 }

@@ -528,10 +528,11 @@ class ActionControlsComponent {
     this.reanalyzeRefreshBtn?.classList.toggle('rotating', !!view.extractionPending);
     set(this.viewAnalysisBtn, !result, t('viewAnalysis'), !result);
 
-    const stage1ProceedDisabled = busy || !view.selectedEggs?.size;
+    const canExtractDefaultKnowledge = !view.selectedEggs?.size && Boolean(view.generateKnowledgeEntries);
+    const stage1ProceedDisabled = busy || (!view.selectedEggs?.size && !canExtractDefaultKnowledge);
     const stage1ProceedReason = busy
       ? t('analysisRunningHint')
-      : !view.selectedEggs?.size
+      : !view.selectedEggs?.size && !canExtractDefaultKnowledge
         ? t('selectEggToAnalyzeHint')
         : '';
     const eggAnalysisHidden = chromeMode || !result || !needsEggAnalysis;

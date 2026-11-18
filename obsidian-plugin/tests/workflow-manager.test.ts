@@ -46,16 +46,24 @@ describe("WorkflowManager", () => {
   });
 
   it("retrieves seeded prompts dynamically via getPrompt", async () => {
-    const { manager } = makeManager();
+    const { manager, files } = makeManager();
     await manager.init();
+
+    assert.equal(files.has("nutegg/_workflow/content-analysis.md"), false);
+    assert.equal(files.has("nutegg/_workflow/verdict-summary.md"), false);
+    assert.equal(files.has("nutegg/_workflow/chrome-knowledge.md"), false);
 
     for (const [key, filename] of Object.entries(WORKFLOW_FILE_MAP)) {
       const prompt = manager.getPrompt(key as WorkflowPromptKey);
-      assert.equal(
-        prompt,
-        BUILTIN_WORKFLOW_FILES[filename],
-        `Prompt mismatch for key: ${key}`
-      );
+      if (filename in BUILTIN_WORKFLOW_FILES) {
+        assert.equal(
+          prompt,
+          BUILTIN_WORKFLOW_FILES[filename],
+          `Prompt mismatch for key: ${key}`
+        );
+      } else {
+        assert.ok(prompt.length > 0, `Expected built-in fallback for Chrome-managed key: ${key}`);
+      }
     }
   });
 
@@ -63,13 +71,13 @@ describe("WorkflowManager", () => {
     const { manager, store } = makeManager();
     await manager.init();
 
-    const customPrompt = "You are a custom NutEgg content analyzer. Output JSON only.";
+    const customPrompt = "You are a custom NutEgg egg analyzer. Output JSON only.";
     await store.vault.modify(
-      { path: "nutegg/_workflow/content-analysis.md" },
+      { path: "nutegg/_workflow/egg-analysis.md" },
       customPrompt
     );
 
-    assert.equal(manager.getPrompt("contentAnalysis"), customPrompt);
+    assert.equal(manager.getPrompt("eggAnalysis"), customPrompt);
   });
 
   it("falls back to built-in default when file is deleted or empty", async () => {
@@ -78,19 +86,19 @@ describe("WorkflowManager", () => {
 
     // Modify to empty string
     await store.vault.modify(
-      { path: "nutegg/_workflow/content-analysis.md" },
+      { path: "nutegg/_workflow/egg-analysis.md" },
       "   \n  "
     );
     assert.equal(
-      manager.getPrompt("contentAnalysis"),
-      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+      manager.getPrompt("eggAnalysis"),
+      BUILTIN_WORKFLOW_FILES["egg-analysis.md"]
     );
 
     // Delete file
-    store.vault.trigger("delete", { path: "nutegg/_workflow/content-analysis.md" });
+    store.vault.trigger("delete", { path: "nutegg/_workflow/egg-analysis.md" });
     assert.equal(
-      manager.getPrompt("contentAnalysis"),
-      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+      manager.getPrompt("eggAnalysis"),
+      BUILTIN_WORKFLOW_FILES["egg-analysis.md"]
     );
   });
 
@@ -101,11 +109,11 @@ describe("WorkflowManager", () => {
     // Vault has the old content, and settings hash recorded that it was unmodified
     const { manager, files, plugin } = makeManager(
       {
-        "nutegg/_workflow/content-analysis.md": oldBuiltin,
+        "nutegg/_workflow/egg-analysis.md": oldBuiltin,
       },
       {
         workflowHashes: {
-          "content-analysis.md": oldHash,
+          "egg-analysis.md": oldHash,
         },
       }
     );
@@ -113,10 +121,10 @@ describe("WorkflowManager", () => {
     await manager.init();
 
     // Should have auto-updated to latest built-in version because recordedHash === currentVaultHash
-    const expected = BUILTIN_WORKFLOW_FILES["content-analysis.md"];
-    assert.equal(files.get("nutegg/_workflow/content-analysis.md"), expected);
-    assert.equal(plugin.settings.workflowHashes["content-analysis.md"], simpleHash(expected));
-    assert.equal(files.has("nutegg/_workflow/content-analysis.new.md"), false);
+    const expected = BUILTIN_WORKFLOW_FILES["egg-analysis.md"];
+    assert.equal(files.get("nutegg/_workflow/egg-analysis.md"), expected);
+    assert.equal(plugin.settings.workflowHashes["egg-analysis.md"], simpleHash(expected));
+    assert.equal(files.has("nutegg/_workflow/egg-analysis.new.md"), false);
   });
 
   it("preserves user customized file and writes *.new.md on version update conflict", async () => {
@@ -127,11 +135,11 @@ describe("WorkflowManager", () => {
     // User customized the file, so current vault content hash differs from recorded original hash
     const { manager, files } = makeManager(
       {
-        "nutegg/_workflow/content-analysis.md": userCustomizedContent,
+        "nutegg/_workflow/egg-analysis.md": userCustomizedContent,
       },
       {
         workflowHashes: {
-          "content-analysis.md": originalHash,
+          "egg-analysis.md": originalHash,
         },
       }
     );
@@ -140,26 +148,26 @@ describe("WorkflowManager", () => {
 
     // User custom file MUST be preserved untouched!
     assert.equal(
-      files.get("nutegg/_workflow/content-analysis.md"),
+      files.get("nutegg/_workflow/egg-analysis.md"),
       userCustomizedContent
     );
 
-    // New version MUST be written to content-analysis.new.md
-    assert.equal(files.has("nutegg/_workflow/content-analysis.new.md"), true);
+    // New version MUST be written to egg-analysis.new.md
+    assert.equal(files.has("nutegg/_workflow/egg-analysis.new.md"), true);
     assert.equal(
-      files.get("nutegg/_workflow/content-analysis.new.md"),
-      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+      files.get("nutegg/_workflow/egg-analysis.new.md"),
+      BUILTIN_WORKFLOW_FILES["egg-analysis.md"]
     );
 
     // getPrompt returns the user's customized prompt
-    assert.equal(manager.getPrompt("contentAnalysis"), userCustomizedContent);
+    assert.equal(manager.getPrompt("eggAnalysis"), userCustomizedContent);
   });
 
   it("resetToDefaults moves all existing files to backup and restores built-in defaults", async () => {
     const customContent = "Custom prompt before reset";
     const obsoletePrompt = "Deprecated prompt that is no longer in code";
     const { manager, files, plugin } = makeManager({
-      "nutegg/_workflow/content-analysis.md": customContent,
+      "nutegg/_workflow/egg-analysis.md": customContent,
       "nutegg/_workflow/obsolete-prompt.md": obsoletePrompt,
     });
     await manager.init();
@@ -168,8 +176,8 @@ describe("WorkflowManager", () => {
 
     // Built-in file should now be reset to default
     assert.equal(
-      files.get("nutegg/_workflow/content-analysis.md"),
-      BUILTIN_WORKFLOW_FILES["content-analysis.md"]
+      files.get("nutegg/_workflow/egg-analysis.md"),
+      BUILTIN_WORKFLOW_FILES["egg-analysis.md"]
     );
 
     // Obsolete prompt should be deleted from active workflow folder
@@ -177,7 +185,7 @@ describe("WorkflowManager", () => {
 
     // Both files should be safely preserved in _backup/
     const customBackup = [...files.keys()].find((k) =>
-      k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("content-analysis.md")
+      k.startsWith("nutegg/_workflow/_backup/") && k.endsWith("egg-analysis.md")
     );
     assert.ok(customBackup);
     assert.equal(files.get(customBackup), customContent);
@@ -190,8 +198,8 @@ describe("WorkflowManager", () => {
 
     // Hashes in settings should match built-in defaults only
     assert.equal(
-      plugin.settings.workflowHashes["content-analysis.md"],
-      simpleHash(BUILTIN_WORKFLOW_FILES["content-analysis.md"])
+      plugin.settings.workflowHashes["egg-analysis.md"],
+      simpleHash(BUILTIN_WORKFLOW_FILES["egg-analysis.md"])
     );
     assert.equal(plugin.settings.workflowHashes["obsolete-prompt.md"], undefined);
   });
@@ -224,11 +232,11 @@ describe("WorkflowManager", () => {
     const oldDefault = "Old default";
     const { manager, files, store } = makeManager(
       {
-        "nutegg/_workflow/content-analysis.md": customContent,
+        "nutegg/_workflow/egg-analysis.md": customContent,
       },
       {
         workflowHashes: {
-          "content-analysis.md": simpleHash(oldDefault),
+          "egg-analysis.md": simpleHash(oldDefault),
         },
       }
     );
@@ -236,11 +244,11 @@ describe("WorkflowManager", () => {
     await manager.init();
 
     // *.new.md was created due to conflict
-    assert.equal(files.has("nutegg/_workflow/content-analysis.new.md"), true);
-    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["content-analysis.new.md"]);
+    assert.equal(files.has("nutegg/_workflow/egg-analysis.new.md"), true);
+    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["egg-analysis.new.md"]);
 
     // When the user reviews and removes *.new.md
-    await store.vault.delete({ path: "nutegg/_workflow/content-analysis.new.md" });
+    await store.vault.delete({ path: "nutegg/_workflow/egg-analysis.new.md" });
     assert.deepEqual(manager.getPendingWorkflowUpdates(), []);
   });
 
@@ -260,8 +268,8 @@ describe("WorkflowManager", () => {
     };
 
     // User customizes one workflow file
-    const customContent = "Custom user prompt for content-analysis";
-    files.set("nutegg/_workflow/content-analysis.md", customContent);
+    const customContent = "Custom user prompt for egg-analysis";
+    files.set("nutegg/_workflow/egg-analysis.md", customContent);
 
     // Create an egg note with knowledge and unprocessed entries
     const initialEgg = `---
@@ -288,24 +296,24 @@ language: "English"
     // 1. Run localizeAll with 'Chinese'
     const res = await manager.localizeAll("Chinese");
     assert.ok(res.workflowsUpdated > 0);
-    assert.equal(res.newFilesCreated, 1); // content-analysis.new.md
+    assert.equal(res.newFilesCreated, 1); // egg-analysis.new.md
     assert.equal(res.eggsUpdated, 1);
 
     // Verify unmodified workflow is localized in place (including shared-output-rules.md)
-    const verdictContent = files.get("nutegg/_workflow/verdict-summary.md");
-    assert.ok(verdictContent?.startsWith("[Chinese]"));
-    assert.equal(plugin.settings.workflowMeta["verdict-summary.md"].language, "Chinese");
+    const routingContent = files.get("nutegg/_workflow/egg-routing.md");
+    assert.ok(routingContent?.startsWith("[Chinese]"));
+    assert.equal(plugin.settings.workflowMeta["egg-routing.md"].language, "Chinese");
 
     const sharedRulesContent = files.get("nutegg/_workflow/shared-output-rules.md");
     assert.ok(sharedRulesContent?.startsWith("[Chinese]"));
     assert.equal(plugin.settings.workflowMeta["shared-output-rules.md"].language, "Chinese");
 
     // Verify user customized workflow was NOT overwritten
-    assert.equal(files.get("nutegg/_workflow/content-analysis.md"), customContent);
+    assert.equal(files.get("nutegg/_workflow/egg-analysis.md"), customContent);
     // Verify .new.md was generated with localized content
-    const newMdContent = files.get("nutegg/_workflow/content-analysis.new.md");
+    const newMdContent = files.get("nutegg/_workflow/egg-analysis.new.md");
     assert.ok(newMdContent?.startsWith("[Chinese]"));
-    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["content-analysis.new.md"]);
+    assert.deepEqual(manager.getPendingWorkflowUpdates(), ["egg-analysis.new.md"]);
 
     // Verify egg note was localized but # Knowledge and # Unprocessed remain intact
     const localizedEgg = files.get("nutegg/react.md");
@@ -317,9 +325,9 @@ language: "English"
     // 2. Revert to English
     const revertRes = await manager.localizeAll("English");
     assert.ok(revertRes.workflowsUpdated > 0);
-    const revertedVerdict = files.get("nutegg/_workflow/verdict-summary.md");
-    assert.equal(revertedVerdict, BUILTIN_WORKFLOW_FILES["verdict-summary.md"]);
-    assert.equal(plugin.settings.workflowMeta["verdict-summary.md"].language, "English");
+    const revertedRouting = files.get("nutegg/_workflow/egg-routing.md");
+    assert.equal(revertedRouting, BUILTIN_WORKFLOW_FILES["egg-routing.md"]);
+    assert.equal(plugin.settings.workflowMeta["egg-routing.md"].language, "English");
 
     const revertedSharedRules = files.get("nutegg/_workflow/shared-output-rules.md");
     assert.equal(revertedSharedRules, BUILTIN_WORKFLOW_FILES["shared-output-rules.md"]);

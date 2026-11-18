@@ -5,13 +5,14 @@ You are a knowledge curator. Analyze the content below following the Task.
 **Source:** {{url}}
 **Captured author/channel:** {{captured_author}}
 **Type:** {{source_type}}
-{{part_note}}{{chapters}}
-{{questions}}
-{{conversation_hints}}
+{{part_note}}
 
 {{content}}
 
 ## Task
+{{chapters}}
+{{questions}}
+{{conversation_hints}}
 {{content_task_default}}
 
 {{conversation_rules}}

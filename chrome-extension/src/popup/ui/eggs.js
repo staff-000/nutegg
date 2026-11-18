@@ -800,20 +800,30 @@ class EggsComponent {
       this.setKnowledgeVisible(false);
     }
 
-    // Render Chrome Mode Knowledge
-    const chromeEntries =
-      isChrome &&
-      (result?.extractedEntries?.length ? result.extractedEntries : result?.eggResults?.[0]?.extractedEntries || []);
+    // Render Default / Chrome Mode Knowledge (used in Chrome mode, or Obsidian mode when no egg is selected)
+    const defaultEntries = result?.extractedEntries?.length
+      ? result.extractedEntries
+      : isChrome
+        ? result?.eggResults?.[0]?.extractedEntries || []
+        : [];
+    const hasEggResults = !isChrome && Boolean(result?.eggResults?.length);
     const isKnowledgeEnabled = Boolean(
       view.generateKnowledgeEntries === true ||
       view.enabledSections?.knowledge === true ||
       view.enabledSections?.generateKnowledgeEntries === true
     );
+    const showDefaultKnowledge = !hasEggResults && !showEggKnowledgePlaceholder;
     if (this.chromeKnowledgeSection && this.chromeKnowledgeContent) {
-      if (chromeEntries && chromeEntries.length > 0) {
-        this.renderChromeKnowledge(chromeEntries);
+      if (showDefaultKnowledge && defaultEntries && defaultEntries.length > 0) {
+        this.renderChromeKnowledge(defaultEntries);
         this.chromeKnowledgeSection.classList.remove('hidden');
-      } else if (isChrome && view.isAnalyzing && isKnowledgeEnabled && (!chromeEntries || chromeEntries.length === 0)) {
+      } else if (
+        showDefaultKnowledge &&
+        view.isAnalyzing &&
+        isKnowledgeEnabled &&
+        (!defaultEntries || defaultEntries.length === 0) &&
+        (!visible || !view.selectedEggs?.size)
+      ) {
         const text = t('knowledgeInProgress') || 'Knowledge extraction in progress...';
         this.chromeKnowledgeContent.innerHTML = `<div class="knowledge-loading-indicator section-in-progress-card"><span class="spinner-small"></span><span>🍃 ${text}</span></div>`;
         this.chromeKnowledgeSection.classList.remove('hidden');

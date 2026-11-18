@@ -14,9 +14,9 @@ Detect conversational format from the actual content and interaction structure, 
      - `"kind": "disagreement"`: When a participant pushes back or presents an opposing view, with `"stance": "disagree"` and `"speakers": ["p2"]`. Do NOT average conflicting views into consensus.
      - `"kind": "example"`: A concrete illustrative case or demonstration shared in the response.
      - `"kind": "takeaway"`: A concluding insight or consensus reached.
-3. **Budget & Conciseness**:
-   - Limit to at most 8 core topics and up to 6 key questions per topic.
-   - For rapid-fire or large AMAs with many brief questions, group secondary questions under a single question node named `"+N quick questions"` with details in the body.
+3. **Completeness**:
+   - Include all distinct topics and key questions discussed without artificially capping node counts.
+   - If the speakers enumerate numbered points (e.g., "3 lessons", "6 ways to..."), preserve every numbered item in order and include the number in each node `name` (e.g., `"1. ..."`).
 4. **Standard Articles, Essays, Documentation, Reporting, & Solo Lectures (Monologue)**:
    - If the content is written text (article, essay, news, report, documentation, tutorial) or a solo presentation/lecture (one speaker explaining concepts, even if quoting sources or using rhetorical questions), classify as `"monologue"`.
    - Set `"conversation": {"format": "monologue", "participants": [], "confidence": "high"}`.

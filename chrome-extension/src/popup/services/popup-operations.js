@@ -481,7 +481,7 @@ class PopupOperations {
     const tab = this.store.getTab(tabId);
     if (!tab || this.store.isBusy(tabId)) return { busy: true };
     const eggs = options.eggs || tab.selectedEggs;
-    if (!eggs.length) {
+    if (!eggs.length && !tab.generateKnowledgeEntries) {
       this.store.dispatch({ type: 'notice', tabId, message: t('selectEggWarning') });
       return;
     }

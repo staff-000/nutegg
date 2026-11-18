@@ -321,6 +321,10 @@ export class AIProcessor {
     return typeof val === 'number' && val > 0 ? val : DEFAULT_CHUNK_WINDOW_CHARS;
   }
 
+  private getCapturedAuthor(capture: { metadata?: CapturePayload['metadata'] }): string {
+    return capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown';
+  }
+
   private getPrompt(key: WorkflowPromptKey): string {
     const overrides = this.host?.settings?.promptOverrides || this.host?.settings?.chromeAiPromptOverrides;
     if (overrides && typeof overrides[key] === 'string' && overrides[key].trim().length > 0) {
@@ -496,7 +500,7 @@ export class AIProcessor {
     };
 
     let knowledgePromise: Promise<ExtractedKnowledgeEntry[]> | null = null;
-    if (capture.generateKnowledgeEntries) {
+    if (capture.generateKnowledgeEntries && !(capture as any).skipDefaultKnowledge) {
       knowledgePromise = this.extractChromeKnowledge(bodyCapture, (error, part) => failed('knowledge', error, part))
         .then(entries => {
           onProgress?.({
@@ -1120,8 +1124,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
-      captured_author:
-        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
+      captured_author: this.getCapturedAuthor(capture),
       part_note: partNoteStr,
       chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       questions: this.questionsBlock(
@@ -1216,10 +1219,9 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
-      captured_author:
-        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
+      captured_author: this.getCapturedAuthor(capture),
       part_note: partNoteStr,
-      content: capture.content,
+      content: this.truncate(capture.content, this.chunkWindowChars),
       shared_output_rules: this.getEggOutputRules(egg, '', capture),
     });
     try {
@@ -1336,8 +1338,7 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
-      captured_author:
-        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
+      captured_author: this.getCapturedAuthor(capture),
       part_note: partNoteStr,
       content: this.truncate(capture.content, this.chunkWindowChars),
       shared_output_rules: this.getContentOutputRules(capture as any, 'within'),
@@ -1399,8 +1400,7 @@ export class AIProcessor {
     const prompt = renderPrompt(prunedTpl, {
       title: capture.title,
       url: capture.url,
-      captured_author:
-        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
+      captured_author: this.getCapturedAuthor(capture),
       chapters: sections.mindMap ? this.chaptersBlock(capture.chapters) : '',
       chunk_summaries: chunkSummaries
         .map(c => {
@@ -1660,8 +1660,8 @@ export class AIProcessor {
       title: capture.title,
       url: capture.url,
       source_type: capture.sourceType,
-      captured_author:
-        capture.metadata?.author || capture.metadata?.channelName || capture.metadata?.authorHandle || 'Unknown',
+      captured_author: this.getCapturedAuthor(capture),
+      part_note: '',
       prior_qa: priorBlock,
       content: discussionContext
         ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * 0.6)) +

@@ -65,7 +65,7 @@ For monologues, solo lectures, and written articles/essays, set `conversation`: 
 
 ## Output Rules
 - Preserve attribution between author text and commenter claims. Video/article summaries must not present commenters’ claims as the author’s ideas. Forum summaries may describe the debate with attribution.
-- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node).
+- mindMap: synthesized concept tree for the entire work, up to 3 levels deep, integrating points from across the parts. Have main branches directly at the root level (do NOT wrap in a single overall root node). Preserve every item and its number in `name` (e.g., `"1. ..."`) for any explicit enumerations or numbered steps without capping node counts per level.
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 - mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 - Preserve source references and exact quotes on mind-map nodes when combining parts. Never replace an original reference with a generated topic title or summary; omit sources when unsupported.

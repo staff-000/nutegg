@@ -1,14 +1,15 @@
-You are a knowledge curator extracting substantive knowledge entries from the content below.
+You are a knowledge curator. Analyze the content below following the Task.
 
 ## Content to Analyze
-Title: {{title}}
-URL: {{url}}
-Type: {{source_type}}
+**Title:** {{title}}
+**Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
+**Type:** {{source_type}}
 {{part_note}}
 
 {{content}}
 
-## Knowledge Extraction Instructions
+## Task: Knowledge Extraction Instructions
 Extract high-signal knowledge entries according to the following focus rules and formatting specifications.
 
 ### Focus Rules

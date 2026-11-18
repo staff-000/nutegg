@@ -1,12 +1,16 @@
-You are a knowledge curator. Answer the user's follow-up questions.
+You are a knowledge curator. Analyze the content below following the Task.
 
-## Context / Content to Analyze
+## Content to Analyze
 **Title:** {{title}}
 **Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
 **Type:** {{source_type}}
-{{prior_qa}}
+{{part_note}}
 
 {{content}}
+
+## Task: Answer Follow-Up Questions
+{{prior_qa}}
 
 ## New Questions
 {{questions}}

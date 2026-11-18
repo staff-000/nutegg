@@ -1313,17 +1313,40 @@ export class NutEggServer {
           mindMap: [],
           customQuestionAnswers: [],
         };
-        let result = await processor.analyzeEggs(capture, eggs, contentAnalysis);
-        if (Array.isArray(capture.selectedEggs)) {
-          const allResults = new Map((capture.cachedEggResults || []).map(egg => [egg.egg, egg]));
-          for (const egg of result.eggResults) allResults.set(egg.egg, egg);
-          result = composeEggResults(
-            contentAnalysis,
-            capture.selectedEggs.flatMap(egg => (allResults.has(egg) ? [allResults.get(egg)!] : [])),
-            [...allResults.values()],
-            capture.generateKnowledgeEntries !== false
-          );
-          result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
+        let result: any;
+        if (
+          targetEggs.length === 0 &&
+          capture.generateKnowledgeEntries === true &&
+          typeof processor.extractChromeKnowledge === 'function'
+        ) {
+          const existingEntries = (contentAnalysis as any).extractedEntries;
+          const extractedEntries =
+            Array.isArray(existingEntries) && existingEntries.length > 0
+              ? existingEntries
+              : await processor.extractChromeKnowledge(capture as any);
+          result = {
+            ...contentAnalysis,
+            extractedEntries,
+            matchedEggs: (contentAnalysis as any).matchedEggs || [],
+            eggResults: [],
+            newKnowledge: [],
+            shouldRead: null,
+            shouldReadReason: '',
+            generateKnowledgeEntries: true,
+          };
+        } else {
+          result = await processor.analyzeEggs(capture, eggs, contentAnalysis);
+          if (Array.isArray(capture.selectedEggs)) {
+            const allResults = new Map((capture.cachedEggResults || []).map(egg => [egg.egg, egg]));
+            for (const egg of result.eggResults) allResults.set(egg.egg, egg);
+            result = composeEggResults(
+              contentAnalysis,
+              capture.selectedEggs.flatMap(egg => (allResults.has(egg) ? [allResults.get(egg)!] : [])),
+              [...allResults.values()],
+              capture.generateKnowledgeEntries !== false
+            );
+            result.generateKnowledgeEntries = capture.generateKnowledgeEntries !== false;
+          }
         }
         delete (result as any).stage;
         const job = this.requestJobs.get(req);
@@ -1401,13 +1424,16 @@ export class NutEggServer {
           return eggMatchingPromise;
         };
 
-        const contentAnalysis = await processor.analyzeContent(capture, event => {
-          sendEvent(event);
-          if (event.type === 'partial' && event.section === 'summary') {
-            const summaryText = [event.data.titleVerdict, ...(event.data.coreSummary || [])].filter(Boolean).join('\n');
-            startEggMatching(summaryText);
+        const contentAnalysis = await processor.analyzeContent(
+          { ...capture, skipDefaultKnowledge: true } as any,
+          event => {
+            sendEvent(event);
+            if (event.type === 'partial' && event.section === 'summary') {
+              const summaryText = [event.data.titleVerdict, ...(event.data.coreSummary || [])].filter(Boolean).join('\n');
+              startEggMatching(summaryText);
+            }
           }
-        });
+        );
 
         if (!eggMatchingPromise) {
           const summaryText = [
@@ -1422,11 +1448,21 @@ export class NutEggServer {
           await eggMatchingPromise;
         }
 
+        const effectiveSelectedEggs = hasEggOverride ? capture.eggs! : matchedEggs;
+        let defaultEntries = contentAnalysis.extractedEntries;
+        if (capture.generateKnowledgeEntries && effectiveSelectedEggs.length === 0 && !defaultEntries?.length) {
+          defaultEntries = await processor.extractChromeKnowledge(capture as any);
+          if (defaultEntries.length > 0) {
+            sendEvent({ type: 'partial', section: 'knowledge', data: { extractedEntries: defaultEntries } });
+          }
+        }
+
         const indexContent = await indexContentPromise;
         const index = this.plugin.indexReader.parseIndexContent(indexContent);
 
         const stage1Result = {
           ...contentAnalysis,
+          ...(defaultEntries?.length ? { extractedEntries: defaultEntries } : {}),
           matchedEggs,
           allEggs: index.map(e => e.fileName),
           stage: 'stage1' as const,
@@ -1454,7 +1490,7 @@ export class NutEggServer {
         return;
       }
 
-      const contentAnalysis = await processor.analyzeContent(capture);
+      const contentAnalysis = await processor.analyzeContent({ ...capture, skipDefaultKnowledge: true } as any);
       const indexContent = await this.plugin.indexReader.getIndexContent();
       const index = this.plugin.indexReader.parseIndexContent(indexContent);
 
@@ -1478,8 +1514,15 @@ export class NutEggServer {
         matchedEggs = matchedIndex.map(e => e.fileName);
       }
 
+      const effectiveSelectedEggs = hasEggOverride ? capture.eggs! : matchedEggs;
+      let defaultEntries = contentAnalysis.extractedEntries;
+      if (capture.generateKnowledgeEntries && effectiveSelectedEggs.length === 0 && !defaultEntries?.length) {
+        defaultEntries = await processor.extractChromeKnowledge(capture as any);
+      }
+
       const stage1Result = {
         ...contentAnalysis,
+        ...(defaultEntries?.length ? { extractedEntries: defaultEntries } : {}),
         matchedEggs,
         allEggs: index.map(e => e.fileName),
         stage: 'stage1' as const,

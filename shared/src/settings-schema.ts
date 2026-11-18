@@ -48,6 +48,9 @@ export const USER_EDITABLE_PROMPT_TARGETS = [
   'contentTaskDefault',
   'chromeKnowledge',
   'followUp',
+  'discussionAnalysis',
+  'aggregateDiscussion',
+  'conversationRules',
 ] as const;
 
 export const OUTPUT_LANGUAGES = [

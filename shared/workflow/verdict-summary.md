@@ -6,12 +6,12 @@ You are a knowledge curator. Analyze the content below following the Task.
 **Captured author/channel:** {{captured_author}}
 **Type:** {{source_type}}
 {{part_note}}
-{{questions}}
-{{conversation_hints}}
 
 {{content}}
 
 ## Task
+{{questions}}
+{{conversation_hints}}
 1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.
 2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.
 3. User Questions: Answer each user question concisely based on the content (if questions were provided).

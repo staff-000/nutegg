@@ -298,7 +298,9 @@ class PopupRenderer {
         root.getElementById?.(id)?.classList.add('hidden');
       }
     }
-    if (obsidianMode) root.getElementById?.('chrome-knowledge-section')?.classList.add('hidden');
+    if (obsidianMode && (view.analysisResult?.eggResults?.length || !view.analysisResult?.extractedEntries?.length)) {
+      root.getElementById?.('chrome-knowledge-section')?.classList.add('hidden');
+    }
     ui.resultsUI.renderSectionFailures?.(view, settings);
     const debugMode = settings.isChromeMode() ? 'chrome' : 'obsidian';
     const debugInfo = view.debugInfo?.mode === debugMode ? view.debugInfo : null;

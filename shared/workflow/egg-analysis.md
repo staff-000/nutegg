@@ -1,18 +1,20 @@
-Analyze this source according to the instructions for egg "{{egg_file}}". Produce the requested answers and results, not a comparison with saved knowledge.
+You are a knowledge curator. Analyze the content below following the Task.
 
+## Content to Analyze
+**Title:** {{title}}
+**Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
+**Type:** {{source_type}}
+{{part_note}}
+
+{{content}}
+
+## Task: Analyze for Egg "{{egg_file}}"
 ## Egg Instructions
 {{egg_instructions}}
 
 ## Stage 1 Context (not an endorsement or quality score)
 {{stage1_signals}}
-
-## Source
-Title: {{title}}
-URL: {{url}}
-Type: {{source_type}}
-{{part_note}}
-
-{{content}}
 
 ## Entry Generation
 {{entry_generation}}

@@ -46,26 +46,33 @@ export const WORKFLOW_FILE_MAP: Record<WorkflowPromptKey, string> = {
   chromeKnowledge: 'chrome-knowledge.md',
 };
 
-/** All built-in workflow files including README.md */
+/**
+ * Prompts called from Chrome are managed as a single source of truth in
+ * shared/workflow/ and Chrome Settings overrides, never duplicated into _workflow/.
+ */
+export const CHROME_MANAGED_PROMPT_KEYS = new Set<WorkflowPromptKey>([
+  'discussionAnalysis',
+  'aggregateDiscussion',
+  'contentAnalysis',
+  'verdictSummary',
+  'mindMapAnalysis',
+  'followUp',
+  'contentTaskDefault',
+  'aggregateContent',
+  'conversationRules',
+  'chromeKnowledge',
+]);
+
+/** Built-in Obsidian workflow files seeded into _workflow/ (excludes Chrome-managed prompts). */
 export const BUILTIN_WORKFLOW_FILES: Record<string, string> = {
   'README.md': workflowReadmeTpl,
-  'discussion-analysis.md': PROMPTS.discussionAnalysis,
-  'aggregate-discussion.md': PROMPTS.aggregateDiscussion,
-  'content-analysis.md': PROMPTS.contentAnalysis,
-  'verdict-summary.md': PROMPTS.verdictSummary,
-  'mindmap-analysis.md': PROMPTS.mindMapAnalysis,
   'egg-analysis.md': PROMPTS.eggAnalysis,
-  'follow-up.md': PROMPTS.followUp,
   'egg-routing.md': PROMPTS.eggRouting,
-  'content-task-default.md': PROMPTS.contentTaskDefault,
   'merge-unprocessed.md': PROMPTS.mergeUnprocessed,
-  'aggregate-content.md': PROMPTS.aggregateContent,
   'aggregate-egg.md': PROMPTS.aggregateEgg,
   'localize-egg.md': PROMPTS.localizeEgg,
   'localize-workflow.md': PROMPTS.localizeWorkflow,
   'shared-output-rules.md': PROMPTS.sharedOutputRules,
-  'conversation-rules.md': PROMPTS.conversationRules,
-  'chrome-knowledge.md': PROMPTS.chromeKnowledge,
 };
 
 /** Fast deterministic DJB2 hash for string comparison */
@@ -298,6 +305,9 @@ export class WorkflowManager {
 
   /** Retrieve prompt text dynamically from vault cache, falling back to built-in */
   getPrompt(key: WorkflowPromptKey): string {
+    if (CHROME_MANAGED_PROMPT_KEYS.has(key)) {
+      return PROMPTS[key] || '';
+    }
     const filename = WORKFLOW_FILE_MAP[key];
     if (!filename) return '';
 
