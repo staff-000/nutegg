@@ -143,3 +143,42 @@ test('tab activation cancellation stops pending readiness before a later DOM see
   player(video); await check;
   assert.equal(video.currentTime, 1037);
 });
+
+test('speed command refreshes an older listener that only supports seek and position', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  const identity = await f.send({ action: 'nutegg-handshake' });
+  f.listeners.length = 0;
+  const oldListener = (message, sender, reply) => {
+    if (message.action === 'nutegg-handshake') reply({ ...identity, capabilities: ['seek', 'position'] });
+    return false;
+  };
+  f.listeners.push(oldListener); f.win.__nuteggMessageListener = oldListener;
+  const initial = await f.extractor.getPagePosition(42);
+  assert.equal(initial.playbackRate, 1);
+  const result = await f.extractor.setPlaybackRate(42, 2.5);
+  assert.equal(f.injections(), 1);
+  assert.equal(result.playbackRate, 2.5);
+  assert.equal(video.playbackRate, 2.5);
+  assert.equal(f.listeners.length, 1);
+});
+
+test('speed changes the paused main player, not a playing preview', async t => {
+  const f = setup(t, '<video id="preview" src="preview.mp4"></video><div id="movie_player"><video id="main" src="main.mp4"></video></div>');
+  const preview = f.win.document.querySelector('#preview'), main = f.win.document.querySelector('#main');
+  player(preview); player(main);
+  Object.defineProperty(preview, 'paused', { value: false });
+  for (const rate of [0.25, 2, 16, 1]) {
+    await f.extractor.setPlaybackRate(42, rate);
+    assert.equal(main.playbackRate, rate);
+    assert.equal(preview.playbackRate, 1);
+  }
+  await assert.rejects(f.extractor.setPlaybackRate(42, 2, {
+    expectedUrl: 'https://www.youtube.com/watch?v=another'
+  }), { code: 'stale' });
+});
+
+test('speed command reports failure when the player ignores the assignment', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  Object.defineProperty(video, 'playbackRate', { get: () => 1, set: () => {} });
+  await assert.rejects(f.extractor.setPlaybackRate(42, 2), { code: 'rate_failed' });
+});

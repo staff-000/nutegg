@@ -30,6 +30,7 @@ class SettingsState {
     this.captureRetryDelayMs = 3000;
     this.uiDensity = 'compact'; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
     this.chromeCacheTabLimit = 100;
+    this.preferredVideoSpeed = null;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -72,6 +73,7 @@ class SettingsState {
             'chromeAiProvider',
             'chromeAiModel',
             'obsidianExecutionState',
+            'preferredVideoSpeed',
           ],
           resolve
         );
@@ -106,6 +108,14 @@ class SettingsState {
       }
       if (typeof stored?.chromeCacheTabLimit === 'number' && stored.chromeCacheTabLimit >= 0) {
         this.chromeCacheTabLimit = Math.min(1000, Math.round(stored.chromeCacheTabLimit));
+      }
+      if (
+        typeof stored?.preferredVideoSpeed === 'number' &&
+        Number.isFinite(stored.preferredVideoSpeed) &&
+        stored.preferredVideoSpeed >= 0.25 &&
+        stored.preferredVideoSpeed <= 16
+      ) {
+        this.preferredVideoSpeed = Math.round(stored.preferredVideoSpeed * 100) / 100;
       }
       this.setCaptureRetries(stored || {});
       if (stored?.enabledSections) {
@@ -150,6 +160,15 @@ class SettingsState {
     this.optimizeForConversation = enabled !== false;
     if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
       chrome.storage.local.set({ optimizeForConversation: this.optimizeForConversation });
+    }
+  }
+
+  setPreferredVideoSpeed(rate, persist = true) {
+    const numeric = Number(rate);
+    if (!Number.isFinite(numeric) || numeric < 0.25 || numeric > 16) return;
+    this.preferredVideoSpeed = Math.round(numeric * 100) / 100;
+    if (persist && typeof chrome !== 'undefined' && chrome.storage?.local?.set) {
+      chrome.storage.local.set({ preferredVideoSpeed: this.preferredVideoSpeed });
     }
   }
 

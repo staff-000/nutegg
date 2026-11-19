@@ -121,7 +121,7 @@ async function initPopup() {
     onToggle: toggleSection,
     onExpand: key => presentation({ [key]: !tabStateManager.getTab(tabStateManager.activeTabId)?.presentation[key] }),
   });
-  const { actionsUI: a, captureUI: c, qaUI: q, eggsUI: e, headerUI: h } = ui;
+  const { actionsUI: a, captureUI: c, resultsUI: r, qaUI: q, eggsUI: e, headerUI: h } = ui;
   ui.discussionUI.init({ onToggle: (topicId, stance) => interactionAction.toggleDiscussionComments(topicId, stance) });
   for (const prefix of ['discussion-capture', 'discussion-reanalyze']) {
     click(document.getElementById(prefix + '-load'), () => operations.discussion(tabStateManager.activeTabId, true));
@@ -161,6 +161,29 @@ async function initPopup() {
   q.followupInput?.addEventListener('input', () => activeDraft({ followupDraft: q.followupInput.value }));
   q.onScopeChange = scope => activeDraft({ followupScope: scope });
   c.onScopeChange = scope => activeDraft({ customQuestionsScope: scope });
+  c.onSpeedChange = rate => interactionAction.setPlaybackRate(rate);
+  r.onSpeedChange = rate => interactionAction.setPlaybackRate(rate);
+  document.addEventListener('keydown', event => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const target = event.target;
+    const tag = target?.tagName;
+    if (
+      target?.isContentEditable ||
+      tag === 'TEXTAREA' ||
+      tag === 'SELECT' ||
+      (tag === 'INPUT' && target.type !== 'range')
+    ) {
+      return;
+    }
+    if (!globalThis.NutEggUI?.isVideoView?.(tabStateManager.viewModel())) return;
+    if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      void interactionAction.adjustPlaybackRate(0.25);
+    } else if (event.key === '-' || event.key === '_') {
+      event.preventDefault();
+      void interactionAction.adjustPlaybackRate(-0.25);
+    }
+  });
   click(q.followupBtn, () => interactionAction.handleFollowUp());
   q.followupInput?.addEventListener('keydown', event => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) {

@@ -182,13 +182,29 @@ function nuteggPlaybackIdentity() {
   };
 }
 function nuteggPlaybackPlayer() {
-  if (typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id)
+  if (typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id) {
     return NutEggSocial.inspect()?.videos?.[0] || null;
+  }
+  const selectors = [
+    '#movie_player video, ytd-watch-flexy video',
+    '.bpx-player-video-wrap video, #bilibili-player video',
+    'video.html5-main-video, video.video-stream',
+    'video',
+  ];
+  const candidates = [];
+  for (const sel of selectors) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (!candidates.includes(el)) candidates.push(el);
+    }
+    // Keep the main player ahead of unrelated previews, even while paused.
+    if (candidates.length) break;
+  }
+  if (candidates.length === 0) return null;
   return (
-    document.querySelector('#movie_player video, ytd-watch-flexy video') ||
-    document.querySelector('.bpx-player-video-wrap video, #bilibili-player video') ||
-    document.querySelector('video.html5-main-video, video.video-stream') ||
-    document.querySelector('video')
+    candidates.find(v => v.readyState > 0 && !v.paused && (v.currentSrc || v.src)) ||
+    candidates.find(v => v.readyState > 0 && (v.currentSrc || v.src)) ||
+    candidates.find(v => Boolean(v.currentSrc || v.src)) ||
+    candidates[0]
   );
 }
 function nuteggPlaybackOwned(message) {
@@ -225,6 +241,7 @@ async function nuteggSeek(message) {
           type: 'video',
           currentTime: video.currentTime,
           duration: video.duration,
+          playbackRate: Number.isFinite(video.playbackRate) ? video.playbackRate : 1,
           ...nuteggPlaybackIdentity(),
         };
       }
@@ -242,10 +259,15 @@ async function nuteggSeek(message) {
   const listener = (message, _sender, sendResponse) => {
     if (globalThis.__nuteggPanelMessage?.(message, _sender, sendResponse)) return false;
     if (message.action === 'nutegg-handshake') {
-      sendResponse({ success: true, version: 1, ...nuteggPlaybackIdentity(), capabilities: ['seek', 'position'] });
+      sendResponse({ success: true, version: 1, ...nuteggPlaybackIdentity(), capabilities: ['seek', 'position', 'playback-rate'] });
       return false;
     }
-    if (['nutegg-seek', 'nutegg-cancel-seek', 'nutegg-page-position'].includes(message.action) && !nuteggPlaybackOwned(message)) {
+    if (
+      ['nutegg-seek', 'nutegg-cancel-seek', 'nutegg-page-position', 'nutegg-set-playback-rate'].includes(
+        message.action
+      ) &&
+      !nuteggPlaybackOwned(message)
+    ) {
       sendResponse({ success: false, errorCode: 'stale' });
       return false;
     }
@@ -377,15 +399,57 @@ async function nuteggSeek(message) {
       return true;
     }
 
-    if (message.action === 'nutegg-page-position') {
+    if (message.action === 'nutegg-set-playback-rate') {
       const video = nuteggPlaybackPlayer();
-      if (video && video.readyState > 0 && Number.isFinite(video.currentTime)) {
+      const rate = Number(message.rate);
+      if (!video) {
+        sendResponse({ success: false, errorCode: 'player_unavailable' });
+        return false;
+      }
+      if (!Number.isFinite(rate) || rate < 0.25 || rate > 16) {
+        sendResponse({ success: false, errorCode: 'invalid_rate' });
+        return false;
+      }
+      try {
+        const rounded = Math.round(rate * 100) / 100;
+        video.playbackRate = rounded;
+        if (Math.abs(video.playbackRate - rounded) > 0.01) throw new Error('rate_failed');
+        window.__nuteggAppliedSpeedKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
         sendResponse({
           success: true,
           type: 'video',
-          currentTime: video.currentTime,
+          currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
           duration: isNaN(video.duration) ? 0 : video.duration,
           paused: Boolean(video.paused),
+          playbackRate: Number.isFinite(video.playbackRate) ? video.playbackRate : rounded,
+          ...nuteggPlaybackIdentity(),
+        });
+      } catch {
+        sendResponse({ success: false, errorCode: 'rate_failed' });
+      }
+      return false;
+    }
+
+    if (message.action === 'nutegg-page-position') {
+      const video = nuteggPlaybackPlayer();
+      if (video && (video.readyState > 0 || Number.isFinite(video.currentTime))) {
+        const videoKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
+        if (window.__nuteggAppliedSpeedKey !== videoKey) {
+          window.__nuteggAppliedSpeedKey = videoKey;
+          const pref = Number(message.preferredRate);
+          if (Number.isFinite(pref) && pref >= 0.25 && pref <= 16) {
+            try {
+              video.playbackRate = Math.round(pref * 100) / 100;
+            } catch {}
+          }
+        }
+        sendResponse({
+          success: true,
+          type: 'video',
+          currentTime: Number.isFinite(video.currentTime) ? video.currentTime : 0,
+          duration: isNaN(video.duration) ? 0 : video.duration,
+          paused: Boolean(video.paused),
+          playbackRate: Number.isFinite(video.playbackRate) ? video.playbackRate : 1,
           ...nuteggPlaybackIdentity(),
         });
         return false;

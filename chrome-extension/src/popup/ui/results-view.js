@@ -27,10 +27,74 @@ class ResultsViewComponent {
     this.resultPageAuthor = root.getElementById('result-page-author');
     this.resultPagePublished = root.getElementById('result-page-published');
     this.resultPageWordCount = root.getElementById('result-page-word-count');
+    this.videoSpeedControl = root.getElementById('result-video-speed');
+    this.videoSpeedResetBtn = root.getElementById('result-video-speed-reset');
+    this.videoSpeedText = root.getElementById('result-video-speed-text');
+    this.videoSpeedSlider = root.getElementById('result-video-speed-slider');
+    this._draggingSpeed = false;
     this.coreSummarySection = root.getElementById('core-summary-section');
     this.coreSummaryEl = root.getElementById('core-summary');
     this.currentView = null;
     this.sectionFailures = [];
+    this._bindVideoSpeed();
+  }
+
+  _bindVideoSpeed() {
+    const toRate = idx => globalThis.NutEggUI?.videoSpeedIndexToRate?.(idx) ?? 1;
+    const toIdx = rate => globalThis.NutEggUI?.rateToVideoSpeedIndex?.(rate) ?? 3;
+    const fmt = rate => globalThis.NutEggUI?.formatVideoSpeed?.(rate) ?? '1x';
+    if (this.videoSpeedSlider) {
+      const handleInput = () => {
+        const rate = toRate(this.videoSpeedSlider.value);
+        if (this.videoSpeedText) this.videoSpeedText.textContent = fmt(rate);
+        globalThis.NutEggUI?.applyVideoSpeedColors?.(this.videoSpeedControl, rate);
+        if (typeof this.onSpeedChange === 'function') this.onSpeedChange(rate);
+      };
+      this.videoSpeedSlider.addEventListener('pointerdown', () => {
+        this._draggingSpeed = true;
+      });
+      this.videoSpeedSlider.addEventListener('pointerup', () => {
+        this._draggingSpeed = false;
+      });
+      this.videoSpeedSlider.addEventListener('blur', () => {
+        this._draggingSpeed = false;
+      });
+      this.videoSpeedSlider.addEventListener('input', handleInput);
+      this.videoSpeedSlider.addEventListener('change', () => {
+        this._draggingSpeed = false;
+        handleInput();
+      });
+    }
+    if (this.videoSpeedResetBtn) {
+      this.videoSpeedResetBtn.addEventListener('click', () => {
+        if (this.videoSpeedSlider) this.videoSpeedSlider.value = String(toIdx(1));
+        if (this.videoSpeedText) this.videoSpeedText.textContent = '1x';
+        globalThis.NutEggUI?.applyVideoSpeedColors?.(this.videoSpeedControl, 1);
+        if (typeof this.onSpeedChange === 'function') this.onSpeedChange(1);
+      });
+    }
+  }
+
+  updateVideoSpeed(view, preferredRate = null) {
+    if (!this.videoSpeedControl) return;
+    const isVideo = globalThis.NutEggUI?.isVideoView?.(view) ?? false;
+    if (!isVideo) {
+      this.videoSpeedControl.classList.add('hidden');
+      return;
+    }
+    this.videoSpeedControl.classList.remove('hidden');
+    if (this._draggingSpeed) return;
+    const liveRate = view?.playbackPosition?.type === 'video' ? Number(view.playbackPosition.playbackRate) : NaN;
+    // A saved preference is not evidence of the current player's speed.
+    const rate = Number.isFinite(liveRate) && liveRate > 0 ? liveRate : null;
+    const fmt = globalThis.NutEggUI?.formatVideoSpeed || (r => `${Number(Number(r).toFixed(2))}x`);
+    const toIdx = globalThis.NutEggUI?.rateToVideoSpeedIndex || (() => 3);
+    if (this.videoSpeedText) this.videoSpeedText.textContent = rate == null ? '—' : fmt(rate);
+    globalThis.NutEggUI?.applyVideoSpeedColors?.(this.videoSpeedControl, rate);
+    if (this.videoSpeedSlider) {
+      const idx = String(toIdx(rate));
+      if (this.videoSpeedSlider.value !== idx) this.videoSpeedSlider.value = idx;
+    }
   }
 
   clearSectionFailures() {
@@ -181,11 +245,12 @@ class ResultsViewComponent {
         if (this.root?.body) this.root.body.scrollTop = 0;
       }
       const prov = session.provenance || {
-        title: session.extractedContent?.title || result.title,
+        title: session.extractedContent?.title || result.title || result.titleVerdict?.title || session.title,
         author: session.extractedContent?.metadata?.author || result.author,
         publishedAt: session.extractedContent?.metadata?.published || result.publishedAt,
       };
       this.renderProvenance(prov);
+      this.updateVideoSpeed(session, settings?.preferredVideoSpeed);
       const effectiveSections = session?.enabledSections || settings?.enabledSections;
       this.renderCoreSummary(result.coreSummary, effectiveSections?.coreSummary !== false);
       this.root.getElementById('content-metadata')?.remove?.();

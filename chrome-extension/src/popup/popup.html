@@ -221,6 +221,28 @@
             <span id="page-published"></span>
             <span id="page-word-count"></span>
             <span id="page-caption-source" class="caption-source-tag hidden"></span>
+            <span id="capture-video-speed" class="video-speed-control hidden">
+              <button
+                type="button"
+                id="capture-video-speed-reset"
+                class="video-speed-badge"
+                title="Video speed (click to reset to 1x)"
+                data-i18n-title="videoSpeedResetHint"
+              >
+                ⏩ <span id="capture-video-speed-text">1x</span>
+              </button>
+              <input
+                type="range"
+                id="capture-video-speed-slider"
+                class="video-speed-slider"
+                min="0"
+                max="27"
+                step="1"
+                value="3"
+                aria-label="Video playback speed"
+                data-i18n-aria-label="videoSpeedLabel"
+              />
+            </span>
           </div>
         </div>
         <div class="content-fetch-box">
@@ -500,6 +522,28 @@
             <span id="result-page-author"></span>
             <span id="result-page-published"></span>
             <span id="result-page-word-count"></span>
+            <span id="result-video-speed" class="video-speed-control hidden">
+              <button
+                type="button"
+                id="result-video-speed-reset"
+                class="video-speed-badge"
+                title="Video speed (click to reset to 1x)"
+                data-i18n-title="videoSpeedResetHint"
+              >
+                ⏩ <span id="result-video-speed-text">1x</span>
+              </button>
+              <input
+                type="range"
+                id="result-video-speed-slider"
+                class="video-speed-slider"
+                min="0"
+                max="27"
+                step="1"
+                value="3"
+                aria-label="Video playback speed"
+                data-i18n-aria-label="videoSpeedLabel"
+              />
+            </span>
             <select
               id="history-select"
               class="history-select hidden"

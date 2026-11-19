@@ -2,6 +2,103 @@
 // NutEgg Popup UI — Capture View Component
 // ============================================================
 
+const VIDEO_SPEED_STOPS = Object.freeze([
+  0.25, 0.5, 0.75, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5, 4, 4.5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  16,
+]);
+
+function rateToVideoSpeedIndex(rate) {
+  const num = Number(rate);
+  if (!Number.isFinite(num) || num <= 0) return 3; // 1x
+  let bestIdx = 3;
+  let bestDiff = Infinity;
+  for (let i = 0; i < VIDEO_SPEED_STOPS.length; i++) {
+    const diff = Math.abs(VIDEO_SPEED_STOPS[i] - num);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function videoSpeedIndexToRate(index) {
+  const idx = Math.max(0, Math.min(VIDEO_SPEED_STOPS.length - 1, Math.round(Number(index) || 0)));
+  return VIDEO_SPEED_STOPS[idx];
+}
+
+function formatVideoSpeed(rate) {
+  const num = Number(rate);
+  if (!Number.isFinite(num) || num <= 0) return '1x';
+  return `${Number(num.toFixed(2))}x`;
+}
+
+function _lerpChannel(a, b, t) {
+  return Math.round(a + (b - a) * Math.max(0, Math.min(1, t)));
+}
+
+function _lerpRgb(c1, c2, t) {
+  return [_lerpChannel(c1[0], c2[0], t), _lerpChannel(c1[1], c2[1], t), _lerpChannel(c1[2], c2[2], t)];
+}
+
+function getVideoSpeedColors(rate) {
+  const r = Number(rate);
+  const v = Number.isFinite(r) && r > 0 ? r : 1;
+  let rgb;
+  if (v < 1) {
+    // < 1x: purple
+    const t = Math.max(0, Math.min(1, (v - 0.25) / 0.75));
+    rgb = _lerpRgb([109, 40, 217], [147, 51, 234], t);
+  } else if (v <= 3) {
+    // 1x - 3x: green to yellow
+    const t = (v - 1) / 2;
+    rgb = _lerpRgb([22, 163, 74], [202, 138, 4], t);
+  } else if (v <= 5) {
+    // 3x - 5x: yellow to orange
+    const t = (v - 3) / 2;
+    rgb = _lerpRgb([202, 138, 4], [234, 88, 12], t);
+  } else if (v <= 8) {
+    // 5x - 8x: orange to red
+    const t = (v - 5) / 3;
+    rgb = _lerpRgb([234, 88, 12], [220, 38, 38], t);
+  } else {
+    // 8x+: red to dark-red
+    const t = Math.min(1, (v - 8) / 8);
+    rgb = _lerpRgb([220, 38, 38], [127, 29, 29], t);
+  }
+  const [R, G, B] = rgb;
+  return {
+    accent: `rgb(${R}, ${G}, ${B})`,
+    text: `rgb(${Math.max(0, R - 20)}, ${Math.max(0, G - 20)}, ${Math.max(0, B - 20)})`,
+    bg: `rgba(${R}, ${G}, ${B}, 0.11)`,
+    border: `rgba(${R}, ${G}, ${B}, 0.34)`,
+  };
+}
+
+function applyVideoSpeedColors(controlEl, rate) {
+  if (typeof controlEl?.style?.setProperty !== 'function') return;
+  const colors = getVideoSpeedColors(rate);
+  const idx = rateToVideoSpeedIndex(rate);
+  const progress = `${((idx / (VIDEO_SPEED_STOPS.length - 1)) * 100).toFixed(1)}%`;
+  controlEl.style.setProperty('--speed-accent', colors.accent);
+  controlEl.style.setProperty('--speed-text', colors.text);
+  controlEl.style.setProperty('--speed-bg', colors.bg);
+  controlEl.style.setProperty('--speed-border', colors.border);
+  controlEl.style.setProperty('--speed-progress', progress);
+}
+
+function isVideoView(view) {
+  if (!view || typeof view !== 'object') return false;
+  if (view.playbackPosition?.type === 'video') return true;
+  const content = view.extractedContent || view.stage1Payload;
+  if (content?.isVideo === true || content?.mediaType === 'video') return true;
+  const sourceType = String(content?.sourceType || view.analysisResult?.sourceType || '').toLowerCase();
+  if (['youtube', 'bilibili', 'douyin', 'tiktok'].includes(sourceType)) return true;
+  const url = content?.url || view.url || '';
+  if (url && globalThis.NutEggAI?.getVideoIdentity?.(url)) return true;
+  return false;
+}
+
 class CaptureViewComponent {
   constructor(root = document) {
     this.root = root;
@@ -12,6 +109,11 @@ class CaptureViewComponent {
     this.pagePublishedEl = root.getElementById('page-published');
     this.pageWordCountEl = root.getElementById('page-word-count');
     this.pageCaptionSourceEl = root.getElementById('page-caption-source');
+    this.videoSpeedControl = root.getElementById('capture-video-speed');
+    this.videoSpeedResetBtn = root.getElementById('capture-video-speed-reset');
+    this.videoSpeedText = root.getElementById('capture-video-speed-text');
+    this.videoSpeedSlider = root.getElementById('capture-video-speed-slider');
+    this._draggingSpeed = false;
     this.contentPreview = root.getElementById('content-preview');
     this.refreshBtn = root.getElementById('refresh-btn');
     this.previewRefreshBtn = root.getElementById('preview-refresh-btn');
@@ -25,6 +127,59 @@ class CaptureViewComponent {
     this.captureScopeContainer = root.getElementById('capture-questions-scope');
     this.questionsScope = 'within';
     this._bindScopeChips();
+    this._bindVideoSpeed();
+  }
+
+  _bindVideoSpeed() {
+    if (this.videoSpeedSlider) {
+      const handleInput = () => {
+        const rate = videoSpeedIndexToRate(this.videoSpeedSlider.value);
+        if (this.videoSpeedText) this.videoSpeedText.textContent = formatVideoSpeed(rate);
+        applyVideoSpeedColors(this.videoSpeedControl, rate);
+        if (typeof this.onSpeedChange === 'function') this.onSpeedChange(rate);
+      };
+      this.videoSpeedSlider.addEventListener('pointerdown', () => {
+        this._draggingSpeed = true;
+      });
+      this.videoSpeedSlider.addEventListener('pointerup', () => {
+        this._draggingSpeed = false;
+      });
+      this.videoSpeedSlider.addEventListener('blur', () => {
+        this._draggingSpeed = false;
+      });
+      this.videoSpeedSlider.addEventListener('input', handleInput);
+      this.videoSpeedSlider.addEventListener('change', () => {
+        this._draggingSpeed = false;
+        handleInput();
+      });
+    }
+    if (this.videoSpeedResetBtn) {
+      this.videoSpeedResetBtn.addEventListener('click', () => {
+        if (this.videoSpeedSlider) this.videoSpeedSlider.value = String(rateToVideoSpeedIndex(1));
+        if (this.videoSpeedText) this.videoSpeedText.textContent = '1x';
+        applyVideoSpeedColors(this.videoSpeedControl, 1);
+        if (typeof this.onSpeedChange === 'function') this.onSpeedChange(1);
+      });
+    }
+  }
+
+  updateVideoSpeed(view, preferredRate = null) {
+    if (!this.videoSpeedControl) return;
+    if (!isVideoView(view)) {
+      this.videoSpeedControl.classList.add('hidden');
+      return;
+    }
+    this.videoSpeedControl.classList.remove('hidden');
+    if (this._draggingSpeed) return;
+    const liveRate = view?.playbackPosition?.type === 'video' ? Number(view.playbackPosition.playbackRate) : NaN;
+    // A saved preference is not evidence of the current player's speed.
+    const rate = Number.isFinite(liveRate) && liveRate > 0 ? liveRate : null;
+    if (this.videoSpeedText) this.videoSpeedText.textContent = rate == null ? '—' : formatVideoSpeed(rate);
+    applyVideoSpeedColors(this.videoSpeedControl, rate);
+    if (this.videoSpeedSlider) {
+      const idx = String(rateToVideoSpeedIndex(rate));
+      if (this.videoSpeedSlider.value !== idx) this.videoSpeedSlider.value = idx;
+    }
   }
 
   _bindScopeChips() {
@@ -310,7 +465,23 @@ class CaptureViewComponent {
 const _captureScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this;
 _captureScope.NutEggUI = _captureScope.NutEggUI || {};
 _captureScope.NutEggUI.CaptureViewComponent = CaptureViewComponent;
+_captureScope.NutEggUI.VIDEO_SPEED_STOPS = VIDEO_SPEED_STOPS;
+_captureScope.NutEggUI.rateToVideoSpeedIndex = rateToVideoSpeedIndex;
+_captureScope.NutEggUI.videoSpeedIndexToRate = videoSpeedIndexToRate;
+_captureScope.NutEggUI.formatVideoSpeed = formatVideoSpeed;
+_captureScope.NutEggUI.getVideoSpeedColors = getVideoSpeedColors;
+_captureScope.NutEggUI.applyVideoSpeedColors = applyVideoSpeedColors;
+_captureScope.NutEggUI.isVideoView = isVideoView;
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { CaptureViewComponent };
+  module.exports = {
+    CaptureViewComponent,
+    VIDEO_SPEED_STOPS,
+    rateToVideoSpeedIndex,
+    videoSpeedIndexToRate,
+    formatVideoSpeed,
+    getVideoSpeedColors,
+    applyVideoSpeedColors,
+    isVideoView,
+  };
 }

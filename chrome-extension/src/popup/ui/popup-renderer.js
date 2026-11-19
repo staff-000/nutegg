@@ -10,7 +10,10 @@ class PopupRenderer {
     if (['viewed', 'receipt'].includes(event.type)) return;
     if (event.tabId != null && event.tabId !== this.store.activeTabId) return;
     if (event.type === 'playbackPosition') {
-      this.ui.mindmapUI.updateProgress?.(this.store.getTab(event.tabId)?.playbackPosition);
+      const tab = this.store.getTab(event.tabId);
+      this.ui.mindmapUI.updateProgress?.(tab?.playbackPosition);
+      this.ui.captureUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed);
+      this.ui.resultsUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed);
       return;
     }
     this.render();
@@ -61,6 +64,8 @@ class PopupRenderer {
     ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries, true);
     ui.sectionsUI.renderPresentation(view.presentation);
     ui.resultsUI.render(view, settings);
+    ui.captureUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed);
+    ui.resultsUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed);
     const isFunctional =
       (obsidianMode ? settings.serverOnline && settings.obsidianAiConfigured : settings.chromeAiConfigured) ||
       !!view.analysisResult;
