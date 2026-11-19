@@ -34,7 +34,14 @@ git switch release/0.4
 
 The release script fast-forwards to remote maintenance fixes, preserves committed local fixes, and rejects divergent histories. It never merges newer `main` features into the maintenance branch. A patch release fails if its maintenance branch does not already exist.
 
-Carry applicable fix commits into development explicitly:
+Carry applicable fix commits into development with the sync helper (automatically skips `chore: release ...` version bumps and already-synced commits):
+
+```bash
+npm run sync:fixes -- --dry-run   # preview pending fixes on the current/latest release/* branch
+npm run sync:fixes               # cherry-pick (-x) pending fixes onto main and run lint
+```
+
+Or manually:
 
 ```bash
 git switch main

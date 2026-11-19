@@ -26,6 +26,7 @@
     "deploy": "./deploy.sh",
     "deploy:remote": "./deploy.sh --remote",
     "release": "./release.sh",
+    "sync:fixes": "bash scripts/sync-release-fixes.sh",
     "update:version": "node scripts/update-download-version.js"
   },
   "devDependencies": {
