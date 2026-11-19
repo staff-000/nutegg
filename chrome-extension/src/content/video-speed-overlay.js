@@ -71,8 +71,13 @@
     const video = findActiveVideo(doc);
     if (!video) return null;
     if (video.readyState === 0 && !video.currentSrc && !video.src) return null;
+    const playerWrapper = video.closest?.(
+      '[data-testid="videoPlayer"], [data-testid="videoComponent"], .video-js, .plyr, .jwplayer'
+    );
     const container =
-      (video.parentElement && video.parentElement.tagName !== 'HTML' ? video.parentElement : null) || doc.body;
+      playerWrapper ||
+      (video.parentElement && video.parentElement.tagName !== 'HTML' ? video.parentElement : null) ||
+      doc.body;
     return container ? { container, mode: 'overlay', platform: 'generic', video } : null;
   }
 
@@ -118,6 +123,7 @@
   let badgeBtn = null;
   let badgeTextEl = null;
   let sliderEl = null;
+  let tooltipHostEl = null;
   let tooltipEl = null;
   let currentContainer = null;
   let currentMode = null;
@@ -128,12 +134,87 @@
   let syncTimer = null;
   const boundVideos = new WeakSet();
 
-  function getTooltipText() {
+  function getHintText(key, fallback) {
     try {
-      const msg = typeof globalScope.t === 'function' ? globalScope.t('videoSpeedTooltip') : '';
-      if (msg && msg !== 'videoSpeedTooltip') return msg;
+      const msg = typeof globalScope.t === 'function' ? globalScope.t(key) : '';
+      if (msg && msg !== key) return msg;
     } catch {}
-    return 'Video speed · + / - (±0.25x) · Shift+2..5 (2x–5x) · Click speed = 1x';
+    return fallback;
+  }
+
+  function ensureTooltipHost() {
+    if (!tooltipHostEl) {
+      tooltipHostEl = document.createElement('div');
+      tooltipHostEl.id = `${HOST_ID}-tooltip`;
+      tooltipHostEl.style.cssText =
+        'position:fixed;inset:0;z-index:2147483647;pointer-events:none;overflow:visible;';
+      const tipShadow = tooltipHostEl.attachShadow({ mode: 'open' });
+      const tipStyle = document.createElement('style');
+      tipStyle.textContent = `
+        :host {
+          all: initial;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        .tooltip {
+          position: fixed;
+          top: 0;
+          left: 0;
+          padding: 6px 9px;
+          border-radius: 8px;
+          background: #49372a;
+          color: #fffaf3;
+          font-size: 11px;
+          line-height: 1.35;
+          white-space: nowrap;
+          box-shadow: 0 4px 14px rgba(48, 35, 24, 0.25);
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.12s ease;
+          z-index: 2147483647;
+        }
+        .tooltip[hidden] {
+          display: none;
+        }
+      `;
+      tooltipEl = document.createElement('div');
+      tooltipEl.className = 'tooltip';
+      tooltipEl.setAttribute('role', 'tooltip');
+      tooltipEl.hidden = true;
+      tipShadow.append(tipStyle, tooltipEl);
+    }
+    const rootTarget = document.fullscreenElement || document.documentElement || document.body;
+    if (rootTarget && tooltipHostEl.parentElement !== rootTarget) {
+      rootTarget.appendChild(tooltipHostEl);
+    }
+  }
+
+  function showTooltipFor(targetEl, text) {
+    if (!targetEl || dragging) return;
+    ensureTooltipHost();
+    if (!tooltipEl) return;
+    tooltipEl.textContent = text;
+    tooltipEl.hidden = false;
+    tooltipEl.style.opacity = '1';
+    const rect = targetEl.getBoundingClientRect?.();
+    const pillRect = pillEl?.getBoundingClientRect?.() || rect;
+    if (!rect || (rect.width === 0 && rect.height === 0)) return;
+    const tipWidth = tooltipEl.offsetWidth || 160;
+    const tipHeight = tooltipEl.offsetHeight || 26;
+    const vw = window.innerWidth || 1280;
+    const vh = window.innerHeight || 720;
+    const anchorTop = pillRect ? pillRect.top : rect.top;
+    const anchorBottom = pillRect ? pillRect.bottom : rect.bottom;
+    const expectedLeft = Math.max(8, Math.min(rect.left + rect.width / 2 - tipWidth / 2, vw - tipWidth - 8));
+    const expectedTop =
+      anchorBottom + tipHeight + 12 <= vh ? anchorBottom + 6 : Math.max(8, anchorTop - tipHeight - 6);
+    tooltipEl.style.left = `${Math.round(expectedLeft)}px`;
+    tooltipEl.style.top = `${Math.round(expectedTop)}px`;
+  }
+
+  function hideTooltip() {
+    if (!tooltipEl) return;
+    tooltipEl.hidden = true;
+    tooltipEl.style.opacity = '0';
   }
 
   function buildOverlayDom() {
@@ -269,9 +350,9 @@
         cursor: pointer;
       }
       .tooltip {
-        position: absolute;
-        top: calc(100% + 6px);
-        right: 0;
+        position: fixed;
+        top: 0;
+        left: 0;
         padding: 6px 9px;
         border-radius: 8px;
         background: #49372a;
@@ -282,17 +363,11 @@
         box-shadow: 0 4px 14px rgba(48, 35, 24, 0.25);
         pointer-events: none;
         opacity: 0;
-        transform: translateY(-2px);
-        transition: opacity 0.14s ease, transform 0.14s ease;
+        transition: opacity 0.12s ease;
         z-index: 2147483647;
       }
-      .wrap:hover .tooltip,
-      .wrap:focus-within .tooltip {
-        opacity: 1;
-        transform: translateY(0);
-      }
-      .pill[data-dragging="true"] + .tooltip {
-        opacity: 0 !important;
+      .tooltip[hidden] {
+        display: none;
       }
     `;
 
@@ -305,8 +380,7 @@
     nuteggBtn = document.createElement('button');
     nuteggBtn.type = 'button';
     nuteggBtn.className = 'nutegg-open-btn';
-    nuteggBtn.title = 'Open NutEgg panel';
-    nuteggBtn.setAttribute('aria-label', 'Open NutEgg panel');
+    nuteggBtn.setAttribute('aria-label', getHintText('openNutEggPanelHint', 'Open NutEgg side panel'));
     const nuteggImg = document.createElement('img');
     nuteggImg.src = chrome.runtime.getURL?.('icons/icon32.png') || '';
     nuteggImg.alt = '';
@@ -318,7 +392,7 @@
     badgeBtn = document.createElement('button');
     badgeBtn.type = 'button';
     badgeBtn.className = 'badge';
-    badgeBtn.setAttribute('aria-label', getTooltipText());
+    badgeBtn.setAttribute('aria-label', getHintText('videoSpeedResetHint', 'Reset speed to 1x'));
 
     const iconSpan = document.createElement('span');
     iconSpan.textContent = '⏩';
@@ -334,12 +408,20 @@
     sliderEl.max = String(speedUtils.VIDEO_SPEED_STOPS.length - 1);
     sliderEl.step = '1';
     sliderEl.value = '3';
-    sliderEl.setAttribute('aria-label', 'Video playback speed');
+    sliderEl.setAttribute('aria-label', getHintText('videoSpeedLabel', 'Video playback speed'));
 
-    tooltipEl = document.createElement('div');
-    tooltipEl.className = 'tooltip';
-    tooltipEl.setAttribute('role', 'tooltip');
-    tooltipEl.textContent = getTooltipText();
+    const bindHint = (el, key, fallback) => {
+      const show = () => showTooltipFor(el, getHintText(key, fallback));
+      el.addEventListener('pointerenter', show);
+      el.addEventListener('mouseenter', show);
+      el.addEventListener('focus', show);
+      el.addEventListener('pointerleave', hideTooltip);
+      el.addEventListener('mouseleave', hideTooltip);
+      el.addEventListener('blur', hideTooltip);
+    };
+    bindHint(nuteggBtn, 'openNutEggPanelHint', 'Open NutEgg side panel');
+    bindHint(badgeBtn, 'videoSpeedResetHint', 'Reset speed to 1x');
+    bindHint(sliderEl, 'videoSpeedSliderHint', 'Adjust speed · + / - (±0.25x) · Shift+2..5 (2x–5x)');
 
     const applyFromSlider = () => {
       const rate = speedUtils.videoSpeedIndexToRate(sliderEl.value);
@@ -349,6 +431,7 @@
     sliderEl.addEventListener('pointerdown', () => {
       dragging = true;
       pillEl.dataset.dragging = 'true';
+      hideTooltip();
     });
     sliderEl.addEventListener('pointerup', () => {
       dragging = false;
@@ -370,7 +453,7 @@
     });
 
     pillEl.append(nuteggBtn, badgeBtn, sliderEl);
-    wrap.append(pillEl, tooltipEl);
+    wrap.append(pillEl);
     shadowRoot.append(style, wrap);
   }
 
@@ -491,7 +574,6 @@
       applyHostPlacement(target.container, target.mode, target.platform);
       target.container.appendChild(hostEl);
     }
-    if (tooltipEl) tooltipEl.textContent = getTooltipText();
     bindVideoEvents(target.video);
   }
 
@@ -499,6 +581,10 @@
     if (hostEl && hostEl.parentElement) {
       hostEl.remove();
     }
+    if (tooltipHostEl && tooltipHostEl.parentElement) {
+      tooltipHostEl.remove();
+    }
+    hideTooltip();
     currentContainer = null;
     currentMode = null;
     currentVideo = null;

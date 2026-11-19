@@ -215,8 +215,10 @@ describe('Video Speed Adjuster', () => {
     assert.equal(doc.getElementById('capture-video-speed').classList.contains('hidden'), true);
     assert.equal(doc.getElementById('result-video-speed').classList.contains('hidden'), true);
 
-    assert.equal(doc.getElementById('capture-video-speed').getAttribute('data-i18n-title'), 'videoSpeedTooltip');
-    assert.equal(doc.getElementById('result-video-speed').getAttribute('data-i18n-title'), 'videoSpeedTooltip');
+    assert.equal(doc.getElementById('capture-video-speed-reset').getAttribute('data-i18n-title'), 'videoSpeedResetHint');
+    assert.equal(doc.getElementById('capture-video-speed-slider').getAttribute('data-i18n-title'), 'videoSpeedSliderHint');
+    assert.equal(doc.getElementById('result-video-speed-reset').getAttribute('data-i18n-title'), 'videoSpeedResetHint');
+    assert.equal(doc.getElementById('result-video-speed-slider').getAttribute('data-i18n-title'), 'videoSpeedSliderHint');
   });
 
   it('mounts Shadow DOM speed slider on YouTube and Bilibili players, shows shortcut tooltip, and respects settings toggles', async () => {
@@ -268,10 +270,21 @@ describe('Video Speed Adjuster', () => {
     assert.ok(host && host.shadowRoot, 'On-page speed overlay should mount with Shadow DOM');
     assert.equal(video.playbackRate, 1.5, 'Should auto-apply preferredVideoSpeed on initial load');
     assert.equal(host.shadowRoot.querySelector('.rate-text').textContent, '1.5x');
-    assert.match(host.shadowRoot.querySelector('.tooltip').textContent, /\+ \/ -/);
+
+    // Hovering each sub-control shows its specific fixed-position hint in the portaled tooltip host
+    const openBtn = host.shadowRoot.querySelector('.nutegg-open-btn');
+    const resetBtn = host.shadowRoot.querySelector('.badge');
+    openBtn.dispatchEvent(new dom.window.Event('pointerenter'));
+    const tipHost = doc.getElementById('nutegg-video-speed-overlay-tooltip');
+    assert.ok(tipHost && tipHost.shadowRoot, 'Tooltip should be portaled to documentElement');
+    const tip = tipHost.shadowRoot.querySelector('.tooltip');
+    assert.match(tip.textContent, /Open NutEgg side panel/i);
+    resetBtn.dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.match(tip.textContent, /Reset speed to 1x/i);
+    host.shadowRoot.querySelector('.slider').dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.match(tip.textContent, /\+ \/ -/);
 
     // Click NutEgg icon button to open panel
-    const openBtn = host.shadowRoot.querySelector('.nutegg-open-btn');
     assert.ok(openBtn, 'NutEgg open button should be rendered on the left of the speed pill');
     assert.match(openBtn.querySelector('img')?.src || '', /icons\/icon32\.png$/);
     openBtn.click();
@@ -321,6 +334,14 @@ describe('Video Speed Adjuster', () => {
     const genericTarget = findMountTarget(genericDom.window.document, 'vimeo.com', true);
     assert.equal(genericTarget?.mode, 'overlay');
     assert.equal(genericTarget?.container.id, 'player-box');
+
+    const xDom = new JSDOM(
+      `<div data-testid="videoPlayer"><div class="inner"><video src="https://video.twimg.com/v.mp4"></video></div><div class="overlay"></div></div>`,
+      { url: 'https://x.com/user/status/123' }
+    );
+    const xTarget = findMountTarget(xDom.window.document, 'x.com', true);
+    assert.equal(xTarget?.mode, 'overlay');
+    assert.equal(xTarget?.container.getAttribute('data-testid'), 'videoPlayer');
   });
 
   it('hides panel speed slider when the slider is already shown on the main page', () => {
