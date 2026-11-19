@@ -230,7 +230,7 @@ test('social defaults require strictly >180 seconds only for videos and preserve
 });
 
 
-test('X and Threads defaults do not restrict video length, including previously copied defaults', () => {
+test('X and Threads load current hardcoded defaults while saved custom copies stay independent', () => {
   for (const [host, url] of [['x.com', 'https://x.com/alice/status/123'], ['threads.com', 'https://www.threads.com/@alice/post/ABC']]) {
     const preset = rules.normalize();
     assert.equal(rules.defaultRules.find(rule => rule.hostname === host).videoLongerThanSeconds, undefined);
@@ -239,10 +239,25 @@ test('X and Threads defaults do not restrict video length, including previously 
     }
     const legacy = { ...rules.defaultRules.find(rule => rule.hostname === host), videoLongerThanSeconds: 180 };
     const custom = rules.normalize({ openingPolicy: 'custom', rules: [legacy] });
-    assert.equal(custom.rules[0].videoLongerThanSeconds, undefined);
-    assert.equal(rules.decide(custom, { url, mediaKind: 'video', videoDurationSeconds: 10 }).open, true);
+    assert.equal(custom.rules[0].videoLongerThanSeconds, 180);
+    assert.equal(rules.decide(custom, { url, mediaKind: 'video', videoDurationSeconds: 10 }).open, false);
+    const refreshed = rules.customize({ ...custom, openingPolicy: 'nutegg' });
+    assert.equal(refreshed.rules.find(rule => rule.hostname === host).videoLongerThanSeconds, undefined);
+    assert.equal(rules.decide(refreshed, { url, mediaKind: 'video', videoDurationSeconds: 10 }).open, true);
     // Explicit user-authored conditions remain configurable.
     const explicit = rules.normalize({ openingPolicy: 'custom', rules: [{ ...legacy, _starter: false }] });
     assert.equal(explicit.rules[0].videoLongerThanSeconds, 180);
   }
+});
+
+
+test('built-in rule definitions are immutable and custom copies cannot modify the preset', () => {
+  assert.equal(Object.isFrozen(rules.defaultRules), true);
+  assert.ok(rules.defaultRules.every(rule => Object.isFrozen(rule)));
+  const before = structuredClone(rules.defaultRules);
+  const custom = rules.customize(rules.normalize());
+  custom.rules.find(rule => rule.hostname === 'tiktok.com').videoLongerThanSeconds = 60;
+  custom.rules.splice(0, 1);
+  assert.deepEqual(rules.activeRules({ openingPolicy: 'nutegg', rules: custom.rules }), before);
+  assert.deepEqual(rules.defaultRules, before);
 });

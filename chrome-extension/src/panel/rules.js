@@ -14,22 +14,24 @@
   };
   const GLOBAL_DOMAINS = ['youtube.com', 'reddit.com', 'substack.com', 'x.com', 'threads.com', 'instagram.com', 'tiktok.com', 'arxiv.org', 'medium.com'];
   const CHINA_DOMAINS = ['bilibili.com', 'mp.weixin.qq.com', 'qq.com', 'zhihu.com', 'weibo.com', 'douyin.com', 'xiaohongshu.com'];
-  const DEFAULT_WHITELIST_HOSTS = [
-    'youtube.com',
-    'reddit.com',
-    'substack.com',
-    'x.com',
-    'threads.com',
-    'instagram.com',
-    'tiktok.com',
-    'douyin.com',
-    'arxiv.org',
-    'medium.com',
-    'bilibili.com',
-    'mp.weixin.qq.com',
-    'zhihu.com',
-    'weibo.com',
-  ];
+  // Single source of truth for the built-in preset. Saved custom rules are snapshots.
+  const NUTEGG_DEFAULT_RULES = Object.freeze([
+    { hostname: 'youtube.com' },
+    { hostname: 'reddit.com' },
+    { hostname: 'substack.com' },
+    { hostname: 'x.com' },
+    { hostname: 'threads.com' },
+    { hostname: 'instagram.com', videoLongerThanSeconds: 180 },
+    { hostname: 'tiktok.com', videoLongerThanSeconds: 180 },
+    { hostname: 'douyin.com', videoLongerThanSeconds: 180 },
+    { hostname: 'arxiv.org' },
+    { hostname: 'medium.com' },
+    { hostname: 'bilibili.com' },
+    { hostname: 'mp.weixin.qq.com' },
+    { hostname: 'zhihu.com' },
+    { hostname: 'weibo.com' },
+  ].map(rule => Object.freeze(rule)));
+  const DEFAULT_WHITELIST_HOSTS = Object.freeze(NUTEGG_DEFAULT_RULES.map(rule => rule.hostname));
   const DOMAIN_PATH_HINTS = {
     'youtube.com': ['/watch', '/live/*'],
     'reddit.com': ['/comments/*'],
@@ -167,9 +169,6 @@
     const saved = value && typeof value === 'object' ? value : {};
     const migratedRules = (Array.isArray(saved.rules) ? saved.rules.slice(0, 200) : []).map(rule => {
       const { authors, ...rest } = rule;
-      // Remove the retired restriction from previously copied built-in rules too.
-      if (rest._starter && ['x.com', 'threads.com'].includes(websiteHostname(rest)))
-        delete rest.videoLongerThanSeconds;
       return {
         ...rest,
         ...(authors?.length ? { topics: [...new Set([...list(rule.topics), ...list(authors)])] } : {}),
@@ -253,7 +252,7 @@
     }
   }
   function buildDefaultRules() {
-    return DEFAULT_WHITELIST_HOSTS.map(host => ({
+    return NUTEGG_DEFAULT_RULES.map(({ hostname: host, ...conditions }) => ({
       id: `default-${host}`,
       name: host,
       hostname: host,
@@ -264,7 +263,7 @@
       contentAvailable: true,
       excludeListings: true,
       _starter: true,
-      ...(['instagram.com', 'tiktok.com', 'douyin.com'].includes(host) ? { videoLongerThanSeconds: 180 } : {}),
+      ...conditions,
     }));
   }
   function activeRules(settings) {
@@ -464,7 +463,7 @@
   const api = {
     contentConditionsEnabled,
     defaults,
-    defaultRules: buildDefaultRules(),
+    defaultRules: Object.freeze(buildDefaultRules().map(rule => Object.freeze(rule))),
     DEFAULT_WHITELIST_HOSTS,
     domainRegion,
     domainDefaultPaths,
