@@ -58,9 +58,10 @@ summary:focus-visible {
 }
 .settings-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
 }
 .brand {
   display: flex;
@@ -453,13 +454,17 @@ select {
   border-right: 1.5px solid #a18d7b;
   border-bottom: 1.5px solid #a18d7b;
   transform: rotate(45deg);
+  transition: transform 0.15s ease;
   margin: -3px 12px 0 14px;
 }
 .settings-disclosure[open] > summary {
   border-bottom: 1px solid var(--line);
 }
+.settings-disclosure[open] > summary .chevron {
+  transform: rotate(-135deg);
+  margin-top: 2px;
+}
 .checkbox-disclosure > summary {
-  padding: 18px 21px;
   cursor: pointer;
 }
 .disclosure-checkbox {
@@ -597,7 +602,7 @@ input[type='checkbox'] {
   color: #8f6626;
 }
 #obsidian-active-card {
-  margin-top: 18px;
+  margin-top: 12px;
   padding: 14px 18px;
   background: #f8f6fa;
   border: 1px solid #e8e0ee;
@@ -752,7 +757,7 @@ textarea {
     padding: 14px;
   }
   .settings-disclosure > summary {
-    padding: 17px 15px;
+    padding: 16px 24px 16px 16px;
     gap: 10px;
   }
   .disclosure-content {
@@ -966,7 +971,7 @@ textarea {
   margin-top: 6px;
 }
 #obsidian-active-card {
-  margin-top: 24px;
+  margin-top: 12px;
   padding: 18px;
 }
 #obsidian-active-card .card-heading {
@@ -1053,13 +1058,11 @@ textarea {
   background: var(--paper);
 }
 .panel-settings.settings-disclosure {
+  margin: 0 0 10px;
   padding: 0;
 }
 .panel-settings > summary {
   cursor: pointer;
-}
-.panel-settings .disclosure-content {
-  padding: 18px 22px 20px;
 }
 .panel-settings-header {
   display: flex;
@@ -1507,7 +1510,16 @@ textarea {
 }
 .panel-advanced-matching { margin: 10px 0; padding: 10px 12px; border: 1px solid #ded8cf; border-radius: 8px; background: #fff; }
 .panel-advanced-matching summary { cursor: pointer; font-size: 13px; font-weight: 500; }
-.settings-header-actions { display: inline-flex; align-items: center; gap: 10px; }
+.settings-header-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.settings-header-actions .secondary-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+}
 
 /* Keep the chevron comfortably inset instead of against the control edge. */
 select:not([multiple]) {
@@ -1525,8 +1537,8 @@ select:not([multiple]) {
 .ai-assistant-card {
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 17px;
-  padding: 24px 29px 22px;
+  border-radius: 16px;
+  padding: 24px;
   margin-bottom: 16px;
   box-shadow: 0 6px 22px #60401704;
 }
