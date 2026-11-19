@@ -47,13 +47,22 @@
     return null;
   }
 
-  function resolveInlineOrOverlay(doc, isFullscreen, { platform, playerSelectors, inlineSelectors }) {
+  /**
+   * `inlineMode`:
+   * - 'inline'   : append the slider inside the inline container (safe for non-hydrating DOM, e.g. YouTube).
+   * - 'anchored' : never touch the site's DOM; mount on <html> and follow the container's geometry.
+   *                Required for SSR/Vue-hydrated sites (Bilibili), where any foreign node inside the app
+   *                root causes a hydration mismatch that re-renders the app and wipes #biliMainHeader.
+   */
+  function resolveInlineOrOverlay(doc, isFullscreen, { platform, playerSelectors, inlineSelectors, inlineMode = 'inline' }) {
     const playerBox = firstMatchingElement(doc, playerSelectors);
     const video = findActiveVideo(playerBox || doc);
     if (!video) return null;
     if (!isFullscreen) {
       const inlineEl = firstMatchingElement(doc, inlineSelectors);
-      if (inlineEl) return { container: inlineEl, mode: 'inline', platform, video };
+      if (inlineEl) return { container: inlineEl, mode: inlineMode, platform, video };
+      // Anchored sites must not get nodes inside their app root before the user enters fullscreen.
+      if (inlineMode === 'anchored') return null;
     }
     const fallback = playerBox || video.parentElement;
     return fallback ? { container: fallback, mode: 'overlay', platform, video } : null;
@@ -68,6 +77,7 @@
           platform: 'bilibili',
           playerSelectors: ['.bpx-player-video-area', '#bilibili-player'],
           inlineSelectors: ['.video-info-detail-content', '.video-info-detail'],
+          inlineMode: 'anchored',
         }),
     },
     {
@@ -109,8 +119,9 @@
     const context = { doc, hostname, isFullscreen: Boolean(doc.fullscreenElement), allSitesEnabled };
     for (const strategy of strategies) {
       if (!strategy?.match?.(context)) continue;
-      const target = strategy.resolve?.(context);
-      if (target) return target;
+      // The first matching strategy owns the host. Never fall through to 'generic' when a
+      // site strategy declines to mount (e.g. Bilibili must not get nodes inside #app).
+      return strategy.resolve?.(context) || null;
     }
     return null;
   }
@@ -426,7 +437,8 @@
     nuteggImg.alt = '';
     nuteggBtn.appendChild(nuteggImg);
     nuteggBtn.addEventListener('click', () => {
-      chrome.runtime?.sendMessage?.({ action: 'panel-host-open' }).catch?.(() => {});
+      // background.js rejects host messages whose url does not match the tab ('stale').
+      chrome.runtime?.sendMessage?.({ action: 'panel-host-open', url: globalScope.location?.href }).catch?.(() => {});
     });
 
     badgeBtn = document.createElement('button');
@@ -499,6 +511,13 @@
 
   function applyHostPlacement(container, mode, platform) {
     hostEl.dataset.mode = mode;
+    if (mode === 'anchored') {
+      // Lives on <html>, outside the site's app root; positioned by positionAnchoredHost().
+      // z-index stays below typical sticky site headers (Bilibili's bar uses 1002).
+      hostEl.style.cssText =
+        'position:absolute;top:0;left:0;display:inline-flex;align-items:center;z-index:1000;pointer-events:auto;visibility:hidden;';
+      return;
+    }
     if (mode === 'inline') {
       hostEl.style.cssText =
         'position:relative;display:inline-flex;align-items:center;margin-left:auto;flex-shrink:0;z-index:20;pointer-events:auto;';
@@ -608,16 +627,52 @@
       return;
     }
     buildOverlayDom();
-    if (currentContainer !== target.container || currentMode !== target.mode || hostEl.parentElement !== target.container) {
+    const mountParent = target.mode === 'anchored' ? document.documentElement : target.container;
+    if (currentContainer !== target.container || currentMode !== target.mode || hostEl.parentElement !== mountParent) {
       currentContainer = target.container;
       currentMode = target.mode;
       applyHostPlacement(target.container, target.mode, target.platform);
-      target.container.appendChild(hostEl);
+      mountParent.appendChild(hostEl);
     }
+    if (target.mode === 'anchored') startAnchorTracking();
+    else stopAnchorTracking();
     bindVideoEvents(target.video);
   }
 
+  let anchorFrame = null;
+  let anchorKey = '';
+  function positionAnchoredHost() {
+    if (!hostEl || currentMode !== 'anchored' || !currentContainer) return;
+    const rect = currentContainer.isConnected ? currentContainer.getBoundingClientRect() : null;
+    const width = hostEl.offsetWidth;
+    const height = hostEl.offsetHeight;
+    const visible = Boolean(rect && rect.width > 0 && rect.height > 0 && width > 0);
+    const left = visible ? Math.round(rect.right + (window.scrollX || 0) - width) : 0;
+    const top = visible ? Math.round(rect.top + (window.scrollY || 0) + (rect.height - height) / 2) : 0;
+    const key = `${visible}:${left}:${top}`;
+    if (key === anchorKey) return;
+    anchorKey = key;
+    hostEl.style.left = `${left}px`;
+    hostEl.style.top = `${top}px`;
+    hostEl.style.visibility = visible ? 'visible' : 'hidden';
+  }
+  function startAnchorTracking() {
+    if (anchorFrame != null) return;
+    anchorKey = '';
+    const tick = () => {
+      positionAnchoredHost();
+      anchorFrame = currentMode === 'anchored' ? requestAnimationFrame(tick) : null;
+    };
+    tick();
+  }
+  function stopAnchorTracking() {
+    if (anchorFrame != null) cancelAnimationFrame(anchorFrame);
+    anchorFrame = null;
+    anchorKey = '';
+  }
+
   function unmountOverlay() {
+    stopAnchorTracking();
     if (hostEl && hostEl.parentElement) {
       hostEl.remove();
     }

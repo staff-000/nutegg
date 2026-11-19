@@ -288,7 +288,7 @@ describe('Video Speed Adjuster', () => {
     assert.ok(openBtn, 'NutEgg open button should be rendered on the left of the speed pill');
     assert.match(openBtn.querySelector('img')?.src || '', /icons\/icon32\.png$/);
     openBtn.click();
-    assert.ok(sentMessages.some(m => m.action === 'panel-host-open'));
+    assert.ok(sentMessages.some(m => m.action === 'panel-host-open' && m.url === doc.location.href));
 
     // Drag slider to 16x
     const slider = host.shadowRoot.querySelector('.slider');
@@ -314,8 +314,15 @@ describe('Video Speed Adjuster', () => {
       { url: 'https://www.bilibili.com/video/BV1xx411c7mD' }
     );
     const biliTarget = findMountTarget(biliDom.window.document, 'www.bilibili.com', false);
-    assert.equal(biliTarget?.mode, 'inline');
+    assert.equal(biliTarget?.mode, 'anchored');
     assert.equal(biliTarget?.container.className, 'video-info-detail-content');
+
+    // Before the info row exists, Bilibili must not fall back to the player area or the generic strategy.
+    const biliEarly = new JSDOM(
+      `<div id="app"><div class="bpx-player-video-area"><video src="https://example.com/v.mp4"></video></div></div>`,
+      { url: 'https://www.bilibili.com/video/BV1xx411c7mD' }
+    );
+    assert.equal(findMountTarget(biliEarly.window.document, 'www.bilibili.com', true), null);
 
     const ytDom = new JSDOM(
       `<div id="above-the-fold"><div id="title"><h1>Video Title</h1></div></div>
@@ -342,6 +349,41 @@ describe('Video Speed Adjuster', () => {
     const xTarget = findMountTarget(xDom.window.document, 'x.com', true);
     assert.equal(xTarget?.mode, 'overlay');
     assert.equal(xTarget?.container.getAttribute('data-testid'), 'videoPlayer');
+  });
+
+  it('never inserts nodes or styles inside Bilibili #app (Vue hydration would wipe #biliMainHeader)', async () => {
+    const dom = new JSDOM(
+      `<!DOCTYPE html><html><body><div id="app">
+        <div id="biliMainHeader" style="min-height:64px"><div class="bili-header"></div></div>
+        <div class="video-info-detail"><div class="video-info-detail-content"><span>views</span></div></div>
+        <div id="bilibili-player"><div class="bpx-player-video-area"><video src="https://example.com/v.mp4"></video></div></div>
+      </div></body></html>`,
+      { url: 'https://www.bilibili.com/video/BV1xx411c7mD', runScripts: 'outside-only', pretendToBeVisual: true }
+    );
+    const doc = dom.window.document;
+    const app = doc.getElementById('app');
+    const before = app.outerHTML;
+    const context = dom.getInternalVMContext();
+    context.chrome = {
+      runtime: {
+        getURL: p => `chrome-extension://test-id/${p}`,
+        sendMessage: async msg =>
+          msg.action === 'get-video-speed-settings'
+            ? { settings: { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, videoSpeedAllSitesEnabled: true } }
+            : { success: true },
+        onMessage: { addListener: () => {} },
+      },
+    };
+    vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-shared.js'), 'utf8'), context);
+    vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-overlay.js'), 'utf8'), context);
+    await new Promise(r => setTimeout(r, 20));
+
+    const host = doc.getElementById('nutegg-video-speed-overlay');
+    assert.ok(host, 'slider should mount');
+    assert.equal(host.parentElement, doc.documentElement, 'slider must live on <html>, outside the site app root');
+    assert.equal(host.dataset.mode, 'anchored');
+    assert.equal(app.outerHTML, before, '#app subtree (children and inline styles) must be untouched');
+    dom.window.close();
   });
 
   it('preserves selector priority when fallback containers occur earlier in the DOM', () => {
