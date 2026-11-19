@@ -181,9 +181,23 @@ function nuteggPlaybackIdentity() {
     url: location.href,
   };
 }
+function collectShadowVideos(root, results, visited) {
+  if (!root || visited.has(root)) return;
+  visited.add(root);
+  if (typeof root.querySelectorAll === 'function') {
+    for (const v of root.querySelectorAll('video')) {
+      if (!results.includes(v)) results.push(v);
+    }
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) collectShadowVideos(el.shadowRoot, results, visited);
+    }
+  }
+}
+
 function nuteggPlaybackPlayer() {
   if (typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id) {
-    return NutEggSocial.inspect()?.videos?.[0] || null;
+    const socialVideo = NutEggSocial.inspect()?.videos?.[0] || null;
+    if (socialVideo) return socialVideo;
   }
   const selectors = [
     '#movie_player video, ytd-watch-flexy video',
@@ -199,14 +213,19 @@ function nuteggPlaybackPlayer() {
     // Keep the main player ahead of unrelated previews, even while paused.
     if (candidates.length) break;
   }
+  if (candidates.length === 0) {
+    collectShadowVideos(document, candidates, new Set());
+  }
   if (candidates.length === 0) return null;
   return (
     candidates.find(v => v.readyState > 0 && !v.paused && (v.currentSrc || v.src)) ||
     candidates.find(v => v.readyState > 0 && (v.currentSrc || v.src)) ||
+    candidates.find(v => !v.paused) ||
     candidates.find(v => Boolean(v.currentSrc || v.src)) ||
     candidates[0]
   );
 }
+globalThis.__nuteggPlaybackPlayer = nuteggPlaybackPlayer;
 function nuteggPlaybackOwned(message) {
   const identity = nuteggPlaybackIdentity();
   return (
@@ -221,18 +240,32 @@ function nuteggApplyPlaybackRate(video, rate) {
   if (Math.abs(video.playbackRate - rounded) > 0.01) throw new Error('rate_failed');
   window.__nuteggAppliedSpeedKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
 }
+function nuteggSpeedPresetFromEvent(event) {
+  if (!event.shiftKey) return null;
+  const codeMap = { Digit2: 2, Digit3: 3, Digit4: 4, Digit5: 5 };
+  if (codeMap[event.code]) return codeMap[event.code];
+  const keyMap = { 2: 2, '@': 2, 3: 3, '#': 3, 4: 4, $: 4, 5: 5, '%': 5 };
+  return keyMap[event.key] || null;
+}
+
 // The page and extension iframe have separate keyboard event streams.
 if (window.__nuteggSpeedShortcut) document.removeEventListener('keydown', window.__nuteggSpeedShortcut, true);
 window.__nuteggSpeedShortcut = event => {
+  if (window.__nuteggVideoSpeedEnabled === false) return;
   if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
   if (event.composedPath().some(node => node.isContentEditable ||
       node.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'))) return;
-  const delta = ['+', '='].includes(event.key) ? 0.25 : ['-', '_'].includes(event.key) ? -0.25 : 0;
-  if (!delta) return;
+  const preset = nuteggSpeedPresetFromEvent(event);
+  const delta = preset == null ? (['+', '='].includes(event.key) ? 0.25 : ['-', '_'].includes(event.key) ? -0.25 : 0) : 0;
+  if (preset == null && !delta) return;
   const video = nuteggPlaybackPlayer();
-  if (!video || video.readyState === 0 || !Number.isFinite(video.playbackRate)) return;
+  if (!video || !Number.isFinite(video.playbackRate)) return;
+  if (video.readyState === 0 && !video.currentSrc && !video.src) return;
   try {
-    nuteggApplyPlaybackRate(video, Math.min(16, Math.max(0.25, video.playbackRate + delta)));
+    const nextRate = preset != null ? preset : Math.min(16, Math.max(0.25, video.playbackRate + delta));
+    nuteggApplyPlaybackRate(video, nextRate);
+    window.dispatchEvent(new CustomEvent('nutegg:speed-changed', { detail: { rate: video.playbackRate } }));
+    chrome.runtime?.sendMessage?.({ action: 'set-preferred-video-speed', rate: video.playbackRate }).catch?.(() => {});
     event.preventDefault();
     event.stopImmediatePropagation();
   } catch {}
@@ -281,6 +314,10 @@ async function nuteggSeek(message) {
     chrome.runtime.onMessage.removeListener(window.__nuteggMessageListener);
   const listener = (message, _sender, sendResponse) => {
     if (globalThis.__nuteggPanelMessage?.(message, _sender, sendResponse)) return false;
+    if (message.action === 'nutegg-speed-settings-updated') {
+      window.dispatchEvent(new CustomEvent('nutegg:speed-settings-updated', { detail: message.settings || {} }));
+      return false;
+    }
     if (message.action === 'nutegg-handshake') {
       sendResponse({ success: true, version: 1, ...nuteggPlaybackIdentity(), capabilities: ['seek', 'position', 'playback-rate'] });
       return false;
@@ -473,6 +510,7 @@ async function nuteggSeek(message) {
           duration: isNaN(video.duration) ? 0 : video.duration,
           paused: Boolean(video.paused),
           playbackRate: Number.isFinite(video.playbackRate) ? video.playbackRate : 1,
+          onPageSpeedOverlay: Boolean(document.getElementById('nutegg-video-speed-overlay')),
           ...nuteggPlaybackIdentity(),
         });
         return false;

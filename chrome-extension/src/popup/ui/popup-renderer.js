@@ -12,8 +12,11 @@ class PopupRenderer {
     if (event.type === 'playbackPosition') {
       const tab = this.store.getTab(event.tabId);
       this.ui.mindmapUI.updateProgress?.(tab?.playbackPosition);
-      this.ui.captureUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed);
-      this.ui.resultsUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed);
+      const showSpeed =
+        globalThis.NutEggUI?.shouldShowPanelVideoSpeed?.(tab, this.settings) ??
+        this.settings?.videoSpeedEnabled !== false;
+      this.ui.captureUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed, showSpeed);
+      this.ui.resultsUI.updateVideoSpeed?.(tab, this.settings?.preferredVideoSpeed, showSpeed);
       return;
     }
     this.render();
@@ -64,8 +67,10 @@ class PopupRenderer {
     ui.sectionsUI.updateUI(view.enabledSections, view.generateKnowledgeEntries, true);
     ui.sectionsUI.renderPresentation(view.presentation);
     ui.resultsUI.render(view, settings);
-    ui.captureUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed);
-    ui.resultsUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed);
+    const showPanelSpeed =
+      globalThis.NutEggUI?.shouldShowPanelVideoSpeed?.(view, settings) ?? settings?.videoSpeedEnabled !== false;
+    ui.captureUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed, showPanelSpeed);
+    ui.resultsUI.updateVideoSpeed?.(view, settings?.preferredVideoSpeed, showPanelSpeed);
     const isFunctional =
       (obsidianMode ? settings.serverOnline && settings.obsidianAiConfigured : settings.chromeAiConfigured) ||
       !!view.analysisResult;

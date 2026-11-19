@@ -123,10 +123,22 @@ class InteractionAction {
   }
 
   handlePlaybackSpeedShortcut(event) {
+    if (this.settings?.videoSpeedEnabled === false) return;
     if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     if (event.composedPath().some(node => node.isContentEditable ||
         node.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'))) return;
     if (!globalThis.NutEggUI?.isVideoView?.(this.store.viewModel())) return;
+    let preset = null;
+    if (event.shiftKey) {
+      const codeMap = { Digit2: 2, Digit3: 3, Digit4: 4, Digit5: 5 };
+      const keyMap = { 2: 2, '@': 2, 3: 3, '#': 3, 4: 4, $: 4, 5: 5, '%': 5 };
+      preset = codeMap[event.code] || keyMap[event.key] || null;
+    }
+    if (preset != null) {
+      event.preventDefault();
+      void this.setPlaybackRate(preset);
+      return;
+    }
     const delta = ['+', '='].includes(event.key) ? 0.25 : ['-', '_'].includes(event.key) ? -0.25 : 0;
     if (!delta) return;
     event.preventDefault();

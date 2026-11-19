@@ -177,6 +177,7 @@ var NutEggPanels = (() => {
         'panel-signals',
         'panel-prefetch-complete',
         'panel-host-close',
+        'panel-host-open',
         'panel-suggest-save',
         'panel-suggest-edit',
         'panel-resize',
@@ -289,6 +290,13 @@ var NutEggPanels = (() => {
           return { opened: true, decision: finalDecision };
         }
         if (message.action === 'panel-host-close') return close(tabId);
+        if (message.action === 'panel-host-open') {
+          if (settings.mode === 'native') {
+            nativeOpen.add(tabId);
+            return { ok: true };
+          }
+          return open(tabId, false);
+        }
         if (message.action === 'panel-resize') {
           settings = NutEggRules.normalize({ ...settings, width: message.width });
           await chrome.storage.local.set({ panelSettings: settings });
@@ -505,6 +513,8 @@ var NutEggPanels = (() => {
     // Start the browser API while the click's user activation is still valid.
     if (message.action === 'panel-switch' && message.mode === 'native' && trusted(sender))
       chrome.sidePanel.open({ tabId: sender.frameId > 0 ? sender.tab?.id : message.tabId }).catch(() => {});
+    if (message.action === 'panel-host-open' && settings.mode === 'native' && sender?.tab?.id != null)
+      chrome.sidePanel.open({ tabId: sender.tab.id }).catch(() => {});
     handle(message, sender).then(respond, error => respond({ error: error.message }));
     return true;
   });

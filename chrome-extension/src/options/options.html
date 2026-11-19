@@ -235,30 +235,32 @@
         </div>
         <div class="ai-assistant-examples" aria-label="Example prompts">
           <span class="ai-assistant-examples-label" data-i18n="aiAssistantExamplesLabel">Try:</span>
-          <button
-            type="button"
-            class="ai-assistant-chip"
-            data-ai-example="Use Obsidian mode, and ask the summary prompt to include feedback from Charlie Munger"
-            data-i18n="aiAssistantExample1"
-          >
-            Use Obsidian &amp; include Charlie Munger feedback in summary
-          </button>
-          <button
-            type="button"
-            class="ai-assistant-chip"
-            data-ai-example="Output in Spanish, show Discussion, and use compact mode"
-            data-i18n="aiAssistantExample2"
-          >
-            Output in Spanish &amp; show Discussion
-          </button>
-          <button
-            type="button"
-            class="ai-assistant-chip"
-            data-ai-example="Auto-open arxiv.org, mute x.com, and enable auto-analyze"
-            data-i18n="aiAssistantExample3"
-          >
-            Auto-open arxiv.org, mute x.com &amp; auto-analyze
-          </button>
+          <div class="ai-assistant-chips">
+            <button
+              type="button"
+              class="ai-assistant-chip"
+              data-ai-example="Use Obsidian mode, and ask the summary prompt to include feedback from Charlie Munger"
+              data-i18n="aiAssistantExample1"
+            >
+              Use Obsidian &amp; include Charlie Munger feedback in summary
+            </button>
+            <button
+              type="button"
+              class="ai-assistant-chip"
+              data-ai-example="Output in Spanish, show Discussion, and use compact mode"
+              data-i18n="aiAssistantExample2"
+            >
+              Output in Spanish &amp; show Discussion
+            </button>
+            <button
+              type="button"
+              class="ai-assistant-chip"
+              data-ai-example="Auto-open arxiv.org, mute x.com, and enable auto-analyze"
+              data-i18n="aiAssistantExample3"
+            >
+              Auto-open arxiv.org, mute x.com &amp; auto-analyze
+            </button>
+          </div>
         </div>
         <textarea
           id="ai-assistant-input"
@@ -421,6 +423,38 @@
                   <span data-i18n="userNotesSection">Your Notes</span></strong
                 ><small data-i18n="sectionNotesOpt"
                   >Show the multi-entry personal notes box on Results view (Obsidian mode)</small
+                ></span
+              ></label
+            >
+            <label class="toggle-checkbox-label" for="video-speed-enabled"
+              ><input type="checkbox" id="video-speed-enabled" checked /><span
+                ><strong
+                  ><span class="label-emoji" aria-hidden="true">⏩</span>
+                  <span data-i18n="videoSpeedSettingsTitle">Video Speed Adjuster (0.25x – 16x)</span></strong
+                ><small data-i18n="videoSpeedSettingsDesc"
+                  >Show the playback speed slider in the NutEgg panel and enable + / - keyboard shortcuts</small
+                ></span
+              ></label
+            >
+            <label
+              class="toggle-checkbox-label"
+              for="video-speed-on-page"
+              style="margin-left: 27px; margin-top: -4px"
+              ><input type="checkbox" id="video-speed-on-page" checked /><span
+                ><strong data-i18n="videoSpeedOnPageTitle">Show speed slider on YouTube &amp; Bilibili video players</strong
+                ><small data-i18n="videoSpeedOnPageDesc"
+                  >Display a compact speed pill next to the video title/info bar</small
+                ></span
+              ></label
+            >
+            <label
+              class="toggle-checkbox-label"
+              for="video-speed-all-sites"
+              style="margin-left: 27px; margin-top: -4px"
+              ><input type="checkbox" id="video-speed-all-sites" /><span
+                ><strong data-i18n="videoSpeedAllSitesTitle">Show speed slider on all video websites</strong
+                ><small data-i18n="videoSpeedAllSitesDesc"
+                  >Overlay the speed pill in the top-right corner of videos on any other site</small
                 ></span
               ></label
             >

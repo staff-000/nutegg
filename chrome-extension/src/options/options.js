@@ -88,6 +88,9 @@ const optimizeConversation = document.getElementById('optimize-conversation');
 const sectionKnowledge = document.getElementById('section-knowledge');
 const sectionDiscussion = document.getElementById('section-discussion');
 const sectionNotes = document.getElementById('section-notes');
+const videoSpeedEnabledToggle = document.getElementById('video-speed-enabled');
+const videoSpeedOnPageToggle = document.getElementById('video-speed-on-page');
+const videoSpeedAllSitesToggle = document.getElementById('video-speed-all-sites');
 const sectionsSaveBtn = document.getElementById('sections-save-btn');
 const sectionsStatus = document.getElementById('sections-status');
 const uiDensitySelect = document.getElementById('ui-density-select');
@@ -493,6 +496,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     'generateKnowledgeEntries',
     'optimizeForConversation',
     'userNotesEnabled',
+    'videoSpeedEnabled',
+    'videoSpeedOnPageEnabled',
+    'videoSpeedAllSitesEnabled',
     'uiDensity',
     'connectionMode',
     'obsidianExecutionState',
@@ -589,6 +595,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 2. Content Analysis Sections initialization
   initSectionsSettings(stored.enabledSections, stored.generateKnowledgeEntries, stored.optimizeForConversation, stored.userNotesEnabled);
+  initVideoSpeedSettings(stored);
 
   if (uiDensitySelect) {
     const savedDensity = stored.uiDensity || 'compact';
@@ -1298,6 +1305,44 @@ function showResult(msg, type) {
   testResult.classList.remove('hidden');
 }
 
+function initVideoSpeedSettings(stored = {}) {
+  const syncOnPageDisabled = () => {
+    const masterOn = videoSpeedEnabledToggle ? videoSpeedEnabledToggle.checked : true;
+    const onPageOn = videoSpeedOnPageToggle ? videoSpeedOnPageToggle.checked : true;
+    if (videoSpeedOnPageToggle) {
+      videoSpeedOnPageToggle.disabled = !masterOn;
+      const label = videoSpeedOnPageToggle.closest('.toggle-checkbox-label');
+      if (label) label.style.opacity = masterOn ? '' : '0.5';
+    }
+    if (videoSpeedAllSitesToggle) {
+      videoSpeedAllSitesToggle.disabled = !masterOn || !onPageOn;
+      const label = videoSpeedAllSitesToggle.closest('.toggle-checkbox-label');
+      if (label) label.style.opacity = masterOn && onPageOn ? '' : '0.5';
+    }
+  };
+  if (videoSpeedEnabledToggle) {
+    videoSpeedEnabledToggle.checked = stored.videoSpeedEnabled !== false;
+    videoSpeedEnabledToggle.addEventListener('change', () => {
+      syncOnPageDisabled();
+      chrome.storage.local.set({ videoSpeedEnabled: videoSpeedEnabledToggle.checked });
+    });
+  }
+  if (videoSpeedOnPageToggle) {
+    videoSpeedOnPageToggle.checked = stored.videoSpeedOnPageEnabled !== false;
+    videoSpeedOnPageToggle.addEventListener('change', () => {
+      syncOnPageDisabled();
+      chrome.storage.local.set({ videoSpeedOnPageEnabled: videoSpeedOnPageToggle.checked });
+    });
+  }
+  if (videoSpeedAllSitesToggle) {
+    videoSpeedAllSitesToggle.checked = stored.videoSpeedAllSitesEnabled === true;
+    videoSpeedAllSitesToggle.addEventListener('change', () => {
+      chrome.storage.local.set({ videoSpeedAllSitesEnabled: videoSpeedAllSitesToggle.checked });
+    });
+  }
+  syncOnPageDisabled();
+}
+
 function initSectionsSettings(savedSections, savedGenerateKnowledgeEntries, savedOptimizeForConversation, savedUserNotesEnabled) {
   const sections = { ...DEFAULT_SECTIONS, ...(savedSections || {}) };
   if (sectionVerdictSummary)
@@ -1483,6 +1528,9 @@ async function refreshOptionsUiFromStorage() {
     'generateKnowledgeEntries',
     'optimizeForConversation',
     'userNotesEnabled',
+    'videoSpeedEnabled',
+    'videoSpeedOnPageEnabled',
+    'videoSpeedAllSitesEnabled',
     'chunkWindowChars',
     'contentAnalysisMaxTokens',
     'chromeCacheTabLimit',
@@ -1525,6 +1573,24 @@ async function refreshOptionsUiFromStorage() {
   }
   if (sectionNotes && stored.userNotesEnabled !== undefined) {
     sectionNotes.checked = stored.userNotesEnabled !== false;
+  }
+  if (videoSpeedEnabledToggle) {
+    videoSpeedEnabledToggle.checked = stored.videoSpeedEnabled !== false;
+  }
+  if (videoSpeedOnPageToggle) {
+    videoSpeedOnPageToggle.checked = stored.videoSpeedOnPageEnabled !== false;
+    const masterOn = videoSpeedEnabledToggle ? videoSpeedEnabledToggle.checked : true;
+    videoSpeedOnPageToggle.disabled = !masterOn;
+    const label = videoSpeedOnPageToggle.closest('.toggle-checkbox-label');
+    if (label) label.style.opacity = masterOn ? '' : '0.5';
+  }
+  if (videoSpeedAllSitesToggle) {
+    videoSpeedAllSitesToggle.checked = stored.videoSpeedAllSitesEnabled === true;
+    const masterOn = videoSpeedEnabledToggle ? videoSpeedEnabledToggle.checked : true;
+    const onPageOn = videoSpeedOnPageToggle ? videoSpeedOnPageToggle.checked : true;
+    videoSpeedAllSitesToggle.disabled = !masterOn || !onPageOn;
+    const label = videoSpeedAllSitesToggle.closest('.toggle-checkbox-label');
+    if (label) label.style.opacity = masterOn && onPageOn ? '' : '0.5';
   }
   if (chunkWindowInput && stored.chunkWindowChars) chunkWindowInput.value = stored.chunkWindowChars;
   if (maxTokensInput && stored.contentAnalysisMaxTokens) maxTokensInput.value = stored.contentAnalysisMaxTokens;

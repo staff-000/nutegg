@@ -99,6 +99,27 @@ function isVideoView(view) {
   return false;
 }
 
+function shouldShowPanelVideoSpeed(view, settings) {
+  if (settings?.videoSpeedEnabled === false) return false;
+  if (!isVideoView(view)) return false;
+  if (view?.playbackPosition?.onPageSpeedOverlay === true) return false;
+  if (settings?.videoSpeedOnPageEnabled !== false) {
+    if (settings?.videoSpeedAllSitesEnabled === true) return false;
+    const url = view?.extractedContent?.url || view?.stage1Payload?.url || view?.url || '';
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      if (host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'bilibili.com' || host.endsWith('.bilibili.com')) {
+        return false;
+      }
+    } catch {}
+    const sourceType = String(
+      view?.extractedContent?.sourceType || view?.stage1Payload?.sourceType || view?.analysisResult?.sourceType || ''
+    ).toLowerCase();
+    if (sourceType === 'youtube' || sourceType === 'bilibili') return false;
+  }
+  return true;
+}
+
 class CaptureViewComponent {
   constructor(root = document) {
     this.root = root;
@@ -163,9 +184,9 @@ class CaptureViewComponent {
     }
   }
 
-  updateVideoSpeed(view, preferredRate = null) {
+  updateVideoSpeed(view, preferredRate = null, enabled = true) {
     if (!this.videoSpeedControl) return;
-    if (!isVideoView(view)) {
+    if (enabled === false || !isVideoView(view)) {
       this.videoSpeedControl.classList.add('hidden');
       return;
     }
@@ -472,6 +493,7 @@ _captureScope.NutEggUI.formatVideoSpeed = formatVideoSpeed;
 _captureScope.NutEggUI.getVideoSpeedColors = getVideoSpeedColors;
 _captureScope.NutEggUI.applyVideoSpeedColors = applyVideoSpeedColors;
 _captureScope.NutEggUI.isVideoView = isVideoView;
+_captureScope.NutEggUI.shouldShowPanelVideoSpeed = shouldShowPanelVideoSpeed;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
@@ -483,5 +505,6 @@ if (typeof module !== 'undefined' && module.exports) {
     getVideoSpeedColors,
     applyVideoSpeedColors,
     isVideoView,
+    shouldShowPanelVideoSpeed,
   };
 }

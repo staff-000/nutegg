@@ -80,7 +80,9 @@
         "src/content/extractors/article.js",
         "src/content/extractors/generic.js",
         "src/content/source-navigation.js",
+        "src/content/video-speed-shared.js",
         "src/content/content-script.js",
+        "src/content/video-speed-overlay.js",
         "src/i18n.js",
         "src/panel/rules.js",
         "src/panel/page-layout.js",
@@ -102,7 +104,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/popup/popup.html"
+        "src/popup/popup.html",
+        "icons/icon32.png"
       ],
       "matches": [
         "http://*/*",

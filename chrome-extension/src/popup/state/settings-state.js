@@ -31,6 +31,9 @@ class SettingsState {
     this.uiDensity = 'compact'; // "compact" | "margin" | "ultra-compact" (also accepts "comfortable" as alias)
     this.chromeCacheTabLimit = 100;
     this.preferredVideoSpeed = null;
+    this.videoSpeedEnabled = true;
+    this.videoSpeedOnPageEnabled = true;
+    this.videoSpeedAllSitesEnabled = false;
 
     // Obsidian server status
     this.serverOnline = false;
@@ -74,6 +77,9 @@ class SettingsState {
             'chromeAiModel',
             'obsidianExecutionState',
             'preferredVideoSpeed',
+            'videoSpeedEnabled',
+            'videoSpeedOnPageEnabled',
+            'videoSpeedAllSitesEnabled',
           ],
           resolve
         );
@@ -109,6 +115,9 @@ class SettingsState {
       if (typeof stored?.chromeCacheTabLimit === 'number' && stored.chromeCacheTabLimit >= 0) {
         this.chromeCacheTabLimit = Math.min(1000, Math.round(stored.chromeCacheTabLimit));
       }
+      this.videoSpeedEnabled = stored?.videoSpeedEnabled !== false;
+      this.videoSpeedOnPageEnabled = stored?.videoSpeedOnPageEnabled !== false;
+      this.videoSpeedAllSitesEnabled = stored?.videoSpeedAllSitesEnabled === true;
       if (
         typeof stored?.preferredVideoSpeed === 'number' &&
         Number.isFinite(stored.preferredVideoSpeed) &&

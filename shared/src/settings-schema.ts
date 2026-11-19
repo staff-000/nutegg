@@ -219,6 +219,30 @@ export const SETTINGS_SCHEMA: readonly SettingSchemaEntry[] = [
     controlIds: ['section-notes'],
   },
   {
+    key: 'videoSpeedEnabled',
+    label: 'Video Speed Adjuster',
+    type: 'boolean',
+    defaultValue: true,
+    description: 'Enable the 0.25x-16x video speed adjuster in the NutEgg panel and + / - keyboard shortcuts.',
+    controlIds: ['video-speed-enabled'],
+  },
+  {
+    key: 'videoSpeedOnPageEnabled',
+    label: 'On-Page Video Speed Slider',
+    type: 'boolean',
+    defaultValue: true,
+    description: 'Show the speed slider overlay on YouTube and Bilibili video players.',
+    controlIds: ['video-speed-on-page'],
+  },
+  {
+    key: 'videoSpeedAllSitesEnabled',
+    label: 'On-Page Video Speed Slider (All Videos)',
+    type: 'boolean',
+    defaultValue: false,
+    description: 'Show the speed slider overlay in the top-right corner of videos on all websites.',
+    controlIds: ['video-speed-all-sites'],
+  },
+  {
     key: 'chunkWindowChars',
     label: 'General Chunk Window Size',
     type: 'integer',
@@ -342,6 +366,9 @@ export interface SettingsSnapshot {
   generateKnowledgeEntries?: boolean;
   optimizeForConversation?: boolean;
   userNotesEnabled?: boolean;
+  videoSpeedEnabled?: boolean;
+  videoSpeedOnPageEnabled?: boolean;
+  videoSpeedAllSitesEnabled?: boolean;
   chunkWindowChars?: number;
   contentAnalysisMaxTokens?: number;
   chromeCacheTabLimit?: number;
@@ -462,6 +489,9 @@ export function buildSettingsAssistantPrompt(currentSnapshot: SettingsSnapshot, 
     generateKnowledgeEntries: Boolean(currentSnapshot.generateKnowledgeEntries),
     optimizeForConversation: currentSnapshot.optimizeForConversation !== false,
     userNotesEnabled: currentSnapshot.userNotesEnabled !== false,
+    videoSpeedEnabled: currentSnapshot.videoSpeedEnabled !== false,
+    videoSpeedOnPageEnabled: currentSnapshot.videoSpeedOnPageEnabled !== false,
+    videoSpeedAllSitesEnabled: Boolean(currentSnapshot.videoSpeedAllSitesEnabled),
     chunkWindowChars: currentSnapshot.chunkWindowChars ?? 30000,
     contentAnalysisMaxTokens: currentSnapshot.contentAnalysisMaxTokens ?? 16384,
     chromeCacheTabLimit: currentSnapshot.chromeCacheTabLimit ?? 100,

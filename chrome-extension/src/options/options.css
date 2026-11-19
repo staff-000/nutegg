@@ -1545,15 +1545,25 @@ select:not([multiple]) {
 }
 .ai-assistant-examples {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 10px;
 }
 .ai-assistant-examples-label {
+  min-width: 24px;
+  flex-shrink: 0;
   font-size: 12px;
   color: var(--muted);
   font-weight: 600;
+  line-height: 24px;
+  white-space: nowrap;
+}
+.ai-assistant-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
 }
 .ai-assistant-chip {
   font: inherit;

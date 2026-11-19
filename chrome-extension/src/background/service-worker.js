@@ -210,6 +210,10 @@ chrome.storage.onChanged?.addListener((changes, area) => {
       void NutEggExecution.ensure().catch(() => {});
     }
   }
+  const speedKeys = ['videoSpeedEnabled', 'videoSpeedOnPageEnabled', 'videoSpeedAllSitesEnabled', 'preferredVideoSpeed'];
+  if (speedKeys.some(key => key in changes)) {
+    void broadcastVideoSpeedSettings();
+  }
   const configKeys = [
     'chromeAiProvider',
     'chromeAiApiKey',
@@ -388,6 +392,8 @@ chrome.tabs?.onAttached?.addListener((tabId, info) => {
 function handleTrustedMessage(message, _sender, sendResponse) {
   if (message.action === 'youtube-player-snapshot')
     return handleYouTubePlayerSnapshotMessage(message, _sender, sendResponse);
+  if (message.action === 'get-video-speed-settings' || message.action === 'set-preferred-video-speed')
+    return handleContentScriptSpeedMessage(message, _sender, sendResponse);
   if (_sender?.id !== chrome.runtime.id || (_sender?.url && !_sender.url.startsWith(chrome.runtime.getURL('/')))) {
     sendResponse({ error: 'Privileged extension page required.', errorCode: 'forbidden' });
     return false;
@@ -727,9 +733,71 @@ function handleTrustedMessage(message, _sender, sendResponse) {
     return true;
   }
 }
+
+async function readVideoSpeedSettings() {
+  const stored = await chrome.storage.local
+    .get(['videoSpeedEnabled', 'videoSpeedOnPageEnabled', 'videoSpeedAllSitesEnabled', 'preferredVideoSpeed'])
+    .catch(() => ({}));
+  return {
+    videoSpeedEnabled: stored?.videoSpeedEnabled !== false,
+    videoSpeedOnPageEnabled: stored?.videoSpeedOnPageEnabled !== false,
+    videoSpeedAllSitesEnabled: stored?.videoSpeedAllSitesEnabled === true,
+    preferredVideoSpeed:
+      typeof stored?.preferredVideoSpeed === 'number' &&
+      Number.isFinite(stored.preferredVideoSpeed) &&
+      stored.preferredVideoSpeed >= 0.25 &&
+      stored.preferredVideoSpeed <= 16
+        ? Math.round(stored.preferredVideoSpeed * 100) / 100
+        : null,
+  };
+}
+
+async function broadcastVideoSpeedSettings() {
+  try {
+    const settings = await readVideoSpeedSettings();
+    chrome.tabs?.query?.({}, tabs => {
+      if (!Array.isArray(tabs)) return;
+      for (const tab of tabs) {
+        if (tab?.id != null) {
+          chrome.tabs.sendMessage(tab.id, { action: 'nutegg-speed-settings-updated', settings }).catch(() => {});
+        }
+      }
+    });
+  } catch {}
+}
+
+function handleContentScriptSpeedMessage(message, sender, sendResponse) {
+  if (sender?.id !== chrome.runtime.id) {
+    sendResponse({ error: 'Forbidden' });
+    return false;
+  }
+  if (message.action === 'get-video-speed-settings') {
+    readVideoSpeedSettings()
+      .then(settings => sendResponse({ settings }))
+      .catch(() => sendResponse({ settings: { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, preferredVideoSpeed: null } }));
+    return true;
+  }
+  if (message.action === 'set-preferred-video-speed') {
+    const numeric = Number(message.rate);
+    if (!Number.isFinite(numeric) || numeric < 0.25 || numeric > 16) {
+      sendResponse({ success: false, error: 'Invalid rate' });
+      return false;
+    }
+    const rounded = Math.round(numeric * 100) / 100;
+    chrome.storage.local
+      .set({ preferredVideoSpeed: rounded })
+      .then(() => sendResponse({ success: true, preferredVideoSpeed: rounded }))
+      .catch(() => sendResponse({ success: false }));
+    return true;
+  }
+  return false;
+}
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message.action?.startsWith('panel-')) return;
   if (message.action === 'youtube-player-snapshot') return handleYouTubePlayerSnapshotMessage(message, sender, respond);
+  if (message.action === 'get-video-speed-settings' || message.action === 'set-preferred-video-speed') {
+    return handleContentScriptSpeedMessage(message, sender, respond);
+  }
   const checkAuth =
     typeof NutEggPanels !== 'undefined'
       ? NutEggPanels.authorized(sender)

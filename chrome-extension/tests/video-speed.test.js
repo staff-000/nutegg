@@ -2,7 +2,15 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const vm = require('node:vm');
 const { JSDOM } = require('jsdom');
+
+const videoSpeedShared = require(path.resolve(__dirname, '../src/content/video-speed-shared.js'));
+const {
+  isSupportedSpeedOverlayHost,
+  findMountTarget,
+  findPlayerContainer,
+} = require(path.resolve(__dirname, '../src/content/video-speed-overlay.js'));
 
 const {
   CaptureViewComponent,
@@ -13,6 +21,7 @@ const {
   getVideoSpeedColors,
   applyVideoSpeedColors,
   isVideoView,
+  shouldShowPanelVideoSpeed,
 } = require(path.resolve(__dirname, '../src/popup/ui/capture-view.js'));
 const { ResultsViewComponent } = require(path.resolve(__dirname, '../src/popup/ui/results-view.js'));
 
@@ -188,6 +197,213 @@ describe('Video Speed Adjuster', () => {
     const at8 = parseRgb(getVideoSpeedColors(8).accent); // red
     const at16 = parseRgb(getVideoSpeedColors(16).accent); // dark-red (darker R than 8x)
     assert.ok(at8[0] > 180 && at16[0] < at8[0] && at16[0] > at16[1]);
+  });
+
+  it('hides panel speed widget when videoSpeedEnabled is false and exposes hover shortcut tooltip on panel controls', () => {
+    const dom = loadPopupHtmlDom();
+    const doc = dom.window.document;
+    const capture = new CaptureViewComponent(doc);
+    const results = new ResultsViewComponent(doc);
+
+    const videoView = {
+      playbackPosition: { type: 'video', currentTime: 10, duration: 100, playbackRate: 1.5 },
+      extractedContent: { isVideo: true, sourceType: 'youtube' },
+    };
+
+    capture.updateVideoSpeed(videoView, 1.5, false);
+    results.updateVideoSpeed(videoView, 1.5, false);
+    assert.equal(doc.getElementById('capture-video-speed').classList.contains('hidden'), true);
+    assert.equal(doc.getElementById('result-video-speed').classList.contains('hidden'), true);
+
+    assert.equal(doc.getElementById('capture-video-speed').getAttribute('data-i18n-title'), 'videoSpeedTooltip');
+    assert.equal(doc.getElementById('result-video-speed').getAttribute('data-i18n-title'), 'videoSpeedTooltip');
+  });
+
+  it('mounts Shadow DOM speed slider on YouTube and Bilibili players, shows shortcut tooltip, and respects settings toggles', async () => {
+    assert.equal(isSupportedSpeedOverlayHost('www.youtube.com'), true);
+    assert.equal(isSupportedSpeedOverlayHost('www.bilibili.com'), true);
+    assert.equal(isSupportedSpeedOverlayHost('example.com'), false);
+
+    const dom = new JSDOM(
+      `<!DOCTYPE html><html><body>
+        <div id="movie_player">
+          <video src="https://example.com/video.mp4"></video>
+        </div>
+      </body></html>`,
+      { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', runScripts: 'outside-only' }
+    );
+    const doc = dom.window.document;
+    const video = doc.querySelector('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+    assert.equal(findPlayerContainer(doc)?.id, 'movie_player');
+
+    const listeners = [];
+    const sentMessages = [];
+    const chromeMock = {
+      runtime: {
+        getURL: p => `chrome-extension://test-id/${p}`,
+        sendMessage: async msg => {
+          sentMessages.push(msg);
+          if (msg.action === 'get-video-speed-settings') {
+            return {
+              settings: { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, preferredVideoSpeed: 1.5 },
+            };
+          }
+          return { success: true };
+        },
+        onMessage: { addListener: fn => listeners.push(fn) },
+      },
+    };
+
+    const sharedCode = fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-shared.js'), 'utf8');
+    const overlayCode = fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-overlay.js'), 'utf8');
+    const context = dom.getInternalVMContext();
+    context.chrome = chromeMock;
+
+    vm.runInContext(sharedCode, context);
+    vm.runInContext(overlayCode, context);
+    await new Promise(r => setTimeout(r, 20));
+
+    const host = doc.getElementById('nutegg-video-speed-overlay');
+    assert.ok(host && host.shadowRoot, 'On-page speed overlay should mount with Shadow DOM');
+    assert.equal(video.playbackRate, 1.5, 'Should auto-apply preferredVideoSpeed on initial load');
+    assert.equal(host.shadowRoot.querySelector('.rate-text').textContent, '1.5x');
+    assert.match(host.shadowRoot.querySelector('.tooltip').textContent, /\+ \/ -/);
+
+    // Click NutEgg icon button to open panel
+    const openBtn = host.shadowRoot.querySelector('.nutegg-open-btn');
+    assert.ok(openBtn, 'NutEgg open button should be rendered on the left of the speed pill');
+    assert.match(openBtn.querySelector('img')?.src || '', /icons\/icon32\.png$/);
+    openBtn.click();
+    assert.ok(sentMessages.some(m => m.action === 'panel-host-open'));
+
+    // Drag slider to 16x
+    const slider = host.shadowRoot.querySelector('.slider');
+    slider.value = String(videoSpeedShared.VIDEO_SPEED_STOPS.length - 1);
+    slider.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    assert.equal(video.playbackRate, 16);
+    assert.equal(host.shadowRoot.querySelector('.rate-text').textContent, '16x');
+    assert.ok(sentMessages.some(m => m.action === 'set-preferred-video-speed' && m.rate === 16));
+
+    // Turn off on-page slider via live settings broadcast
+    doc.defaultView.dispatchEvent(
+      new doc.defaultView.CustomEvent('nutegg:speed-settings-updated', {
+        detail: { videoSpeedEnabled: true, videoSpeedOnPageEnabled: false, preferredVideoSpeed: 16 },
+      })
+    );
+    assert.equal(doc.getElementById('nutegg-video-speed-overlay'), null, 'Overlay should unmount when turned off');
+  });
+
+  it('mounts inline next to Bilibili .video-info-detail-content, YouTube #title, and top-right overlay on other sites when enabled', () => {
+    const biliDom = new JSDOM(
+      `<div class="video-info-detail-content"><span>views</span></div>
+       <div class="bpx-player-video-area"><video src="https://example.com/v.mp4"></video></div>`,
+      { url: 'https://www.bilibili.com/video/BV1xx411c7mD' }
+    );
+    const biliTarget = findMountTarget(biliDom.window.document, 'www.bilibili.com', false);
+    assert.equal(biliTarget?.mode, 'inline');
+    assert.equal(biliTarget?.container.className, 'video-info-detail-content');
+
+    const ytDom = new JSDOM(
+      `<div id="above-the-fold"><div id="title"><h1>Video Title</h1></div></div>
+       <div id="movie_player"><video src="https://example.com/v.mp4"></video></div>`,
+      { url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }
+    );
+    const ytTarget = findMountTarget(ytDom.window.document, 'www.youtube.com', false);
+    assert.equal(ytTarget?.mode, 'inline');
+    assert.equal(ytTarget?.container.id, 'title');
+
+    const genericDom = new JSDOM(
+      `<div id="player-box"><video src="https://example.com/v.mp4"></video></div>`,
+      { url: 'https://vimeo.com/123456' }
+    );
+    assert.equal(findMountTarget(genericDom.window.document, 'vimeo.com', false), null);
+    const genericTarget = findMountTarget(genericDom.window.document, 'vimeo.com', true);
+    assert.equal(genericTarget?.mode, 'overlay');
+    assert.equal(genericTarget?.container.id, 'player-box');
+  });
+
+  it('hides panel speed slider when the slider is already shown on the main page', () => {
+    const ytView = {
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      extractedContent: { isVideo: true, sourceType: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+    };
+    const otherVideoView = {
+      url: 'https://vimeo.com/123456',
+      playbackPosition: { type: 'video', playbackRate: 1 },
+    };
+    assert.equal(
+      shouldShowPanelVideoSpeed(ytView, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, videoSpeedAllSitesEnabled: false }),
+      false
+    );
+    assert.equal(
+      shouldShowPanelVideoSpeed(ytView, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: false, videoSpeedAllSitesEnabled: false }),
+      true
+    );
+    assert.equal(
+      shouldShowPanelVideoSpeed(otherVideoView, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, videoSpeedAllSitesEnabled: false }),
+      true
+    );
+    assert.equal(
+      shouldShowPanelVideoSpeed(otherVideoView, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, videoSpeedAllSitesEnabled: true }),
+      false
+    );
+    assert.equal(
+      shouldShowPanelVideoSpeed({ ...otherVideoView, playbackPosition: { type: 'video', onPageSpeedOverlay: true } }, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: false }),
+      false
+    );
+  });
+
+  it('supports Shift+2/3/4/5 shortcuts for 2x/3x/4x/5x in panel InteractionAction', async () => {
+    globalThis.chrome = { storage: { local: { set: () => {} } } };
+    const { SettingsState } = require(path.resolve(__dirname, '../src/popup/state/settings-state.js'));
+    const { TabStateManager } = require(path.resolve(__dirname, '../src/popup/state/tab-state.js'));
+    const InteractionAction = (() => {
+      const code = fs.readFileSync(path.resolve(__dirname, '../src/popup/action/interaction.js'), 'utf8');
+      const fn = new Function(`${code}\nreturn InteractionAction;`);
+      return fn();
+    })();
+
+    const settings = new SettingsState();
+    const store = new TabStateManager();
+    store.activateTab(42);
+    store.dispatch({ type: 'playbackPosition', tabId: 42, pageGeneration: store.getTab(42).pageGeneration, position: { type: 'video', playbackRate: 1 } });
+
+    const setCalls = [];
+    const pageExtractor = {
+      setPlaybackRate: async (_tabId, rate) => {
+        setCalls.push(rate);
+        return { success: true, type: 'video', playbackRate: rate };
+      },
+      getPagePosition: async () => null,
+    };
+    const action = new InteractionAction({ tabStateManager: store, pageExtractor, settings, ui: {} });
+
+    const fire = (key, code) => {
+      let prevented = false;
+      action.handlePlaybackSpeedShortcut({
+        key,
+        code,
+        shiftKey: true,
+        metaKey: false,
+        ctrlKey: false,
+        altKey: false,
+        defaultPrevented: false,
+        isComposing: false,
+        composedPath: () => [],
+        preventDefault: () => {
+          prevented = true;
+        },
+      });
+      return prevented;
+    };
+
+    assert.equal(fire('@', 'Digit2'), true);
+    assert.equal(fire('#', 'Digit3'), true);
+    assert.equal(fire('$', 'Digit4'), true);
+    assert.equal(fire('%', 'Digit5'), true);
+    await new Promise(r => setTimeout(r, 10));
+    assert.deepEqual(setCalls, [2, 3, 4, 5]);
   });
 });
 

@@ -75,10 +75,10 @@ class ResultsViewComponent {
     }
   }
 
-  updateVideoSpeed(view, preferredRate = null) {
+  updateVideoSpeed(view, preferredRate = null, enabled = true) {
     if (!this.videoSpeedControl) return;
     const isVideo = globalThis.NutEggUI?.isVideoView?.(view) ?? false;
-    if (!isVideo) {
+    if (enabled === false || !isVideo) {
       this.videoSpeedControl.classList.add('hidden');
       return;
     }
@@ -250,7 +250,9 @@ class ResultsViewComponent {
         publishedAt: session.extractedContent?.metadata?.published || result.publishedAt,
       };
       this.renderProvenance(prov);
-      this.updateVideoSpeed(session, settings?.preferredVideoSpeed);
+      const showPanelSpeed =
+        globalThis.NutEggUI?.shouldShowPanelVideoSpeed?.(session, settings) ?? settings?.videoSpeedEnabled !== false;
+      this.updateVideoSpeed(session, settings?.preferredVideoSpeed, showPanelSpeed);
       const effectiveSections = session?.enabledSections || settings?.enabledSections;
       this.renderCoreSummary(result.coreSummary, effectiveSections?.coreSummary !== false);
       this.root.getElementById('content-metadata')?.remove?.();

@@ -292,6 +292,18 @@ async function initPopup() {
       settings.setGenerateKnowledgeEntries(changes.generateKnowledgeEntries.newValue, false);
     if (changes.optimizeForConversation !== undefined)
       settings.setOptimizeForConversation(changes.optimizeForConversation.newValue, false);
+    if (changes.videoSpeedEnabled !== undefined) {
+      settings.videoSpeedEnabled = changes.videoSpeedEnabled.newValue !== false;
+    }
+    if (changes.videoSpeedOnPageEnabled !== undefined) {
+      settings.videoSpeedOnPageEnabled = changes.videoSpeedOnPageEnabled.newValue !== false;
+    }
+    if (changes.videoSpeedAllSitesEnabled !== undefined) {
+      settings.videoSpeedAllSitesEnabled = changes.videoSpeedAllSitesEnabled.newValue === true;
+    }
+    if (changes.preferredVideoSpeed !== undefined && typeof changes.preferredVideoSpeed.newValue === 'number') {
+      settings.setPreferredVideoSpeed(changes.preferredVideoSpeed.newValue, false);
+    }
     if (changes.debugInfo) {
       settings.debugInfo = changes.debugInfo.newValue === true;
       void operations.refreshDebugInfo();

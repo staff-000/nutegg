@@ -221,13 +221,18 @@
             <span id="page-published"></span>
             <span id="page-word-count"></span>
             <span id="page-caption-source" class="caption-source-tag hidden"></span>
-            <span id="capture-video-speed" class="video-speed-control hidden">
+            <span
+              id="capture-video-speed"
+              class="video-speed-control hidden"
+              title="Video speed · Press + / - (±0.25x) · Click speed to reset to 1x"
+              data-i18n-title="videoSpeedTooltip"
+            >
               <button
                 type="button"
                 id="capture-video-speed-reset"
                 class="video-speed-badge"
-                title="Video speed (click to reset to 1x)"
-                data-i18n-title="videoSpeedResetHint"
+                aria-label="Reset video speed to 1x"
+                data-i18n-aria-label="videoSpeedResetHint"
               >
                 ⏩ <span id="capture-video-speed-text">1x</span>
               </button>
@@ -522,13 +527,18 @@
             <span id="result-page-author"></span>
             <span id="result-page-published"></span>
             <span id="result-page-word-count"></span>
-            <span id="result-video-speed" class="video-speed-control hidden">
+            <span
+              id="result-video-speed"
+              class="video-speed-control hidden"
+              title="Video speed · Press + / - (±0.25x) · Click speed to reset to 1x"
+              data-i18n-title="videoSpeedTooltip"
+            >
               <button
                 type="button"
                 id="result-video-speed-reset"
                 class="video-speed-badge"
-                title="Video speed (click to reset to 1x)"
-                data-i18n-title="videoSpeedResetHint"
+                aria-label="Reset video speed to 1x"
+                data-i18n-aria-label="videoSpeedResetHint"
               >
                 ⏩ <span id="result-video-speed-text">1x</span>
               </button>
@@ -1239,6 +1249,7 @@
     <script defer src="ui/header.js"></script>
     <script defer src="ui/analysis-activity.js"></script>
     <script defer src="ui/banners.js"></script>
+    <script defer src="../content/video-speed-shared.js"></script>
     <script defer src="ui/capture-view.js"></script>
     <script defer src="ui/section-chips.js"></script>
     <script defer src="ui/verdict.js"></script>
