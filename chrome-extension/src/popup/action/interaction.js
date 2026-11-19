@@ -122,6 +122,16 @@ class InteractionAction {
     }
   }
 
+  handlePlaybackSpeedShortcut(event) {
+    if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.composedPath().some(node => node.isContentEditable ||
+        node.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'))) return;
+    if (!globalThis.NutEggUI?.isVideoView?.(this.store.viewModel())) return;
+    const delta = ['+', '='].includes(event.key) ? 0.25 : ['-', '_'].includes(event.key) ? -0.25 : 0;
+    if (!delta) return;
+    event.preventDefault();
+    void this.adjustPlaybackRate(delta);
+  }
   adjustPlaybackRate(delta) {
     const tab = this.store.getTab(this.store.activeTabId);
     const current = Number(tab?.playbackPosition?.playbackRate ?? this.settings?.preferredVideoSpeed ?? 1);

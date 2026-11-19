@@ -182,3 +182,77 @@ test('speed command reports failure when the player ignores the assignment', asy
   Object.defineProperty(video, 'playbackRate', { get: () => 1, set: () => {} });
   await assert.rejects(f.extractor.setPlaybackRate(42, 2), { code: 'rate_failed' });
 });
+
+test('initial speed sync preserves existing non-normal speeds and reports them to the panel', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  for (const rate of [0.75, 1.5, 3]) {
+    video.src = `https://example.com/video-${rate}.mp4`;
+    video.playbackRate = rate;
+    const position = await f.extractor.getPagePosition(42, null, { preferredRate: 2 });
+    assert.equal(video.playbackRate, rate);
+    assert.equal(position.playbackRate, rate);
+  }
+});
+
+test('saved speed initializes normal playback once and later follows website changes', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  assert.equal((await f.extractor.getPagePosition(42, null, { preferredRate: 2 })).playbackRate, 2);
+  video.playbackRate = 1;
+  assert.equal((await f.extractor.getPagePosition(42, null, { preferredRate: 2 })).playbackRate, 1);
+  assert.equal(video.playbackRate, 1);
+});
+
+test('page speed shortcuts follow the live player, clamp rates, and survive reinjection once', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  const press = key => f.win.document.dispatchEvent(new f.win.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  video.playbackRate = 3;
+  assert.equal(press('-'), false);
+  assert.equal(video.playbackRate, 2.75);
+  f.load('src/content/content-script.js');
+  press('+');
+  assert.equal(video.playbackRate, 3);
+  press('=');
+  assert.equal(video.playbackRate, 3.25);
+  video.playbackRate = 16; press('+'); assert.equal(video.playbackRate, 16);
+  video.playbackRate = 0.25; press('-'); assert.equal(video.playbackRate, 0.25);
+  assert.equal((await f.extractor.getPagePosition(42, null, { preferredRate: 2 })).playbackRate, 0.25);
+});
+
+test('page speed shortcuts leave typing, modifier combinations, and non-video pages alone', async t => {
+  const f = setup(t, '<div id="movie_player"><video></video></div><input><textarea></textarea><div role="textbox"><span>Editor</span></div>');
+  const video = f.win.document.querySelector('video'); player(video);
+  for (const target of f.win.document.querySelectorAll('input,textarea,[role="textbox"] span')) {
+    const event = new f.win.KeyboardEvent('keydown', { key: '+', bubbles: true, cancelable: true });
+    assert.equal(target.dispatchEvent(event), true);
+    assert.equal(video.playbackRate, 1);
+  }
+  for (const modifier of ['ctrlKey', 'metaKey', 'altKey', 'isComposing']) {
+    assert.equal(f.win.document.dispatchEvent(new f.win.KeyboardEvent('keydown', {
+      key: '-', [modifier]: true, bubbles: true, cancelable: true,
+    })), true);
+    assert.equal(video.playbackRate, 1);
+  }
+  video.remove();
+  assert.equal(f.win.document.dispatchEvent(new f.win.KeyboardEvent('keydown', { key: '+', cancelable: true })), true);
+});
+
+test('message editors keep speed shortcut characters and receive their keyboard events', async t => {
+  const f = setup(t); const video = f.win.document.querySelector('video'); player(video);
+  const doc = f.win.document;
+  doc.body.insertAdjacentHTML('beforeend', '<div contenteditable="true"><span>Message</span></div><div role="searchbox"><span>Search</span></div>');
+  const host = doc.createElement('div'); doc.body.append(host);
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<textarea></textarea>';
+  const targets = [...doc.querySelectorAll('[contenteditable] span,[role="searchbox"] span'), shadow.querySelector('textarea')];
+  let received = 0;
+  for (const target of targets) {
+    target.addEventListener('keydown', () => received++);
+    for (const key of ['+', '-', '=', '_']) {
+      assert.equal(target.dispatchEvent(new f.win.KeyboardEvent('keydown', {
+        key, bubbles: true, composed: true, cancelable: true,
+      })), true);
+      assert.equal(video.playbackRate, 1);
+    }
+  }
+  assert.equal(received, targets.length * 4);
+});

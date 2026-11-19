@@ -35,6 +35,30 @@ function loadPopupHtmlDom() {
 }
 
 describe('Video Speed Adjuster', () => {
+  it('panel speed shortcuts preserve message input, rich editors, shadow fields, and IME composition', () => {
+    const { InteractionAction } = require('../src/popup/action/interaction.js');
+    const dom = new JSDOM('<input><textarea></textarea><div contenteditable="true"><span>Message</span></div><div role="textbox"><span>Editor</span></div>');
+    const doc = dom.window.document;
+    const host = doc.createElement('div'); doc.body.append(host);
+    host.attachShadow({ mode: 'open' }).innerHTML = '<input>';
+    const action = new InteractionAction({ tabStateManager: { viewModel: () => ({ playbackPosition: { type: 'video' } }) } });
+    const changes = [];
+    action.adjustPlaybackRate = delta => changes.push(delta);
+    doc.addEventListener('keydown', event => action.handlePlaybackSpeedShortcut(event));
+    const targets = [...doc.querySelectorAll('input,textarea,[contenteditable] span,[role="textbox"] span'), host.shadowRoot.querySelector('input')];
+    for (const target of targets) {
+      for (const key of ['+', '-', '=', '_']) {
+        assert.equal(target.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key, bubbles: true, composed: true, cancelable: true })), true);
+      }
+    }
+    doc.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '+', isComposing: true }));
+    assert.deepEqual(changes, []);
+    doc.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '+', cancelable: true }));
+    doc.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '-', cancelable: true }));
+    assert.deepEqual(changes, [0.25, -0.25]);
+    dom.window.close();
+  });
+
   it('supports piecewise 0.25x to 16x speed stops and formatting', () => {
     assert.equal(VIDEO_SPEED_STOPS[0], 0.25);
     assert.equal(VIDEO_SPEED_STOPS[VIDEO_SPEED_STOPS.length - 1], 16);

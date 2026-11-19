@@ -215,6 +215,29 @@ function nuteggPlaybackOwned(message) {
     (message.generation == null || message.generation === identity.generation)
   );
 }
+function nuteggApplyPlaybackRate(video, rate) {
+  const rounded = Math.round(rate * 100) / 100;
+  video.playbackRate = rounded;
+  if (Math.abs(video.playbackRate - rounded) > 0.01) throw new Error('rate_failed');
+  window.__nuteggAppliedSpeedKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
+}
+// The page and extension iframe have separate keyboard event streams.
+if (window.__nuteggSpeedShortcut) document.removeEventListener('keydown', window.__nuteggSpeedShortcut, true);
+window.__nuteggSpeedShortcut = event => {
+  if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (event.composedPath().some(node => node.isContentEditable ||
+      node.matches?.('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="searchbox"],[role="combobox"],[role="spinbutton"]'))) return;
+  const delta = ['+', '='].includes(event.key) ? 0.25 : ['-', '_'].includes(event.key) ? -0.25 : 0;
+  if (!delta) return;
+  const video = nuteggPlaybackPlayer();
+  if (!video || video.readyState === 0 || !Number.isFinite(video.playbackRate)) return;
+  try {
+    nuteggApplyPlaybackRate(video, Math.min(16, Math.max(0.25, video.playbackRate + delta)));
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  } catch {}
+};
+document.addEventListener('keydown', window.__nuteggSpeedShortcut, true);
 async function nuteggSeek(message) {
   const seconds = Number(message.seconds);
   if (!Number.isFinite(seconds) || seconds < 0)
@@ -412,9 +435,7 @@ async function nuteggSeek(message) {
       }
       try {
         const rounded = Math.round(rate * 100) / 100;
-        video.playbackRate = rounded;
-        if (Math.abs(video.playbackRate - rounded) > 0.01) throw new Error('rate_failed');
-        window.__nuteggAppliedSpeedKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
+        nuteggApplyPlaybackRate(video, rounded);
         sendResponse({
           success: true,
           type: 'video',
@@ -437,7 +458,9 @@ async function nuteggSeek(message) {
         if (window.__nuteggAppliedSpeedKey !== videoKey) {
           window.__nuteggAppliedSpeedKey = videoKey;
           const pref = Number(message.preferredRate);
-          if (Number.isFinite(pref) && pref >= 0.25 && pref <= 16) {
+          // Respect a speed already selected by the website or another control.
+          // The saved preference only supplies the initial speed at normal playback.
+          if (video.playbackRate === 1 && Number.isFinite(pref) && pref >= 0.25 && pref <= 16) {
             try {
               video.playbackRate = Math.round(pref * 100) / 100;
             } catch {}

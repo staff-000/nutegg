@@ -163,27 +163,7 @@ async function initPopup() {
   c.onScopeChange = scope => activeDraft({ customQuestionsScope: scope });
   c.onSpeedChange = rate => interactionAction.setPlaybackRate(rate);
   r.onSpeedChange = rate => interactionAction.setPlaybackRate(rate);
-  document.addEventListener('keydown', event => {
-    if (event.metaKey || event.ctrlKey || event.altKey) return;
-    const target = event.target;
-    const tag = target?.tagName;
-    if (
-      target?.isContentEditable ||
-      tag === 'TEXTAREA' ||
-      tag === 'SELECT' ||
-      (tag === 'INPUT' && target.type !== 'range')
-    ) {
-      return;
-    }
-    if (!globalThis.NutEggUI?.isVideoView?.(tabStateManager.viewModel())) return;
-    if (event.key === '+' || event.key === '=') {
-      event.preventDefault();
-      void interactionAction.adjustPlaybackRate(0.25);
-    } else if (event.key === '-' || event.key === '_') {
-      event.preventDefault();
-      void interactionAction.adjustPlaybackRate(-0.25);
-    }
-  });
+  document.addEventListener('keydown', event => interactionAction.handlePlaybackSpeedShortcut(event));
   click(q.followupBtn, () => interactionAction.handleFollowUp());
   q.followupInput?.addEventListener('keydown', event => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey || event.shiftKey)) {
