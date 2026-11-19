@@ -7,12 +7,13 @@ For content capture changes, read the [extractor contributor guide](docs/content
 ## Quick File Map (Do Not Read Large Files Blindly)
 
 - **AI Engine & Prompts**: `shared/src/ai-processor.ts`, `shared/workflow/*.md`
-- **AI Providers & Models**: `shared/src/catalog.ts`, `shared/src/client.ts`
+- **AI Providers & Settings Schema**: `shared/src/catalog.ts`, `shared/src/client.ts`, `shared/src/settings-schema.ts`
 - **Types**: `shared/src/types.ts`
 - **Chrome Extension UI**: `chrome-extension/src/popup/ui/` (`banners.js`, `capture-view.js`, `qa.js`, `eggs.js`, `actions.js`, `verdict.js`)
 - **Chrome Extension Actions**: `chrome-extension/src/popup/action/` (`analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js`)
 - **Chrome Extension State**: `chrome-extension/src/popup/state/` (`session-state.js`, `tab-state.js`, `settings-state.js`)
-- **Chrome Extension Extractors**: `chrome-extension/src/content/extractors/` (`youtube.js`, `twitter.js`, `bilibili.js`, `douyin.js`, `weibo.js`, `zhihu.js`, `article.js`, `generic.js`; shared platform helpers in `chinese-common.js`)
+- **Chrome Extension Options & Panel**: `chrome-extension/src/options/`, `chrome-extension/src/panel/` (`page-layout.js`, `content-host.js`, `rules.js`, `background.js`)
+- **Chrome Extension Extractors & Speed Overlay**: `chrome-extension/src/content/extractors/` (`youtube.js`, `twitter.js`, `bilibili.js`, `douyin.js`, `weibo.js`, `zhihu.js`, `article.js`, `generic.js`; shared platform helpers in `chinese-common.js`), `chrome-extension/src/content/video-speed-overlay.js`
 - **Obsidian Local Server**: `obsidian-plugin/src/server.ts`
 - **Obsidian SQLite & Search**: `obsidian-plugin/src/db.ts`
 - **Obsidian Knowledge & Workflows**: `obsidian-plugin/src/knowledge-base.ts`, `workflow-manager.ts`
@@ -24,8 +25,8 @@ For content capture changes, read the [extractor contributor guide](docs/content
 3. **Optional Chaining on Session**: Use `session.isStage1?.()` and `session.captureHistory?.length`.
 4. **QuestionScope**: `"within"` (strict grounding) vs `"beyond"` (grounding stripped for open reasoning/fact-checking).
 5. **i18n**: Use `t(key, params)` from `src/i18n.js` / `src/helpers.js`. Never translate "NutEgg".
-6. **Targeted Tests**: Run only the specific test file with `node --test tests/<file>.test.js`.
-7. **Release Branching**: Minor releases (e.g. `0.4.0`) must be cut onto a new branch `release/X.Y` (e.g. `release/0.4`) from `main`. Subsequent patch releases (e.g. `0.4.1`) are updated and released directly on that `release/X.Y` branch. See [release procedure](docs/releasing.md). Published tags are immutable; synchronize applicable fix commits into `main` explicitly.
+6. **Targeted Tests & Single Verify Gate**: Run targeted extension tests with `npm run test:ext -- chrome-extension/tests/<file>.test.js`, and run `npm run lint` as the single build + typecheck + schema + site-strategy verification gate.
+7. **Release Branching**: Minor releases (e.g. `0.4.0`) must be cut onto a new branch `release/X.Y` (e.g. `release/0.4`) from `main`. Subsequent patch releases (e.g. `0.4.1`) are updated and released directly on that `release/X.Y` branch. See [release procedure](docs/releasing.md). Published tags are immutable; synchronize applicable fix commits into `main` explicitly (helper: `npm run sync:fixes`).
 8. **Site-Strategy Pattern (No Scattered `if/else` Site Checks)**: All per-site / URL-pattern behavior must live in its dedicated strategy registry rather than ad-hoc `if (hostname === ...)` branches:
    - Platform metadata & labels: `SITE_CATALOG` (`chrome-extension/src/popup/helpers.js`)
    - Panel layout alignment: `CONTENT_ALIGNMENT_STRATEGIES` (`chrome-extension/src/panel/page-layout.js`)
@@ -35,3 +36,7 @@ For content capture changes, read the [extractor contributor guide](docs/content
    - Page readiness checks: `PAGE_READINESS_STRATEGIES` (`chrome-extension/src/content/content-script.js`)
    - On-page speed slider placement: `SPEED_OVERLAY_STRATEGIES` (`chrome-extension/src/content/video-speed-overlay.js`)
    - URL & video canonicalization: `shared/src/video-identity.ts` and `shared/src/content-url.ts` (never duplicate in `service-worker.js`)
+9. **KV-Cache Prompt Ordering**:
+   - Raw-content prompts (`contentAnalysis`, `verdictSummary`, `mindMapAnalysis`, `chromeKnowledge`, `eggAnalysis`, `followUp`) MUST keep the identical **Content-First** prefix through `{{content}}`, and `eggAnalysis` places source-shared Stage 1 context + static task/format before `## Target Egg`.
+   - Repeated non-raw-content prompts (`discussionAnalysis`, `eggRouting`, `aggregateEgg`) MUST keep **Static/Shared-First** ordering before per-batch/per-page/per-egg inputs.
+   - Verify with `npm run test:ext -- chrome-extension/tests/kv-prefix-and-enumerations.test.js`.

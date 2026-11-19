@@ -640,6 +640,8 @@
   }
 
   let anchorFrame = null;
+  let anchorResizeObserver = null;
+  let anchorListenersBound = false;
   let anchorKey = '';
   function positionAnchoredHost() {
     if (!hostEl || currentMode !== 'anchored' || !currentContainer) return;
@@ -656,19 +658,41 @@
     hostEl.style.top = `${top}px`;
     hostEl.style.visibility = visible ? 'visible' : 'hidden';
   }
-  function startAnchorTracking() {
-    if (anchorFrame != null) return;
-    anchorKey = '';
-    const tick = () => {
+  function scheduleAnchorPosition() {
+    if (currentMode !== 'anchored' || anchorFrame != null) return;
+    anchorFrame = requestAnimationFrame(() => {
+      anchorFrame = null;
       positionAnchoredHost();
-      anchorFrame = currentMode === 'anchored' ? requestAnimationFrame(tick) : null;
-    };
-    tick();
+    });
+  }
+  function startAnchorTracking() {
+    anchorKey = '';
+    positionAnchoredHost();
+    if (!anchorListenersBound) {
+      anchorListenersBound = true;
+      window.addEventListener('resize', scheduleAnchorPosition, { passive: true });
+      window.addEventListener('scroll', scheduleAnchorPosition, { passive: true, capture: true });
+    }
+    if (typeof ResizeObserver === 'function' && !anchorResizeObserver) {
+      anchorResizeObserver = new ResizeObserver(scheduleAnchorPosition);
+    }
+    if (anchorResizeObserver) {
+      anchorResizeObserver.disconnect();
+      if (currentContainer) anchorResizeObserver.observe(currentContainer);
+      if (hostEl) anchorResizeObserver.observe(hostEl);
+    }
+    scheduleAnchorPosition();
   }
   function stopAnchorTracking() {
     if (anchorFrame != null) cancelAnimationFrame(anchorFrame);
     anchorFrame = null;
     anchorKey = '';
+    anchorResizeObserver?.disconnect();
+    if (anchorListenersBound) {
+      anchorListenersBound = false;
+      window.removeEventListener('resize', scheduleAnchorPosition);
+      window.removeEventListener('scroll', scheduleAnchorPosition, { capture: true });
+    }
   }
 
   function unmountOverlay() {

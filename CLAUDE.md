@@ -5,6 +5,8 @@
 
 For content capture changes, read the [extractor contributor guide](docs/content-extractor-contributing.md) for the runtime contract, registration, and targeted fixtures.
 
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
 ---
 
 ## ⚡ Fast Reference: Where Does Code Live? (Token-Saving File Map)
@@ -12,11 +14,21 @@ For content capture changes, read the [extractor contributor guide](docs/content
 Do **NOT** read entire large files or recursively grep across the repo. Navigate directly to the responsible module:
 
 | Task / Feature | Exact File Path | Notes |
-|:---|:---|:---|
+|:8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
+---|:8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
+---|:8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
+---|
 | **AI Analysis & Prompts** | `shared/src/ai-processor.ts`, `shared/workflow/*.md` | Single source of truth for prompts, chunking, and evaluation |
-| **AI Providers & Models** | `shared/src/catalog.ts`, `shared/src/client.ts` | `PROVIDER_CATALOG`, OpenAI, Gemini, Claude, DeepSeek, Ollama |
+| **AI Providers & Settings Schema** | `shared/src/catalog.ts`, `shared/src/client.ts`, `shared/src/settings-schema.ts` | `PROVIDER_CATALOG`, AI config assistant schema & validation |
 | **Shared Types** | `shared/src/types.ts` | `QuestionScope`, `CapturePayload`, `AnalysisResult`, `KeyAnswer` |
 | **Rebuilding Shared AI for Chrome** | `chrome-extension/build.js` | Bundles `shared/` into `chrome-extension/dist/ai-core.js` |
+| **Side Panel & Page Layout** | `chrome-extension/src/panel/` | `page-layout.js`, `content-host.js`, `rules.js`, `background.js`, `options.js` |
+| **On-Page Speed Slider** | `chrome-extension/src/content/video-speed-overlay.js` | Shadow DOM speed slider (`SPEED_OVERLAY_STRATEGIES`) |
+| **Options Page** | `chrome-extension/src/options/` | `options.html`, `options.js`, `options.css` |
+| **Lint & Release Sync** | `scripts/lint.js`, `scripts/sync-release-fixes.sh` | Single verification gate (`npm run lint`) & hotfix backport (`npm run sync:fixes`) |
 | **Popup State Management** | `chrome-extension/src/popup/state/` | `session-state.js`, `tab-state.js`, `settings-state.js` |
 | **Popup Action Controllers** | `chrome-extension/src/popup/action/` | `analyze.js`, `tab.js`, `save.js`, `history.js`, `interaction.js` |
 | **Popup Background Services** | `chrome-extension/src/popup/services/` | `analysis-service.js`, `env-service.js`, `page-extractor.js` |
@@ -29,6 +41,8 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
 | **Obsidian SQLite & Search** | `obsidian-plugin/src/db.ts` | `node:sqlite` DB, BM25 keyword search, schema definitions |
 | **Obsidian Vault & Egg Parser** | `obsidian-plugin/src/knowledge-base.ts`, `egg-parser.ts` | Egg instructions, `# Knowledge` tree, `# Unprocessed` queue |
 | **Obsidian Workflows & Sync** | `obsidian-plugin/src/workflow-manager.ts`, `index-sync.ts` | Auto-seeds `nutegg/_workflow/`, keeps `_index.md` consistent |
+
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
 
 ---
 
@@ -60,6 +74,8 @@ Do **NOT** read entire large files or recursively grep across the repo. Navigate
    - Database: Persistence uses `node:sqlite` (`DatabaseSync`). Schema lives strictly in `db.ts`. Node SQLite has **no FTS5**; keyword retrieval uses JS BM25.
    - No dynamic `import()` of node builtins or `obsidian` in renderer context; use CommonJS `require` for node builtins.
 
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
 ---
 
 ## 🛠️ Build & Development Commands
@@ -89,6 +105,8 @@ npm run dev:plugin                  # Watch mode for obsidian plugin
 # Re-run `node build.js` inside `chrome-extension/` whenever editing `shared/`.
 ```
 
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
 ---
 
 ## 🧪 Targeted Testing (Save Tokens: Don't Run Whole Test Suites Blindly)
@@ -97,15 +115,16 @@ When testing a specific change, run ONLY the target test file to avoid massive o
 
 ```bash
 # Workspace root (all packages)
+npm run lint                        # Rebuild ai-core.js + TS/JS/HTML/JSON/schema/site-strategy checks
 npm test                            # Runs test suites across all workspaces
+npm run test:ext -- chrome-extension/tests/<file>.test.js  # Fast targeted Chrome extension test (sets NODE_PATH)
 
 # Chrome Extension (Fast & Targeted)
-cd chrome-extension
-node --test "tests/actions.test.js"        # Action handlers (TabAction, AnalyzeAction, etc.)
-node --test "tests/tab-state.test.js"      # TabStateManager & tab isolation
-node --test "tests/ui-components.test.js"  # Modular UI components
-node --test "tests/ai.test.js"             # Extension AI core & scopes
-node --test "tests/*.test.js"              # All chrome-extension tests
+npm run test:ext -- chrome-extension/tests/actions.test.js        # Action handlers (TabAction, AnalyzeAction, etc.)
+npm run test:ext -- chrome-extension/tests/tab-state.test.js      # TabStateManager & tab isolation
+npm run test:ext -- chrome-extension/tests/ui-components.test.js  # Modular UI components
+npm run test:ext -- chrome-extension/tests/ai.test.js             # Extension AI core & scopes
+npm run test:ext -- chrome-extension/tests/*.test.js              # All chrome-extension tests
 
 # Obsidian Plugin (Fast & Targeted)
 cd obsidian-plugin
@@ -115,6 +134,8 @@ node --test "tests-dist/ai-processor.test.js"  # AI pipeline & prompts
 node --test "tests-dist/workflow.test.js"      # Workflow templates & hashes
 node --test "tests-dist/*.test.js"             # All obsidian-plugin tests
 ```
+
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
 
 ---
 
@@ -148,7 +169,11 @@ Captured Content
 ### Local HTTP Server Endpoints (`127.0.0.1:27123`)
 
 | Method & Path | Purpose |
-|:---|:---|
+|:8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
+---|:8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
+
+---|
 | `GET /health` | Port discovery & heartbeat check |
 | `GET /config-status` | Readiness check: AI API keys configured, index file present |
 | `GET /credit` | Balance / credit status for AI providers |
@@ -159,6 +184,8 @@ Captured Content
 | `POST /create-egg` | Creates `nutegg/<name>.md` from template and appends to `_index.md` |
 | `GET /history?url=` | Versioned capture history for a URL, newest first |
 | `GET /search?q=` | BM25 keyword search over saved nuts in SQLite |
+
+8. **Site-Strategy Pattern & KV-Cache Prefix**: See [AGENTS.md](AGENTS.md) Invariants #8 and #9 for the 8 site-strategy registries (enforced by `npm run lint`) and prompt prefix ordering rules.
 
 ---
 

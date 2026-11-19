@@ -198,5 +198,9 @@ test('discussionAnalysis and eggRouting place static/reusable prefix before per-
 
   const routing = NutEggAI.PROMPTS.eggRouting;
   assert.ok(routing.indexOf('{{index}}') < routing.indexOf('{{content}}'), 'eggRouting index should precede per-page content');
+
+  const aggEgg = NutEggAI.PROMPTS.aggregateEgg;
+  assert.ok(aggEgg.indexOf('{{stage1_signals}}') < aggEgg.indexOf('{{egg_file}}'), 'aggregateEgg Stage 1 context should precede per-egg target');
+  assert.ok(aggEgg.indexOf('{{shared_output_rules}}') < aggEgg.indexOf('{{chunk_findings}}'), 'aggregateEgg shared rules should precede per-egg findings');
 });
 

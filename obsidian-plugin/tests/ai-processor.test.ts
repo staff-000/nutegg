@@ -809,7 +809,7 @@ describe("AIProcessor Output Language Rules", () => {
     } as any);
     const p = new AIProcessor(plugin as any) as any;
     p.callAI = async (prompt: string) => {
-      if (prompt.includes("Analyze this source according to the instructions")) {
+      if (prompt.includes("## Target Egg:")) {
         return JSON.stringify({
           language: "Chinese",
           keyQuestionAnswers: [],

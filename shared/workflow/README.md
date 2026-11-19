@@ -14,9 +14,14 @@ Captured content
   → Merge at 20 pending entries or on demand: dedupe and organize # Knowledge
 ```
 
-Changing selected eggs reuses the existing Stage 1 result. Stage 2 runs only for selected eggs without a captured result; previously analyzed eggs are displayed from the capture cache. Deselecting an egg hides its result while retaining it for reselection. Only currently selected eggs contribute to the reading recommendation and Hatch entries. Running a fresh Stage 1 analysis clears this cache.
+Changing selected eggs reuses the existing Stage 1 result. Stage 2 runs only for selected eggs without a captured result; previously analyzed eggs are displayed from the capture cache. Deselecting an egg hides its result while retaining it for reselection. Only currently selected eggs contribute to the reading recommendation and Hatch entries. Running a fresh Stage 1 analysis clears this cache. Follow-up Q&A (`follow-up.md`) operates strictly on the source content (excluding discussion comments) so it shares the Stage 1/2 KV-cache prefix.
 
 Stage 2 reads the source and egg instructions, never the Knowledge tree or Unprocessed queue. Reading recommendations assess usefulness for your preferences rather than novelty against your notes. Hatch is independent of the recommendation: useful answers can be saved even when the original is skippable. There is no automatic Hatch.
+
+## Prompt KV-Cache Ordering
+
+- **Raw-content prompts** (`content-analysis.md`, `verdict-summary.md`, `mindmap-analysis.md`, `chrome-knowledge.md`, `egg-analysis.md`, `follow-up.md`) keep an identical **Content-First** prefix through `{{content}}` so Stage 1, Stage 2, and Follow-up Q&A reuse the same prefilled content cache. In `egg-analysis.md`, source-shared Stage 1 context and static task/schema rules also precede `## Target Egg` so multiple eggs on the same source share that entire prefix.
+- **Repeated non-raw-content prompts** (`discussion-analysis.md`, `egg-routing.md`, `aggregate-egg.md`) place static/shared instructions, rules, or vault index **first**, before per-batch, per-page, or per-egg inputs.
 
 ## Knowledge-entry generation
 

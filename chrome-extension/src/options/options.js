@@ -680,6 +680,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function renderConnectionMode(mode) {
   const usesObsidian = mode === 'obsidian';
   renderedConnectionMode = usesObsidian ? 'obsidian' : 'chrome';
+  const obsidianSettings = document.getElementById('obsidian-settings');
+  if (obsidianSettings) obsidianSettings.open = usesObsidian;
   obsidianModeEnabled.checked = usesObsidian;
   obsidianModeEnabled.setAttribute('aria-expanded', String(usesObsidian));
   obsidianConfig.classList.toggle('hidden', !usesObsidian);

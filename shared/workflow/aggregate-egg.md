@@ -1,17 +1,7 @@
-Consolidate answers and a whole-source reading recommendation for egg "{{egg_file}}". You have compact per-part drafts, not the original source. Do not extract or assemble entries here.
+Consolidate answers and a whole-source reading recommendation for the target egg below. You have compact per-part drafts, not the original source. Do not extract or assemble entries here.
 
-## Scope
-{{scope}}
-## Exact Key Questions
-{{key_questions}}
-## Worth Reading If
-{{worth_reading_if}}
-## Skip If
-{{skip_if}}
 ## Stage 1 Context (not an endorsement)
 {{stage1_signals}}
-## Ordered Per-Part Drafts and Coverage
-{{chunk_findings}}
 
 ## Task
 1. Give one concise supported answer per Key Question. Combine complementary drafts, retain disagreements and their references. A part's "not addressed" cannot override a supported answer elsewhere. Missing/failed parts are incomplete coverage, not negative evidence.
@@ -30,3 +20,15 @@ JSON only:
 {{shared_output_rules}}
 
 Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
+
+## Target Egg: "{{egg_file}}"
+### Scope
+{{scope}}
+### Exact Key Questions
+{{key_questions}}
+### Worth Reading If
+{{worth_reading_if}}
+### Skip If
+{{skip_if}}
+### Ordered Per-Part Drafts and Coverage
+{{chunk_findings}}

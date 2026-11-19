@@ -20,6 +20,7 @@
     "test:plugin": "npm run test --workspace=@nutegg/obsidian-plugin",
     "build:extension": "npm run build --workspace=@nutegg/chrome-extension",
     "test:extension": "npm run test --workspace=@nutegg/chrome-extension",
+    "test:ext": "NODE_PATH=obsidian-plugin/node_modules node --test",
     "build:website": "npm run build --workspace=@nutegg/website",
     "dev:website": "./preview-website.sh",
     "preview:website": "./preview-website.sh",
