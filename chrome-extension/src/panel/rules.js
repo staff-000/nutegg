@@ -288,12 +288,27 @@
       return !websiteHostname(rule);
     });
   }
+  const SITE_CONTENT_URL_RULES = [
+    { domains: ['youtube.com'], isContent: path => path === '/watch' || path.startsWith('/live/') },
+    { domains: ['x.com', 'twitter.com'], isContent: path => /\/(?:status|article)\//.test(path) },
+    { domains: ['reddit.com'], isContent: path => /\/comments\//.test(path) },
+    { domains: ['bilibili.com'], isContent: path => /^\/(?:video|read|bangumi\/play|list)\//.test(path) },
+    { domains: ['threads.com', 'threads.net'], isContent: path => /^\/@[^/]+\/post\/[\w-]+(?:\/|$)/.test(path) },
+    { domains: ['instagram.com'], isContent: path => /^\/(?:p|reel|reels|tv)\/[\w-]+(?:\/|$)/.test(path) },
+    { domains: ['tiktok.com'], isContent: path => /^\/@[^/]+\/(?:video|photo)\/\d+(?:\/|$)/.test(path) },
+    {
+      domains: ['douyin.com'],
+      isContent: (path, url) =>
+        /^\/(?:video|note)\/\d+(?:\/|$)/.test(path) || /^\d+$/.test(url.searchParams.get('modal_id') || ''),
+    },
+    { domains: ['mp.weixin.qq.com'], isContent: path => /^\/s(?:\/|$)/.test(path) },
+    { domains: ['news.ycombinator.com'], isContent: path => path === '/item' },
+  ];
+
   function isListingUrl(rawUrl) {
     try {
       const url = new URL(rawUrl);
       const rawHost = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
-      const host = ['youtube.com', 'reddit.com', 'x.com', 'twitter.com', 'bilibili.com', 'threads.com', 'threads.net', 'instagram.com', 'tiktok.com', 'douyin.com']
-        .find(domain => rawHost === domain || rawHost.endsWith('.' + domain)) || rawHost;
       const path = url.pathname.replace(/\/+$/, '') || '/';
       const hasItemQuery = /[?&](?:v|id|p|post|article|story|doc|status|item|modal_id)=/i.test(url.search);
       if (path === '/' && !hasItemQuery) return true;
@@ -303,26 +318,10 @@
         )
       )
         return true;
-      if ((host === 'youtube.com' || host.endsWith('.youtube.com')) && path !== '/watch' && !path.startsWith('/live/'))
-        return true;
-      if (
-        (host === 'x.com' || host.endsWith('.x.com') || host === 'twitter.com' || host.endsWith('.twitter.com')) &&
-        !/\/(?:status|article)\//.test(path)
-      )
-        return true;
-      if ((host === 'reddit.com' || host.endsWith('.reddit.com')) && !/\/comments\//.test(path)) return true;
-      if (
-        (host === 'bilibili.com' || host.endsWith('.bilibili.com')) &&
-        !/^\/(?:video|read|bangumi\/play|list)\//.test(path)
-      )
-        return true;
-      if (['threads.com', 'threads.net'].includes(host) && !/^\/@[^/]+\/post\/[\w-]+(?:\/|$)/.test(path)) return true;
-      if (host === 'instagram.com' && !/^\/(?:p|reel|reels|tv)\/[\w-]+(?:\/|$)/.test(path)) return true;
-      if (host === 'tiktok.com' && !/^\/@[^/]+\/(?:video|photo)\/\d+(?:\/|$)/.test(path)) return true;
-      if (host === 'douyin.com' && !/^\/(?:video|note)\/\d+(?:\/|$)/.test(path) && !/^\d+$/.test(url.searchParams.get('modal_id') || '')) return true;
-      if (host === 'mp.weixin.qq.com' && !/^\/s(?:\/|$)/.test(path)) return true;
-      if (host === 'news.ycombinator.com' && path !== '/item') return true;
-      return false;
+      const rule = SITE_CONTENT_URL_RULES.find(entry =>
+        entry.domains.some(domain => rawHost === domain || rawHost.endsWith('.' + domain))
+      );
+      return rule ? !rule.isContent(path, url) : false;
     } catch {
       return false;
     }

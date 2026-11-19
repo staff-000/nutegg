@@ -20,16 +20,54 @@
   globalThis.NutEggI18n.initI18n();
   const message = (action, extra = {}) =>
     chrome.runtime.sendMessage({ action, url: location.href, ...extra }).catch(() => null);
+  const SITE_SIGNAL_STRATEGIES = [
+    {
+      id: 'youtube',
+      match: hostname => hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be',
+      isVideo: true,
+      transcriptSelector: 'ytd-transcript-renderer #segments-container, [data-transcript], .transcript-content',
+      durationSelector: '.ytp-time-duration',
+      authorSelector: 'ytd-video-owner-renderer #channel-name a, #owner #channel-name a',
+    },
+    {
+      id: 'bilibili',
+      match: hostname => hostname === 'bilibili.com' || hostname.endsWith('.bilibili.com'),
+      isVideo: true,
+      transcriptSelector: '[data-transcript], .transcript-content',
+      durationSelector: '.bpx-player-ctrl-time-duration',
+      authorSelector: '.up-detail-top .up-name, .up-name, #v_upinfo .u-info .name',
+    },
+    {
+      id: 'short-video',
+      match: hostname =>
+        hostname === 'douyin.com' || hostname.endsWith('.douyin.com') || hostname === 'tiktok.com' || hostname.endsWith('.tiktok.com'),
+      isVideo: true,
+      transcriptSelector: '[data-transcript], .transcript-content',
+      durationSelector: '',
+      authorSelector: '',
+    },
+    {
+      id: 'default',
+      match: () => true,
+      isVideo: false,
+      transcriptSelector: '[data-transcript], .transcript-content',
+      durationSelector: '',
+      authorSelector: '[itemprop="author"] [itemprop="name"], [rel="author"]',
+    },
+  ];
+  function resolveSiteSignalStrategy(hostname) {
+    const h = String(hostname || '').toLowerCase();
+    return SITE_SIGNAL_STRATEGIES.find(s => s.match(h)) || SITE_SIGNAL_STRATEGIES[SITE_SIGNAL_STRATEGIES.length - 1];
+  }
   function passiveSignals() {
     const meta = selector => document.querySelector(selector)?.getAttribute('content') || '';
     const url = new URL(location.href);
+    const siteStrategy = resolveSiteSignalStrategy(url.hostname);
     const social = typeof NutEggSocial !== 'undefined' ? NutEggSocial.inspect() : null;
     const article =
       !!document.querySelector('article,[role="article"],[itemprop="articleBody"],[class*="ArticleBody"],[data-module="ArticleBody"]') ||
       meta('meta[property="og:type"]') === 'article';
-    const video =
-      (!article && !!document.querySelector('video')) ||
-      /(?:^|\.)(?:youtube\.com|youtu\.be|bilibili\.com|douyin\.com|tiktok\.com)$/.test(url.hostname);
+    const video = (!article && !!document.querySelector('video')) || siteStrategy.isVideo;
     let body = '',
       ready = false,
       container = null;
@@ -38,9 +76,7 @@
       body = social.description || '';
       ready = social.mediaKind !== 'unknown' && !!body;
     } else if (video) {
-      const transcript = document.querySelector(
-        'ytd-transcript-renderer #segments-container, [data-transcript], .transcript-content'
-      );
+      const transcript = siteStrategy.transcriptSelector ? document.querySelector(siteStrategy.transcriptSelector) : null;
       if (transcript) {
         const result = captureTextResult(transcript, null, 60000);
         body = result.text;
@@ -54,10 +90,8 @@
           const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i);
           if (m) sec = (Number(m[1] || 0) * 3600) + (Number(m[2] || 0) * 60) + Number(m[3] || 0);
         }
-        if (!sec) {
-          const domDur = document
-            .querySelector('.ytp-time-duration, .bpx-player-ctrl-time-duration')
-            ?.textContent?.trim();
+        if (!sec && siteStrategy.durationSelector) {
+          const domDur = document.querySelector(siteStrategy.durationSelector)?.textContent?.trim();
           const parts = domDur ? domDur.split(':').map(Number) : [];
           if (parts.length >= 2 && parts.every(Number.isFinite)) {
             sec = parts.reduce((acc, n) => acc * 60 + n, 0);
@@ -84,14 +118,13 @@
       !!document.querySelector('[role=feed]') ||
       Boolean(globalThis.NutEggRules?.isListingUrl?.(location.href)) ||
       (!article && !video && links.length > 8 && linkText / Math.max(1, body.length) > 0.45);
+    const authorSelector = [siteStrategy.authorSelector, '[itemprop="author"] [itemprop="name"], [rel="author"]']
+      .filter(Boolean)
+      .join(', ');
     const author =
       meta('meta[name="author"]') ||
       meta('meta[property="article:author"]') ||
-      document
-        .querySelector(
-          '[itemprop="author"] [itemprop="name"], [rel="author"], ytd-video-owner-renderer #channel-name a, #owner #channel-name a, .up-detail-top .up-name, .up-name, #v_upinfo .u-info .name'
-        )
-        ?.textContent?.trim() ||
+      (authorSelector ? document.querySelector(authorSelector)?.textContent?.trim() : '') ||
       '';
     const contentAvailable = ready && (body.trim().length > 0 || videoMinutes != null) && !listing;
     return {

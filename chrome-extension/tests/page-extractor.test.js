@@ -188,7 +188,7 @@ describe("PageExtractor", () => {
         tabs: {
           sendMessage: async (tabId, msg) => {
             if (msg.action === 'nutegg-handshake') return { success: true, version: 1,
-              documentId: 'doc', generation: 0, capabilities: ['seek', 'position'] };
+              documentId: 'doc', generation: 0, capabilities: ['seek', 'position', 'playback-rate'] };
             sentMessage = msg;
             return { success: true, type: "video", currentTime: 125, duration: 600 };
           },

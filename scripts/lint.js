@@ -265,6 +265,62 @@ try {
   logError(`AI Settings schema sync check failed: ${schemaErr.message}`);
 }
 
+// Check 8: Enforce site-strategy registry pattern and guard against scattered multi-site branches
+try {
+  const requiredRegistries = [
+    ['chrome-extension/src/popup/helpers.js', 'SITE_CATALOG'],
+    ['chrome-extension/src/panel/page-layout.js', 'CONTENT_ALIGNMENT_STRATEGIES'],
+    ['chrome-extension/src/panel/rules.js', 'SITE_CONTENT_URL_RULES'],
+    ['chrome-extension/src/panel/content-host.js', 'SITE_SIGNAL_STRATEGIES'],
+    ['chrome-extension/src/content/content-script.js', 'VIDEO_PLAYER_STRATEGIES'],
+    ['chrome-extension/src/content/content-script.js', 'PAGE_READINESS_STRATEGIES'],
+    ['chrome-extension/src/content/video-speed-overlay.js', 'SPEED_OVERLAY_STRATEGIES'],
+  ];
+  let registryErrors = 0;
+  for (const [relFile, symbol] of requiredRegistries) {
+    const content = fs.readFileSync(path.join(ROOT_DIR, relFile), 'utf8');
+    if (!content.includes(symbol)) {
+      logError(`Missing site-strategy registry ${symbol} in ${relFile}`);
+      registryErrors++;
+    }
+  }
+
+  const allowedSiteFiles = new Set([
+    'chrome-extension/src/popup/helpers.js',
+    'chrome-extension/src/panel/page-layout.js',
+    'chrome-extension/src/panel/rules.js',
+    'chrome-extension/src/panel/content-host.js',
+    'chrome-extension/src/panel/options.js',
+    'chrome-extension/src/content/content-script.js',
+    'chrome-extension/src/content/video-speed-overlay.js',
+    'chrome-extension/src/background/service-worker.js',
+    'chrome-extension/src/background/chinese-fetch.js',
+    'chrome-extension/src/popup/ui/capture-view.js',
+    'chrome-extension/src/options/options.js',
+    'chrome-extension/src/i18n.js',
+  ]);
+  const platformDomains = ['youtube.com', 'bilibili.com', 'weibo.com', 'zhihu.com', 'x.com', 'twitter.com', 'douyin.com'];
+  const srcJsFiles = getFilesByExt(path.join(ROOT_DIR, 'chrome-extension', 'src'), ['.js']);
+  for (const file of srcJsFiles) {
+    const rel = path.relative(ROOT_DIR, file).replace(/\\/g, '/');
+    if (!rel.startsWith('chrome-extension/src/') || rel.includes('/extractors/') || allowedSiteFiles.has(rel)) continue;
+    const content = fs.readFileSync(file, 'utf8');
+    const matchedDomains = platformDomains.filter(d => content.includes(d));
+    if (matchedDomains.length >= 3) {
+      logError(
+        `${rel} hardcodes ${matchedDomains.length} site domains (${matchedDomains.join(', ')}); add a strategy to an existing site registry instead`
+      );
+      registryErrors++;
+    }
+  }
+
+  if (registryErrors === 0) {
+    logSuccess('Site-strategy registries are intact with no scattered multi-site branches');
+  }
+} catch (err) {
+  logError(`Site-strategy guardrail check failed: ${err.message}`);
+}
+
 // Summary
 console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 if (hasErrors) {

@@ -26,3 +26,12 @@ For content capture changes, read the [extractor contributor guide](docs/content
 5. **i18n**: Use `t(key, params)` from `src/i18n.js` / `src/helpers.js`. Never translate "NutEgg".
 6. **Targeted Tests**: Run only the specific test file with `node --test tests/<file>.test.js`.
 7. **Release Branching**: Minor releases (e.g. `0.4.0`) must be cut onto a new branch `release/X.Y` (e.g. `release/0.4`) from `main`. Subsequent patch releases (e.g. `0.4.1`) are updated and released directly on that `release/X.Y` branch. See [release procedure](docs/releasing.md). Published tags are immutable; synchronize applicable fix commits into `main` explicitly.
+8. **Site-Strategy Pattern (No Scattered `if/else` Site Checks)**: All per-site / URL-pattern behavior must live in its dedicated strategy registry rather than ad-hoc `if (hostname === ...)` branches:
+   - Platform metadata & labels: `SITE_CATALOG` (`chrome-extension/src/popup/helpers.js`)
+   - Panel layout alignment: `CONTENT_ALIGNMENT_STRATEGIES` (`chrome-extension/src/panel/page-layout.js`)
+   - Listing vs. content URL rules: `SITE_CONTENT_URL_RULES` (`chrome-extension/src/panel/rules.js`)
+   - Passive page signals: `SITE_SIGNAL_STRATEGIES` (`chrome-extension/src/panel/content-host.js`)
+   - Active video player lookup: `VIDEO_PLAYER_STRATEGIES` (`chrome-extension/src/content/content-script.js`)
+   - Page readiness checks: `PAGE_READINESS_STRATEGIES` (`chrome-extension/src/content/content-script.js`)
+   - On-page speed slider placement: `SPEED_OVERLAY_STRATEGIES` (`chrome-extension/src/content/video-speed-overlay.js`)
+   - URL & video canonicalization: `shared/src/video-identity.ts` and `shared/src/content-url.ts` (never duplicate in `service-worker.js`)

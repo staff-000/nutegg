@@ -1,5 +1,7 @@
-if (typeof module !== 'undefined' && module.exports && typeof require === 'function')
+if (typeof module !== 'undefined' && module.exports && typeof require === 'function') {
   globalThis.NutEggPageIdentity ||= require('../../../dist/page-identity.js');
+  globalThis.NutEggHelpers ||= require('../helpers.js').NutEggHelpers;
+}
 // ============================================================
 // NutEgg Popup Services — Page Extractor & Tab Driver
 // ============================================================
@@ -116,12 +118,9 @@ class PageExtractor {
     let extractionTimeout = 8000;
     try {
       const tab = await chrome.tabs.get(tabId);
-      const host = new URL(tab.url).hostname;
       // Video extraction can require several API/subtitle requests.
       // Keep the ordinary-page failure budget at 8s rather than slowing all sites.
-      if (
-        ['youtube.com', 'bilibili.com', 'douyin.com'].some(domain => host === domain || host.endsWith(`.${domain}`))
-      ) {
+      if (globalThis.NutEggHelpers?.matchSiteFromUrl?.(tab.url)?.isVideo) {
         extractionTimeout = 20000;
       }
     } catch {}
@@ -389,20 +388,8 @@ class PageExtractor {
    */
   detectPageTypeFromUrl(url = '') {
     if (!url) return '🌐 Webpage';
-    if (['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(url, domain))) return '🐦 Twitter/X';
-    if (NutEggPageIdentity.hostMatches(url, 'youtube.com')) return '📺 YouTube';
-    try {
-      const host = new URL(url).hostname;
-      for (const [domain, label] of [
-        ['bilibili.com', '📺 Bilibili'],
-        ['douyin.com', '📺 Douyin'],
-        ['weibo.com', '📝 Weibo'],
-        ['weibo.cn', '📝 Weibo'],
-        ['zhihu.com', '📝 Zhihu'],
-      ]) {
-        if (host === domain || host.endsWith(`.${domain}`)) return label;
-      }
-    } catch {}
+    const matched = globalThis.NutEggHelpers?.matchSiteFromUrl?.(url);
+    if (matched?.label) return matched.label;
     return '🌐 Webpage';
   }
 

@@ -344,6 +344,16 @@ describe('Video Speed Adjuster', () => {
     assert.equal(xTarget?.container.getAttribute('data-testid'), 'videoPlayer');
   });
 
+  it('preserves selector priority when fallback containers occur earlier in the DOM', () => {
+    const bili = new JSDOM('<div id="bilibili-player"><div class="bpx-player-video-area"><video src="main.mp4"></video></div></div><div class="video-info-detail"><div class="video-info-detail-content"></div></div>');
+    assert.equal(findMountTarget(bili.window.document, 'www.bilibili.com').container.className, 'video-info-detail-content');
+    Object.defineProperty(bili.window.document, 'fullscreenElement', { value: bili.window.document.querySelector('#bilibili-player') });
+    assert.equal(findMountTarget(bili.window.document, 'www.bilibili.com').container.className, 'bpx-player-video-area');
+    const youtube = new JSDOM('<ytd-watch-metadata><div id="title">Fallback</div></ytd-watch-metadata><div id="above-the-fold"><div id="title">Preferred</div></div><div id="movie_player"><video src="main.mp4"></video></div>');
+    assert.equal(findMountTarget(youtube.window.document, 'www.youtube.com').container.textContent, 'Preferred');
+    bili.window.close(); youtube.window.close();
+  });
+
   it('hides panel speed slider when there is no playable video or when shown on the main page', () => {
     const noPlayerView = {
       url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',

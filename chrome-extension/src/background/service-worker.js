@@ -1116,47 +1116,29 @@ function extractVideoIdentity(rawUrl, metadata = null) {
       if (vid) return vid;
     } catch {}
   }
-  if (!rawUrl || typeof rawUrl !== 'string') return null;
-  try {
-    const u = new URL(rawUrl);
-    const host = u.hostname.toLowerCase();
-    const segments = u.pathname.split('/').filter(Boolean);
-
-    // YouTube
-    const youtubeHosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
-    let ytId = null;
-    if (youtubeHosts.includes(host)) {
-      if (segments[0] === 'watch') ytId = u.searchParams.get('v');
-      else if (['shorts', 'live', 'embed', 'v'].includes(segments[0])) ytId = segments[1];
-    } else if (host === 'youtu.be' || host === 'www.youtu.be') {
-      ytId = segments[0];
-    } else if (['youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host) && segments[0] === 'embed') {
-      ytId = segments[1];
+  if (rawUrl && typeof rawUrl === 'string') {
+    const key = NutEggPageIdentity?.playbackPageKey?.(rawUrl);
+    if (key) {
+      const ytMatch = key.match(/^https:\/\/www\.youtube\.com\/watch\?v=([A-Za-z0-9_-]{11})$/);
+      if (ytMatch) return { platform: 'youtube', id: ytMatch[1], canonicalUrl: key };
+      const biliMatch = key.match(/^https:\/\/www\.bilibili\.com\/video\/(BV[A-Za-z0-9]{10})(?:\?p=\d+)?$/);
+      if (biliMatch) return { platform: 'bilibili', id: biliMatch[1], canonicalUrl: key };
     }
-    if (ytId && /^[A-Za-z0-9_-]{11}$/.test(ytId)) {
-      return { platform: 'youtube', id: ytId, canonicalUrl: `https://www.youtube.com/watch?v=${ytId}` };
-    }
-
-    // Bilibili
-    const bilibiliHosts = ['bilibili.com', 'www.bilibili.com', 'm.bilibili.com', 'player.bilibili.com'];
-    if (bilibiliHosts.some(h => host === h || host.endsWith('.' + h))) {
-      let bvid = segments[0] === 'video' ? segments[1] : u.searchParams.get('bvid');
-      if (!bvid && u.searchParams.get('aid')) bvid = `av${u.searchParams.get('aid')}`;
-      if (!bvid && segments[0] === 'video' && /^av\d+$/i.test(segments[1])) bvid = segments[1];
-      if (bvid) {
-        const cleanBvid = bvid.split('?')[0].split('/')[0];
-        const part = Number(
-          u.searchParams.get('p') || (host === 'player.bilibili.com' ? u.searchParams.get('page') : null) || 1
-        );
-        const partSuffix = Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : '';
-        return {
-          platform: 'bilibili',
-          id: cleanBvid,
-          canonicalUrl: `https://www.bilibili.com/video/${cleanBvid}${partSuffix}`,
-        };
+    // Legacy Bilibili av-ID fallback
+    try {
+      const u = new URL(rawUrl);
+      const host = u.hostname.toLowerCase();
+      if (['bilibili.com', 'www.bilibili.com', 'm.bilibili.com', 'player.bilibili.com'].some(h => host === h || host.endsWith('.' + h))) {
+        const seg1 = u.pathname.split('/').filter(Boolean)[1];
+        const aid = u.searchParams.get('aid') ? `av${u.searchParams.get('aid')}` : /^av\d+$/i.test(seg1 || '') ? seg1 : null;
+        if (aid) {
+          const part = Number(u.searchParams.get('p') || (host === 'player.bilibili.com' ? u.searchParams.get('page') : null) || 1);
+          const partSuffix = Number.isSafeInteger(part) && part > 1 ? `?p=${part}` : '';
+          return { platform: 'bilibili', id: aid, canonicalUrl: `https://www.bilibili.com/video/${aid}${partSuffix}` };
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   if (metadata?.video_id && (metadata.platform === 'youtube' || metadata.platform === 'bilibili')) {
     const id = metadata.video_id;
@@ -1182,47 +1164,12 @@ function normalizeCacheUrl(rawUrl, metadata = null) {
       return NutEggAI.normalizeContentUrl(rawUrl);
     } catch {}
   }
-
-  try {
-    const u = new URL(rawUrl);
-    if (!NutEggPageIdentity.isApplicationHash(u.hash)) u.hash = '';
-    const twitterHosts = ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com'];
-    if (twitterHosts.includes(u.hostname.toLowerCase())) {
-      u.hostname = 'x.com';
-      if (/\/status\/\d+/.test(u.pathname)) {
-        u.search = '';
-        return u.toString().replace(/\/$/, '');
-      }
-    }
-    const trackingParams = [
-      'utm_source',
-      'utm_medium',
-      'utm_campaign',
-      'utm_content',
-      'utm_term',
-      'ref',
-      'source',
-      'fbclid',
-      'gclid',
-      'si',
-      'pp',
-      'feature',
-      'spm',
-      'vd_source',
-      'spm_id_from',
-    ];
-    for (const param of trackingParams) {
-      u.searchParams.delete(param);
-    }
-    u.searchParams.sort();
-    let pathname = u.pathname;
-    if (pathname.length > 1 && pathname.endsWith('/')) {
-      u.pathname = pathname.slice(0, -1);
-    }
-    return u.toString().replace(/\/$/, '');
-  } catch {
-    return rawUrl.split('#')[0].replace(/\/+$/, '');
+  if (typeof NutEggPageIdentity !== 'undefined' && typeof NutEggPageIdentity.capturePageKey === 'function') {
+    try {
+      return NutEggPageIdentity.capturePageKey(rawUrl);
+    } catch {}
   }
+  return rawUrl.split('#')[0].replace(/\/+$/, '');
 }
 
 function matchesCacheEntry(entry, targetUrl) {

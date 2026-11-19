@@ -34,6 +34,19 @@ test('repeated injection preserves active capture and one listener', async t => 
   assert.equal((await f.send({ action: 'nutegg-handshake' })).documentId, first.documentId);
   f.win.__nuteggCaptureState.active = null;
 });
+test('classic-script reinjection can redeclare strategy registries without losing the listener', async t => {
+  const vm = require('node:vm');
+  const { code } = require('./helpers/extractor-harness');
+  const f = setup(t); player(f.win.document.querySelector('video'));
+  await flush();
+  const script = new vm.Script(code('src/content/content-script.js'));
+  const context = f.dom.getInternalVMContext();
+  script.runInContext(context);
+  script.runInContext(context);
+  assert.equal(f.listeners.length, 1);
+  assert.equal((await f.extractor.setPlaybackRate(42, 2)).playbackRate, 2);
+  assert.equal((await f.send({ action: 'page-identity' })).success, true);
+});
 test('missing video on video page never becomes article scroll position', async t => {
   const f = setup(t, '<main>Page</main>');
   await assert.rejects(f.extractor.getPagePosition(42), { code: 'player_unavailable' });

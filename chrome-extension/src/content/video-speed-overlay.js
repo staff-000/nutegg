@@ -39,46 +39,84 @@
     );
   }
 
-  function findMountTarget(doc = document, hostname = globalScope.location?.hostname || '', allSitesEnabled = false) {
-    if (!doc) return null;
-    const isFullscreen = Boolean(doc.fullscreenElement);
-
-    if (isBilibiliHost(hostname)) {
-      const playerBox = doc.querySelector('.bpx-player-video-area') || doc.querySelector('#bilibili-player');
-      const video = findActiveVideo(playerBox || doc);
-      if (!video) return null;
-      if (!isFullscreen) {
-        const infoRow = doc.querySelector('.video-info-detail-content') || doc.querySelector('.video-info-detail');
-        if (infoRow) return { container: infoRow, mode: 'inline', platform: 'bilibili', video };
-      }
-      const fallback = playerBox || video.parentElement;
-      return fallback ? { container: fallback, mode: 'overlay', platform: 'bilibili', video } : null;
+  function firstMatchingElement(doc, selectors) {
+    for (const selector of selectors) {
+      const element = doc.querySelector(selector);
+      if (element) return element;
     }
+    return null;
+  }
 
-    if (isYouTubeHost(hostname)) {
-      const playerBox = doc.querySelector('#movie_player');
-      const video = findActiveVideo(playerBox || doc);
-      if (!video) return null;
-      if (!isFullscreen) {
-        const titleEl = doc.querySelector('#above-the-fold #title') || doc.querySelector('ytd-watch-metadata #title');
-        if (titleEl) return { container: titleEl, mode: 'inline', platform: 'youtube', video };
-      }
-      const fallback = playerBox || video.parentElement;
-      return fallback ? { container: fallback, mode: 'overlay', platform: 'youtube', video } : null;
-    }
-
-    if (!allSitesEnabled) return null;
-    const video = findActiveVideo(doc);
+  function resolveInlineOrOverlay(doc, isFullscreen, { platform, playerSelectors, inlineSelectors }) {
+    const playerBox = firstMatchingElement(doc, playerSelectors);
+    const video = findActiveVideo(playerBox || doc);
     if (!video) return null;
-    if (video.readyState === 0 && !video.currentSrc && !video.src) return null;
-    const playerWrapper = video.closest?.(
-      '[data-testid="videoPlayer"], [data-testid="videoComponent"], .video-js, .plyr, .jwplayer'
-    );
-    const container =
-      playerWrapper ||
-      (video.parentElement && video.parentElement.tagName !== 'HTML' ? video.parentElement : null) ||
-      doc.body;
-    return container ? { container, mode: 'overlay', platform: 'generic', video } : null;
+    if (!isFullscreen) {
+      const inlineEl = firstMatchingElement(doc, inlineSelectors);
+      if (inlineEl) return { container: inlineEl, mode: 'inline', platform, video };
+    }
+    const fallback = playerBox || video.parentElement;
+    return fallback ? { container: fallback, mode: 'overlay', platform, video } : null;
+  }
+
+  const SPEED_OVERLAY_STRATEGIES = [
+    {
+      id: 'bilibili',
+      match: ({ hostname }) => isBilibiliHost(hostname),
+      resolve: ({ doc, isFullscreen }) =>
+        resolveInlineOrOverlay(doc, isFullscreen, {
+          platform: 'bilibili',
+          playerSelectors: ['.bpx-player-video-area', '#bilibili-player'],
+          inlineSelectors: ['.video-info-detail-content', '.video-info-detail'],
+        }),
+    },
+    {
+      id: 'youtube',
+      match: ({ hostname }) => isYouTubeHost(hostname),
+      resolve: ({ doc, isFullscreen }) =>
+        resolveInlineOrOverlay(doc, isFullscreen, {
+          platform: 'youtube',
+          playerSelectors: ['#movie_player'],
+          inlineSelectors: ['#above-the-fold #title', 'ytd-watch-metadata #title'],
+        }),
+    },
+    {
+      id: 'generic',
+      match: ({ allSitesEnabled }) => allSitesEnabled === true,
+      resolve: ({ doc }) => {
+        const video = findActiveVideo(doc);
+        if (!video) return null;
+        if (video.readyState === 0 && !video.currentSrc && !video.src) return null;
+        const playerWrapper = video.closest?.(
+          '[data-testid="videoPlayer"], [data-testid="videoComponent"], .video-js, .plyr, .jwplayer'
+        );
+        const container =
+          playerWrapper ||
+          (video.parentElement && video.parentElement.tagName !== 'HTML' ? video.parentElement : null) ||
+          doc.body;
+        return container ? { container, mode: 'overlay', platform: 'generic', video } : null;
+      },
+    },
+  ];
+
+  function resolveSpeedOverlayTarget(
+    doc = typeof document !== 'undefined' ? document : null,
+    hostname = globalScope.location?.hostname || '',
+    allSitesEnabled = false,
+    strategies = SPEED_OVERLAY_STRATEGIES
+  ) {
+    if (!doc) return null;
+    const context = { doc, hostname, isFullscreen: Boolean(doc.fullscreenElement), allSitesEnabled };
+    for (const strategy of strategies) {
+      if (!strategy?.match?.(context)) continue;
+      const target = strategy.resolve?.(context);
+      if (target) return target;
+    }
+    return null;
+  }
+
+  function findMountTarget(doc = document, hostname = globalScope.location?.hostname || '', allSitesEnabled = false) {
+    return resolveSpeedOverlayTarget(doc, hostname, allSitesEnabled);
   }
 
   // Kept for backward compatibility in unit tests
@@ -92,6 +130,8 @@
     isYouTubeHost,
     isBilibiliHost,
     isSupportedSpeedOverlayHost,
+    SPEED_OVERLAY_STRATEGIES,
+    resolveSpeedOverlayTarget,
     findMountTarget,
     findPlayerContainer,
     findActiveVideo,

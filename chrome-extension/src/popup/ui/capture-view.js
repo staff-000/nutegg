@@ -106,6 +106,8 @@ function shouldShowPanelVideoSpeed(view, settings) {
   if (settings?.videoSpeedOnPageEnabled !== false) {
     if (settings?.videoSpeedAllSitesEnabled === true) return false;
     const url = view?.extractedContent?.url || view?.stage1Payload?.url || view?.url || '';
+    const matchedSite = globalThis.NutEggHelpers?.matchSiteFromUrl?.(url);
+    if (matchedSite?.hasOnPageSpeed) return false;
     try {
       const host = new URL(url).hostname.toLowerCase();
       if (host === 'youtube.com' || host.endsWith('.youtube.com') || host === 'bilibili.com' || host.endsWith('.bilibili.com')) {
@@ -115,7 +117,8 @@ function shouldShowPanelVideoSpeed(view, settings) {
     const sourceType = String(
       view?.extractedContent?.sourceType || view?.stage1Payload?.sourceType || view?.analysisResult?.sourceType || ''
     ).toLowerCase();
-    if (sourceType === 'youtube' || sourceType === 'bilibili') return false;
+    const siteById = globalThis.NutEggHelpers?.SITE_CATALOG?.find(s => s.id === sourceType);
+    if (siteById?.hasOnPageSpeed || sourceType === 'youtube' || sourceType === 'bilibili') return false;
   }
   return true;
 }

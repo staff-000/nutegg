@@ -194,29 +194,8 @@ function collectShadowVideos(root, results, visited) {
   }
 }
 
-function nuteggPlaybackPlayer() {
-  if (typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id) {
-    const socialVideo = NutEggSocial.inspect()?.videos?.[0] || null;
-    if (socialVideo) return socialVideo;
-  }
-  const selectors = [
-    '#movie_player video, ytd-watch-flexy video',
-    '.bpx-player-video-wrap video, #bilibili-player video',
-    'video.html5-main-video, video.video-stream',
-    'video',
-  ];
-  const candidates = [];
-  for (const sel of selectors) {
-    for (const el of document.querySelectorAll(sel)) {
-      if (!candidates.includes(el)) candidates.push(el);
-    }
-    // Keep the main player ahead of unrelated previews, even while paused.
-    if (candidates.length) break;
-  }
-  if (candidates.length === 0) {
-    collectShadowVideos(document, candidates, new Set());
-  }
-  if (candidates.length === 0) return null;
+function pickPreferredVideo(candidates) {
+  if (!candidates || candidates.length === 0) return null;
   return (
     candidates.find(v => v.readyState > 0 && !v.paused && (v.currentSrc || v.src)) ||
     candidates.find(v => v.readyState > 0 && (v.currentSrc || v.src)) ||
@@ -224,6 +203,45 @@ function nuteggPlaybackPlayer() {
     candidates.find(v => Boolean(v.currentSrc || v.src)) ||
     candidates[0]
   );
+}
+
+// Classic scripts can be reinjected into the same isolated-world global scope.
+var VIDEO_PLAYER_STRATEGIES = [
+  {
+    id: 'social',
+    resolve: () =>
+      typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id ? NutEggSocial.inspect()?.videos?.[0] || null : null,
+  },
+  {
+    id: 'youtube',
+    resolve: () => pickPreferredVideo(Array.from(document.querySelectorAll('#movie_player video, ytd-watch-flexy video'))),
+  },
+  {
+    id: 'bilibili',
+    resolve: () => pickPreferredVideo(Array.from(document.querySelectorAll('.bpx-player-video-wrap video, #bilibili-player video'))),
+  },
+  {
+    id: 'generic-html5',
+    resolve: () =>
+      pickPreferredVideo(Array.from(document.querySelectorAll('video.html5-main-video, video.video-stream'))) ||
+      pickPreferredVideo(Array.from(document.querySelectorAll('video'))),
+  },
+  {
+    id: 'shadow-dom',
+    resolve: () => {
+      const candidates = [];
+      collectShadowVideos(document, candidates, new Set());
+      return pickPreferredVideo(candidates);
+    },
+  },
+];
+
+function nuteggPlaybackPlayer() {
+  for (const strategy of VIDEO_PLAYER_STRATEGIES) {
+    const video = strategy.resolve();
+    if (video) return video;
+  }
+  return null;
 }
 globalThis.__nuteggPlaybackPlayer = nuteggPlaybackPlayer;
 function nuteggPlaybackOwned(message) {
@@ -307,6 +325,107 @@ async function nuteggSeek(message) {
   return { success: false, errorCode: video ? 'seek_timeout' : 'player_unavailable' };
 }
 
+var PAGE_READINESS_STRATEGIES = [
+  {
+    id: 'youtube',
+    match: pageUrl => /(^|\.)youtube\.com$/.test(pageUrl.hostname) && pageUrl.pathname === '/watch',
+    resolve(pageUrl, baseIdentity, sendResponse) {
+      const videoId = pageUrl.searchParams.get('v');
+      const player = typeof readYtInitialPlayerResponse === 'function' ? readYtInitialPlayerResponse() : null;
+      const captionTracksReady = !!player?.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length;
+      const playerReady = !!player || !!document.querySelector('#movie_player video');
+      const identity = {
+        ...baseIdentity,
+        videoId,
+        captionTracksReady,
+        youtubeReady: playerReady,
+      };
+      if (!captionTracksReady && typeof queryYouTubePlayerSnapshot === 'function') {
+        const context = createCaptureContext({ deadline: Date.now() + 500 });
+        const publish = snapshot =>
+          sendResponse({
+            ...identity,
+            url: window.location.href,
+            videoId: new URL(window.location.href).searchParams.get('v'),
+            captionTracksReady: context.isCurrent() && !!snapshot?.tracks?.length,
+            youtubeReady: context.isCurrent() && (playerReady || !!snapshot?.playerResponse),
+          });
+        queryYouTubePlayerSnapshot(context)
+          .then(publish, () => publish(null))
+          .finally(() => context.dispose())
+          .catch(() => {});
+        return true;
+      }
+      sendResponse(identity);
+      return false;
+    },
+  },
+  {
+    id: 'bilibili',
+    match: pageUrl => /(^|\.)bilibili\.com$/.test(pageUrl.hostname),
+    resolve(pageUrl, baseIdentity, sendResponse) {
+      let videoId, cid, playerReady = true;
+      if (typeof bilibiliVideoId === 'function') {
+        videoId = bilibiliVideoId();
+        const requests = performance.getEntriesByType('resource').map(entry => {
+          try {
+            return new URL(entry.name);
+          } catch {
+            return null;
+          }
+        });
+        const player = requests
+          .reverse()
+          .find(
+            url =>
+              url?.hostname === 'api.bilibili.com' &&
+              /^\/x\/player\/(?:wbi\/)?v2$/.test(url.pathname) &&
+              (url.searchParams.get('bvid') === videoId || `av${url.searchParams.get('aid')}` === videoId)
+          );
+        cid =
+          pageUrl.searchParams.get('cid') ||
+          (!pageUrl.searchParams.has('p') ? player?.searchParams.get('cid') : undefined);
+        playerReady = !!player || !!document.querySelector('video');
+      }
+      sendResponse({ ...baseIdentity, videoId, cid, bilibiliReady: playerReady });
+      return false;
+    },
+  },
+  {
+    id: 'twitter',
+    match: pageUrl =>
+      ['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(pageUrl.href, domain)) &&
+      /\/status\/|\/article\//.test(pageUrl.pathname),
+    resolve(_pageUrl, baseIdentity, sendResponse) {
+      const twitterReady = !!document.querySelector(
+        'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
+      );
+      sendResponse({ ...baseIdentity, twitterReady });
+      return false;
+    },
+  },
+];
+
+function resolvePageReadiness(sendResponse) {
+  const pageUrl = new URL(location.href);
+  const baseIdentity = {
+    success: true,
+    url: window.location.href,
+    title: document.title,
+    readyState: document.readyState,
+    videoId: undefined,
+    cid: undefined,
+    captionTracksReady: false,
+    bilibiliReady: true,
+    twitterReady: true,
+    youtubeReady: true,
+  };
+  const strategy = PAGE_READINESS_STRATEGIES.find(s => s.match(pageUrl));
+  if (strategy) return strategy.resolve(pageUrl, baseIdentity, sendResponse);
+  sendResponse(baseIdentity);
+  return false;
+}
+
 // Listen for messages from popup/background (attached once per window)
 {
   // Retain active capture state while replacing only our own previous listener.
@@ -375,83 +494,7 @@ async function nuteggSeek(message) {
       return false;
     }
     if (message.action === 'page-identity') {
-      const pageUrl = new URL(location.href);
-      const isYouTube = /(^|\.)youtube\.com$/.test(pageUrl.hostname) && pageUrl.pathname === '/watch';
-      const isBilibili = /(^|\.)bilibili\.com$/.test(pageUrl.hostname);
-      let videoId,
-        cid,
-        captionTracksReady = false,
-        playerReady = true;
-      if (isYouTube) {
-        videoId = pageUrl.searchParams.get('v');
-        const player = typeof readYtInitialPlayerResponse === 'function' ? readYtInitialPlayerResponse() : null;
-        captionTracksReady = !!player?.captions?.playerCaptionsTracklistRenderer?.captionTracks?.length;
-        playerReady = !!player || !!document.querySelector('#movie_player video');
-      } else if (isBilibili && typeof bilibiliVideoId === 'function') {
-        videoId = bilibiliVideoId();
-        const requests = performance.getEntriesByType('resource').map(entry => {
-          try {
-            return new URL(entry.name);
-          } catch {
-            return null;
-          }
-        });
-        const player = requests
-          .reverse()
-          .find(
-            url =>
-              url?.hostname === 'api.bilibili.com' &&
-              /^\/x\/player\/(?:wbi\/)?v2$/.test(url.pathname) &&
-              (url.searchParams.get('bvid') === videoId || `av${url.searchParams.get('aid')}` === videoId)
-          );
-        cid =
-          pageUrl.searchParams.get('cid') ||
-          (!pageUrl.searchParams.has('p') ? player?.searchParams.get('cid') : undefined);
-        playerReady = !!player || !!document.querySelector('video');
-      }
-      // Cheap page-state check (no transcript fetching) — the popup uses it to
-      // wait for the page to settle and to detect SPA navigation races.
-      const isTwitter =
-        ['twitter.com', 'x.com'].some(domain => NutEggPageIdentity.hostMatches(location.href, domain)) &&
-        /\/status\/|\/article\//.test(pageUrl.pathname);
-      const twitterReady =
-        !isTwitter ||
-        !!document.querySelector(
-          'article[data-testid="tweet"], [data-testid="twitterArticleReadView"], [data-testid="twitterArticleRichTextView"], [data-testid="tweetText"], [data-testid="card.layoutLarge.detail"], [data-testid="primaryColumn"] [role="region"], [data-testid="error-detail"]'
-        );
-      const identity = {
-        success: true,
-        url: window.location.href,
-        title: document.title,
-        readyState: document.readyState,
-        videoId,
-        cid,
-        captionTracksReady,
-        bilibiliReady: !isBilibili || playerReady,
-        twitterReady,
-        // YouTube: the watch page shell has rendered (not the loading skeleton)
-        youtubeReady: !isYouTube || playerReady,
-      };
-      if (isYouTube && !captionTracksReady && typeof queryYouTubePlayerSnapshot === 'function') {
-        // SPA player data can become ready without replacing initial script tags.
-        // Read-only lookup: it must never start a second capture or move the UI.
-        const context = createCaptureContext({ deadline: Date.now() + 500 });
-        const publish = snapshot =>
-          sendResponse({
-            ...identity,
-            url: window.location.href,
-            videoId: new URL(window.location.href).searchParams.get('v'),
-            captionTracksReady: context.isCurrent() && !!snapshot?.tracks?.length,
-            youtubeReady: context.isCurrent() && (playerReady || !!snapshot?.playerResponse),
-          });
-        queryYouTubePlayerSnapshot(context)
-          .then(publish, () => publish(null))
-          .finally(() => context.dispose())
-          .catch(() => {});
-        return true;
-      }
-      sendResponse(identity);
-      return false;
+      return resolvePageReadiness(sendResponse);
     }
 
     if (message.action === 'nutegg-seek') {
