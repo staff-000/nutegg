@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { JSDOM } = require('jsdom');
-const { PanelPageLayout } = require('../src/panel/page-layout');
+const { PanelPageLayout, resolveContentAlignment } = require('../src/panel/page-layout');
 function fixture(
   t,
   { left = 550, right = 1050, side = 'right', layoutMode = 'auto', scan = false, url = 'https://example.com/article', prepare } = {}
@@ -234,4 +234,53 @@ test('mini-player stays beside panel and releases dimensions when returning to n
   layout.dispose();
   assert.equal(player.style.left, '');
   assert.equal(player.style.right, '20px');
+});
+
+test('site alignment strategies align X primaryColumn and scrolled Weibo #comment main content beside left panel', t => {
+  // X status page: primaryColumn sits at left=380 while left nav is at left=0
+  const xFit = fixture(t, {
+    left: 0,
+    right: 1400,
+    side: 'left',
+    layoutMode: 'push',
+    url: 'https://x.com/AI_DVD6/status/2122672539814019530',
+    prepare(win) {
+      const col = win.document.createElement('div');
+      col.setAttribute('data-testid', 'primaryColumn');
+      col.getBoundingClientRect = () => ({ left: 380, right: 980, top: 0, bottom: 900, width: 600, height: 900 });
+      win.document.querySelector('main').append(col);
+    },
+  });
+  assert.equal(xFit.layout.horizontalOffset, 380 - 12);
+
+  // Weibo detail page scrolled to #comment (scrollY > 0): aligns to Main_full center column
+  const weiboFit = fixture(t, {
+    left: 0,
+    right: 1400,
+    side: 'left',
+    layoutMode: 'push',
+    url: 'https://weibo.com/7070444422/Rs0wKouK0?from=feed#comment',
+    prepare(win) {
+      Object.defineProperty(win, 'scrollY', { value: 650, configurable: true });
+      const center = win.document.createElement('div');
+      center.className = 'Main_full_1dfQX';
+      center.getBoundingClientRect = () => ({ left: 410, right: 1052, top: 0, bottom: 1200, width: 642, height: 1200 });
+      win.document.querySelector('main').append(center);
+    },
+  });
+  assert.equal(weiboFit.layout.horizontalOffset, 410 - 12);
+
+  // Abstract resolver supports custom URL pattern strategies
+  const custom = resolveContentAlignment(
+    'https://docs.example.org/guide/intro',
+    { doc: xFit.doc, win: xFit.win, layout: xFit.layout },
+    [
+      {
+        id: 'custom-docs',
+        match: ({ hostname, pathname }) => hostname === 'docs.example.org' && pathname.startsWith('/guide/'),
+        resolve: () => ({ left: 240, right: 1040 }),
+      },
+    ]
+  );
+  assert.deepEqual(custom, { left: 240, right: 1040, strategyId: 'custom-docs' });
 });

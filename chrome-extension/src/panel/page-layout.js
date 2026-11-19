@@ -2,6 +2,101 @@
 (function (root) {
   const GAP = 12,
     SCAN_LIMIT = 3000;
+
+  function parseAlignmentUrl(rawUrl) {
+    try {
+      const u = new URL(rawUrl || 'about:blank');
+      return { href: u.href, hostname: u.hostname.toLowerCase(), pathname: u.pathname };
+    } catch {
+      return { href: String(rawUrl || ''), hostname: '', pathname: '' };
+    }
+  }
+
+  function measureSelectorSpan(doc, win, selectors) {
+    for (const selector of selectors) {
+      const el = doc.querySelector(selector);
+      if (!el || el.hidden) continue;
+      const style = win.getComputedStyle?.(el);
+      if (style && (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0')) continue;
+      const rect = el.getBoundingClientRect?.();
+      if (rect && rect.width > 0 && rect.height > 0 && Number.isFinite(rect.left) && Number.isFinite(rect.right)) {
+        return { left: rect.left, right: rect.right };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Site / URL-pattern alignment strategies.
+   * Each strategy returns `{ left, right }` (viewport coordinates of the main content column)
+   * or `null` to fall through to the next matching strategy.
+   */
+  const CONTENT_ALIGNMENT_STRATEGIES = [
+    {
+      id: 'x',
+      match: ({ hostname }) => hostname === 'x.com' || hostname.endsWith('.x.com') || hostname === 'twitter.com' || hostname.endsWith('.twitter.com'),
+      resolve: ({ doc, win }) =>
+        measureSelectorSpan(doc, win, [
+          '[data-testid="primaryColumn"]',
+          'article[data-testid="tweet"]',
+        ]),
+    },
+    {
+      id: 'weibo',
+      match: ({ hostname }) => hostname === 'weibo.com' || hostname.endsWith('.weibo.com'),
+      resolve: ({ doc, win }) =>
+        measureSelectorSpan(doc, win, [
+          '[class*="Main_full"]',
+          '[class*="Main_content"]',
+          '[class*="Detail_wrap"]',
+          '.wbpro-feed-content',
+          'main article',
+          'main',
+        ]),
+    },
+    {
+      id: 'bilibili',
+      match: ({ hostname }) => hostname === 'bilibili.com' || hostname.endsWith('.bilibili.com'),
+      resolve: ({ doc, win }) =>
+        measureSelectorSpan(doc, win, [
+          '.left-container',
+          '.video-container-v1',
+          '#mirror-vdcon',
+        ]),
+    },
+    {
+      id: 'youtube',
+      match: ({ hostname }) => hostname === 'youtube.com' || hostname.endsWith('.youtube.com'),
+      resolve: ({ doc, win }) =>
+        measureSelectorSpan(doc, win, [
+          '#primary-inner',
+          '#primary',
+          'ytd-watch-flexy #columns',
+        ]),
+    },
+    {
+      id: 'default',
+      match: () => true,
+      resolve: ({ win, layout }) => {
+        // Below the fold, visible comments or a mini-player do not describe an unknown page's original margin.
+        if ((win.scrollY || 0) !== 0) return null;
+        return layout?.measureContentSpan?.() || null;
+      },
+    },
+  ];
+
+  function resolveContentAlignment(rawUrl, context, strategies = CONTENT_ALIGNMENT_STRATEGIES) {
+    const parsed = parseAlignmentUrl(rawUrl);
+    for (const strategy of strategies) {
+      if (!strategy?.match?.(parsed)) continue;
+      const span = strategy.resolve?.({ ...context, url: parsed });
+      if (span && Number.isFinite(span.left) && Number.isFinite(span.right) && span.right > span.left) {
+        return { left: span.left, right: span.right, strategyId: strategy.id };
+      }
+    }
+    return null;
+  }
+
   class PanelPageLayout {
     constructor(host, { side, width, layoutMode = 'auto', document: doc = document, window: win = window }) {
       Object.assign(this, { host, side, width, layoutMode, doc, win });
@@ -154,6 +249,13 @@
         }
       }
       return minLeft < Infinity && maxRight > -Infinity ? { left: minLeft, right: maxRight } : null;
+    }
+    resolveContentSpan() {
+      return resolveContentAlignment(this.win.location?.href || '', {
+        doc: this.doc,
+        win: this.win,
+        layout: this,
+      });
     }
     write(element, property, value, collection = this.saved) {
       let properties = collection.get(element);
@@ -335,9 +437,9 @@
       this.horizontalOffset = Math.max(0, Math.min(this.horizontalOffset, this.canvasWidth - available));
       if (this.autoAlignedSide !== this.side) {
         this.autoAlignedSide = this.side;
-        // Below the fold, visible comments or a mini-player do not describe the page's original margin.
-        const span = (this.win.scrollY || 0) === 0 ? this.measureContentSpan() : null;
-        if (span && span.left > GAP * 3) {
+        const span = this.resolveContentSpan();
+        const minMargin = span?.strategyId && span.strategyId !== 'default' ? GAP : GAP * 3;
+        if (span && span.left > minMargin) {
           const maxShift = Math.max(0, span.left - GAP);
           let targetOffset = 0;
           if (this.side === 'left') {
@@ -476,5 +578,8 @@
     }
   }
   root.NutEggPanelPageLayout = PanelPageLayout;
-  if (typeof module !== 'undefined') module.exports = { PanelPageLayout };
+  root.NutEggPanelAlignment = { CONTENT_ALIGNMENT_STRATEGIES, resolveContentAlignment };
+  if (typeof module !== 'undefined') {
+    module.exports = { PanelPageLayout, CONTENT_ALIGNMENT_STRATEGIES, resolveContentAlignment };
+  }
 })(globalThis);
