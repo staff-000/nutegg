@@ -224,3 +224,8 @@ on the matching entry. Closing/reopening the panel restored the same history ent
 to an existing Bilibili tab and back retained the YouTube result and correct position; the panel AI counters stayed
 at zero. The Bilibili tab had no cached mind map, so live Bilibili timestamp clicking was not exercised; Bilibili
 player selection, part identity, and seeking are covered by fixtures. No AI generation or vault writes were used.
+
+
+## Social post adapters
+
+`social-common.js` provides read-only, post-owned DOM/serialized-data inspection for TikTok, Douyin, Instagram, Threads and X. Its `inspect()` is also used by passive panel classification and must never fetch, click, expand, or play media. Captions are read/downloaded only by `capture()`/`transcript()` using the current capture context. Keep source IDs, media kind, and `metadata.video_duration_seconds` tied to the requested post; never use feed/reply/quoted media as fallback. Login walls and unhydrated posts must retain their unavailable/not-ready status. Threads continuations require an explicit parent identity and the same author. `social-capture.test.js` covers shared ownership, caption fallback, cancellation and reinjection.

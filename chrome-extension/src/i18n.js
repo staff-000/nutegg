@@ -8051,6 +8051,12 @@
   const pageScrollLabels = {"en": "Scroll the webpage horizontally", "zh_CN": "横向滚动网页", "ja": "ウェブページを横にスクロール", "ko": "웹페이지 가로 스크롤", "es": "Desplazar la página horizontalmente", "fr": "Faire défiler la page horizontalement", "de": "Webseite horizontal scrollen", "pt": "Rolar a página horizontalmente", "ru": "Прокрутить страницу по горизонтали", "ar": "تمرير صفحة الويب أفقيًا"};
   for (const [locale, label] of Object.entries(pageScrollLabels)) translations[locale].panelPageScroll = label;
 
+  const socialDurationLabels = {"en": ["Video longer than 3 minutes", "Video posts open only above 180 seconds. Text/photo posts can open; unknown video duration stays closed."], "zh_CN": ["视频超过 3 分钟", "视频仅在超过 180 秒时打开。文字和图片帖子可以打开；视频时长未知时保持关闭。"], "ja": ["3分を超える動画", "動画は180秒を超える場合のみ開きます。テキスト・写真の投稿は開き、動画の長さが不明なら閉じたままです。"], "ko": ["3분보다 긴 동영상", "180초를 초과하는 동영상만 엽니다. 글과 사진 게시물은 열 수 있으며 동영상 길이를 모르면 닫힌 상태로 유지합니다."], "es": ["Vídeo de más de 3 minutos", "Los vídeos se abren solo si superan 180 segundos. Texto y fotos pueden abrirse; duración desconocida permanece cerrada."], "fr": ["Vidéo de plus de 3 minutes", "Les vidéos ne s’ouvrent qu’au-delà de 180 secondes. Texte et photos peuvent s’ouvrir ; durée inconnue reste fermée."], "de": ["Video länger als 3 Minuten", "Videos öffnen nur über 180 Sekunden. Text- und Fotobeiträge können öffnen; unbekannte Videodauer bleibt geschlossen."], "pt": ["Vídeo com mais de 3 minutos", "Vídeos abrem apenas acima de 180 segundos. Texto e fotos podem abrir; duração desconhecida mantém fechado."], "ru": ["Видео длиннее 3 минут", "Видео открываются только при длительности более 180 секунд. Текст и фото могут открываться; неизвестная длительность оставляет панель закрытой."], "ar": ["فيديو أطول من 3 دقائق", "تفتح الفيديوهات فقط إذا تجاوزت 180 ثانية. يمكن فتح النصوص والصور؛ تظل مدة الفيديو المجهولة مغلقة."]};
+  for (const [locale, [label, hint]] of Object.entries(socialDurationLabels)) {
+    translations[locale].panelVideoLong = label;
+    translations[locale].panelVideoLongHint = hint;
+  }
+
   let currentLocale = 'en';
 
   /**

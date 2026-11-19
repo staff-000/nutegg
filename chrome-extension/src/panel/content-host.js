@@ -23,6 +23,7 @@
   function passiveSignals() {
     const meta = selector => document.querySelector(selector)?.getAttribute('content') || '';
     const url = new URL(location.href);
+    const social = typeof NutEggSocial !== 'undefined' ? NutEggSocial.inspect() : null;
     const article =
       !!document.querySelector('article,[role="article"],[itemprop="articleBody"],[class*="ArticleBody"],[data-module="ArticleBody"]') ||
       meta('meta[property="og:type"]') === 'article';
@@ -33,7 +34,10 @@
       ready = false,
       container = null;
     let videoMinutes = null;
-    if (video) {
+    if (social) {
+      body = social.description || '';
+      ready = social.mediaKind !== 'unknown' && !!body;
+    } else if (video) {
       const transcript = document.querySelector(
         'ytd-transcript-renderer #segments-container, [data-transcript], .transcript-content'
       );
@@ -76,7 +80,7 @@
       ? [...container.querySelectorAll('a')].filter(link => !link.closest('[data-nutegg-ui]'))
       : [];
     const linkText = links.reduce((count, link) => count + (link.textContent?.length || 0), 0);
-    const listing =
+    const listing = social ? !social.id :
       !!document.querySelector('[role=feed]') ||
       Boolean(globalThis.NutEggRules?.isListingUrl?.(location.href)) ||
       (!article && !video && links.length > 8 && linkText / Math.max(1, body.length) > 0.45);
@@ -92,11 +96,12 @@
     const contentAvailable = ready && (body.trim().length > 0 || videoMinutes != null) && !listing;
     return {
       url: location.href,
-      author,
+      author: social ? social.author : author,
+      ...(social ? { mediaKind: social.mediaKind, videoDurationSeconds: social.videoDurationSeconds } : {}),
       contentAvailable,
       listing,
       minutes: contentAvailable ? (body.trim().length > 0 ? NutEggRules.readingMinutes(body) : videoMinutes) : null,
-      searchText: [
+      searchText: social ? [social.description, social.author].join('\n').slice(0, 40000) : [
         document.title,
         meta('meta[name="keywords"]'),
         meta('meta[name="description"]'),
@@ -122,7 +127,7 @@
       if (current !== epoch || url !== location.href) return;
       lastSettings = response?.settings || lastSettings;
       if (document.readyState === 'complete' && (lastSignals.contentAvailable || lastSignals.listing || response?.decision?.open)) {
-        settledKey = NutEggPageIdentity.capturePageKey(url);
+        if (!response?.decision?.mediaPending) settledKey = NutEggPageIdentity.capturePageKey(url);
       }
       if (response?.shouldPrefetch && !host) {
         const key = response.key || NutEggPageIdentity.capturePageKey(url);
@@ -137,7 +142,7 @@
             if (url !== location.href || host) return;
             const ok =
               !!capture?.content?.trim() &&
-              capture.transcriptAvailable !== false &&
+              (capture.transcriptAvailable !== false || capture.metadata?.media_kind === 'video') &&
               !['not_ready', 'unavailable'].includes(capture.extractionStatus) &&
               !capture.captureCoverage?.reasons?.includes('access_restricted');
             if (ok) {
@@ -325,6 +330,11 @@
       schedule();
     }
   }, 750);
+  for (const eventName of ['loadedmetadata', 'durationchange']) document.addEventListener(eventName, event => {
+    if (host || event.target.closest?.('[data-nutegg-ui]')) return;
+    settledKey = '';
+    schedule();
+  }, true);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && !host && settledKey !== NutEggPageIdentity.capturePageKey(location.href)) schedule();
   });

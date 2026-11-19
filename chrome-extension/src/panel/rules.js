@@ -12,13 +12,17 @@
     contentAvailable: true,
     excludeListings: true,
   };
-  const GLOBAL_DOMAINS = ['youtube.com', 'reddit.com', 'substack.com', 'x.com', 'arxiv.org', 'medium.com'];
+  const GLOBAL_DOMAINS = ['youtube.com', 'reddit.com', 'substack.com', 'x.com', 'threads.com', 'instagram.com', 'tiktok.com', 'arxiv.org', 'medium.com'];
   const CHINA_DOMAINS = ['bilibili.com', 'mp.weixin.qq.com', 'qq.com', 'zhihu.com', 'weibo.com', 'douyin.com', 'xiaohongshu.com'];
   const DEFAULT_WHITELIST_HOSTS = [
     'youtube.com',
     'reddit.com',
     'substack.com',
     'x.com',
+    'threads.com',
+    'instagram.com',
+    'tiktok.com',
+    'douyin.com',
     'arxiv.org',
     'medium.com',
     'bilibili.com',
@@ -30,7 +34,11 @@
     'youtube.com': ['/watch', '/live/*'],
     'reddit.com': ['/comments/*'],
     'substack.com': ['/p/*'],
-    'x.com': ['/status/*', '/article/*'],
+    'x.com': ['/*/status/*', '/*/article/*'],
+    'threads.com': ['/@*/post/*'],
+    'instagram.com': ['/p/*', '/reel/*'],
+    'tiktok.com': ['/@*/video/*', '/@*/photo/*'],
+    'douyin.com': ['/video/*', '/note/*'],
     'arxiv.org': ['/abs/*', '/html/*', '/pdf/*'],
     'medium.com': ['/*/*'],
     'bilibili.com': ['/video/*', '/read/*', '/bangumi/play/*', '/list/*'],
@@ -53,14 +61,14 @@
     const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (raw.startsWith('/')) {
       const cleanPath = raw.replace(/\/\*+$/, '').replace(/\/+$/, '') || '/';
-      return `^https?://(?:[^/]+\\.)?${esc(rootHost)}(?::[0-9]+)?${esc(cleanPath)}(?:[/?#]|$)`;
+      return `^https?://(?:[^/]+\\.)?${esc(rootHost)}(?::[0-9]+)?${esc(cleanPath).replace(/\\\*/g, '[^/]+')}(?:[/?#]|$)`;
     }
     const url = new URL(raw.includes('://') ? raw : `https://${raw}`);
     const host = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
     const cleanPath = url.pathname.replace(/\/\*+$/, '').replace(/\/+$/, '');
     if (!cleanPath || cleanPath === '/') return websiteRegex(host);
     const hostPattern = host === rootHost ? `(?:[^/]+\\.)?${esc(host)}` : `(?:www\\.)?${esc(host)}`;
-    return `^https?://${hostPattern}(?::[0-9]+)?${esc(cleanPath)}(?:[/?#]|$)`;
+    return `^https?://${hostPattern}(?::[0-9]+)?${esc(cleanPath).replace(/\\\*/g, '[^/]+')}(?:[/?#]|$)`;
   }
   function friendlyUrlLabel(rule) {
     const host = websiteHostname(rule);
@@ -74,7 +82,7 @@
       const hostPattern = raw.slice('^https?://'.length, portAt)
         .replace('(?:[^/]+\\.)?', '').replace('(?:www\\.)?', '');
       const hostname = hostPattern.replace(/\\\./g, '.');
-      const path = raw.slice(portAt + port.length, -boundary.length).replace(/\\(.)/g, '$1');
+      const path = raw.slice(portAt + port.length, -boundary.length).replace(/\[\^\/\]\+/g, '*').replace(/\\(.)/g, '$1');
       if (/^[a-z0-9.-]+$/i.test(hostname) && path.startsWith('/'))
         return `${hostname}${path === '/' ? '' : path}/*`;
     }
@@ -159,6 +167,9 @@
     const saved = value && typeof value === 'object' ? value : {};
     const migratedRules = (Array.isArray(saved.rules) ? saved.rules.slice(0, 200) : []).map(rule => {
       const { authors, ...rest } = rule;
+      // Remove the retired restriction from previously copied built-in rules too.
+      if (rest._starter && ['x.com', 'threads.com'].includes(websiteHostname(rest)))
+        delete rest.videoLongerThanSeconds;
       return {
         ...rest,
         ...(authors?.length ? { topics: [...new Set([...list(rule.topics), ...list(authors)])] } : {}),
@@ -225,6 +236,8 @@
       throw new Error('Invalid reading range');
     if (contentConditionsEnabled && rule.contentAvailable != null && typeof rule.contentAvailable !== 'boolean')
       throw new Error('Invalid content availability');
+    if (rule.videoLongerThanSeconds != null && (!Number.isFinite(rule.videoLongerThanSeconds) || rule.videoLongerThanSeconds < 0))
+      throw new Error('Invalid video duration');
     return rule;
   }
   function websiteHostname(rule) {
@@ -251,6 +264,7 @@
       contentAvailable: true,
       excludeListings: true,
       _starter: true,
+      ...(['instagram.com', 'tiktok.com', 'douyin.com'].includes(host) ? { videoLongerThanSeconds: 180 } : {}),
     }));
   }
   function activeRules(settings) {
@@ -278,9 +292,11 @@
   function isListingUrl(rawUrl) {
     try {
       const url = new URL(rawUrl);
-      const host = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
+      const rawHost = url.hostname.replace(/^www\./, '').toLocaleLowerCase();
+      const host = ['youtube.com', 'reddit.com', 'x.com', 'twitter.com', 'bilibili.com', 'threads.com', 'threads.net', 'instagram.com', 'tiktok.com', 'douyin.com']
+        .find(domain => rawHost === domain || rawHost.endsWith('.' + domain)) || rawHost;
       const path = url.pathname.replace(/\/+$/, '') || '/';
-      const hasItemQuery = /[?&](?:v|id|p|post|article|story|doc|status|item)=/i.test(url.search);
+      const hasItemQuery = /[?&](?:v|id|p|post|article|story|doc|status|item|modal_id)=/i.test(url.search);
       if (path === '/' && !hasItemQuery) return true;
       if (
         /^\/(?:home|index(?:\.[a-z0-9]+)?|feed|feeds|discover|explore|trending|popular|all|latest|new|top|hot|following|for-you|subscriptions|notifications|messages|bookmarks|lists|communities|search|results|shorts|reels|channels|categories|tags|topics|archive|directory)(?:\/|$)/i.test(
@@ -301,6 +317,10 @@
         !/^\/(?:video|read|bangumi\/play|list)\//.test(path)
       )
         return true;
+      if (['threads.com', 'threads.net'].includes(host) && !/^\/@[^/]+\/post\/[\w-]+(?:\/|$)/.test(path)) return true;
+      if (host === 'instagram.com' && !/^\/(?:p|reel|reels|tv)\/[\w-]+(?:\/|$)/.test(path)) return true;
+      if (host === 'tiktok.com' && !/^\/@[^/]+\/(?:video|photo)\/\d+(?:\/|$)/.test(path)) return true;
+      if (host === 'douyin.com' && !/^\/(?:video|note)\/\d+(?:\/|$)/.test(path) && !/^\d+$/.test(url.searchParams.get('modal_id') || '')) return true;
       if (host === 'mp.weixin.qq.com' && !/^\/s(?:\/|$)/.test(path)) return true;
       if (host === 'news.ycombinator.com' && path !== '/item') return true;
       return false;
@@ -311,6 +331,7 @@
   function decide(settings, signals, cached) {
     const isListing = Boolean(signals.listing || isListingUrl(signals.url));
     const matches = [];
+    let mediaPending = false;
     for (const raw of activeRules(settings)) {
       if (raw.enabled === false) continue;
       let rule;
@@ -340,11 +361,16 @@
       if (contentConditionsEnabled && rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) continue;
       if (contentConditionsEnabled && typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) continue;
       if (rule.excludeListings !== false && isListing) continue;
+      if (rule.videoLongerThanSeconds != null) {
+        if (!['text', 'photo', 'video'].includes(signals.mediaKind)) { mediaPending = true; continue; }
+        if (signals.mediaKind === 'video' && !Number.isFinite(signals.videoDurationSeconds)) { mediaPending = true; continue; }
+        if (signals.mediaKind === 'video' && signals.videoDurationSeconds <= rule.videoLongerThanSeconds) continue;
+      }
       const conditional = !!(
         authors.length ||
         topics.length ||
         (contentConditionsEnabled && (rule.minMinutes != null || rule.maxMinutes != null || rule.contentAvailable != null)) ||
-        rule.excludeListings
+        rule.excludeListings || rule.videoLongerThanSeconds != null
       );
       const rank = raw._starter ? 1 : (rule.website === '.*' ? 0 : 2) + (conditional ? 1 : 0) + 0.5;
       matches.push({ rule, rank, topic: topicMatch, author });
@@ -357,6 +383,9 @@
         : !isListing &&
           (settings.openingPolicy === 'open' ||
             (!['closed', 'nutegg'].includes(settings.openingPolicy) && settings.defaultOpen === true)),
+      mediaPending: !match && mediaPending,
+      videoDurationSeconds: signals.videoDurationSeconds ?? null,
+      mediaKind: signals.mediaKind || 'unknown',
       ruleId: match?.rule.id || null,
       name: match?.rule.name || '',
       topic: match?.topic || null,
@@ -371,6 +400,7 @@
       rule &&
       !list(rule.topics).length &&
       !list(rule.authors).length &&
+      rule.videoLongerThanSeconds == null &&
       rule.minMinutes == null &&
       rule.maxMinutes == null &&
       rule.contentAvailable == null &&
@@ -384,6 +414,7 @@
       rule &&
       list(rule.topics).length > 0 &&
       !list(rule.authors).length &&
+      rule.videoLongerThanSeconds == null &&
       rule.minMinutes == null &&
       rule.maxMinutes == null &&
       rule.contentAvailable == null &&

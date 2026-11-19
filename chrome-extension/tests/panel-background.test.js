@@ -239,3 +239,27 @@ test('auto-open stays closed when content fetch fails or returns empty', async (
   await f.inspect(1, { url: f.tabs.get(1).url, content: '', extractionStatus: 'unavailable' });
   assert.equal(f.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 0);
 });
+
+test('social short/unknown videos cannot open from cached history; long captionless videos open without automatic analysis', async () => {
+  const f = await fixture({ ...Rules.defaults, autoAnalyze: true });
+  f.tabs.get(1).url = 'https://www.tiktok.com/@alice/video/123';
+  let historyCalls = 0;
+  f.context.fetchHistory = async () => { historyCalls++; return { latest: { content:'Cached body', result:{coreSummary:['Cached']} } }; };
+  for (const duration of [null, 179, 180]) {
+    const response = await f.send({ action:'panel-signals',url:f.tabs.get(1).url,
+      signals:{mediaKind:'video',videoDurationSeconds:duration,contentAvailable:true} });
+    assert.equal(response.shouldPrefetch,false);
+    assert.equal(response.decision.open,false);
+  }
+  assert.equal(historyCalls,0);
+  delete f.context.fetchHistory;
+  const response = await f.send({action:'panel-signals',url:f.tabs.get(1).url,
+    signals:{mediaKind:'video',videoDurationSeconds:181,contentAvailable:true}});
+  assert.equal(response.shouldPrefetch,true);
+  const result = await f.send({action:'panel-prefetch-complete',url:f.tabs.get(1).url,key:response.key,
+    capture:{url:f.tabs.get(1).url,content:'Owned description',extractionStatus:'ready',transcriptAvailable:false,
+      mediaType:'video',metadata:{media_kind:'video',video_duration_seconds:181}}});
+  assert.equal(result.opened,true);
+  await f.register(1);
+  assert.equal((await f.send({action:'panel-auto-claim'},f.extension())).allowed,false);
+});

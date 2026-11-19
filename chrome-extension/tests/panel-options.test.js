@@ -245,3 +245,21 @@ test('deleting one Bilibili default path copies every other default URL into cus
   await change('Panel opening settings', 'nutegg');
   assert.deepEqual(snapshot(), before);
 });
+
+test('social video condition is visible, copies into custom, and can be disabled without changing defaults', async t => {
+  const {root,win,control,saved,change}=await setup(t);
+  root.querySelector('.panel-site-nav-item[data-site-key="tiktok.com"]').click();
+  assert.match(root.querySelector('.panel-default-tag-text').textContent,/Video longer than 3 minutes/);
+  root.querySelector('.panel-rule-default-tag').click();
+  const bar=root.querySelector('.panel-site-conditions-bar');
+  const checkbox=[...bar.querySelectorAll('label')].find(e=>e.textContent==='Video longer than 3 minutes').querySelector('input');
+  assert.equal(checkbox.checked,true);
+  checkbox.checked=false;
+  bar.querySelector('button').click();await flush();
+  assert.equal(control('Panel opening settings').value,'custom');
+  const settings=saved.at(-1).panelSettings;
+  const Rules=require('../src/panel/rules');
+  assert.equal(Rules.decide(settings,{url:'https://tiktok.com/@alice/video/123',mediaKind:'video',videoDurationSeconds:10}).open,true);
+  await change('Panel opening settings','nutegg');
+  assert.equal(Rules.decide(saved.at(-1).panelSettings,{url:'https://tiktok.com/@alice/video/123',mediaKind:'video',videoDurationSeconds:10}).open,false);
+});

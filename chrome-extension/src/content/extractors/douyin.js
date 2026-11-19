@@ -3,13 +3,13 @@
 function detectDouyin() {
   const url = new URL(window.location.href);
   return (
-    chineseHost('douyin.com') && !!(url.pathname.match(/\/(?:video|note)\/\d+/) || url.searchParams.get('modal_id'))
+    chineseHost('douyin.com') && !!(url.pathname.match(/^\/(?:video|note)\/\d+(?:\/|$)/) || /^\d+$/.test(url.searchParams.get('modal_id') || ''))
   );
 }
 
 async function extractDouyin(context) {
   const url = new URL(window.location.href);
-  const id = url.pathname.match(/\/(?:video|note)\/(\d+)/)?.[1] || url.searchParams.get('modal_id');
+  const id = url.pathname.match(/^\/(?:video|note)\/(\d+)(?:\/|$)/)?.[1] || url.searchParams.get('modal_id');
   let detail = null;
   for (const state of chinesePageStates()) {
     detail = chineseFind(state, item => String(item.aweme_id || item.awemeId) === id && (item.desc || item.video));
@@ -37,8 +37,11 @@ async function extractDouyin(context) {
         await chineseFetch(request || `${url.origin}/aweme/v1/web/aweme/detail/?aweme_id=${id}&aid=6383`, true, context)
       ).aweme_detail;
       if (String(detail?.aweme_id || detail?.awemeId) !== id) detail = null;
-    } catch {}
+    } catch { context?.check(); }
   }
+  context?.check();
+  if (detail?.images?.length && typeof NutEggSocial !== 'undefined' && NutEggSocial.inspect()?.mediaKind === 'video') return NutEggSocial.capture(context);
+  if (!detail && typeof NutEggSocial !== 'undefined') return NutEggSocial.capture(context);
   const tracks = [...(detail?.video?.subtitleInfos || []), ...(detail?.video?.cla_info?.caption_infos || [])];
   for (const sticker of detail?.interaction_stickers || []) {
     tracks.push(...(sticker.auto_video_caption_info?.auto_captions || []).map(track => ({ ...track, source: 'ai' })));
@@ -53,8 +56,10 @@ async function extractDouyin(context) {
       content: `# ${title}\n\n${description}`,
       sourceType: 'douyin',
       mediaType: 'article',
+      extractionStatus: description.trim() ? 'ready' : 'not_ready',
       metadata: {
         platform: 'douyin',
+        media_kind: 'photo',
         author: detail?.author?.nickname || '',
         image_count: detail?.images?.length || 0,
       },
@@ -67,6 +72,6 @@ async function extractDouyin(context) {
     detail?.author?.nickname || '',
     (detail?.video?.duration || 0) / 1000,
     transcript,
-    { video_id: id }
+    { video_id: id, video_duration_seconds: Number(detail?.video?.duration) > 0 ? Number(detail.video.duration) / 1000 : null, media_kind: 'video' }
   );
 }

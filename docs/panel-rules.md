@@ -35,3 +35,10 @@ Auto-analyze runs only after a rule/default-triggered injected opening on an act
 - `ContentAnalysis.contentMetadata` is optional: `{ topics: string[], author: string | null, answerableQuestions: string[] }`. Lists are deduplicated and capped at five. Old analyses and custom prompts may omit it. Existing JSON history storage preserves it without a database migration.
 
 Targeted tests: `panel-rules.test.js`, `panel-background.test.js`, `panel-classification.test.js`, `tab-state.test.js`, and `analysis-rendering.test.js` in the extension; `ai-processor.test.ts` and `db.test.ts` in the plugin.
+
+
+## Social posts and video duration
+
+NutEgg default includes TikTok, Douyin, Instagram, Threads, and X. Individual text/photo posts can open. X and Threads have no video-duration restriction, including previously copied built-in rules. On TikTok, Douyin, and Instagram, video posts open only when an owned attached video is strictly longer than 180 seconds; exactly 180 seconds, short videos, live video, unknown duration and unknown media classification stay closed. Feeds, profiles and search results stay closed. Multiple attached videos use the longest individual duration, never their sum. Quoted/recommended/reply videos do not contribute. Reading time remains separate and its old rule condition stays disabled.
+
+The “Video longer than 3 minutes” checkbox is copied into Customized rules and can be disabled there. Ordinary custom allow/block rules and the Open/Keep closed presets can override it. Passive classification reads owned DOM and serialized metadata only, with no caption downloads, playback or AI. Duration metadata events trigger fresh inspection; stale page generations are discarded. Cached history cannot bypass eligibility. Missing captions allow an eligible long video to open with available description and a missing-transcript notice, but automatic analysis remains disabled for that capture.

@@ -204,6 +204,8 @@ var NutEggPanels = (() => {
             author: String(input.author || '').slice(0, 300),
             searchText: String(input.searchText || '').slice(0, 40000),
             minutes: Number.isFinite(input.minutes) ? input.minutes : null,
+            mediaKind: ['text', 'photo', 'video'].includes(input.mediaKind) ? input.mediaKind : 'unknown',
+            videoDurationSeconds: Number.isFinite(input.videoDurationSeconds) && input.videoDurationSeconds > 0 ? input.videoDurationSeconds : null,
             contentAvailable: input.contentAvailable === true,
             listing: input.listing === true,
             ...current.captureMetrics,
@@ -221,7 +223,7 @@ var NutEggPanels = (() => {
           const blockedByRule =
             settings.openingPolicy === 'closed' ||
             (decision.ruleId && !decision.open && decision.name !== 'panelStarter' && !String(decision.ruleId).startsWith('default-'));
-          if (tab.active && settings.mode === 'injected' && !current.suppressed && !current.opened && !blockedByRule && typeof fetchHistory === 'function') {
+          if (decision.open && tab.active && settings.mode === 'injected' && !current.suppressed && !current.opened && !blockedByRule && typeof fetchHistory === 'function') {
             const historyRes = await fetchHistory(tab.url).catch(() => null);
             const cachedEntry = historyRes?.latest;
             if (cachedEntry && (cachedEntry.result || cachedEntry.content || cachedEntry.capturePayload)) {
@@ -247,7 +249,7 @@ var NutEggPanels = (() => {
           const capture = message.capture;
           const usable =
             !!capture?.content?.trim() &&
-            capture.transcriptAvailable !== false &&
+            (capture.transcriptAvailable !== false || capture.metadata?.media_kind === 'video') &&
             !['not_ready', 'unavailable'].includes(capture.extractionStatus) &&
             !capture.captureCoverage?.reasons?.includes('access_restricted');
           if (
@@ -266,6 +268,8 @@ var NutEggPanels = (() => {
             author: String(capture.metadata?.author || current.signals?.author || '').slice(0, 300),
             minutes,
             contentAvailable: true,
+            ...(capture.metadata?.media_kind ? { mediaKind: capture.metadata.media_kind,
+              videoDurationSeconds: capture.metadata.video_duration_seconds !== undefined ? capture.metadata.video_duration_seconds : current.signals?.videoDurationSeconds ?? null } : {}),
           };
           const finalDecision = await evaluate(nextSignals, current.cached);
           const latest = await chrome.tabs.get(tabId);
@@ -278,6 +282,7 @@ var NutEggPanels = (() => {
             ...current,
             signals: nextSignals,
             decision: finalDecision,
+            analysisUsable: capture.transcriptAvailable !== false,
             transfer: { url: tab.url, extractedContent: capture },
           });
           await open(tabId, true);
@@ -422,7 +427,8 @@ var NutEggPanels = (() => {
           !tab.active ||
           settings.mode !== 'injected' ||
           !settings.autoAnalyze ||
-          !current.decision?.open
+          !current.decision?.open ||
+          current.analysisUsable === false
         )
           return { allowed: false };
         await save(target, { ...current, autoClaimed: true });

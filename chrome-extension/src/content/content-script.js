@@ -46,8 +46,10 @@ var BUILTIN_EXTRACTORS = [
     detect: window.detectTikTok,
     extract: window.extractTikTok,
     bodyReadiness: false,
-    onError: 'continue',
+    onError: 'stop',
   },
+  { name: 'instagram', detect: window.detectInstagram, extract: window.extractInstagram, bodyReadiness: false, onError: 'stop' },
+  { name: 'threads', detect: window.detectThreads, extract: window.extractThreads, bodyReadiness: false, onError: 'stop' },
   {
     name: 'article',
     detect: window.detectArticle,
@@ -64,6 +66,13 @@ if (EXTRACTORS === BUILTIN_EXTRACTORS) {
 } else {
   // Refresh every built-in on reinjection, including registries from older releases.
   // Explicit fixture/custom entries remain intact. Never replace request/listener state.
+  if (EXTRACTORS.some(ex => ex._nuteggBuiltIn)) {
+    for (const entry of BUILTIN_EXTRACTORS) {
+      if (EXTRACTORS.some(ex => ex.name === entry.name)) continue;
+      const fallback = EXTRACTORS.findIndex(ex => ex.name === 'article' || ex.name === 'generic');
+      EXTRACTORS.splice(fallback < 0 ? EXTRACTORS.length : fallback, 0, { ...entry, _nuteggBuiltIn: true });
+    }
+  }
   for (const ex of EXTRACTORS) {
     const current = BUILTIN_EXTRACTORS.find(entry => entry.name === ex.name);
     if (typeof current?.extract === 'function' &&
@@ -173,6 +182,8 @@ function nuteggPlaybackIdentity() {
   };
 }
 function nuteggPlaybackPlayer() {
+  if (typeof NutEggSocial !== 'undefined' && NutEggSocial.route()?.id)
+    return NutEggSocial.inspect()?.videos?.[0] || null;
   return (
     document.querySelector('#movie_player video, ytd-watch-flexy video') ||
     document.querySelector('.bpx-player-video-wrap video, #bilibili-player video') ||

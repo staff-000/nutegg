@@ -211,3 +211,38 @@ test('generated URL labels retain path scope instead of showing a whole-domain b
   assert.equal(rules.friendlyUrlLabel({ website }), 'zhuanlan.zhihu.com/p/123/*');
   assert.equal(rules.friendlyUrlLabel({ website: rules.websiteRegex('bilibili.com') }), 'bilibili.com');
 });
+
+test('social defaults require strictly >180 seconds only for videos and preserve the condition when customized', () => {
+  const urls = ['https://www.tiktok.com/@alice/video/123','https://www.douyin.com/video/123','https://www.instagram.com/reel/ABC/'];
+  for (const url of urls) {
+    for (const seconds of [null,179,180,181,Infinity]) {
+      const signals={url,mediaKind:'video',videoDurationSeconds:seconds};
+      assert.equal(rules.decide(rules.normalize(),signals).open,seconds===181,`${url} ${seconds}`);
+      assert.equal(rules.decide(rules.customize(rules.normalize()),signals).open,seconds===181);
+      assert.equal(rules.decide({...rules.defaults,openingPolicy:'open'},signals).open,true);
+    }
+    for(const mediaKind of ['text','photo']) assert.equal(rules.decide(rules.normalize(),{url,mediaKind}).open,true);
+    assert.equal(rules.decide(rules.normalize(),{url,mediaKind:'unknown'}).open,false);
+    const custom=rules.customize(rules.normalize());custom.rules.push({id:'override',website:rules.websiteRegex(url),action:'allow'});
+    assert.equal(rules.decide(custom,{url,mediaKind:'video',videoDurationSeconds:10}).open,true);
+  }
+  for(const url of ['https://threads.com/@alice','https://instagram.com/alice','https://tiktok.com/@alice','https://douyin.com/user/123']) assert.equal(rules.decide(rules.normalize(),{url,mediaKind:'text'}).open,false);
+});
+
+
+test('X and Threads defaults do not restrict video length, including previously copied defaults', () => {
+  for (const [host, url] of [['x.com', 'https://x.com/alice/status/123'], ['threads.com', 'https://www.threads.com/@alice/post/ABC']]) {
+    const preset = rules.normalize();
+    assert.equal(rules.defaultRules.find(rule => rule.hostname === host).videoLongerThanSeconds, undefined);
+    for (const seconds of [null, 10, 180, 181]) {
+      assert.equal(rules.decide(preset, { url, mediaKind: 'video', videoDurationSeconds: seconds }).open, true);
+    }
+    const legacy = { ...rules.defaultRules.find(rule => rule.hostname === host), videoLongerThanSeconds: 180 };
+    const custom = rules.normalize({ openingPolicy: 'custom', rules: [legacy] });
+    assert.equal(custom.rules[0].videoLongerThanSeconds, undefined);
+    assert.equal(rules.decide(custom, { url, mediaKind: 'video', videoDurationSeconds: 10 }).open, true);
+    // Explicit user-authored conditions remain configurable.
+    const explicit = rules.normalize({ openingPolicy: 'custom', rules: [{ ...legacy, _starter: false }] });
+    assert.equal(explicit.rules[0].videoLongerThanSeconds, 180);
+  }
+});

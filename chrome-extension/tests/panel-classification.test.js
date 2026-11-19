@@ -76,3 +76,25 @@ test('an incidental embedded video does not hide available article text', async 
   assert.equal(signals.contentAvailable, true);
   assert.equal(signals.minutes, 4);
 });
+
+test('social passive classification uses owned media duration and excludes recommendations', async t => {
+  const { signals, page }=await classify(t,
+    '<script type="application/json">'+JSON.stringify({shortcode:'ABC',caption:{text:'Owned caption'},owner:{username:'alice'},is_video:true,video_duration:181})+'</script><video></video><h1>Recommendation noise</h1>',
+    'https://www.instagram.com/p/ABC/');
+  assert.equal(signals.mediaKind,'video');
+  assert.equal(signals.videoDurationSeconds,181);
+  assert.ok(!signals.searchText.includes('Recommendation noise'));
+  assert.equal(page.requests.length,0);
+});
+
+test('duration metadata updates trigger passive reinspection after initial unknown duration', async t => {
+  const {page,signals}=await classify(t,'<article data-post-id="ABC" data-author="Alice"><div data-post-text>Body</div><video></video></article>',
+    'https://www.threads.com/@alice/post/ABC');
+  assert.equal(signals.mediaKind,'video');assert.equal(signals.videoDurationSeconds,null);
+  const video=page.win.document.querySelector('video');
+  Object.defineProperty(video,'duration',{value:181});
+  video.dispatchEvent(new page.win.Event('loadedmetadata'));
+  await new Promise(resolve=>setTimeout(resolve,750));
+  assert.equal(page.messages.filter(m=>m.action==='panel-signals').at(-1).signals.videoDurationSeconds,181);
+  assert.equal(page.requests.length,0);
+});

@@ -40,7 +40,19 @@ async function extractTwitter(context) {
     ) || (url.includes('/article/') ? document.querySelector('main') : null);
 
   if (articleRoot) {
-    return extractXArticle(articleRoot, url);
+    const result = extractXArticle(articleRoot, url);
+    const info = typeof NutEggSocial !== 'undefined' ? NutEggSocial.inspect() : null;
+    if (info?.mediaKind === 'video') {
+      const captions = await NutEggSocial.transcript(info, context);
+      context?.check();
+      result.mediaType = 'video';
+      result.transcriptAvailable = !!captions;
+      result.metadata.media_kind = 'video';
+      result.metadata.video_duration_seconds = info.videoDurationSeconds;
+      if (captions) result.content += `\n\n## Transcript\n\n${captions}`;
+      if (info.transcriptOriginalCharacters > 100000) result.captureCoverage = { reasons: ['truncated'] };
+    }
+    return result;
   }
 
   // 4. Expand only the requested post; quoted posts and replies retain their state.
@@ -162,17 +174,24 @@ async function extractTwitter(context) {
     if (threadContent) tweetContent = `## Thread (${threadTweets.length} tweets)\n\n${threadContent}`;
   }
 
+  const media = typeof NutEggSocial !== 'undefined' && statusId ? NutEggSocial.inspect() : null;
+  const captions = media?.mediaKind === 'video' ? await NutEggSocial.transcript(media, context) : '';
+  context?.check();
+  if (captions) tweetContent += `\n\n## Transcript\n\n${captions}`;
   const title = authorName ? `Tweet by ${authorName}${authorHandle ? ` (${authorHandle})` : ''}` : `Tweet from ${url}`;
   return {
     url,
     title,
     content: `# ${title}\n\n${tweetContent || 'Could not extract tweet content.'}`,
     sourceType: 'twitter',
+    ...(media?.transcriptOriginalCharacters > 100000 ? { captureCoverage: { reasons: ['truncated'] } } : {}),
+    ...(media?.mediaKind === 'video' ? { mediaType: 'video', transcriptAvailable: !!captions } : { mediaType: 'article' }),
     // Reply loaders are unrelated to the requested post's readiness.
-    extractionStatus: bodyReady ? 'ready' : 'not_ready',
+    extractionStatus: bodyReady || captions ? 'ready' : 'not_ready',
     metadata: {
       platform: 'Twitter/X',
-      ...(authorName && { author: authorName }),
+      ...(media ? { media_kind: media.mediaKind, video_duration_seconds: media.videoDurationSeconds } : {}),
+      ...((authorName || media?.author) && { author: authorName || media.author }),
       ...(authorHandle && { handle: authorHandle }),
       ...(timestamp && { published: timestamp }),
       time_estimate_minutes: typeof estimateTime === 'function' ? estimateTime(tweetContent, 'twitter') : 2,
@@ -253,6 +272,7 @@ function extractXArticle(root, url) {
         : 'not_ready',
     metadata: {
       platform: 'Twitter/X',
+      media_kind: 'text',
       isArticle: true,
       ...(authorName && { author: authorName }),
       ...(authorHandle && { handle: authorHandle }),

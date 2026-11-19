@@ -174,6 +174,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     ['yes', t('panelContentReady')],
     ['no', t('panelContentMissing')],
   ]);
+  const videoLongCheck = el('input');
+  videoLongCheck.type = 'checkbox';
   const listingsCheck = el('input');
   listingsCheck.type = 'checkbox';
 
@@ -185,6 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       row(t('panelMax'), maxInput),
       row(t('panelAvailability'), availSelect),
     ] : []),
+    row(t('panelVideoLong'), videoLongCheck, t('panelVideoLongHint')),
     row(t('panelSkipLists'), listingsCheck)
   );
   editor.append(more);
@@ -315,6 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ...(minInput.value !== '' ? { minMinutes: Number(minInput.value) } : {}),
       ...(maxInput.value !== '' ? { maxMinutes: Number(maxInput.value) } : {}),
       ...(availSelect.value !== 'any' ? { contentAvailable: availSelect.value === 'yes' } : {}),
+      ...(videoLongCheck.checked ? { videoLongerThanSeconds: editing?.videoLongerThanSeconds ?? 180 } : {}),
       excludeListings: listingsCheck.checked,
     });
   }
@@ -335,6 +339,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     minInput.value = rule?.minMinutes ?? '';
     maxInput.value = rule?.maxMinutes ?? '';
     availSelect.value = typeof rule?.contentAvailable === 'boolean' ? (rule.contentAvailable ? 'yes' : 'no') : 'any';
+    videoLongCheck.checked = rule?.videoLongerThanSeconds != null;
     listingsCheck.checked = rule?.excludeListings === true;
     more.open = !!(rule?.minMinutes != null || rule?.maxMinutes != null || Object.keys(rule?.aliases || {}).length);
     websiteInput.focus();
@@ -360,6 +365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (NutEggRules.contentConditionsEnabled && rule.minMinutes != null) parts.push(`${rule.minMinutes}+ min`);
     if (NutEggRules.contentConditionsEnabled && rule.maxMinutes != null) parts.push(`≤${rule.maxMinutes} min`);
     if (NutEggRules.contentConditionsEnabled && rule.contentAvailable === true) parts.push(t('panelContentReady'));
+    if (rule.videoLongerThanSeconds != null) parts.push(t('panelVideoLong'));
     if (rule.excludeListings) parts.push(t('panelSkipLists'));
     return parts.join(' · ');
   }
@@ -683,6 +689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (regionBadge) titleWrap.append(regionBadge);
         const condSource = active.siteRule || active.defaultRule;
         const primaryParts = [];
+        if (condSource?.videoLongerThanSeconds != null) primaryParts.push(t('panelVideoLong'));
         if (NutEggRules.contentConditionsEnabled && condSource?.minMinutes != null) primaryParts.push(`${condSource.minMinutes}+ min`);
         if (NutEggRules.contentConditionsEnabled && condSource?.maxMinutes != null) primaryParts.push(`≤${condSource.maxMinutes} min`);
         if (NutEggRules.contentConditionsEnabled && condSource?.contentAvailable === true) primaryParts.push(t('panelContentReady'));
@@ -742,6 +749,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               ? 'yes'
               : 'no'
             : 'any';
+        const condVideo = el('input');
+        condVideo.type = 'checkbox';
+        condVideo.checked = condSource?.videoLongerThanSeconds != null;
+        condVideo.title = t('panelVideoLongHint');
         const condLists = el('input');
         condLists.type = 'checkbox';
         condLists.checked = condSource?.excludeListings !== false;
@@ -758,6 +769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             makeCondField(t('panelMin'), condMin),
             makeCondField(t('panelAvailability'), condAvail),
           ] : []),
+          makeCondField(t('panelVideoLong'), condVideo),
           makeCondField(t('panelSkipLists'), condLists),
           condSaveBtn
         );
@@ -775,6 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ...(condSource?.maxMinutes != null ? { maxMinutes: condSource.maxMinutes } : {}),
             ...(condMin.value !== '' ? { minMinutes: Number(condMin.value) } : {}),
             ...(condAvail.value !== 'any' ? { contentAvailable: condAvail.value === 'yes' } : {}),
+            ...(condVideo.checked ? { videoLongerThanSeconds: condSource?.videoLongerThanSeconds ?? 180 } : {}),
             excludeListings: condLists.checked,
           });
           beginCustomEdit();

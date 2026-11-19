@@ -187,6 +187,8 @@ function detectPageTypeFromUrl(url) {
     ]) {
       if (host === domain || host.endsWith(`.${domain}`)) return type;
     }
+    if (belongs('instagram.com')) return 'instagram';
+    if (belongs('threads.com') || belongs('threads.net')) return 'threads';
     if (belongs('tiktok.com')) return 'tiktok';
     if (belongs('twitter.com') || belongs('x.com')) return 'twitter';
   } catch {}
@@ -225,7 +227,7 @@ function countCapturedWords(capture) {
 function isContentSuspiciouslyLow(wordCount, sourceType = 'webpage') {
   if (typeof wordCount !== 'number' || wordCount < 0) return false;
   const type = String(sourceType || '').toLowerCase();
-  if (type === 'twitter' || type === 'weibo') {
+  if (['twitter', 'weibo', 'threads', 'instagram'].includes(type)) {
     // Single tweets can be concise, but fewer than 5 words is suspicious
     return wordCount < 5;
   }
