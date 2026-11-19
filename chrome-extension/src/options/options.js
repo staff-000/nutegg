@@ -1512,6 +1512,67 @@ function initConfigExport() {
   for (const btn of buttons) {
     btn.addEventListener('click', () => void exportConfig(btn));
   }
+
+  const resetButtons = [
+    document.getElementById('reset-config-top-btn'),
+    document.getElementById('reset-config-bottom-btn'),
+  ].filter(Boolean);
+  const resetConfig = async btn => {
+    if (typeof window.confirm === 'function' && !window.confirm(t('resetConfigConfirm'))) {
+      return;
+    }
+    const defaultPanelSettings = window.NutEggRules
+      ? window.NutEggRules.normalize(null)
+      : {
+          version: 2,
+          mode: 'injected',
+          side: 'right',
+          width: 420,
+          layoutMode: 'auto',
+          openingPolicy: 'nutegg',
+          autoAnalyze: false,
+          rules: [],
+          dismissedSuggestions: [],
+        };
+    const defaults = {
+      connectionMode: 'chrome',
+      serverPort: DEFAULT_PORT,
+      analysisMode: 'preview',
+      uiDensity: 'compact',
+      outputLanguage: 'same-as-content',
+      enabledSections: { ...DEFAULT_SECTIONS },
+      generateKnowledgeEntries: false,
+      optimizeForConversation: true,
+      userNotesEnabled: true,
+      videoSpeedEnabled: true,
+      videoSpeedOnPageEnabled: true,
+      videoSpeedAllSitesEnabled: false,
+      preferredVideoSpeed: 1,
+      chunkWindowChars: 30000,
+      contentAnalysisMaxTokens: 16384,
+      chromeAiMaxTokens: 16384,
+      chromeCacheTabLimit: 100,
+      captureRetryCount: 3,
+      captureRetryDelayMs: 3000,
+      debugInfo: false,
+      chromeAiPromptOverrides: {},
+      panelSettings: defaultPanelSettings,
+    };
+    await chrome.storage.local.set(defaults);
+    try {
+      await chrome.runtime.sendMessage({ action: 'set-chrome-cache-limit', limit: 100 });
+    } catch {}
+    await refreshOptionsUiFromStorage();
+    window.dispatchEvent(new CustomEvent('nutegg-settings-updated'));
+    const original = btn.textContent;
+    btn.textContent = t('configResetDone');
+    setTimeout(() => {
+      if (btn.textContent === t('configResetDone')) btn.textContent = original;
+    }, 2000);
+  };
+  for (const btn of resetButtons) {
+    btn.addEventListener('click', () => void resetConfig(btn));
+  }
 }
 initConfigExport();
 

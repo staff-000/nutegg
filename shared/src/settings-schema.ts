@@ -99,6 +99,8 @@ export const NON_AI_CONFIGURABLE_CONTROLS = [
   'capture-retry-save',
   'export-config-top-btn',
   'export-config-bottom-btn',
+  'reset-config-top-btn',
+  'reset-config-bottom-btn',
   'report-bug-btn',
   'ai-assistant-input',
   'ai-assistant-apply-btn',

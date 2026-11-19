@@ -915,3 +915,71 @@ test('prompt editing stays visible in managed modes and saves without changing A
     assert.equal(values.obsidianExecutionState.mode, mode);
   }
 });
+
+test('reset to defaults button restores all configuration settings to defaults while preserving saved API keys', async t => {
+  const { win, el, values } = await setup(t, {
+    chromeAiApiKey: 'preserved-secret-key',
+    connectionMode: 'obsidian',
+    serverPort: 29999,
+    analysisMode: 'full',
+    uiDensity: 'ultra-compact',
+    outputLanguage: 'Japanese',
+    enabledSections: { titleVerdict: false, coreSummary: false, mindMap: true, discussion: true },
+    generateKnowledgeEntries: true,
+    optimizeForConversation: false,
+    userNotesEnabled: false,
+    videoSpeedEnabled: false,
+    videoSpeedOnPageEnabled: false,
+    videoSpeedAllSitesEnabled: true,
+    chunkWindowChars: 50000,
+    contentAnalysisMaxTokens: 8000,
+    chromeCacheTabLimit: 25,
+    captureRetryCount: 7,
+    captureRetryDelayMs: 5000,
+    debugInfo: true,
+    chromeAiPromptOverrides: { verdictSummary: 'custom prompt' },
+  });
+
+  // Cancel confirmation does not reset
+  win.confirm = () => false;
+  el('reset-config-top-btn').click();
+  await flush();
+  assert.equal(values.outputLanguage, 'Japanese');
+
+  // Confirm resets all configuration settings to defaults and updates the UI
+  win.confirm = () => true;
+  el('reset-config-top-btn').click();
+  await flush();
+
+  assert.equal(values.chromeAiApiKey, 'preserved-secret-key');
+  assert.equal(values.connectionMode, 'chrome');
+  assert.equal(values.serverPort, 27123);
+  assert.equal(values.analysisMode, 'preview');
+  assert.equal(values.uiDensity, 'compact');
+  assert.equal(values.outputLanguage, 'same-as-content');
+  assert.deepEqual(JSON.parse(JSON.stringify(values.enabledSections)), {
+    titleVerdict: true,
+    coreSummary: true,
+    mindMap: true,
+    discussion: false,
+  });
+  assert.equal(values.generateKnowledgeEntries, false);
+  assert.equal(values.optimizeForConversation, true);
+  assert.equal(values.userNotesEnabled, true);
+  assert.equal(values.videoSpeedEnabled, true);
+  assert.equal(values.videoSpeedOnPageEnabled, true);
+  assert.equal(values.videoSpeedAllSitesEnabled, false);
+  assert.equal(values.chunkWindowChars, 30000);
+  assert.equal(values.contentAnalysisMaxTokens, 16384);
+  assert.equal(values.chromeCacheTabLimit, 100);
+  assert.equal(values.captureRetryCount, 3);
+  assert.equal(values.captureRetryDelayMs, 3000);
+  assert.equal(values.debugInfo, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(values.chromeAiPromptOverrides)), {});
+  assert.equal(el('output-lang-select').value, 'same-as-content');
+  assert.equal(el('ui-density-select').value, 'compact');
+  assert.equal(el('video-speed-enabled').checked, true);
+  assert.equal(el('video-speed-on-page').checked, true);
+  assert.equal(el('video-speed-all-sites').checked, false);
+  assert.equal(el('debug-info-enabled').checked, false);
+});

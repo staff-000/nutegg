@@ -22,6 +22,16 @@
           >
             Export config
           </button>
+          <button
+            id="reset-config-top-btn"
+            class="secondary-btn"
+            type="button"
+            data-i18n="resetConfigBtn"
+            data-i18n-title="resetConfigTooltip"
+            title="Reset all configuration settings to their default values"
+          >
+            Reset to defaults
+          </button>
           <span class="mode-badge" id="connection-mode-badge" data-i18n="settingsChromeMode">Works in Chrome</span>
         </div>
       </header>
@@ -713,6 +723,16 @@
           title="Download settings as a local JSON file"
         >
           Export config</button
+        ><span aria-hidden="true">·</span
+        ><button
+          id="reset-config-bottom-btn"
+          class="text-btn"
+          type="button"
+          data-i18n="resetConfigBtn"
+          data-i18n-title="resetConfigTooltip"
+          title="Reset all configuration settings to their default values"
+        >
+          Reset to defaults</button
         ><span aria-hidden="true">·</span
         ><a href="#" id="shortcuts-link" data-i18n="keyboardShortcutSection">Keyboard Shortcut</a
         ><span aria-hidden="true">·</span

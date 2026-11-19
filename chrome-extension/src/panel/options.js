@@ -1062,7 +1062,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.addEventListener('nutegg-settings-updated', async () => {
     const fresh = await chrome.runtime.sendMessage({ action: 'panel-get-settings' });
-    settings = NutEggRules.normalize(fresh?.settings);
+    const storedPanel = fresh?.settings || (await chrome.storage.local.get('panelSettings'))?.panelSettings;
+    settings = NutEggRules.normalize(storedPanel);
     displaySelect.value =
       settings.mode === 'native' ? 'native' : settings.side === 'left' ? 'injected-left' : 'injected-right';
     layoutSelect.value = settings.layoutMode || 'auto';
