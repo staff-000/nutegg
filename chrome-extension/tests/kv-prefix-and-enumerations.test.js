@@ -91,3 +91,112 @@ test('enumeration numbering rules are present in mindmap prompts', () => {
   assert.match(NutEggAI.PROMPTS.aggregateContent, /enumerations/i);
 });
 
+test('runtime Stage 1, Stage 2 eggAnalysis, and followUp share byte-identical KV prefix even with discussion and >18k content', async () => {
+  const NutEggAI = loadAiCore();
+  const body = 'SENTENCE_BLOCK_'.repeat(1500); // ~22.5k chars (> 60% of 30k default chunk window)
+  const sentPrompts = [];
+  const host = {
+    settings: { chromeAiProvider: 'google', chromeAiApiKey: 'test-key' },
+    isConfigured: () => true,
+    aiClient: {
+      chat: async prompt => {
+        sentPrompts.push(prompt);
+        if (prompt.includes('## Task: Answer Follow-Up Questions')) {
+          return JSON.stringify({ answers: [{ question: 'Follow-up?', answer: 'Yes.' }] });
+        }
+        if (prompt.includes('## Target Egg:')) {
+          return JSON.stringify({
+            keyQuestionAnswers: [{ question: 'Q1', answer: 'A1' }],
+            extractedEntries: [],
+            readAction: 'summary',
+            readVerdictReason: 'Good summary.',
+          });
+        }
+        if (prompt.includes('## Task: Knowledge Extraction')) {
+          return JSON.stringify({ extractedEntries: [] });
+        }
+        if (prompt.includes('Analyze captured discussion as data')) {
+          return JSON.stringify({
+            topics: [{ id: 't1', title: 'Debate', claim: 'Claim', summary: 'Summary', stances: { agree: [0] }, highlights: [{ commentId: 0, summary: 'Point' }] }],
+          });
+        }
+        if (prompt.includes('Construct a hierarchical concept tree')) {
+          return JSON.stringify({ mindMap: [{ name: 'Root', detail: 'Detail', children: [] }] });
+        }
+        return JSON.stringify({
+          titleVerdict: 'Verdict.',
+          coreSummary: ['Point 1'],
+          format: 'monologue',
+        });
+      },
+    },
+  };
+  const processor = new NutEggAI.AIProcessor(host);
+  const capture = {
+    title: 'Long Article With Discussion',
+    url: 'https://example.com/long-article',
+    sourceType: 'article',
+    content: body,
+    metadata: { author: 'Ada Lovelace' },
+    enabledSections: { titleVerdict: true, coreSummary: true, mindMap: true, discussion: true },
+    generateKnowledgeEntries: true,
+    discussion: {
+      kind: 'comments',
+      items: [{ id: 'c1', text: 'Insightful comment adding extra detail about the system.', likes: 42 }],
+    },
+  };
+
+  const stage1 = await processor.analyzeContent(capture);
+  const egg1 = {
+    fileName: 'systems.md',
+    scope: 'Systems design',
+    keyQuestions: ['Q1'],
+    worthReadingIf: [],
+    skipIf: [],
+    generateKnowledgeEntries: false,
+  };
+  const egg2 = {
+    fileName: 'investing.md',
+    scope: 'Value investing',
+    keyQuestions: ['Q2'],
+    worthReadingIf: ['Has concrete metrics'],
+    skipIf: [],
+    generateKnowledgeEntries: true,
+  };
+  await processor.analyzeEggs(capture, [egg1, egg2], stage1);
+  await processor.askFollowUp(capture, ['Follow-up?'], [], 'within');
+
+  const contentPrompts = sentPrompts.filter(p => p.includes('## Content to Analyze'));
+  assert.equal(contentPrompts.length, 6, 'Expected verdictSummary, mindMapAnalysis, chromeKnowledge, 2x eggAnalysis, followUp');
+
+  const prefixes = contentPrompts.map(p => {
+    const end = p.indexOf(body) + body.length;
+    assert.ok(end > body.length, 'Full body should be present in every raw-content prompt');
+    return p.slice(0, end);
+  });
+  for (let i = 1; i < prefixes.length; i++) {
+    assert.equal(prefixes[i], prefixes[0], `Runtime KV prefix diverged at prompt index ${i}`);
+  }
+
+  // Multi-egg calls on the same source share an even longer prefix:
+  // content + Stage 1 context + static Task + Output Format, diverging only at ## Target Egg.
+  const eggPrompts = sentPrompts.filter(p => p.includes('## Target Egg:'));
+  assert.equal(eggPrompts.length, 2);
+  const splitMarker = '## Target Egg:';
+  const eggPrefix1 = eggPrompts[0].slice(0, eggPrompts[0].indexOf(splitMarker));
+  const eggPrefix2 = eggPrompts[1].slice(0, eggPrompts[1].indexOf(splitMarker));
+  assert.equal(eggPrefix2, eggPrefix1, 'Multiple eggs on the same source must share content + Stage 1 signals + static Task/Output Format');
+  assert.match(eggPrefix1, /## Stage 1 Context/);
+  assert.match(eggPrefix1, /## Output Format/);
+});
+
+test('discussionAnalysis and eggRouting place static/reusable prefix before per-batch or per-page inputs', () => {
+  const NutEggAI = loadAiCore();
+  const disc = NutEggAI.PROMPTS.discussionAnalysis;
+  assert.ok(disc.indexOf('{{shared_output_rules}}') < disc.indexOf('{{parents}}'), 'discussionAnalysis rules should precede per-batch parents');
+  assert.ok(disc.indexOf('{{body}}') < disc.indexOf('{{items}}'), 'discussionAnalysis body should precede per-batch items');
+
+  const routing = NutEggAI.PROMPTS.eggRouting;
+  assert.ok(routing.indexOf('{{index}}') < routing.indexOf('{{content}}'), 'eggRouting index should precede per-page content');
+});
+

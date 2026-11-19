@@ -145,11 +145,12 @@ test('history replays the discussion selector and exact sources without changing
   assert.notEqual(store.defaults.enabledSections.discussion, true);
 });
 
-test('follow-up keeps a selected discussion excerpt even when the body is long', async () => {
+test('follow-up focuses strictly on source content and excludes discussion comments', async () => {
   let prompt;
-  const processor = new core.AIProcessor({ settings: { aiProvider: 'openai', aiApiKey: 'test', chunkWindowChars: 1000 }, aiClient: { chat: async value => { prompt = value; return JSON.stringify({ answers: [{ question: 'What did they experience?', answer: 'Reported experience' }] }); } } });
-  await processor.askFollowUp({ url: 'https://example.test', title: 'Title', content: 'Body '.repeat(5000), sourceType: 'video', enabledSections: { discussion: true }, discussion: capture([item('a')]) }, ['What did they experience?']);
-  assert.match(prompt, /My experience provides a substantive argument/);
+  const processor = new core.AIProcessor({ settings: { aiProvider: 'openai', aiApiKey: 'test', chunkWindowChars: 1000 }, aiClient: { chat: async value => { prompt = value; return JSON.stringify({ answers: [{ question: 'What did the author say?', answer: 'Author content' }] }); } } });
+  await processor.askFollowUp({ url: 'https://example.test', title: 'Title', content: 'Body '.repeat(5000), sourceType: 'video', enabledSections: { discussion: true }, discussion: capture([item('a')]) }, ['What did the author say?']);
+  assert.doesNotMatch(prompt, /My experience provides a substantive argument/);
+  assert.match(prompt, /Body Body/);
 });
 
 test('discussion input is bounded by the total text budget as well as item count', () => {

@@ -457,10 +457,7 @@ export class AIProcessor {
     };
     const sections = { ...DEFAULT_ANALYSIS_SECTIONS, ...capture.enabledSections };
     const discussionEnabled = sections.discussion === true;
-    const needsDiscussionContext =
-      capture.discussion?.kind === 'forum' ||
-      capture.transcriptAvailable === false ||
-      Boolean(capture.questions?.length);
+    const needsDiscussionContext = this.needsDiscussionBodyContext(capture);
 
     let discussion: DiscussionAnalysis | undefined;
     let discussionPromise: Promise<DiscussionAnalysis | undefined> | null = null;
@@ -485,18 +482,9 @@ export class AIProcessor {
       }
     }
 
-    const context =
-      discussion && needsDiscussionContext
-        ? discussionSummaryText(capture, discussion) + discussionEvidenceText(capture, discussion)
-        : '';
     const bodyCapture = {
       ...capture,
-      content:
-        (capture.transcriptAvailable === false
-          ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n'
-          : '') +
-        capture.content +
-        context,
+      content: this.buildBodyContent(capture, discussion),
     };
 
     let knowledgePromise: Promise<ExtractedKnowledgeEntry[]> | null = null;
@@ -982,7 +970,10 @@ export class AIProcessor {
     if (capture.enabledSections?.discussion === true && !contentAnalysis.discussion) {
       contentAnalysis = { ...contentAnalysis, discussion: await this.analyzeDiscussion(capture) };
     }
-    capture = { ...capture, content: capture.content + discussionEvidenceText(capture, contentAnalysis.discussion) };
+    // Keep {{content}} byte-for-byte identical to Stage 1 so Stage 2 hits the KV cache;
+    // discussion evidence (when not already embedded in Stage 1 body) goes into stage1_signals.
+    const bodyContent = this.buildBodyContent(capture, contentAnalysis.discussion);
+    capture = { ...capture, content: bodyContent };
     const chunks = this.chunkContent(capture.content, capture.chapters || []);
     const signals = this.eggStage1Signals(capture, contentAnalysis);
     const eggResults = await Promise.all(
@@ -1072,6 +1063,28 @@ export class AIProcessor {
     };
   }
 
+  private needsDiscussionBodyContext(capture: CapturePayload): boolean {
+    return (
+      capture.discussion?.kind === 'forum' ||
+      capture.transcriptAvailable === false ||
+      Boolean(capture.questions?.length)
+    );
+  }
+
+  private buildBodyContent(capture: CapturePayload, discussion?: DiscussionAnalysis): string {
+    const context =
+      discussion && this.needsDiscussionBodyContext(capture)
+        ? discussionSummaryText(capture, discussion) + discussionEvidenceText(capture, discussion)
+        : '';
+    return (
+      (capture.transcriptAvailable === false
+        ? 'No video transcript is available. Do not infer or summarize the video. Only analyze the supplied discussion context and label commenter claims.\n'
+        : '') +
+      capture.content +
+      context
+    );
+  }
+
   private eggStage1Signals(capture: CapturePayload, analysis: ContentAnalysis): string {
     const titleSignal =
       capture.enabledSections?.titleVerdict !== false && analysis.titleVerdict
@@ -1085,7 +1098,16 @@ export class AIProcessor {
       capture.enabledSections?.mindMap !== false && analysis.mindMap?.length
         ? `Stage 1 mind map (navigation aid; verify against the source):\n${JSON.stringify(analysis.mindMap)}`
         : '';
-    return [discussionSummaryText(capture, analysis.discussion), titleSignal, summarySignal, mindMapSignal]
+    const discussionEvidence = !this.needsDiscussionBodyContext(capture)
+      ? discussionEvidenceText(capture, analysis.discussion).trim()
+      : '';
+    return [
+      discussionSummaryText(capture, analysis.discussion),
+      discussionEvidence,
+      titleSignal,
+      summarySignal,
+      mindMapSignal,
+    ]
       .filter(Boolean)
       .join('\n\n');
   }
@@ -1682,10 +1704,6 @@ export class AIProcessor {
       priorBlock = `## Previous Questions & Answers (context — refer back instead of repeating)\n${priorQa.trim()}`;
     }
 
-    const cachedDiscussion = this.cachedDiscussion(capture);
-    const discussionContext = cachedDiscussion
-      ? discussionSummaryText(capture, cachedDiscussion) + discussionEvidenceText(capture, cachedDiscussion)
-      : discussionSourceText(capture);
     const prompt = renderPrompt(this.getPrompt('followUp'), {
       title: capture.title,
       url: capture.url,
@@ -1693,10 +1711,7 @@ export class AIProcessor {
       captured_author: this.getCapturedAuthor(capture),
       part_note: '',
       prior_qa: priorBlock,
-      content: discussionContext
-        ? this.truncate(capture.content, Math.floor(this.chunkWindowChars * 0.6)) +
-          this.truncate(discussionContext, Math.floor(this.chunkWindowChars * 0.4))
-        : this.truncate(capture.content, this.chunkWindowChars),
+      content: this.truncate(capture.content, this.chunkWindowChars),
       questions: questions.map((q, i) => `${i + 1}. ${q}`).join('\n'),
       shared_output_rules: this.getContentOutputRules(capture, scope),
     });

@@ -9,15 +9,8 @@ You are a knowledge curator. Analyze the content below following the Task.
 
 {{content}}
 
-## Task: Analyze for Egg "{{egg_file}}"
-## Egg Instructions
-{{egg_instructions}}
-
 ## Stage 1 Context (not an endorsement or quality score)
 {{stage1_signals}}
-
-## Entry Generation
-{{entry_generation}}
 
 ## Task
 1. Treat the egg’s Scope, Action Guide and Formatting Rules as the primary specification for which insights to capture and how to present them. Use the Stage 1 mind map to locate relevant concepts, relationships and evidence; verify all claims and timestamps against the raw source. Do not convert every mind-map branch into an entry. The mind map may cover the whole work; in a chunk, use only evidence present in that part. Preserve useful AMA question–answer pairs, examples, qualifications and disagreements. Do not repeat the general mind map or force every result into a concept/explanation template.
@@ -47,3 +40,10 @@ Set generateKnowledgeEntries=false when entry generation is disabled by the UI o
 {{shared_output_rules}}
 
 Set answered=false for unsupported/unaddressed answers, regardless of output language. Such answers are displayed but not hatched as insights.
+
+## Target Egg: "{{egg_file}}"
+### Egg Instructions
+{{egg_instructions}}
+
+### Entry Generation
+{{entry_generation}}
