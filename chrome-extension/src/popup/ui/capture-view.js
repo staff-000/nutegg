@@ -101,7 +101,7 @@ function isVideoView(view) {
 
 function shouldShowPanelVideoSpeed(view, settings) {
   if (settings?.videoSpeedEnabled === false) return false;
-  if (!isVideoView(view)) return false;
+  if (view?.playbackPosition?.type !== 'video') return false;
   if (view?.playbackPosition?.onPageSpeedOverlay === true) return false;
   if (settings?.videoSpeedOnPageEnabled !== false) {
     if (settings?.videoSpeedAllSitesEnabled === true) return false;

@@ -344,9 +344,19 @@ describe('Video Speed Adjuster', () => {
     assert.equal(xTarget?.container.getAttribute('data-testid'), 'videoPlayer');
   });
 
-  it('hides panel speed slider when the slider is already shown on the main page', () => {
+  it('hides panel speed slider when there is no playable video or when shown on the main page', () => {
+    const noPlayerView = {
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      extractedContent: { isVideo: true, sourceType: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+    };
+    assert.equal(
+      shouldShowPanelVideoSpeed(noPlayerView, { videoSpeedEnabled: true, videoSpeedOnPageEnabled: false, videoSpeedAllSitesEnabled: false }),
+      false
+    );
+
     const ytView = {
       url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      playbackPosition: { type: 'video', playbackRate: 1 },
       extractedContent: { isVideo: true, sourceType: 'youtube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
     };
     const otherVideoView = {
