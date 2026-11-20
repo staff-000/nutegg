@@ -488,5 +488,71 @@ describe('Video Speed Adjuster', () => {
     await new Promise(r => setTimeout(r, 10));
     assert.deepEqual(setCalls, [2, 3, 4, 5]);
   });
+
+  it('keeps preferred speed across SPA video switches even when player resets playbackRate to 1x on load', async () => {
+    const dom = new JSDOM(
+      `<!DOCTYPE html><html><body>
+        <div id="movie_player">
+          <video src="https://example.com/video-a.mp4"></video>
+        </div>
+      </body></html>`,
+      { url: 'https://www.youtube.com/watch?v=videoA', runScripts: 'outside-only' }
+    );
+    const doc = dom.window.document;
+    const video = doc.querySelector('video');
+    Object.defineProperty(video, 'readyState', { value: 4, configurable: true });
+
+    const chromeMock = {
+      runtime: {
+        getURL: p => `chrome-extension://test-id/${p}`,
+        sendMessage: async msg => {
+          if (msg.action === 'get-video-speed-settings') {
+            return { settings: { videoSpeedEnabled: true, videoSpeedOnPageEnabled: true, preferredVideoSpeed: 1 } };
+          }
+          return { success: true };
+        },
+        onMessage: { addListener: () => {} },
+      },
+    };
+
+    const sharedCode = fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-shared.js'), 'utf8');
+    const overlayCode = fs.readFileSync(path.resolve(__dirname, '../src/content/video-speed-overlay.js'), 'utf8');
+    const context = dom.getInternalVMContext();
+    context.chrome = chromeMock;
+
+    vm.runInContext(sharedCode, context);
+    vm.runInContext(overlayCode, context);
+    await new Promise(r => setTimeout(r, 20));
+
+    // User sets 3x via keyboard shortcut (dispatches nutegg:speed-changed)
+    video.playbackRate = 3;
+    dom.window.dispatchEvent(new dom.window.CustomEvent('nutegg:speed-changed', { detail: { rate: 3 } }));
+    assert.equal(video.playbackRate, 3);
+
+    // SPA navigates to Video B on the same reused <video> element; playbackRate is still 3 during early sync
+    dom.reconfigure({ url: 'https://www.youtube.com/watch?v=videoB' });
+    video.setAttribute('src', 'https://example.com/video-b.mp4');
+    dom.window.dispatchEvent(new dom.window.Event('yt-navigate-finish'));
+    await new Promise(r => setTimeout(r, 170));
+
+    // Site player resets playbackRate to 1x on loadedmetadata
+    video.playbackRate = 1;
+    video.dispatchEvent(new dom.window.Event('loadedmetadata'));
+    assert.equal(video.playbackRate, 3, 'Should restore 3x after player resets to 1x on loadedmetadata');
+
+    // Site player resets playbackRate to 1x again on playing during initial load window
+    video.playbackRate = 1;
+    video.dispatchEvent(new dom.window.Event('playing'));
+    assert.equal(video.playbackRate, 3, 'Should restore 3x if player resets to 1x on playing during initial load');
+
+    // Explicit user reset to 1x via badge must be respected on subsequent playing events
+    const host = doc.getElementById('nutegg-video-speed-overlay');
+    host.shadowRoot.querySelector('.badge').click();
+    assert.equal(video.playbackRate, 1);
+    video.dispatchEvent(new dom.window.Event('playing'));
+    assert.equal(video.playbackRate, 1);
+
+    dom.window.close();
+  });
 });
 

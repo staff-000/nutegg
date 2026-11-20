@@ -568,6 +568,35 @@
     chrome.runtime?.sendMessage?.({ action: 'set-preferred-video-speed', rate }).catch?.(() => {});
   }
 
+  const INITIAL_LOAD_GUARD_MS = 4000;
+  let userExplicitRateKey = '';
+
+  function getVideoKey(video) {
+    const pageKey = globalScope.NutEggPageIdentity?.playbackPageKey
+      ? globalScope.NutEggPageIdentity.playbackPageKey(location.href)
+      : location.href;
+    return `${pageKey}|${video?.currentSrc || video?.src || ''}`;
+  }
+
+  function applyPreferredSpeed(video, { fromLoadEvent = false } = {}) {
+    if (!video || settings.videoSpeedEnabled === false) return;
+    const pref = settings.preferredVideoSpeed;
+    if (!Number.isFinite(pref) || pref < 0.25 || pref > 16 || pref === 1) return;
+    if (video.playbackRate !== 1) return;
+    const videoKey = getVideoKey(video);
+    const isNewVideo = window.__nuteggAppliedSpeedKey !== videoKey;
+    const withinInitialLoad =
+      fromLoadEvent &&
+      userExplicitRateKey !== videoKey &&
+      Date.now() - (window.__nuteggAppliedSpeedAt || 0) <= INITIAL_LOAD_GUARD_MS;
+    if (!isNewVideo && !withinInitialLoad) return;
+    window.__nuteggAppliedSpeedKey = videoKey;
+    if (isNewVideo) window.__nuteggAppliedSpeedAt = Date.now();
+    try {
+      video.playbackRate = pref;
+    } catch {}
+  }
+
   function setVideoRate(rate) {
     const rounded = Math.round(Number(rate) * 100) / 100;
     if (!Number.isFinite(rounded) || rounded < 0.25 || rounded > 16) return;
@@ -576,9 +605,9 @@
     if (video) {
       try {
         video.playbackRate = rounded;
-        if (globalScope.NutEggPageIdentity?.playbackPageKey) {
-          window.__nuteggAppliedSpeedKey = `${globalScope.NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
-        }
+        const key = getVideoKey(video);
+        window.__nuteggAppliedSpeedKey = key;
+        userExplicitRateKey = key;
       } catch {}
     }
     persistPreferredRate(rounded);
@@ -587,22 +616,7 @@
   function bindVideoEvents(video) {
     if (!video) return;
     currentVideo = video;
-    const videoKey = globalScope.NutEggPageIdentity?.playbackPageKey
-      ? `${globalScope.NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`
-      : `${location.href}|${video.currentSrc || video.src || ''}`;
-
-    if (
-      window.__nuteggAppliedSpeedKey !== videoKey &&
-      video.playbackRate === 1 &&
-      Number.isFinite(settings.preferredVideoSpeed) &&
-      settings.preferredVideoSpeed >= 0.25 &&
-      settings.preferredVideoSpeed <= 16
-    ) {
-      window.__nuteggAppliedSpeedKey = videoKey;
-      try {
-        video.playbackRate = settings.preferredVideoSpeed;
-      } catch {}
-    }
+    applyPreferredSpeed(video);
 
     if (!boundVideos.has(video)) {
       boundVideos.add(video);
@@ -613,6 +627,13 @@
           renderRate(nextRate);
         }
       });
+      const reapplyOnLoad = () => {
+        if (video !== currentVideo) return;
+        applyPreferredSpeed(video, { fromLoadEvent: true });
+      };
+      for (const evt of ['loadstart', 'loadedmetadata', 'loadeddata', 'playing']) {
+        video.addEventListener(evt, reapplyOnLoad);
+      }
     }
     renderRate(video.playbackRate);
   }
@@ -759,7 +780,14 @@
 
   window.addEventListener('nutegg:speed-changed', e => {
     const rate = Number(e?.detail?.rate);
-    if (Number.isFinite(rate) && rate > 0) {
+    if (Number.isFinite(rate) && rate >= 0.25 && rate <= 16) {
+      settings.preferredVideoSpeed = rate;
+      const video = currentVideo || findActiveVideo(document);
+      if (video) {
+        const key = getVideoKey(video);
+        window.__nuteggAppliedSpeedKey = key;
+        userExplicitRateKey = key;
+      }
       renderRate(rate);
       flashPill();
     }

@@ -516,6 +516,7 @@ function resolvePageReadiness(sendResponse) {
       try {
         const rounded = Math.round(rate * 100) / 100;
         nuteggApplyPlaybackRate(video, rounded);
+        window.dispatchEvent(new CustomEvent('nutegg:speed-changed', { detail: { rate: video.playbackRate } }));
         sendResponse({
           success: true,
           type: 'video',
@@ -535,16 +536,24 @@ function resolvePageReadiness(sendResponse) {
       const video = nuteggPlaybackPlayer();
       if (video && (video.readyState > 0 || Number.isFinite(video.currentTime))) {
         const videoKey = `${NutEggPageIdentity.playbackPageKey(location.href)}|${video.currentSrc || video.src || ''}`;
-        if (window.__nuteggAppliedSpeedKey !== videoKey) {
+        const pref = Number(message.preferredRate);
+        // Respect a speed already selected by the website or another control.
+        // Only mark the key applied once normal 1x playback is actually updated so
+        // SPA transitions (where playbackRate is still stale before the player resets to 1x)
+        // do not prematurely suppress re-application.
+        if (
+          window.__nuteggAppliedSpeedKey !== videoKey &&
+          video.playbackRate === 1 &&
+          Number.isFinite(pref) &&
+          pref >= 0.25 &&
+          pref <= 16 &&
+          pref !== 1
+        ) {
           window.__nuteggAppliedSpeedKey = videoKey;
-          const pref = Number(message.preferredRate);
-          // Respect a speed already selected by the website or another control.
-          // The saved preference only supplies the initial speed at normal playback.
-          if (video.playbackRate === 1 && Number.isFinite(pref) && pref >= 0.25 && pref <= 16) {
-            try {
-              video.playbackRate = Math.round(pref * 100) / 100;
-            } catch {}
-          }
+          window.__nuteggAppliedSpeedAt = Date.now();
+          try {
+            video.playbackRate = Math.round(pref * 100) / 100;
+          } catch {}
         }
         sendResponse({
           success: true,
