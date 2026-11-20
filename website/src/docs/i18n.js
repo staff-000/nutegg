@@ -123,6 +123,14 @@ const docsTranslations = {
       '\n            <strong>Live Settings Sync</strong>: Changing your analysis models, enabled output sections, or server\n            settings immediately updates all open side panels without requiring a page refresh.\n          ',
     docs_chromeExtension_082:
       '\n            <strong>Custom Server Port</strong>: If default port <code>27123</code> conflicts with another service, open\n            extension <strong>Options</strong>, adjust the port (e.g. <code>28123</code>), and test the connection.\n          ',
+
+    docs_chromeExtension_083: "<strong>Customize Configuration with AI</strong>: Describe desired changes in plain language in Options (with one-click example chips and undo support).",
+    docs_chromeExtension_084: "<strong>Export Config &amp; Reset to Defaults</strong>: Export your settings to JSON or reset all configuration to defaults from the Options header/footer while keeping saved API keys and sign-in sessions.",
+    docs_chromeExtension_085: "<strong>Personal Notes (Obsidian Mode)</strong>: Record multi-entry notes per tab and save Q&amp;A answers directly into your notes.",
+    docs_chromeExtension_086: "Video Speed Adjuster (0.25x–16x)",
+    docs_chromeExtension_087: "Control HTML5 video playback speed directly on YouTube, Bilibili, and (optionally) any website:",
+    docs_chromeExtension_088: "<strong>On-Page Speed Pill</strong>: Appears inline next to the title on YouTube, anchored above the video on Bilibili, or in the top-right corner on other video sites when <em>All Videos</em> is enabled (with an in-panel slider fallback).",
+    docs_chromeExtension_089: "<strong>Quick Controls &amp; Shortcuts</strong>: Click the speed badge to reset to <code>1x</code>, click the NutEgg icon to open the side panel, or use <code>+</code> / <code>-</code> (±0.25x) and <code>Shift+2</code>–<code>Shift+5</code> (2x–5x) shortcuts. Your preferred speed is saved automatically.",
     docs_index_001: 'Documentation Overview — NutEgg',
     docs_index_002: 'Chrome Web Store ↗',
     docs_index_003: 'Obsidian Plugin ↗',
@@ -446,6 +454,8 @@ const docsTranslations = {
       '\n            <strong>Customized Prompts</strong>: Your edits are never overwritten. NutEgg writes\n            <code>[filename].new.md</code> alongside your file so you can review new additions at your own pace.\n          ',
     docs_workflow_063:
       '\n            <strong>Factory Reset ("Use Defaults")</strong>: Need a fresh start? In\n            <strong>Obsidian Settings → NutEgg</strong>, click <strong>Use Defaults</strong>. All existing prompts are\n            safely backed up to <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> and pristine factory defaults\n            are restored.\n          ',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Extracts high-signal structured knowledge entries in Chrome standalone mode.",
+    docs_workflow_065: "The <code>## Content to Analyze</code> header and <code>{{content}}</code> placement at the top of raw-content prompts so multi-stage KV-cache prefix reuse stays intact.",
   },
   zh: {
     docs_chromeExtension_001: 'Chrome 扩展指南 — NutEgg',
@@ -555,6 +565,14 @@ const docsTranslations = {
       '<strong>实时设置同步</strong>：更改分析模型、启用的输出部分或服务器设置会立即更新所有打开的侧面板，无需刷新页面。',
     docs_chromeExtension_082:
       '<strong>自定义服务器端口</strong>：如果默认端口<code>27123</code>与其他服务冲突，请打开扩展<strong>选项</strong>，调整端口（例如<code>28123</code>），然后测试连接。',
+
+    docs_chromeExtension_083: "<strong>用 AI 自定义配置</strong>：在设置页用自然语言描述想要修改的配置（支持示例快捷按钮与一键撤销）。",
+    docs_chromeExtension_084: "<strong>导出配置与恢复默认</strong>：在设置页顶部/底部导出 JSON 配置，或一键恢复所有默认设置（保留已保存的 API 密钥和登录状态）。",
+    docs_chromeExtension_085: "<strong>个人笔记（Obsidian 模式）</strong>：在每个标签页记录多条个人笔记，或将问答结果直接保存为笔记。",
+    docs_chromeExtension_086: "视频倍速调节（0.25x–16x）",
+    docs_chromeExtension_087: "直接在 YouTube、Bilibili 及（可选）所有网站上调节 HTML5 视频播放速度：",
+    docs_chromeExtension_088: "<strong>页面内倍速浮条</strong>：在 YouTube 上嵌入标题旁、在 Bilibili 上锚定于视频上方，开启<em>所有视频</em>后会在其他视频站点右上角显示（面板内亦提供备用滑块）。",
+    docs_chromeExtension_089: "<strong>快捷控制与快捷键</strong>：点击倍速标签可重置为 <code>1x</code>，点击 NutEgg 图标可打开侧边栏，也支持 <code>+</code> / <code>-</code>（±0.25x）与 <code>Shift+2</code>–<code>Shift+5</code>（2x–5x）快捷键，并自动保存偏好倍速。",
     docs_index_001: '文档概览 — NutEgg',
     docs_index_002: 'Chrome 网上商店 ↗',
     docs_index_003: 'Obsidian 插件 ↗',
@@ -861,6 +879,8 @@ const docsTranslations = {
       '<strong>自定义提示</strong>：您的编辑永远不会被覆盖。 NutEgg 将 <code>[filename].new.md</code> 写入您的文件旁边，以便您可以按照自己的进度查看新添加的内容。',
     docs_workflow_063:
       '<strong>恢复出厂设置（“使用默认值”）</strong>：需要重新开始？在<strong>Obsidian设置→NutEgg</strong>中，单击<strong>使用默认值</strong>。所有现有提示均安全备份至<code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code>，并恢复原始出厂默认设置。',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>：在 Chrome 独立模式下提取高价值结构化知识条目。",
+    docs_workflow_065: "保留原始内容提示词顶部的 <code>## Content to Analyze</code> 标题与 <code>{{content}}</code> 位置，以保持多阶段 KV 缓存前缀复用。",
   },
   es: {
     docs_chromeExtension_001: 'Guía de la extensión de Chrome — NutEgg',
@@ -983,6 +1003,14 @@ const docsTranslations = {
       '<strong>Sincronización de configuración en vivo</strong>: cambiar los modelos de análisis, las secciones de salida habilitadas o la configuración del servidor actualiza inmediatamente todos los paneles laterales abiertos sin necesidad de actualizar la página.',
     docs_chromeExtension_082:
       '<strong>Puerto del servidor personalizado</strong>: si el puerto predeterminado <code>27123</code> entra en conflicto con otro servicio, abra la extensión <strong>Opciones</strong>, ajuste el puerto (por ejemplo, <code>28123</code>) y pruebe la conexión.',
+
+    docs_chromeExtension_083: "<strong>Personalizar configuración con IA</strong>: Describe los cambios en lenguaje natural en Opciones (con ejemplos y deshacer en un clic).",
+    docs_chromeExtension_084: "<strong>Exportar y restablecer valores predeterminados</strong>: Exporta la configuración a JSON o restablece todos los ajustes manteniendo tus claves API y sesiones.",
+    docs_chromeExtension_085: "<strong>Notas personales (modo Obsidian)</strong>: Guarda múltiples notas por pestaña y envía respuestas de Q&amp;A directamente a tus notas.",
+    docs_chromeExtension_086: "Ajuste de velocidad de vídeo (0.25x–16x)",
+    docs_chromeExtension_087: "Controla la velocidad de reproducción HTML5 en YouTube, Bilibili y (opcionalmente) cualquier sitio web:",
+    docs_chromeExtension_088: "<strong>Control en página</strong>: Aparece junto al título en YouTube, anclado sobre el vídeo en Bilibili o en la esquina superior derecha en otros sitios si <em>Todos los vídeos</em> está activado.",
+    docs_chromeExtension_089: "<strong>Controles rápidos y atajos</strong>: Haz clic en la insignia para volver a <code>1x</code>, en el icono de NutEgg para abrir el panel o usa <code>+</code> / <code>-</code> (±0.25x) y <code>Shift+2</code>–<code>Shift+5</code> (2x–5x).",
     docs_index_001: 'Descripción general de la documentación — NutEgg',
     docs_index_002: 'Chrome Tienda web ↗',
     docs_index_003: 'Obsidian Complemento ↗',
@@ -1310,6 +1338,8 @@ const docsTranslations = {
       '<strong>Mensajes personalizados</strong>: sus ediciones nunca se sobrescriben. NutEgg escribe <code>[filename].new.md</code> junto a tu archivo para que puedas revisar las nuevas incorporaciones a tu propio ritmo.',
     docs_workflow_063:
       '<strong>Restablecimiento de fábrica ("Usar valores predeterminados")</strong>: ¿Necesita un nuevo comienzo? En <strong>Obsidian Configuración → NutEgg</strong>, haga clic en <strong>Usar valores predeterminados</strong>. Se realiza una copia de seguridad de todos los mensajes existentes en <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> y se restauran los valores predeterminados de fábrica.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Extrae entradas de conocimiento estructurado en modo independiente de Chrome.",
+    docs_workflow_065: "El encabezado <code>## Content to Analyze</code> y la posición de <code>{{content}}</code> al inicio para conservar la reutilización de caché KV.",
   },
   ja: {
     docs_chromeExtension_001: 'Chrome 拡張機能ガイド — NutEgg',
@@ -1433,6 +1463,14 @@ const docsTranslations = {
       '<strong>ライブ設定同期</strong>: 解析モデル、有効な出力セクション、またはサーバー設定を変更すると、ページを更新することなく、開いているすべてのサイド パネルが即座に更新されます。',
     docs_chromeExtension_082:
       '<strong>カスタムサーバーポート</strong>: デフォルトのポート<code>27123</code>が別のサービスと競合する場合は、拡張機能<strong>オプション</strong>を開き、ポートを調整し（例：<code>28123</code>）、接続をテストします。',
+
+    docs_chromeExtension_083: "<strong>AI で設定をカスタマイズ</strong>：オプション画面で変更内容を自然言語で指示でき、ワンクリックで元に戻せます。",
+    docs_chromeExtension_084: "<strong>設定のエクスポートと初期化</strong>：保存済みの API キーやログイン状態を保持したまま、JSON エクスポートやデフォルトへのリセットが可能です。",
+    docs_chromeExtension_085: "<strong>個人メモ（Obsidian モード）</strong>：タブごとに複数のメモを記録し、Q&amp;A の回答をそのままメモに保存できます。",
+    docs_chromeExtension_086: "動画再生速度調整（0.25x–16x）",
+    docs_chromeExtension_087: "YouTube、Bilibili、および（任意で）すべての Web サイトの HTML5 動画再生速度を調整できます：",
+        docs_chromeExtension_088: "<strong>ページ内スピードバー</strong>：YouTube ではタイトル横、Bilibili では動画上部に配置され、<em>すべての動画</em>有効時は他サイトの右上にも表示されます。",
+    docs_chromeExtension_089: "<strong>クイック操作とショートカット</strong>：速度バッジで <code>1x</code> にリセット、NutEgg アイコンでパネルを開き、<code>+</code> / <code>-</code>（±0.25x）や <code>Shift+2</code>–<code>Shift+5</code>（2x–5x）で操作できます。",
     docs_index_001: 'ドキュメントの概要 — NutEgg',
     docs_index_002: 'Chrome ウェブストア ↗',
     docs_index_003: 'Obsidian プラグイン ↗',
@@ -1755,6 +1793,8 @@ const docsTranslations = {
       '<strong>カスタマイズされたプロンプト</strong>: 編集内容が上書きされることはありません。 NutEgg はファイルと一緒に <code>[filename].new.md</code> を書き込むので、自分のペースで新しい追加を確認できます。',
     docs_workflow_063:
       '<strong>工場出荷時設定へのリセット (「デフォルトを使用」)</strong>: 新たにスタートする必要がありますか? <strong>Obsidian 設定 → NutEgg</strong> で、<strong>デフォルトを使用</strong> をクリックします。既存のプロンプトはすべて <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> に安全にバックアップされ、工場出荷時のデフォルト設定が復元されます。',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>：Chrome スタンドアロンモードで高価値な構造化知識エントリを抽出します。",
+    docs_workflow_065: "KV キャッシュのプレフィックス再利用を保つため、先頭の <code>## Content to Analyze</code> と <code>{{content}}</code> の位置を維持してください。",
   },
   ko: {
     docs_chromeExtension_001: 'Chrome 확장 프로그램 가이드 — NutEgg',
@@ -1874,6 +1914,14 @@ const docsTranslations = {
       '<strong>라이브 설정 동기화</strong>: 분석 모델, 활성화된 출력 섹션 또는 서버 설정을 변경하면 페이지를 새로 고칠 필요 없이 열려 있는 모든 측면 패널이 즉시 업데이트됩니다.',
     docs_chromeExtension_082:
       '<strong>사용자 정의 서버 포트</strong>: 기본 포트 <code>27123</code>가 다른 서비스와 충돌하는 경우 확장 프로그램 <strong>옵션</strong>을 열고 포트를 조정(예: <code>28123</code>)한 후 연결을 테스트하세요.',
+
+    docs_chromeExtension_083: "<strong>AI로 설정 사용자 지정</strong>: 옵션에서 원하는 변경 사항을 자연어로 입력할 수 있으며 원클릭 실행 취소를 지원합니다.",
+    docs_chromeExtension_084: "<strong>설정 내보내기 및 기본값 복원</strong>: 저장된 API 키와 로그인 세션을 유지한 채 JSON 내보내기 또는 기본값 복원을 실행할 수 있습니다.",
+    docs_chromeExtension_085: "<strong>개인 메모 (Obsidian 모드)</strong>: 탭별로 여러 메모를 작성하고 Q&amp;A 답변을 메모로 바로 저장하세요.",
+    docs_chromeExtension_086: "비디오 속도 조절기 (0.25x–16x)",
+    docs_chromeExtension_087: "YouTube, Bilibili 및(선택 사항) 모든 웹사이트에서 HTML5 비디오 재생 속도를 직접 조절하세요:",
+    docs_chromeExtension_088: "<strong>페이지 내 속도 슬라이더</strong>: YouTube 제목 옆, Bilibili 비디오 상단에 표시되며 <em>모든 비디오</em> 사용 시 다른 사이트 우측 상단에도 표시됩니다.",
+    docs_chromeExtension_089: "<strong>빠른 제어 및 단축키</strong>: 배지를 클릭해 <code>1x</code>로 초기화하고, NutEgg 아이콘으로 패널을 열며 <code>+</code> / <code>-</code> (±0.25x) 및 <code>Shift+2</code>–<code>Shift+5</code> (2x–5x) 단축키를 사용할 수 있습니다.",
     docs_index_001: '문서 개요 — NutEgg',
     docs_index_002: 'Chrome 웹 스토어 ↗',
     docs_index_003: 'Obsidian 플러그인 ↗',
@@ -2190,6 +2238,8 @@ const docsTranslations = {
       '<strong>맞춤형 프롬프트</strong>: 편집 내용을 덮어쓰지 않습니다. NutEgg는 파일 옆에 <code>[filename].new.md</code>를 기록하므로 자신의 속도에 맞춰 새로 추가된 내용을 검토할 수 있습니다.',
     docs_workflow_063:
       '<strong>공장 초기화("기본값 사용")</strong>: 새로운 시작이 필요하신가요? <strong>Obsidian 설정 → NutEgg</strong>에서 <strong>기본값 사용</strong>을 클릭하세요. 기존의 모든 프롬프트는 <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code>에 안전하게 백업되고 공장 기본값이 복원됩니다.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Chrome 독립 모드에서 핵심 구조화 지식 항목을 추출합니다.",
+    docs_workflow_065: "다단계 KV 캐시 접두사 재사용을 위해 원본 콘텐츠 프롬프트 상단의 <code>## Content to Analyze</code> 및 <code>{{content}}</code> 위치를 유지하세요.",
   },
   ar: {
     docs_chromeExtension_001: 'دليل إضافة Chrome — NutEgg',
@@ -2310,6 +2360,14 @@ const docsTranslations = {
       '<strong>مزامنة الإعدادات المباشرة</strong>: يؤدي تغيير نماذج التحليل أو أقسام الإخراج الممكّنة أو إعدادات الخادم إلى تحديث جميع اللوحات الجانبية المفتوحة على الفور دون الحاجة إلى تحديث الصفحة.',
     docs_chromeExtension_082:
       '<strong>منفذ خادم مخصص</strong>: إذا كان المنفذ الافتراضي <code>27123</code> يتعارض مع خدمة أخرى، فافتح الامتداد <strong>Options</strong>، واضبط المنفذ (على سبيل المثال <code>28123</code>)، واختبر الاتصال.',
+
+    docs_chromeExtension_083: "<strong>تخصيص الإعدادات بالذكاء الاصطناعي</strong>: صف التغييرات المطلوبة بلغة طبيعية في الخيارات مع أمثلة سريعة والتراجع بنقرة واحدة.",
+    docs_chromeExtension_084: "<strong>تصدير الإعدادات وإعادة الضبط للافتراضي</strong>: صدّر الإعدادات كـ JSON أو أعد ضبطها مع الاحتفاظ بمفاتيح API وجلسات تسجيل الدخول.",
+    docs_chromeExtension_085: "<strong>الملاحظات الشخصية (وضع Obsidian)</strong>: سجّل ملاحظات متعددة لكل علامة تبويب واحفظ إجابات الأسئلة مباشرة.",
+    docs_chromeExtension_086: "أداة التحكم في سرعة الفيديو (0.25x–16x)",
+    docs_chromeExtension_087: "تحكم في سرعة تشغيل فيديو HTML5 مباشرة على YouTube وBilibili و(اختياريًا) أي موقع:",
+        docs_chromeExtension_088: "<strong>شريط السرعة داخل الصفحة</strong>: يظهر بجانب العنوان على YouTube، وفوق الفيديو على Bilibili، وفي الزاوية العلوية اليمنى عند تفعيل <em>جميع الفيديوهات</em>.",
+    docs_chromeExtension_089: "<strong>اختصارات سريعة</strong>: انقر على شارة السرعة لإعادة الضبط إلى <code>1x</code>، أو أيقونة NutEgg لفتح اللوحة، أو استخدم <code>+</code> / <code>-</code> و<code>Shift+2</code>–<code>Shift+5</code>.",
     docs_index_001: 'نظرة عامة على الوثائق — NutEgg',
     docs_index_002: 'Chrome المتجر الإلكتروني ↗',
     docs_index_003: 'Obsidian البرنامج المساعد ↗',
@@ -2627,6 +2685,8 @@ const docsTranslations = {
       '<strong>تعليمات نصية مخصّصة</strong>: لا يُكتب فوق تعديلاتك مطلقًا. يكتب NutEgg ملف <code>[filename].new.md</code> بجانب ملفك، لتتمكّن من مراجعة الإضافات الجديدة في الوقت المناسب لك.',
     docs_workflow_063:
       '<strong>إعادة ضبط المصنع ("استخدام الإعدادات الافتراضية")</strong>: هل تحتاج إلى بداية جديدة؟ من <strong>إعدادات Obsidian → NutEgg</strong>، انقر على <strong>استخدام الإعدادات الافتراضية</strong>. تُحفظ نسخة احتياطية آمنة من جميع التعليمات النصية الموجودة في <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code>، وتُستعاد إعدادات المصنع الأصلية.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: يستخرج إدخالات معرفية منظمة عالية القيمة في وضع Chrome المستقل.",
+    docs_workflow_065: "الحفاظ على ترويسة <code>## Content to Analyze</code> وموضع <code>{{content}}</code> أعلى القالب لضمان إعادة استخدام ذاكرة KV المؤقتة.",
   },
   fr: {
     docs_chromeExtension_001: 'Guide de l’extension Chrome — NutEgg',
@@ -2751,6 +2811,14 @@ const docsTranslations = {
       "<strong>Synchronisation des paramètres en direct</strong> : la modification de vos modèles d'analyse, des sections de sortie activées ou des paramètres du serveur met immédiatement à jour tous les panneaux latéraux ouverts sans nécessiter une actualisation de la page.",
     docs_chromeExtension_082:
       "<strong>Port du serveur personnalisé</strong> : si le port par défaut <code>27123</code> est en conflit avec un autre service, ouvrez l'extension <strong>Options</strong>, ajustez le port (par exemple <code>28123</code>) et testez la connexion.",
+
+    docs_chromeExtension_083: "<strong>Configurer avec l&apos;IA</strong> : Décrivez les réglages souhaités en langage naturel dans Options, avec annulation en un clic.",
+    docs_chromeExtension_084: "<strong>Exporter et réinitialiser</strong> : Exportez votre configuration en JSON ou restaurez les valeurs par défaut tout en conservant clés API et sessions.",
+    docs_chromeExtension_085: "<strong>Notes personnelles (mode Obsidian)</strong> : Ajoutez plusieurs notes par onglet et enregistrez des réponses Q&amp;R directement.",
+    docs_chromeExtension_086: "Réglage de vitesse vidéo (0.25x–16x)",
+    docs_chromeExtension_087: "Contrôlez la vitesse de lecture HTML5 sur YouTube, Bilibili et (en option) tout autre site :",
+    docs_chromeExtension_088: "<strong>Barre sur la page</strong> : Intégrée près du titre sur YouTube, ancrée au-dessus de la vidéo sur Bilibili, ou en haut à droite ailleurs si <em>Toutes les vidéos</em> est activé.",
+    docs_chromeExtension_089: "<strong>Contrôles rapides et raccourcis</strong> : Cliquez sur le badge pour revenir à <code>1x</code>, sur l&apos;icône NutEgg pour ouvrir le panneau, ou utilisez <code>+</code> / <code>-</code> et <code>Shift+2</code>–<code>Shift+5</code>.",
     docs_index_001: 'Présentation de la documentation — NutEgg',
     docs_index_002: 'Chrome Boutique en ligne ↗',
     docs_index_003: 'ObsidianPlugin↗',
@@ -3080,6 +3148,8 @@ const docsTranslations = {
       '<strong>Invites personnalisées</strong> : vos modifications ne sont jamais écrasées. NutEgg écrit <code>[filename].new.md</code> à côté de votre fichier afin que vous puissiez consulter les nouveaux ajouts à votre rythme.',
     docs_workflow_063:
       "<strong>Réinitialisation d'usine (« Utiliser les paramètres par défaut »)</strong> : Besoin d'un nouveau départ ? Dans <strong>Obsidian Paramètres → NutEgg</strong>, cliquez sur <strong>Utiliser les paramètres par défaut</strong>. Toutes les invites existantes sont sauvegardées en toute sécurité jusqu'à <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> et les paramètres d'usine par défaut sont restaurés.",
+    docs_workflow_064: "<code>chrome-knowledge.md</code> : Extrait des entrées de connaissances structurées en mode Chrome autonome.",
+    docs_workflow_065: "L&apos;en-tête <code>## Content to Analyze</code> et la position de <code>{{content}}</code> en tête pour préserver le cache KV multi-étapes.",
   },
   de: {
     docs_chromeExtension_001: 'Anleitung zur Chrome-Erweiterung — NutEgg',
@@ -3204,6 +3274,14 @@ const docsTranslations = {
       '<strong>Live-Einstellungen-Synchronisierung</strong>: Wenn Sie Ihre Analysemodelle, aktivierten Ausgabeabschnitte oder Servereinstellungen ändern, werden alle geöffneten Seitenbereiche sofort aktualisiert, ohne dass eine Seitenaktualisierung erforderlich ist.',
     docs_chromeExtension_082:
       '<strong>Benutzerdefinierter Server-Port</strong>: Wenn der Standard-Port <code>27123</code> mit einem anderen Dienst in Konflikt steht, öffnen Sie die Erweiterung <strong>Optionen</strong>, passen Sie den Port an (z. B. <code>28123</code>) und testen Sie die Verbindung.',
+
+    docs_chromeExtension_083: "<strong>Konfiguration mit KI anpassen</strong>: Beschreiben Sie gewünschte Änderungen in den Optionen in natürlicher Sprache (inkl. Rückgängig-Funktion).",
+    docs_chromeExtension_084: "<strong>Konfiguration exportieren &amp; zurücksetzen</strong>: Exportieren Sie Einstellungen als JSON oder setzen Sie alle Werte zurück, ohne API-Schlüssel oder Logins zu verlieren.",
+    docs_chromeExtension_085: "<strong>Persönliche Notizen (Obsidian-Modus)</strong>: Erfassen Sie mehrere Notizen pro Tab und speichern Sie Q&amp;A-Antworten direkt.",
+    docs_chromeExtension_086: "Videogeschwindigkeits-Regler (0.25x–16x)",
+    docs_chromeExtension_087: "Steuern Sie die HTML5-Wiedergabegeschwindigkeit direkt auf YouTube, Bilibili und (optional) jeder Website:",
+        docs_chromeExtension_088: "<strong>On-Page-Regler</strong>: Inline neben dem Titel auf YouTube, über dem Video auf Bilibili oder oben rechts auf anderen Videoseiten, wenn <em>Alle Videos</em> aktiviert ist.",
+    docs_chromeExtension_089: "<strong>Schnellsteuerung &amp; Kürzel</strong>: Klicken Sie auf das Badge für <code>1x</code>-Reset, auf das NutEgg-Symbol für das Panel oder nutzen Sie <code>+</code> / <code>-</code> und <code>Shift+2</code>–<code>Shift+5</code>.",
     docs_index_001: 'Dokumentationsübersicht — NutEgg',
     docs_index_002: 'Chrome Webshop ↗',
     docs_index_003: 'Obsidian Plugin ↗',
@@ -3533,6 +3611,8 @@ const docsTranslations = {
       '<strong>Benutzerdefinierte Eingabeaufforderungen</strong>: Ihre Änderungen werden niemals überschrieben. NutEgg schreibt <code>[filename].new.md</code> neben Ihre Datei, damit Sie neue Ergänzungen in Ihrem eigenen Tempo überprüfen können.',
     docs_workflow_063:
       '<strong>Werksreset („Standardeinstellungen verwenden“)</strong>: Brauchen Sie einen Neuanfang? Klicken Sie in <strong>Obsidian Einstellungen → NutEgg</strong> auf <strong>Standardeinstellungen verwenden</strong>. Alle vorhandenen Eingabeaufforderungen werden sicher auf <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> gesichert und die ursprünglichen Werkseinstellungen werden wiederhergestellt.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Extrahiert strukturierte Wissenseinträge im eigenständigen Chrome-Modus.",
+    docs_workflow_065: "Die Kopfzeile <code>## Content to Analyze</code> und Position von <code>{{content}}</code> am Anfang, um KV-Cache-Wiederverwendung zu erhalten.",
   },
   pt: {
     docs_chromeExtension_001: 'Guia da extensão do Chrome — NutEgg',
@@ -3655,6 +3735,14 @@ const docsTranslations = {
       '<strong>Sincronização de configurações ao vivo</strong>: Alterar seus modelos de análise, seções de saída habilitadas ou configurações do servidor atualiza imediatamente todos os painéis laterais abertos sem exigir uma atualização de página.',
     docs_chromeExtension_082:
       '<strong>Porta do servidor personalizado</strong>: Se a porta padrão <code>27123</code> entrar em conflito com outro serviço, abra a extensão <strong>Options</strong>, ajuste a porta (por exemplo, <code>28123</code>) e teste a conexão.',
+
+    docs_chromeExtension_083: "<strong>Personalizar configuração com IA</strong>: Descreva alterações em linguagem natural nas Opções, com exemplos e desfazer em um clique.",
+    docs_chromeExtension_084: "<strong>Exportar e restaurar padrões</strong>: Exporte configurações em JSON ou redefina tudo mantendo chaves de API e sessões.",
+    docs_chromeExtension_085: "<strong>Notas pessoais (modo Obsidian)</strong>: Registre várias notas por aba e salve respostas de P&amp;R diretamente.",
+    docs_chromeExtension_086: "Ajuste de velocidade de vídeo (0.25x–16x)",
+    docs_chromeExtension_087: "Controle a velocidade de reprodução HTML5 diretamente no YouTube, Bilibili e (opcionalmente) em qualquer site:",
+        docs_chromeExtension_088: "<strong>Controle na página</strong>: Exibido ao lado do título no YouTube, ancorado acima do vídeo no Bilibili ou no canto superior direito quando <em>Todos os vídeos</em> está ativado.",
+    docs_chromeExtension_089: "<strong>Atalhos rápidos</strong>: Clique no selo para voltar a <code>1x</code>, no ícone NutEgg para abrir o painel ou use <code>+</code> / <code>-</code> e <code>Shift+2</code>–<code>Shift+5</code>.",
     docs_index_001: 'Visão geral da documentação — NutEgg',
     docs_index_002: 'Chrome Loja Virtual ↗',
     docs_index_003: 'Obsidian Plug-in ↗',
@@ -3981,6 +4069,8 @@ const docsTranslations = {
       '<strong>Avisos personalizados</strong>: Suas edições nunca são substituídas. NutEgg escreve <code>[filename].new.md</code> junto com seu arquivo para que você possa revisar novas adições em seu próprio ritmo.',
     docs_workflow_063:
       '<strong>Redefinição de fábrica ("Usar padrões")</strong>: Precisa de um novo começo? Em <strong>Obsidian Configurações → NutEgg</strong>, clique em <strong>Usar padrões</strong>. Todos os prompts existentes são copiados com segurança para <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code> e os padrões originais de fábrica são restaurados.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Extrai entradas de conhecimento estruturado no modo autônomo do Chrome.",
+    docs_workflow_065: "O cabeçalho <code>## Content to Analyze</code> e a posição de <code>{{content}}</code> no topo para manter o reuso de cache KV.",
   },
   ru: {
     docs_chromeExtension_001: 'Руководство по расширению Chrome — NutEgg',
@@ -4104,6 +4194,14 @@ const docsTranslations = {
       '<strong>Синхронизация настроек в реальном времени</strong>: изменение моделей анализа, включенных разделов вывода или настроек сервера немедленно обновляет все открытые боковые панели, не требуя обновления страницы.',
     docs_chromeExtension_082:
       '<strong>Порт пользовательского сервера</strong>: если порт по умолчанию <code>27123</code> конфликтует с другой службой, откройте расширение <strong>Параметры</strong>, настройте порт (например, <code>28123</code>) и проверьте соединение.',
+
+    docs_chromeExtension_083: "<strong>Настройка через ИИ</strong>: Опишите нужные изменения обычным языком в настройках (с примерами и отменой в один клик).",
+    docs_chromeExtension_084: "<strong>Экспорт и сброс настроек</strong>: Экспортируйте конфигурацию в JSON или сбросьте настройки к значениям по умолчанию, сохраняя API-ключи и сессии.",
+    docs_chromeExtension_085: "<strong>Личные заметки (режим Obsidian)</strong>: Ведите несколько заметок на вкладке и сохраняйте ответы Q&amp;A прямо в заметки.",
+    docs_chromeExtension_086: "Регулятор скорости видео (0.25x–16x)",
+    docs_chromeExtension_087: "Управляйте скоростью воспроизведения HTML5-видео на YouTube, Bilibili и (опционально) на любых сайтах:",
+        docs_chromeExtension_088: "<strong>Панель скорости на странице</strong>: Встраивается рядом с заголовком на YouTube, над видео на Bilibili или в правом верхнем углу при включении <em>Все видео</em>.",
+    docs_chromeExtension_089: "<strong>Быстрое управление и горячие клавиши</strong>: Нажмите на значок скорости для сброса к <code>1x</code>, на иконку NutEgg для открытия панели или используйте <code>+</code> / <code>-</code> и <code>Shift+2</code>–<code>Shift+5</code>.",
     docs_index_001: 'Обзор документации — NutEgg',
     docs_index_002: 'Chrome Интернет-магазин ↗',
     docs_index_003: 'Obsidian Плагин ↗',
@@ -4430,5 +4528,7 @@ const docsTranslations = {
       '<strong>Индивидуальные подсказки</strong>: ваши изменения никогда не перезаписываются. NutEgg записывает <code>[filename].new.md</code> рядом с вашим файлом, чтобы вы могли просматривать новые дополнения в удобном для вас темпе.',
     docs_workflow_063:
       '<strong>Сброс к заводским настройкам («Использовать настройки по умолчанию»)</strong>: Хотите начать все сначала? В <strong>Obsidian Настройки → NutEgg</strong> нажмите <strong>Использовать настройки по умолчанию</strong>. Все существующие запросы сохраняются в резервную копию <code>nutegg/_workflow/_backup/&lt;timestamp&gt;/</code>, и восстанавливаются исходные заводские настройки.',
+    docs_workflow_064: "<code>chrome-knowledge.md</code>: Извлекает структурированные записи знаний в автономном режиме Chrome.",
+    docs_workflow_065: "Заголовок <code>## Content to Analyze</code> и расположение <code>{{content}}</code> в начале промпта для сохранения KV-кэша.",
   },
 };

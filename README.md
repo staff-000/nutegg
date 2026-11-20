@@ -4,7 +4,7 @@
 
 NutEgg captures web content and curates structured knowledge in Obsidian. It is a two-part system designed to help you stop mindless browsing and start building your personal knowledge base:
 
-- **Chrome Extension** ([Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol)) — Grabs content from any webpage, tweet, or YouTube video (with transcripts). We call these raw captures **nuts** 🌰.
+- **Chrome Extension** ([Chrome Web Store](https://chromewebstore.google.com/detail/nutegg/bmdmdiicembobejibggoeiahaonphcol)) — Grabs content from webpages, social posts, and videos (YouTube, Bilibili, X/Twitter, Reddit, Zhihu, Weibo, Instagram, TikTok, Douyin, Threads). We call these raw captures **nuts** 🌰.
 - **Obsidian Plugin** ([Obsidian Community Plugins](https://community.obsidian.md/plugins/nutegg)) — Analyzes content with AI, answers your egg-specific questions and recommends what to read, and curates your knowledge base. We call these organized knowledge trees **eggs** 🥚.
 
 ### 🚀 Quick Install
@@ -46,7 +46,10 @@ Browse Web  →  Retrieve Content  →  Click Analyze  →  Hatch / Collect / Sk
    - **💬 Discussion & Community Perspectives**: Summarizes comments across YouTube, Reddit, Zhihu, and forums into concise topics, stance badges (agree/disagree/neutral), and detail-rich extra insights.
    - **🔍 Dual-Scope Q&A (Within vs. Beyond Content)**: Choose whether your questions are strictly grounded within the page content or expand beyond it for fact-checking, justification, and external reasoning.
    - **🧠 Interactive Mind Maps**: Explore collapsible thought trees to visualize multi-tier concept structures.
-   - **⚡ Novelty-First Evaluation**: Highlights new insights vs. concepts already documented in your vault.
+   - **⏩ Video Speed Adjuster (0.25x–16x)**: On-page speed slider on YouTube, Bilibili, and (optionally) all video sites with `+`/`-` (±0.25x) and `Shift+2..5` (2x–5x) shortcuts, `1x` reset badge, and saved preferred speed.
+   - **🥚 Egg-Guided Evaluation**: Evaluates content against each egg's Scope, Key Questions, Worth Reading If, and Skip If instructions, and extracts structured knowledge entries when enabled.
+   - **📝 Personal Notes (Obsidian Mode)**: Keep multi-entry notes per tab and save Q&A answers directly into your notes.
+   - **✨ AI Settings Assistant & Config Reset**: Configure NutEgg in plain language with one-click undo, export settings JSON, or reset all configuration to defaults while keeping saved API keys.
 5. **Take Action**:
    - **🥚 Hatch Egg**: Weaves fresh insights directly into your matching Obsidian egg file (the raw 🌰 nut is also archived automatically).
    - **🌰 Collect Nut**: Saves a raw markdown copy with metadata into your vault archive (`nutegg/_raw/`).

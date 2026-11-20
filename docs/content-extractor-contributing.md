@@ -204,7 +204,7 @@ Troubleshooting a cached result that cannot seek: inspect `nutegg-handshake`, th
 `connection_timeout`). Script execution alone is not proof of a working listener. A `stale` error means ownership
 changed and must never trigger a command on the replacement page. Do not delete the cache or rerun analysis.
 
-Regression command, from `chrome-extension/`: `node --test tests/playback.test.js`.
+Regression command: `npm run test:ext -- chrome-extension/tests/playback.test.js` (and run `npm run lint` to rebuild `ai-core.js` and validate all site-strategy registries).
 
 ### Verified cached-video failure (2026-10-19)
 

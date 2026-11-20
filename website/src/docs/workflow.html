@@ -334,8 +334,13 @@
         <h3 data-i18n-html="docs_workflow_049">4. Interactive &amp; Maintenance Workflows</h3>
         <ul>
           <li data-i18n-html="docs_workflow_050">
-            <code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel with prior conversation
-            history and clickable video timestamp jumping.
+            <code>follow-up.md</code>: Interactive natural-language Q&amp;A in the side panel focused strictly on the
+            source content (excluding discussion comments), with prior conversation history and clickable video
+            timestamp jumping.
+          </li>
+          <li data-i18n-html="docs_workflow_064">
+            <code>chrome-knowledge.md</code>: Extracts high-signal structured knowledge entries in Chrome standalone
+            mode.
           </li>
           <li data-i18n-html="docs_workflow_051">
             <code>merge-unprocessed.md</code>: Triggered manually or automatically at 20+ pending entries to organize
@@ -364,6 +369,10 @@
             </li>
             <li data-i18n-html="docs_workflow_058">
               Structural headings (<code># Knowledge</code>, <code># Unprocessed</code>) in markdown outputs.
+            </li>
+            <li data-i18n-html="docs_workflow_065">
+              The <code>## Content to Analyze</code> header and <code>{{content}}</code> placement at the top of
+              raw-content prompts so multi-stage KV-cache prefix reuse stays intact.
             </li>
           </ul>
         </div>
