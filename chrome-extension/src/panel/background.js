@@ -224,7 +224,18 @@ var NutEggPanels = (() => {
           const blockedByRule =
             settings.openingPolicy === 'closed' ||
             (decision.ruleId && !decision.open && decision.name !== 'panelStarter' && !String(decision.ruleId).startsWith('default-'));
-          if (decision.open && tab.active && settings.mode === 'injected' && !current.suppressed && !current.opened && !blockedByRule && typeof fetchHistory === 'function') {
+          const canAutoOpen =
+            decision.open &&
+            tab.active &&
+            settings.mode === 'injected' &&
+            !current.suppressed &&
+            !current.opened &&
+            !blockedByRule;
+          if (canAutoOpen && !decision.needsContentSignals) {
+            await open(tabId, true);
+            return { decision, settings, shouldPrefetch: false, opened: true, key: current.key, suggestion: suggestion(current, 'allow') };
+          }
+          if (canAutoOpen && typeof fetchHistory === 'function') {
             const historyRes = await fetchHistory(tab.url).catch(() => null);
             const cachedEntry = historyRes?.latest;
             if (cachedEntry && (cachedEntry.result || cachedEntry.content || cachedEntry.capturePayload)) {
@@ -383,6 +394,17 @@ var NutEggPanels = (() => {
     }
     if (message.action === 'panel-save-rule') {
       const saved = await upsertRule(message.rule);
+      if (target != null) {
+        await serial(target, async () => {
+          const current = await state(target);
+          const tab = await chrome.tabs.get(target).catch(() => null);
+          const signals = current.signals || (tab?.url && /^https?:/.test(tab.url) ? { url: tab.url } : null);
+          if (signals) {
+            const decision = await evaluate(signals, current.cached);
+            await save(target, { ...current, decision });
+          }
+        });
+      }
       return { ok: true, rule: saved, settings };
     }
     if (message.action === 'panel-delete-rule') {
@@ -392,6 +414,17 @@ var NutEggPanels = (() => {
         rules: (settings.rules || []).filter(item => item.id !== message.id),
       });
       await chrome.storage.local.set({ panelSettings: settings });
+      if (target != null) {
+        await serial(target, async () => {
+          const current = await state(target);
+          const tab = await chrome.tabs.get(target).catch(() => null);
+          const signals = current.signals || (tab?.url && /^https?:/.test(tab.url) ? { url: tab.url } : null);
+          if (signals) {
+            const decision = await evaluate(signals, current.cached);
+            await save(target, { ...current, decision });
+          }
+        });
+      }
       return { ok: true, settings };
     }
     if (message.action === 'panel-transfer-get')
@@ -448,8 +481,20 @@ var NutEggPanels = (() => {
         if (pageKey(tab.url) !== message.key || current.key !== message.key) return { error: 'stale' };
         const minutes = Number.isFinite(message.minutes) && message.minutes > 0 ? Math.min(100000, Math.ceil(message.minutes)) : null;
         const metrics = { minutes, contentAvailable: message.contentAvailable === true };
-        await save(target, { ...current, captureMetrics: metrics, signals: { ...current.signals, url: tab.url, ...metrics }, decision: { ...current.decision, ...metrics } });
-        return { ok: true };
+        const extra = {};
+        if (typeof message.author === 'string' && message.author.trim()) extra.author = message.author.trim().slice(0, 300);
+        if (['text', 'photo', 'video'].includes(message.mediaKind)) extra.mediaKind = message.mediaKind;
+        if (Number.isFinite(message.videoDurationSeconds) && message.videoDurationSeconds > 0)
+          extra.videoDurationSeconds = message.videoDurationSeconds;
+        const nextSignals = { ...current.signals, url: tab.url, ...extra, ...metrics };
+        const nextDecision = await evaluate(nextSignals, current.cached);
+        await save(target, {
+          ...current,
+          captureMetrics: metrics,
+          signals: nextSignals,
+          decision: { ...nextDecision, ...metrics },
+        });
+        return { ok: true, decision: { ...nextDecision, ...metrics } };
       });
     if (message.action === 'panel-cache-metadata')
       return serial(target, async () => {
@@ -458,16 +503,21 @@ var NutEggPanels = (() => {
         if (pageKey(liveTab.url) !== message.key) return { error: 'stale' };
         if (current.key !== message.key) Object.assign(current, { key: message.key, cached: null });
         const metadata = message.metadata;
-        if (metadata)
+        if (metadata) {
+          const cached = {
+            author: typeof metadata.author === 'string' ? metadata.author.slice(0, 300) : null,
+            topics: Array.isArray(metadata.topics)
+              ? metadata.topics.filter(t => typeof t === 'string').slice(0, 5)
+              : [],
+          };
+          const signals = current.signals || (liveTab.url && /^https?:/.test(liveTab.url) ? { url: liveTab.url } : null);
+          const decision = signals ? await evaluate(signals, cached) : current.decision;
           await save(target, {
             ...current,
-            cached: {
-              author: typeof metadata.author === 'string' ? metadata.author.slice(0, 300) : null,
-              topics: Array.isArray(metadata.topics)
-                ? metadata.topics.filter(t => typeof t === 'string').slice(0, 5)
-                : [],
-            },
+            cached,
+            ...(decision ? { decision } : {}),
           });
+        }
         const cache = (await chrome.storage.local.get('panelMetadataCache')).panelMetadataCache || {};
         cache[message.key] = {
           author: typeof metadata?.author === 'string' ? metadata.author : null,
@@ -502,9 +552,16 @@ var NutEggPanels = (() => {
         nativeOpen.add(target);
         return serial(target, () => close(target, false));
       }
-      await chrome.sidePanel.setOptions({ tabId: target, enabled: false });
-      await chrome.sidePanel.setOptions({ tabId: target, enabled: true, path: 'src/popup/popup.html' });
-      return serial(target, () => open(target));
+      const opened = await serial(target, () => open(target));
+      if (opened?.error) return opened;
+      nativeOpen.delete(target);
+      if (typeof chrome.sidePanel?.close === 'function') {
+        await chrome.sidePanel.close({ tabId: target }).catch(() => {});
+      } else {
+        await chrome.sidePanel.setOptions({ tabId: target, enabled: false });
+        await chrome.sidePanel.setOptions({ tabId: target, enabled: true, path: 'src/popup/popup.html' });
+      }
+      return opened;
     }
     return { error: 'Unknown panel action' };
   }

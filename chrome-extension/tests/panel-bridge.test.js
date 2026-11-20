@@ -76,3 +76,56 @@ test('compact header icon controls have localized popup hints and no extra mode 
   assert.ok(win.document.querySelector('.panel-switch-icon-btn').getAttribute('data-hint'));
   assert.equal(win.document.querySelector('.panel-collapse-button'), null);
 });
+
+test('manual open shows ring icon immediately and switches to mute once auto-open rule matches', async t => {
+  const { win, manager } = await fixture(t);
+  let suggestionDecision = { open: false, ruleId: null };
+  win.chrome.runtime.sendMessage = async message => {
+    if (message.action === 'panel-get-suggestion') {
+      return { hostname: 'example.com', automatic: false, decision: suggestionDecision };
+    }
+    if (message.action === 'panel-capture-metrics') {
+      suggestionDecision = { open: true, ruleId: 'allow-example' };
+      return { ok: true, decision: suggestionDecision };
+    }
+    return { settings: {}, decision: suggestionDecision };
+  };
+  win.NutEggPanel.context = { tabId: 1, key: 'https://example.com/article', automatic: false, settings: {} };
+  await win.NutEggPanel.mount({ manager });
+  const initialTrigger = win.document.querySelector('.smart-rule-trigger');
+  assert.ok(initialTrigger);
+  assert.equal(initialTrigger.classList.contains('is-active'), true);
+  assert.equal(initialTrigger.classList.contains('is-muted'), false);
+
+  const extraction = manager.beginOperation(1, 'extraction');
+  manager.commitOperation(extraction.token, {
+    type: 'extracted',
+    content: { content: 'word '.repeat(600), url: 'https://example.com/article', metadata: { author: 'Alice' } },
+  });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const updatedTrigger = win.document.querySelector('.smart-rule-trigger');
+  assert.ok(updatedTrigger);
+  assert.equal(updatedTrigger.classList.contains('is-muted'), true);
+  assert.equal(updatedTrigger.classList.contains('is-active'), false);
+});
+
+test('switching from native chrome panel to web panel closes the native window on success', async t => {
+  const { win } = await fixture(t);
+  let closed = 0;
+  win.close = () => { closed++; };
+  let switchResponse = { ok: true };
+  win.chrome.runtime.sendMessage = async message => {
+    if (message.action === 'panel-switch') return switchResponse;
+    return {};
+  };
+  const switchBtn = win.document.querySelector('.panel-switch-icon-btn');
+  switchBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(closed, 1);
+
+  switchResponse = { error: 'panelRestricted' };
+  switchBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(closed, 1);
+  assert.equal(win.document.querySelector('.panel-status').classList.contains('hidden'), false);
+});

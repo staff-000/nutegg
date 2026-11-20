@@ -234,10 +234,70 @@ test('fetched reading metrics survive later passive probes and reject stale capt
   assert.equal((await f.send({ action: 'panel-capture-metrics', key: 'https://old.test', minutes: 9, contentAvailable: true }, f.extension())).error, 'stale');
 });
 
-test('auto-open stays closed when content fetch fails or returns empty', async () => {
+test('immediate rules open without prefetch; rules needing content/video signals stay closed if fetch fails or returns empty', async () => {
   const f = await fixture();
-  await f.inspect(1, { url: f.tabs.get(1).url, content: '', extractionStatus: 'unavailable' });
+  const immediate = await f.send({
+    action: 'panel-signals',
+    url: f.tabs.get(1).url,
+    signals: { author: 'Dan Koe', minutes: null, contentAvailable: false, listing: false },
+  });
+  assert.equal(immediate.opened, true);
+  assert.equal(immediate.shouldPrefetch, false);
+  assert.equal(f.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 1);
+
+  const f2 = await fixture();
+  f2.tabs.get(1).url = 'https://www.tiktok.com/@alice/video/123';
+  const deferred = await f2.send({
+    action: 'panel-signals',
+    url: f2.tabs.get(1).url,
+    signals: { mediaKind: 'video', videoDurationSeconds: 181, contentAvailable: true, listing: false },
+  });
+  assert.equal(deferred.opened, undefined);
+  assert.equal(deferred.shouldPrefetch, true);
+  assert.equal(f2.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 0);
+  await f2.send({
+    action: 'panel-prefetch-complete',
+    url: f2.tabs.get(1).url,
+    key: deferred.key,
+    capture: { url: f2.tabs.get(1).url, content: '', extractionStatus: 'unavailable' },
+  });
+  assert.equal(f2.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 0);
+});
+
+test('pending higher-rank block rule with video length defers immediate auto-open', async () => {
+  const f = await fixture({
+    ...Rules.defaults,
+    openingPolicy: 'custom',
+    rules: [
+      { id: 'allow-yt', enabled: true, action: 'allow', hostname: 'youtube.com', website: Rules.websiteRegex('youtube.com'), excludeListings: true },
+      { id: 'block-long-yt', enabled: true, action: 'block', hostname: 'youtube.com', website: Rules.websiteRegex('youtube.com'), videoLongerThanSeconds: 600 },
+    ],
+  });
+  const res = await f.send({
+    action: 'panel-signals',
+    url: f.tabs.get(1).url,
+    signals: { mediaKind: 'unknown', contentAvailable: false, listing: false },
+  });
+  assert.equal(res.decision.open, true);
+  assert.equal(res.decision.needsContentSignals, true);
+  assert.equal(res.opened, undefined);
+  assert.equal(res.shouldPrefetch, true);
   assert.equal(f.messages.filter(m => m.data.action === 'nutegg-panel-show').length, 0);
+});
+
+test('switching from native chrome panel to web panel closes the chrome side panel only on success', async () => {
+  const f = await fixture({ ...Rules.defaults, mode: 'native' });
+  const closedTabs = [];
+  f.chrome.sidePanel.close = async ({ tabId }) => { closedTabs.push(tabId); };
+  const nativeSender = { id: 'extension', url: 'chrome-extension://extension/src/popup/popup.html' };
+  const res = await f.send({ action: 'panel-switch', tabId: 1, mode: 'injected' }, nativeSender);
+  assert.equal(res.ok, true);
+  assert.deepEqual(closedTabs, [1]);
+
+  f.tabs.set(3, { id: 3, url: 'chrome://settings', active: true, windowId: 1 });
+  const restricted = await f.send({ action: 'panel-switch', tabId: 3, mode: 'injected' }, nativeSender);
+  assert.equal(restricted.error, 'panelRestricted');
+  assert.deepEqual(closedTabs, [1]);
 });
 
 test('social short/unknown videos cannot open from cached history; long captionless videos open without automatic analysis', async () => {

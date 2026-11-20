@@ -326,9 +326,21 @@
       return false;
     }
   }
+  function ruleNeedsContentSignals(rule) {
+    if (!rule) return false;
+    if (rule.videoLongerThanSeconds != null) return true;
+    if (
+      contentConditionsEnabled &&
+      (rule.minMinutes != null || rule.maxMinutes != null || typeof rule.contentAvailable === 'boolean')
+    ) {
+      return true;
+    }
+    return false;
+  }
   function decide(settings, signals, cached) {
     const isListing = Boolean(signals.listing || isListingUrl(signals.url));
     const matches = [];
+    const pendingBlockRanks = [];
     let mediaPending = false;
     for (const raw of activeRules(settings)) {
       if (raw.enabled === false) continue;
@@ -355,15 +367,7 @@
         );
       });
       if (topics.length && !topicMatch) continue;
-      if (contentConditionsEnabled && rule.minMinutes != null && (signals.minutes == null || signals.minutes < rule.minMinutes)) continue;
-      if (contentConditionsEnabled && rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) continue;
-      if (contentConditionsEnabled && typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) continue;
       if (rule.excludeListings !== false && isListing) continue;
-      if (rule.videoLongerThanSeconds != null) {
-        if (!['text', 'photo', 'video'].includes(signals.mediaKind)) { mediaPending = true; continue; }
-        if (signals.mediaKind === 'video' && !Number.isFinite(signals.videoDurationSeconds)) { mediaPending = true; continue; }
-        if (signals.mediaKind === 'video' && signals.videoDurationSeconds <= rule.videoLongerThanSeconds) continue;
-      }
       const conditional = !!(
         authors.length ||
         topics.length ||
@@ -371,10 +375,43 @@
         rule.excludeListings || rule.videoLongerThanSeconds != null
       );
       const rank = raw._starter ? 1 : (rule.website === '.*' ? 0 : 2) + (conditional ? 1 : 0) + 0.5;
+      const trackPendingBlock = () => {
+        if (rule.action === 'block' && ruleNeedsContentSignals(rule)) pendingBlockRanks.push(rank);
+      };
+      if (contentConditionsEnabled && rule.minMinutes != null && (signals.minutes == null || signals.minutes < rule.minMinutes)) {
+        if (signals.minutes == null) trackPendingBlock();
+        continue;
+      }
+      if (contentConditionsEnabled && rule.maxMinutes != null && (signals.minutes == null || signals.minutes > rule.maxMinutes)) {
+        if (signals.minutes == null) trackPendingBlock();
+        continue;
+      }
+      if (contentConditionsEnabled && typeof rule.contentAvailable === 'boolean' && signals.contentAvailable !== rule.contentAvailable) {
+        if (!signals.contentAvailable) trackPendingBlock();
+        continue;
+      }
+      if (rule.videoLongerThanSeconds != null) {
+        if (!['text', 'photo', 'video'].includes(signals.mediaKind)) {
+          mediaPending = true;
+          trackPendingBlock();
+          continue;
+        }
+        if (signals.mediaKind === 'video' && !Number.isFinite(signals.videoDurationSeconds)) {
+          mediaPending = true;
+          trackPendingBlock();
+          continue;
+        }
+        if (signals.mediaKind === 'video' && signals.videoDurationSeconds <= rule.videoLongerThanSeconds) continue;
+      }
       matches.push({ rule, rank, topic: topicMatch, author });
     }
     matches.sort((a, b) => b.rank - a.rank || Number(b.rule.action === 'block') - Number(a.rule.action === 'block'));
     const match = matches[0];
+    const matchRank = match ? match.rank : -1;
+    const blockedPending = pendingBlockRanks.some(rank => rank >= matchRank);
+    const needsContentSignals = Boolean(
+      (match && ruleNeedsContentSignals(match.rule)) || blockedPending || (!match && mediaPending)
+    );
     return {
       open: match
         ? match.rule.action === 'allow'
@@ -382,6 +419,7 @@
           (settings.openingPolicy === 'open' ||
             (!['closed', 'nutegg'].includes(settings.openingPolicy) && settings.defaultOpen === true)),
       mediaPending: !match && mediaPending,
+      needsContentSignals,
       videoDurationSeconds: signals.videoDurationSeconds ?? null,
       mediaKind: signals.mediaKind || 'unknown',
       ruleId: match?.rule.id || null,
@@ -481,6 +519,7 @@
     customize,
     hasCustomRegex,
     isListingUrl,
+    ruleNeedsContentSignals,
     decide,
     isSimpleSiteRule,
     isSimpleTopicRule,

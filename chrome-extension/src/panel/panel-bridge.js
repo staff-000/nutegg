@@ -108,6 +108,8 @@ globalThis.NutEggPanel = {
       if (result?.error) {
         status.textContent = t('panelRestricted');
         status.classList.remove('hidden');
+      } else if (!context) {
+        window.close?.();
       }
     });
 
@@ -206,33 +208,18 @@ globalThis.NutEggPanel = {
         }
       }
     });
-    const refreshRuleBar = async () => {
-      if (!context) return;
-      const tabId = context.tabId ?? manager.activeTabId;
-      const tab = manager.getTab(tabId);
-      const rawUrl = tab?.url || context?.key || '';
-      const info = (await this.send('panel-get-suggestion', { tabId }).catch(() => null)) || {};
-      let hostname = info.hostname || '';
-      if (!hostname && /^https?:/.test(rawUrl)) {
-        try {
-          hostname =
-            globalThis.NutEggRules?.rootDomain?.(rawUrl) ||
-            new URL(rawUrl).hostname.replace(/^www\./, '').toLowerCase();
-        } catch {
-          hostname = '';
-        }
+    const resolveHostname = rawUrl => {
+      if (!rawUrl || !/^https?:/.test(rawUrl)) return '';
+      try {
+        return (
+          globalThis.NutEggRules?.rootDomain?.(rawUrl) ||
+          new URL(rawUrl).hostname.replace(/^www\./, '').toLowerCase()
+        );
+      } catch {
+        return '';
       }
-      const website =
-        info.website || (hostname && globalThis.NutEggRules?.websiteRegex ? globalThis.NutEggRules.websiteRegex(hostname) : hostname);
-      const author = info.author || tab?.extractedContent?.metadata?.author || null;
-      const topics = info.topics?.length
-        ? info.topics
-        : tab?.analysisResult?.topics || tab?.extractedContent?.metadata?.topics || [];
-      const isAutoOpened = Boolean(info.automatic || context?.automatic || tab?.panelClassification?.automatic);
-      const isSiteAllowed = Boolean(
-        info.isSiteAllowed ??
-          (hostname && (globalThis.NutEggRules?.DEFAULT_WHITELIST_HOSTS || []).includes(hostname))
-      );
+    };
+    const renderRuleBar = ({ hostname = '', website = '', author = null, topics = [], isAutoOpened = false, isSiteAllowed = false, info = {} }) => {
       const key = `${hostname}|${author || ''}|${topics.join(',')}|${isAutoOpened}|${info.decision?.ruleId || ''}|${info.minutes ?? ''}|${isSiteAllowed}`;
       if (key === lastRuleBarKey) return;
       lastRuleBarKey = key;
@@ -249,7 +236,7 @@ globalThis.NutEggPanel = {
         : `Manually opened on ${targetLabel} (click for auto-open rules)`;
       trigger.setAttribute('data-hint', hintText);
       trigger.setAttribute('aria-label', hintText);
-      // Auto-opened -> show Mute (bell-slash); Manually opened -> show Ring (bell)
+      // Auto-opened / matches auto-open rule -> show Mute (bell-slash); Manually opened -> show Ring (bell)
       trigger.innerHTML = isAutoOpened
         ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
         : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>';
@@ -454,6 +441,49 @@ globalThis.NutEggPanel = {
       ruleBar.append(trigger, menu);
       ruleBar.classList.remove('hidden');
     };
+    const refreshRuleBar = async () => {
+      if (!context) return;
+      const tabId = context.tabId ?? manager.activeTabId;
+      const tab = manager.getTab(tabId);
+      const rawUrl = tab?.url || context?.key || '';
+      const info = (await this.send('panel-get-suggestion', { tabId }).catch(() => null)) || {};
+      const hostname = info.hostname || resolveHostname(rawUrl);
+      const website =
+        info.website || (hostname && globalThis.NutEggRules?.websiteRegex ? globalThis.NutEggRules.websiteRegex(hostname) : hostname);
+      const author = info.author || tab?.extractedContent?.metadata?.author || null;
+      const topics = info.topics?.length
+        ? info.topics
+        : tab?.analysisResult?.topics || tab?.extractedContent?.metadata?.topics || [];
+      const hasDecision = info.decision && typeof info.decision.open === 'boolean';
+      const isAutoOpened = hasDecision
+        ? Boolean(info.decision.open)
+        : Boolean(
+            info.automatic ||
+              context?.automatic ||
+              (typeof tab?.panelClassification?.open === 'boolean'
+                ? tab.panelClassification.open
+                : tab?.panelClassification?.automatic)
+          );
+      const isSiteAllowed = Boolean(
+        info.isSiteAllowed ??
+          (hostname && (globalThis.NutEggRules?.DEFAULT_WHITELIST_HOSTS || []).includes(hostname))
+      );
+      renderRuleBar({ hostname, website, author, topics, isAutoOpened, isSiteAllowed, info });
+    };
+
+    if (context) {
+      const initialTab = manager.getTab(context.tabId ?? manager.activeTabId);
+      const initialHost = resolveHostname(initialTab?.url || context?.key || '');
+      const initialWebsite =
+        initialHost && globalThis.NutEggRules?.websiteRegex ? globalThis.NutEggRules.websiteRegex(initialHost) : initialHost;
+      // Show icon immediately: Mute if auto-opened, Ring first when manually opened.
+      renderRuleBar({
+        hostname: initialHost,
+        website: initialWebsite,
+        isAutoOpened: Boolean(context.automatic),
+        isSiteAllowed: Boolean(initialHost && (globalThis.NutEggRules?.DEFAULT_WHITELIST_HOSTS || []).includes(initialHost)),
+      });
+    }
 
     const decision =
       context?.decision ||
@@ -490,16 +520,30 @@ globalThis.NutEggPanel = {
       sourcePublished = fingerprint;
       const value = this.classifyCapture(tab.extractedContent, base);
       manager.dispatch({ type: 'panelClassification', tabId: tab.tabId, pageGeneration: tab.pageGeneration, value });
+      const meta = tab.extractedContent.metadata || {};
       void this.send('panel-capture-metrics', {
         tabId: tab.tabId,
         key,
         minutes: value.minutes,
         contentAvailable: value.contentAvailable,
+        ...(typeof meta.author === 'string' && meta.author.trim() ? { author: meta.author.trim() } : {}),
+        ...(meta.media_kind ? { mediaKind: meta.media_kind } : {}),
+        ...(Number.isFinite(meta.video_duration_seconds) ? { videoDurationSeconds: meta.video_duration_seconds } : {}),
+      }).then(res => {
+        if (res?.decision && manager.getTab(tab.tabId)?.pageGeneration === tab.pageGeneration) {
+          manager.dispatch({
+            type: 'panelClassification',
+            tabId: tab.tabId,
+            pageGeneration: tab.pageGeneration,
+            value: { ...value, ...res.decision },
+          });
+        }
+        return refreshRuleBar();
       });
-      void refreshRuleBar();
     };
     manager.subscribe(syncClassification);
     syncClassification();
+    if (context) void refreshRuleBar();
 
     let published = '';
     manager.subscribe(() => {
