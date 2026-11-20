@@ -341,25 +341,25 @@ test("normalizeConversationMindMap handles format downgrade, sorting, and budget
     "Level-1 topics should be sorted chronologically"
   );
 
-  // 3. Budget cap: max 8 topics
+  // 3. Full enumeration: preserves all topics without truncation/rollup
   const tenTopics = Array.from({ length: 10 }, (_, i) => ({
     name: `Topic ${i + 1}`,
     time: `0${i + 1}:00`,
     kind: "topic",
     children: [{ name: `Question ${i + 1}`, kind: "question" }],
   }));
-  const cappedTopics = normalizeConversationMindMap(tenTopics, {
+  const preservedTopics = normalizeConversationMindMap(tenTopics, {
     format: "panel",
     participants: [
       { id: "p1", role: "host", named: false },
       { id: "p2", role: "guest", named: false },
     ],
   });
-  assert.equal(cappedTopics.mindMap.length, 9, "Top 8 topics + 1 rollup node = 9 nodes");
-  assert.equal(cappedTopics.mindMap[8].name, "+2 more topics");
-  assert.ok(cappedTopics.mindMap[8].detail.includes("Topic 9"));
+  assert.equal(preservedTopics.mindMap.length, 10, "All 10 topics should be preserved");
+  assert.equal(preservedTopics.mindMap[8].name, "Topic 9");
+  assert.equal(preservedTopics.mindMap[9].name, "Topic 10");
 
-  // 4. Budget cap: max 6 questions per topic
+  // 4. Full enumeration: preserves all questions per topic
   const eightQuestionsTopic = [
     {
       name: "Mega Topic",
@@ -370,15 +370,16 @@ test("normalizeConversationMindMap handles format downgrade, sorting, and budget
       })),
     },
   ];
-  const cappedQuestions = normalizeConversationMindMap(eightQuestionsTopic, {
+  const preservedQuestions = normalizeConversationMindMap(eightQuestionsTopic, {
     format: "ama",
     participants: [
       { id: "host", role: "host", named: false },
       { id: "audience", role: "audience", named: false },
     ],
   });
-  assert.equal(cappedQuestions.mindMap[0].children.length, 7, "Top 6 questions + 1 rollup node = 7 questions");
-  assert.equal(cappedQuestions.mindMap[0].children[6].name, "+2 more questions");
+  assert.equal(preservedQuestions.mindMap[0].children.length, 8, "All 8 questions should be preserved");
+  assert.equal(preservedQuestions.mindMap[0].children[6].name, "Q7");
+  assert.equal(preservedQuestions.mindMap[0].children[7].name, "Q8");
 });
 
 test("optimizeForConversation switch controls AI workflow and mindmap UI", async (t) => {
