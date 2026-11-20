@@ -181,12 +181,12 @@ body {
 .status-tooltip {
   position: absolute;
   top: calc(100% + 6px);
-  right: 0;
+  right: -46px;
   background: #1e293b;
   color: #f8fafc;
   padding: 12px 14px;
   border-radius: 6px;
-  width: min(320px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 24px));
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.5;
@@ -207,10 +207,18 @@ body {
   content: '';
   position: absolute;
   bottom: 100%;
-  right: 5px;
+  right: 51px;
   border-width: 5px;
   border-style: solid;
   border-color: transparent transparent #1e293b transparent;
+}
+
+.header-actions:has(.panel-close-button) .status-tooltip {
+  right: -92px;
+}
+
+.header-actions:has(.panel-close-button) .status-tooltip::before {
+  right: 97px;
 }
 
 .status-indicator-wrap:hover .status-tooltip,
