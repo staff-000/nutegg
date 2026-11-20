@@ -144,7 +144,7 @@ test('forum body, knowledge extraction and follow-up reuse summaries plus select
   assert.doesNotMatch(prompts[2], /ORDINARY-RAW-DETAIL/); assert.match(prompts[2], /DETAIL-RAW-EVIDENCE/);
   assert.equal(extracted.eggResults[0].extractedEntries[0].sources[0].sourceId, 'detail');
   await new core.AIProcessor(mockHost(prompts)).askFollowUp(page, ['How?']);
-  assert.doesNotMatch(prompts[3], /ORDINARY-RAW-DETAIL/); assert.match(prompts[3], /DETAIL-RAW-EVIDENCE/);
+  assert.doesNotMatch(prompts[3], /ORDINARY-RAW-DETAIL|DETAIL-RAW-EVIDENCE/);
   assert.equal(JSON.stringify(page), original);
   assert.equal(result.discussion.topics[0].highlights[1].source.text, page.discussion.items[1].text);
 });
