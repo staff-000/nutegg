@@ -10,8 +10,6 @@ You are a knowledge curator. Analyze the content below following the Task.
 {{content}}
 
 ## Task
-{{questions}}
-{{conversation_hints}}
 1. Title Verdict: Provide a single, direct sentence that resolves the core question posed in the title or introduction.
 2. Core Summary: Summarize the main concepts in plain language using a maximum of 3 bullet points.
 3. User Questions: Answer each user question concisely based on the content (if questions were provided).
@@ -22,6 +20,10 @@ You are a knowledge curator. Analyze the content below following the Task.
    - "panel": Moderator guiding discussion among multiple panelists.
    - "debate": Opposing speakers arguing conflicting positions.
    - "monologue": Single author/speaker explaining concepts, written article, essay, documentation, tutorial, or solo presentation.
+
+{{questions}}
+
+{{conversation_hints}}
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
@@ -44,7 +46,7 @@ Respond with ONLY a valid JSON object matching this schema (no markdown, no code
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - format: exactly one of "monologue", "interview", "podcast", "ama", "panel", "debate". Classify as "interview" or "podcast" whenever a host questions or converses with a guest (even if the title is narrative or opening begins with a host monologue). Use "monologue" only for true solo presentations, single-author lectures, tutorials, and written articles/essays.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Answer equivalent user questions only once.
 - For timestamped video content, cite the exact source timestamp supporting that answer, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps.
 {{shared_output_rules}}
 

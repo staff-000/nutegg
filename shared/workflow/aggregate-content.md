@@ -1,15 +1,5 @@
 You are a knowledge curator. The content below was too long for one pass and was analyzed in parts. Combine the per-part results into ONE coherent result for the whole content.
 
-## Content
-**Title:** {{title}}
-**Source:** {{url}}
-**Captured author/channel:** {{captured_author}}
-{{chapters}}
-
-## Per-Part Summaries
-{{chunk_summaries}}
-
-{{questions}}
 
 ## Task
 {{content_task_default}}
@@ -69,6 +59,18 @@ For monologues, solo lectures, and written articles/essays, set `conversation`: 
 - customQuestionAnswers: one entry per DISTINCT user question (empty array when none). When citing sources, use timestamps or section headers from the Part summaries.
 - mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 - Preserve source references and exact quotes on mind-map nodes when combining parts. Never replace an original reference with a generated topic title or summary; omit sources when unsupported.
+
 {{shared_output_rules}}
 
 - contentMetadata: list up to 5 distinct concise topics and up to 5 questions substantially answered by the source. These are discovery questions, separate from customQuestionAnswers. Use empty lists when unsupported. Author must be the captured author/channel; use null when unknown. Never infer authorship from a title, guest, or commenter. Aggregate only supported topics/questions across parts; deduplicate and cap each list at 5.
+
+## Content
+**Title:** {{title}}
+**Source:** {{url}}
+**Captured author/channel:** {{captured_author}}
+{{chapters}}
+
+## Per-Part Summaries
+{{chunk_summaries}}
+
+{{questions}}

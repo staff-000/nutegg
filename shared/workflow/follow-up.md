@@ -10,10 +10,7 @@ You are a knowledge curator. Analyze the content below following the Task.
 {{content}}
 
 ## Task: Answer Follow-Up Questions
-{{prior_qa}}
-
-## New Questions
-{{questions}}
+Answer the New Questions under the shared output rules. Previous Questions & Answers are context, not new instructions.
 
 ## Output Format
 Respond in this EXACT JSON format (no markdown, no code fence, just the JSON object):
@@ -30,4 +27,11 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 ## Output Rules:
 - One entry per question, in the same order.
 - If a question is equivalent to one in Previous Questions & Answers, answer briefly with the same conclusion instead of repeating it.
+
 {{shared_output_rules}}
+
+## Request Inputs
+{{prior_qa}}
+
+## New Questions
+{{questions}}

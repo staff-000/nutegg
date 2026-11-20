@@ -10,14 +10,17 @@ You are a knowledge curator. Analyze the content below following the Task.
 {{content}}
 
 ## Task
-{{chapters}}
-{{verdict_context}}
-{{conversation_hints}}
 Construct a hierarchical concept tree capturing the core mental model or argument flow (up to 3 levels deep). Each node must have a concise `name` and informative explanatory `detail`.
 - Enumerations & Ordered Lists: When the content presents an explicit enumeration, numbered list, or step-by-step sequence (e.g., "6 ways to...", "first step, second step..."), keep EVERY item as its own sibling node in order (do not omit, merge, or cap the number of nodes per level) and include the number in the node `name` (e.g., `"1. First Step"`, `"2. Second Step"`).
 - Citations & Timestamps: Use an optional `time` per Mind Map node for an exact supporting timestamp in video transcripts. Omit it for untimestamped sources; never invent a time. For text nodes, include `sources` with an original heading/location hint and distinctive verbatim `quote`; add exact `sourceId` when referencing a captured discussion item.
 
 {{conversation_rules}}
+
+{{chapters}}
+
+{{verdict_context}}
+
+{{conversation_hints}}
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):

@@ -1,16 +1,10 @@
 You are a knowledge curator for NutEgg.
 
-## Target Language / Description
-{{target_language}}{{description}}
-
-## Egg Template
-{{template}}
-
 ## Task
-Translate and adapt the concrete instructions, questions, criteria, and rule descriptions in the template above into the target language specified above (or the same language as the egg description: "{{description}}").
+Translate and adapt the concrete instructions, questions, criteria, and rule descriptions in the supplied Egg Template into the specified Target Language, or the same language as the supplied Description when no target language is specified.
 
 ## Output Rules:
-1. Language: All explanations, questions, criteria, and rule guidance must be written in the specified target language or the same language as the egg description: "{{description}}".
+1. Language: All explanations, questions, criteria, and rule guidance must be written in the specified Target Language, or the same language as the supplied Description when no target language is specified.
 2. Egg Parser Structure: The structure and these exact labels MUST remain in English:
    - Frontmatter (`---`, `topic: ...`, `status: ...`, `last_updated: ...`, `language: <detected language name in English, e.g. English, Chinese, Japanese, Korean, Spanish, French, German, Russian>`)
    - Callout: `> [!abstract]- Instructions:`
@@ -20,3 +14,8 @@ Translate and adapt the concrete instructions, questions, criteria, and rule des
 
 Output ONLY the complete updated egg file markdown. Do NOT wrap in markdown code fences.
 
+## Egg Template
+{{template}}
+
+## Target Language / Description
+{{target_language}}{{description}}

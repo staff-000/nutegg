@@ -41,7 +41,7 @@ describe("PROMPTS", () => {
     const all = Object.values(PROMPTS).join("\n");
     const used = new Set([...all.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]));
     const known = [
-      "title", "url", "source_type", "chapters", "questions",
+      "title", "url", "captured_author", "source_type", "chapters", "questions",
       "content", "egg_file",
       "egg_instructions", "prior_qa", "index",
       // content task & shared rules

@@ -87,7 +87,7 @@ export async function chatAI(
     throw new AIError('no_api_key', 'No AI API key configured. Open settings and enter your API key.');
   return trackAIRequest(
     prompt,
-    async () => {
+    async (_markRunning, recordCacheUsage) => {
       try {
         const response = await new OpenAI(config.client).chat.completions.create(
           {
@@ -97,6 +97,7 @@ export async function chatAI(
           },
           { signal, timeoutMs: 180000 }
         );
+        recordCacheUsage(response);
         return response.choices[0].message.content || '';
       } catch (error) {
         // Presentation translation only; BYOKit owns transport, safety, and retries.

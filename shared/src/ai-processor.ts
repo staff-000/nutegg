@@ -238,8 +238,24 @@ export function applyPrunedSections(tpl: string, sections: AnalysisSectionsConfi
     const nextHeaderMatch = out.slice(afterFormat).search(/\n##\s+/);
     const endOfFormatIdx = nextHeaderMatch !== -1 ? afterFormat + nextHeaderMatch : out.length;
     const formatSection = out.slice(formatIdx, endOfFormatIdx);
-    const startBrace = formatSection.indexOf('{');
-    const endBrace = formatSection.lastIndexOf('}');
+    // Prefer the standalone schema over inline JSON examples in the prose.
+    // Stop at its matching brace, rather than consuming later placeholders or examples.
+    const schemaStart = /(?:^|\n)[ \t]*\{/.exec(formatSection);
+    const startBrace = schemaStart
+      ? schemaStart.index + schemaStart[0].lastIndexOf('{')
+      : formatSection.indexOf('{');
+    let endBrace = -1;
+    let depth = 0, quoted = false, escaped = false;
+    for (let i = startBrace; i >= 0 && i < formatSection.length; i++) {
+      const char = formatSection[i];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') quoted = false;
+      } else if (char === '"') quoted = true;
+      else if (char === '{') depth++;
+      else if (char === '}' && --depth === 0) { endBrace = i; break; }
+    }
     if (startBrace !== -1 && endBrace !== -1 && endBrace > startBrace) {
       const schemaBody = formatSection.slice(startBrace, endBrace + 1);
       const pruned = pruneSchemaFromTemplate(schemaBody, sections);

@@ -15,7 +15,7 @@ test('AI diagnostics count overlapping requests and prompt words, and release fa
   assert.equal(core.getAIDebugInfo().totalCalls, before.totalCalls + 2);
   assert.equal(core.getAIDebugInfo().promptWords, before.promptWords + 6);
   assert.equal(core.getAIDebugInfo().lastPromptWords, 3);
-  assert.deepEqual(Object.keys(core.getAIDebugInfo()).sort(), ['activeCalls', 'cancelledCalls', 'completedCalls', 'diagnosticsVersion', 'epoch', 'failedCalls', 'lastCallAt', 'lastPromptWords', 'promptWords', 'startedAt', 'totalCalls', 'waitingCalls']);
+  assert.deepEqual(Object.keys(core.getAIDebugInfo()).sort(), ['activeCalls', 'cacheReadTokens', 'cacheReportedCalls', 'cacheWriteTokens', 'cancelledCalls', 'completedCalls', 'diagnosticsVersion', 'epoch', 'failedCalls', 'lastCallAt', 'lastPromptWords', 'promptWords', 'startedAt', 'totalCalls', 'waitingCalls']);
   a.resolve('done'); await first; assert.equal(core.getAIDebugInfo().activeCalls, before.activeCalls + 1);
   const failure = assert.rejects(second, /failed/); b.reject(new Error('failed')); await failure;
   assert.equal(core.getAIDebugInfo().activeCalls, before.activeCalls);
@@ -347,4 +347,28 @@ test('debug responses from an obsolete mode generation cannot win after switchin
   polls[0].resolve({ mode: 'chrome', totalCalls: 99 }); await oldChrome;
   polls[1].resolve({ mode: 'obsidian', totalCalls: 88 }); await obsidian;
   assert.equal(store.debugInfo, null);
+});
+
+test('cache diagnostics distinguish unreported usage, cache misses and provider cache reads without storing text', async () => {
+  const scope = 'cache-usage-tab';
+  for (const response of [
+    { usage: { prompt_tokens: 100 } },
+    { usage: { prompt_tokens_details: { cached_tokens: 0 } } },
+    { usage: { prompt_tokens_details: { cached_tokens: 1280 } } },
+    { usage: { cache_read_input_tokens: 2048, cache_creation_input_tokens: 256 } },
+    { usageMetadata: { cachedContentTokenCount: 4096 } },
+    { usage: { total_cached_tokens: 512 } },
+    { usage: { prompt_tokens_details: { cached_tokens: -1 }, cache_creation_input_tokens: '100' } },
+  ]) {
+    await core.trackAIRequest('Private prompt', async (_start, record) => {
+      record(response); record(response); // A request reports at most once.
+      return 'Private result';
+    }, scope);
+  }
+  const info = core.getAIDebugInfo(scope);
+  assert.equal(info.cacheReportedCalls, 5);
+  assert.equal(info.cacheReadTokens, 7936);
+  assert.equal(info.cacheWriteTokens, 256);
+  assert.ok(!JSON.stringify(info).includes('Private'));
+  assert.equal(info.completedCalls, 7);
 });

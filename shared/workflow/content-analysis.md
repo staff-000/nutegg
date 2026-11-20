@@ -10,12 +10,15 @@ You are a knowledge curator. Analyze the content below following the Task.
 {{content}}
 
 ## Task
-{{chapters}}
-{{questions}}
-{{conversation_hints}}
 {{content_task_default}}
 
 {{conversation_rules}}
+
+{{chapters}}
+
+{{questions}}
+
+{{conversation_hints}}
 
 ## Output Format
 Respond with ONLY a valid JSON object matching this schema (no markdown, no code fence, just the JSON object):
@@ -76,9 +79,10 @@ For monologues, solo lectures, and written articles/essays, set `conversation`: 
 - titleVerdict must be a single sentence.
 - coreSummary: at most 3 bullets, plain language.
 - mindMap: main branches/topics directly at the root level (do NOT wrap everything in a single overall root node; start directly with the main themes/sections), up to 3 levels deep total. Each node has a concise name and rich explanatory detail (1-2 sentences). Structure logically to form an outline/mind map of the author's ideas.
-- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Skip any user question that is equivalent in meaning to an Egg Key Question above or to another user question — answer it only once.
+- customQuestionAnswers: one entry per DISTINCT user question (empty array when none). Answer equivalent user questions only once.
 - mindMap time: optional at any node. For timestamped video content, cite the exact source timestamp supporting that node, as MM:SS or H:MM:SS. Omit time when unavailable; never invent timestamps. Preserve source timestamps when combining branches, and do not substitute chunk start times for evidence.
 - Preserve source references and exact quotes on mind-map nodes when combining parts. Never replace an original reference with a generated topic title or summary; omit sources when unsupported.
+
 {{shared_output_rules}}
 
 - contentMetadata: list up to 5 distinct concise topics and up to 5 questions substantially answered by the source. These are discovery questions, separate from customQuestionAnswers. Use empty lists when unsupported. Author must be the captured author/channel; use null when unknown. Never infer authorship from a title, guest, or commenter. Aggregate only supported topics/questions across parts; deduplicate and cap each list at 5.

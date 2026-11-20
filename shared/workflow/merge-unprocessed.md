@@ -1,13 +1,4 @@
-You are a knowledge curator for the egg file "{{egg_file}}". The Unprocessed section has accumulated {{unprocessed_count}} entries — merge them into the knowledge tree below.
-
-## Formatting Rules
-{{formatting_rules}}
-
-## Existing Knowledge Tree
-{{knowledge_tree}}
-
-## Entries to Merge
-{{unprocessed}}
+You are a knowledge curator. Merge the pending entries into the target egg knowledge tree according to the task.
 
 ## Task
 1. Preserve existing user-authored branches and structure. Do not delete or rename them.
@@ -28,3 +19,17 @@ Respond in this EXACT JSON format (no markdown, no code fence, just the JSON obj
 
 ## Output Rules:
 - Output Language: write ALL output text (knowledge entries, explanations) in {{output_language}}. Keep JSON keys in English.
+
+## Target Egg
+File: {{egg_file}}
+## Formatting Rules
+{{formatting_rules}}
+
+## Existing Knowledge Tree
+{{knowledge_tree}}
+
+## Entries to Merge
+{{unprocessed}}
+
+## Entry Count
+{{unprocessed_count}}

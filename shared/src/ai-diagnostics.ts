@@ -8,6 +8,9 @@ const createStats = (startedAt = Date.now()) => ({
   totalCalls: 0,
   promptWords: 0,
   lastPromptWords: 0,
+  cacheReportedCalls: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
   lastCallAt: 0,
   startedAt,
 });
@@ -116,7 +119,7 @@ export function countPromptWords(prompt: string): number {
 
 export async function trackAIRequest<T>(
   prompt: string,
-  request: (markRunning: () => void) => Promise<T>,
+  request: (markRunning: () => void, recordCacheUsage: (response: unknown) => void) => Promise<T>,
   scope?: string,
   options: { queued?: boolean; signal?: AbortSignal } = {}
 ): Promise<T> {
@@ -148,6 +151,25 @@ export async function trackAIRequest<T>(
     }
     state = 'running';
   };
+  // Optional provider observations, never estimates from prompt length or retained text.
+  // An absent field means unreported; an explicit zero is a reported cache miss.
+  let cacheRecorded = false;
+  const recordCacheUsage = (response: any) => {
+    if (cacheRecorded || state === 'finished') return;
+    const usage = response?.usage;
+    const valid = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+    const reads = [usage?.prompt_tokens_details?.cached_tokens, usage?.cache_read_input_tokens,
+      response?.usageMetadata?.cachedContentTokenCount, response?.usage?.total_cached_tokens];
+    const read = reads.find(valid);
+    const write = usage?.cache_creation_input_tokens;
+    if (!valid(read) && !valid(write)) return;
+    cacheRecorded = true;
+    for (const counter of counters) {
+      counter.cacheReportedCalls++;
+      counter.cacheReadTokens += valid(read) ? read : 0;
+      counter.cacheWriteTokens += valid(write) ? write : 0;
+    }
+  };
   const finish = (outcome: 'completedCalls' | 'failedCalls' | 'cancelledCalls') => {
     if (state === 'finished') return;
     for (const counter of counters) {
@@ -170,7 +192,7 @@ export async function trackAIRequest<T>(
   options.signal?.addEventListener('abort', abort, { once: true });
   pruneIdleScopes();
   try {
-    const result = await request(markRunning);
+    const result = await request(markRunning, recordCacheUsage);
     options.signal?.throwIfAborted();
     finish('completedCalls');
     return result;
