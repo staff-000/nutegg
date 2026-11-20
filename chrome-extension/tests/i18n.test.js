@@ -45,7 +45,7 @@ describe("Chrome Extension i18n", () => {
     const formatted = t("chapterJumpHint", {});
     assert.ok(formatted);
     assert.strictEqual(t("countMatched", { count: 3 }), "— 3 matched");
-    assert.strictEqual(t("unprocessedParent", { parent: "Tech" }), "🐣 → Unprocessed · suggested under: <strong>Tech</strong>");
+    assert.strictEqual(t("unprocessedParent", { parent: "Tech" }), "🐣 → Unprocessed · suggested under: Tech");
   });
 
   it("translates all required popup keys across all 10 languages", () => {

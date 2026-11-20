@@ -187,7 +187,8 @@
 
   function getHintText(key, fallback) {
     try {
-      const msg = typeof globalScope.t === 'function' ? globalScope.t(key) : '';
+      const translate = globalScope.NutEggI18n?.t || globalScope.t;
+      const msg = typeof translate === 'function' ? translate(key) : '';
       if (msg && msg !== key) return msg;
     } catch {}
     return fallback;

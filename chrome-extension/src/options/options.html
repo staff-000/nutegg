@@ -245,7 +245,7 @@
         </div>
         <div class="ai-assistant-examples" aria-label="Example prompts">
           <span class="ai-assistant-examples-label" data-i18n="aiAssistantExamplesLabel">Try:</span>
-          <div class="ai-assistant-chips">
+          <div class="ai-assistant-chips" data-hints="off">
             <button
               type="button"
               class="ai-assistant-chip"
@@ -288,7 +288,7 @@
           aria-label="Describe the settings you want to change"
           data-i18n-aria-label="aiAssistantTitle"
         ></textarea>
-        <div class="ai-assistant-actions">
+        <div class="ai-assistant-actions" data-hints="off">
           <button id="ai-assistant-apply-btn" type="button" class="primary-btn" data-i18n="aiAssistantApplyBtn">
             Apply with AI
           </button>
@@ -600,9 +600,9 @@
                   Knowledge Extraction (Default)
                 </option>
                 <option value="followUp" data-i18n="promptOptFollowUp">Follow-up Q&amp;A</option>
-                <option value="discussionAnalysis">Discussion Analysis</option>
-                <option value="aggregateDiscussion">Combine Discussion Batches</option>
-                <option value="conversationRules">Conversation &amp; Podcast Rules</option>
+                <option value="discussionAnalysis" data-i18n="promptOptDiscussion">Discussion Analysis</option>
+                <option value="aggregateDiscussion" data-i18n="promptOptAggregateDiscussion">Combine Discussion Batches</option>
+                <option value="conversationRules" data-i18n="promptOptConversationRules">Conversation &amp; Podcast Rules</option>
               </select>
               <textarea
                 id="ai-prompt-textarea"
