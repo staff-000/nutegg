@@ -196,17 +196,18 @@ class TabAction {
     this.store.invalidateTab(tabId, '', true);
   }
   async openAnalysisActivity(tabId) {
-    if (globalThis.NutEggPanel?.context && tabId !== globalThis.NutEggPanel.context.tabId) return;
+    const isForeignInjectedTab = Boolean(globalThis.NutEggPanel?.context && tabId !== globalThis.NutEggPanel.context.tabId);
     const record = this.store.getTab(tabId);
-    if (!record) return;
-    const generation = record.pageGeneration;
+    if (!record && !isForeignInjectedTab) return;
+    const generation = record?.pageGeneration;
     const epoch = this.store.activationEpoch;
     try {
       await chrome.tabs.update(tabId, { active: true });
     } catch {
-      if (this.store.getTab(tabId)?.pageGeneration === generation) this.store.invalidateTab(tabId, '', true);
+      if (record && this.store.getTab(tabId)?.pageGeneration === generation) this.store.invalidateTab(tabId, '', true);
       return;
     }
+    if (isForeignInjectedTab) return;
     // Guard belongs to the store; a closed or navigated page must stay invalid.
     if (this.store.getTab(tabId)?.pageGeneration !== generation) return;
     if (this.store.activationEpoch !== epoch && this.store.activeTabId !== tabId) return;

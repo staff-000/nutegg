@@ -78,3 +78,24 @@ test('Stage 2 can wait again and failed analyses appear in activity until select
   assert.equal(failedEntries[0].failed, true);
   assert.equal(failedEntries[0].errorMessage, 'Failed');
 });
+
+test('injected panel switches browser tab on activity click without hijacking current iframe', async t => {
+  const oldChrome = globalThis.chrome;
+  const oldPanel = globalThis.NutEggPanel;
+  t.after(() => {
+    globalThis.chrome = oldChrome;
+    globalThis.NutEggPanel = oldPanel;
+  });
+  const { store, operations } = fixture();
+  store.ensure(2);
+  store.activateTab(2);
+  const a = store.beginOperation(1, 'analysis');
+  store.commitOperation(a.token, { type: 'analysisComplete', result: { titleVerdict: 'A' } });
+  let updated = null;
+  globalThis.chrome = { tabs: { update: async id => { updated = id; } } };
+  globalThis.NutEggPanel = { context: { tabId: 2 } };
+  const action = new TabAction({ tabStateManager: store, operations, settings: {}, envService: { checkServerStatus: async () => {} } });
+  await action.openAnalysisActivity(1);
+  assert.equal(updated, 1);
+  assert.equal(store.activeTabId, 2);
+});
